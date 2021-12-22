@@ -1,0 +1,282 @@
+
+use super::{ast, LexicalError};
+use super::token::{Token, Location};
+
+grammar;
+
+pub Program: ast::Program = {
+    <imports:Import*>
+    <functions:FunctionDef*>
+    => {
+        ast::Program { imports, functions }
+    }
+};
+
+Import: ast::Import = {
+    <location:@L> "import" <name:Identifier> => {
+        ast::Import {
+            location,
+            name
+        }
+    }
+};
+
+FunctionDef: ast::FunctionDef = {
+    <public:"pub"?> <location:@L> "fn" <name:Identifier> "(" <parameters:Comma<Parameter>> ")" ":" <body:Block> => {
+        let public = public.is_some();
+        ast::FunctionDef {
+            location,
+            name,
+            public,
+            parameters,
+            body
+        }
+    }
+};
+
+Parameter: ast::Parameter = {
+    <location:@L> <name:Identifier> ":" <typ:Expression> => {
+        ast::Parameter {
+            location,
+            name,
+            typ,
+        }
+    }
+};
+
+Statement: ast::Statement = {
+    <location:@L> "if" <condition:Condition> ":" <if_true:Block> <if_false:("else" ":" Block)?> => {
+        let if_false = if_false.map(|e|e.2);
+        ast::Statement {
+            location,
+            kind: ast::StatementType::If {
+                condition,
+                if_true,
+                if_false,
+            }
+        }
+    },
+    <location:@L> "let" <mutable:"mut"?> <name:Identifier> "=" <value:Expression> => {
+        let mutable: bool = mutable.is_some();
+        ast::Statement {
+            location,
+            kind: ast::StatementType::Let {
+                name,
+                mutable,
+                value,
+            }
+        }
+    },
+    <location:@L> "while" <condition:Condition> ":" <body:Block> => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::While {
+                condition,
+                body,
+            }
+        }
+    },
+    <location:@L> "loop" ":" <body:Block> => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::Loop {
+                body,
+            }
+        }
+    },
+    <location:@L> "break" => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::Break
+        }
+    },
+    <location:@L> "continue" => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::Continue
+        }
+    },
+    <e:Expression> => {
+        ast::Statement {
+            location: e.location.clone(),
+            kind: ast::StatementType::Expression(e)
+        }
+    }
+};
+
+Block: ast::Block = {
+    Indent <statements:Statement+> Dedent => statements
+};
+
+Condition: ast::Expression = {
+    Comparison,
+};
+
+//OrTest: ast::Expression = {
+//    <e1:AndTest> "or"
+//};
+
+Comparison: ast::Expression = {
+    <lhs:Expression> <location:@L> <op:CmpOp> <rhs:Expression> => {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        let op = ast::BinaryOperator::Comparison(op);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+        }
+    }
+};
+
+CmpOp: ast::ComparisonOperator = {
+    "<" => ast::ComparisonOperator::Lt,
+    "<=" => ast::ComparisonOperator::LtEqual,
+    ">" => ast::ComparisonOperator::Gt,
+    ">=" => ast::ComparisonOperator::GtEqual,
+    "==" => ast::ComparisonOperator::Equal,
+};
+
+Expression: ast::Expression = {
+    ArithmaticExpression,
+};
+
+ArithmaticExpression: ast::Expression = {
+    <lhs:ArithmaticExpression> <location:@L> <op:AddOp> <rhs:Term> => {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        let op = ast::BinaryOperator::Math(op);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+        }
+    },
+    Term,
+};
+
+AddOp: ast::MathOperator = {
+    "+" => ast::MathOperator::Add,
+    "-" => ast::MathOperator::Sub,
+};
+
+Term: ast::Expression = {
+    <lhs:Atom2> <location:@L> <op:MulOp> <rhs:Term> => {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        let op = ast::BinaryOperator::Math(op);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+        }
+    },
+    Atom2,
+};
+
+MulOp: ast::MathOperator = {
+    "*" => ast::MathOperator::Mul,
+    "/" => ast::MathOperator::Div,
+};
+
+Atom2: ast::Expression = {
+    Atom,
+    <location:@L> <callee:Atom2> "(" <arguments:Comma<Expression>> ")" => {
+        let callee = Box::new(callee);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Call {
+                callee,
+                arguments
+            }
+        }
+    },
+    <base:Atom2> <location:@L> "." <attr:Identifier> => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::GetAttr {
+                base: Box::new(base),
+                attr
+            }
+        }
+    },
+};
+
+Atom: ast::Expression = {
+    <location:@L> <s:String> => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::String(s)
+        }
+    },
+    <location:@L> <n:Number> => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Integer(n)
+        }
+    },
+    <location:@L> <n:FloatingPoint> => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Float(n)
+        }
+    },
+    <location:@L> <n:Identifier> => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Identifier(n)
+        }
+    },
+    //"(" <e:Expression> ")" => {
+        //e
+    //},
+};
+
+#[inline]
+Comma<T>: Vec<T> = {
+    <items: (<T> ",")*> <last: T?> => {
+        let mut items = items;
+        items.extend(last);
+        items
+    }
+};
+
+extern {
+    type Location = Location;
+    type Error = LexicalError;
+
+    enum Token {
+        Number => Token::Number { value: <i64> },
+        FloatingPoint => Token::FloatingPoint { value: <f64> },
+        String => Token::String { value: <String> },
+        Identifier => Token::Identifier { value: <String> },
+        Indent => Token::Indent,
+        Dedent => Token::Dedent,
+        "and" => Token::KeywordAnd,
+        "break" => Token::KeywordBreak,
+        "continue" => Token::KeywordContinue,
+        "else" => Token::KeywordElse,
+        "fn" => Token::KeywordFn,
+        "for" => Token::KeywordFor,
+        "if" => Token::KeywordIf,
+        "import" => Token::KeywordImport,
+        "let" => Token::KeywordLet,
+        "loop" => Token::KeywordLoop,
+        "mut" => Token::KeywordMut,
+        "or" => Token::KeywordOr,
+        "pub" => Token::KeywordPub,
+        "while" => Token::KeywordWhile,
+        "(" => Token::OpeningParenthesis,
+        ")" => Token::ClosingParenthesis,
+        ":" => Token::Colon,
+        "," => Token::Comma,
+        "." => Token::Dot,
+        "<" => Token::Less,
+        "<=" => Token::LessEqual,
+        ">" => Token::Greater,
+        ">=" => Token::GreaterEqual,
+        "==" => Token::DoubleEqual,
+        "=" => Token::Equal,
+        "*" => Token::Asterix,
+        "/" => Token::Slash,
+        "+" => Token::Plus,
+        "-" => Token::Minus,
+    }
+}
