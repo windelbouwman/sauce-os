@@ -13,7 +13,7 @@ lalrpop_mod!(
 );
 
 pub fn parse_src(source: &str) -> Result<ast::Program, CompilationError> {
-    let lexer = Lexer::new(&source);
+    let lexer = Lexer::new(source);
 
     let prog = funky::ProgramParser::new().parse(lexer)?;
     Ok(prog)

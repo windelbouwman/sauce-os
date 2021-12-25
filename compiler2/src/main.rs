@@ -7,10 +7,11 @@ mod type_system;
 mod typecheck;
 mod typed_ast;
 
+use bytecode::print_bytecode;
 use errors::{print_error, CompilationError};
 use parsing::parse_src;
 
-fn main() {
+fn main() -> Result<(), ()> {
     let matches = clap::App::new("Compiler")
         .version("0")
         .author("Windel Bouwman")
@@ -27,10 +28,15 @@ fn main() {
                 .help("Sets level of verbosity"),
         )
         .arg(
+            clap::Arg::with_name("dump-bytecode")
+                .long("dump-bytecode")
+                .help("Spit out bytecode intermediate format."),
+        )
+        .arg(
             clap::Arg::with_name("output")
                 .long("output")
                 .takes_value(true)
-                .help("Sets level of verbosity"),
+                .help("Where to write the output to"),
         )
         .get_matches();
 
@@ -47,28 +53,57 @@ fn main() {
 
     let path = std::path::Path::new(matches.value_of("source").unwrap());
     let output_path = matches.value_of("output").map(std::path::Path::new);
-    match compile(&path, output_path) {
+    let options = CompileOptions {
+        dump_bc: matches.is_present("dump-bytecode") || verbosity > 5,
+        dump_ast: verbosity > 5,
+        dump_src: verbosity > 5,
+    };
+    match compile(path, output_path, &options) {
         Ok(()) => {
             log::info!("Great okidoki");
+            Ok(())
         }
         Err(err) => {
             log::error!("Compilation errors");
             print_error(path, err);
+            Err(())
         }
     }
+}
+
+struct CompileOptions {
+    dump_src: bool,
+    dump_ast: bool,
+    dump_bc: bool,
 }
 
 fn compile(
     path: &std::path::Path,
     output_path: Option<&std::path::Path>,
+    options: &CompileOptions,
 ) -> Result<(), CompilationError> {
     log::info!("Reading: {}", path.display());
-    let source = std::fs::read_to_string(path).unwrap();
+    let source = std::fs::read_to_string(path).map_err(|err| {
+        CompilationError::simple(format!("Error opening {}: {}", path.display(), err))
+    })?;
+    if options.dump_src {
+        log::debug!("Dumpin sourcecode below");
+        println!("{}", source);
+    }
     let prog = parse_src(&source)?;
     log::info!("Parsing done&done");
     let typed_prog = typecheck::type_check(prog)?;
     log::info!("Type check done&done");
+    if options.dump_ast {
+        log::debug!("Dumping typed AST");
+        typed_ast::print_ast(&typed_prog);
+    }
     let bc = ir_gen::gen(typed_prog);
+
+    if options.dump_bc {
+        log::debug!("Dumpin bytecode below");
+        print_bytecode(&bc);
+    }
 
     // ============
     // HERE BEGINS STAGE 2
@@ -81,7 +116,7 @@ fn compile(
     // println!("{}", serialized);
 
     if let Some(output_path) = output_path {
-        log::info!("Writing to: {}", output_path.display());
+        log::info!("Writing LLVM code to: {}", output_path.display());
         let mut output_writer = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -89,6 +124,7 @@ fn compile(
             .unwrap();
         llvm_backend::create_llvm_text_code(bc, &mut output_writer);
     } else {
+        log::info!("Output file not given, dumping LLVM code to stdout");
         let mut buf2 = vec![];
         llvm_backend::create_llvm_text_code(bc, &mut buf2);
         println!("And result: {}", std::str::from_utf8(&buf2).unwrap());

@@ -2,9 +2,13 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MyType {
+    Bool,
     Int,
     Float,
     String,
+
+    /// A custom defined struct type!
+    Struct(StructType),
 
     /// Type of a type (inception enable=1!)
     // Typ,
@@ -16,6 +20,29 @@ pub enum MyType {
     Module {
         exposed: HashMap<String, MyType>,
     },
+}
+
+impl MyType {
+    pub fn new_struct(fields: Vec<(String, MyType)>) -> Self {
+        MyType::Struct(StructType { fields })
+    }
+}
+
+/// A custom defined struct type!
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructType {
+    fields: Vec<(String, MyType)>,
+}
+
+impl StructType {
+    pub fn get_field(&self, name: &str) -> Option<MyType> {
+        for field in &self.fields {
+            if field.0 == name {
+                return Some(field.1.clone());
+            }
+        }
+        None
+    }
 }
 
 // impl MyType {

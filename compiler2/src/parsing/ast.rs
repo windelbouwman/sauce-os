@@ -2,12 +2,26 @@ use super::token::Location;
 
 pub struct Program {
     pub imports: Vec<Import>,
+    pub typedefs: Vec<StructDef>,
     pub functions: Vec<FunctionDef>,
 }
 
 pub struct Import {
     pub location: Location,
     pub name: String,
+}
+
+/// A user defined struct data type.
+pub struct StructDef {
+    pub location: Location,
+    pub name: String,
+    pub fields: Vec<StructDefField>,
+}
+
+pub struct StructDefField {
+    pub location: Location,
+    pub name: String,
+    pub typ: Expression,
 }
 
 pub struct FunctionDef {
@@ -57,7 +71,6 @@ pub enum StatementType<S, E> {
     Continue,
 }
 
-// TODO: remove need for clone!
 #[derive(Debug)]
 pub struct Expression {
     pub location: Location,
@@ -70,6 +83,11 @@ pub enum ExpressionType<E> {
     Identifier(String),
     Integer(i64),
     Float(f64),
+    Bool(bool),
+    StructLiteral {
+        name: String,
+        fields: Vec<StructLiteralField>,
+    },
     Call {
         callee: Box<E>,
         arguments: Vec<E>,
@@ -86,9 +104,23 @@ pub enum ExpressionType<E> {
 }
 
 #[derive(Debug)]
+pub struct StructLiteralField {
+    pub location: Location,
+    pub name: String,
+    pub value: Expression,
+}
+
+#[derive(Debug)]
 pub enum BinaryOperator {
     Math(MathOperator),
     Comparison(ComparisonOperator),
+    Logic(LogicOperator),
+}
+
+#[derive(Debug)]
+pub enum LogicOperator {
+    And,
+    Or,
 }
 
 #[derive(Debug)]
@@ -106,4 +138,5 @@ pub enum ComparisonOperator {
     LtEqual,
     GtEqual,
     Equal,
+    NotEqual,
 }

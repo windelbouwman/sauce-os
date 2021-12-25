@@ -27,19 +27,43 @@ pub struct Parameter {
 
 #[derive(Debug, Serialize)]
 pub enum Instruction {
-    Nop,
-    StringLiteral(String),
+    // Nop,
+    BoolLiteral(bool),
     IntLiteral(i64),
     FloatLiteral(f64),
-    Call { n_args: usize, typ: Option<Typ> },
-    Operator { op: Operator, typ: Typ },
-    Comparison { op: Comparison, typ: Typ },
+    StringLiteral(String),
+
+    Call {
+        n_args: usize,
+        typ: Option<Typ>,
+    },
+    Operator {
+        op: Operator,
+        typ: Typ,
+    },
+    Comparison {
+        op: Comparison,
+        typ: Typ,
+    },
     LoadGlobalName(String),
-    LoadName { name: String, typ: Typ },
+    LoadName {
+        name: String,
+        typ: Typ,
+    },
+    StoreLocal {
+        name: String,
+        typ: Typ,
+    },
+
     Label(usize),
     Jump(usize),
     JumpIf(usize, usize),
-    // GetAttr(String),
+
+    /// Get the n-th attribute of a struct typed object
+    GetAttr(usize),
+
+    /// Set the n-th attribute of a struct typed thing
+    SetAttr(usize),
 }
 
 #[derive(Debug, Serialize)]
@@ -47,18 +71,41 @@ pub enum Operator {
     Add,
     Sub,
     Mul,
+    Div,
 }
 
 #[derive(Debug, Serialize)]
 pub enum Typ {
+    Bool,
     Int,
     Float,
     Ptr,
+
+    /// The structured type, contains a sequence of types.
+    /// fields are accessed by index
+    Struct(Vec<Typ>),
 }
 
 #[derive(Debug, Serialize)]
 pub enum Comparison {
     Lt,
+    LtEqual,
     Gt,
+    GtEqual,
     Equal,
+    NotEqual,
+}
+
+pub fn print_bytecode(bc: &Program) {
+    for func in &bc.functions {
+        println!("Function: {}", func.name);
+        print_instructions(&func.code);
+    }
+}
+
+fn print_instructions(instructions: &[Instruction]) {
+    println!("  Instructionzzz:");
+    for instruction in instructions {
+        println!("    : {:?}", instruction);
+    }
 }

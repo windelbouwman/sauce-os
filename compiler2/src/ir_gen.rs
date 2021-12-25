@@ -10,32 +10,15 @@ use super::type_system::MyType;
 use super::typed_ast;
 
 pub fn gen(prog: typed_ast::Program) -> bytecode::Program {
-    log::info!("IR-gen ");
-
+    log::info!("Generating IR bytecode");
     let mut g = Generator::new();
-    let bc = g.gen_prog(prog);
-
-    // print_bc(&bc);
-    bc
-}
-
-fn print_bc(bc: &bytecode::Program) {
-    for func in &bc.functions {
-        println!("Function: {}", func.name);
-        print_instructions(&func.code);
-    }
-}
-
-fn print_instructions(instructions: &Vec<Instruction>) {
-    println!("  Instructionzzz:");
-    for instruction in instructions {
-        println!("    : {:?}", instruction);
-    }
+    g.gen_prog(prog)
 }
 
 struct Generator {
     instructions: Vec<Instruction>,
     _id_counter: usize,
+    loop_stack: Vec<(usize, usize)>,
 }
 
 impl Generator {
@@ -43,6 +26,7 @@ impl Generator {
         Generator {
             instructions: vec![],
             _id_counter: 0,
+            loop_stack: vec![],
         }
     }
 
@@ -56,7 +40,7 @@ impl Generator {
         bytecode::Program { imports, functions }
     }
 
-    fn gen_func(&mut self, func: typed_ast::TypedFunctionDef) -> bytecode::Function {
+    fn gen_func(&mut self, func: typed_ast::FunctionDef) -> bytecode::Function {
         log::debug!("Gen code for {}", func.name);
         self.gen_block(func.body);
 
@@ -69,7 +53,7 @@ impl Generator {
             })
             .collect();
 
-        let instructions = std::mem::replace(&mut self.instructions, vec![]);
+        let instructions = std::mem::take(&mut self.instructions);
         bytecode::Function {
             name: func.name,
             parameters,
@@ -95,16 +79,18 @@ impl Generator {
 
     fn gen_statement(&mut self, statement: typed_ast::Statement) {
         match statement.kind {
-            typed_ast::StatementType::Let { name: _, value } => {
-                // TODO: store value?
+            typed_ast::StatementType::Let { name, value } => {
+                let typ = Self::get_bytecode_typ(&value.typ);
                 self.gen_expression(value);
+                // store value in local variable:
+                self.emit(Instruction::StoreLocal { name, typ });
             }
             typed_ast::StatementType::Break => {
-                let target_label = 0; // TODO!
+                let target_label = self.loop_stack.last().unwrap().1;
                 self.emit(Instruction::Jump(target_label));
             }
             typed_ast::StatementType::Continue => {
-                let target_label = 0; // TODO!
+                let target_label = self.loop_stack.last().unwrap().0;
                 self.emit(Instruction::Jump(target_label));
             }
             typed_ast::StatementType::If {
@@ -114,10 +100,9 @@ impl Generator {
             } => {
                 let true_label = self.new_label();
                 let final_label = self.new_label();
-                self.gen_condition(condition);
                 if let Some(if_false) = if_false {
                     let false_label = self.new_label();
-                    self.emit(Instruction::JumpIf(true_label, false_label));
+                    self.gen_condition(condition, true_label, false_label);
 
                     self.set_label(true_label);
                     self.gen_block(if_true);
@@ -125,24 +110,39 @@ impl Generator {
 
                     self.set_label(false_label);
                     self.gen_block(if_false);
-                    self.emit(Instruction::Jump(final_label));
                 } else {
-                    self.emit(Instruction::JumpIf(true_label, final_label));
+                    self.gen_condition(condition, true_label, final_label);
 
                     self.set_label(true_label);
                     self.gen_block(if_true);
-                    self.emit(Instruction::Jump(final_label));
                 }
+                self.emit(Instruction::Jump(final_label));
                 self.set_label(final_label);
             }
             typed_ast::StatementType::Loop { body } => {
+                let loop_start_label = self.new_label();
+                let final_label = self.new_label();
+                self.emit(Instruction::Jump(loop_start_label));
+                self.set_label(loop_start_label);
+                self.loop_stack.push((loop_start_label, final_label));
                 self.gen_block(body);
-                unimplemented!("TODO");
+                self.loop_stack.pop();
+                self.emit(Instruction::Jump(loop_start_label));
+                self.set_label(final_label);
             }
             typed_ast::StatementType::While { condition, body } => {
-                self.gen_condition(condition);
+                let loop_start_label = self.new_label();
+                let true_label = self.new_label();
+                let final_label = self.new_label();
+                self.emit(Instruction::Jump(loop_start_label));
+                self.set_label(loop_start_label);
+                self.gen_condition(condition, true_label, final_label);
+                self.set_label(true_label);
+                self.loop_stack.push((loop_start_label, final_label));
                 self.gen_block(body);
-                unimplemented!("TODO");
+                self.loop_stack.pop();
+                self.emit(Instruction::Jump(loop_start_label));
+                self.set_label(final_label);
             }
             typed_ast::StatementType::Expression(e) => {
                 self.gen_expression(e);
@@ -150,15 +150,50 @@ impl Generator {
         }
     }
 
-    fn gen_condition(&mut self, expression: typed_ast::Expression) {
-        self.gen_expression(expression);
+    /// Generate bytecode for condition statement.
+    fn gen_condition(
+        &mut self,
+        expression: typed_ast::Expression,
+        true_label: usize,
+        false_label: usize,
+    ) {
+        // Implement short-circuit logic for 'or' and 'and'
+        // TODO: add 'not' operator
+        match expression.kind {
+            typed_ast::ExpressionType::Binop {
+                lhs,
+                op: ast::BinaryOperator::Logic(op2),
+                rhs,
+            } => {
+                let middle_label = self.new_label();
+                match op2 {
+                    ast::LogicOperator::And => {
+                        self.gen_condition(*lhs, middle_label, false_label);
+                        self.set_label(middle_label);
+                        self.gen_condition(*rhs, true_label, false_label);
+                    }
+                    ast::LogicOperator::Or => {
+                        self.gen_condition(*lhs, true_label, middle_label);
+                        self.set_label(middle_label);
+                        self.gen_condition(*rhs, true_label, false_label);
+                    }
+                }
+            }
+            _ => {
+                // Fall back to evaluation an expression!
+                self.gen_expression(expression);
+                self.emit(Instruction::JumpIf(true_label, false_label));
+            }
+        }
     }
 
     fn get_bytecode_typ(ty: &MyType) -> bytecode::Typ {
         match ty {
+            MyType::Bool => bytecode::Typ::Bool,
             MyType::Int => bytecode::Typ::Int,
             MyType::Float => bytecode::Typ::Float,
             MyType::String => bytecode::Typ::Ptr,
+            MyType::Struct(_) => bytecode::Typ::Ptr,
             other => {
                 unimplemented!("{:?}", other);
             }
@@ -167,6 +202,9 @@ impl Generator {
 
     fn gen_expression(&mut self, expression: typed_ast::Expression) {
         match expression.kind {
+            typed_ast::ExpressionType::Bool(value) => {
+                self.emit(Instruction::BoolLiteral(value));
+            }
             typed_ast::ExpressionType::Integer(value) => {
                 self.emit(Instruction::IntLiteral(value));
             }
@@ -176,7 +214,17 @@ impl Generator {
             typed_ast::ExpressionType::String(value) => {
                 self.emit(Instruction::StringLiteral(value));
             }
+            typed_ast::ExpressionType::StructLiteral(values) => {
+                for value in values {
+                    // self.emit(Instruction::Dup());
+                    // TODO: get index!
+                    let index = 0;
+                    self.gen_expression(value);
+                    self.emit(Instruction::SetAttr(index));
+                }
+            }
             typed_ast::ExpressionType::Binop { lhs, op, rhs } => {
+                let typ = Self::get_bytecode_typ(&lhs.typ);
                 self.gen_expression(*lhs);
                 self.gen_expression(*rhs);
                 match op {
@@ -186,30 +234,33 @@ impl Generator {
                             ast::MathOperator::Sub => bytecode::Operator::Sub,
                             ast::MathOperator::Mul => bytecode::Operator::Mul,
                             ast::MathOperator::Div => {
-                                self.emit(Instruction::Nop);
-                                unimplemented!("TODO");
+                                // self.emit(Instruction::Div);
+                                // unimplemented!("TODO");
+                                bytecode::Operator::Div
                             }
                         };
-                        let typ = Self::get_bytecode_typ(&expression.typ);
                         self.emit(Instruction::Operator { op, typ });
                     }
                     ast::BinaryOperator::Comparison(op2) => {
                         let op = match op2 {
                             ast::ComparisonOperator::Equal => bytecode::Comparison::Equal,
+                            ast::ComparisonOperator::NotEqual => bytecode::Comparison::NotEqual,
                             ast::ComparisonOperator::Gt => bytecode::Comparison::Gt,
                             ast::ComparisonOperator::GtEqual => {
-                                unimplemented!("TODO: swap lhs and rhs?");
-                                // bytecode::Comparison::GtEqual
+                                // unimplemented!("TODO: swap lhs and rhs?");
+                                bytecode::Comparison::GtEqual
                             }
                             ast::ComparisonOperator::Lt => bytecode::Comparison::Lt,
                             ast::ComparisonOperator::LtEqual => {
-                                unimplemented!("TODO: swap lhs and rhs?");
-                                // bytecode::Comparison::LtEqual
+                                // unimplemented!("TODO: swap lhs and rhs?");
+                                bytecode::Comparison::LtEqual
                             }
                         };
-                        let typ = Self::get_bytecode_typ(&expression.typ);
 
                         self.emit(Instruction::Comparison { op, typ });
+                    }
+                    ast::BinaryOperator::Logic(op) => {
+                        unimplemented!("TODO : {:?}", op);
                     }
                 }
             }
@@ -225,10 +276,12 @@ impl Generator {
                     typ: return_type,
                 });
             }
-            // typed_ast::ExpressionType::GetAttr { base, attr } => {
-            //     self.gen_expression(*base);
-            //     self.emit(Instruction::GetAttr(attr));
-            // }
+            typed_ast::ExpressionType::GetAttr { base, attr } => {
+                self.gen_expression(*base);
+                // TODO! proper indexing here!
+                let index = 0;
+                self.emit(Instruction::GetAttr(index));
+            }
             typed_ast::ExpressionType::LoadFunction(name) => {
                 self.emit(Instruction::LoadGlobalName(name));
             }

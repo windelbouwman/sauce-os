@@ -11,7 +11,7 @@ fn strip_quotes(txt: &str) -> String {
 
 #[derive(Logos)]
 enum LogosToken {
-    #[regex("[a-zA-Z]+", |x| x.slice().to_string())]
+    #[regex("[a-zA-Z][a-zA-Z0-9]*", |x| x.slice().to_string())]
     Identifier(String),
 
     #[regex("[0-9]+", |x| x.slice().to_string())]
@@ -62,11 +62,20 @@ enum LogosToken {
     #[token("=")]
     Equal,
 
+    #[token("!=")]
+    NotEqual,
+
     #[token("(")]
     OpeningParenthesis,
 
     #[token(")")]
     ClosingParenthesis,
+
+    #[token(r"{")]
+    OpeningBrace,
+
+    #[token(r"}")]
+    ClosingBrace,
 
     #[token("\n")]
     NewLine,
@@ -139,7 +148,7 @@ impl<'t> Lexer<'t> {
             // Indent
             self.indentations.push(new_level);
             self.pending
-                .push((location.clone(), Token::Indent, location.clone()));
+                .push((location.clone(), Token::Indent, location));
         } else if new_level < current_level {
             // Dedent (maybe more than once)
             while new_level < current_level {
@@ -150,6 +159,9 @@ impl<'t> Lexer<'t> {
             }
 
             assert_eq!(new_level, current_level);
+        } else {
+            //self.pending
+            //    .push((location.clone(), Token::Newline, location));
         }
     }
 
@@ -190,6 +202,7 @@ impl<'t> Lexer<'t> {
                 "break" => self.emit(Token::KeywordBreak),
                 "continue" => self.emit(Token::KeywordContinue),
                 "else" => self.emit(Token::KeywordElse),
+                "false" => self.emit(Token::KeywordFalse),
                 "fn" => self.emit(Token::KeywordFn),
                 "for" => self.emit(Token::KeywordFor),
                 "if" => self.emit(Token::KeywordIf),
@@ -200,10 +213,11 @@ impl<'t> Lexer<'t> {
                 "or" => self.emit(Token::KeywordOr),
                 "pub" => self.emit(Token::KeywordPub),
                 "struct" => self.emit(Token::KeywordStruct),
+                "true" => self.emit(Token::KeywordTrue),
                 "while" => self.emit(Token::KeywordWhile),
-                x => {
+                other => {
                     self.emit(Token::Identifier {
-                        value: x.to_owned(),
+                        value: other.to_owned(),
                     });
                 }
             },
@@ -256,6 +270,9 @@ impl<'t> Lexer<'t> {
             LogosToken::Equal => {
                 self.emit(Token::Equal);
             }
+            LogosToken::NotEqual => {
+                self.emit(Token::NotEqual);
+            }
             LogosToken::DoubleEqual => {
                 self.emit(Token::DoubleEqual);
             }
@@ -264,6 +281,12 @@ impl<'t> Lexer<'t> {
             }
             LogosToken::ClosingParenthesis => {
                 self.emit(Token::ClosingParenthesis);
+            }
+            LogosToken::OpeningBrace => {
+                self.emit(Token::OpeningBrace);
+            }
+            LogosToken::ClosingBrace => {
+                self.emit(Token::ClosingBrace);
             }
             LogosToken::NewLine => self.newline(),
             LogosToken::WhiteSpace(amount) => {
@@ -286,6 +309,9 @@ impl<'t> Lexer<'t> {
     }
 
     fn newline(&mut self) {
+        if !self.at_bol {
+            self.emit(Token::Newline);
+        }
         self.spaces = 0;
         self.at_bol = true;
         self.row_start = self.inner.span().end;

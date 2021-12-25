@@ -4,9 +4,14 @@ use crate::parsing::Location;
 pub enum CompilationError {
     SingleError { location: Location, message: String },
     MultiError(Vec<CompilationError>),
+    Simple(String),
 }
 
 impl CompilationError {
+    pub fn simple(message: String) -> Self {
+        Self::Simple(message)
+    }
+
     pub fn new(location: Location, message: String) -> Self {
         CompilationError::SingleError { location, message }
     }
@@ -32,9 +37,7 @@ pub fn print_error(path: &std::path::Path, error: CompilationError) {
                     println!("{:>5}: {}", row, line);
                 }
                 if row == err_row as usize {
-                    let padding = std::iter::repeat(" ")
-                        .take(err_column + 6)
-                        .collect::<String>();
+                    let padding = " ".repeat(err_column + 6);
                     println!("{}^", padding);
                     println!("{}|", padding);
                     println!("{}+----  {}", padding, message);
@@ -45,6 +48,9 @@ pub fn print_error(path: &std::path::Path, error: CompilationError) {
             for error in errors {
                 print_error(path, error);
             }
+        }
+        CompilationError::Simple(message) => {
+            println!("Error: {}", message);
         }
     }
 }

@@ -6,14 +6,15 @@ grammar;
 
 pub Program: ast::Program = {
     <imports:Import*>
+    <typedefs:TypeDef*>
     <functions:FunctionDef*>
     => {
-        ast::Program { imports, functions }
+        ast::Program { imports, typedefs, functions }
     }
 };
 
 Import: ast::Import = {
-    <location:@L> "import" <name:Identifier> => {
+    <location:@L> "import" <name:Identifier> Newline => {
         ast::Import {
             location,
             name
@@ -21,8 +22,32 @@ Import: ast::Import = {
     }
 };
 
+TypeDef: ast::StructDef = {
+    StructDef,
+}
+
+StructDef: ast::StructDef = {
+    "struct" <location:@L> <name:Identifier> ":" Newline Indent <fields:StructDefField+> Dedent => {
+        ast::StructDef {
+            location,
+            name,
+            fields,
+        }
+    }
+};
+
+StructDefField: ast::StructDefField = {
+    <location:@L> <name:Identifier> ":" <typ:Expression> Newline => {
+        ast::StructDefField {
+            location,
+            name,
+            typ
+        }
+    }
+};
+
 FunctionDef: ast::FunctionDef = {
-    <public:"pub"?> <location:@L> "fn" <name:Identifier> "(" <parameters:Comma<Parameter>> ")" ":" <body:Block> => {
+    <public:"pub"?> <location:@L> "fn" <name:Identifier> "(" <parameters:Comma<Parameter>> ")" ":" Newline <body:Block> => {
         let public = public.is_some();
         ast::FunctionDef {
             location,
@@ -45,8 +70,8 @@ Parameter: ast::Parameter = {
 };
 
 Statement: ast::Statement = {
-    <location:@L> "if" <condition:Condition> ":" <if_true:Block> <if_false:("else" ":" Block)?> => {
-        let if_false = if_false.map(|e|e.2);
+    <location:@L> "if" <condition:Condition> ":" Newline <if_true:Block> <if_false:("else" ":" Newline Block)?> => {
+        let if_false = if_false.map(|e|e.3);
         ast::Statement {
             location,
             kind: ast::StatementType::If {
@@ -56,7 +81,7 @@ Statement: ast::Statement = {
             }
         }
     },
-    <location:@L> "let" <mutable:"mut"?> <name:Identifier> "=" <value:Expression> => {
+    <location:@L> "let" <mutable:"mut"?> <name:Identifier> "=" <value:Expression> Newline => {
         let mutable: bool = mutable.is_some();
         ast::Statement {
             location,
@@ -67,7 +92,7 @@ Statement: ast::Statement = {
             }
         }
     },
-    <location:@L> "while" <condition:Condition> ":" <body:Block> => {
+    <location:@L> "while" <condition:Condition> ":" Newline <body:Block> => {
         ast::Statement {
             location,
             kind: ast::StatementType::While {
@@ -76,7 +101,7 @@ Statement: ast::Statement = {
             }
         }
     },
-    <location:@L> "loop" ":" <body:Block> => {
+    <location:@L> "loop" ":" Newline <body:Block> => {
         ast::Statement {
             location,
             kind: ast::StatementType::Loop {
@@ -84,24 +109,24 @@ Statement: ast::Statement = {
             }
         }
     },
-    <location:@L> "break" => {
+    <location:@L> "break" Newline => {
         ast::Statement {
             location,
             kind: ast::StatementType::Break
         }
     },
-    <location:@L> "continue" => {
+    <location:@L> "continue" Newline => {
         ast::Statement {
             location,
             kind: ast::StatementType::Continue
         }
     },
-    <e:Expression> => {
+    <e:Expression> Newline => {
         ast::Statement {
             location: e.location.clone(),
             kind: ast::StatementType::Expression(e)
         }
-    }
+    },
 };
 
 Block: ast::Block = {
@@ -109,6 +134,32 @@ Block: ast::Block = {
 };
 
 Condition: ast::Expression = {
+    OrTest,
+};
+
+OrTest: ast::Expression = {
+    <lhs:OrTest> <location:@L> "or" <rhs:AndTest> => {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        let op = ast::BinaryOperator::Logic(ast::LogicOperator::Or);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+        }
+    },
+    AndTest,
+};
+
+AndTest: ast::Expression = {
+    <lhs:AndTest> <location:@L> "and" <rhs:Comparison> => {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        let op = ast::BinaryOperator::Logic(ast::LogicOperator::And);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+        }
+    },
     Comparison,
 };
 
@@ -134,6 +185,7 @@ CmpOp: ast::ComparisonOperator = {
     ">" => ast::ComparisonOperator::Gt,
     ">=" => ast::ComparisonOperator::GtEqual,
     "==" => ast::ComparisonOperator::Equal,
+    "!=" => ast::ComparisonOperator::NotEqual,
 };
 
 Expression: ast::Expression = {
@@ -159,7 +211,7 @@ AddOp: ast::MathOperator = {
 };
 
 Term: ast::Expression = {
-    <lhs:Atom2> <location:@L> <op:MulOp> <rhs:Term> => {
+    <lhs:Term> <location:@L> <op:MulOp> <rhs:Atom2> => {
         let lhs = Box::new(lhs);
         let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Math(op);
@@ -200,6 +252,18 @@ Atom2: ast::Expression = {
 };
 
 Atom: ast::Expression = {
+    <location:@L> "true" => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Bool(true)
+        }
+    },
+    <location:@L> "false" => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Bool(false)
+        }
+    },
     <location:@L> <s:String> => {
         ast::Expression {
             location,
@@ -224,9 +288,23 @@ Atom: ast::Expression = {
             kind: ast::ExpressionType::Identifier(n)
         }
     },
-    //"(" <e:Expression> ")" => {
-        //e
-    //},
+    <location:@L> <name:Identifier> "{" <fields:Comma<StructLiteralField>> "}" => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::StructLiteral { name, fields }
+        }
+    },
+    "(" <expr:Expression> ")" => expr,
+};
+
+StructLiteralField: ast::StructLiteralField = {
+    <location:@L> <name:Identifier> ":" <value:Expression> => {
+        ast::StructLiteralField {
+            location,
+            name,
+            value
+        }
+    }
 };
 
 #[inline]
@@ -249,10 +327,12 @@ extern {
         Identifier => Token::Identifier { value: <String> },
         Indent => Token::Indent,
         Dedent => Token::Dedent,
+        Newline => Token::Newline,
         "and" => Token::KeywordAnd,
         "break" => Token::KeywordBreak,
         "continue" => Token::KeywordContinue,
         "else" => Token::KeywordElse,
+        "false" => Token::KeywordFalse,
         "fn" => Token::KeywordFn,
         "for" => Token::KeywordFor,
         "if" => Token::KeywordIf,
@@ -262,9 +342,13 @@ extern {
         "mut" => Token::KeywordMut,
         "or" => Token::KeywordOr,
         "pub" => Token::KeywordPub,
+        "struct" => Token::KeywordStruct,
+        "true" => Token::KeywordTrue,
         "while" => Token::KeywordWhile,
         "(" => Token::OpeningParenthesis,
         ")" => Token::ClosingParenthesis,
+        "{" => Token::OpeningBrace,
+        "}" => Token::ClosingBrace,
         ":" => Token::Colon,
         "," => Token::Comma,
         "." => Token::Dot,
@@ -274,6 +358,7 @@ extern {
         ">=" => Token::GreaterEqual,
         "==" => Token::DoubleEqual,
         "=" => Token::Equal,
+        "!=" => Token::NotEqual,
         "*" => Token::Asterix,
         "/" => Token::Slash,
         "+" => Token::Plus,
