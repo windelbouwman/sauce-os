@@ -21,12 +21,6 @@ pub enum MyType {
     Module,
 }
 
-impl MyType {
-    pub fn new_struct(fields: Vec<(String, MyType)>) -> Self {
-        MyType::Struct(StructType { name: None, fields })
-    }
-}
-
 /// A custom defined struct type!
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructType {

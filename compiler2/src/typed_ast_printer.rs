@@ -89,6 +89,13 @@ impl AstPrinter {
             typed_ast::StatementType::Expression(expression) => {
                 self.print_expression(expression);
             }
+            typed_ast::StatementType::Assignment { target, value } => {
+                println!("{}assignment-statement", self.get_indent());
+                self.indent();
+                self.print_expression(target);
+                self.print_expression(value);
+                self.dedent();
+            }
             typed_ast::StatementType::Let { name, index, value } => {
                 println!(
                     "{}let-statement name={} index={}",

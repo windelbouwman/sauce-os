@@ -6,7 +6,7 @@
 /// etc..
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Program {
     pub imports: Vec<String>,
 
@@ -16,12 +16,13 @@ pub struct Program {
     pub functions: Vec<Function>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct StructDef {
+    pub name: Option<String>,
     pub fields: Vec<Typ>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Function {
     pub name: String,
     pub parameters: Vec<Parameter>,
@@ -29,19 +30,19 @@ pub struct Function {
     pub code: Vec<Instruction>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Parameter {
     pub name: String,
     pub typ: Typ,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Local {
     pub name: String,
     pub typ: Typ,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub enum Instruction {
     // Nop,
     BoolLiteral(bool),
@@ -103,7 +104,7 @@ pub enum Instruction {
     SetAttr(usize),
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub enum Operator {
     Add,
     Sub,
@@ -111,7 +112,7 @@ pub enum Operator {
     Div,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub enum Typ {
     Bool,
     Int,
@@ -125,7 +126,7 @@ pub enum Typ {
     Struct(usize),
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub enum Comparison {
     Lt,
     LtEqual,
@@ -137,7 +138,11 @@ pub enum Comparison {
 
 pub fn print_bytecode(bc: &Program) {
     for typedef in &bc.struct_types {
-        println!("type: {:?}", typedef.fields);
+        println!(
+            "type: {} types={:?}",
+            typedef.name.as_ref().unwrap_or(&"".to_owned()),
+            &typedef.fields
+        );
     }
     for func in &bc.functions {
         println!("Function: {}", func.name);

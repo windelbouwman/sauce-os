@@ -112,6 +112,19 @@ impl Generator {
                 // store value in local variable:
                 self.emit(Instruction::StoreLocal { index });
             }
+            typed_ast::StatementType::Assignment { target, value } => {
+                // let typ = Self::get_bytecode_typ(&value.typ);
+                self.gen_expression(value);
+                unimplemented!("TODO!");
+                // match target {
+                //     typed_ast::Expression {
+                //         typ,
+                //         kind: typed_ast::ExpressionType::GetAttr { base, attr },
+                //     } => {}
+                // }
+                // store value in local variable:
+                // self.emit(Instruction::StoreLocal { index });
+            }
             typed_ast::StatementType::Break => {
                 let target_label = self.loop_stack.last().unwrap().1;
                 self.emit(Instruction::Jump(target_label));
@@ -225,7 +238,10 @@ impl Generator {
                 .iter()
                 .map(|f| self.get_bytecode_typ(&f.1))
                 .collect();
-            self.struct_types.push(bytecode::StructDef { fields });
+            self.struct_types.push(bytecode::StructDef {
+                name: struct_type.name.clone(),
+                fields,
+            });
             idx
         }
     }

@@ -80,6 +80,9 @@ enum LogosToken {
     #[token("\n")]
     NewLine,
 
+    #[regex(r#"#[^\n]*"#, |x| x.slice().to_owned())]
+    Comment(String),
+
     #[regex(" +", |x| x.slice().len())]
     WhiteSpace(usize),
 
@@ -159,9 +162,6 @@ impl<'t> Lexer<'t> {
             }
 
             assert_eq!(new_level, current_level);
-        } else {
-            //self.pending
-            //    .push((location.clone(), Token::Newline, location));
         }
     }
 
@@ -183,6 +183,11 @@ impl<'t> Lexer<'t> {
                     row: self.row as i32,
                     column: 1,
                 };
+
+                if !self.at_bol {
+                    self.pending
+                        .push((location.clone(), Token::Newline, location.clone()));
+                }
 
                 // Flush indentation levels
                 while self.indentations.len() > 1 {
@@ -289,6 +294,9 @@ impl<'t> Lexer<'t> {
                 self.emit(Token::ClosingBrace);
             }
             LogosToken::NewLine => self.newline(),
+            LogosToken::Comment(value) => {
+                log::debug!("Comment: '{}'", value);
+            }
             LogosToken::WhiteSpace(amount) => {
                 if self.at_bol {
                     self.spaces += amount;

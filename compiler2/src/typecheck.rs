@@ -177,13 +177,14 @@ impl TypeChecker {
             let typ = self.get_type(&field.typ)?;
             fields.push((name, typ));
         }
-        let typ = MyType::new_struct(fields.clone());
+        let struct_type = StructType {
+            name: Some(struct_def.name.clone()),
+            fields,
+        };
+        let typ = MyType::Struct(struct_type.clone());
         // Check struct type:
         self.define(&struct_def.name, Symbol::Typ(typ), &struct_def.location);
-        Ok(StructType {
-            name: Some(struct_def.name),
-            fields,
-        })
+        Ok(struct_type)
     }
 
     /// Resolve expression into type!
@@ -291,6 +292,14 @@ impl TypeChecker {
                 );
                 Ok(typed_ast::Statement {
                     kind: typed_ast::StatementType::Let { name, index, value },
+                })
+            }
+            ast::StatementType::Assignment { target, value } => {
+                let target = self.check_expresion(target)?;
+                let value = self.check_expresion(value)?;
+                self.check_equal_types(&location, &target.typ, &value.typ)?;
+                Ok(typed_ast::Statement {
+                    kind: typed_ast::StatementType::Assignment { target, value },
                 })
             }
             ast::StatementType::If {
@@ -451,7 +460,7 @@ impl TypeChecker {
                 let symbol = self.lookup(&location, &name)?;
                 // let typ = symbol.get_type().clone();
                 match symbol {
-                    Symbol::Module { exposed } => {
+                    Symbol::Module { exposed: _ } => {
                         let kind = typed_ast::ExpressionType::LoadModule { modname: name };
                         let typ = MyType::Module;
                         Ok(typed_ast::Expression { typ, kind })

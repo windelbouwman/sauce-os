@@ -7,6 +7,7 @@ mod type_system;
 mod typecheck;
 mod typed_ast;
 mod typed_ast_printer;
+mod vm;
 
 use bytecode::print_bytecode;
 use errors::{print_error, CompilationError};
@@ -34,6 +35,11 @@ fn main() -> Result<(), ()> {
                 .help("Spit out bytecode intermediate format."),
         )
         .arg(
+            clap::Arg::with_name("execute-bytecode")
+                .long("execute-bytecode")
+                .help("Run bytecode intermediate format. (sort of python-ish mode)"),
+        )
+        .arg(
             clap::Arg::with_name("output")
                 .long("output")
                 .takes_value(true)
@@ -58,6 +64,7 @@ fn main() -> Result<(), ()> {
         dump_bc: matches.is_present("dump-bytecode") || verbosity > 5,
         dump_ast: verbosity > 5,
         dump_src: verbosity > 5,
+        run_bc: false,
     };
     match compile(path, output_path, &options) {
         Ok(()) => {
@@ -76,6 +83,7 @@ struct CompileOptions {
     dump_src: bool,
     dump_ast: bool,
     dump_bc: bool,
+    run_bc: bool,
 }
 
 fn compile(
@@ -104,6 +112,11 @@ fn compile(
     if options.dump_bc {
         log::debug!("Dumpin bytecode below");
         print_bytecode(&bc);
+    }
+
+    if options.run_bc {
+        // Run in VM!!!
+        vm::execute(bc.clone());
     }
 
     // ============

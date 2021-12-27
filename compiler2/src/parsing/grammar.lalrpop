@@ -92,6 +92,15 @@ Statement: ast::Statement = {
             }
         }
     },
+    <target:Expression> <location:@L> "=" <value:Expression> Newline => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::Assignment {
+                target,
+                value,
+            }
+        }
+    },
     <location:@L> "while" <condition:Condition> ":" Newline <body:Block> => {
         ast::Statement {
             location,

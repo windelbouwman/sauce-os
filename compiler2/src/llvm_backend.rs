@@ -50,7 +50,12 @@ where
 
         // Types:
         for typedef in prog.struct_types {
-            let type_name = self.new_local(Some("DaType".to_owned()));
+            let type_name = self.new_local(Some(
+                typedef
+                    .name
+                    .map(|n| format!("{}Type", n))
+                    .unwrap_or("DaType".to_owned()),
+            ));
             let mut type_size = 0;
             for field_type in &typedef.fields {
                 type_size += self.get_sizeof(field_type);

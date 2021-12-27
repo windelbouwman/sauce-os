@@ -41,6 +41,10 @@ pub enum StatementType {
         index: usize,
         value: Expression,
     },
+    Assignment {
+        target: Expression,
+        value: Expression,
+    },
     If {
         condition: Expression,
         if_true: Block,

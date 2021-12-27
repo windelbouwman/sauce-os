@@ -55,6 +55,11 @@ pub enum StatementType<S, E> {
         value: Expression,
     },
 
+    Assignment {
+        target: Expression,
+        value: Expression,
+    },
+
     If {
         condition: E,
         if_true: Vec<S>,
