@@ -6,8 +6,9 @@
 use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
-use super::type_system::MyType;
+use super::type_system::{MyType, StructType};
 use super::typed_ast;
+use std::collections::HashMap;
 
 pub fn gen(prog: typed_ast::Program) -> bytecode::Program {
     log::info!("Generating IR bytecode");
@@ -17,27 +18,39 @@ pub fn gen(prog: typed_ast::Program) -> bytecode::Program {
 
 struct Generator {
     instructions: Vec<Instruction>,
-    _id_counter: usize,
+    id_counter: usize,
     loop_stack: Vec<(usize, usize)>,
+    struct_types: Vec<bytecode::StructDef>,
+    struct_id_map: HashMap<StructType, usize>,
 }
 
 impl Generator {
     fn new() -> Self {
         Generator {
             instructions: vec![],
-            _id_counter: 0,
+            id_counter: 0,
             loop_stack: vec![],
+            struct_types: vec![],
+            struct_id_map: HashMap::new(),
         }
     }
 
     fn gen_prog(&mut self, prog: typed_ast::Program) -> bytecode::Program {
         let imports = vec![];
+        for typedef in prog.type_defs {
+            self.get_struct_index(&typedef);
+        }
+
         let mut functions = vec![];
         for function in prog.functions {
             functions.push(self.gen_func(function));
         }
 
-        bytecode::Program { imports, functions }
+        bytecode::Program {
+            imports,
+            struct_types: std::mem::take(&mut self.struct_types),
+            functions,
+        }
     }
 
     fn gen_func(&mut self, func: typed_ast::FunctionDef) -> bytecode::Function {
@@ -49,7 +62,16 @@ impl Generator {
             .into_iter()
             .map(|p| bytecode::Parameter {
                 name: p.name,
-                typ: Self::get_bytecode_typ(&p.typ),
+                typ: self.get_bytecode_typ(&p.typ),
+            })
+            .collect();
+
+        let locals = func
+            .locals
+            .into_iter()
+            .map(|v| bytecode::Local {
+                name: v.name,
+                typ: self.get_bytecode_typ(&v.typ),
             })
             .collect();
 
@@ -57,13 +79,14 @@ impl Generator {
         bytecode::Function {
             name: func.name,
             parameters,
+            locals,
             code: instructions,
         }
     }
 
     fn new_label(&mut self) -> usize {
-        let x = self._id_counter;
-        self._id_counter += 1;
+        let x = self.id_counter;
+        self.id_counter += 1;
         x
     }
 
@@ -79,11 +102,15 @@ impl Generator {
 
     fn gen_statement(&mut self, statement: typed_ast::Statement) {
         match statement.kind {
-            typed_ast::StatementType::Let { name, value } => {
-                let typ = Self::get_bytecode_typ(&value.typ);
+            typed_ast::StatementType::Let {
+                name: _,
+                index,
+                value,
+            } => {
+                // let typ = Self::get_bytecode_typ(&value.typ);
                 self.gen_expression(value);
                 // store value in local variable:
-                self.emit(Instruction::StoreLocal { name, typ });
+                self.emit(Instruction::StoreLocal { index });
             }
             typed_ast::StatementType::Break => {
                 let target_label = self.loop_stack.last().unwrap().1;
@@ -187,13 +214,31 @@ impl Generator {
         }
     }
 
-    fn get_bytecode_typ(ty: &MyType) -> bytecode::Typ {
+    fn get_struct_index(&mut self, struct_type: &StructType) -> usize {
+        if self.struct_id_map.contains_key(struct_type) {
+            *self.struct_id_map.get(struct_type).unwrap()
+        } else {
+            let idx = self.struct_types.len();
+            self.struct_id_map.insert(struct_type.clone(), idx);
+            let fields: Vec<bytecode::Typ> = struct_type
+                .fields
+                .iter()
+                .map(|f| self.get_bytecode_typ(&f.1))
+                .collect();
+            self.struct_types.push(bytecode::StructDef { fields });
+            idx
+        }
+    }
+
+    fn get_bytecode_typ(&mut self, ty: &MyType) -> bytecode::Typ {
         match ty {
             MyType::Bool => bytecode::Typ::Bool,
             MyType::Int => bytecode::Typ::Int,
             MyType::Float => bytecode::Typ::Float,
-            MyType::String => bytecode::Typ::Ptr,
-            MyType::Struct(_) => bytecode::Typ::Ptr,
+            MyType::String => bytecode::Typ::String,
+            MyType::Struct(struct_typ) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Struct(
+                self.get_struct_index(struct_typ),
+            ))),
             other => {
                 unimplemented!("{:?}", other);
             }
@@ -215,16 +260,20 @@ impl Generator {
                 self.emit(Instruction::StringLiteral(value));
             }
             typed_ast::ExpressionType::StructLiteral(values) => {
-                for value in values {
-                    // self.emit(Instruction::Dup());
-                    // TODO: get index!
-                    let index = 0;
-                    self.gen_expression(value);
-                    self.emit(Instruction::SetAttr(index));
+                let typ = self.get_bytecode_typ(&expression.typ);
+                if let bytecode::Typ::Ptr(typ) = typ {
+                    self.emit(Instruction::Malloc(*typ));
+                    for (index, value) in values.into_iter().enumerate() {
+                        self.emit(Instruction::Duplicate);
+                        self.gen_expression(value);
+                        self.emit(Instruction::SetAttr(index));
+                    }
+                } else {
+                    panic!("Assumed struct literal is pointer to thing.");
                 }
             }
             typed_ast::ExpressionType::Binop { lhs, op, rhs } => {
-                let typ = Self::get_bytecode_typ(&lhs.typ);
+                let typ = self.get_bytecode_typ(&lhs.typ);
                 self.gen_expression(*lhs);
                 self.gen_expression(*rhs);
                 match op {
@@ -276,24 +325,30 @@ impl Generator {
                     typ: return_type,
                 });
             }
-            typed_ast::ExpressionType::GetAttr { base, attr } => {
-                self.gen_expression(*base);
-                // TODO! proper indexing here!
-                let index = 0;
-                self.emit(Instruction::GetAttr(index));
-            }
+            typed_ast::ExpressionType::GetAttr { base, attr } => match &base.typ {
+                MyType::Struct(struct_typ) => {
+                    let index = struct_typ.index_of(&attr).expect("Field must be present");
+                    let typ = self.get_bytecode_typ(&struct_typ.fields[index].1);
+                    self.gen_expression(*base);
+                    self.emit(Instruction::GetAttr { index, typ });
+                }
+                other => {
+                    panic!("base type must be struct, not {:?}", other);
+                }
+            },
             typed_ast::ExpressionType::LoadFunction(name) => {
                 self.emit(Instruction::LoadGlobalName(name));
             }
-            typed_ast::ExpressionType::LoadParameter(name) => {
-                let typ = Self::get_bytecode_typ(&expression.typ);
-                self.emit(Instruction::LoadName { name, typ });
+            typed_ast::ExpressionType::LoadParameter { name: _, index } => {
+                // TBD: use name as a hint?
+                let typ = self.get_bytecode_typ(&expression.typ);
+                self.emit(Instruction::LoadParameter { index, typ });
             }
-            typed_ast::ExpressionType::LoadLocal(name) => {
-                let typ = Self::get_bytecode_typ(&expression.typ);
-                self.emit(Instruction::LoadName { name, typ });
+            typed_ast::ExpressionType::LoadLocal { name: _, index } => {
+                let typ = self.get_bytecode_typ(&expression.typ);
+                self.emit(Instruction::LoadLocal { index, typ });
             }
-            typed_ast::ExpressionType::LoadGlobal(_name) => {
+            typed_ast::ExpressionType::LoadModule { .. } => {
                 // self.emit(Instruction::LoadName(name));
                 unimplemented!("TODO!");
             }

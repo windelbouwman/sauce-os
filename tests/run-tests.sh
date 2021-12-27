@@ -1,4 +1,5 @@
 #!/bin/bash
 
-robot .
+set -eu
 
+robot .

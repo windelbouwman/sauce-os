@@ -6,6 +6,7 @@ mod parsing;
 mod type_system;
 mod typecheck;
 mod typed_ast;
+mod typed_ast_printer;
 
 use bytecode::print_bytecode;
 use errors::{print_error, CompilationError};
@@ -96,7 +97,7 @@ fn compile(
     log::info!("Type check done&done");
     if options.dump_ast {
         log::debug!("Dumping typed AST");
-        typed_ast::print_ast(&typed_prog);
+        typed_ast_printer::print_ast(&typed_prog);
     }
     let bc = ir_gen::gen(typed_prog);
 
@@ -119,6 +120,7 @@ fn compile(
         log::info!("Writing LLVM code to: {}", output_path.display());
         let mut output_writer = std::fs::OpenOptions::new()
             .write(true)
+            .truncate(true)
             .create(true)
             .open(output_path)
             .unwrap();

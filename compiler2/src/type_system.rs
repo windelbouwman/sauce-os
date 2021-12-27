@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+// use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MyType {
     Bool,
     Int,
@@ -17,21 +17,21 @@ pub enum MyType {
         argument_types: Vec<MyType>,
         return_type: Option<Box<MyType>>,
     },
-    Module {
-        exposed: HashMap<String, MyType>,
-    },
+
+    Module,
 }
 
 impl MyType {
     pub fn new_struct(fields: Vec<(String, MyType)>) -> Self {
-        MyType::Struct(StructType { fields })
+        MyType::Struct(StructType { name: None, fields })
     }
 }
 
 /// A custom defined struct type!
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructType {
-    fields: Vec<(String, MyType)>,
+    pub name: Option<String>,
+    pub fields: Vec<(String, MyType)>,
 }
 
 impl StructType {
@@ -43,62 +43,13 @@ impl StructType {
         }
         None
     }
-}
 
-// impl MyType {
-//     /// Type equality checking!
-//     pub fn equals(&self, other: &Self) -> bool {
-//         match self {
-//             MyType::Int => {
-//                 if let MyType::Int = other {
-//                     true
-//                 } else {
-//                     false
-//                 }
-//             }
-//             MyType::Float => {
-//                 if let MyType::Float = other {
-//                     true
-//                 } else {
-//                     false
-//                 }
-//             }
-//             MyType::String => {
-//                 if let MyType::String = other {
-//                     true
-//                 } else {
-//                     false
-//                 }
-//             }
-//             MyType::Module => {
-//                 // TODO?
-//                 true
-//             }
-//             MyType::Function {
-//                 argument_types,
-//                 return_type,
-//             } => {
-//                 if let MyType::Function {
-//                     argument_types: argument_types2,
-//                     return_type: return_type2,
-//                 } = other
-//                 {
-//                     if (argument_types.len() == argument_types2.len())
-//                         && return_type.equals(return_type2)
-//                     {
-//                         for (a1, a2) in argument_types.iter().zip(argument_types2.iter()) {
-//                             if !a1.equals(a2) {
-//                                 return false;
-//                             }
-//                         }
-//                         true
-//                     } else {
-//                         false
-//                     }
-//                 } else {
-//                     false
-//                 }
-//             }
-//         }
-//     }
-// }
+    pub fn index_of(&self, name: &str) -> Option<usize> {
+        for (index, field) in self.fields.iter().enumerate() {
+            if field.0 == name {
+                return Some(index);
+            }
+        }
+        None
+    }
+}

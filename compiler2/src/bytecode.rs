@@ -9,18 +9,34 @@ use serde::Serialize;
 #[derive(Serialize)]
 pub struct Program {
     pub imports: Vec<String>,
+
+    /// A list of types, usable via an index.
+    pub struct_types: Vec<StructDef>,
+
     pub functions: Vec<Function>,
+}
+
+#[derive(Serialize)]
+pub struct StructDef {
+    pub fields: Vec<Typ>,
 }
 
 #[derive(Serialize)]
 pub struct Function {
     pub name: String,
     pub parameters: Vec<Parameter>,
+    pub locals: Vec<Local>,
     pub code: Vec<Instruction>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Parameter {
+    pub name: String,
+    pub typ: Typ,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Local {
     pub name: String,
     pub typ: Typ,
 }
@@ -32,6 +48,12 @@ pub enum Instruction {
     IntLiteral(i64),
     FloatLiteral(f64),
     StringLiteral(String),
+
+    /// Duplicate top of stack value.
+    Duplicate,
+
+    /// Allocate new memory for the given type
+    Malloc(Typ),
 
     Call {
         n_args: usize,
@@ -45,14 +67,26 @@ pub enum Instruction {
         op: Comparison,
         typ: Typ,
     },
+
     LoadGlobalName(String),
-    LoadName {
-        name: String,
+    // LoadName {
+    //     name: String,
+    //     typ: Typ,
+    // },
+    LoadParameter {
+        // name: String, ??
+        index: usize,
+        typ: Typ,
+    },
+    LoadLocal {
+        // name: String, ??
+        index: usize,
         typ: Typ,
     },
     StoreLocal {
-        name: String,
-        typ: Typ,
+        // name: String,
+        index: usize,
+        // typ: Typ,
     },
 
     Label(usize),
@@ -60,7 +94,10 @@ pub enum Instruction {
     JumpIf(usize, usize),
 
     /// Get the n-th attribute of a struct typed object
-    GetAttr(usize),
+    GetAttr {
+        index: usize,
+        typ: Typ,
+    },
 
     /// Set the n-th attribute of a struct typed thing
     SetAttr(usize),
@@ -79,11 +116,13 @@ pub enum Typ {
     Bool,
     Int,
     Float,
-    Ptr,
+    String,
+    Ptr(Box<Typ>),
 
     /// The structured type, contains a sequence of types.
     /// fields are accessed by index
-    Struct(Vec<Typ>),
+    /// This is a reference to the types table
+    Struct(usize),
 }
 
 #[derive(Debug, Serialize)]
@@ -97,8 +136,19 @@ pub enum Comparison {
 }
 
 pub fn print_bytecode(bc: &Program) {
+    for typedef in &bc.struct_types {
+        println!("type: {:?}", typedef.fields);
+    }
     for func in &bc.functions {
         println!("Function: {}", func.name);
+        println!("  Parameters:");
+        for parameter in &func.parameters {
+            println!("    {} : {:?}", parameter.name, parameter.typ);
+        }
+        println!("  Locals:");
+        for loc in &func.locals {
+            println!("    {} : {:?}", loc.name, loc.typ);
+        }
         print_instructions(&func.code);
     }
 }
