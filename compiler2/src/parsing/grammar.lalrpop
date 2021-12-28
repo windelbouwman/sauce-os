@@ -47,13 +47,17 @@ StructDefField: ast::StructDefField = {
 };
 
 FunctionDef: ast::FunctionDef = {
-    <public:"pub"?> <location:@L> "fn" <name:Identifier> "(" <parameters:Comma<Parameter>> ")" ":" Newline <body:Block> => {
+    <public:"pub"?> <location:@L> "fn" <name:Identifier>
+    "(" <parameters:Comma<Parameter>> ")" <return_type:("->" Expression)?> ":"
+    Newline <body:Block> => {
         let public = public.is_some();
+        let return_type = return_type.map(|r| r.1);
         ast::FunctionDef {
             location,
             name,
             public,
             parameters,
+            return_type,
             body
         }
     }
@@ -118,6 +122,12 @@ Statement: ast::Statement = {
             }
         }
     },
+    <location:@L> "return" <value:Expression?> Newline => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::Return { value }
+        }
+    },
     <location:@L> "break" Newline => {
         ast::Statement {
             location,
@@ -128,6 +138,12 @@ Statement: ast::Statement = {
         ast::Statement {
             location,
             kind: ast::StatementType::Continue
+        }
+    },
+    <location:@L> "pass" Newline => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::Pass
         }
     },
     <e:Expression> Newline => {
@@ -350,7 +366,9 @@ extern {
         "loop" => Token::KeywordLoop,
         "mut" => Token::KeywordMut,
         "or" => Token::KeywordOr,
+        "pass" => Token::KeywordPass,
         "pub" => Token::KeywordPub,
+        "return" => Token::KeywordReturn,
         "struct" => Token::KeywordStruct,
         "true" => Token::KeywordTrue,
         "while" => Token::KeywordWhile,
@@ -361,6 +379,7 @@ extern {
         ":" => Token::Colon,
         "," => Token::Comma,
         "." => Token::Dot,
+        "->" => Token::Arrow,
         "<" => Token::Less,
         "<=" => Token::LessEqual,
         ">" => Token::Greater,

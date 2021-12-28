@@ -8,12 +8,19 @@ use serde::Serialize;
 
 #[derive(Clone, Serialize)]
 pub struct Program {
-    pub imports: Vec<String>,
+    pub imports: Vec<Import>,
 
     /// A list of types, usable via an index.
     pub struct_types: Vec<StructDef>,
 
     pub functions: Vec<Function>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct Import {
+    pub name: String,
+    pub parameter_types: Vec<Typ>,
+    pub return_type: Option<Typ>,
 }
 
 #[derive(Clone, Serialize)]
@@ -26,6 +33,7 @@ pub struct StructDef {
 pub struct Function {
     pub name: String,
     pub parameters: Vec<Parameter>,
+    pub return_type: Option<Typ>,
     pub locals: Vec<Local>,
     pub code: Vec<Instruction>,
 }
@@ -94,6 +102,10 @@ pub enum Instruction {
     Jump(usize),
     JumpIf(usize, usize),
 
+    /// Return n values.
+    /// For now return 0 or 1 values.
+    Return(usize),
+
     /// Get the n-th attribute of a struct typed object
     GetAttr {
         index: usize,
@@ -102,6 +114,15 @@ pub enum Instruction {
 
     /// Set the n-th attribute of a struct typed thing
     SetAttr(usize),
+}
+
+impl Instruction {
+    pub fn is_terminator(&self) -> bool {
+        match self {
+            Instruction::Return(_) | Instruction::Jump(_) | Instruction::JumpIf(_, _) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -144,8 +165,16 @@ pub fn print_bytecode(bc: &Program) {
             &typedef.fields
         );
     }
+
+    for import in &bc.imports {
+        println!(
+            "Import name={} ({:?}) -> {:?}",
+            import.name, import.parameter_types, import.return_type
+        );
+    }
+
     for func in &bc.functions {
-        println!("Function: {}", func.name);
+        println!("Function: {} : {:?}", func.name, func.return_type);
         println!("  Parameters:");
         for parameter in &func.parameters {
             println!("    {} : {:?}", parameter.name, parameter.typ);
@@ -159,7 +188,7 @@ pub fn print_bytecode(bc: &Program) {
 }
 
 fn print_instructions(instructions: &[Instruction]) {
-    println!("  Instructionzzz:");
+    println!("  Code:");
     for instruction in instructions {
         println!("    : {:?}", instruction);
     }

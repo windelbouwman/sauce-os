@@ -36,9 +36,31 @@ impl Generator {
     }
 
     fn gen_prog(&mut self, prog: typed_ast::Program) -> bytecode::Program {
-        let imports = vec![];
         for typedef in prog.type_defs {
             self.get_struct_index(&typedef);
+        }
+
+        let mut imports = vec![];
+        for imp in prog.imports {
+            match imp.typ {
+                MyType::Function {
+                    argument_types,
+                    return_type,
+                } => {
+                    let bc_import = bytecode::Import {
+                        name: imp.name,
+                        parameter_types: argument_types
+                            .iter()
+                            .map(|t| self.get_bytecode_typ(t))
+                            .collect(),
+                        return_type: return_type.as_ref().map(|t| self.get_bytecode_typ(t)),
+                    };
+                    imports.push(bc_import);
+                }
+                other => {
+                    unimplemented!("Not implemented: {:?}", other);
+                }
+            }
         }
 
         let mut functions = vec![];
@@ -55,7 +77,6 @@ impl Generator {
 
     fn gen_func(&mut self, func: typed_ast::FunctionDef) -> bytecode::Function {
         log::debug!("Gen code for {}", func.name);
-        self.gen_block(func.body);
 
         let parameters = func
             .parameters
@@ -66,6 +87,8 @@ impl Generator {
             })
             .collect();
 
+        let return_type = func.return_type.as_ref().map(|t| self.get_bytecode_typ(t));
+
         let locals = func
             .locals
             .into_iter()
@@ -75,10 +98,18 @@ impl Generator {
             })
             .collect();
 
+        self.gen_block(func.body);
+
+        // Hmm, a bit of a hack, to inject a void return here ..
+        if !self.instructions.last().unwrap().is_terminator() {
+            self.emit(Instruction::Return(0));
+        }
+
         let instructions = std::mem::take(&mut self.instructions);
         bytecode::Function {
             name: func.name,
             parameters,
+            return_type,
             locals,
             code: instructions,
         }
@@ -114,16 +145,32 @@ impl Generator {
             }
             typed_ast::StatementType::Assignment { target, value } => {
                 // let typ = Self::get_bytecode_typ(&value.typ);
-                self.gen_expression(value);
-                unimplemented!("TODO!");
-                // match target {
-                //     typed_ast::Expression {
-                //         typ,
-                //         kind: typed_ast::ExpressionType::GetAttr { base, attr },
-                //     } => {}
-                // }
-                // store value in local variable:
-                // self.emit(Instruction::StoreLocal { index });
+                match target {
+                    typed_ast::Expression {
+                        typ: _,
+                        kind: typed_ast::ExpressionType::GetAttr { base, attr },
+                    } => match &base.typ {
+                        MyType::Struct(struct_typ) => {
+                            let index = struct_typ.index_of(&attr).expect("Field must be present");
+                            self.gen_expression(*base);
+                            self.gen_expression(value);
+                            self.emit(Instruction::SetAttr(index));
+                        }
+                        _other => {
+                            panic!("TODO?");
+                        }
+                    },
+                    typed_ast::Expression {
+                        typ: _,
+                        kind: typed_ast::ExpressionType::LoadLocal { name: _, index },
+                    } => {
+                        self.gen_expression(value);
+                        self.emit(Instruction::StoreLocal { index });
+                    }
+                    _other => {
+                        unimplemented!("TODO");
+                    }
+                }
             }
             typed_ast::StatementType::Break => {
                 let target_label = self.loop_stack.last().unwrap().1;
@@ -132,6 +179,16 @@ impl Generator {
             typed_ast::StatementType::Continue => {
                 let target_label = self.loop_stack.last().unwrap().0;
                 self.emit(Instruction::Jump(target_label));
+            }
+            typed_ast::StatementType::Pass => {}
+            typed_ast::StatementType::Return { value } => {
+                if let Some(value) = value {
+                    self.gen_expression(value);
+                    self.emit(Instruction::Return(1));
+                } else {
+                    self.emit(Instruction::Return(0));
+                }
+                // TBD: generate a new label here?
             }
             typed_ast::StatementType::If {
                 condition,
@@ -329,18 +386,27 @@ impl Generator {
                     }
                 }
             }
-            typed_ast::ExpressionType::Call { callee, arguments } => {
-                self.gen_expression(*callee);
-                let n_args = arguments.len();
-                for argument in arguments {
-                    self.gen_expression(argument);
+            typed_ast::ExpressionType::Call { callee, arguments } => match &callee.typ {
+                MyType::Function {
+                    argument_types: _,
+                    return_type,
+                } => {
+                    let return_type = return_type.as_ref().map(|t| self.get_bytecode_typ(t));
+
+                    self.gen_expression(*callee);
+                    let n_args = arguments.len();
+                    for argument in arguments {
+                        self.gen_expression(argument);
+                    }
+                    self.emit(Instruction::Call {
+                        n_args,
+                        typ: return_type,
+                    });
                 }
-                let return_type = None; // TODO!
-                self.emit(Instruction::Call {
-                    n_args,
-                    typ: return_type,
-                });
-            }
+                other => {
+                    panic!("Can only call function types, not {:?}", other);
+                }
+            },
             typed_ast::ExpressionType::GetAttr { base, attr } => match &base.typ {
                 MyType::Struct(struct_typ) => {
                     let index = struct_typ.index_of(&attr).expect("Field must be present");

@@ -59,6 +59,17 @@ impl AstPrinter {
             typed_ast::StatementType::Continue => {
                 println!("{}continue", self.get_indent());
             }
+            typed_ast::StatementType::Pass => {
+                println!("{}pass", self.get_indent());
+            }
+            typed_ast::StatementType::Return { value } => {
+                println!("{}return", self.get_indent());
+                if let Some(value) = value {
+                    self.indent();
+                    self.print_expression(value);
+                    self.dedent();
+                }
+            }
             typed_ast::StatementType::If {
                 condition,
                 if_true,
@@ -113,7 +124,7 @@ impl AstPrinter {
     fn print_expression(&mut self, expression: &typed_ast::Expression) {
         match &expression.kind {
             typed_ast::ExpressionType::Call { callee, arguments } => {
-                println!("{}call", self.get_indent());
+                println!("{}call : {:?}", self.get_indent(), expression.typ);
                 self.indent();
                 self.print_expression(callee);
                 for argument in arguments {

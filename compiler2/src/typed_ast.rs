@@ -6,14 +6,20 @@ use super::type_system::{MyType, StructType};
 use crate::parsing::ast;
 
 pub struct Program {
-    pub imports: Vec<ast::Import>,
+    pub imports: Vec<Import>,
     pub type_defs: Vec<StructType>,
     pub functions: Vec<FunctionDef>,
+}
+
+pub struct Import {
+    pub name: String,
+    pub typ: MyType,
 }
 
 pub struct FunctionDef {
     pub name: String,
     pub parameters: Vec<Parameter>,
+    pub return_type: Option<MyType>,
     pub locals: Vec<LocalVariable>,
     pub body: Block,
 }
@@ -57,6 +63,10 @@ pub enum StatementType {
         condition: Expression,
         body: Block,
     },
+    Return {
+        value: Option<Expression>,
+    },
+    Pass,
     Break,
     Continue,
 }

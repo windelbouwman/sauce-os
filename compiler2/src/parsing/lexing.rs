@@ -11,7 +11,7 @@ fn strip_quotes(txt: &str) -> String {
 
 #[derive(Logos)]
 enum LogosToken {
-    #[regex("[a-zA-Z][a-zA-Z0-9]*", |x| x.slice().to_string())]
+    #[regex("[a-zA-Z][a-zA-Z0-9_]*", |x| x.slice().to_string())]
     Identifier(String),
 
     #[regex("[0-9]+", |x| x.slice().to_string())]
@@ -64,6 +64,9 @@ enum LogosToken {
 
     #[token("!=")]
     NotEqual,
+
+    #[token("->")]
+    Arrow,
 
     #[token("(")]
     OpeningParenthesis,
@@ -216,7 +219,9 @@ impl<'t> Lexer<'t> {
                 "let" => self.emit(Token::KeywordLet),
                 "mut" => self.emit(Token::KeywordMut),
                 "or" => self.emit(Token::KeywordOr),
+                "pass" => self.emit(Token::KeywordPass),
                 "pub" => self.emit(Token::KeywordPub),
+                "return" => self.emit(Token::KeywordReturn),
                 "struct" => self.emit(Token::KeywordStruct),
                 "true" => self.emit(Token::KeywordTrue),
                 "while" => self.emit(Token::KeywordWhile),
@@ -238,6 +243,9 @@ impl<'t> Lexer<'t> {
             }
             LogosToken::String(value) => {
                 self.emit(Token::String { value });
+            }
+            LogosToken::Arrow => {
+                self.emit(Token::Arrow);
             }
             LogosToken::Colon => {
                 self.emit(Token::Colon);

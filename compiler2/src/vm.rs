@@ -216,6 +216,15 @@ impl Frame {
             Instruction::Jump(label) => {
                 self.jump(label);
             }
+            Instruction::Return(amount) => match amount {
+                1 => {
+                    let value = self.pop();
+                    return Some(value);
+                }
+                other => {
+                    unimplemented!("Returning of {} values", other);
+                }
+            },
             Instruction::JumpIf(true_target, false_label) => {
                 if self.pop().as_bool() {
                     self.jump(true_target);

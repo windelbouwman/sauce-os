@@ -70,6 +70,7 @@ struct TypeChecker {
     scopes: Vec<Scope>,
     errors: Vec<CompilationError>,
     loops: Vec<()>,
+    typed_imports: Vec<typed_ast::Import>,
     local_variables: Vec<typed_ast::LocalVariable>,
 }
 
@@ -79,6 +80,7 @@ impl TypeChecker {
             scopes: vec![],
             errors: vec![],
             loops: vec![],
+            typed_imports: vec![],
             local_variables: vec![],
         }
     }
@@ -110,7 +112,6 @@ impl TypeChecker {
         self.enter_scope();
         self.define_builtins();
         self.enter_scope();
-        let typed_imports = vec![];
         for _import in &prog.imports {
             // TODO: load module?
             // self.define(&import.name, Symbol::Module, &import.location);
@@ -126,18 +127,22 @@ impl TypeChecker {
 
         // let mut funcs = vec![];
         for function_def in &prog.functions {
-            let mut argument_types2 = vec![];
+            // Deal with parameter types:
+            let mut argument_types = vec![];
             for parameter in &function_def.parameters {
-                let arg_typ = match self.get_type(&parameter.typ) {
-                    Ok(t) => t,
-                    Err(()) => MyType::Void,
-                };
-                argument_types2.push(arg_typ);
+                let arg_typ = self.get_type(&parameter.typ).unwrap_or(MyType::Void);
+                argument_types.push(arg_typ);
             }
+
+            let return_type = function_def
+                .return_type
+                .as_ref()
+                .map(|t| Box::new(self.get_type(t).unwrap_or(MyType::Void)));
+
             // function_def.
             let function_typ = MyType::Function {
-                argument_types: argument_types2,
-                return_type: None, // TODO!
+                argument_types,
+                return_type,
             };
             log::debug!("Signature of {}: {:?}", function_def.name, function_typ);
             self.define(
@@ -158,6 +163,8 @@ impl TypeChecker {
 
         self.leave_scope(); // module scope
         self.leave_scope(); // universe scope
+
+        let typed_imports = std::mem::take(&mut self.typed_imports);
 
         if self.errors.is_empty() {
             Ok(typed_ast::Program {
@@ -245,11 +252,18 @@ impl TypeChecker {
         let body = self.check_block(function.body);
         self.leave_scope();
 
+        let return_type = if let Some(t) = &function.return_type {
+            Some(self.get_type(t)?)
+        } else {
+            None
+        };
+
         let local_variables = std::mem::take(&mut self.local_variables);
         // IDEA: store scope on typed function?
         Ok(typed_ast::FunctionDef {
             name: function.name,
             parameters: typed_parameters,
+            return_type,
             locals: local_variables,
             body,
         })
@@ -324,9 +338,22 @@ impl TypeChecker {
                     kind: typed_ast::StatementType::Expression(e),
                 })
             }
+            ast::StatementType::Pass => Ok(typed_ast::Statement {
+                kind: typed_ast::StatementType::Pass,
+            }),
             ast::StatementType::Continue => Ok(typed_ast::Statement {
                 kind: typed_ast::StatementType::Continue,
             }),
+            ast::StatementType::Return { value } => {
+                let value = if let Some(value) = value {
+                    Some(self.check_expresion(value)?)
+                } else {
+                    None
+                };
+                Ok(typed_ast::Statement {
+                    kind: typed_ast::StatementType::Return { value },
+                })
+            }
             ast::StatementType::Break => Ok(typed_ast::Statement {
                 kind: typed_ast::StatementType::Break,
             }),
@@ -555,6 +582,16 @@ impl TypeChecker {
         }
     }
 
+    fn add_import(&mut self, name: String, typ: MyType) {
+        // Hmm, not super efficient:
+        for x in &self.typed_imports {
+            if x.name == name {
+                return;
+            }
+        }
+        self.typed_imports.push(typed_ast::Import { name, typ });
+    }
+
     fn check_get_attr(
         &mut self,
         location: Location,
@@ -574,6 +611,8 @@ impl TypeChecker {
                             // This might be too much desugaring at this point
                             // Maybe introduce a new phase?
                             let full_name = format!("{}_{}", modname, attr);
+                            self.add_import(full_name.clone(), typ.clone());
+
                             Ok(typed_ast::Expression {
                                 typ,
                                 kind: typed_ast::ExpressionType::LoadFunction(full_name),
@@ -607,7 +646,7 @@ impl TypeChecker {
                 }
             }
             x => {
-                self.error(location, format!("Don't know ... {:?}", x));
+                self.error(location, format!("Cannot get attribute of '{:?}' type.", x));
                 Err(())
                 // unimplemented!("Ugh");
             }

@@ -29,6 +29,7 @@ pub struct FunctionDef {
     pub name: String,
     pub public: bool,
     pub parameters: Vec<Parameter>,
+    pub return_type: Option<Expression>,
     pub body: Block,
 }
 
@@ -72,6 +73,10 @@ pub enum StatementType<S, E> {
         condition: E,
         body: Vec<S>,
     },
+    Return {
+        value: Option<Expression>,
+    },
+    Pass,
     Break,
     Continue,
 }

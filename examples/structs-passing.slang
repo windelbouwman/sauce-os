@@ -14,9 +14,11 @@ fn main():
     foo(messages)
     let k = Fu { a: 2, msg: "BOOM1", b: 5 }
     bar(k, messages)
-    # k.a = 10
-    let k3 = Fu { a: 10, msg: "BOOM2", b: 5 }
-    bar(k3, messages)
+    let x = 31
+    x = 10
+    k.a = x
+    # let k3 = Fu { a: 10, msg: "BOOM2", b: 5 }
+    bar(k, messages)
 
 fn foo(messages: Holder):
     std.print(messages.msg1)

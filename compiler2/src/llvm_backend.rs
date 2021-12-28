@@ -39,17 +39,13 @@ where
         }
     }
 
-    fn gen(&mut self, prog: bytecode::Program) -> Result<(), std::io::Error> {
+    fn gen(&mut self, program: bytecode::Program) -> Result<(), std::io::Error> {
         writeln!(self.w)?;
-        writeln!(self.w, r"; Text generated!!")?;
-        writeln!(self.w)?;
-        // UGH: TODO: handle imports!
-        writeln!(self.w, r"declare void @std_print(i8* nocapture) nounwind")?;
         writeln!(self.w, r"declare i8* @malloc(i64) nounwind")?;
         writeln!(self.w)?;
 
         // Types:
-        for typedef in prog.struct_types {
+        for typedef in program.struct_types {
             let type_name = self.new_local(Some(
                 typedef
                     .name
@@ -69,8 +65,31 @@ where
             writeln!(self.w, r"{} = type {{ {} }}", type_name, fields.join(", "))?;
         }
 
+        // Handle imports!
+        for import in program.imports {
+            let p_text = import
+                .parameter_types
+                .iter()
+                .map(|typ| self.get_llvm_typ(&typ))
+                .collect::<Vec<String>>()
+                .join(", ");
+
+            let return_type = import
+                .return_type
+                .as_ref()
+                .map(|t| self.get_llvm_typ(t))
+                .unwrap_or("void".to_owned());
+
+            writeln!(
+                self.w,
+                r"declare {} @{}({}) nounwind",
+                return_type, import.name, p_text
+            )?;
+            writeln!(self.w)?;
+        }
+
         writeln!(self.w)?;
-        for function in prog.functions {
+        for function in program.functions {
             self.gen_function(function)?;
         }
 
@@ -141,7 +160,13 @@ where
         }
 
         let p_text = parameters.join(", ");
-        let return_type = "void";
+
+        let return_type = func
+            .return_type
+            .as_ref()
+            .map(|t| self.get_llvm_typ(t))
+            .unwrap_or("void".to_owned());
+
         writeln!(
             self.w,
             "define {} @{}({}) {{",
@@ -163,7 +188,7 @@ where
         for instruction in func.code {
             self.gen_instruction(instruction)?;
         }
-        writeln!(self.w, "    ret void")?;
+
         writeln!(self.w, "}}")?;
         writeln!(self.w)?;
 
@@ -175,6 +200,7 @@ where
         instruction: bytecode::Instruction,
     ) -> Result<(), std::io::Error> {
         use bytecode::Instruction;
+        log::trace!("Generating code for: {:?}", instruction);
         match instruction {
             Instruction::Operator { op, typ } => {
                 let op: String = match op {
@@ -358,6 +384,18 @@ where
                     condition, label, else_label
                 )?;
             }
+            Instruction::Return(amount) => match amount {
+                0 => {
+                    writeln!(self.w, "    ret void")?;
+                }
+                1 => {
+                    let (typ, value) = self.pop();
+                    writeln!(self.w, "    ret {} {}", typ, value)?;
+                }
+                other => {
+                    unimplemented!("Return {} values", other);
+                }
+            },
         };
         Ok(())
     }
@@ -379,7 +417,11 @@ where
         if let Some(typ) = typ {
             let res_var = self.new_local(None);
             let typ = self.get_llvm_typ(&typ);
-            writeln!(self.w, "    res_var = call {} {}({})", typ, callee, args)?;
+            writeln!(
+                self.w,
+                "    {} = call {} {}({})",
+                res_var, typ, callee, args
+            )?;
             self.push(typ, res_var);
         } else {
             writeln!(self.w, "    call void {}({})", callee, args)?;
