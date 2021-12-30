@@ -90,12 +90,27 @@ impl TypeChecker {
         self.define("str", Symbol::Typ(MyType::String), &location);
         self.define("int", Symbol::Typ(MyType::Int), &location);
         self.define("float", Symbol::Typ(MyType::Float), &location);
+        // self.define("list", Symbol::Typ(MyType::Float), &location);
         let mut std_exposed: HashMap<String, MyType> = HashMap::new();
+        std_exposed.insert(
+            "putc".to_owned(),
+            MyType::Function {
+                argument_types: vec![MyType::String],
+                return_type: None,
+            },
+        );
         std_exposed.insert(
             "print".to_owned(),
             MyType::Function {
                 argument_types: vec![MyType::String],
                 return_type: None,
+            },
+        );
+        std_exposed.insert(
+            "read_file".to_owned(),
+            MyType::Function {
+                argument_types: vec![MyType::String],
+                return_type: Some(Box::new(MyType::String)),
             },
         );
 
@@ -316,6 +331,11 @@ impl TypeChecker {
                     kind: typed_ast::StatementType::Assignment { target, value },
                 })
             }
+            ast::StatementType::For { name, it, body } => {
+                self.check_expresion(it)?;
+                self.check_block(body);
+                unimplemented!("TODO!");
+            }
             ast::StatementType::If {
                 condition,
                 if_true,
@@ -508,10 +528,17 @@ impl TypeChecker {
                         let kind = typed_ast::ExpressionType::LoadFunction(name);
                         Ok(typed_ast::Expression { typ, kind })
                     }
-                    Symbol::Typ(_) => {
-                        unimplemented!("TODO? what now?")
+                    Symbol::Typ(typ) => {
+                        self.error(
+                            location.clone(),
+                            format!("Unexpected usage of type {:?} ", typ),
+                        );
+                        Err(())
                     }
                 }
+            }
+            ast::ExpressionType::TemplatedType { .. } => {
+                unimplemented!("TDO?");
             }
             ast::ExpressionType::Bool(val) => Ok(typed_ast::Expression {
                 typ: MyType::Bool,
@@ -564,7 +591,6 @@ impl TypeChecker {
                             }
                         }
 
-                        // unimplemented!("TODO!");
                         Ok(typed_ast::Expression {
                             typ: MyType::Struct(struct_type),
                             kind: typed_ast::ExpressionType::StructLiteral(typed_values),

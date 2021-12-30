@@ -17,7 +17,10 @@ fn main():
     let x = 31
     x = 10
     k.a = x
-    # let k3 = Fu { a: 10, msg: "BOOM2", b: 5 }
+    # let k3 = Fu:
+    #   a: 10
+    #   msg: "BOOM2"
+    #   b: 5
     bar(k, messages)
 
 fn foo(messages: Holder):

@@ -16,6 +16,7 @@ pub enum Token {
     KeywordFor,
     KeywordIf,
     KeywordImport,
+    KeywordIn,
     KeywordLet,
     KeywordLoop,
     KeywordMut,

@@ -37,7 +37,7 @@ StructDef: ast::StructDef = {
 };
 
 StructDefField: ast::StructDefField = {
-    <location:@L> <name:Identifier> ":" <typ:Expression> Newline => {
+    <location:@L> <name:Identifier> ":" <typ:Type> Newline => {
         ast::StructDefField {
             location,
             name,
@@ -48,7 +48,7 @@ StructDefField: ast::StructDefField = {
 
 FunctionDef: ast::FunctionDef = {
     <public:"pub"?> <location:@L> "fn" <name:Identifier>
-    "(" <parameters:Comma<Parameter>> ")" <return_type:("->" Expression)?> ":"
+    "(" <parameters:Comma<Parameter>> ")" <return_type:("->" Type)?> ":"
     Newline <body:Block> => {
         let public = public.is_some();
         let return_type = return_type.map(|r| r.1);
@@ -64,7 +64,7 @@ FunctionDef: ast::FunctionDef = {
 };
 
 Parameter: ast::Parameter = {
-    <location:@L> <name:Identifier> ":" <typ:Expression> => {
+    <location:@L> <name:Identifier> ":" <typ:Type> => {
         ast::Parameter {
             location,
             name,
@@ -110,6 +110,16 @@ Statement: ast::Statement = {
             location,
             kind: ast::StatementType::While {
                 condition,
+                body,
+            }
+        }
+    },
+    <location:@L> "for" <name:Identifier> "in" <it:Expression> ":" Newline <body:Block> => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::For {
+                name,
+                it,
                 body,
             }
         }
@@ -319,7 +329,29 @@ Atom: ast::Expression = {
             kind: ast::ExpressionType::StructLiteral { name, fields }
         }
     },
+//    <location:@L> <name:Identifier> ":" Newline
+//    Indent <fields:Comma<StructLiteralField>> Dedent => {
+//        ast::Expression {
+//            location,
+//            kind: ast::ExpressionType::StructLiteral { name, fields }
+//        }
+//    },
     "(" <expr:Expression> ")" => expr,
+};
+
+Type: ast::Expression = {
+    <location:@L> <n:Identifier> => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Identifier(n)
+        }
+    },
+    <location:@L> <n:Identifier> "<" <t:Type> ">" => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Identifier(n)
+        }
+    },
 };
 
 StructLiteralField: ast::StructLiteralField = {
@@ -362,6 +394,7 @@ extern {
         "for" => Token::KeywordFor,
         "if" => Token::KeywordIf,
         "import" => Token::KeywordImport,
+        "in" => Token::KeywordIn,
         "let" => Token::KeywordLet,
         "loop" => Token::KeywordLoop,
         "mut" => Token::KeywordMut,

@@ -42,6 +42,7 @@ where
     fn gen(&mut self, program: bytecode::Program) -> Result<(), std::io::Error> {
         writeln!(self.w)?;
         writeln!(self.w, r"declare i8* @malloc(i64) nounwind")?;
+        writeln!(self.w, r"declare i8* @rt_str_concat(i8*, i8*) nounwind")?;
         writeln!(self.w)?;
 
         // Types:
@@ -85,8 +86,8 @@ where
                 r"declare {} @{}({}) nounwind",
                 return_type, import.name, p_text
             )?;
-            writeln!(self.w)?;
         }
+        writeln!(self.w)?;
 
         writeln!(self.w)?;
         for function in program.functions {
@@ -124,7 +125,7 @@ where
         match ty {
             bytecode::Typ::Bool => "i1".to_owned(),
             bytecode::Typ::Int => "i64".to_owned(),
-            bytecode::Typ::Float => "f64".to_owned(),
+            bytecode::Typ::Float => "double".to_owned(),
             bytecode::Typ::String => "i8*".to_owned(),
             bytecode::Typ::Ptr(t) => format!("{}*", self.get_llvm_typ(t)),
             bytecode::Typ::Struct(index) => self.type_names[*index].0.clone(),
@@ -202,20 +203,59 @@ where
         use bytecode::Instruction;
         log::trace!("Generating code for: {:?}", instruction);
         match instruction {
-            Instruction::Operator { op, typ } => {
-                let op: String = match op {
-                    bytecode::Operator::Add => "add".to_owned(),
-                    bytecode::Operator::Sub => "sub".to_owned(),
-                    bytecode::Operator::Mul => "mul".to_owned(),
-                    bytecode::Operator::Div => "sdiv".to_owned(),
-                };
-                let typ = self.get_llvm_typ(&typ);
-                let rhs = self.pop_untyped();
-                let lhs = self.pop_untyped();
-                let new_var = self.new_local(None);
-                writeln!(self.w, "    {} = {} {} {}, {}", new_var, op, typ, lhs, rhs)?;
-                self.push(typ, new_var);
-            }
+            Instruction::Operator { op, typ } => match typ {
+                bytecode::Typ::Int => {
+                    let op: String = match op {
+                        bytecode::Operator::Add => "add".to_owned(),
+                        bytecode::Operator::Sub => "sub".to_owned(),
+                        bytecode::Operator::Mul => "mul".to_owned(),
+                        bytecode::Operator::Div => "sdiv".to_owned(),
+                    };
+                    let typ = self.get_llvm_typ(&typ);
+                    let rhs = self.pop_untyped();
+                    let lhs = self.pop_untyped();
+                    let new_var = self.new_local(None);
+                    writeln!(self.w, "    {} = {} {} {}, {}", new_var, op, typ, lhs, rhs)?;
+                    self.push(typ, new_var);
+                }
+                bytecode::Typ::Float => {
+                    let op: String = match op {
+                        bytecode::Operator::Add => "fadd".to_owned(),
+                        bytecode::Operator::Sub => "fsub".to_owned(),
+                        bytecode::Operator::Mul => "fmul".to_owned(),
+                        bytecode::Operator::Div => "fdiv".to_owned(),
+                    };
+                    let typ = self.get_llvm_typ(&typ);
+                    let rhs = self.pop_untyped();
+                    let lhs = self.pop_untyped();
+                    let new_var = self.new_local(None);
+                    writeln!(self.w, "    {} = {} {} {}, {}", new_var, op, typ, lhs, rhs)?;
+                    self.push(typ, new_var);
+                }
+                bytecode::Typ::String => {
+                    match op {
+                        bytecode::Operator::Add => {
+                            let typ = self.get_llvm_typ(&typ);
+                            let rhs = self.pop_untyped();
+                            let lhs = self.pop_untyped();
+                            let new_var = self.new_local(None);
+                            // "    {} = call i8* @malloc(i64 {}) nounwind",
+                            writeln!(
+                                self.w,
+                                "    {} = call {} @rt_str_concat({} {}, {} {}) nounwind",
+                                new_var, typ, typ, lhs, typ, rhs
+                            )?;
+                            self.push(typ, new_var);
+                        }
+                        other => {
+                            panic!("Can only add strings, not {:?}", other);
+                        }
+                    };
+                }
+                other => {
+                    unimplemented!("Binary op for: {:?}", other);
+                }
+            },
             // Instruction::Nop => {
             // Easy, nothing to do here!!
             // }
@@ -229,7 +269,7 @@ where
                 self.gen_string_literal(value)?;
             }
             Instruction::FloatLiteral(value) => {
-                self.push("f64".to_owned(), format!("{}", value));
+                self.push("double".to_owned(), format!("{:.30}", value));
             }
             Instruction::Malloc(typ) => {
                 //  TBD: use heap malloc or alloca on stack?
@@ -265,23 +305,45 @@ where
                 self.push(typ, val);
             }
             Instruction::Comparison { op, typ } => {
-                let rhs = self.pop_untyped();
-                let lhs = self.pop_untyped();
-                let op: String = match op {
-                    bytecode::Comparison::Lt => "icmp slt".to_owned(),
-                    bytecode::Comparison::LtEqual => "icmp sle".to_owned(),
-                    bytecode::Comparison::Gt => "icmp sgt".to_owned(),
-                    bytecode::Comparison::GtEqual => "icmp sge".to_owned(),
-                    bytecode::Comparison::Equal => "icmp eq".to_owned(),
-                    bytecode::Comparison::NotEqual => {
-                        unimplemented!("TODO!");
+                match typ {
+                    bytecode::Typ::Int => {
+                        let rhs = self.pop_untyped();
+                        let lhs = self.pop_untyped();
+                        let op: String = match op {
+                            bytecode::Comparison::Lt => "icmp slt".to_owned(),
+                            bytecode::Comparison::LtEqual => "icmp sle".to_owned(),
+                            bytecode::Comparison::Gt => "icmp sgt".to_owned(),
+                            bytecode::Comparison::GtEqual => "icmp sge".to_owned(),
+                            bytecode::Comparison::Equal => "icmp eq".to_owned(),
+                            bytecode::Comparison::NotEqual => "icmp ne".to_owned(),
+                        };
+                        let typ = self.get_llvm_typ(&typ);
+                        let new_var = self.new_local(None);
+                        // %binop10 = icmp slt i32 %a5, %b6
+                        writeln!(self.w, "    {} = {} {} {}, {}", new_var, op, typ, lhs, rhs)?;
+                        self.push("i1".to_owned(), new_var);
                     }
-                };
-                let typ = self.get_llvm_typ(&typ);
-                let new_var = self.new_local(None);
-                // %binop10 = icmp slt i32 %a5, %b6
-                writeln!(self.w, "    {} = {} {} {}, {}", new_var, op, typ, lhs, rhs)?;
-                self.push("i1".to_owned(), new_var);
+                    bytecode::Typ::Float => {
+                        let rhs = self.pop_untyped();
+                        let lhs = self.pop_untyped();
+                        let op: String = match op {
+                            bytecode::Comparison::Lt => "fcmp olt".to_owned(),
+                            bytecode::Comparison::LtEqual => "fcmp ole".to_owned(),
+                            bytecode::Comparison::Gt => "fcmp ogt".to_owned(),
+                            bytecode::Comparison::GtEqual => "fcmp oge".to_owned(),
+                            bytecode::Comparison::Equal => "fcmp oeq".to_owned(),
+                            bytecode::Comparison::NotEqual => "fcmp one".to_owned(),
+                        };
+                        let typ = self.get_llvm_typ(&typ);
+                        let new_var = self.new_local(None);
+                        // %binop10 = icmp slt i32 %a5, %b6
+                        writeln!(self.w, "    {} = {} {} {}, {}", new_var, op, typ, lhs, rhs)?;
+                        self.push("i1".to_owned(), new_var);
+                    }
+                    other => {
+                        unimplemented!("Comparison not implemented for: {:?}", other);
+                    }
+                }
             }
             Instruction::Call { n_args, typ } => {
                 self.gen_call(n_args, typ)?;

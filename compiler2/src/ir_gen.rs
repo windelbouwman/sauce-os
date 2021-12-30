@@ -157,7 +157,7 @@ impl Generator {
                             self.emit(Instruction::SetAttr(index));
                         }
                         _other => {
-                            panic!("TODO?");
+                            panic!("Base type must be structured type.");
                         }
                     },
                     typed_ast::Expression {
@@ -346,43 +346,55 @@ impl Generator {
                 }
             }
             typed_ast::ExpressionType::Binop { lhs, op, rhs } => {
-                let typ = self.get_bytecode_typ(&lhs.typ);
-                self.gen_expression(*lhs);
-                self.gen_expression(*rhs);
                 match op {
                     ast::BinaryOperator::Math(op2) => {
+                        let typ = self.get_bytecode_typ(&lhs.typ);
+                        self.gen_expression(*lhs);
+                        self.gen_expression(*rhs);
                         let op = match op2 {
                             ast::MathOperator::Add => bytecode::Operator::Add,
                             ast::MathOperator::Sub => bytecode::Operator::Sub,
                             ast::MathOperator::Mul => bytecode::Operator::Mul,
-                            ast::MathOperator::Div => {
-                                // self.emit(Instruction::Div);
-                                // unimplemented!("TODO");
-                                bytecode::Operator::Div
-                            }
+                            ast::MathOperator::Div => bytecode::Operator::Div,
                         };
                         self.emit(Instruction::Operator { op, typ });
                     }
                     ast::BinaryOperator::Comparison(op2) => {
+                        let typ = self.get_bytecode_typ(&lhs.typ);
+                        self.gen_expression(*lhs);
+                        self.gen_expression(*rhs);
+                        // TBD: we could simplify by swapping lhs and rhs and using Lt instead of GtEqual
                         let op = match op2 {
                             ast::ComparisonOperator::Equal => bytecode::Comparison::Equal,
                             ast::ComparisonOperator::NotEqual => bytecode::Comparison::NotEqual,
                             ast::ComparisonOperator::Gt => bytecode::Comparison::Gt,
-                            ast::ComparisonOperator::GtEqual => {
-                                // unimplemented!("TODO: swap lhs and rhs?");
-                                bytecode::Comparison::GtEqual
-                            }
+                            ast::ComparisonOperator::GtEqual => bytecode::Comparison::GtEqual,
                             ast::ComparisonOperator::Lt => bytecode::Comparison::Lt,
-                            ast::ComparisonOperator::LtEqual => {
-                                // unimplemented!("TODO: swap lhs and rhs?");
-                                bytecode::Comparison::LtEqual
-                            }
+                            ast::ComparisonOperator::LtEqual => bytecode::Comparison::LtEqual,
                         };
 
                         self.emit(Instruction::Comparison { op, typ });
                     }
                     ast::BinaryOperator::Logic(op) => {
-                        unimplemented!("TODO : {:?}", op);
+                        let true_label = self.new_label();
+                        let false_label = self.new_label();
+                        let final_label = self.new_label();
+                        let recreated_expression = typed_ast::Expression {
+                            typ: expression.typ,
+                            kind: typed_ast::ExpressionType::Binop {
+                                lhs,
+                                op: ast::BinaryOperator::Logic(op),
+                                rhs,
+                            },
+                        };
+                        self.gen_condition(recreated_expression, true_label, false_label);
+                        self.set_label(true_label);
+                        self.emit(Instruction::BoolLiteral(true));
+                        self.emit(Instruction::Jump(final_label));
+                        self.set_label(false_label);
+                        self.emit(Instruction::BoolLiteral(false));
+                        self.emit(Instruction::Jump(final_label));
+                        self.set_label(final_label);
                     }
                 }
             }

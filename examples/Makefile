@@ -1,7 +1,7 @@
 
-export RUST_BACKTRACE=1
-export PYTHONPATH=..
-SLANG_COMPILER=../compiler2/target/debug/compiler2 -vvv
+# export PYTHONPATH=..
+BUILDDIR=build
+SLANG_COMPILER=../compiler2/target/debug/compiler2
 # SLANG_COMPILER=python -m bootstrap-compiler.main
 
 EXECUTABLES = \
@@ -9,24 +9,30 @@ EXECUTABLES = \
 	expressions.exe \
 	hello-world.exe \
 	if-statements.exe \
+	mandel.exe \
 	structs-passing.exe
 
+RT_OBJ=${BUILDDIR}/runtime.o
+
 .PHONY: all
-all: ${EXECUTABLES}
+all: ${BUILDDIR} ${EXECUTABLES}
 
-runtime.o: ../runtime/runtime.c
-	gcc -c -o runtime.o ../runtime/runtime.c
+${BUILDDIR}:
+	mkdir -p ${BUILDDIR}
 
-%.exe: %.o runtime.o Makefile
-	gcc $< runtime.o -o $@
+${RT_OBJ}: ../runtime/runtime.c
+	gcc -c -o ${RT_OBJ} ../runtime/runtime.c
 
-%.o: %.ll Makefile
+%.exe: ${BUILDDIR}/%.o ${RT_OBJ}
+	gcc $< ${RT_OBJ} -o $@
+
+${BUILDDIR}/%.o: ${BUILDDIR}/%.ll
 	llc --relocation-model=pic -filetype=obj -o $@ $<
 
-.PRECIOUS: %.ll
 .SUFFIXES: .slang
-%.ll: %.slang Makefile
+.PRECIOUS: ${BUILDDIR}/%.ll
+${BUILDDIR}/%.ll: %.slang
 	${SLANG_COMPILER} --output $@ $<
 
 clean:
-	rm -f *.ll *.o *.exe
+	rm -rf ${BUILDDIR} *.exe

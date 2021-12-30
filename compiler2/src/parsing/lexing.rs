@@ -9,6 +9,10 @@ fn strip_quotes(txt: &str) -> String {
     txt
 }
 
+fn handle_escapings(txt: String) -> String {
+    txt.replace(r"\n", "\n")
+}
+
 #[derive(Logos)]
 enum LogosToken {
     #[regex("[a-zA-Z][a-zA-Z0-9_]*", |x| x.slice().to_string())]
@@ -22,6 +26,9 @@ enum LogosToken {
 
     #[regex(r#""[^"]*""#, |x| strip_quotes(x.slice()))]
     String(String),
+
+    #[regex(r#"'[^']*'"#, |x| strip_quotes(x.slice()))]
+    Character(String),
 
     #[token(":")]
     Colon,
@@ -215,6 +222,7 @@ impl<'t> Lexer<'t> {
                 "for" => self.emit(Token::KeywordFor),
                 "if" => self.emit(Token::KeywordIf),
                 "import" => self.emit(Token::KeywordImport),
+                "in" => self.emit(Token::KeywordIn),
                 "loop" => self.emit(Token::KeywordLoop),
                 "let" => self.emit(Token::KeywordLet),
                 "mut" => self.emit(Token::KeywordMut),
@@ -242,6 +250,11 @@ impl<'t> Lexer<'t> {
                 self.emit(Token::FloatingPoint { value });
             }
             LogosToken::String(value) => {
+                self.emit(Token::String { value });
+            }
+            LogosToken::Character(value) => {
+                // TODO: should we use special type for chars?
+                let value = handle_escapings(value);
                 self.emit(Token::String { value });
             }
             LogosToken::Arrow => {

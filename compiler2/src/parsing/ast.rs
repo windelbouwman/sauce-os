@@ -66,6 +66,11 @@ pub enum StatementType<S, E> {
         if_true: Vec<S>,
         if_false: Option<Vec<S>>,
     },
+    For {
+        name: String,
+        it: Expression,
+        body: Vec<S>,
+    },
     Loop {
         body: Vec<S>,
     },
@@ -94,6 +99,9 @@ pub enum ExpressionType<E> {
     Integer(i64),
     Float(f64),
     Bool(bool),
+    TemplatedType {
+        t: Box<Expression>,
+    },
     StructLiteral {
         name: String,
         fields: Vec<StructLiteralField>,
