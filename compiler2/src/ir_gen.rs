@@ -6,8 +6,8 @@
 use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
-use super::type_system::{MyType, StructType};
-use super::typed_ast;
+use super::semantics::type_system::{MyType, StructType};
+use super::semantics::typed_ast;
 use std::collections::HashMap;
 
 pub fn gen(prog: typed_ast::Program) -> bytecode::Program {
@@ -441,10 +441,6 @@ impl Generator {
             typed_ast::ExpressionType::LoadLocal { name: _, index } => {
                 let typ = self.get_bytecode_typ(&expression.typ);
                 self.emit(Instruction::LoadLocal { index, typ });
-            }
-            typed_ast::ExpressionType::LoadModule { .. } => {
-                // self.emit(Instruction::LoadName(name));
-                unimplemented!("TODO!");
             }
         }
     }

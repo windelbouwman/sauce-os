@@ -21,7 +21,7 @@ pub struct StructDef {
 pub struct StructDefField {
     pub location: Location,
     pub name: String,
-    pub typ: Expression,
+    pub typ: Type,
 }
 
 pub struct FunctionDef {
@@ -29,25 +29,25 @@ pub struct FunctionDef {
     pub name: String,
     pub public: bool,
     pub parameters: Vec<Parameter>,
-    pub return_type: Option<Expression>,
+    pub return_type: Option<Type>,
     pub body: Block,
 }
 
 pub struct Parameter {
     pub location: Location,
     pub name: String,
-    pub typ: Expression,
+    pub typ: Type,
 }
 
 pub type Block = Vec<Statement>;
 
 pub struct Statement {
     pub location: Location,
-    pub kind: StatementType<Statement, Expression>,
+    pub kind: StatementType,
 }
 
-pub enum StatementType<S, E> {
-    Expression(E),
+pub enum StatementType {
+    Expression(Expression),
 
     /// Assign and define variable
     Let {
@@ -62,21 +62,21 @@ pub enum StatementType<S, E> {
     },
 
     If {
-        condition: E,
-        if_true: Vec<S>,
-        if_false: Option<Vec<S>>,
+        condition: Expression,
+        if_true: Vec<Statement>,
+        if_false: Option<Vec<Statement>>,
     },
     For {
         name: String,
         it: Expression,
-        body: Vec<S>,
+        body: Vec<Statement>,
     },
     Loop {
-        body: Vec<S>,
+        body: Vec<Statement>,
     },
     While {
-        condition: E,
-        body: Vec<S>,
+        condition: Expression,
+        body: Vec<Statement>,
     },
     Return {
         value: Option<Expression>,
@@ -89,35 +89,65 @@ pub enum StatementType<S, E> {
 #[derive(Debug)]
 pub struct Expression {
     pub location: Location,
-    pub kind: ExpressionType<Expression>,
+    pub kind: ExpressionType,
 }
 
 #[derive(Debug)]
-pub enum ExpressionType<E> {
+pub enum ExpressionType {
+    Object(ObjRef),
     String(String),
-    Identifier(String),
     Integer(i64),
     Float(f64),
     Bool(bool),
-    TemplatedType {
-        t: Box<Expression>,
-    },
     StructLiteral {
-        name: String,
+        typ: Type,
         fields: Vec<StructLiteralField>,
     },
     Call {
-        callee: Box<E>,
-        arguments: Vec<E>,
+        callee: Box<Expression>,
+        arguments: Vec<Expression>,
     },
     GetAttr {
-        base: Box<E>,
+        base: Box<Expression>,
         attr: String,
     },
+
+    /// Binary operator
     Binop {
-        lhs: Box<E>,
+        lhs: Box<Expression>,
         op: BinaryOperator,
-        rhs: Box<E>,
+        rhs: Box<Expression>,
+    },
+}
+
+/// A type specification
+#[derive(Debug)]
+pub struct Type {
+    pub location: Location,
+    pub kind: TypeKind,
+}
+
+#[derive(Debug)]
+pub enum TypeKind {
+    Object(ObjRef),
+    // TODO: implement generic types!
+    //TemplatedType {
+    //    t: Box<Expression>,
+    //},
+}
+
+#[derive(Debug)]
+pub enum ObjRef {
+    Name {
+        location: Location,
+        name: String,
+    },
+
+    /// Scope access
+    Inner {
+        location: Location,
+        base: Box<ObjRef>,
+        member: String,
     },
 }
 

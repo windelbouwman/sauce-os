@@ -44,7 +44,7 @@ Invoke LLVM text ${filename}
     Should Be Equal As Integers  ${result.rc}  0
 
 Create executable for ${filename}
-    ${result}=  Run Process  gcc  -o  ${EXAMPLES_FOLDER}/${filename}.exe  ${EXAMPLES_FOLDER}/runtime.o  ${EXAMPLES_FOLDER}/${filename}.o
+    ${result}=  Run Process  gcc  -o  ${EXAMPLES_FOLDER}/${filename}.exe  ${EXAMPLES_FOLDER}/build/runtime.o  ${EXAMPLES_FOLDER}/${filename}.o
     Log  ${result.stdout}
     Log  ${result.stderr}
     Should Be Equal As Integers  ${result.rc}  0

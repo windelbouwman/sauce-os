@@ -33,6 +33,9 @@ enum LogosToken {
     #[token(":")]
     Colon,
 
+    #[token("::")]
+    DoubleColon,
+
     #[token(".")]
     Dot,
 
@@ -262,6 +265,9 @@ impl<'t> Lexer<'t> {
             }
             LogosToken::Colon => {
                 self.emit(Token::Colon);
+            }
+            LogosToken::DoubleColon => {
+                self.emit(Token::DoubleColon);
             }
             LogosToken::Dot => {
                 self.emit(Token::Dot);

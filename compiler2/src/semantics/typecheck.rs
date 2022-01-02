@@ -10,56 +10,12 @@ If we pass the typechecker, code is in pretty good shape!
 
 */
 
-use super::type_system::{MyType, StructType};
 use super::typed_ast;
-use super::CompilationError;
+use super::{MyType, StructType};
+use super::{Scope, Symbol};
 use crate::parsing::{ast, Location};
+use crate::CompilationError;
 use std::collections::HashMap;
-
-#[derive(Debug, Clone)]
-enum Symbol {
-    Typ(MyType),
-    Function {
-        typ: MyType,
-    },
-    Module {
-        // typ: MyType,
-        exposed: HashMap<String, MyType>,
-    },
-    Parameter {
-        typ: MyType,
-        index: usize,
-    },
-    LocalVariable {
-        mutable: bool,
-        index: usize,
-        typ: MyType,
-    },
-}
-
-impl Symbol {
-    // fn get_type(&self) -> &MyType {
-    //     match self {
-    //         Symbol::Typ(_t) => &MyType::Typ,
-    //         Symbol::Function { typ } => &typ,
-    //         Symbol::Module { typ } => typ,
-    //         Symbol::Parameter { typ } => typ,
-    //         // Symbol::Variable { typ } => typ,
-    //     }
-    // }
-}
-
-struct Scope {
-    symbols: HashMap<String, Symbol>,
-}
-
-impl Scope {
-    fn new() -> Self {
-        Scope {
-            symbols: HashMap::new(),
-        }
-    }
-}
 
 pub fn type_check(prog: ast::Program) -> Result<typed_ast::Program, CompilationError> {
     let checker = TypeChecker::new();
@@ -91,6 +47,10 @@ impl TypeChecker {
         self.define("int", Symbol::Typ(MyType::Int), &location);
         self.define("float", Symbol::Typ(MyType::Float), &location);
         // self.define("list", Symbol::Typ(MyType::Float), &location);
+        self.load_std_module();
+    }
+
+    fn load_std_module(&mut self) {
         let mut std_exposed: HashMap<String, MyType> = HashMap::new();
         std_exposed.insert(
             "putc".to_owned(),
@@ -113,10 +73,11 @@ impl TypeChecker {
                 return_type: Some(Box::new(MyType::String)),
             },
         );
-
+        let location: Location = Default::default();
         self.define(
             "std",
             Symbol::Module {
+                name: "std".to_owned(),
                 exposed: std_exposed,
             },
             &location,
@@ -145,14 +106,14 @@ impl TypeChecker {
             // Deal with parameter types:
             let mut argument_types = vec![];
             for parameter in &function_def.parameters {
-                let arg_typ = self.get_type(&parameter.typ).unwrap_or(MyType::Void);
+                let arg_typ = self.eval_type_expr(&parameter.typ).unwrap_or(MyType::Void);
                 argument_types.push(arg_typ);
             }
 
             let return_type = function_def
                 .return_type
                 .as_ref()
-                .map(|t| Box::new(self.get_type(t).unwrap_or(MyType::Void)));
+                .map(|t| Box::new(self.eval_type_expr(t).unwrap_or(MyType::Void)));
 
             // function_def.
             let function_typ = MyType::Function {
@@ -162,7 +123,10 @@ impl TypeChecker {
             log::debug!("Signature of {}: {:?}", function_def.name, function_typ);
             self.define(
                 &function_def.name,
-                Symbol::Function { typ: function_typ },
+                Symbol::Function {
+                    name: function_def.name.clone(),
+                    typ: function_typ,
+                },
                 &function_def.location,
             );
             // funcs.push(())
@@ -196,7 +160,7 @@ impl TypeChecker {
         let mut fields = vec![];
         for field in struct_def.fields {
             let name = field.name;
-            let typ = self.get_type(&field.typ)?;
+            let typ = self.eval_type_expr(&field.typ)?;
             fields.push((name, typ));
         }
         let struct_type = StructType {
@@ -210,34 +174,74 @@ impl TypeChecker {
     }
 
     /// Resolve expression into type!
-    fn get_type(&mut self, expression: &ast::Expression) -> Result<MyType, ()> {
-        // let kind_expr = self.check_expresion(expression.clone())?;
-
-        self.eval_type_expr(expression)
-    }
-
     /// Wonky, this is resolved during compilation!
-    fn eval_type_expr(&mut self, expression: &ast::Expression) -> Result<MyType, ()> {
-        match &expression.kind {
-            ast::ExpressionType::Identifier(name) => {
-                let symbol = self.lookup(&expression.location, name)?;
+    fn eval_type_expr(&mut self, typ: &ast::Type) -> Result<MyType, ()> {
+        match &typ.kind {
+            ast::TypeKind::Object(obj_ref) => {
+                let symbol = self.resolve_obj(obj_ref)?;
+
+                // let symbol = self.lookup(&expression.location, name)?;
                 match symbol {
                     Symbol::Typ(t) => Ok(t),
-                    x => {
+                    other => {
                         self.error(
-                            expression.location.clone(),
-                            format!("Symbol is no type: {:?}", x),
+                            typ.location.clone(),
+                            format!("Symbol is no type, but: {:?}", other),
                         );
                         Err(())
                     }
                 }
+            } //ast::ExpressionType::TemplatedType { .. } => {
+              // TODO: implement type contraptor
+              //    unimplemented!("TDO?");
+              //}
+        }
+    }
+
+    /// Have a closer look at a reference to a scoped object reference.
+    fn resolve_obj(&mut self, obj_ref: &ast::ObjRef) -> Result<Symbol, ()> {
+        match obj_ref {
+            ast::ObjRef::Name { location, name } => {
+                let symbol = self.lookup(&location, &name)?;
+                // let typ = symbol.get_type().clone();
+                Ok(symbol)
             }
-            unknown_expression => {
-                self.error(
-                    expression.location.clone(),
-                    format!("Unexpected type expression: {:?}", unknown_expression),
-                );
-                Err(())
+            ast::ObjRef::Inner {
+                location,
+                base,
+                member,
+            } => {
+                let base = self.resolve_obj(base)?;
+                match base {
+                    Symbol::Module { name, exposed } => {
+                        if exposed.contains_key(member) {
+                            let typ = exposed.get(member).unwrap().clone();
+                            // This might be too much desugaring at this point
+                            // Maybe introduce a new phase?
+                            let full_name = format!("{}_{}", name, member);
+                            self.add_import(full_name.clone(), typ.clone());
+
+                            // TODO: Does not need to be a function!
+                            Ok(Symbol::Function {
+                                name: full_name,
+                                typ,
+                            })
+                        } else {
+                            self.error(
+                                location.clone(),
+                                format!("Module has no field: {}", member),
+                            );
+                            Err(())
+                        }
+                    }
+                    other => {
+                        self.error(
+                            location.clone(),
+                            format!("Cannot scope-access: {:?}", other),
+                        );
+                        Err(())
+                    }
+                }
             }
         }
     }
@@ -250,11 +254,12 @@ impl TypeChecker {
         self.enter_scope();
         let mut typed_parameters = vec![];
         for (index, parameter) in function.parameters.into_iter().enumerate() {
-            let param_typ = self.get_type(&parameter.typ)?;
+            let param_typ = self.eval_type_expr(&parameter.typ)?;
             self.define(
                 &parameter.name,
                 Symbol::Parameter {
                     index,
+                    name: parameter.name.clone(),
                     typ: param_typ.clone(),
                 },
                 &parameter.location,
@@ -268,7 +273,7 @@ impl TypeChecker {
         self.leave_scope();
 
         let return_type = if let Some(t) = &function.return_type {
-            Some(self.get_type(t)?)
+            Some(self.eval_type_expr(t)?)
         } else {
             None
         };
@@ -315,6 +320,7 @@ impl TypeChecker {
                     Symbol::LocalVariable {
                         mutable,
                         index,
+                        name: name.clone(),
                         typ,
                     },
                     &location,
@@ -333,8 +339,10 @@ impl TypeChecker {
             }
             ast::StatementType::For { name, it, body } => {
                 self.check_expresion(it)?;
+                self.enter_scope();
                 self.check_block(body);
-                unimplemented!("TODO!");
+                self.leave_scope();
+                unimplemented!("TODO: for loop {}!", name);
             }
             ast::StatementType::If {
                 condition,
@@ -503,28 +511,27 @@ impl TypeChecker {
                     },
                 })
             }
-            ast::ExpressionType::Identifier(name) => {
-                let symbol = self.lookup(&location, &name)?;
-                // let typ = symbol.get_type().clone();
+            ast::ExpressionType::Object(obj_ref) => {
+                let symbol = self.resolve_obj(&obj_ref)?;
                 match symbol {
-                    Symbol::Module { exposed: _ } => {
-                        let kind = typed_ast::ExpressionType::LoadModule { modname: name };
-                        let typ = MyType::Module;
-                        Ok(typed_ast::Expression { typ, kind })
+                    Symbol::Module { name, exposed: _ } => {
+                        self.error(location, format!("Unexpected usage of module {}", name));
+                        Err(())
                     }
-                    Symbol::Parameter { typ, index } => {
+                    Symbol::Parameter { typ, name, index } => {
                         let kind = typed_ast::ExpressionType::LoadParameter { name, index };
                         Ok(typed_ast::Expression { typ, kind })
                     }
                     Symbol::LocalVariable {
                         mutable: _,
+                        name,
                         index,
                         typ,
                     } => {
                         let kind = typed_ast::ExpressionType::LoadLocal { name, index };
                         Ok(typed_ast::Expression { typ, kind })
                     }
-                    Symbol::Function { typ } => {
+                    Symbol::Function { name, typ } => {
                         let kind = typed_ast::ExpressionType::LoadFunction(name);
                         Ok(typed_ast::Expression { typ, kind })
                     }
@@ -536,9 +543,6 @@ impl TypeChecker {
                         Err(())
                     }
                 }
-            }
-            ast::ExpressionType::TemplatedType { .. } => {
-                unimplemented!("TDO?");
             }
             ast::ExpressionType::Bool(val) => Ok(typed_ast::Expression {
                 typ: MyType::Bool,
@@ -559,51 +563,8 @@ impl TypeChecker {
             ast::ExpressionType::GetAttr { base, attr } => {
                 self.check_get_attr(location, *base, attr)
             }
-            ast::ExpressionType::StructLiteral { name, fields } => {
-                // Create a new instance of a struct typed value!
-                let symbol = self.lookup(&location, &name)?;
-                match symbol {
-                    Symbol::Typ(MyType::Struct(struct_type)) => {
-                        let mut typed_values: Vec<typed_ast::Expression> = vec![];
-                        let mut value_map: HashMap<String, typed_ast::Expression> = HashMap::new();
-                        for field in fields {
-                            let value = self.check_expresion(field.value)?;
-                            if value_map.contains_key(&field.name) {
-                                self.error(
-                                    field.location,
-                                    format!("Duplicate field: {}", field.name),
-                                );
-                            } else {
-                                value_map.insert(field.name, value);
-                            }
-                        }
-
-                        for (field_name, field_type) in &struct_type.fields {
-                            if value_map.contains_key(field_name) {
-                                let field_value = value_map.remove(field_name).unwrap();
-                                self.check_equal_types(&location, field_type, &field_value.typ)?;
-                                typed_values.push(field_value);
-                            } else {
-                                self.error(
-                                    location.clone(),
-                                    format!("Missing field: {}", field_name),
-                                );
-                            }
-                        }
-
-                        Ok(typed_ast::Expression {
-                            typ: MyType::Struct(struct_type),
-                            kind: typed_ast::ExpressionType::StructLiteral(typed_values),
-                        })
-                    }
-                    other => {
-                        self.error(
-                            location.clone(),
-                            format!("Must be struct type, not {:?}", other),
-                        );
-                        Err(())
-                    }
-                }
+            ast::ExpressionType::StructLiteral { typ, fields } => {
+                self.check_struct_literal(location, typ, fields)
             }
         }
     }
@@ -618,6 +579,53 @@ impl TypeChecker {
         self.typed_imports.push(typed_ast::Import { name, typ });
     }
 
+    fn check_struct_literal(
+        &mut self,
+        location: Location,
+        typ: ast::Type,
+        fields: Vec<ast::StructLiteralField>,
+    ) -> Result<typed_ast::Expression, ()> {
+        // Create a new instance of a struct typed value!
+        // let symbol = self.lookup(&location, &name)?;
+        let typ = self.eval_type_expr(&typ)?;
+        match typ {
+            MyType::Struct(struct_type) => {
+                let mut typed_values: Vec<typed_ast::Expression> = vec![];
+                let mut value_map: HashMap<String, typed_ast::Expression> = HashMap::new();
+                for field in fields {
+                    let value = self.check_expresion(field.value)?;
+                    if value_map.contains_key(&field.name) {
+                        self.error(field.location, format!("Duplicate field: {}", field.name));
+                    } else {
+                        value_map.insert(field.name, value);
+                    }
+                }
+
+                for (field_name, field_type) in &struct_type.fields {
+                    if value_map.contains_key(field_name) {
+                        let field_value = value_map.remove(field_name).unwrap();
+                        self.check_equal_types(&location, field_type, &field_value.typ)?;
+                        typed_values.push(field_value);
+                    } else {
+                        self.error(location.clone(), format!("Missing field: {}", field_name));
+                    }
+                }
+
+                Ok(typed_ast::Expression {
+                    typ: MyType::Struct(struct_type),
+                    kind: typed_ast::ExpressionType::StructLiteral(typed_values),
+                })
+            }
+            other => {
+                self.error(
+                    location.clone(),
+                    format!("Must be struct type, not {:?}", other),
+                );
+                Err(())
+            }
+        }
+    }
+
     fn check_get_attr(
         &mut self,
         location: Location,
@@ -626,34 +634,6 @@ impl TypeChecker {
     ) -> Result<typed_ast::Expression, ()> {
         let base = self.check_expresion(base)?;
         match &base.typ {
-            MyType::Module => {
-                if let typed_ast::ExpressionType::LoadModule { modname } = &base.kind {
-                    if let Symbol::Module { exposed } =
-                        self.lookup2(modname).expect("Name is present")
-                    {
-                        // name
-                        if exposed.contains_key(&attr) {
-                            let typ = exposed.get(&attr).unwrap().clone();
-                            // This might be too much desugaring at this point
-                            // Maybe introduce a new phase?
-                            let full_name = format!("{}_{}", modname, attr);
-                            self.add_import(full_name.clone(), typ.clone());
-
-                            Ok(typed_ast::Expression {
-                                typ,
-                                kind: typed_ast::ExpressionType::LoadFunction(full_name),
-                            })
-                        } else {
-                            self.error(location, format!("Module has no field: {}", attr));
-                            Err(())
-                        }
-                    } else {
-                        panic!("Oh my");
-                    }
-                } else {
-                    panic!("Oh my")
-                }
-            }
             MyType::Struct(struct_type) => {
                 // Access field in struct!
                 // Check if struct has this field.
@@ -671,10 +651,12 @@ impl TypeChecker {
                     Err(())
                 }
             }
-            x => {
-                self.error(location, format!("Cannot get attribute of '{:?}' type.", x));
+            other => {
+                self.error(
+                    location,
+                    format!("Cannot get attribute of '{:?}' type.", other),
+                );
                 Err(())
-                // unimplemented!("Ugh");
             }
         }
     }
@@ -720,12 +702,9 @@ impl TypeChecker {
     }
 
     fn leave_scope(&mut self) {
-        let s = self.scopes.pop();
-        if let Some(s) = s {
-            log::debug!("Symbol table:");
-            for sym in s.symbols.keys() {
-                log::debug!(" - {}", sym);
-            }
+        let scope = self.scopes.pop();
+        if let Some(scope) = scope {
+            scope.dump();
         }
     }
 

@@ -7,7 +7,7 @@ fn main():
 
 fn foo(a: int, b: int, message: str):
     if a < b:
-        std.print("A smaller than B")
+        std::print("A smaller than B")
     else:
-        std.print(message)
+        std::print(message)
 

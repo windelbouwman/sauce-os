@@ -28,6 +28,7 @@ pub enum Token {
     KeywordTrue,
     KeywordWhile,
     Colon,
+    DoubleColon,
     Dot,
     Arrow,
     Comma,

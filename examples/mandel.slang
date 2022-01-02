@@ -34,5 +34,5 @@ fn main():
             x = x + 1.0
 
         # std.putc('\n')
-        std.print(line)
+        std::print(line)
         y = y + 1.0

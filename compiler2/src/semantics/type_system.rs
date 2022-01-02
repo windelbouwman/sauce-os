@@ -17,8 +17,6 @@ pub enum MyType {
         argument_types: Vec<MyType>,
         return_type: Option<Box<MyType>>,
     },
-
-    Module,
 }
 
 /// A custom defined struct type!

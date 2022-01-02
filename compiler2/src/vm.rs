@@ -40,23 +40,23 @@ enum Value {
 
 impl Value {
     /// Narrow value to f64, panics if not possible.
-    fn as_float(self) -> f64 {
+    fn as_float(&self) -> f64 {
         match self {
-            Value::Float(val) => val,
+            Value::Float(val) => *val,
             other => panic!("Cannot convert {:?} into float", other),
         }
     }
 
-    fn as_int(self) -> i64 {
+    fn as_int(&self) -> i64 {
         match self {
-            Value::Integer(val) => val,
+            Value::Integer(val) => *val,
             other => panic!("Cannot convert {:?} into int", other),
         }
     }
 
-    fn as_bool(self) -> bool {
+    fn as_bool(&self) -> bool {
         match self {
-            Value::Bool(val) => val,
+            Value::Bool(val) => *val,
             other => panic!("Cannot convert {:?} into bool", other),
         }
     }
@@ -74,6 +74,7 @@ impl Vm {
         };
         frame.run();
     }
+
     // fn new() -> Self {
 
     // }
@@ -111,9 +112,17 @@ impl Frame {
                 self.push(value.clone());
                 self.push(value);
             }
-            Instruction::Malloc(_) => {
-                unimplemented!("???");
-            }
+            Instruction::Malloc(typ) => match typ {
+                bytecode::Typ::Struct(_index) => {
+                    // TODO: lookup type!
+                    let values = vec![];
+                    self.push(Value::Struct(values));
+                    unimplemented!("TODO!");
+                }
+                other => {
+                    unimplemented!("Malloc: {:?}", other);
+                }
+            },
             Instruction::Operator { op, typ } => {
                 let rhs = self.pop();
                 let lhs = self.pop();

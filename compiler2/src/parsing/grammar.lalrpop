@@ -85,7 +85,7 @@ Statement: ast::Statement = {
             }
         }
     },
-    <location:@L> "let" <mutable:"mut"?> <name:Identifier> "=" <value:Expression> Newline => {
+    <location:@L> "let" <mutable:"mut"?> <name:Identifier> "=" <value:BlockExpression> => {
         let mutable: bool = mutable.is_some();
         ast::Statement {
             location,
@@ -166,6 +166,19 @@ Statement: ast::Statement = {
 
 Block: ast::Block = {
     Indent <statements:Statement+> Dedent => statements
+};
+
+// An expression which can also be a struct literal
+// using ':' and a block of fields
+BlockExpression: ast::Expression = {
+    <value:Expression> Newline => value,
+    <typ:Type> <location:@L> ":" Newline
+    Indent <fields:LinesOf<StructLiteralField>> Dedent => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::StructLiteral { typ, fields }
+        }
+    }
 };
 
 Condition: ast::Expression = {
@@ -317,41 +330,58 @@ Atom: ast::Expression = {
             kind: ast::ExpressionType::Float(n)
         }
     },
-    <location:@L> <n:Identifier> => {
+    <location:@L> <obj:ObjRef> => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Identifier(n)
+            kind: ast::ExpressionType::Object(obj)
         }
     },
-    <location:@L> <name:Identifier> "{" <fields:Comma<StructLiteralField>> "}" => {
+    <typ:ObjRef> <location:@L> "{" <fields:Comma<StructLiteralField>> "}" => {
+        // TODO: we should be able to use typ:Type instead of typ:ObjRef
+        let typ = ast::Type {
+            location: location.clone(),
+            kind: ast::TypeKind::Object(typ)
+        };
         ast::Expression {
             location,
-            kind: ast::ExpressionType::StructLiteral { name, fields }
+            kind: ast::ExpressionType::StructLiteral { typ, fields }
         }
     },
-//    <location:@L> <name:Identifier> ":" Newline
-//    Indent <fields:Comma<StructLiteralField>> Dedent => {
-//        ast::Expression {
-//            location,
-//            kind: ast::ExpressionType::StructLiteral { name, fields }
-//        }
-//    },
     "(" <expr:Expression> ")" => expr,
 };
 
-Type: ast::Expression = {
-    <location:@L> <n:Identifier> => {
-        ast::Expression {
+// References to named and scoped objects:
+ObjRef: ast::ObjRef = {
+    <location:@L> <name:Identifier> => {
+        ast::ObjRef::Name {
             location,
-            kind: ast::ExpressionType::Identifier(n)
+            name
         }
     },
-    <location:@L> <n:Identifier> "<" <t:Type> ">" => {
-        ast::Expression {
+    <base:ObjRef> <location:@L> "::" <member:Identifier> => {
+        ast::ObjRef::Inner {
             location,
-            kind: ast::ExpressionType::Identifier(n)
+            base: Box::new(base),
+            member
         }
     },
+};
+
+Type: ast::Type = {
+    <location:@L> <obj:ObjRef> => {
+        ast::Type {
+            location,
+            kind: ast::TypeKind::Object(obj)
+        }
+    },
+
+// TODO: templated types like list<int>
+//    <location:@L> <n:Identifier> "<" <t:Type> ">" => {
+//        ast::Expression {
+//            location,
+//            kind: ast::ExpressionType::Identifier(n)
+//        }
+//    },
 };
 
 StructLiteralField: ast::StructLiteralField = {
@@ -369,6 +399,15 @@ Comma<T>: Vec<T> = {
     <items: (<T> ",")*> <last: T?> => {
         let mut items = items;
         items.extend(last);
+        items
+    }
+};
+
+#[inline]
+LinesOf<T>: Vec<T> = {
+    <items: (<T> Newline)+> => {
+        // let mut items = items;
+        // items.extend(last);
         items
     }
 };
@@ -410,6 +449,7 @@ extern {
         "{" => Token::OpeningBrace,
         "}" => Token::ClosingBrace,
         ":" => Token::Colon,
+        "::" => Token::DoubleColon,
         "," => Token::Comma,
         "." => Token::Dot,
         "->" => Token::Arrow,

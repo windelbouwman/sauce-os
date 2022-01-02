@@ -82,9 +82,6 @@ pub enum ExpressionType {
     Integer(i64),
     Float(f64),
     StructLiteral(Vec<Expression>),
-    LoadModule {
-        modname: String,
-    },
     LoadFunction(String),
     LoadParameter {
         name: String,

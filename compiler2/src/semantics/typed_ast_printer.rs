@@ -184,9 +184,6 @@ impl AstPrinter {
                 }
                 self.dedent();
             }
-            typed_ast::ExpressionType::LoadModule { modname } => {
-                println!("{}Load module name={}", self.get_indent(), modname);
-            }
             typed_ast::ExpressionType::LoadFunction(name) => {
                 println!("{}Load function name={}", self.get_indent(), name);
             }
