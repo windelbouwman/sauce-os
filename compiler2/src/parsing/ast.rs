@@ -1,9 +1,16 @@
 use super::token::Location;
 
 pub struct Program {
+    pub name: Option<String>,
     pub imports: Vec<Import>,
     pub typedefs: Vec<StructDef>,
     pub functions: Vec<FunctionDef>,
+}
+
+impl Program {
+    pub fn deps(&self) -> Vec<String> {
+        self.imports.iter().map(|i| i.name.clone()).collect()
+    }
 }
 
 pub struct Import {

@@ -17,9 +17,12 @@ use crate::parsing::{ast, Location};
 use crate::CompilationError;
 use std::collections::HashMap;
 
-pub fn type_check(prog: ast::Program) -> Result<typed_ast::Program, CompilationError> {
+pub fn type_check(
+    prog: ast::Program,
+    module_scope: Scope,
+) -> Result<typed_ast::Program, CompilationError> {
     let checker = TypeChecker::new();
-    checker.check_prog(prog)
+    checker.check_prog(prog, module_scope)
 }
 
 struct TypeChecker {
@@ -47,49 +50,37 @@ impl TypeChecker {
         self.define("int", Symbol::Typ(MyType::Int), &location);
         self.define("float", Symbol::Typ(MyType::Float), &location);
         // self.define("list", Symbol::Typ(MyType::Float), &location);
-        self.load_std_module();
     }
 
-    fn load_std_module(&mut self) {
-        let mut std_exposed: HashMap<String, MyType> = HashMap::new();
-        std_exposed.insert(
-            "putc".to_owned(),
-            MyType::Function {
-                argument_types: vec![MyType::String],
-                return_type: None,
-            },
-        );
-        std_exposed.insert(
-            "print".to_owned(),
-            MyType::Function {
-                argument_types: vec![MyType::String],
-                return_type: None,
-            },
-        );
-        std_exposed.insert(
-            "read_file".to_owned(),
-            MyType::Function {
-                argument_types: vec![MyType::String],
-                return_type: Some(Box::new(MyType::String)),
-            },
-        );
-        let location: Location = Default::default();
-        self.define(
-            "std",
-            Symbol::Module {
-                name: "std".to_owned(),
-                exposed: std_exposed,
-            },
-            &location,
-        );
-    }
-
-    fn check_prog(mut self, prog: ast::Program) -> Result<typed_ast::Program, CompilationError> {
+    fn check_prog(
+        mut self,
+        prog: ast::Program,
+        module_scope: Scope,
+    ) -> Result<typed_ast::Program, CompilationError> {
         self.enter_scope();
         self.define_builtins();
+        self.scopes.push(module_scope);
         self.enter_scope();
-        for _import in &prog.imports {
-            // TODO: load module?
+        for import in &prog.imports {
+            // Check if module can be found
+            match self.lookup2(&import.name) {
+                None => self.error(
+                    import.location.clone(),
+                    format!("Module {} not loaded", import.name),
+                ),
+                Some(symbol) => match symbol {
+                    Symbol::Module { .. } => {
+                        // Ok!
+                    }
+                    other => {
+                        self.error(
+                            import.location.clone(),
+                            format!("Cannot import: {:?}", other),
+                        );
+                    }
+                },
+            }
+
             // self.define(&import.name, Symbol::Module, &import.location);
         }
 
@@ -141,6 +132,7 @@ impl TypeChecker {
         }
 
         self.leave_scope(); // module scope
+        self.leave_scope(); // Other module scope
         self.leave_scope(); // universe scope
 
         let typed_imports = std::mem::take(&mut self.typed_imports);
@@ -213,19 +205,33 @@ impl TypeChecker {
             } => {
                 let base = self.resolve_obj(base)?;
                 match base {
-                    Symbol::Module { name, exposed } => {
-                        if exposed.contains_key(member) {
-                            let typ = exposed.get(member).unwrap().clone();
-                            // This might be too much desugaring at this point
-                            // Maybe introduce a new phase?
-                            let full_name = format!("{}_{}", name, member);
-                            self.add_import(full_name.clone(), typ.clone());
-
-                            // TODO: Does not need to be a function!
-                            Ok(Symbol::Function {
-                                name: full_name,
-                                typ,
-                            })
+                    Symbol::Module {
+                        name: mod_name,
+                        scope,
+                    } => {
+                        if scope.is_defined(member) {
+                            let obj = scope.get(member).unwrap().clone();
+                            match obj {
+                                Symbol::Function {
+                                    name: func_name,
+                                    typ,
+                                } => {
+                                    // This might be too much desugaring at this point
+                                    // Maybe introduce a new phase?
+                                    // IDEA: Symbol::ImportedSymbol()
+                                    let full_name = format!("{}_{}", mod_name, func_name);
+                                    self.add_import(full_name.clone(), typ.clone());
+                                    Ok(Symbol::Function {
+                                        name: full_name,
+                                        typ,
+                                    })
+                                }
+                                Symbol::Typ(typ) => Ok(Symbol::Typ(typ)),
+                                other => {
+                                    unimplemented!("Cannot import: {:?}", other);
+                                    // Err(())
+                                }
+                            }
                         } else {
                             self.error(
                                 location.clone(),
@@ -514,7 +520,7 @@ impl TypeChecker {
             ast::ExpressionType::Object(obj_ref) => {
                 let symbol = self.resolve_obj(&obj_ref)?;
                 match symbol {
-                    Symbol::Module { name, exposed: _ } => {
+                    Symbol::Module { name, scope: _ } => {
                         self.error(location, format!("Unexpected usage of module {}", name));
                         Err(())
                     }
@@ -611,6 +617,8 @@ impl TypeChecker {
                     }
                 }
 
+                // TODO: check un-used fields!
+
                 Ok(typed_ast::Expression {
                     typ: MyType::Struct(struct_type),
                     kind: typed_ast::ExpressionType::StructLiteral(typed_values),
@@ -667,13 +675,13 @@ impl TypeChecker {
 
     fn define(&mut self, name: &str, symbol: Symbol, location: &Location) {
         let scope = self.scopes.last_mut().unwrap();
-        if scope.symbols.contains_key(name) {
+        if scope.is_defined(name) {
             self.error(
                 location.clone(),
                 format!("Symbol {} already defined!", name),
             );
         } else {
-            scope.symbols.insert(name.to_string(), symbol);
+            scope.define(name.to_string(), symbol);
         }
     }
 
@@ -690,8 +698,8 @@ impl TypeChecker {
 
     fn lookup2(&self, name: &str) -> Option<Symbol> {
         for scope in self.scopes.iter().rev() {
-            if scope.symbols.contains_key(name) {
-                return scope.symbols.get(name).cloned();
+            if scope.is_defined(name) {
+                return scope.get(name).cloned();
             }
         }
         None

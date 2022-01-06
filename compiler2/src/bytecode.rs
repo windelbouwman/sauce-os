@@ -160,7 +160,7 @@ pub enum Comparison {
 pub fn print_bytecode(bc: &Program) {
     for typedef in &bc.struct_types {
         println!(
-            "type: {} types={:?}",
+            "type: name={} types={:?}",
             typedef.name.as_ref().unwrap_or(&"".to_owned()),
             &typedef.fields
         );

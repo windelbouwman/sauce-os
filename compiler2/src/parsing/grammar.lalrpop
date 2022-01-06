@@ -9,7 +9,7 @@ pub Program: ast::Program = {
     <typedefs:TypeDef*>
     <functions:FunctionDef*>
     => {
-        ast::Program { imports, typedefs, functions }
+        ast::Program { name: None, imports, typedefs, functions }
     }
 };
 

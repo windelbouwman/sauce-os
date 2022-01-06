@@ -4,7 +4,7 @@ mod typecheck;
 pub mod typed_ast;
 mod typed_ast_printer;
 
-use scope::{Scope, Symbol};
+pub use scope::{Scope, Symbol};
 use type_system::{MyType, StructType};
 pub use typecheck::type_check;
 pub use typed_ast_printer::print_ast;

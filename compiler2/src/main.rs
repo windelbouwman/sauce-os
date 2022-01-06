@@ -7,7 +7,7 @@ mod parsing;
 mod semantics;
 mod vm;
 
-use compilation::{compile, CompileOptions};
+use compilation::{build_multi, compile, CompileOptions};
 use errors::{print_error, CompilationError};
 
 fn main() -> Result<(), ()> {
@@ -18,6 +18,7 @@ fn main() -> Result<(), ()> {
         .arg(
             clap::Arg::with_name("source")
                 .help("File to compile")
+                .multiple(true)
                 .required(true),
         )
         .arg(
@@ -53,25 +54,39 @@ fn main() -> Result<(), ()> {
     };
 
     simple_logger::init_with_level(log_level).unwrap();
-    log::info!("Hello, world!");
 
-    let path = std::path::Path::new(matches.value_of("source").unwrap());
-    let output_path = matches.value_of("output").map(std::path::Path::new);
     let options = CompileOptions {
         dump_bc: matches.is_present("dump-bytecode") || verbosity > 5,
         dump_ast: verbosity > 5,
         dump_src: verbosity > 5,
         run_bc: false,
     };
-    match compile(path, output_path, &options) {
-        Ok(()) => {
-            log::info!("Great okidoki");
-            Ok(())
+
+    if matches.occurrences_of("source") > 1 {
+        let paths: Vec<&std::path::Path> = matches
+            .values_of("source")
+            .unwrap()
+            .map(std::path::Path::new)
+            .collect();
+        for path in &paths {
+            log::debug!("Got: {}", path.display());
         }
-        Err(err) => {
-            log::error!("Compilation errors");
-            print_error(path, err);
-            Err(())
+        build_multi(&paths, &options);
+        Ok(())
+    } else {
+        let path = std::path::Path::new(matches.value_of("source").unwrap());
+        let output_path = matches.value_of("output").map(std::path::Path::new);
+        let res = compile(path, output_path, &options);
+        match res {
+            Ok(()) => {
+                log::info!("Great okidoki");
+                Ok(())
+            }
+            Err(err) => {
+                log::error!("Compilation errors");
+                print_error(path, err);
+                Err(())
+            }
         }
     }
 }

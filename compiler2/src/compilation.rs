@@ -1,9 +1,11 @@
 use crate::bytecode::print_bytecode;
-use crate::errors::CompilationError;
+use crate::errors::{print_error, CompilationError};
 use crate::llvm_backend;
-use crate::parsing::parse_src;
-use crate::semantics::{print_ast, type_check};
-use crate::{bytecode, ir_gen, vm};
+use crate::parsing::{ast, parse_src};
+use crate::semantics::type_system::MyType;
+use crate::semantics::{print_ast, type_check, typed_ast};
+use crate::semantics::{Scope, Symbol};
+use crate::{ir_gen, vm};
 
 pub struct CompileOptions {
     pub dump_src: bool,
@@ -12,10 +14,56 @@ pub struct CompileOptions {
     pub run_bc: bool,
 }
 
-fn stage1(
+/// Define functions provided by 'std' module.
+fn load_std_module(scope: &mut Scope) {
+    let mut std_scope = Scope::new();
+
+    // TODO: these could be loaded from interface/header like file?
+    std_scope.define_func("putc", vec![MyType::String], None);
+    std_scope.define_func("print", vec![MyType::String], None);
+    std_scope.define_func("read_file", vec![MyType::String], Some(MyType::String));
+    let name = "std".to_owned();
+    scope.define(
+        name.clone(),
+        Symbol::Module {
+            name,
+            scope: std_scope,
+        },
+    );
+}
+
+fn add_to_pool(name: String, prog: &typed_ast::Program, scope: &mut Scope) {
+    log::info!("Adding '{}' in the module mix!", name);
+    let mut inner_scope = Scope::new();
+
+    // Fill type-defs:
+    for typ_def in &prog.type_defs {
+        if let Some(name) = &typ_def.name {
+            let fields = typ_def.fields.clone();
+            inner_scope.define_struct(name.to_string(), fields);
+        }
+    }
+
+    for func_def in &prog.functions {
+        inner_scope.define_func(
+            &func_def.name,
+            func_def.parameters.iter().map(|p| p.typ.clone()).collect(),
+            func_def.return_type.clone(),
+        );
+    }
+
+    let module_obj = Symbol::Module {
+        name: name.clone(),
+        scope: inner_scope,
+    };
+
+    scope.define(name, module_obj);
+}
+
+fn parse_one(
     path: &std::path::Path,
     options: &CompileOptions,
-) -> Result<bytecode::Program, CompilationError> {
+) -> Result<ast::Program, CompilationError> {
     log::info!("Reading: {}", path.display());
     let source = std::fs::read_to_string(path).map_err(|err| {
         CompilationError::simple(format!("Error opening {}: {}", path.display(), err))
@@ -26,23 +74,37 @@ fn stage1(
     }
     let prog = parse_src(&source)?;
     log::info!("Parsing done&done");
-    let typed_prog = type_check(prog)?;
+    Ok(prog)
+}
+
+fn stage1(
+    path: &std::path::Path,
+    options: &CompileOptions,
+    module_scope: &Scope,
+) -> Result<typed_ast::Program, CompilationError> {
+    let prog = parse_one(path, options)?;
+    let typed_prog = type_check(prog, module_scope.clone())?;
     log::info!("Type check done&done");
     if options.dump_ast {
         log::debug!("Dumping typed AST");
         print_ast(&typed_prog);
     }
-    let bc = ir_gen::gen(typed_prog);
 
-    Ok(bc)
+    Ok(typed_prog)
 }
 
+/// Compile a single source file to a single output file
 pub fn compile(
     path: &std::path::Path,
     output_path: Option<&std::path::Path>,
     options: &CompileOptions,
 ) -> Result<(), CompilationError> {
-    let bc = stage1(path, options)?;
+    let mut module_scope = Scope::new();
+    load_std_module(&mut module_scope);
+
+    let typed_prog = stage1(path, options, &module_scope)?;
+
+    let bc = ir_gen::gen(typed_prog);
     if options.dump_bc {
         log::debug!("Dumpin bytecode below");
         print_bytecode(&bc);
@@ -80,4 +142,67 @@ pub fn compile(
     }
 
     Ok(())
+}
+
+/// Build a slew of source files.
+pub fn build_multi(paths: &[&std::path::Path], options: &CompileOptions) {
+    let mut backlog = vec![];
+    for path in paths {
+        backlog.push(WorkItem::File(path.to_path_buf()));
+    }
+
+    let mut module_scope = Scope::new();
+    load_std_module(&mut module_scope);
+
+    while !backlog.is_empty() {
+        let x = backlog.pop().unwrap();
+        match x {
+            WorkItem::File(path) => {
+                log::info!("Parsing: {}", path.display());
+                match parse_one(&path, options) {
+                    Ok(program) => {
+                        backlog.push(WorkItem::Ast { path, program });
+                    }
+                    Err(err) => {
+                        print_error(&path, err);
+                    }
+                }
+            }
+            WorkItem::Ast { path, program } => {
+                // test if all imports are satisfied?
+                if program.deps().iter().all(|n| module_scope.is_defined(n)) {
+                    log::info!("Checking module: {}", path.display());
+                    match type_check(program, module_scope.clone()) {
+                        Ok(typed_prog) => {
+                            let modname: String =
+                                path.file_stem().unwrap().to_str().unwrap().to_owned();
+                            add_to_pool(modname, &typed_prog, &mut module_scope);
+
+                            let bc = ir_gen::gen(typed_prog);
+                            if options.dump_bc {
+                                log::debug!("Dumpin bytecode below");
+                                print_bytecode(&bc);
+                            }
+
+                            // TODO: store for later usage? What now?
+                        }
+                        Err(err) => {
+                            print_error(&path, err);
+                        }
+                    }
+                } else {
+                    log::error!("Too bad, module deps not all satisfied!");
+                    // TODO: retry? sort?
+                }
+            }
+        }
+    }
+}
+
+enum WorkItem {
+    File(std::path::PathBuf),
+    Ast {
+        path: std::path::PathBuf,
+        program: ast::Program,
+    },
 }
