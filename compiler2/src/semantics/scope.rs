@@ -1,6 +1,6 @@
 //! Symbol table related code.
 
-use super::{MyType, StructType};
+use super::{MyType, StructField, StructType};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -64,7 +64,11 @@ impl Scope {
         );
     }
 
-    pub fn define_struct(&mut self, name: String, fields: Vec<(String, MyType)>) {
+    pub fn define_type(&mut self, name: &str, typ: MyType) {
+        self.define(name.to_owned(), Symbol::Typ(typ));
+    }
+
+    pub fn define_struct(&mut self, name: String, fields: Vec<StructField>) {
         self.define(
             name.clone(),
             Symbol::Typ(MyType::Struct(StructType {

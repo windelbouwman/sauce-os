@@ -38,10 +38,7 @@ fn add_to_pool(name: String, prog: &typed_ast::Program, scope: &mut Scope) {
 
     // Fill type-defs:
     for typ_def in &prog.type_defs {
-        if let Some(name) = &typ_def.name {
-            let fields = typ_def.fields.clone();
-            inner_scope.define_struct(name.to_string(), fields);
-        }
+        inner_scope.define_type(&typ_def.name, typ_def.typ.clone());
     }
 
     for func_def in &prog.functions {

@@ -7,6 +7,7 @@ SLANG_COMPILER=../compiler2/target/debug/compiler2
 EXECUTABLES = \
 	callings.exe \
 	expressions.exe \
+	generics.exe \
 	hello-world.exe \
 	if-statements.exe \
 	mandel.exe \
@@ -16,6 +17,9 @@ RT_OBJ=${BUILDDIR}/runtime.o
 
 .PHONY: all
 all: ${BUILDDIR} ${EXECUTABLES}
+
+#compiler:
+#	cargo build
 
 ${BUILDDIR}:
 	mkdir -p ${BUILDDIR}

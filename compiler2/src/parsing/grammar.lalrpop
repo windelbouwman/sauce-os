@@ -22,16 +22,35 @@ Import: ast::Import = {
     }
 };
 
-TypeDef: ast::StructDef = {
+TypeDef: ast::TypeDef = {
     StructDef,
 }
 
-StructDef: ast::StructDef = {
-    "struct" <location:@L> <name:Identifier> ":" Newline Indent <fields:StructDefField+> Dedent => {
-        ast::StructDef {
-            location,
-            name,
+StructDef: ast::TypeDef = {
+    "struct" <typevars:TypeVars?> <location:@L> <name:Identifier> ":" Newline Indent <fields:StructDefField+> Dedent => {
+        let s = ast::TypeDef::Struct(ast::StructDef {
+            location: location.clone(),
+            name: name.clone(),
             fields,
+        });
+
+        if let Some(typevars) = typevars {
+            ast::TypeDef::Generic { name, location, parameters: typevars, base: Box::new(s) }
+        } else {
+            s
+        }
+    }
+};
+
+TypeVars: Vec<ast::TypeVar> = {
+    "<" <typevars:Comma<TypeVar>> ">" => typevars,
+};
+
+TypeVar: ast::TypeVar = {
+    <location:@L> <name:Identifier> => {
+        ast::TypeVar {
+            location,
+            name
         }
     }
 };
@@ -375,13 +394,16 @@ Type: ast::Type = {
         }
     },
 
-// TODO: templated types like list<int>
-//    <location:@L> <n:Identifier> "<" <t:Type> ">" => {
-//        ast::Expression {
-//            location,
-//            kind: ast::ExpressionType::Identifier(n)
-//        }
-//    },
+    // templated types like List<int>
+    <location:@L> <base_type:Type> "<" <type_parameters:Comma<Type>> ">" => {
+        ast::Type {
+            location,
+            kind: ast::TypeKind::GenericInstantiate {
+                base_type: Box::new(base_type),
+                type_parameters,
+            }
+        }
+    },
 };
 
 StructLiteralField: ast::StructLiteralField = {

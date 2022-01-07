@@ -37,7 +37,17 @@ impl Generator {
 
     fn gen_prog(&mut self, prog: typed_ast::Program) -> bytecode::Program {
         for typedef in prog.type_defs {
-            self.get_struct_index(&typedef);
+            match typedef.typ {
+                MyType::Struct(s) => {
+                    self.get_struct_index(&s);
+                }
+                MyType::Generic { .. } => {
+                    // Safely ignoring.
+                }
+                other => {
+                    unimplemented!("Not doing this: {:?}", other);
+                }
+            }
         }
 
         let mut imports = vec![];
@@ -293,7 +303,7 @@ impl Generator {
             let fields: Vec<bytecode::Typ> = struct_type
                 .fields
                 .iter()
-                .map(|f| self.get_bytecode_typ(&f.1))
+                .map(|f| self.get_bytecode_typ(&f.typ))
                 .collect();
             self.struct_types.push(bytecode::StructDef {
                 name: struct_type.name.clone(),
@@ -422,7 +432,7 @@ impl Generator {
             typed_ast::ExpressionType::GetAttr { base, attr } => match &base.typ {
                 MyType::Struct(struct_typ) => {
                     let index = struct_typ.index_of(&attr).expect("Field must be present");
-                    let typ = self.get_bytecode_typ(&struct_typ.fields[index].1);
+                    let typ = self.get_bytecode_typ(&struct_typ.fields[index].typ);
                     self.gen_expression(*base);
                     self.emit(Instruction::GetAttr { index, typ });
                 }

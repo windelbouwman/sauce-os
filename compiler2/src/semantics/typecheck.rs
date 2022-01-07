@@ -11,7 +11,7 @@ If we pass the typechecker, code is in pretty good shape!
 */
 
 use super::typed_ast;
-use super::{MyType, StructType};
+use super::{MyType, StructField, StructType};
 use super::{Scope, Symbol};
 use crate::parsing::{ast, Location};
 use crate::CompilationError;
@@ -49,6 +49,7 @@ impl TypeChecker {
         self.define("str", Symbol::Typ(MyType::String), &location);
         self.define("int", Symbol::Typ(MyType::Int), &location);
         self.define("float", Symbol::Typ(MyType::Float), &location);
+        self.define("bool", Symbol::Typ(MyType::Bool), &location);
         // self.define("list", Symbol::Typ(MyType::Float), &location);
     }
 
@@ -85,9 +86,9 @@ impl TypeChecker {
         }
 
         let mut type_defs = vec![];
-        for typedef in prog.typedefs {
-            match self.check_struct_def(typedef) {
-                Ok(s) => type_defs.push(s),
+        for type_def in prog.typedefs {
+            match self.check_type_def(type_def) {
+                Ok(typedef) => type_defs.push(typedef),
                 Err(()) => {}
             }
         }
@@ -148,21 +149,58 @@ impl TypeChecker {
         }
     }
 
-    fn check_struct_def(&mut self, struct_def: ast::StructDef) -> Result<StructType, ()> {
-        let mut fields = vec![];
-        for field in struct_def.fields {
-            let name = field.name;
-            let typ = self.eval_type_expr(&field.typ)?;
-            fields.push((name, typ));
+    fn check_type_def(&mut self, type_def: ast::TypeDef) -> Result<typed_ast::TypeDef, ()> {
+        match type_def {
+            ast::TypeDef::Struct(struct_def) => {
+                let mut fields = vec![];
+                for field in struct_def.fields {
+                    let name = field.name;
+                    let typ = self.eval_type_expr(&field.typ)?;
+                    fields.push(StructField { name, typ });
+                }
+                let struct_type = StructType {
+                    name: Some(struct_def.name.clone()),
+                    fields,
+                };
+                let typ = MyType::Struct(struct_type);
+
+                self.define(
+                    &struct_def.name,
+                    Symbol::Typ(typ.clone()),
+                    &struct_def.location,
+                );
+                Ok(typed_ast::TypeDef {
+                    name: struct_def.name,
+                    typ,
+                })
+            }
+            ast::TypeDef::Generic {
+                name,
+                location,
+                base,
+                parameters,
+            } => {
+                let mut type_parameters = vec![];
+                self.enter_scope();
+                for type_var in parameters {
+                    self.define(
+                        &type_var.name,
+                        Symbol::Typ(MyType::TypeVar(type_var.name.clone())),
+                        &type_var.location,
+                    );
+                    // TBD: we might as well use indici here?
+                    type_parameters.push(type_var.name.clone());
+                }
+                let base = self.check_type_def(*base)?.typ;
+                self.leave_scope();
+                let typ = MyType::Generic {
+                    base: Box::new(base),
+                    type_parameters,
+                };
+                self.define(&name, Symbol::Typ(typ.clone()), &location);
+                Ok(typed_ast::TypeDef { name, typ })
+            }
         }
-        let struct_type = StructType {
-            name: Some(struct_def.name.clone()),
-            fields,
-        };
-        let typ = MyType::Struct(struct_type.clone());
-        // Check struct type:
-        self.define(&struct_def.name, Symbol::Typ(typ), &struct_def.location);
-        Ok(struct_type)
     }
 
     /// Resolve expression into type!
@@ -183,11 +221,91 @@ impl TypeChecker {
                         Err(())
                     }
                 }
-            } //ast::ExpressionType::TemplatedType { .. } => {
-              // TODO: implement type contraptor
-              //    unimplemented!("TDO?");
-              //}
+            }
+            ast::TypeKind::GenericInstantiate {
+                base_type,
+                type_parameters: actual_types,
+            } => {
+                let base_type = self.eval_type_expr(base_type)?;
+                match base_type {
+                    MyType::Generic {
+                        base,
+                        type_parameters,
+                    } => {
+                        if type_parameters.len() == actual_types.len() {
+                            let mut substitution_map: HashMap<String, MyType> = HashMap::new();
+                            for (type_parameter, actual_type) in
+                                type_parameters.into_iter().zip(actual_types.iter())
+                            {
+                                let actual_type = self.eval_type_expr(actual_type)?;
+                                substitution_map.insert(type_parameter, actual_type);
+                            }
+                            let t = self.substitute_types(*base, &substitution_map)?;
+                            Ok(t)
+                        } else {
+                            self.error(
+                                typ.location.clone(),
+                                format!(
+                                    "Expected {} type parameters, but got {}",
+                                    type_parameters.len(),
+                                    actual_types.len()
+                                ),
+                            );
+                            Err(())
+                        }
+                    }
+                    other => {
+                        self.error(
+                            typ.location.clone(),
+                            format!("Type {:?} is not generic.", other),
+                        );
+                        Err(())
+                    }
+                }
+            }
         }
+    }
+
+    fn substitute_types(
+        &mut self,
+        typ: MyType,
+        substitutions: &HashMap<String, MyType>,
+    ) -> Result<MyType, ()> {
+        let t = match typ {
+            MyType::Bool => MyType::Bool,
+            MyType::Int => MyType::Int,
+            MyType::Float => MyType::Float,
+            MyType::String => MyType::String,
+            MyType::Struct(StructType { name, fields }) => {
+                let mut new_fields = vec![];
+                for field in fields {
+                    new_fields.push(StructField {
+                        name: field.name,
+                        typ: self.substitute_types(field.typ, substitutions)?,
+                    });
+                }
+
+                MyType::Struct(StructType {
+                    name,
+                    fields: new_fields,
+                })
+            }
+            MyType::TypeVar(name) => {
+                if let Some(typ) = substitutions.get(&name) {
+                    typ.clone()
+                } else {
+                    panic!("Type parameter {} not found", name);
+                }
+            }
+            MyType::Generic { .. } => {
+                self.error(Location::default(), "Unexpected generic".to_owned());
+                return Err(());
+            }
+            other => {
+                unimplemented!("TODO: {:?} with {:?}", other, substitutions);
+            }
+        };
+        Ok(t)
     }
 
     /// Have a closer look at a reference to a scoped object reference.
@@ -607,13 +725,13 @@ impl TypeChecker {
                     }
                 }
 
-                for (field_name, field_type) in &struct_type.fields {
-                    if value_map.contains_key(field_name) {
-                        let field_value = value_map.remove(field_name).unwrap();
-                        self.check_equal_types(&location, field_type, &field_value.typ)?;
+                for field in &struct_type.fields {
+                    if value_map.contains_key(&field.name) {
+                        let field_value = value_map.remove(&field.name).unwrap();
+                        self.check_equal_types(&location, &field.typ, &field_value.typ)?;
                         typed_values.push(field_value);
                     } else {
-                        self.error(location.clone(), format!("Missing field: {}", field_name));
+                        self.error(location.clone(), format!("Missing field: {}", field.name));
                     }
                 }
 
@@ -670,6 +788,7 @@ impl TypeChecker {
     }
 
     fn error(&mut self, location: Location, message: String) {
+        log::info!("Error: {}", message);
         self.errors.push(CompilationError::new(location, message))
     }
 

@@ -3,7 +3,7 @@ use super::token::Location;
 pub struct Program {
     pub name: Option<String>,
     pub imports: Vec<Import>,
-    pub typedefs: Vec<StructDef>,
+    pub typedefs: Vec<TypeDef>,
     pub functions: Vec<FunctionDef>,
 }
 
@@ -18,11 +18,27 @@ pub struct Import {
     pub name: String,
 }
 
+pub enum TypeDef {
+    Struct(StructDef),
+    Generic {
+        name: String,
+        location: Location,
+        parameters: Vec<TypeVar>,
+        base: Box<TypeDef>,
+    },
+}
+
 /// A user defined struct data type.
 pub struct StructDef {
     pub location: Location,
     pub name: String,
     pub fields: Vec<StructDefField>,
+}
+
+/// A typevariable, usable in generic types.
+pub struct TypeVar {
+    pub location: Location,
+    pub name: String,
 }
 
 pub struct StructDefField {
@@ -137,10 +153,12 @@ pub struct Type {
 #[derive(Debug)]
 pub enum TypeKind {
     Object(ObjRef),
-    // TODO: implement generic types!
-    //TemplatedType {
-    //    t: Box<Expression>,
-    //},
+
+    // generic types!
+    GenericInstantiate {
+        base_type: Box<Type>,
+        type_parameters: Vec<Type>,
+    },
 }
 
 #[derive(Debug)]

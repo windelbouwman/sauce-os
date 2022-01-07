@@ -7,6 +7,14 @@ pub enum MyType {
     Float,
     String,
 
+    /// A parameterized type, may contain subtypes which are type variables.
+    Generic {
+        base: Box<MyType>,
+        type_parameters: Vec<String>,
+    },
+
+    TypeVar(String),
+
     /// A custom defined struct type!
     Struct(StructType),
 
@@ -23,14 +31,20 @@ pub enum MyType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructType {
     pub name: Option<String>,
-    pub fields: Vec<(String, MyType)>,
+    pub fields: Vec<StructField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StructField {
+    pub name: String,
+    pub typ: MyType,
 }
 
 impl StructType {
     pub fn get_field(&self, name: &str) -> Option<MyType> {
         for field in &self.fields {
-            if field.0 == name {
-                return Some(field.1.clone());
+            if field.name == name {
+                return Some(field.typ.clone());
             }
         }
         None
@@ -38,7 +52,7 @@ impl StructType {
 
     pub fn index_of(&self, name: &str) -> Option<usize> {
         for (index, field) in self.fields.iter().enumerate() {
-            if field.0 == name {
+            if field.name == name {
                 return Some(index);
             }
         }

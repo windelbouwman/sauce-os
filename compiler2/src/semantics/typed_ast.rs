@@ -7,8 +7,13 @@ use crate::parsing::ast;
 
 pub struct Program {
     pub imports: Vec<Import>,
-    pub type_defs: Vec<StructType>,
+    pub type_defs: Vec<TypeDef>,
     pub functions: Vec<FunctionDef>,
+}
+
+pub struct TypeDef {
+    pub name: String,
+    pub typ: MyType,
 }
 
 pub struct Import {

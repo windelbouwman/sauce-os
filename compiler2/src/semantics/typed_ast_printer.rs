@@ -15,7 +15,12 @@ impl AstPrinter {
 
     fn print_prog(&mut self, prog: &typed_ast::Program) {
         for type_def in &prog.type_defs {
-            println!("{}type : {:?}", self.get_indent(), type_def);
+            println!(
+                "{}type {} = {:?}",
+                self.get_indent(),
+                type_def.name,
+                type_def.typ
+            );
         }
         for function_def in &prog.functions {
             self.print_function(function_def);
