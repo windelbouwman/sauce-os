@@ -25,6 +25,12 @@ pub enum Symbol {
         index: usize,
         typ: MyType,
     },
+    Field {
+        class_typ: MyType,
+        name: String,
+        index: usize,
+        typ: MyType,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -72,7 +78,7 @@ impl Scope {
         self.define(
             name.clone(),
             Symbol::Typ(MyType::Struct(StructType {
-                name: Some(name.clone()),
+                name: Some(name),
                 fields,
             })),
         );

@@ -26,6 +26,21 @@ pub enum TypeDef {
         parameters: Vec<TypeVar>,
         base: Box<TypeDef>,
     },
+    Class(ClassDef),
+}
+
+pub struct ClassDef {
+    pub name: String,
+    pub location: Location,
+    pub fields: Vec<VarDef>,
+    pub methods: Vec<FunctionDef>,
+}
+
+pub struct VarDef {
+    pub location: Location,
+    pub name: String,
+    pub typ: Type,
+    pub value: Expression,
 }
 
 /// A user defined struct data type.

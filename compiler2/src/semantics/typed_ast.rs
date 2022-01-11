@@ -2,13 +2,29 @@
 //!
 //! Expressions are assigned types here.
 
-use super::type_system::{MyType, StructType};
+use super::type_system::{ClassType, MyType};
 use crate::parsing::ast;
 
 pub struct Program {
     pub imports: Vec<Import>,
     pub type_defs: Vec<TypeDef>,
     pub functions: Vec<FunctionDef>,
+    pub class_defs: Vec<ClassDef>,
+}
+
+pub struct ClassDef {
+    pub name: String,
+    pub field_defs: Vec<FieldDef>,
+    pub function_defs: Vec<FunctionDef>,
+    // Hmm, having this type here is a bit odd..
+    pub typ: ClassType,
+}
+
+pub struct FieldDef {
+    pub name: String,
+    pub index: usize,
+    pub typ: MyType,
+    pub value: Expression,
 }
 
 pub struct TypeDef {
@@ -88,6 +104,14 @@ pub enum ExpressionType {
     Float(f64),
     StructLiteral(Vec<Expression>),
     LoadFunction(String),
+
+    // TBD: this muight be a dubious expression kind:
+    Typ(MyType),
+
+    /// Implicit 'self' in a class method.
+    ImplicitSelf,
+
+    Instantiate,
     LoadParameter {
         name: String,
         index: usize,
@@ -98,6 +122,11 @@ pub enum ExpressionType {
     },
     Call {
         callee: Box<Expression>,
+        arguments: Vec<Expression>,
+    },
+    MethodCall {
+        instance: Box<Expression>,
+        method: String,
         arguments: Vec<Expression>,
     },
     GetAttr {

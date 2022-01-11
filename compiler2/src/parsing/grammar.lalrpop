@@ -24,6 +24,7 @@ Import: ast::Import = {
 
 TypeDef: ast::TypeDef = {
     StructDef,
+    <c:ClassDef> => ast::TypeDef::Class(c),
 }
 
 StructDef: ast::TypeDef = {
@@ -38,6 +39,32 @@ StructDef: ast::TypeDef = {
             ast::TypeDef::Generic { name, location, parameters: typevars, base: Box::new(s) }
         } else {
             s
+        }
+    }
+};
+
+ClassDef: ast::ClassDef = {
+    "class" <location:@L> <name:Identifier> ":" Newline
+    Indent
+    <fields:VarDef+>
+    <methods:FunctionDef+>
+    Dedent => {
+        ast::ClassDef {
+            name,
+            location,
+            fields,
+            methods,
+        }
+    }
+};
+
+VarDef: ast::VarDef = {
+    "var" <location:@L> <name:Identifier> ":" <typ:Type> "=" <value:Expression> Newline => {
+        ast::VarDef {
+            name,
+            location,
+            typ,
+            value,
         }
     }
 };
@@ -448,6 +475,7 @@ extern {
         Newline => Token::Newline,
         "and" => Token::KeywordAnd,
         "break" => Token::KeywordBreak,
+        "class" => Token::KeywordClass,
         "continue" => Token::KeywordContinue,
         "else" => Token::KeywordElse,
         "false" => Token::KeywordFalse,
@@ -458,6 +486,7 @@ extern {
         "in" => Token::KeywordIn,
         "let" => Token::KeywordLet,
         "loop" => Token::KeywordLoop,
+        "match" => Token::KeywordMatch,
         "mut" => Token::KeywordMut,
         "or" => Token::KeywordOr,
         "pass" => Token::KeywordPass,
@@ -465,6 +494,7 @@ extern {
         "return" => Token::KeywordReturn,
         "struct" => Token::KeywordStruct,
         "true" => Token::KeywordTrue,
+        "var" => Token::KeywordVar,
         "while" => Token::KeywordWhile,
         "(" => Token::OpeningParenthesis,
         ")" => Token::ClosingParenthesis,

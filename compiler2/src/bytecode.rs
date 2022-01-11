@@ -23,7 +23,7 @@ pub struct Import {
     pub return_type: Option<Typ>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, PartialEq, Eq, Hash)]
 pub struct StructDef {
     pub name: Option<String>,
     pub fields: Vec<Typ>,
@@ -133,7 +133,7 @@ pub enum Operator {
     Div,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq, Hash)]
 pub enum Typ {
     Bool,
     Int,

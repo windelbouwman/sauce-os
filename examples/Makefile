@@ -6,6 +6,7 @@ SLANG_COMPILER=../compiler2/target/debug/compiler2
 
 EXECUTABLES = \
 	callings.exe \
+	classy.exe \
 	expressions.exe \
 	generics.exe \
 	hello-world.exe \

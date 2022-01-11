@@ -218,6 +218,7 @@ impl<'t> Lexer<'t> {
             LogosToken::Identifier(name) => match name.as_str() {
                 "and" => self.emit(Token::KeywordAnd),
                 "break" => self.emit(Token::KeywordBreak),
+                "class" => self.emit(Token::KeywordClass),
                 "continue" => self.emit(Token::KeywordContinue),
                 "else" => self.emit(Token::KeywordElse),
                 "false" => self.emit(Token::KeywordFalse),
@@ -228,6 +229,7 @@ impl<'t> Lexer<'t> {
                 "in" => self.emit(Token::KeywordIn),
                 "loop" => self.emit(Token::KeywordLoop),
                 "let" => self.emit(Token::KeywordLet),
+                "match" => self.emit(Token::KeywordMatch),
                 "mut" => self.emit(Token::KeywordMut),
                 "or" => self.emit(Token::KeywordOr),
                 "pass" => self.emit(Token::KeywordPass),
@@ -235,6 +237,7 @@ impl<'t> Lexer<'t> {
                 "return" => self.emit(Token::KeywordReturn),
                 "struct" => self.emit(Token::KeywordStruct),
                 "true" => self.emit(Token::KeywordTrue),
+                "var" => self.emit(Token::KeywordVar),
                 "while" => self.emit(Token::KeywordWhile),
                 other => {
                     self.emit(Token::Identifier {

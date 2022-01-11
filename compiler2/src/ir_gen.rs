@@ -6,7 +6,7 @@
 use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
-use super::semantics::type_system::{MyType, StructType};
+use super::semantics::type_system::{ClassType, MyType, StructType};
 use super::semantics::typed_ast;
 use std::collections::HashMap;
 
@@ -17,16 +17,18 @@ pub fn gen(prog: typed_ast::Program) -> bytecode::Program {
 }
 
 struct Generator {
+    functions: Vec<bytecode::Function>,
     instructions: Vec<Instruction>,
     id_counter: usize,
     loop_stack: Vec<(usize, usize)>,
     struct_types: Vec<bytecode::StructDef>,
-    struct_id_map: HashMap<StructType, usize>,
+    struct_id_map: HashMap<bytecode::StructDef, usize>,
 }
 
 impl Generator {
     fn new() -> Self {
         Generator {
+            functions: vec![],
             instructions: vec![],
             id_counter: 0,
             loop_stack: vec![],
@@ -37,12 +39,16 @@ impl Generator {
 
     fn gen_prog(&mut self, prog: typed_ast::Program) -> bytecode::Program {
         for typedef in prog.type_defs {
-            match typedef.typ {
-                MyType::Struct(s) => {
-                    self.get_struct_index(&s);
+            match &typedef.typ {
+                MyType::Struct(struct_type) => {
+                    self.get_struct_index(struct_type);
                 }
                 MyType::Generic { .. } => {
                     // Safely ignoring.
+                }
+                MyType::Class(class_type) => {
+                    // TODO: what now?
+                    // self.gen_class(class_type),
                 }
                 other => {
                     unimplemented!("Not doing this: {:?}", other);
@@ -73,22 +79,60 @@ impl Generator {
             }
         }
 
-        let mut functions = vec![];
+        for class_def in prog.class_defs {
+            self.gen_class_def(class_def);
+        }
+
         for function in prog.functions {
-            functions.push(self.gen_func(function));
+            self.gen_func(None, function);
         }
 
         bytecode::Program {
             imports,
             struct_types: std::mem::take(&mut self.struct_types),
-            functions,
+            functions: std::mem::take(&mut self.functions),
         }
     }
 
-    fn gen_func(&mut self, func: typed_ast::FunctionDef) -> bytecode::Function {
+    fn gen_class_def(&mut self, class_def: typed_ast::ClassDef) {
+        // Be smart about it, and create default constructor function!
+        let ctor_name = class_def.typ.ctor_func_name();
+        let class_typ = self.get_bytecode_class_typ(&class_def.typ);
+
+        if let bytecode::Typ::Ptr(struct_typ) = class_typ.clone() {
+            self.emit(Instruction::Malloc(*struct_typ));
+        } else {
+            panic!("Assumed class type is pointer to struct.");
+        }
+
+        // Initialize functions:
+        for field in class_def.field_defs {
+            // ehm, store attr!
+            self.emit(bytecode::Instruction::Duplicate);
+            self.gen_expression(field.value);
+            self.emit(bytecode::Instruction::SetAttr(field.index));
+        }
+
+        self.emit(bytecode::Instruction::Return(1));
+        let instructions = std::mem::take(&mut self.instructions);
+        self.functions.push(bytecode::Function {
+            name: ctor_name,
+            parameters: vec![],
+            return_type: Some(class_typ.clone()),
+            locals: vec![],
+            code: instructions,
+        });
+
+        // Generate member functions:
+        for function in class_def.function_defs {
+            self.gen_func(Some(class_typ.clone()), function);
+        }
+    }
+
+    fn gen_func(&mut self, self_param: Option<bytecode::Typ>, func: typed_ast::FunctionDef) {
         log::debug!("Gen code for {}", func.name);
 
-        let parameters = func
+        let mut parameters: Vec<bytecode::Parameter> = func
             .parameters
             .into_iter()
             .map(|p| bytecode::Parameter {
@@ -96,6 +140,15 @@ impl Generator {
                 typ: self.get_bytecode_typ(&p.typ),
             })
             .collect();
+        if let Some(p) = self_param {
+            parameters.insert(
+                0,
+                bytecode::Parameter {
+                    name: "self".to_owned(),
+                    typ: p,
+                },
+            );
+        }
 
         let return_type = func.return_type.as_ref().map(|t| self.get_bytecode_typ(t));
 
@@ -116,13 +169,13 @@ impl Generator {
         }
 
         let instructions = std::mem::take(&mut self.instructions);
-        bytecode::Function {
+        self.functions.push(bytecode::Function {
             name: func.name,
             parameters,
             return_type,
             locals,
             code: instructions,
-        }
+        })
     }
 
     fn new_label(&mut self) -> usize {
@@ -294,23 +347,37 @@ impl Generator {
         }
     }
 
-    fn get_struct_index(&mut self, struct_type: &StructType) -> usize {
-        if self.struct_id_map.contains_key(struct_type) {
-            *self.struct_id_map.get(struct_type).unwrap()
+    /// Insert struct in de-duplicating manner
+    fn inject_struct(&mut self, name: Option<String>, fields: Vec<bytecode::Typ>) -> usize {
+        let struct_def = bytecode::StructDef { name, fields };
+        if self.struct_id_map.contains_key(&struct_def) {
+            *self.struct_id_map.get(&struct_def).unwrap()
         } else {
             let idx = self.struct_types.len();
-            self.struct_id_map.insert(struct_type.clone(), idx);
-            let fields: Vec<bytecode::Typ> = struct_type
-                .fields
-                .iter()
-                .map(|f| self.get_bytecode_typ(&f.typ))
-                .collect();
-            self.struct_types.push(bytecode::StructDef {
-                name: struct_type.name.clone(),
-                fields,
-            });
+            self.struct_types.push(struct_def.clone());
+            self.struct_id_map.insert(struct_def.clone(), idx);
             idx
         }
+    }
+
+    fn get_struct_index(&mut self, struct_type: &StructType) -> usize {
+        let fields: Vec<bytecode::Typ> = struct_type
+            .fields
+            .iter()
+            .map(|f| self.get_bytecode_typ(&f.typ))
+            .collect();
+        self.inject_struct(struct_type.name.clone(), fields)
+    }
+
+    fn get_bytecode_class_typ(&mut self, class_type: &ClassType) -> bytecode::Typ {
+        // Map class into a struct type!
+        let fields: Vec<bytecode::Typ> = class_type
+            .fields
+            .iter()
+            .map(|f| self.get_bytecode_typ(&f.typ))
+            .collect();
+        let idx = self.inject_struct(Some(class_type.name.clone()), fields);
+        bytecode::Typ::Ptr(Box::new(bytecode::Typ::Struct(idx)))
     }
 
     fn get_bytecode_typ(&mut self, ty: &MyType) -> bytecode::Typ {
@@ -319,9 +386,10 @@ impl Generator {
             MyType::Int => bytecode::Typ::Int,
             MyType::Float => bytecode::Typ::Float,
             MyType::String => bytecode::Typ::String,
-            MyType::Struct(struct_typ) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Struct(
-                self.get_struct_index(struct_typ),
+            MyType::Struct(struct_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Struct(
+                self.get_struct_index(struct_type),
             ))),
+            MyType::Class(class_type) => self.get_bytecode_class_typ(class_type),
             other => {
                 unimplemented!("{:?}", other);
             }
@@ -346,67 +414,17 @@ impl Generator {
                 let typ = self.get_bytecode_typ(&expression.typ);
                 if let bytecode::Typ::Ptr(typ) = typ {
                     self.emit(Instruction::Malloc(*typ));
-                    for (index, value) in values.into_iter().enumerate() {
-                        self.emit(Instruction::Duplicate);
-                        self.gen_expression(value);
-                        self.emit(Instruction::SetAttr(index));
-                    }
                 } else {
                     panic!("Assumed struct literal is pointer to thing.");
                 }
+                for (index, value) in values.into_iter().enumerate() {
+                    self.emit(Instruction::Duplicate);
+                    self.gen_expression(value);
+                    self.emit(Instruction::SetAttr(index));
+                }
             }
             typed_ast::ExpressionType::Binop { lhs, op, rhs } => {
-                match op {
-                    ast::BinaryOperator::Math(op2) => {
-                        let typ = self.get_bytecode_typ(&lhs.typ);
-                        self.gen_expression(*lhs);
-                        self.gen_expression(*rhs);
-                        let op = match op2 {
-                            ast::MathOperator::Add => bytecode::Operator::Add,
-                            ast::MathOperator::Sub => bytecode::Operator::Sub,
-                            ast::MathOperator::Mul => bytecode::Operator::Mul,
-                            ast::MathOperator::Div => bytecode::Operator::Div,
-                        };
-                        self.emit(Instruction::Operator { op, typ });
-                    }
-                    ast::BinaryOperator::Comparison(op2) => {
-                        let typ = self.get_bytecode_typ(&lhs.typ);
-                        self.gen_expression(*lhs);
-                        self.gen_expression(*rhs);
-                        // TBD: we could simplify by swapping lhs and rhs and using Lt instead of GtEqual
-                        let op = match op2 {
-                            ast::ComparisonOperator::Equal => bytecode::Comparison::Equal,
-                            ast::ComparisonOperator::NotEqual => bytecode::Comparison::NotEqual,
-                            ast::ComparisonOperator::Gt => bytecode::Comparison::Gt,
-                            ast::ComparisonOperator::GtEqual => bytecode::Comparison::GtEqual,
-                            ast::ComparisonOperator::Lt => bytecode::Comparison::Lt,
-                            ast::ComparisonOperator::LtEqual => bytecode::Comparison::LtEqual,
-                        };
-
-                        self.emit(Instruction::Comparison { op, typ });
-                    }
-                    ast::BinaryOperator::Logic(op) => {
-                        let true_label = self.new_label();
-                        let false_label = self.new_label();
-                        let final_label = self.new_label();
-                        let recreated_expression = typed_ast::Expression {
-                            typ: expression.typ,
-                            kind: typed_ast::ExpressionType::Binop {
-                                lhs,
-                                op: ast::BinaryOperator::Logic(op),
-                                rhs,
-                            },
-                        };
-                        self.gen_condition(recreated_expression, true_label, false_label);
-                        self.set_label(true_label);
-                        self.emit(Instruction::BoolLiteral(true));
-                        self.emit(Instruction::Jump(final_label));
-                        self.set_label(false_label);
-                        self.emit(Instruction::BoolLiteral(false));
-                        self.emit(Instruction::Jump(final_label));
-                        self.set_label(final_label);
-                    }
-                }
+                self.gen_binop(expression.typ, *lhs, op, *rhs);
             }
             typed_ast::ExpressionType::Call { callee, arguments } => match &callee.typ {
                 MyType::Function {
@@ -429,10 +447,35 @@ impl Generator {
                     panic!("Can only call function types, not {:?}", other);
                 }
             },
+            typed_ast::ExpressionType::MethodCall {
+                instance,
+                method,
+                arguments,
+            } => {
+                self.emit(Instruction::LoadGlobalName(method));
+                // 'self' is implicit first argument!
+                let n_args = arguments.len() + 1;
+                self.gen_expression(*instance);
+                for argument in arguments {
+                    self.gen_expression(argument);
+                }
+                // let return_type = self.get_bytecode_typ(&expression.typ);
+                let return_type = None; // TODO!
+                self.emit(Instruction::Call {
+                    n_args,
+                    typ: return_type,
+                });
+            }
             typed_ast::ExpressionType::GetAttr { base, attr } => match &base.typ {
                 MyType::Struct(struct_typ) => {
                     let index = struct_typ.index_of(&attr).expect("Field must be present");
                     let typ = self.get_bytecode_typ(&struct_typ.fields[index].typ);
+                    self.gen_expression(*base);
+                    self.emit(Instruction::GetAttr { index, typ });
+                }
+                MyType::Class(class_type) => {
+                    let index = class_type.index_of(&attr).expect("Field must be present");
+                    let typ = self.get_bytecode_typ(&expression.typ);
                     self.gen_expression(*base);
                     self.emit(Instruction::GetAttr { index, typ });
                 }
@@ -443,6 +486,21 @@ impl Generator {
             typed_ast::ExpressionType::LoadFunction(name) => {
                 self.emit(Instruction::LoadGlobalName(name));
             }
+            typed_ast::ExpressionType::Typ(_) => {
+                // TBD: maybe allowing a type as an expression is wrong.
+                panic!("Cannot evaluate type!");
+            }
+            typed_ast::ExpressionType::Instantiate => {
+                if let MyType::Class(class_type) = &expression.typ {
+                    // Call class constructor auto-contrapted function!
+                    let name = class_type.ctor_func_name();
+                    self.emit(Instruction::LoadGlobalName(name));
+                    let typ = Some(self.get_bytecode_class_typ(class_type));
+                    self.emit(Instruction::Call { n_args: 0, typ });
+                } else {
+                    panic!("Instantiation requires class type");
+                }
+            }
             typed_ast::ExpressionType::LoadParameter { name: _, index } => {
                 // TBD: use name as a hint?
                 let typ = self.get_bytecode_typ(&expression.typ);
@@ -451,6 +509,74 @@ impl Generator {
             typed_ast::ExpressionType::LoadLocal { name: _, index } => {
                 let typ = self.get_bytecode_typ(&expression.typ);
                 self.emit(Instruction::LoadLocal { index, typ });
+            }
+            typed_ast::ExpressionType::ImplicitSelf => {
+                let class_typ = self.get_bytecode_typ(&expression.typ);
+                // Load 'self':
+                self.emit(Instruction::LoadParameter {
+                    index: 0,
+                    typ: class_typ,
+                });
+            }
+        }
+    }
+
+    fn gen_binop(
+        &mut self,
+        typ: MyType,
+        lhs: typed_ast::Expression,
+        op: ast::BinaryOperator,
+        rhs: typed_ast::Expression,
+    ) {
+        match op {
+            ast::BinaryOperator::Math(op2) => {
+                let typ = self.get_bytecode_typ(&lhs.typ);
+                self.gen_expression(lhs);
+                self.gen_expression(rhs);
+                let op = match op2 {
+                    ast::MathOperator::Add => bytecode::Operator::Add,
+                    ast::MathOperator::Sub => bytecode::Operator::Sub,
+                    ast::MathOperator::Mul => bytecode::Operator::Mul,
+                    ast::MathOperator::Div => bytecode::Operator::Div,
+                };
+                self.emit(Instruction::Operator { op, typ });
+            }
+            ast::BinaryOperator::Comparison(op2) => {
+                let typ = self.get_bytecode_typ(&lhs.typ);
+                self.gen_expression(lhs);
+                self.gen_expression(rhs);
+                // TBD: we could simplify by swapping lhs and rhs and using Lt instead of GtEqual
+                let op = match op2 {
+                    ast::ComparisonOperator::Equal => bytecode::Comparison::Equal,
+                    ast::ComparisonOperator::NotEqual => bytecode::Comparison::NotEqual,
+                    ast::ComparisonOperator::Gt => bytecode::Comparison::Gt,
+                    ast::ComparisonOperator::GtEqual => bytecode::Comparison::GtEqual,
+                    ast::ComparisonOperator::Lt => bytecode::Comparison::Lt,
+                    ast::ComparisonOperator::LtEqual => bytecode::Comparison::LtEqual,
+                };
+
+                self.emit(Instruction::Comparison { op, typ });
+            }
+            ast::BinaryOperator::Logic(op) => {
+                let true_label = self.new_label();
+                let false_label = self.new_label();
+                let final_label = self.new_label();
+                let recreated_expression = typed_ast::Expression {
+                    typ,
+                    kind: typed_ast::ExpressionType::Binop {
+                        lhs: Box::new(lhs),
+                        op: ast::BinaryOperator::Logic(op),
+                        rhs: Box::new(rhs),
+                    },
+                };
+                self.gen_condition(recreated_expression, true_label, false_label);
+                self.set_label(true_label);
+                self.emit(Instruction::BoolLiteral(true));
+                self.emit(Instruction::Jump(final_label));
+                self.set_label(false_label);
+                self.emit(Instruction::BoolLiteral(false));
+                self.emit(Instruction::Jump(final_label));
+                self.set_label(final_label);
             }
         }
     }

@@ -22,9 +22,32 @@ impl AstPrinter {
                 type_def.typ
             );
         }
+        for class_def in &prog.class_defs {
+            self.print_class_def(class_def);
+        }
         for function_def in &prog.functions {
             self.print_function(function_def);
         }
+    }
+
+    fn print_class_def(&mut self, class_def: &typed_ast::ClassDef) {
+        println!("{}class {}", self.get_indent(), class_def.name);
+        self.indent();
+        for field_def in &class_def.field_defs {
+            println!(
+                "{}field name={}, index={}",
+                self.get_indent(),
+                field_def.name,
+                field_def.index
+            );
+            self.indent();
+            self.print_expression(&field_def.value);
+            self.dedent();
+        }
+        for method in &class_def.function_defs {
+            self.print_function(method);
+        }
+        self.dedent();
     }
 
     fn print_function(&mut self, function_def: &typed_ast::FunctionDef) {
@@ -137,6 +160,24 @@ impl AstPrinter {
                 }
                 self.dedent();
             }
+            typed_ast::ExpressionType::MethodCall {
+                instance,
+                method,
+                arguments,
+            } => {
+                println!(
+                    "{}method-call {} : {:?}",
+                    self.get_indent(),
+                    method,
+                    expression.typ
+                );
+                self.indent();
+                self.print_expression(instance);
+                for argument in arguments {
+                    self.print_expression(argument);
+                }
+                self.dedent();
+            }
             typed_ast::ExpressionType::Binop { lhs, op, rhs } => {
                 println!(
                     "{}Binary operation {:?} : {:?}",
@@ -192,6 +233,16 @@ impl AstPrinter {
             typed_ast::ExpressionType::LoadFunction(name) => {
                 println!("{}Load function name={}", self.get_indent(), name);
             }
+            typed_ast::ExpressionType::Typ(typ) => {
+                println!("{}Type ref: {:?}", self.get_indent(), typ);
+            }
+            typed_ast::ExpressionType::Instantiate => {
+                println!(
+                    "{}Create instance of: {:?}",
+                    self.get_indent(),
+                    expression.typ
+                );
+            }
             typed_ast::ExpressionType::LoadParameter { name, index } => {
                 println!(
                     "{}Load parameter name={} index={}: {:?}",
@@ -209,6 +260,9 @@ impl AstPrinter {
                     index,
                     expression.typ
                 );
+            }
+            typed_ast::ExpressionType::ImplicitSelf => {
+                println!("{}self", self.get_indent());
             }
             typed_ast::ExpressionType::GetAttr { base, attr } => {
                 println!("{}get attr={}", self.get_indent(), attr);
