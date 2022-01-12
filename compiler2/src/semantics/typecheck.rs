@@ -439,6 +439,7 @@ impl TypeChecker {
         }
     }
 
+    /// Given an function def, extract a function type.
     fn get_function_typ(&mut self, function_def: &ast::FunctionDef) -> Result<MyType, ()> {
         let mut argument_types = vec![];
         for parameter in &function_def.parameters {

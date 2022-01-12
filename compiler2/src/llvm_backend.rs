@@ -17,7 +17,7 @@ struct LLVMWriter<W: std::io::Write> {
     // List of name / size pairs
     type_names: Vec<(String, usize)>,
     stack: Vec<(String, String)>,
-    parameter_names: Vec<String>,
+    parameter_names_and_types: Vec<(String, String)>,
     local_names: Vec<(String, String)>,
     id_counter: usize,
     string_literals: Vec<String>,
@@ -32,7 +32,7 @@ where
             w,
             type_names: vec![],
             stack: vec![],
-            parameter_names: vec![],
+            parameter_names_and_types: vec![],
             local_names: vec![],
             id_counter: 0,
             string_literals: vec![],
@@ -147,17 +147,15 @@ where
     fn gen_function(&mut self, func: bytecode::Function) -> Result<(), std::io::Error> {
         log::debug!("Generating function: {}", func.name);
         self.stack.clear();
-        self.parameter_names.clear();
+        self.parameter_names_and_types.clear();
         let mut parameters: Vec<String> = vec![];
 
         for parameter in func.parameters {
             let parameter_name = format!("%{}", parameter.name);
-            parameters.push(format!(
-                "{} {}",
-                self.get_llvm_typ(&parameter.typ),
-                parameter_name
-            ));
-            self.parameter_names.push(parameter_name);
+            let parameter_type = self.get_llvm_typ(&parameter.typ);
+            parameters.push(format!("{} {}", parameter_type, parameter_name));
+            self.parameter_names_and_types
+                .push((parameter_name, parameter_type));
         }
 
         let p_text = parameters.join(", ");
@@ -374,7 +372,7 @@ where
                 )?;
                 self.push(element_ptr_type, loaded_value);
             }
-            Instruction::SetAttr(index) => {
+            Instruction::SetAttr { index } => {
                 let (value_type, value) = self.pop();
                 let (base_type, base) = self.pop();
 
@@ -400,13 +398,9 @@ where
                     value_type, value, value_type, element_ptr
                 )?;
             }
-            // Instruction::LoadName { name, typ } => {
-            //     let typ = Self::get_llvm_typ(&typ);
-            //     self.push(typ, format!("%{}", name));
-            // }
-            Instruction::LoadParameter { index, typ } => {
-                let typ = self.get_llvm_typ(&typ);
-                self.push(typ, self.parameter_names[index].clone());
+            Instruction::LoadParameter { index } => {
+                let (name, typ) = self.parameter_names_and_types[index].clone();
+                self.push(typ, name);
             }
             Instruction::LoadGlobalName(name) => {
                 self.push("".to_owned(), format!("@{}", name));

@@ -110,7 +110,7 @@ impl Generator {
             // ehm, store attr!
             self.emit(bytecode::Instruction::Duplicate);
             self.gen_expression(field.value);
-            self.emit(bytecode::Instruction::SetAttr(field.index));
+            self.emit(bytecode::Instruction::SetAttr { index: field.index });
         }
 
         self.emit(bytecode::Instruction::Return(1));
@@ -217,7 +217,7 @@ impl Generator {
                             let index = struct_typ.index_of(&attr).expect("Field must be present");
                             self.gen_expression(*base);
                             self.gen_expression(value);
-                            self.emit(Instruction::SetAttr(index));
+                            self.emit(Instruction::SetAttr { index });
                         }
                         _other => {
                             panic!("Base type must be structured type.");
@@ -420,7 +420,7 @@ impl Generator {
                 for (index, value) in values.into_iter().enumerate() {
                     self.emit(Instruction::Duplicate);
                     self.gen_expression(value);
-                    self.emit(Instruction::SetAttr(index));
+                    self.emit(Instruction::SetAttr { index });
                 }
             }
             typed_ast::ExpressionType::Binop { lhs, op, rhs } => {
@@ -503,20 +503,15 @@ impl Generator {
             }
             typed_ast::ExpressionType::LoadParameter { name: _, index } => {
                 // TBD: use name as a hint?
-                let typ = self.get_bytecode_typ(&expression.typ);
-                self.emit(Instruction::LoadParameter { index, typ });
+                self.emit(Instruction::LoadParameter { index });
             }
             typed_ast::ExpressionType::LoadLocal { name: _, index } => {
                 let typ = self.get_bytecode_typ(&expression.typ);
                 self.emit(Instruction::LoadLocal { index, typ });
             }
             typed_ast::ExpressionType::ImplicitSelf => {
-                let class_typ = self.get_bytecode_typ(&expression.typ);
                 // Load 'self':
-                self.emit(Instruction::LoadParameter {
-                    index: 0,
-                    typ: class_typ,
-                });
+                self.emit(Instruction::LoadParameter { index: 0 });
             }
         }
     }

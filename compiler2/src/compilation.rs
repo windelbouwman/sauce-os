@@ -1,4 +1,4 @@
-use crate::bytecode::print_bytecode;
+use crate::bytecode;
 use crate::errors::{print_error, CompilationError};
 use crate::llvm_backend;
 use crate::parsing::{ast, parse_src};
@@ -11,7 +11,6 @@ pub struct CompileOptions {
     pub dump_src: bool,
     pub dump_ast: bool,
     pub dump_bc: bool,
-    pub run_bc: bool,
 }
 
 /// Define functions provided by 'std' module.
@@ -90,12 +89,10 @@ fn stage1(
     Ok(typed_prog)
 }
 
-/// Compile a single source file to a single output file
-pub fn compile(
+pub fn compile_to_bytecode(
     path: &std::path::Path,
-    output_path: Option<&std::path::Path>,
     options: &CompileOptions,
-) -> Result<(), CompilationError> {
+) -> Result<bytecode::Program, CompilationError> {
     let mut module_scope = Scope::new();
     load_std_module(&mut module_scope);
 
@@ -103,14 +100,20 @@ pub fn compile(
 
     let bc = ir_gen::gen(typed_prog);
     if options.dump_bc {
-        log::debug!("Dumpin bytecode below");
-        print_bytecode(&bc);
+        log::debug!("Dumping bytecode below");
+        bytecode::print_bytecode(&bc);
     }
 
-    if options.run_bc {
-        // Run in VM!!!
-        vm::execute(bc.clone());
-    }
+    Ok(bc)
+}
+
+/// Compile a single source file to a single LLVM output file
+pub fn compile(
+    path: &std::path::Path,
+    output_path: Option<&std::path::Path>,
+    options: &CompileOptions,
+) -> Result<(), CompilationError> {
+    let bc = compile_to_bytecode(path, options)?;
 
     // ============
     // HERE BEGINS STAGE 2
@@ -142,6 +145,9 @@ pub fn compile(
 }
 
 /// Build a slew of source files.
+///
+/// This is a sort of driver mode, which loads sources onto a work queue
+/// and progresses where possible.
 pub fn build_multi(paths: &[&std::path::Path], options: &CompileOptions) {
     let mut backlog = vec![];
     for path in paths {
@@ -178,7 +184,7 @@ pub fn build_multi(paths: &[&std::path::Path], options: &CompileOptions) {
                             let bc = ir_gen::gen(typed_prog);
                             if options.dump_bc {
                                 log::debug!("Dumpin bytecode below");
-                                print_bytecode(&bc);
+                                bytecode::print_bytecode(&bc);
                             }
 
                             // TODO: store for later usage? What now?

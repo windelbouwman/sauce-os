@@ -29,7 +29,7 @@ pub struct StructDef {
     pub fields: Vec<Typ>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Function {
     pub name: String,
     pub parameters: Vec<Parameter>,
@@ -78,24 +78,21 @@ pub enum Instruction {
     },
 
     LoadGlobalName(String),
-    // LoadName {
-    //     name: String,
-    //     typ: Typ,
-    // },
+
+    /// Load function parameter value on the stack.
     LoadParameter {
-        // name: String, ??
         index: usize,
-        typ: Typ,
     },
+
+    /// Load local variable onto the stack.
     LoadLocal {
-        // name: String, ??
         index: usize,
         typ: Typ,
     },
+
+    /// Store value in local variable
     StoreLocal {
-        // name: String,
         index: usize,
-        // typ: Typ,
     },
 
     Label(usize),
@@ -113,7 +110,9 @@ pub enum Instruction {
     },
 
     /// Set the n-th attribute of a struct typed thing
-    SetAttr(usize),
+    SetAttr {
+        index: usize,
+    },
 }
 
 impl Instruction {

@@ -25,6 +25,15 @@ void std_panic(const char *message)
     std_exit(1);
 }
 
+char *std_to_string(int x)
+{
+    char buffer[50];
+    snprintf(buffer, 50, "%d", x);
+    char *text = malloc(strlen(buffer) + 1);
+    strcpy(text, buffer);
+    return text;
+}
+
 char *std_read_file(const char *filename)
 {
     char *buffer = 0;

@@ -7,7 +7,7 @@ mod parsing;
 mod semantics;
 mod vm;
 
-use compilation::{build_multi, compile, CompileOptions};
+use compilation::CompileOptions;
 use errors::{print_error, CompilationError};
 
 fn main() -> Result<(), ()> {
@@ -26,6 +26,11 @@ fn main() -> Result<(), ()> {
                 .multiple(true)
                 .short("v")
                 .help("Sets level of verbosity"),
+        )
+        .arg(
+            clap::Arg::with_name("dump-ast")
+                .long("dump-ast")
+                .help("Spit out bytecode intermediate format."),
         )
         .arg(
             clap::Arg::with_name("dump-bytecode")
@@ -57,36 +62,55 @@ fn main() -> Result<(), ()> {
 
     let options = CompileOptions {
         dump_bc: matches.is_present("dump-bytecode") || verbosity > 5,
-        dump_ast: verbosity > 5,
+        dump_ast: matches.is_present("dump-ast") || verbosity > 5,
         dump_src: verbosity > 5,
-        run_bc: false,
     };
 
-    if matches.occurrences_of("source") > 1 {
-        let paths: Vec<&std::path::Path> = matches
-            .values_of("source")
-            .unwrap()
-            .map(std::path::Path::new)
-            .collect();
-        for path in &paths {
-            log::debug!("Got: {}", path.display());
-        }
-        build_multi(&paths, &options);
+    if matches.is_present("execute-bytecode") {
+        let path = std::path::Path::new(matches.value_of("source").unwrap());
+        interpret_mode(&path, &options);
         Ok(())
     } else {
-        let path = std::path::Path::new(matches.value_of("source").unwrap());
-        let output_path = matches.value_of("output").map(std::path::Path::new);
-        let res = compile(path, output_path, &options);
-        match res {
-            Ok(()) => {
-                log::info!("Great okidoki");
-                Ok(())
+        if matches.occurrences_of("source") > 1 {
+            let paths: Vec<&std::path::Path> = matches
+                .values_of("source")
+                .unwrap()
+                .map(std::path::Path::new)
+                .collect();
+            for path in &paths {
+                log::debug!("Got: {}", path.display());
             }
-            Err(err) => {
-                log::error!("Compilation errors");
-                print_error(path, err);
-                Err(())
+            compilation::build_multi(&paths, &options);
+            Ok(())
+        } else {
+            let path = std::path::Path::new(matches.value_of("source").unwrap());
+            let output_path = matches.value_of("output").map(std::path::Path::new);
+            let res = compilation::compile(path, output_path, &options);
+            match res {
+                Ok(()) => {
+                    log::info!("Great okidoki");
+                    Ok(())
+                }
+                Err(err) => {
+                    log::error!("Compilation errors");
+                    print_error(path, err);
+                    Err(())
+                }
             }
+        }
+    }
+}
+
+fn interpret_mode(path: &std::path::Path, options: &CompileOptions) {
+    match compilation::compile_to_bytecode(path, options) {
+        Ok(bc) => {
+            log::info!("Running interpreted, python style!");
+            // Run in VM!!!
+            vm::execute(bc);
+            log::info!("Interpreting done & done");
+        }
+        Err(err) => {
+            print_error(path, err);
         }
     }
 }
