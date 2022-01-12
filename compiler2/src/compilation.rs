@@ -1,11 +1,11 @@
 use crate::bytecode;
 use crate::errors::{print_error, CompilationError};
+use crate::ir_gen;
 use crate::llvm_backend;
 use crate::parsing::{ast, parse_src};
 use crate::semantics::type_system::MyType;
 use crate::semantics::{print_ast, type_check, typed_ast};
 use crate::semantics::{Scope, Symbol};
-use crate::{ir_gen, vm};
 
 pub struct CompileOptions {
     pub dump_src: bool,

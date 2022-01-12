@@ -52,7 +52,8 @@ pub struct Local {
 
 #[derive(Clone, Debug, Serialize)]
 pub enum Instruction {
-    // Nop,
+    Nop,
+
     BoolLiteral(bool),
     IntLiteral(i64),
     FloatLiteral(f64),
@@ -95,8 +96,10 @@ pub enum Instruction {
         index: usize,
     },
 
-    Label(usize),
+    // Label(usize),
+    /// Jump to a location in bytecode.
     Jump(usize),
+
     JumpIf(usize, usize),
 
     /// Return n values.
@@ -188,7 +191,7 @@ pub fn print_bytecode(bc: &Program) {
 
 fn print_instructions(instructions: &[Instruction]) {
     println!("  Code:");
-    for instruction in instructions {
-        println!("    : {:?}", instruction);
+    for (index, instruction) in instructions.iter().enumerate() {
+        println!("    {} : {:?}", index, instruction);
     }
 }

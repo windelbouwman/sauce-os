@@ -4,7 +4,8 @@ use std::sync::Mutex;
 
 #[derive(Clone, Debug)]
 pub enum Value {
-    Void,
+    Uninitialized,
+    // Void,
     Integer(i64),
     String(String),
     Bool(bool),
@@ -23,6 +24,13 @@ pub struct Struct {
 }
 
 impl Struct {
+    pub fn new(typ: &bytecode::StructDef) -> Self {
+        let fields: Vec<Value> = typ.fields.iter().map(|_| Value::Uninitialized).collect();
+        Self {
+            fields: Mutex::new(fields),
+        }
+    }
+
     pub fn get_field(&self, index: usize) -> Value {
         self.fields.lock().unwrap()[index].clone()
     }

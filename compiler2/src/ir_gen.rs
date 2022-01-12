@@ -16,13 +16,25 @@ pub fn gen(prog: typed_ast::Program) -> bytecode::Program {
     g.gen_prog(prog)
 }
 
+#[derive(Hash, Eq, PartialEq, Clone)]
+struct Label {
+    name: usize,
+}
+
 struct Generator {
     functions: Vec<bytecode::Function>,
     instructions: Vec<Instruction>,
     id_counter: usize,
-    loop_stack: Vec<(usize, usize)>,
+    loop_stack: Vec<(Label, Label)>,
     struct_types: Vec<bytecode::StructDef>,
     struct_id_map: HashMap<bytecode::StructDef, usize>,
+    label_map: HashMap<Label, usize>,
+    relocations: Vec<Relocation>,
+}
+
+enum Relocation {
+    Jump(usize, Label),
+    JumpIf(usize, Label, Label),
 }
 
 impl Generator {
@@ -34,6 +46,8 @@ impl Generator {
             loop_stack: vec![],
             struct_types: vec![],
             struct_id_map: HashMap::new(),
+            label_map: HashMap::new(),
+            relocations: vec![],
         }
     }
 
@@ -132,6 +146,8 @@ impl Generator {
     fn gen_func(&mut self, self_param: Option<bytecode::Typ>, func: typed_ast::FunctionDef) {
         log::debug!("Gen code for {}", func.name);
 
+        self.label_map.clear();
+
         let mut parameters: Vec<bytecode::Parameter> = func
             .parameters
             .into_iter()
@@ -168,6 +184,8 @@ impl Generator {
             self.emit(Instruction::Return(0));
         }
 
+        self.resolve_relocations();
+
         let instructions = std::mem::take(&mut self.instructions);
         self.functions.push(bytecode::Function {
             name: func.name,
@@ -178,14 +196,57 @@ impl Generator {
         })
     }
 
-    fn new_label(&mut self) -> usize {
+    /// Get a new label we can jump to!
+    fn new_label(&mut self) -> Label {
         let x = self.id_counter;
         self.id_counter += 1;
-        x
+        Label { name: x }
     }
 
-    fn set_label(&mut self, label: usize) {
-        self.emit(Instruction::Label(label));
+    fn set_label(&mut self, label: Label) {
+        let current_pc = self.instructions.len();
+        assert!(!self.label_map.contains_key(&label));
+        self.label_map.insert(label, current_pc);
+    }
+
+    /// Generate code to jump to the given label.
+    fn jump(&mut self, target_label: Label) {
+        // Check if the label is known, otherwise emit nop and resolve later.
+        if let Some(dest) = self.label_map.get(&target_label).cloned() {
+            self.emit(Instruction::Jump(dest));
+        } else {
+            let pc = self.instructions.len();
+            self.emit(Instruction::Nop);
+            self.relocations.push(Relocation::Jump(pc, target_label));
+        }
+    }
+
+    fn jump_if(&mut self, true_label: Label, false_label: Label) {
+        let pc = self.instructions.len();
+        // Emit NOP, fixup at the end.
+        // TODO: we might check if the labels are defined here
+        // and emit jump right away.
+        self.emit(Instruction::Nop);
+        // self.emit(Instruction::JumpIf(true_label, false_label));
+        self.relocations
+            .push(Relocation::JumpIf(pc, true_label, false_label));
+    }
+
+    fn resolve_relocations(&mut self) {
+        for relocation in &self.relocations {
+            match relocation {
+                Relocation::Jump(pc, target) => {
+                    let target = self.label_map.get(target).unwrap();
+                    self.instructions[*pc] = bytecode::Instruction::Jump(*target);
+                }
+                Relocation::JumpIf(pc, true_target, false_target) => {
+                    let true_index: usize = *self.label_map.get(true_target).unwrap();
+                    let false_index: usize = *self.label_map.get(false_target).unwrap();
+                    self.instructions[*pc] = bytecode::Instruction::JumpIf(true_index, false_index);
+                }
+            }
+        }
+        self.relocations.clear();
     }
 
     fn gen_block(&mut self, block: typed_ast::Block) {
@@ -236,12 +297,12 @@ impl Generator {
                 }
             }
             typed_ast::StatementType::Break => {
-                let target_label = self.loop_stack.last().unwrap().1;
-                self.emit(Instruction::Jump(target_label));
+                let target_label = self.loop_stack.last().unwrap().1.clone();
+                self.jump(target_label);
             }
             typed_ast::StatementType::Continue => {
-                let target_label = self.loop_stack.last().unwrap().0;
-                self.emit(Instruction::Jump(target_label));
+                let target_label = self.loop_stack.last().unwrap().0.clone();
+                self.jump(target_label);
             }
             typed_ast::StatementType::Pass => {}
             typed_ast::StatementType::Return { value } => {
@@ -257,51 +318,32 @@ impl Generator {
                 condition,
                 if_true,
                 if_false,
-            } => {
-                let true_label = self.new_label();
-                let final_label = self.new_label();
-                if let Some(if_false) = if_false {
-                    let false_label = self.new_label();
-                    self.gen_condition(condition, true_label, false_label);
-
-                    self.set_label(true_label);
-                    self.gen_block(if_true);
-                    self.emit(Instruction::Jump(final_label));
-
-                    self.set_label(false_label);
-                    self.gen_block(if_false);
-                } else {
-                    self.gen_condition(condition, true_label, final_label);
-
-                    self.set_label(true_label);
-                    self.gen_block(if_true);
-                }
-                self.emit(Instruction::Jump(final_label));
-                self.set_label(final_label);
-            }
+            } => self.gen_if_statement(condition, if_true, if_false),
             typed_ast::StatementType::Loop { body } => {
                 let loop_start_label = self.new_label();
                 let final_label = self.new_label();
-                self.emit(Instruction::Jump(loop_start_label));
-                self.set_label(loop_start_label);
-                self.loop_stack.push((loop_start_label, final_label));
+                self.jump(loop_start_label.clone());
+                self.set_label(loop_start_label.clone());
+                self.loop_stack
+                    .push((loop_start_label.clone(), final_label.clone()));
                 self.gen_block(body);
                 self.loop_stack.pop();
-                self.emit(Instruction::Jump(loop_start_label));
+                self.jump(loop_start_label);
                 self.set_label(final_label);
             }
             typed_ast::StatementType::While { condition, body } => {
                 let loop_start_label = self.new_label();
                 let true_label = self.new_label();
                 let final_label = self.new_label();
-                self.emit(Instruction::Jump(loop_start_label));
-                self.set_label(loop_start_label);
-                self.gen_condition(condition, true_label, final_label);
+                self.jump(loop_start_label.clone());
+                self.set_label(loop_start_label.clone());
+                self.gen_condition(condition, true_label.clone(), final_label.clone());
                 self.set_label(true_label);
-                self.loop_stack.push((loop_start_label, final_label));
+                self.loop_stack
+                    .push((loop_start_label.clone(), final_label.clone()));
                 self.gen_block(body);
                 self.loop_stack.pop();
-                self.emit(Instruction::Jump(loop_start_label));
+                self.jump(loop_start_label);
                 self.set_label(final_label);
             }
             typed_ast::StatementType::Expression(e) => {
@@ -310,12 +352,40 @@ impl Generator {
         }
     }
 
+    fn gen_if_statement(
+        &mut self,
+        condition: typed_ast::Expression,
+        if_true: typed_ast::Block,
+        if_false: Option<typed_ast::Block>,
+    ) {
+        let true_label = self.new_label();
+        let final_label = self.new_label();
+        if let Some(if_false) = if_false {
+            let false_label = self.new_label();
+            self.gen_condition(condition, true_label.clone(), false_label.clone());
+
+            self.set_label(true_label);
+            self.gen_block(if_true);
+            self.jump(final_label.clone());
+
+            self.set_label(false_label);
+            self.gen_block(if_false);
+        } else {
+            self.gen_condition(condition, true_label.clone(), final_label.clone());
+
+            self.set_label(true_label);
+            self.gen_block(if_true);
+        }
+        self.jump(final_label.clone());
+        self.set_label(final_label);
+    }
+
     /// Generate bytecode for condition statement.
     fn gen_condition(
         &mut self,
         expression: typed_ast::Expression,
-        true_label: usize,
-        false_label: usize,
+        true_label: Label,
+        false_label: Label,
     ) {
         // Implement short-circuit logic for 'or' and 'and'
         // TODO: add 'not' operator
@@ -328,12 +398,12 @@ impl Generator {
                 let middle_label = self.new_label();
                 match op2 {
                     ast::LogicOperator::And => {
-                        self.gen_condition(*lhs, middle_label, false_label);
+                        self.gen_condition(*lhs, middle_label.clone(), false_label.clone());
                         self.set_label(middle_label);
                         self.gen_condition(*rhs, true_label, false_label);
                     }
                     ast::LogicOperator::Or => {
-                        self.gen_condition(*lhs, true_label, middle_label);
+                        self.gen_condition(*lhs, true_label.clone(), middle_label.clone());
                         self.set_label(middle_label);
                         self.gen_condition(*rhs, true_label, false_label);
                     }
@@ -342,7 +412,7 @@ impl Generator {
             _ => {
                 // Fall back to evaluation an expression!
                 self.gen_expression(expression);
-                self.emit(Instruction::JumpIf(true_label, false_label));
+                self.jump_if(true_label, false_label);
             }
         }
     }
@@ -355,7 +425,7 @@ impl Generator {
         } else {
             let idx = self.struct_types.len();
             self.struct_types.push(struct_def.clone());
-            self.struct_id_map.insert(struct_def.clone(), idx);
+            self.struct_id_map.insert(struct_def, idx);
             idx
         }
     }
@@ -564,13 +634,17 @@ impl Generator {
                         rhs: Box::new(rhs),
                     },
                 };
-                self.gen_condition(recreated_expression, true_label, false_label);
+                self.gen_condition(
+                    recreated_expression,
+                    true_label.clone(),
+                    false_label.clone(),
+                );
                 self.set_label(true_label);
                 self.emit(Instruction::BoolLiteral(true));
-                self.emit(Instruction::Jump(final_label));
+                self.jump(final_label.clone());
                 self.set_label(false_label);
                 self.emit(Instruction::BoolLiteral(false));
-                self.emit(Instruction::Jump(final_label));
+                self.jump(final_label.clone());
                 self.set_label(final_label);
             }
         }

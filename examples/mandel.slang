@@ -36,3 +36,4 @@ fn main():
         # std.putc('\n')
         std::print(line)
         y = y + 1.0
+    return  # TODO: fix implicit return somehow.

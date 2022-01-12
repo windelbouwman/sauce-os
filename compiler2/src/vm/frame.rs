@@ -30,23 +30,18 @@ pub fn run_frame(vm: &Vm, frame: &mut Frame) -> Option<Value> {
     }
 }
 
-// fn step(&mut frame) -> ExecResult {
-// Fetch!
-// let opcode = &self.prog.functions[0].code[self.pc].clone();
-
-// Should not require implicit return!
-// if self.pc >= self.func.code.len() {
-//     return Some(Value::Void);
-// }
-
-// }
 impl Frame {
     pub fn new(function: Arc<bytecode::Function>, parameters: Vec<Value>) -> Self {
+        let locals = function
+            .locals
+            .iter()
+            .map(|_| Value::Uninitialized)
+            .collect();
         Self {
             pc: 0,
             function,
             stack: vec![],
-            locals: vec![],
+            locals,
             parameters,
         }
     }

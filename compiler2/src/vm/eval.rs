@@ -1,7 +1,8 @@
+use super::value::Struct;
 use super::Vm;
-use crate::bytecode;
-
 use super::{Frame, Value};
+use crate::bytecode;
+use std::sync::Arc;
 
 pub enum ExecResult {
     Continue,
@@ -12,6 +13,7 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
     use bytecode::Instruction;
     // Execute:
     match opcode {
+        Instruction::Nop => {}
         Instruction::IntLiteral(value) => frame.push(Value::Integer(value)),
         Instruction::StringLiteral(value) => frame.push(Value::String(value)),
         Instruction::BoolLiteral(value) => frame.push(Value::Bool(value)),
@@ -22,10 +24,9 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
             frame.push(value);
         }
         Instruction::Malloc(typ) => match typ {
-            bytecode::Typ::Struct(_index) => {
-                // TODO: lookup type!
-                // self.push(Value::Struct(Arc::new(Struct::default())));
-                unimplemented!("TODO!");
+            bytecode::Typ::Struct(index) => {
+                let typ = vm.get_type(index);
+                frame.push(Value::Struct(Arc::new(Struct::new(typ))));
             }
             other => {
                 unimplemented!("Malloc: {:?}", other);
@@ -57,6 +58,18 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
                     };
                     Value::Integer(result)
                 }
+                bytecode::Typ::String => {
+                    let lhs = lhs.as_string();
+                    let rhs = rhs.as_string();
+                    let result: String = match op {
+                        bytecode::Operator::Add => lhs + &rhs,
+                        other => {
+                            unimplemented!("Operation not supported for strings: {:?}", other);
+                        }
+                    };
+                    Value::String(result)
+                }
+
                 other => {
                     unimplemented!("operator for {:?}", other);
                 }
@@ -71,6 +84,18 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
                 bytecode::Typ::Int => {
                     let lhs = lhs.as_int();
                     let rhs = rhs.as_int();
+                    match op {
+                        bytecode::Comparison::Equal => lhs == rhs,
+                        bytecode::Comparison::NotEqual => lhs == rhs,
+                        bytecode::Comparison::Gt => lhs > rhs,
+                        bytecode::Comparison::GtEqual => lhs >= rhs,
+                        bytecode::Comparison::Lt => lhs < rhs,
+                        bytecode::Comparison::LtEqual => lhs <= rhs,
+                    }
+                }
+                bytecode::Typ::Float => {
+                    let lhs = lhs.as_float();
+                    let rhs = rhs.as_float();
                     match op {
                         bytecode::Comparison::Equal => lhs == rhs,
                         bytecode::Comparison::NotEqual => lhs == rhs,
@@ -114,19 +139,18 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
             }
         }
         Instruction::SetAttr { index } => {
-            let base = frame.pop();
             let value = frame.pop();
+            let base = frame.pop();
             match base {
                 Value::Struct(s) => {
                     s.set_field(index, value);
                 }
                 other => {
-                    panic!("Cannot get attr of non-struct: {:?}", other);
+                    panic!("Cannot set attr of non-struct: {:?}", other);
                 }
             }
-            unimplemented!("???");
         }
-        Instruction::Call { n_args, typ: _ } => {
+        Instruction::Call { n_args, typ } => {
             let mut args: Vec<Value> = vec![];
             for _ in 1..=n_args {
                 let arg = frame.pop();
@@ -136,9 +160,13 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
             assert_eq!(args.len(), n_args);
             let callee = frame.pop();
             log::trace!("Invoking: {:?} ({:?})", callee, args);
-            super::invoke(vm, callee, args);
+            if let Some(ret_val) = super::invoke(vm, callee, args) {
+                // TODO: check return type?
+                assert!(typ.is_some());
+                frame.push(ret_val);
+            }
+            log::trace!("Invoke returned");
         }
-        Instruction::Label(_id) => {}
         Instruction::Jump(label) => {
             frame.jump(label);
         }

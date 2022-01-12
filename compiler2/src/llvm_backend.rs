@@ -1,5 +1,6 @@
 /// Spit out LLVM IR text form
 use super::bytecode;
+use std::collections::HashMap;
 
 pub fn create_llvm_text_code<W>(prog: bytecode::Program, writer: &mut W)
 where
@@ -21,6 +22,7 @@ struct LLVMWriter<W: std::io::Write> {
     local_names: Vec<(String, String)>,
     id_counter: usize,
     string_literals: Vec<String>,
+    label_map: HashMap<usize, String>,
 }
 
 impl<W> LLVMWriter<W>
@@ -36,6 +38,7 @@ where
             local_names: vec![],
             id_counter: 0,
             string_literals: vec![],
+            label_map: HashMap::new(),
         }
     }
 
@@ -71,7 +74,7 @@ where
             let p_text = import
                 .parameter_types
                 .iter()
-                .map(|typ| self.get_llvm_typ(&typ))
+                .map(|typ| self.get_llvm_typ(typ))
                 .collect::<Vec<String>>()
                 .join(", ");
 
@@ -184,7 +187,25 @@ where
             self.local_names.push((local_alloc_type, local_name));
         }
 
-        for instruction in func.code {
+        // Determine jump targets:
+        self.label_map.clear();
+        for instruction in &func.code {
+            match instruction {
+                bytecode::Instruction::Jump(label) => {
+                    self.get_label(*label);
+                }
+                bytecode::Instruction::JumpIf(label1, label2) => {
+                    self.get_label(*label1);
+                    self.get_label(*label2);
+                }
+                _other => {}
+            }
+        }
+
+        for (index, instruction) in func.code.into_iter().enumerate() {
+            if let Some(label_name) = self.label_map.get(&index) {
+                writeln!(self.w, "  {}:", label_name)?;
+            }
             self.gen_instruction(instruction)?;
         }
 
@@ -194,6 +215,19 @@ where
         Ok(())
     }
 
+    fn get_label(&mut self, label: usize) -> String {
+        if self.label_map.contains_key(&label) {
+            self.label_map
+                .get(&label)
+                .expect("Contains the key, we checked above")
+                .clone()
+        } else {
+            let new_label = format!("block{}", label);
+            self.label_map.insert(label, new_label.clone());
+            new_label
+        }
+    }
+
     fn gen_instruction(
         &mut self,
         instruction: bytecode::Instruction,
@@ -201,6 +235,9 @@ where
         use bytecode::Instruction;
         log::trace!("Generating code for: {:?}", instruction);
         match instruction {
+            Instruction::Nop => {
+                log::warn!("Bytecode could be improved, by removing NOPs");
+            }
             Instruction::Operator { op, typ } => match typ {
                 bytecode::Typ::Int => {
                     let op: String = match op {
@@ -348,21 +385,14 @@ where
             }
             Instruction::GetAttr { index, typ } => {
                 let (base_type, base) = self.pop();
-                let mut base_type2 = base_type.clone();
-                base_type2.pop(); // trim trailing '*'
 
                 // Determine element pointer:
-                let element_ptr = self.new_local(None);
+                let element_ptr = self.get_element_ptr(base_type, base, index)?;
                 let element_ptr_type = self.get_llvm_typ(&typ);
 
                 // Example:
                 // %field_ptr15 = getelementptr %HolderType1, %HolderType1* %messages10, i32 0, i32 1
                 // %field14 = load i8*, i8** %field_ptr15
-                writeln!(
-                    self.w,
-                    "    {} = getelementptr {}, {} {}, i32 0, i32 {}",
-                    element_ptr, base_type2, base_type, base, index
-                )?;
                 // load value:
                 let loaded_value = self.new_local(None);
                 writeln!(
@@ -376,22 +406,12 @@ where
                 let (value_type, value) = self.pop();
                 let (base_type, base) = self.pop();
 
-                let mut base_type2 = base_type.clone();
-                base_type2.pop(); // trim trailing '*'
-
-                // let base_type2 = "%HolderType1";
-                let element_ptr = self.new_local(None);
-                // let element_typ = "u8*";
+                let element_ptr = self.get_element_ptr(base_type, base, index)?;
 
                 // Example:
                 // %HolderType1 = type { i8*, i8* }
                 // %addr6 = getelementptr %HolderType1, %HolderType1* %new_op3, i32 0, i32 0
                 // store i8* %cast4, i8** %addr6
-                writeln!(
-                    self.w,
-                    "    {} = getelementptr {}, {} {}, i32 0, i32 {}",
-                    element_ptr, base_type2, base_type, base, index
-                )?;
                 writeln!(
                     self.w,
                     "    store {} {}, {}* {}",
@@ -426,9 +446,6 @@ where
                 )?;
                 self.push(typ, new_var);
             }
-            Instruction::Label(label) => {
-                writeln!(self.w, "  block{}:", label)?;
-            }
             Instruction::Jump(label) => {
                 writeln!(self.w, "    br label %block{}", label)?;
             }
@@ -454,6 +471,32 @@ where
             },
         };
         Ok(())
+    }
+
+    fn get_element_ptr(
+        &mut self,
+        base_type: String,
+        base: String,
+        index: usize,
+    ) -> Result<String, std::io::Error> {
+        let mut base_type2 = base_type.clone();
+        base_type2.pop(); // trim trailing '*'
+
+        // let base_type2 = "%HolderType1";
+        let element_ptr = self.new_local(None);
+        // let element_typ = "u8*";
+
+        // Example:
+        // %HolderType1 = type { i8*, i8* }
+        // %addr6 = getelementptr %HolderType1, %HolderType1* %new_op3, i32 0, i32 0
+        // store i8* %cast4, i8** %addr6
+        writeln!(
+            self.w,
+            "    {} = getelementptr {}, {} {}, i32 0, i32 {}",
+            element_ptr, base_type2, base_type, base, index
+        )?;
+
+        Ok(element_ptr)
     }
 
     /// Generate LLVM code for a function call

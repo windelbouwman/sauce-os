@@ -68,34 +68,32 @@ fn main() -> Result<(), ()> {
 
     if matches.is_present("execute-bytecode") {
         let path = std::path::Path::new(matches.value_of("source").unwrap());
-        interpret_mode(&path, &options);
+        interpret_mode(path, &options);
+        Ok(())
+    } else if matches.occurrences_of("source") > 1 {
+        let paths: Vec<&std::path::Path> = matches
+            .values_of("source")
+            .unwrap()
+            .map(std::path::Path::new)
+            .collect();
+        for path in &paths {
+            log::debug!("Got: {}", path.display());
+        }
+        compilation::build_multi(&paths, &options);
         Ok(())
     } else {
-        if matches.occurrences_of("source") > 1 {
-            let paths: Vec<&std::path::Path> = matches
-                .values_of("source")
-                .unwrap()
-                .map(std::path::Path::new)
-                .collect();
-            for path in &paths {
-                log::debug!("Got: {}", path.display());
+        let path = std::path::Path::new(matches.value_of("source").unwrap());
+        let output_path = matches.value_of("output").map(std::path::Path::new);
+        let res = compilation::compile(path, output_path, &options);
+        match res {
+            Ok(()) => {
+                log::info!("Great okidoki");
+                Ok(())
             }
-            compilation::build_multi(&paths, &options);
-            Ok(())
-        } else {
-            let path = std::path::Path::new(matches.value_of("source").unwrap());
-            let output_path = matches.value_of("output").map(std::path::Path::new);
-            let res = compilation::compile(path, output_path, &options);
-            match res {
-                Ok(()) => {
-                    log::info!("Great okidoki");
-                    Ok(())
-                }
-                Err(err) => {
-                    log::error!("Compilation errors");
-                    print_error(path, err);
-                    Err(())
-                }
+            Err(err) => {
+                log::error!("Compilation errors");
+                print_error(path, err);
+                Err(())
             }
         }
     }

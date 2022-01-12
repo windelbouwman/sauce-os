@@ -10,15 +10,19 @@ ${SLANG_COMPILER}       ../compiler2/target/debug/compiler2
 *** Test Cases ***
 Hello world
     Compile and run hello-world example
+    Run hello-world example in interpreter
 
 Expressions
     Compile and run expressions example
+    Run expressions example in interpreter
 
 If statements
     Compile and run if-statements example
+    Run if-statements example in interpreter
 
 Callings
     Compile and run callings example
+    Run callings example in interpreter
 
 Struct passing
     Compile and run structs-passing example
@@ -56,6 +60,15 @@ Run executable for ${filename}
 
     # TODO: check exit code:
     # Should Be Equal As Integers  ${result.rc}  0
+
+    ${expected}=  Get File  ${EXAMPLES_FOLDER}/${filename}.stdout
+    Should Be Equal  ${expected}  ${result.stdout}
+
+Run ${filename} example in interpreter
+    ${result}=  Run Process  ${SLANG_COMPILER}  --execute-bytecode  ${EXAMPLES_FOLDER}/${filename}.slang
+    Log  ${result.stdout}
+    Log  ${result.stderr}
+    Should Be Equal As Integers  ${result.rc}  0
 
     ${expected}=  Get File  ${EXAMPLES_FOLDER}/${filename}.stdout
     Should Be Equal  ${expected}  ${result.stdout}
