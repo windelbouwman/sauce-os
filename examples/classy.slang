@@ -15,6 +15,7 @@ class Bar:
 fn main():
     std::print("Hello cool world!")
     let bar = Bar()
+    bar.val3 = "Woei!"
     bar.info()
 
     let baz = Bar()

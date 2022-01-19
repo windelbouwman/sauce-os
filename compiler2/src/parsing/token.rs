@@ -12,6 +12,7 @@ pub enum Token {
     KeywordClass,
     KeywordContinue,
     KeywordElse,
+    KeywordEnum,
     KeywordFalse,
     KeywordFn,
     KeywordFor,

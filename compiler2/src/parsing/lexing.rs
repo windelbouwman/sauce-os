@@ -221,6 +221,7 @@ impl<'t> Lexer<'t> {
                 "class" => self.emit(Token::KeywordClass),
                 "continue" => self.emit(Token::KeywordContinue),
                 "else" => self.emit(Token::KeywordElse),
+                "enum" => self.emit(Token::KeywordEnum),
                 "false" => self.emit(Token::KeywordFalse),
                 "fn" => self.emit(Token::KeywordFn),
                 "for" => self.emit(Token::KeywordFor),

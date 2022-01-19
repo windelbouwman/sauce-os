@@ -61,10 +61,11 @@ impl AstPrinter {
                 parameter.typ
             );
         }
-        for local in &function_def.locals {
+        for (index, local) in function_def.locals.iter().enumerate() {
             println!(
-                "{}local {} : {:?}",
+                "{}local index={} name={} : {:?}",
                 self.get_indent(),
+                index,
                 local.name,
                 local.typ
             );
@@ -80,17 +81,17 @@ impl AstPrinter {
     }
 
     fn print_statement(&mut self, statement: &typed_ast::Statement) {
-        match &statement.kind {
-            typed_ast::StatementType::Break => {
+        match statement {
+            typed_ast::Statement::Break => {
                 println!("{}break", self.get_indent());
             }
-            typed_ast::StatementType::Continue => {
+            typed_ast::Statement::Continue => {
                 println!("{}continue", self.get_indent());
             }
-            typed_ast::StatementType::Pass => {
+            typed_ast::Statement::Pass => {
                 println!("{}pass", self.get_indent());
             }
-            typed_ast::StatementType::Return { value } => {
+            typed_ast::Statement::Return { value } => {
                 println!("{}return", self.get_indent());
                 if let Some(value) = value {
                     self.indent();
@@ -98,11 +99,11 @@ impl AstPrinter {
                     self.dedent();
                 }
             }
-            typed_ast::StatementType::If {
+            typed_ast::Statement::If(typed_ast::IfStatement {
                 condition,
                 if_true,
                 if_false,
-            } => {
+            }) => {
                 println!("{}if-statement", self.get_indent());
                 self.indent();
                 self.print_expression(condition);
@@ -112,30 +113,42 @@ impl AstPrinter {
                 }
                 self.dedent();
             }
-            typed_ast::StatementType::While { condition, body } => {
+            typed_ast::Statement::While(typed_ast::WhileStatement { condition, body }) => {
                 println!("{}while-statement", self.get_indent());
                 self.indent();
                 self.print_expression(condition);
                 self.print_block(body);
                 self.dedent();
             }
-            typed_ast::StatementType::Loop { body } => {
+            typed_ast::Statement::Loop { body } => {
                 println!("{}loop-statement", self.get_indent());
                 self.indent();
                 self.print_block(body);
                 self.dedent();
             }
-            typed_ast::StatementType::Expression(expression) => {
+            typed_ast::Statement::Expression(expression) => {
                 self.print_expression(expression);
             }
-            typed_ast::StatementType::Assignment { target, value } => {
+            typed_ast::Statement::Assignment(typed_ast::AssignmentStatement { target, value }) => {
                 println!("{}assignment-statement", self.get_indent());
                 self.indent();
                 self.print_expression(target);
                 self.print_expression(value);
                 self.dedent();
             }
-            typed_ast::StatementType::Let { name, index, value } => {
+            typed_ast::Statement::Match { value, arms } => {
+                println!("{}match-statement", self.get_indent());
+                self.indent();
+                self.print_expression(value);
+                for arm in arms {
+                    // self.print_expression(&arm.pattern);
+                    self.indent();
+                    self.print_block(&arm.body);
+                    self.dedent();
+                }
+                self.dedent();
+            }
+            typed_ast::Statement::Let { name, index, value } => {
                 println!(
                     "{}let-statement name={} index={}",
                     self.get_indent(),
@@ -227,6 +240,19 @@ impl AstPrinter {
                 self.indent();
                 for value in values {
                     self.print_expression(value);
+                }
+                self.dedent();
+            }
+            typed_ast::ExpressionType::EnumLiteral { choice, arguments } => {
+                println!(
+                    "{}Enum literal option={} : {:?}",
+                    self.get_indent(),
+                    choice.name,
+                    expression.typ
+                );
+                self.indent();
+                for argument in arguments {
+                    self.print_expression(argument);
                 }
                 self.dedent();
             }

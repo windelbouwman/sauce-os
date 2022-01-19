@@ -6,7 +6,7 @@
 use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
-use super::semantics::type_system::{ClassType, MyType, StructType};
+use super::semantics::type_system::{ClassType, FunctionType, MyType, StructType};
 use super::semantics::typed_ast;
 use std::collections::HashMap;
 
@@ -64,6 +64,9 @@ impl Generator {
                     // TODO: what now?
                     // self.gen_class(class_type),
                 }
+                MyType::Enum(enum_type) => {
+                    // Hmm, what to do?
+                }
                 other => {
                     unimplemented!("Not doing this: {:?}", other);
                 }
@@ -73,10 +76,10 @@ impl Generator {
         let mut imports = vec![];
         for imp in prog.imports {
             match imp.typ {
-                MyType::Function {
+                MyType::Function(FunctionType {
                     argument_types,
                     return_type,
-                } => {
+                }) => {
                     let bc_import = bytecode::Import {
                         name: imp.name,
                         parameter_types: argument_types
@@ -110,8 +113,8 @@ impl Generator {
 
     fn gen_class_def(&mut self, class_def: typed_ast::ClassDef) {
         // Be smart about it, and create default constructor function!
-        let ctor_name = class_def.typ.ctor_func_name();
-        let class_typ = self.get_bytecode_class_typ(&class_def.typ);
+        let ctor_name = class_def.typ.inner.ctor_func_name();
+        let class_typ = self.get_bytecode_class_typ(&class_def.typ.inner);
 
         if let bytecode::Typ::Ptr(struct_typ) = class_typ.clone() {
             self.emit(Instruction::Malloc(*struct_typ));
@@ -256,8 +259,8 @@ impl Generator {
     }
 
     fn gen_statement(&mut self, statement: typed_ast::Statement) {
-        match statement.kind {
-            typed_ast::StatementType::Let {
+        match statement {
+            typed_ast::Statement::Let {
                 name: _,
                 index,
                 value,
@@ -267,45 +270,19 @@ impl Generator {
                 // store value in local variable:
                 self.emit(Instruction::StoreLocal { index });
             }
-            typed_ast::StatementType::Assignment { target, value } => {
-                // let typ = Self::get_bytecode_typ(&value.typ);
-                match target {
-                    typed_ast::Expression {
-                        typ: _,
-                        kind: typed_ast::ExpressionType::GetAttr { base, attr },
-                    } => match &base.typ {
-                        MyType::Struct(struct_typ) => {
-                            let index = struct_typ.index_of(&attr).expect("Field must be present");
-                            self.gen_expression(*base);
-                            self.gen_expression(value);
-                            self.emit(Instruction::SetAttr { index });
-                        }
-                        _other => {
-                            panic!("Base type must be structured type.");
-                        }
-                    },
-                    typed_ast::Expression {
-                        typ: _,
-                        kind: typed_ast::ExpressionType::LoadLocal { name: _, index },
-                    } => {
-                        self.gen_expression(value);
-                        self.emit(Instruction::StoreLocal { index });
-                    }
-                    _other => {
-                        unimplemented!("TODO");
-                    }
-                }
+            typed_ast::Statement::Assignment(assignment) => {
+                self.gen_assignment(assignment);
             }
-            typed_ast::StatementType::Break => {
+            typed_ast::Statement::Break => {
                 let target_label = self.loop_stack.last().unwrap().1.clone();
                 self.jump(target_label);
             }
-            typed_ast::StatementType::Continue => {
+            typed_ast::Statement::Continue => {
                 let target_label = self.loop_stack.last().unwrap().0.clone();
                 self.jump(target_label);
             }
-            typed_ast::StatementType::Pass => {}
-            typed_ast::StatementType::Return { value } => {
+            typed_ast::Statement::Pass => {}
+            typed_ast::Statement::Return { value } => {
                 if let Some(value) = value {
                     self.gen_expression(value);
                     self.emit(Instruction::Return(1));
@@ -314,12 +291,16 @@ impl Generator {
                 }
                 // TBD: generate a new label here?
             }
-            typed_ast::StatementType::If {
-                condition,
-                if_true,
-                if_false,
-            } => self.gen_if_statement(condition, if_true, if_false),
-            typed_ast::StatementType::Loop { body } => {
+            typed_ast::Statement::Match { value, arms } => {
+                self.gen_expression(value);
+                for arm in arms {
+                    self.gen_block(arm.body);
+                }
+                unimplemented!("Ehm, what now?");
+            }
+
+            typed_ast::Statement::If(if_statement) => self.gen_if_statement(if_statement),
+            typed_ast::Statement::Loop { body } => {
                 let loop_start_label = self.new_label();
                 let final_label = self.new_label();
                 self.jump(loop_start_label.clone());
@@ -331,52 +312,101 @@ impl Generator {
                 self.jump(loop_start_label);
                 self.set_label(final_label);
             }
-            typed_ast::StatementType::While { condition, body } => {
-                let loop_start_label = self.new_label();
-                let true_label = self.new_label();
-                let final_label = self.new_label();
-                self.jump(loop_start_label.clone());
-                self.set_label(loop_start_label.clone());
-                self.gen_condition(condition, true_label.clone(), final_label.clone());
-                self.set_label(true_label);
-                self.loop_stack
-                    .push((loop_start_label.clone(), final_label.clone()));
-                self.gen_block(body);
-                self.loop_stack.pop();
-                self.jump(loop_start_label);
-                self.set_label(final_label);
+            typed_ast::Statement::While(while_statement) => {
+                self.gen_while_statement(while_statement)
             }
-            typed_ast::StatementType::Expression(e) => {
+            typed_ast::Statement::Expression(e) => {
                 self.gen_expression(e);
             }
         }
     }
 
-    fn gen_if_statement(
-        &mut self,
-        condition: typed_ast::Expression,
-        if_true: typed_ast::Block,
-        if_false: Option<typed_ast::Block>,
-    ) {
+    fn gen_assignment(&mut self, assignment: typed_ast::AssignmentStatement) {
+        match assignment.target {
+            typed_ast::Expression {
+                typ: _,
+                kind: typed_ast::ExpressionType::GetAttr { base, attr },
+            } => match &base.typ {
+                MyType::Struct(struct_typ) => {
+                    let index = struct_typ.index_of(&attr).expect("Field must be present");
+                    self.gen_expression(*base);
+                    self.gen_expression(assignment.value);
+                    self.emit(Instruction::SetAttr { index });
+                }
+                MyType::Class(class_typ) => {
+                    let index = class_typ
+                        .inner
+                        .index_of(&attr)
+                        .expect("Field must be present");
+                    self.gen_expression(*base);
+                    self.gen_expression(assignment.value);
+                    self.emit(Instruction::SetAttr { index });
+                }
+                other => {
+                    panic!("Base type must be structured type, not {:?}.", other);
+                }
+            },
+            typed_ast::Expression {
+                typ: _,
+                kind: typed_ast::ExpressionType::LoadLocal { name: _, index },
+            } => {
+                self.gen_expression(assignment.value);
+                self.emit(Instruction::StoreLocal { index });
+            }
+            _other => {
+                unimplemented!("TODO");
+            }
+        }
+    }
+
+    fn gen_if_statement(&mut self, if_statement: typed_ast::IfStatement) {
         let true_label = self.new_label();
         let final_label = self.new_label();
-        if let Some(if_false) = if_false {
+        if let Some(if_false) = if_statement.if_false {
             let false_label = self.new_label();
-            self.gen_condition(condition, true_label.clone(), false_label.clone());
+            self.gen_condition(
+                if_statement.condition,
+                true_label.clone(),
+                false_label.clone(),
+            );
 
             self.set_label(true_label);
-            self.gen_block(if_true);
+            self.gen_block(if_statement.if_true);
             self.jump(final_label.clone());
 
             self.set_label(false_label);
             self.gen_block(if_false);
         } else {
-            self.gen_condition(condition, true_label.clone(), final_label.clone());
+            self.gen_condition(
+                if_statement.condition,
+                true_label.clone(),
+                final_label.clone(),
+            );
 
             self.set_label(true_label);
-            self.gen_block(if_true);
+            self.gen_block(if_statement.if_true);
         }
         self.jump(final_label.clone());
+        self.set_label(final_label);
+    }
+
+    fn gen_while_statement(&mut self, while_statement: typed_ast::WhileStatement) {
+        let loop_start_label = self.new_label();
+        let true_label = self.new_label();
+        let final_label = self.new_label();
+        self.jump(loop_start_label.clone());
+        self.set_label(loop_start_label.clone());
+        self.gen_condition(
+            while_statement.condition,
+            true_label.clone(),
+            final_label.clone(),
+        );
+        self.set_label(true_label);
+        self.loop_stack
+            .push((loop_start_label.clone(), final_label.clone()));
+        self.gen_block(while_statement.body);
+        self.loop_stack.pop();
+        self.jump(loop_start_label);
         self.set_label(final_label);
     }
 
@@ -459,7 +489,11 @@ impl Generator {
             MyType::Struct(struct_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Struct(
                 self.get_struct_index(struct_type),
             ))),
-            MyType::Class(class_type) => self.get_bytecode_class_typ(class_type),
+            MyType::Enum(enum_type) => {
+                // Hmm, what to do!
+                unimplemented!("TODO!");
+            }
+            MyType::Class(class_type) => self.get_bytecode_class_typ(&class_type.inner),
             other => {
                 unimplemented!("{:?}", other);
             }
@@ -493,15 +527,18 @@ impl Generator {
                     self.emit(Instruction::SetAttr { index });
                 }
             }
+            typed_ast::ExpressionType::EnumLiteral { choice, arguments } => {
+                unimplemented!("?");
+            }
             typed_ast::ExpressionType::Binop { lhs, op, rhs } => {
                 self.gen_binop(expression.typ, *lhs, op, *rhs);
             }
             typed_ast::ExpressionType::Call { callee, arguments } => match &callee.typ {
-                MyType::Function {
-                    argument_types: _,
-                    return_type,
-                } => {
-                    let return_type = return_type.as_ref().map(|t| self.get_bytecode_typ(t));
+                MyType::Function(function_type) => {
+                    let return_type = function_type
+                        .return_type
+                        .as_ref()
+                        .map(|t| self.get_bytecode_typ(t));
 
                     self.gen_expression(*callee);
                     let n_args = arguments.len();
@@ -543,8 +580,11 @@ impl Generator {
                     self.gen_expression(*base);
                     self.emit(Instruction::GetAttr { index, typ });
                 }
-                MyType::Class(class_type) => {
-                    let index = class_type.index_of(&attr).expect("Field must be present");
+                MyType::Class(class_type_ref) => {
+                    let index = class_type_ref
+                        .inner
+                        .index_of(&attr)
+                        .expect("Field must be present");
                     let typ = self.get_bytecode_typ(&expression.typ);
                     self.gen_expression(*base);
                     self.emit(Instruction::GetAttr { index, typ });
@@ -563,9 +603,9 @@ impl Generator {
             typed_ast::ExpressionType::Instantiate => {
                 if let MyType::Class(class_type) = &expression.typ {
                     // Call class constructor auto-contrapted function!
-                    let name = class_type.ctor_func_name();
+                    let name = class_type.inner.ctor_func_name();
                     self.emit(Instruction::LoadGlobalName(name));
-                    let typ = Some(self.get_bytecode_class_typ(class_type));
+                    let typ = Some(self.get_bytecode_class_typ(&class_type.inner));
                     self.emit(Instruction::Call { n_args: 0, typ });
                 } else {
                     panic!("Instantiation requires class type");

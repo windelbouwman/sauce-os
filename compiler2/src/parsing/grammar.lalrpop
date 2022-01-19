@@ -25,10 +25,40 @@ Import: ast::Import = {
 TypeDef: ast::TypeDef = {
     StructDef,
     <c:ClassDef> => ast::TypeDef::Class(c),
-}
+    <v:EnumDef> => ast::TypeDef::Enum(v),
+};
+
+EnumDef: ast::EnumDef = {
+    "enum" <location:@L> <name:Identifier> ":" Newline
+    Indent <options:EnumDefOption+> Dedent => {
+        ast::EnumDef {
+            name,
+            location,
+            options,
+        }
+    }
+};
+
+EnumDefOption: ast::EnumDefOption = {
+    <location:@L> <name:Identifier> Newline => {
+        ast::EnumDefOption {
+            name,
+            location,
+            data: vec![],
+        }
+    },
+    <location:@L> <name:Identifier> "(" <data:Comma<Type>> ")" Newline => {
+        ast::EnumDefOption {
+            name,
+            location,
+            data,
+        }        
+    },
+};
 
 StructDef: ast::TypeDef = {
-    "struct" <typevars:TypeVars?> <location:@L> <name:Identifier> ":" Newline Indent <fields:StructDefField+> Dedent => {
+    "struct" <typevars:TypeVars?> <location:@L> <name:Identifier> ":" Newline
+    Indent <fields:StructDefField+> Dedent => {
         let s = ast::TypeDef::Struct(ast::StructDef {
             location: location.clone(),
             name: name.clone(),
@@ -46,7 +76,7 @@ StructDef: ast::TypeDef = {
 ClassDef: ast::ClassDef = {
     "class" <location:@L> <name:Identifier> ":" Newline
     Indent
-    <fields:VarDef+>
+    <fields:VariableDef+>
     <methods:FunctionDef+>
     Dedent => {
         ast::ClassDef {
@@ -58,9 +88,9 @@ ClassDef: ast::ClassDef = {
     }
 };
 
-VarDef: ast::VarDef = {
+VariableDef: ast::VariableDef = {
     "var" <location:@L> <name:Identifier> ":" <typ:Type> "=" <value:Expression> Newline => {
-        ast::VarDef {
+        ast::VariableDef {
             name,
             location,
             typ,
@@ -131,7 +161,7 @@ Statement: ast::Statement = {
             }
         }
     },
-    <location:@L> "let" <mutable:"mut"?> <name:Identifier> "=" <value:BlockExpression> => {
+    <location:@L> "let" <mutable:"mut"?> <name:Identifier> (":" Type)? "=" <value:BlockExpression> => {
         let mutable: bool = mutable.is_some();
         ast::Statement {
             location,
@@ -139,6 +169,16 @@ Statement: ast::Statement = {
                 name,
                 mutable,
                 value,
+            }
+        }
+    },
+    <location:@L> "match" <value:Expression> ":" Newline
+    Indent <arms:MatchArm+> Dedent => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::Match {
+                value,
+                arms,
             }
         }
     },
@@ -208,6 +248,16 @@ Statement: ast::Statement = {
             kind: ast::StatementType::Expression(e)
         }
     },
+};
+
+MatchArm: ast::MatchArm = {
+    <location:@L> <pattern:Expression> ":" Newline <body:Block> => {
+        ast::MatchArm {
+            location,
+            pattern,
+            body,
+        }
+    }
 };
 
 Block: ast::Block = {
@@ -478,6 +528,7 @@ extern {
         "class" => Token::KeywordClass,
         "continue" => Token::KeywordContinue,
         "else" => Token::KeywordElse,
+        "enum" => Token::KeywordEnum,
         "false" => Token::KeywordFalse,
         "fn" => Token::KeywordFn,
         "for" => Token::KeywordFor,

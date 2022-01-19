@@ -1,6 +1,6 @@
 //! Symbol table related code.
 
-use super::{MyType, StructField, StructType};
+use super::type_system::{EnumOption, FunctionType, MyType, StructField, StructType};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -31,6 +31,10 @@ pub enum Symbol {
         index: usize,
         typ: MyType,
     },
+    EnumOption {
+        option: EnumOption,
+        typ: MyType,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -46,9 +50,9 @@ impl Scope {
     }
 
     pub fn dump(&self) {
-        log::debug!("Symbol table:");
+        println!("Symbol table:");
         for sym in self.symbols.keys() {
-            log::debug!(" - {}", sym);
+            println!(" - {}", sym);
         }
     }
 
@@ -62,10 +66,10 @@ impl Scope {
             name.to_owned(),
             Symbol::Function {
                 name: name.to_owned(),
-                typ: MyType::Function {
+                typ: MyType::Function(FunctionType {
                     argument_types,
                     return_type: return_type.map(Box::new),
-                },
+                }),
             },
         );
     }

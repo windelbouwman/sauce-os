@@ -2,7 +2,7 @@
 //!
 //! Expressions are assigned types here.
 
-use super::type_system::{ClassType, MyType};
+use super::type_system::{ClassTypeRef, EnumOption, MyType};
 use crate::parsing::ast;
 
 pub struct Program {
@@ -17,7 +17,7 @@ pub struct ClassDef {
     pub field_defs: Vec<FieldDef>,
     pub function_defs: Vec<FunctionDef>,
     // Hmm, having this type here is a bit odd..
-    pub typ: ClassType,
+    pub typ: ClassTypeRef,
 }
 
 pub struct FieldDef {
@@ -57,39 +57,59 @@ pub struct Parameter {
 
 pub type Block = Vec<Statement>;
 
-pub struct Statement {
-    pub kind: StatementType,
-}
-
-pub enum StatementType {
+pub enum Statement {
     Expression(Expression),
     Let {
         name: String,
         index: usize,
         value: Expression,
     },
-    Assignment {
-        target: Expression,
-        value: Expression,
-    },
-    If {
-        condition: Expression,
-        if_true: Block,
-        if_false: Option<Block>,
-    },
+    Assignment(AssignmentStatement),
+    If(IfStatement),
     Loop {
         body: Block,
     },
-    While {
-        condition: Expression,
-        body: Block,
-    },
+    While(WhileStatement),
     Return {
         value: Option<Expression>,
     },
+    Match {
+        value: Expression,
+        arms: Vec<MatchArm>,
+    },
+
     Pass,
     Break,
     Continue,
+}
+
+pub struct AssignmentStatement {
+    pub target: Expression,
+    pub value: Expression,
+}
+
+pub struct IfStatement {
+    pub condition: Expression,
+    pub if_true: Block,
+    pub if_false: Option<Block>,
+}
+
+pub struct WhileStatement {
+    pub condition: Expression,
+    pub body: Block,
+}
+
+pub struct MatchArm {
+    pub pattern: MatchPattern,
+    pub body: Vec<Statement>,
+}
+
+pub enum MatchPattern {
+    Constructor {
+        typ: MyType,
+        arguments: Vec<MatchPattern>,
+    },
+    WildCard(String),
 }
 
 pub struct Expression {
@@ -103,6 +123,14 @@ pub enum ExpressionType {
     Integer(i64),
     Float(f64),
     StructLiteral(Vec<Expression>),
+
+    /// An enum literal value
+    EnumLiteral {
+        choice: EnumOption,
+        // data: Option<MyType>,
+        arguments: Vec<Expression>,
+    },
+
     LoadFunction(String),
 
     // TBD: this muight be a dubious expression kind:

@@ -10,7 +10,10 @@ If we pass the typechecker, code is in pretty good shape!
 
 */
 
-use super::type_system::{ClassField, ClassType, MyType, StructField, StructType};
+use super::type_system::{
+    ClassField, ClassType, ClassTypeRef, EnumOption, EnumType, FunctionType, MyType, StructField,
+    StructType,
+};
 use super::typed_ast;
 use super::{Scope, Symbol};
 use crate::parsing::{ast, Location};
@@ -32,6 +35,7 @@ struct TypeChecker {
     typed_imports: Vec<typed_ast::Import>,
     class_defs: Vec<typed_ast::ClassDef>,
     local_variables: Vec<typed_ast::LocalVariable>,
+    dump_scope: bool,
 }
 
 impl TypeChecker {
@@ -43,6 +47,7 @@ impl TypeChecker {
             typed_imports: vec![],
             class_defs: vec![],
             local_variables: vec![],
+            dump_scope: false,
         }
     }
     fn define_builtins(&mut self) {
@@ -95,7 +100,6 @@ impl TypeChecker {
             }
         }
 
-        // let mut funcs = vec![];
         for function_def in &prog.functions {
             self.declare_function(function_def).ok();
         }
@@ -131,6 +135,7 @@ impl TypeChecker {
         match type_def {
             ast::TypeDef::Struct(struct_def) => self.check_struct_def(struct_def),
             ast::TypeDef::Class(class_def) => self.check_class_def(class_def),
+            ast::TypeDef::Enum(enum_def) => self.check_enum_def(enum_def),
             ast::TypeDef::Generic {
                 name,
                 location,
@@ -184,6 +189,31 @@ impl TypeChecker {
         })
     }
 
+    fn check_enum_def(&mut self, enum_def: ast::EnumDef) -> Result<typed_ast::TypeDef, ()> {
+        let mut options = vec![];
+        for option in enum_def.options {
+            let mut payload = vec![];
+            for typ in option.data {
+                payload.push(self.eval_type_expr(&typ)?);
+            }
+            options.push(EnumOption {
+                name: option.name,
+                data: payload,
+            });
+        }
+        let enum_type = EnumType {
+            name: enum_def.name.clone(),
+            options,
+        };
+        let typ = MyType::Enum(enum_type);
+        self.define(&enum_def.name, Symbol::Typ(typ.clone()), &enum_def.location);
+
+        Ok(typed_ast::TypeDef {
+            name: enum_def.name,
+            typ,
+        })
+    }
+
     fn check_class_def(&mut self, class_def: ast::ClassDef) -> Result<typed_ast::TypeDef, ()> {
         // Create class type:
         let class_name = class_def.name.clone();
@@ -206,11 +236,11 @@ impl TypeChecker {
             });
         }
 
-        let class_typ = ClassType {
+        let class_typ = ClassTypeRef::new(ClassType {
             name: class_def.name.clone(),
             fields: class_fields,
             methods: class_methods,
-        };
+        });
 
         let class_typ2 = MyType::Class(class_typ.clone());
 
@@ -219,7 +249,7 @@ impl TypeChecker {
         let mut field_defs = vec![];
         for (index, field) in class_def.fields.into_iter().enumerate() {
             let field_typ = self.eval_type_expr(&field.typ)?;
-            let value = self.coerce(&field.location, &field_typ, field.value)?;
+            let value = self.coerce(&field_typ, field.value)?;
             field_defs.push(typed_ast::FieldDef {
                 name: field.name.clone(),
                 index,
@@ -427,6 +457,34 @@ impl TypeChecker {
                             Err(())
                         }
                     }
+                    Symbol::Typ(typ) => match typ {
+                        MyType::Enum(enum_typ) => {
+                            if let Some(option) = enum_typ.lookup(member) {
+                                let typ = if !option.data.is_empty() {
+                                    MyType::EnumWithData(enum_typ.clone())
+                                } else {
+                                    MyType::Enum(enum_typ.clone())
+                                };
+                                Ok(Symbol::EnumOption {
+                                    typ,
+                                    option: option.clone(),
+                                })
+                            } else {
+                                self.error(
+                                    location.clone(),
+                                    format!("Enum has no option named: {}", member),
+                                );
+                                Err(())
+                            }
+                        }
+                        other => {
+                            self.error(
+                                location.clone(),
+                                format!("Cannot scope-access type: {:?}", other),
+                            );
+                            Err(())
+                        }
+                    },
                     other => {
                         self.error(
                             location.clone(),
@@ -453,10 +511,10 @@ impl TypeChecker {
             None
         };
 
-        Ok(MyType::Function {
+        Ok(MyType::Function(FunctionType {
             argument_types,
             return_type,
-        })
+        }))
     }
 
     fn declare_function(&mut self, function_def: &ast::FunctionDef) -> Result<(), ()> {
@@ -528,6 +586,31 @@ impl TypeChecker {
         typed_statements
     }
 
+    fn new_local_variable(
+        &mut self,
+        location: &Location,
+        name: String,
+        mutable: bool,
+        typ: MyType,
+    ) -> usize {
+        let index = self.local_variables.len();
+        self.local_variables.push(typed_ast::LocalVariable {
+            name: name.clone(),
+            typ: typ.clone(),
+        });
+        self.define(
+            &name,
+            Symbol::LocalVariable {
+                mutable,
+                index,
+                name: name.clone(),
+                typ,
+            },
+            location,
+        );
+        index
+    }
+
     fn check_statement(&mut self, statement: ast::Statement) -> Result<typed_ast::Statement, ()> {
         let (location, kind) = (statement.location, statement.kind);
         match kind {
@@ -538,32 +621,16 @@ impl TypeChecker {
             } => {
                 let value = self.check_expresion(value)?;
                 let typ = value.typ.clone();
-                let index = self.local_variables.len();
-                self.local_variables.push(typed_ast::LocalVariable {
-                    name: name.clone(),
-                    typ: typ.clone(),
-                });
-                self.define(
-                    &name,
-                    Symbol::LocalVariable {
-                        mutable,
-                        index,
-                        name: name.clone(),
-                        typ,
-                    },
-                    &location,
-                );
-                Ok(typed_ast::Statement {
-                    kind: typed_ast::StatementType::Let { name, index, value },
-                })
+                let index = self.new_local_variable(&location, name.clone(), mutable, typ);
+                Ok(typed_ast::Statement::Let { name, index, value })
             }
             ast::StatementType::Assignment { target, value } => {
                 let target = self.check_expresion(target)?;
                 let value = self.check_expresion(value)?;
                 self.check_equal_types(&location, &target.typ, &value.typ)?;
-                Ok(typed_ast::Statement {
-                    kind: typed_ast::StatementType::Assignment { target, value },
-                })
+                Ok(typed_ast::Statement::Assignment(
+                    typed_ast::AssignmentStatement { target, value },
+                ))
             }
             ast::StatementType::For { name, it, body } => {
                 self.check_expresion(it)?;
@@ -580,55 +647,157 @@ impl TypeChecker {
                 let condition = self.check_condition(condition)?;
                 let if_true = self.check_block(if_true);
                 let if_false = if_false.map(|e| self.check_block(e));
-                Ok(typed_ast::Statement {
-                    kind: typed_ast::StatementType::If {
-                        condition,
-                        if_true,
-                        if_false,
-                    },
-                })
+                Ok(typed_ast::Statement::If(typed_ast::IfStatement {
+                    condition,
+                    if_true,
+                    if_false,
+                }))
             }
             ast::StatementType::Expression(e) => {
                 let e = self.check_expresion(e)?;
-                Ok(typed_ast::Statement {
-                    kind: typed_ast::StatementType::Expression(e),
-                })
+                Ok(typed_ast::Statement::Expression(e))
             }
-            ast::StatementType::Pass => Ok(typed_ast::Statement {
-                kind: typed_ast::StatementType::Pass,
-            }),
-            ast::StatementType::Continue => Ok(typed_ast::Statement {
-                kind: typed_ast::StatementType::Continue,
-            }),
+            ast::StatementType::Pass => Ok(typed_ast::Statement::Pass),
+            ast::StatementType::Continue => Ok(typed_ast::Statement::Continue),
             ast::StatementType::Return { value } => {
                 let value = if let Some(value) = value {
                     Some(self.check_expresion(value)?)
                 } else {
                     None
                 };
-                Ok(typed_ast::Statement {
-                    kind: typed_ast::StatementType::Return { value },
-                })
+                Ok(typed_ast::Statement::Return { value })
             }
-            ast::StatementType::Break => Ok(typed_ast::Statement {
-                kind: typed_ast::StatementType::Break,
-            }),
+            ast::StatementType::Break => Ok(typed_ast::Statement::Break),
             ast::StatementType::Loop { body } => {
                 self.enter_loop();
                 let body = self.check_block(body);
                 self.leave_loop();
-                Ok(typed_ast::Statement {
-                    kind: typed_ast::StatementType::Loop { body },
-                })
+                Ok(typed_ast::Statement::Loop { body })
             }
             ast::StatementType::While { condition, body } => {
                 let condition = self.check_condition(condition)?;
                 self.enter_loop();
                 let body = self.check_block(body);
                 self.leave_loop();
-                Ok(typed_ast::Statement {
-                    kind: typed_ast::StatementType::While { condition, body },
+                Ok(typed_ast::Statement::While(typed_ast::WhileStatement {
+                    condition,
+                    body,
+                }))
+            }
+            ast::StatementType::Match { value, arms } => {
+                let value = self.check_expresion(value)?;
+                let mut typed_arms = vec![];
+                for arm in arms {
+                    self.enter_scope();
+                    let pattern = self.check_match_pattern(arm.pattern, &value.typ)?;
+                    // TODO: Define pattern variables!
+                    let body = self.check_block(arm.body);
+                    self.leave_scope();
+                    typed_arms.push(typed_ast::MatchArm { pattern, body });
+                }
+                Ok(typed_ast::Statement::Match {
+                    value,
+                    arms: typed_arms,
                 })
+            }
+        }
+    }
+
+    fn is_undefined_name(&self, obj_ref: &ast::ObjRef) -> Option<String> {
+        match obj_ref {
+            ast::ObjRef::Inner { .. } => None,
+            ast::ObjRef::Name { location: _, name } => {
+                if self.lookup2(name).is_none() {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn check_match_pattern(
+        &mut self,
+        pattern: ast::Expression,
+        typ: &MyType,
+    ) -> Result<typed_ast::MatchPattern, ()> {
+        match pattern.kind {
+            ast::ExpressionType::Object(obj_ref) => {
+                if let Some(name) = self.is_undefined_name(&obj_ref) {
+                    let _index = self.new_local_variable(
+                        &pattern.location,
+                        name.clone(),
+                        false,
+                        typ.clone(),
+                    );
+                    Ok(typed_ast::MatchPattern::WildCard(name))
+                } else {
+                    let symbol = self.resolve_obj(&obj_ref)?;
+                    match symbol {
+                        Symbol::EnumOption { option, typ } => {
+                            // unimplemented!("TODO!");
+                            assert!(option.data.is_empty());
+                            Ok(typed_ast::MatchPattern::Constructor {
+                                typ,
+                                arguments: vec![],
+                            })
+                        }
+                        other => {
+                            self.error(
+                                pattern.location,
+                                format!("Cannot use {:?} as pattern", other),
+                            );
+                            Err(())
+                        }
+                    }
+                }
+            }
+            ast::ExpressionType::Call { callee, arguments } => {
+                match &callee.kind {
+                    ast::ExpressionType::Object(obj_ref) => {
+                        let symbol = self.resolve_obj(obj_ref)?;
+                        match symbol {
+                            Symbol::EnumOption { option, typ } => {
+                                if option.data.len() == arguments.len() {
+                                    let mut pat_args = vec![];
+                                    for (arg, wanted_typ) in
+                                        arguments.into_iter().zip(option.data.iter())
+                                    {
+                                        pat_args.push(self.check_match_pattern(arg, wanted_typ)?);
+                                    }
+                                    Ok(typed_ast::MatchPattern::Constructor {
+                                        typ,
+                                        arguments: pat_args,
+                                    })
+                                } else {
+                                    self.error(
+                                        pattern.location,
+                                        format!(
+                                            "Expected {} arguments, but got {}",
+                                            option.data.len(),
+                                            arguments.len()
+                                        ),
+                                    );
+                                    Err(())
+                                }
+                            }
+                            _other => {
+                                unimplemented!("TODO!");
+                            }
+                        }
+                    }
+                    _other => {
+                        // Instance!
+                        unimplemented!("TODO!");
+                    }
+                }
+            }
+            other => {
+                self.error(
+                    pattern.location,
+                    format!("Cannot use {:?} as pattern", other),
+                );
+                Err(())
             }
         }
     }
@@ -665,91 +834,13 @@ impl TypeChecker {
         let (kind, location) = (expression.kind, expression.location);
         match kind {
             ast::ExpressionType::Call { callee, arguments } => {
-                self.check_function_call(location, *callee, arguments)
+                self.check_call(location, *callee, arguments)
             }
             ast::ExpressionType::Binop { lhs, op, rhs } => {
-                let (typ, lhs, rhs) = match &op {
-                    ast::BinaryOperator::Comparison(_compare_op) => {
-                        let lhs = self.check_expresion(*lhs)?;
-                        let rhs = self.check_expresion(*rhs)?;
-                        self.check_equal_types(&location, &lhs.typ, &rhs.typ)?;
-                        (MyType::Bool, lhs, rhs)
-                    }
-                    ast::BinaryOperator::Math(_math_op) => {
-                        let lhs = self.check_expresion(*lhs)?;
-                        let rhs = self.check_expresion(*rhs)?;
-                        self.check_equal_types(&location, &lhs.typ, &rhs.typ)?;
-                        (lhs.typ.clone(), lhs, rhs)
-                    }
-                    ast::BinaryOperator::Logic(_logic_op) => {
-                        let lhs = self.check_condition(*lhs)?;
-                        let rhs = self.check_condition(*rhs)?;
-                        (MyType::Bool, lhs, rhs)
-                    }
-                };
-                Ok(typed_ast::Expression {
-                    typ,
-                    kind: typed_ast::ExpressionType::Binop {
-                        lhs: Box::new(lhs),
-                        op,
-                        rhs: Box::new(rhs),
-                    },
-                })
+                self.check_binary_operator(location, *lhs, op, *rhs)
             }
             ast::ExpressionType::Object(obj_ref) => {
-                let symbol = self.resolve_obj(&obj_ref)?;
-                match symbol {
-                    Symbol::Module { name, scope: _ } => {
-                        self.error(location, format!("Unexpected usage of module {}", name));
-                        Err(())
-                    }
-                    Symbol::Parameter { typ, name, index } => {
-                        let kind = typed_ast::ExpressionType::LoadParameter { name, index };
-                        Ok(typed_ast::Expression { typ, kind })
-                    }
-                    Symbol::LocalVariable {
-                        mutable: _,
-                        name,
-                        index,
-                        typ,
-                    } => {
-                        let kind = typed_ast::ExpressionType::LoadLocal { name, index };
-                        Ok(typed_ast::Expression { typ, kind })
-                    }
-                    Symbol::Field {
-                        class_typ,
-                        name,
-                        index,
-                        typ,
-                    } => {
-                        let kind = typed_ast::ExpressionType::GetAttr {
-                            base: Box::new(typed_ast::Expression {
-                                typ: class_typ,
-                                kind: typed_ast::ExpressionType::ImplicitSelf,
-                            }),
-                            attr: name,
-                            // index,
-                        };
-                        Ok(typed_ast::Expression { typ, kind })
-                    }
-                    Symbol::Function { name, typ } => {
-                        let kind = typed_ast::ExpressionType::LoadFunction(name);
-                        Ok(typed_ast::Expression { typ, kind })
-                    }
-                    Symbol::Typ(typ) => {
-                        // TBD: is allowing type as expression a good idea?
-                        let kind = typed_ast::ExpressionType::Typ(typ);
-                        Ok(typed_ast::Expression {
-                            typ: MyType::Typ,
-                            kind,
-                        })
-                        // self.error(
-                        //     location.clone(),
-                        //     format!("Unexpected usage of type {:?} ", typ),
-                        // );
-                        // Err(())
-                    }
-                }
+                self.check_obj_ref_expression(location, obj_ref)
             }
             ast::ExpressionType::Bool(val) => Ok(typed_ast::Expression {
                 typ: MyType::Bool,
@@ -776,7 +867,84 @@ impl TypeChecker {
         }
     }
 
-    fn check_function_call(
+    fn check_obj_ref_expression(
+        &mut self,
+        location: Location,
+        obj_ref: ast::ObjRef,
+    ) -> Result<typed_ast::Expression, ()> {
+        let symbol = self.resolve_obj(&obj_ref)?;
+        match symbol {
+            Symbol::Module { name, scope: _ } => {
+                self.error(location, format!("Unexpected usage of module {}", name));
+                Err(())
+            }
+            Symbol::Parameter { typ, name, index } => {
+                let kind = typed_ast::ExpressionType::LoadParameter { name, index };
+                Ok(typed_ast::Expression { typ, kind })
+            }
+            Symbol::LocalVariable {
+                mutable: _,
+                name,
+                index,
+                typ,
+            } => {
+                let kind = typed_ast::ExpressionType::LoadLocal { name, index };
+                Ok(typed_ast::Expression { typ, kind })
+            }
+            Symbol::Field {
+                class_typ,
+                name,
+                index,
+                typ,
+            } => {
+                let kind = typed_ast::ExpressionType::GetAttr {
+                    base: Box::new(typed_ast::Expression {
+                        typ: class_typ,
+                        kind: typed_ast::ExpressionType::ImplicitSelf,
+                    }),
+                    attr: name,
+                    // index,
+                };
+                Ok(typed_ast::Expression { typ, kind })
+            }
+            Symbol::EnumOption { typ, option } => {
+                // if option.data.is_some() {
+                let kind = typed_ast::ExpressionType::EnumLiteral {
+                    choice: option,
+                    arguments: vec![],
+                };
+                Ok(typed_ast::Expression { typ, kind })
+                // } else {
+
+                //     // ?
+                //     let kind = typed_ast::ExpressionType::EnumLiteral {
+                //         choice: option,
+                //         value: None,
+                //     };
+                //     Ok(typed_ast::Expression { typ, kind })
+                // }
+            }
+            Symbol::Function { name, typ } => {
+                let kind = typed_ast::ExpressionType::LoadFunction(name);
+                Ok(typed_ast::Expression { typ, kind })
+            }
+            Symbol::Typ(typ) => {
+                // TBD: is allowing type as expression a good idea?
+                let kind = typed_ast::ExpressionType::Typ(typ);
+                Ok(typed_ast::Expression {
+                    typ: MyType::Typ,
+                    kind,
+                })
+                // self.error(
+                //     location.clone(),
+                //     format!("Unexpected usage of type {:?} ", typ),
+                // );
+                // Err(())
+            }
+        }
+    }
+
+    fn check_call(
         &mut self,
         location: Location,
         callee: ast::Expression,
@@ -785,10 +953,10 @@ impl TypeChecker {
         let callee = self.check_expresion(callee)?;
         let (callee_typ, callee_kind) = (callee.typ, callee.kind);
         match callee_typ.clone() {
-            MyType::Function {
+            MyType::Function(FunctionType {
                 argument_types,
                 return_type,
-            } => {
+            }) => {
                 let typed_arguments =
                     self.check_call_arguments(&location, argument_types, arguments)?;
                 let return_type2 = match return_type {
@@ -824,6 +992,18 @@ impl TypeChecker {
                     panic!("Should not get here.");
                 }
             },
+            MyType::EnumWithData(enum_type) => match callee_kind {
+                typed_ast::ExpressionType::EnumLiteral {
+                    choice,
+                    arguments: prev_args,
+                } => {
+                    assert!(prev_args.is_empty());
+                    self.check_enum_instantiation(location, enum_type, choice, arguments)
+                }
+                _other => {
+                    panic!("Must be enum literal");
+                }
+            },
             other => {
                 self.error(
                     location.clone(),
@@ -843,8 +1023,7 @@ impl TypeChecker {
         if argument_types.len() == arguments.len() {
             let mut typed_arguments = vec![];
             for (argument, arg_typ) in arguments.into_iter().zip(argument_types.iter()) {
-                let location = argument.location.clone();
-                let typed_argument = self.coerce(&location, arg_typ, argument)?;
+                let typed_argument = self.coerce(arg_typ, argument)?;
                 typed_arguments.push(typed_argument);
             }
             Ok(typed_arguments)
@@ -868,7 +1047,6 @@ impl TypeChecker {
     ) -> Result<typed_ast::Expression, ()> {
         match typ {
             MyType::Class { .. } => {
-                // unimplemented!("TODO: ");
                 // Class instantiate!
                 Ok(typed_ast::Expression {
                     typ,
@@ -885,6 +1063,38 @@ impl TypeChecker {
         }
     }
 
+    fn check_enum_instantiation(
+        &mut self,
+        location: Location,
+        enum_type: EnumType,
+        choice: EnumOption,
+        arguments: Vec<ast::Expression>,
+    ) -> Result<typed_ast::Expression, ()> {
+        if arguments.len() == choice.data.len() {
+            let mut typed_arguments = vec![];
+            for (arg, arg_typ) in arguments.into_iter().zip(choice.data.iter()) {
+                typed_arguments.push(self.coerce(arg_typ, arg)?)
+            }
+            Ok(typed_ast::Expression {
+                typ: MyType::Enum(enum_type),
+                kind: typed_ast::ExpressionType::EnumLiteral {
+                    choice,
+                    arguments: typed_arguments,
+                },
+            })
+        } else {
+            self.error(
+                location,
+                format!(
+                    "Expected {} arguments, but got {}",
+                    choice.data.len(),
+                    arguments.len()
+                ),
+            );
+            Err(())
+        }
+    }
+
     fn add_import(&mut self, name: String, typ: MyType) {
         // Hmm, not super efficient:
         for x in &self.typed_imports {
@@ -893,6 +1103,42 @@ impl TypeChecker {
             }
         }
         self.typed_imports.push(typed_ast::Import { name, typ });
+    }
+
+    fn check_binary_operator(
+        &mut self,
+        location: Location,
+        lhs: ast::Expression,
+        op: ast::BinaryOperator,
+        rhs: ast::Expression,
+    ) -> Result<typed_ast::Expression, ()> {
+        let (typ, lhs, rhs) = match &op {
+            ast::BinaryOperator::Comparison(_compare_op) => {
+                let lhs = self.check_expresion(lhs)?;
+                let rhs = self.check_expresion(rhs)?;
+                self.check_equal_types(&location, &lhs.typ, &rhs.typ)?;
+                (MyType::Bool, lhs, rhs)
+            }
+            ast::BinaryOperator::Math(_math_op) => {
+                let lhs = self.check_expresion(lhs)?;
+                let rhs = self.check_expresion(rhs)?;
+                self.check_equal_types(&location, &lhs.typ, &rhs.typ)?;
+                (lhs.typ.clone(), lhs, rhs)
+            }
+            ast::BinaryOperator::Logic(_logic_op) => {
+                let lhs = self.check_condition(lhs)?;
+                let rhs = self.check_condition(rhs)?;
+                (MyType::Bool, lhs, rhs)
+            }
+        };
+        Ok(typed_ast::Expression {
+            typ,
+            kind: typed_ast::ExpressionType::Binop {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            },
+        })
     }
 
     fn check_struct_literal(
@@ -923,12 +1169,12 @@ impl TypeChecker {
     /// Try to fit an expression onto the given type.
     fn coerce(
         &mut self,
-        location: &Location,
         typ: &MyType,
         value: ast::Expression,
     ) -> Result<typed_ast::Expression, ()> {
+        let location = value.location.clone();
         let value = self.check_expresion(value)?;
-        self.check_equal_types(location, typ, &value.typ)?;
+        self.check_equal_types(&location, typ, &value.typ)?;
         Ok(value)
     }
 
@@ -964,7 +1210,7 @@ impl TypeChecker {
                     let wanted_typ = type_map
                         .get(&field.name)
                         .expect("Has this key, we checked above");
-                    let value = self.coerce(&field.location, wanted_typ, field.value)?;
+                    let value = self.coerce(wanted_typ, field.value)?;
                     value_map.insert(field.name, value);
                 }
             } else {
@@ -1027,7 +1273,7 @@ impl TypeChecker {
                 } else {
                     self.error(
                         location,
-                        format!("Class '{}' has no field named: {}", class_type.name, attr),
+                        format!("Class '{}' has no field named: {}", class_type.name(), attr),
                     );
                     Err(())
                 }
@@ -1086,7 +1332,9 @@ impl TypeChecker {
     fn leave_scope(&mut self) {
         let scope = self.scopes.pop();
         if let Some(scope) = scope {
-            scope.dump();
+            if self.dump_scope {
+                scope.dump();
+            }
         }
     }
 

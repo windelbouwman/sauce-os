@@ -27,16 +27,35 @@ pub enum TypeDef {
         base: Box<TypeDef>,
     },
     Class(ClassDef),
+    Enum(EnumDef),
+}
+
+/// A variant declaration
+///
+/// rust's enum type, C's enum + optional data
+pub struct EnumDef {
+    pub name: String,
+    pub location: Location,
+    pub options: Vec<EnumDefOption>,
+}
+
+/// A choice inside a variant type
+pub struct EnumDefOption {
+    pub name: String,
+    pub location: Location,
+
+    // An enum can have payload fields:
+    pub data: Vec<Type>,
 }
 
 pub struct ClassDef {
     pub name: String,
     pub location: Location,
-    pub fields: Vec<VarDef>,
+    pub fields: Vec<VariableDef>,
     pub methods: Vec<FunctionDef>,
 }
 
-pub struct VarDef {
+pub struct VariableDef {
     pub location: Location,
     pub name: String,
     pub typ: Type,
@@ -116,12 +135,22 @@ pub enum StatementType {
         condition: Expression,
         body: Vec<Statement>,
     },
+    Match {
+        value: Expression,
+        arms: Vec<MatchArm>,
+    },
     Return {
         value: Option<Expression>,
     },
     Pass,
     Break,
     Continue,
+}
+
+pub struct MatchArm {
+    pub location: Location,
+    pub pattern: Expression,
+    pub body: Vec<Statement>,
 }
 
 #[derive(Debug)]
