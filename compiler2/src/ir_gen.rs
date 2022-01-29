@@ -6,7 +6,7 @@
 use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
-use super::semantics::type_system::{ClassType, FunctionType, MyType, StructType};
+use super::semantics::type_system::{ClassType, EnumType, FunctionType, MyType, StructType};
 use super::semantics::typed_ast;
 use std::collections::HashMap;
 
@@ -26,8 +26,8 @@ struct Generator {
     instructions: Vec<Instruction>,
     id_counter: usize,
     loop_stack: Vec<(Label, Label)>,
-    struct_types: Vec<bytecode::StructDef>,
-    struct_id_map: HashMap<bytecode::StructDef, usize>,
+    types: Vec<bytecode::TypeDef>,
+    type_to_id_map: HashMap<bytecode::TypeDef, usize>,
     label_map: HashMap<Label, usize>,
     relocations: Vec<Relocation>,
 }
@@ -35,6 +35,7 @@ struct Generator {
 enum Relocation {
     Jump(usize, Label),
     JumpIf(usize, Label, Label),
+    JumpTable(usize, Vec<Label>),
 }
 
 impl Generator {
@@ -44,8 +45,8 @@ impl Generator {
             instructions: vec![],
             id_counter: 0,
             loop_stack: vec![],
-            struct_types: vec![],
-            struct_id_map: HashMap::new(),
+            types: vec![],
+            type_to_id_map: HashMap::new(),
             label_map: HashMap::new(),
             relocations: vec![],
         }
@@ -60,11 +61,11 @@ impl Generator {
                 MyType::Generic { .. } => {
                     // Safely ignoring.
                 }
-                MyType::Class(class_type) => {
+                MyType::Class(_class_type) => {
                     // TODO: what now?
                     // self.gen_class(class_type),
                 }
-                MyType::Enum(enum_type) => {
+                MyType::Enum(_enum_type) => {
                     // Hmm, what to do?
                 }
                 other => {
@@ -106,7 +107,7 @@ impl Generator {
 
         bytecode::Program {
             imports,
-            struct_types: std::mem::take(&mut self.struct_types),
+            types: std::mem::take(&mut self.types),
             functions: std::mem::take(&mut self.functions),
         }
     }
@@ -235,6 +236,12 @@ impl Generator {
             .push(Relocation::JumpIf(pc, true_label, false_label));
     }
 
+    fn jump_table(&mut self, targets: Vec<Label>) {
+        let pc = self.instructions.len();
+        self.emit(Instruction::Nop);
+        self.relocations.push(Relocation::JumpTable(pc, targets));
+    }
+
     fn resolve_relocations(&mut self) {
         for relocation in &self.relocations {
             match relocation {
@@ -246,6 +253,13 @@ impl Generator {
                     let true_index: usize = *self.label_map.get(true_target).unwrap();
                     let false_index: usize = *self.label_map.get(false_target).unwrap();
                     self.instructions[*pc] = bytecode::Instruction::JumpIf(true_index, false_index);
+                }
+                Relocation::JumpTable(pc, targets) => {
+                    let resolved_target: Vec<usize> = targets
+                        .iter()
+                        .map(|t| *self.label_map.get(t).unwrap())
+                        .collect();
+                    self.instructions[*pc] = bytecode::Instruction::JumpTable(resolved_target);
                 }
             }
         }
@@ -298,7 +312,7 @@ impl Generator {
                 }
                 unimplemented!("Ehm, what now?");
             }
-
+            typed_ast::Statement::Case(case_statement) => self.gen_case_statement(case_statement),
             typed_ast::Statement::If(if_statement) => self.gen_if_statement(if_statement),
             typed_ast::Statement::Loop { body } => {
                 let loop_start_label = self.new_label();
@@ -319,6 +333,61 @@ impl Generator {
                 self.gen_expression(e);
             }
         }
+    }
+
+    fn gen_case_statement(&mut self, case_statement: typed_ast::CaseStatement) {
+        let enum_type = case_statement.value.typ.clone().as_enum();
+        self.gen_expression(case_statement.value);
+
+        // Duplicate enum struct pointer, so we can later retrieve eventual contents
+        self.emit(bytecode::Instruction::Duplicate);
+
+        // Retrieve enum descriminator:
+        let int_typ = self.get_bytecode_typ(&MyType::Int);
+        self.emit(bytecode::Instruction::GetAttr {
+            index: 0,
+            typ: int_typ,
+        });
+
+        let mut arms = case_statement.arms;
+        // Sort the arm, such that we can use the choice index into a jump table:
+        arms.sort_by_key(|a| a.choice);
+        let final_label = self.new_label();
+        let arm_labels: Vec<Label> = arms.iter().map(|_| self.new_label()).collect();
+        // choose between arms by means of a jump table:
+        self.jump_table(arm_labels.clone());
+        for (arm_label, arm) in arm_labels.into_iter().zip(arms.into_iter()) {
+            self.set_label(arm_label);
+            // Fill enum optional values:
+            if enum_type.choices[arm.choice].data.is_empty() {
+                self.emit(bytecode::Instruction::DropTop);
+            } else {
+                let union_typ = self.get_enum_union_data_typ(&enum_type);
+                self.emit(bytecode::Instruction::GetAttr {
+                    index: 1,
+                    typ: union_typ,
+                });
+
+                if enum_type.choices[arm.choice].data.len() == 1 {
+                    // 1 argument enum
+                    let data_typ = self.get_bytecode_typ(&enum_type.choices[arm.choice].data[0]);
+                    self.emit(bytecode::Instruction::GetAttr {
+                        index: arm.choice,
+                        typ: data_typ,
+                    });
+                    self.emit(bytecode::Instruction::StoreLocal {
+                        index: arm.local_ids[0],
+                    });
+                } else {
+                    // n argument enum
+                }
+            }
+
+            // Execute arm body:
+            self.gen_block(arm.body);
+            self.jump(final_label.clone());
+        }
+        self.set_label(final_label);
     }
 
     fn gen_assignment(&mut self, assignment: typed_ast::AssignmentStatement) {
@@ -447,15 +516,14 @@ impl Generator {
         }
     }
 
-    /// Insert struct in de-duplicating manner
-    fn inject_struct(&mut self, name: Option<String>, fields: Vec<bytecode::Typ>) -> usize {
-        let struct_def = bytecode::StructDef { name, fields };
-        if self.struct_id_map.contains_key(&struct_def) {
-            *self.struct_id_map.get(&struct_def).unwrap()
+    /// Insert type into the type table in de-duplicating manner
+    fn inject_type(&mut self, typ: bytecode::TypeDef) -> usize {
+        if self.type_to_id_map.contains_key(&typ) {
+            *self.type_to_id_map.get(&typ).unwrap()
         } else {
-            let idx = self.struct_types.len();
-            self.struct_types.push(struct_def.clone());
-            self.struct_id_map.insert(struct_def, idx);
+            let idx = self.types.len();
+            self.types.push(typ.clone());
+            self.type_to_id_map.insert(typ, idx);
             idx
         }
     }
@@ -466,7 +534,40 @@ impl Generator {
             .iter()
             .map(|f| self.get_bytecode_typ(&f.typ))
             .collect();
-        self.inject_struct(struct_type.name.clone(), fields)
+        let typ = bytecode::TypeDef::Struct(bytecode::StructDef {
+            name: struct_type.name.clone(),
+            fields,
+        });
+        self.inject_type(typ)
+    }
+
+    fn get_union_index() -> usize {
+        unimplemented!("TODO");
+    }
+
+    fn get_enum_union_data_typ(&mut self, enum_type: &EnumType) -> bytecode::Typ {
+        let choices: Vec<bytecode::Typ> = enum_type
+            .choices
+            .iter()
+            .map(|choice| self.get_bytecode_typ(&choice.get_payload_type()))
+            .collect();
+        let union_typ = bytecode::TypeDef::Union(bytecode::UnionDef {
+            name: format!("{}_data", enum_type.name),
+            choices,
+        });
+
+        let union_index = self.inject_type(union_typ);
+        bytecode::Typ::Composite(union_index)
+    }
+
+    fn get_enum_index(&mut self, enum_type: &EnumType) -> usize {
+        let union_typ = self.get_enum_union_data_typ(enum_type);
+        let fields: Vec<bytecode::Typ> = vec![bytecode::Typ::Int, union_typ];
+        let typ = bytecode::TypeDef::Struct(bytecode::StructDef {
+            name: Some(enum_type.name.clone()),
+            fields,
+        });
+        self.inject_type(typ)
     }
 
     fn get_bytecode_class_typ(&mut self, class_type: &ClassType) -> bytecode::Typ {
@@ -476,8 +577,12 @@ impl Generator {
             .iter()
             .map(|f| self.get_bytecode_typ(&f.typ))
             .collect();
-        let idx = self.inject_struct(Some(class_type.name.clone()), fields);
-        bytecode::Typ::Ptr(Box::new(bytecode::Typ::Struct(idx)))
+        let typ = bytecode::TypeDef::Struct(bytecode::StructDef {
+            name: Some(class_type.name.clone()),
+            fields,
+        });
+        let idx = self.inject_type(typ);
+        bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(idx)))
     }
 
     fn get_bytecode_typ(&mut self, ty: &MyType) -> bytecode::Typ {
@@ -486,49 +591,97 @@ impl Generator {
             MyType::Int => bytecode::Typ::Int,
             MyType::Float => bytecode::Typ::Float,
             MyType::String => bytecode::Typ::String,
-            MyType::Struct(struct_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Struct(
+            MyType::Struct(struct_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
                 self.get_struct_index(struct_type),
             ))),
-            MyType::Enum(enum_type) => {
-                // Hmm, what to do!
+            MyType::Enum(enum_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
+                self.get_enum_index(enum_type),
+            ))),
+            MyType::Class(class_type) => self.get_bytecode_class_typ(&class_type.inner),
+            MyType::Generic { .. } => {
+                panic!("Cannot compile generic type");
+            }
+            MyType::TypeConstructor => {
+                panic!("Cannot compile type constructor");
+            }
+            MyType::Void => {
+                // unimplemented!("TODO!");
+                bytecode::Typ::Void
+            }
+            MyType::TypeVar(_) => {
+                panic!("Cannot compile type variable");
+            }
+            MyType::Function(_) => {
                 unimplemented!("TODO!");
             }
-            MyType::Class(class_type) => self.get_bytecode_class_typ(&class_type.inner),
-            other => {
-                unimplemented!("{:?}", other);
-            }
+        }
+    }
+
+    /// Generate a struct literal, and fill all it's values!
+    fn gen_tuple_literal(&mut self, typ: bytecode::Typ, values: Vec<typed_ast::Expression>) {
+        // Alloc room for struct:
+        if let bytecode::Typ::Ptr(struct_typ) = typ {
+            self.emit(Instruction::Malloc(*struct_typ));
+        } else {
+            panic!("Assumed struct literal is pointer to thing.");
+        }
+
+        for (index, value) in values.into_iter().enumerate() {
+            self.emit(Instruction::Duplicate);
+            self.gen_expression(value);
+            self.emit(Instruction::SetAttr { index });
         }
     }
 
     fn gen_expression(&mut self, expression: typed_ast::Expression) {
         match expression.kind {
-            typed_ast::ExpressionType::Bool(value) => {
-                self.emit(Instruction::BoolLiteral(value));
-            }
-            typed_ast::ExpressionType::Integer(value) => {
-                self.emit(Instruction::IntLiteral(value));
-            }
-            typed_ast::ExpressionType::Float(value) => {
-                self.emit(Instruction::FloatLiteral(value));
-            }
-            typed_ast::ExpressionType::String(value) => {
-                self.emit(Instruction::StringLiteral(value));
-            }
+            typed_ast::ExpressionType::Literal(literal) => self.gen_literal(literal),
             typed_ast::ExpressionType::StructLiteral(values) => {
+                let typ = self.get_bytecode_typ(&expression.typ);
+                self.gen_tuple_literal(typ, values);
+            }
+            typed_ast::ExpressionType::EnumLiteral { choice, arguments } => {
+                // An enum is a sort of integer/tuple pair
+                // unimplemented!("?");
                 let typ = self.get_bytecode_typ(&expression.typ);
                 if let bytecode::Typ::Ptr(typ) = typ {
                     self.emit(Instruction::Malloc(*typ));
                 } else {
-                    panic!("Assumed struct literal is pointer to thing.");
+                    panic!("Assumed enum literal is pointer to thing.");
                 }
-                for (index, value) in values.into_iter().enumerate() {
+
+                if arguments.is_empty() {
+                    // Store void, hence do nothing now.
+                } else {
                     self.emit(Instruction::Duplicate);
-                    self.gen_expression(value);
-                    self.emit(Instruction::SetAttr { index });
+
+                    let enum_type = expression.typ.clone().as_enum();
+
+                    // Create a union to store the data:
+                    let union_typ = self.get_enum_union_data_typ(&enum_type);
+                    self.emit(Instruction::Malloc(union_typ));
+                    self.emit(Instruction::Duplicate);
+
+                    if arguments.len() == 1 {
+                        self.gen_expression(arguments.into_iter().next().unwrap());
+                    } else {
+                        let struct_typ =
+                            self.get_bytecode_typ(&enum_type.choices[choice].get_payload_type());
+                        // Create a tuple (unnamed struct) with payload:
+                        self.gen_tuple_literal(struct_typ, arguments);
+                    }
+                    // Store value in union:
+                    // todo: index does not have to be choice, non-data enum's are empty!
+                    self.emit(Instruction::SetAttr { index: choice });
+
+                    // Store the tuple as payload:
+                    self.emit(Instruction::SetAttr { index: 1 });
                 }
-            }
-            typed_ast::ExpressionType::EnumLiteral { choice, arguments } => {
-                unimplemented!("?");
+
+                // Store enum tag value:
+                self.emit(Instruction::Duplicate);
+                self.emit(Instruction::IntLiteral(choice as i64));
+                self.emit(Instruction::SetAttr { index: 0 });
             }
             typed_ast::ExpressionType::Binop { lhs, op, rhs } => {
                 self.gen_binop(expression.typ, *lhs, op, *rhs);
@@ -596,7 +749,7 @@ impl Generator {
             typed_ast::ExpressionType::LoadFunction(name) => {
                 self.emit(Instruction::LoadGlobalName(name));
             }
-            typed_ast::ExpressionType::Typ(_) => {
+            typed_ast::ExpressionType::TypeConstructor(_) => {
                 // TBD: maybe allowing a type as an expression is wrong.
                 panic!("Cannot evaluate type!");
             }
@@ -622,6 +775,23 @@ impl Generator {
             typed_ast::ExpressionType::ImplicitSelf => {
                 // Load 'self':
                 self.emit(Instruction::LoadParameter { index: 0 });
+            }
+        }
+    }
+
+    fn gen_literal(&mut self, literal: typed_ast::Literal) {
+        match literal {
+            typed_ast::Literal::Bool(value) => {
+                self.emit(Instruction::BoolLiteral(value));
+            }
+            typed_ast::Literal::Integer(value) => {
+                self.emit(Instruction::IntLiteral(value));
+            }
+            typed_ast::Literal::Float(value) => {
+                self.emit(Instruction::FloatLiteral(value));
+            }
+            typed_ast::Literal::String(value) => {
+                self.emit(Instruction::StringLiteral(value));
             }
         }
     }

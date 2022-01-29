@@ -11,8 +11,9 @@ pub struct Program {
     pub imports: Vec<Import>,
 
     /// A list of types, usable via an index.
-    pub struct_types: Vec<StructDef>,
+    pub types: Vec<TypeDef>,
 
+    /// A set of functions defined in this module.
     pub functions: Vec<Function>,
 }
 
@@ -24,9 +25,22 @@ pub struct Import {
 }
 
 #[derive(Clone, Serialize, PartialEq, Eq, Hash)]
+pub enum TypeDef {
+    Struct(StructDef),
+    Union(UnionDef),
+    // Array???
+}
+
+#[derive(Clone, Serialize, PartialEq, Eq, Hash)]
 pub struct StructDef {
     pub name: Option<String>,
     pub fields: Vec<Typ>,
+}
+
+#[derive(Clone, Serialize, PartialEq, Eq, Hash)]
+pub struct UnionDef {
+    pub name: String,
+    pub choices: Vec<Typ>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -61,6 +75,8 @@ pub enum Instruction {
 
     /// Duplicate top of stack value.
     Duplicate,
+
+    DropTop,
 
     /// Allocate new memory for the given type
     Malloc(Typ),
@@ -102,6 +118,10 @@ pub enum Instruction {
 
     JumpIf(usize, usize),
 
+    /// Jump to one of the given targets,
+    /// indexed by the last value on the stack.
+    JumpTable(Vec<usize>),
+
     /// Return n values.
     /// For now return 0 or 1 values.
     Return(usize),
@@ -121,7 +141,10 @@ pub enum Instruction {
 impl Instruction {
     pub fn is_terminator(&self) -> bool {
         match self {
-            Instruction::Return(_) | Instruction::Jump(_) | Instruction::JumpIf(_, _) => true,
+            Instruction::Return(_)
+            | Instruction::Jump(_)
+            | Instruction::JumpIf(_, _)
+            | Instruction::JumpTable(_) => true,
             _ => false,
         }
     }
@@ -137,16 +160,16 @@ pub enum Operator {
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq, Hash)]
 pub enum Typ {
+    // TBD: void type might not be a good idea?
+    Void,
     Bool,
     Int,
     Float,
     String,
     Ptr(Box<Typ>),
 
-    /// The structured type, contains a sequence of types.
-    /// fields are accessed by index
     /// This is a reference to the types table
-    Struct(usize),
+    Composite(usize),
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -160,17 +183,30 @@ pub enum Comparison {
 }
 
 pub fn print_bytecode(bc: &Program) {
-    for typedef in &bc.struct_types {
-        println!(
-            "type: name={} types={:?}",
-            typedef.name.as_ref().unwrap_or(&"".to_owned()),
-            &typedef.fields
-        );
+    println!("Types:");
+    for (index, typedef) in bc.types.iter().enumerate() {
+        match typedef {
+            TypeDef::Struct(struct_type) => {
+                println!(
+                    "  {}: struct name={} types={:?}",
+                    index,
+                    struct_type.name.as_ref().unwrap_or(&"".to_owned()),
+                    &struct_type.fields
+                );
+            }
+            TypeDef::Union(union_type) => {
+                println!(
+                    "  {}: union name={} types={:?}",
+                    index, union_type.name, &union_type.choices
+                );
+            }
+        }
     }
 
+    println!("Imports:");
     for import in &bc.imports {
         println!(
-            "Import name={} ({:?}) -> {:?}",
+            "  name={} ({:?}) -> {:?}",
             import.name, import.parameter_types, import.return_type
         );
     }
@@ -182,8 +218,8 @@ pub fn print_bytecode(bc: &Program) {
             println!("    {} : {:?}", parameter.name, parameter.typ);
         }
         println!("  Locals:");
-        for loc in &func.locals {
-            println!("    {} : {:?}", loc.name, loc.typ);
+        for (index, local) in func.locals.iter().enumerate() {
+            println!("    {}: {} : {:?}", index, local.name, local.typ);
         }
         print_instructions(&func.code);
     }

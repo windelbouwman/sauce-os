@@ -139,6 +139,14 @@ pub enum StatementType {
         value: Expression,
         arms: Vec<MatchArm>,
     },
+
+    /// A case is a simple edition of match.
+    ///
+    /// Case only works with enum types.
+    Case {
+        value: Expression,
+        arms: Vec<CaseArm>,
+    },
     Return {
         value: Option<Expression>,
     },
@@ -150,6 +158,13 @@ pub enum StatementType {
 pub struct MatchArm {
     pub location: Location,
     pub pattern: Expression,
+    pub body: Vec<Statement>,
+}
+
+pub struct CaseArm {
+    pub location: Location,
+    pub constructor: ObjRef,
+    pub arguments: Vec<String>,
     pub body: Vec<Statement>,
 }
 

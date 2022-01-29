@@ -23,10 +23,21 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
             frame.push(value.clone());
             frame.push(value);
         }
+        Instruction::DropTop => {
+            frame.pop();
+        }
         Instruction::Malloc(typ) => match typ {
-            bytecode::Typ::Struct(index) => {
+            bytecode::Typ::Composite(index) => {
                 let typ = vm.get_type(index);
-                frame.push(Value::Struct(Arc::new(Struct::new(typ))));
+                match typ {
+                    bytecode::TypeDef::Struct(struct_def) => {
+                        frame.push(Value::Struct(Arc::new(Struct::new(struct_def))));
+                    }
+                    bytecode::TypeDef::Union(union_def) => {
+                        // frame.push(Value::Struct(Arc::new(Struct::new(typ))));
+                        unimplemented!("TODO");
+                    }
+                }
             }
             other => {
                 unimplemented!("Malloc: {:?}", other);
@@ -169,6 +180,12 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
         }
         Instruction::Jump(label) => {
             frame.jump(label);
+        }
+        Instruction::JumpTable(label_table) => {
+            let index = frame.pop().as_int();
+            // TBD: maybe use last index as default?
+            // Or use a default index when out of range?
+            frame.jump(label_table[index as usize]);
         }
         Instruction::Return(amount) => match amount {
             0 => {

@@ -1,8 +1,11 @@
 //! A typed version of the AST.
 //!
 //! Expressions are assigned types here.
+//!
+//! This intermediate form has most language
+//! constructs, and types attached.
 
-use super::type_system::{ClassTypeRef, EnumOption, MyType};
+use super::type_system::{ClassTypeRef, EnumOption, EnumType, MyType};
 use crate::parsing::ast;
 
 pub struct Program {
@@ -77,10 +80,26 @@ pub enum Statement {
         value: Expression,
         arms: Vec<MatchArm>,
     },
-
+    Case(CaseStatement),
     Pass,
     Break,
     Continue,
+}
+
+pub struct CaseStatement {
+    pub value: Expression,
+    pub arms: Vec<CaseArm>,
+}
+
+pub struct CaseArm {
+    /// Index into the chosen enum variant:
+    pub choice: usize,
+
+    /// Id's of local variables used for this arms unpacked values
+    pub local_ids: Vec<usize>,
+
+    /// The code of this case arm.
+    pub body: Block,
 }
 
 pub struct AssignmentStatement {
@@ -106,10 +125,11 @@ pub struct MatchArm {
 
 pub enum MatchPattern {
     Constructor {
-        typ: MyType,
+        constructor: TypeConstructor,
         arguments: Vec<MatchPattern>,
     },
     WildCard(String),
+    Constant(Literal),
 }
 
 pub struct Expression {
@@ -117,24 +137,30 @@ pub struct Expression {
     pub kind: ExpressionType,
 }
 
-pub enum ExpressionType {
+pub enum Literal {
     Bool(bool),
     String(String),
     Integer(i64),
     Float(f64),
+}
+
+pub enum ExpressionType {
+    Literal(Literal),
     StructLiteral(Vec<Expression>),
 
     /// An enum literal value
     EnumLiteral {
-        choice: EnumOption,
-        // data: Option<MyType>,
+        choice: usize,
         arguments: Vec<Expression>,
     },
 
     LoadFunction(String),
 
+    // A TypeConstructor is an expression that can create
+    // an instance of a type.
+    //
     // TBD: this muight be a dubious expression kind:
-    Typ(MyType),
+    TypeConstructor(TypeConstructor),
 
     /// Implicit 'self' in a class method.
     ImplicitSelf,
@@ -166,4 +192,9 @@ pub enum ExpressionType {
         op: ast::BinaryOperator,
         rhs: Box<Expression>,
     },
+}
+
+pub enum TypeConstructor {
+    Any(MyType),
+    EnumOption { enum_type: EnumType, choice: usize },
 }

@@ -1,6 +1,6 @@
 //! Symbol table related code.
 
-use super::type_system::{EnumOption, FunctionType, MyType, StructField, StructType};
+use super::type_system::{EnumOption, EnumType, FunctionType, MyType, StructField, StructType};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -32,8 +32,9 @@ pub enum Symbol {
         typ: MyType,
     },
     EnumOption {
-        option: EnumOption,
-        typ: MyType,
+        /// An index in the enum type's options
+        choice: usize,
+        enum_type: EnumType,
     },
 }
 

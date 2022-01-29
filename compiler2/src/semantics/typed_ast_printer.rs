@@ -1,3 +1,4 @@
+use super::type_system::MyType;
 use super::typed_ast;
 
 pub fn print_ast(program: &typed_ast::Program) {
@@ -148,6 +149,21 @@ impl AstPrinter {
                 }
                 self.dedent();
             }
+            typed_ast::Statement::Case(typed_ast::CaseStatement { value, arms }) => {
+                println!("{}case-statement", self.get_indent());
+                self.indent();
+                self.print_expression(value);
+                for arm in arms {
+                    // self.print_expression(&arm.pattern);
+                    self.indent();
+                    println!("{}> {}", self.get_indent(), arm.choice);
+                    self.indent();
+                    self.print_block(&arm.body);
+                    self.dedent();
+                    self.dedent();
+                }
+                self.dedent();
+            }
             typed_ast::Statement::Let { name, index, value } => {
                 println!(
                     "{}let-statement name={} index={}",
@@ -203,37 +219,8 @@ impl AstPrinter {
                 self.print_expression(rhs);
                 self.dedent();
             }
-            typed_ast::ExpressionType::Bool(value) => {
-                println!(
-                    "{}Bool val={} : {:?}",
-                    self.get_indent(),
-                    value,
-                    expression.typ
-                );
-            }
-            typed_ast::ExpressionType::Integer(value) => {
-                println!(
-                    "{}Integer val={} : {:?}",
-                    self.get_indent(),
-                    value,
-                    expression.typ
-                );
-            }
-            typed_ast::ExpressionType::Float(value) => {
-                println!(
-                    "{}Float val={} : {:?}",
-                    self.get_indent(),
-                    value,
-                    expression.typ
-                );
-            }
-            typed_ast::ExpressionType::String(value) => {
-                println!(
-                    "{}String val='{}' : {:?}",
-                    self.get_indent(),
-                    value,
-                    expression.typ
-                );
+            typed_ast::ExpressionType::Literal(literal) => {
+                self.print_literal(literal, &expression.typ);
             }
             typed_ast::ExpressionType::StructLiteral(values) => {
                 println!("{}Struct literal", self.get_indent());
@@ -247,7 +234,7 @@ impl AstPrinter {
                 println!(
                     "{}Enum literal option={} : {:?}",
                     self.get_indent(),
-                    choice.name,
+                    choice,
                     expression.typ
                 );
                 self.indent();
@@ -259,8 +246,19 @@ impl AstPrinter {
             typed_ast::ExpressionType::LoadFunction(name) => {
                 println!("{}Load function name={}", self.get_indent(), name);
             }
-            typed_ast::ExpressionType::Typ(typ) => {
-                println!("{}Type ref: {:?}", self.get_indent(), typ);
+            typed_ast::ExpressionType::TypeConstructor(type_constructor) => {
+                match type_constructor {
+                    typed_ast::TypeConstructor::Any(typ) => {
+                        println!("{}Type constructor (any): {:?}", self.get_indent(), typ);
+                    }
+                    typed_ast::TypeConstructor::EnumOption { enum_type, choice } => {
+                        println!(
+                            "{}Type constructor (enum option): {:?}",
+                            self.get_indent(),
+                            enum_type
+                        );
+                    }
+                }
             }
             typed_ast::ExpressionType::Instantiate => {
                 println!(
@@ -295,6 +293,23 @@ impl AstPrinter {
                 self.indent();
                 self.print_expression(base);
                 self.dedent();
+            }
+        }
+    }
+
+    fn print_literal(&self, literal: &typed_ast::Literal, typ: &MyType) {
+        match literal {
+            typed_ast::Literal::Bool(value) => {
+                println!("{}Bool val={} : {:?}", self.get_indent(), value, typ);
+            }
+            typed_ast::Literal::Integer(value) => {
+                println!("{}Integer val={} : {:?}", self.get_indent(), value, typ);
+            }
+            typed_ast::Literal::Float(value) => {
+                println!("{}Float val={} : {:?}", self.get_indent(), value, typ);
+            }
+            typed_ast::Literal::String(value) => {
+                println!("{}String val='{}' : {:?}", self.get_indent(), value, typ);
             }
         }
     }

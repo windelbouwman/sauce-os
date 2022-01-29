@@ -20,7 +20,7 @@ pub struct Vm {
     // prog: bytecode::Program,
     func_map: HashMap<String, Arc<bytecode::Function>>,
     // call_stack?
-    types: Vec<bytecode::StructDef>,
+    types: Vec<bytecode::TypeDef>,
 }
 
 fn run_func(vm: &Vm, name: &str, parameters: Vec<Value>) -> Option<Value> {
@@ -48,16 +48,17 @@ fn invoke(vm: &Vm, callee: Value, parameters: Vec<Value>) -> Option<Value> {
 }
 
 impl Vm {
+    /// Create new virtual machine for the given bytecode.
     fn new(program: bytecode::Program) -> Self {
         let mut func_map = HashMap::new();
         for func in program.functions {
             func_map.insert(func.name.clone(), Arc::new(func));
         }
-        let types = program.struct_types;
+        let types = program.types;
         Self { func_map, types }
     }
 
-    pub fn get_type(&self, index: usize) -> &bytecode::StructDef {
+    pub fn get_type(&self, index: usize) -> &bytecode::TypeDef {
         &self.types[index]
     }
 

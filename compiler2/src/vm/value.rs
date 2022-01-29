@@ -16,6 +16,8 @@ pub enum Value {
 
     /// A structured type is a vector of values!
     Struct(Arc<Struct>),
+
+    Enum(i64, Box<Value>),
 }
 
 #[derive(Debug, Default)]

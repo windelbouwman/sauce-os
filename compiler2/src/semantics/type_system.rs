@@ -9,7 +9,10 @@ pub enum MyType {
     String,
 
     /// Type of a type (inception enable=1!)
-    Typ,
+    ///
+    /// This is the type for type constructors, for example
+    /// a user defined class, or an enum option like `Option::None`
+    TypeConstructor,
 
     /// A parameterized type, may contain subtypes which are type variables.
     Generic {
@@ -24,13 +27,21 @@ pub enum MyType {
 
     Enum(EnumType),
 
-    EnumWithData(EnumType),
-
     Class(ClassTypeRef),
 
     Void,
 
     Function(FunctionType),
+}
+
+impl MyType {
+    pub fn as_enum(self) -> EnumType {
+        if let MyType::Enum(enum_type) = self {
+            enum_type
+        } else {
+            panic!("Expected enum type!");
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -162,14 +173,14 @@ impl StructType {
 #[derive(Clone, PartialEq, Eq)]
 pub struct EnumType {
     pub name: String,
-    pub options: Vec<EnumOption>,
+    pub choices: Vec<EnumOption>,
 }
 
 impl EnumType {
-    pub fn lookup(&self, name: &str) -> Option<&EnumOption> {
-        for option in &self.options {
-            if option.name == name {
-                return Some(option);
+    pub fn lookup(&self, name: &str) -> Option<usize> {
+        for (index, choice) in self.choices.iter().enumerate() {
+            if choice.name == name {
+                return Some(index);
             }
         }
         None
@@ -188,4 +199,25 @@ impl std::fmt::Debug for EnumType {
 pub struct EnumOption {
     pub name: String,
     pub data: Vec<MyType>,
+}
+
+impl EnumOption {
+    /// Contrapt, void, basic type, or struct for this
+    /// enum option.
+    pub fn get_payload_type(&self) -> MyType {
+        if self.data.is_empty() {
+            MyType::Void
+        } else if self.data.len() == 1 {
+            self.data[0].clone()
+        } else {
+            let mut fields = vec![];
+            for (index, typ) in self.data.iter().enumerate() {
+                fields.push(StructField {
+                    typ: typ.clone(),
+                    name: format!("field_{}", index),
+                });
+            }
+            MyType::Struct(StructType { name: None, fields })
+        }
+    }
 }

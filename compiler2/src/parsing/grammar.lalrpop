@@ -182,6 +182,16 @@ Statement: ast::Statement = {
             }
         }
     },
+    <location:@L> "case" <value:Expression> ":" Newline
+    Indent <arms:CaseArm+> Dedent => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::Case {
+                value,
+                arms,
+            }
+        }
+    },
     <target:Expression> <location:@L> "=" <value:Expression> Newline => {
         ast::Statement {
             location,
@@ -260,6 +270,18 @@ MatchArm: ast::MatchArm = {
     }
 };
 
+CaseArm: ast::CaseArm = {
+    <location:@L> <constructor:ObjRef> <arguments:("(" Comma<Identifier> ")")?> ":" Newline <body:Block> => {
+        let arguments = arguments.map(|a| a.1).unwrap_or(vec![]);
+        ast::CaseArm {
+            location,
+            constructor,
+            arguments,
+            body,
+        }
+    }
+};
+
 Block: ast::Block = {
     Indent <statements:Statement+> Dedent => statements
 };
@@ -267,6 +289,7 @@ Block: ast::Block = {
 // An expression which can also be a struct literal
 // using ':' and a block of fields
 BlockExpression: ast::Expression = {
+    // TODO: should be able to use Condition below??
     <value:Expression> Newline => value,
     <typ:Type> <location:@L> ":" Newline
     Indent <fields:LinesOf<StructLiteralField>> Dedent => {
@@ -306,10 +329,6 @@ AndTest: ast::Expression = {
     },
     Comparison,
 };
-
-//OrTest: ast::Expression = {
-//    <e1:AndTest> "or"
-//};
 
 Comparison: ast::Expression = {
     <lhs:Expression> <location:@L> <op:CmpOp> <rhs:Expression> => {
@@ -525,6 +544,7 @@ extern {
         Newline => Token::Newline,
         "and" => Token::KeywordAnd,
         "break" => Token::KeywordBreak,
+        "case" => Token::KeywordCase,
         "class" => Token::KeywordClass,
         "continue" => Token::KeywordContinue,
         "else" => Token::KeywordElse,

@@ -218,6 +218,7 @@ impl<'t> Lexer<'t> {
             LogosToken::Identifier(name) => match name.as_str() {
                 "and" => self.emit(Token::KeywordAnd),
                 "break" => self.emit(Token::KeywordBreak),
+                "case" => self.emit(Token::KeywordCase),
                 "class" => self.emit(Token::KeywordClass),
                 "continue" => self.emit(Token::KeywordContinue),
                 "else" => self.emit(Token::KeywordElse),

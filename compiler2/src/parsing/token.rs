@@ -9,6 +9,7 @@ pub enum Token {
     Dedent,
     KeywordAnd,
     KeywordBreak,
+    KeywordCase,
     KeywordClass,
     KeywordContinue,
     KeywordElse,

@@ -190,20 +190,20 @@ impl TypeChecker {
     }
 
     fn check_enum_def(&mut self, enum_def: ast::EnumDef) -> Result<typed_ast::TypeDef, ()> {
-        let mut options = vec![];
+        let mut choices = vec![];
         for option in enum_def.options {
             let mut payload = vec![];
             for typ in option.data {
                 payload.push(self.eval_type_expr(&typ)?);
             }
-            options.push(EnumOption {
+            choices.push(EnumOption {
                 name: option.name,
                 data: payload,
             });
         }
         let enum_type = EnumType {
             name: enum_def.name.clone(),
-            options,
+            choices,
         };
         let typ = MyType::Enum(enum_type);
         self.define(&enum_def.name, Symbol::Typ(typ.clone()), &enum_def.location);
@@ -421,78 +421,79 @@ impl TypeChecker {
                 member,
             } => {
                 let base = self.resolve_obj(base)?;
-                match base {
-                    Symbol::Module {
-                        name: mod_name,
-                        scope,
-                    } => {
-                        if scope.is_defined(member) {
-                            let obj = scope.get(member).unwrap().clone();
-                            match obj {
-                                Symbol::Function {
-                                    name: func_name,
-                                    typ,
-                                } => {
-                                    // This might be too much desugaring at this point
-                                    // Maybe introduce a new phase?
-                                    // IDEA: Symbol::ImportedSymbol()
-                                    let full_name = format!("{}_{}", mod_name, func_name);
-                                    self.add_import(full_name.clone(), typ.clone());
-                                    Ok(Symbol::Function {
-                                        name: full_name,
-                                        typ,
-                                    })
-                                }
-                                Symbol::Typ(typ) => Ok(Symbol::Typ(typ)),
-                                other => {
-                                    unimplemented!("Cannot import: {:?}", other);
-                                    // Err(())
-                                }
-                            }
-                        } else {
-                            self.error(
-                                location.clone(),
-                                format!("Module has no field: {}", member),
-                            );
-                            Err(())
+                self.access_symbol(location, base, member)
+            }
+        }
+    }
+
+    fn access_symbol(
+        &mut self,
+        location: &Location,
+        base: Symbol,
+        member: &str,
+    ) -> Result<Symbol, ()> {
+        match base {
+            Symbol::Module {
+                name: mod_name,
+                scope,
+            } => {
+                if scope.is_defined(member) {
+                    let obj = scope.get(member).unwrap().clone();
+                    match obj {
+                        Symbol::Function {
+                            name: func_name,
+                            typ,
+                        } => {
+                            // This might be too much desugaring at this point
+                            // Maybe introduce a new phase?
+                            // IDEA: Symbol::ImportedSymbol()
+                            let full_name = format!("{}_{}", mod_name, func_name);
+                            self.add_import(full_name.clone(), typ.clone());
+                            Ok(Symbol::Function {
+                                name: full_name,
+                                typ,
+                            })
+                        }
+                        Symbol::Typ(typ) => Ok(Symbol::Typ(typ)),
+                        other => {
+                            unimplemented!("Cannot import: {:?}", other);
+                            // Err(())
                         }
                     }
-                    Symbol::Typ(typ) => match typ {
-                        MyType::Enum(enum_typ) => {
-                            if let Some(option) = enum_typ.lookup(member) {
-                                let typ = if !option.data.is_empty() {
-                                    MyType::EnumWithData(enum_typ.clone())
-                                } else {
-                                    MyType::Enum(enum_typ.clone())
-                                };
-                                Ok(Symbol::EnumOption {
-                                    typ,
-                                    option: option.clone(),
-                                })
-                            } else {
-                                self.error(
-                                    location.clone(),
-                                    format!("Enum has no option named: {}", member),
-                                );
-                                Err(())
-                            }
-                        }
-                        other => {
-                            self.error(
-                                location.clone(),
-                                format!("Cannot scope-access type: {:?}", other),
-                            );
-                            Err(())
-                        }
-                    },
-                    other => {
+                } else {
+                    self.error(location.clone(), format!("Module has no field: {}", member));
+                    Err(())
+                }
+            }
+            Symbol::Typ(typ) => match typ {
+                MyType::Enum(enum_type) => {
+                    if let Some(option) = enum_type.lookup(member) {
+                        Ok(Symbol::EnumOption {
+                            enum_type: enum_type.clone(),
+                            choice: option,
+                        })
+                    } else {
                         self.error(
                             location.clone(),
-                            format!("Cannot scope-access: {:?}", other),
+                            format!("Enum has no option named: {}", member),
                         );
                         Err(())
                     }
                 }
+                other => {
+                    self.error(
+                        location.clone(),
+                        format!("Cannot scope-access type: {:?}", other),
+                    );
+                    Err(())
+                }
+            },
+            other => {
+                self.error(
+                    location.clone(),
+                    format!("Cannot scope-access: {:?}", other),
+                );
+                Err(())
             }
         }
     }
@@ -684,21 +685,9 @@ impl TypeChecker {
                     body,
                 }))
             }
-            ast::StatementType::Match { value, arms } => {
-                let value = self.check_expresion(value)?;
-                let mut typed_arms = vec![];
-                for arm in arms {
-                    self.enter_scope();
-                    let pattern = self.check_match_pattern(arm.pattern, &value.typ)?;
-                    // TODO: Define pattern variables!
-                    let body = self.check_block(arm.body);
-                    self.leave_scope();
-                    typed_arms.push(typed_ast::MatchArm { pattern, body });
-                }
-                Ok(typed_ast::Statement::Match {
-                    value,
-                    arms: typed_arms,
-                })
+            ast::StatementType::Match { value, arms } => self.check_match_statement(value, arms),
+            ast::StatementType::Case { value, arms } => {
+                self.check_case_statement(location, value, arms)
             }
         }
     }
@@ -714,6 +703,136 @@ impl TypeChecker {
                 }
             }
         }
+    }
+
+    /// Check a case-statement.
+    ///
+    /// This construct should match all variants of the enum.
+    fn check_case_statement(
+        &mut self,
+        location: Location,
+        value: ast::Expression,
+        raw_arms: Vec<ast::CaseArm>,
+    ) -> Result<typed_ast::Statement, ()> {
+        let value_location = value.location.clone();
+        let typed_value = self.check_expresion(value)?;
+        if let MyType::Enum(enum_type) = typed_value.typ.clone() {
+            // Check for:
+            // - duplicate arms
+            // - and for missing arms
+            // - correct amount of constructor arguments
+            let mut value_map: HashMap<String, bool> = HashMap::new();
+            let mut typed_arms = vec![];
+            for arm in raw_arms {
+                let choice = self.resolve_obj(&arm.constructor)?;
+                self.enter_scope();
+
+                // Ensure we referred to an enum constructor
+                match choice {
+                    Symbol::EnumOption { choice, enum_type } => {
+                        let arg_types: Vec<MyType> = enum_type.choices[choice].data.clone();
+                        let variant_name: String = enum_type.choices[choice].name.clone();
+
+                        // Check for arm compatibility:
+                        self.check_equal_types(
+                            &arm.location,
+                            &typed_value.typ,
+                            &MyType::Enum(enum_type),
+                        )?;
+
+                        // Check for duplicate arms:
+                        if value_map.contains_key(&variant_name) {
+                            self.error(arm.location, format!("Duplicate field: {}", variant_name));
+                            continue;
+                        } else {
+                            value_map.insert(variant_name.to_owned(), true);
+                        }
+
+                        if arg_types.len() == arm.arguments.len() {
+                            let mut local_ids = vec![];
+                            for (arg_typ, arg_name) in arg_types.iter().zip(arm.arguments.iter()) {
+                                let local_id = self.new_local_variable(
+                                    &arm.location,
+                                    arg_name.to_owned(),
+                                    false,
+                                    arg_typ.clone(),
+                                );
+                                local_ids.push(local_id);
+                            }
+
+                            let body = self.check_block(arm.body);
+                            typed_arms.push(typed_ast::CaseArm {
+                                choice,
+                                local_ids,
+                                body,
+                            });
+                        } else {
+                            self.error(
+                                arm.location,
+                                format!(
+                                    "Got {} constructor arguments, but expected {}",
+                                    arm.arguments.len(),
+                                    arg_types.len()
+                                ),
+                            );
+                            continue;
+                        }
+                    }
+                    other => {
+                        // Err!
+                        self.error(
+                            arm.location,
+                            format!("Expected enum constructor, not {:?}", other),
+                        );
+                        continue;
+                    }
+                }
+
+                self.leave_scope();
+            }
+
+            // Check if all cases are covered:
+            for option in enum_type.choices {
+                if !value_map.contains_key(&option.name) {
+                    self.error(
+                        location.clone(),
+                        format!("Enum case '{}' not covered", option.name),
+                    );
+                }
+            }
+
+            Ok(typed_ast::Statement::Case(typed_ast::CaseStatement {
+                value: typed_value,
+                arms: typed_arms,
+            }))
+        } else {
+            self.error(
+                value_location,
+                format!("Expected enum type, not {:?}", typed_value.typ),
+            );
+            Err(())
+        }
+    }
+
+    fn check_match_statement(
+        &mut self,
+        value: ast::Expression,
+        arms: Vec<ast::MatchArm>,
+    ) -> Result<typed_ast::Statement, ()> {
+        let value = self.check_expresion(value)?;
+        let mut typed_arms = vec![];
+        for arm in arms {
+            self.enter_scope();
+            let pattern = self.check_match_pattern(arm.pattern, &value.typ)?;
+            // TODO: Define pattern variables!
+            let body = self.check_block(arm.body);
+            self.leave_scope();
+            typed_arms.push(typed_ast::MatchArm { pattern, body });
+        }
+        Ok(typed_ast::Statement::Match {
+            value,
+            arms: typed_arms,
+        })
     }
 
     fn check_match_pattern(
@@ -734,11 +853,14 @@ impl TypeChecker {
                 } else {
                     let symbol = self.resolve_obj(&obj_ref)?;
                     match symbol {
-                        Symbol::EnumOption { option, typ } => {
+                        Symbol::EnumOption { choice, enum_type } => {
                             // unimplemented!("TODO!");
-                            assert!(option.data.is_empty());
+                            assert!(enum_type.choices[choice].data.is_empty());
                             Ok(typed_ast::MatchPattern::Constructor {
-                                typ,
+                                constructor: typed_ast::TypeConstructor::EnumOption {
+                                    enum_type,
+                                    choice,
+                                },
                                 arguments: vec![],
                             })
                         }
@@ -757,16 +879,20 @@ impl TypeChecker {
                     ast::ExpressionType::Object(obj_ref) => {
                         let symbol = self.resolve_obj(obj_ref)?;
                         match symbol {
-                            Symbol::EnumOption { option, typ } => {
-                                if option.data.len() == arguments.len() {
+                            Symbol::EnumOption { choice, enum_type } => {
+                                if enum_type.choices[choice].data.len() == arguments.len() {
                                     let mut pat_args = vec![];
-                                    for (arg, wanted_typ) in
-                                        arguments.into_iter().zip(option.data.iter())
+                                    for (arg, wanted_typ) in arguments
+                                        .into_iter()
+                                        .zip(enum_type.choices[choice].data.iter())
                                     {
                                         pat_args.push(self.check_match_pattern(arg, wanted_typ)?);
                                     }
                                     Ok(typed_ast::MatchPattern::Constructor {
-                                        typ,
+                                        constructor: typed_ast::TypeConstructor::EnumOption {
+                                            enum_type,
+                                            choice,
+                                        },
                                         arguments: pat_args,
                                     })
                                 } else {
@@ -774,7 +900,7 @@ impl TypeChecker {
                                         pattern.location,
                                         format!(
                                             "Expected {} arguments, but got {}",
-                                            option.data.len(),
+                                            enum_type.choices[choice].data.len(),
                                             arguments.len()
                                         ),
                                     );
@@ -844,19 +970,19 @@ impl TypeChecker {
             }
             ast::ExpressionType::Bool(val) => Ok(typed_ast::Expression {
                 typ: MyType::Bool,
-                kind: typed_ast::ExpressionType::Bool(val),
+                kind: typed_ast::ExpressionType::Literal(typed_ast::Literal::Bool(val)),
             }),
             ast::ExpressionType::Integer(val) => Ok(typed_ast::Expression {
                 typ: MyType::Int,
-                kind: typed_ast::ExpressionType::Integer(val),
+                kind: typed_ast::ExpressionType::Literal(typed_ast::Literal::Integer(val)),
             }),
             ast::ExpressionType::String(text) => Ok(typed_ast::Expression {
                 typ: MyType::String,
-                kind: typed_ast::ExpressionType::String(text),
+                kind: typed_ast::ExpressionType::Literal(typed_ast::Literal::String(text)),
             }),
             ast::ExpressionType::Float(value) => Ok(typed_ast::Expression {
                 typ: MyType::Float,
-                kind: typed_ast::ExpressionType::Float(value),
+                kind: typed_ast::ExpressionType::Literal(typed_ast::Literal::Float(value)),
             }),
             ast::ExpressionType::GetAttr { base, attr } => {
                 self.check_get_attr(location, *base, attr)
@@ -867,6 +993,7 @@ impl TypeChecker {
         }
     }
 
+    /// Check the occurrence of a referred object as an expression.
     fn check_obj_ref_expression(
         &mut self,
         location: Location,
@@ -894,7 +1021,7 @@ impl TypeChecker {
             Symbol::Field {
                 class_typ,
                 name,
-                index,
+                index: _,
                 typ,
             } => {
                 let kind = typed_ast::ExpressionType::GetAttr {
@@ -907,22 +1034,24 @@ impl TypeChecker {
                 };
                 Ok(typed_ast::Expression { typ, kind })
             }
-            Symbol::EnumOption { typ, option } => {
-                // if option.data.is_some() {
-                let kind = typed_ast::ExpressionType::EnumLiteral {
-                    choice: option,
-                    arguments: vec![],
-                };
-                Ok(typed_ast::Expression { typ, kind })
-                // } else {
-
-                //     // ?
-                //     let kind = typed_ast::ExpressionType::EnumLiteral {
-                //         choice: option,
-                //         value: None,
-                //     };
-                //     Ok(typed_ast::Expression { typ, kind })
-                // }
+            Symbol::EnumOption { enum_type, choice } => {
+                // Handle special case of enum without data here:
+                if enum_type.choices[choice].data.is_empty() {
+                    Ok(typed_ast::Expression {
+                        typ: MyType::Enum(enum_type),
+                        kind: typed_ast::ExpressionType::EnumLiteral {
+                            choice,
+                            arguments: vec![],
+                        },
+                    })
+                } else {
+                    Ok(typed_ast::Expression {
+                        typ: MyType::TypeConstructor,
+                        kind: typed_ast::ExpressionType::TypeConstructor(
+                            typed_ast::TypeConstructor::EnumOption { enum_type, choice },
+                        ),
+                    })
+                }
             }
             Symbol::Function { name, typ } => {
                 let kind = typed_ast::ExpressionType::LoadFunction(name);
@@ -930,16 +1059,13 @@ impl TypeChecker {
             }
             Symbol::Typ(typ) => {
                 // TBD: is allowing type as expression a good idea?
-                let kind = typed_ast::ExpressionType::Typ(typ);
+                let kind = typed_ast::ExpressionType::TypeConstructor(
+                    typed_ast::TypeConstructor::Any(typ),
+                );
                 Ok(typed_ast::Expression {
-                    typ: MyType::Typ,
+                    typ: MyType::TypeConstructor,
                     kind,
                 })
-                // self.error(
-                //     location.clone(),
-                //     format!("Unexpected usage of type {:?} ", typ),
-                // );
-                // Err(())
             }
         }
     }
@@ -953,78 +1079,77 @@ impl TypeChecker {
         let callee = self.check_expresion(callee)?;
         let (callee_typ, callee_kind) = (callee.typ, callee.kind);
         match callee_typ.clone() {
-            MyType::Function(FunctionType {
-                argument_types,
-                return_type,
-            }) => {
-                let typed_arguments =
-                    self.check_call_arguments(&location, argument_types, arguments)?;
-                let return_type2 = match return_type {
-                    None => MyType::Void,
-                    Some(t) => *t,
-                };
-
-                let kind = match callee_kind {
-                    typed_ast::ExpressionType::GetAttr { base, attr } => {
-                        typed_ast::ExpressionType::MethodCall {
-                            instance: base,
-                            method: attr,
-                            arguments: typed_arguments,
-                        }
-                    }
-                    other_kind => typed_ast::ExpressionType::Call {
-                        callee: Box::new(typed_ast::Expression {
-                            kind: other_kind,
-                            typ: callee_typ,
-                        }),
-                        arguments: typed_arguments,
-                    },
-                };
-
-                Ok(typed_ast::Expression {
-                    typ: return_type2,
-                    kind,
-                })
-            }
-            MyType::Typ => match callee_kind {
-                typed_ast::ExpressionType::Typ(typ) => self.check_instantiation(location, typ),
+            MyType::Function(function_type) => self.check_function_call(
+                callee_typ,
+                callee_kind,
+                location,
+                function_type,
+                arguments,
+            ),
+            MyType::TypeConstructor => match callee_kind {
+                typed_ast::ExpressionType::TypeConstructor(type_constructor) => {
+                    self.check_type_construction(location, type_constructor, arguments)
+                }
                 _other => {
                     panic!("Should not get here.");
                 }
             },
-            MyType::EnumWithData(enum_type) => match callee_kind {
-                typed_ast::ExpressionType::EnumLiteral {
-                    choice,
-                    arguments: prev_args,
-                } => {
-                    assert!(prev_args.is_empty());
-                    self.check_enum_instantiation(location, enum_type, choice, arguments)
-                }
-                _other => {
-                    panic!("Must be enum literal");
-                }
-            },
             other => {
-                self.error(
-                    location.clone(),
-                    format!("Cannot call non-function type {:?} ", other),
-                );
+                self.error(location.clone(), format!("Cannot call: {:?} ", other));
                 Err(())
             }
         }
     }
 
+    fn check_function_call(
+        &mut self,
+        callee_typ: MyType,
+        callee_kind: typed_ast::ExpressionType,
+        location: Location,
+        function_type: FunctionType,
+        arguments: Vec<ast::Expression>,
+    ) -> Result<typed_ast::Expression, ()> {
+        let typed_arguments =
+            self.check_call_arguments(&location, &function_type.argument_types, arguments)?;
+        let return_type2 = match function_type.return_type {
+            None => MyType::Void,
+            Some(t) => *t,
+        };
+
+        let kind = match callee_kind {
+            typed_ast::ExpressionType::GetAttr { base, attr } => {
+                typed_ast::ExpressionType::MethodCall {
+                    instance: base,
+                    method: attr,
+                    arguments: typed_arguments,
+                }
+            }
+            other_kind => typed_ast::ExpressionType::Call {
+                callee: Box::new(typed_ast::Expression {
+                    kind: other_kind,
+                    typ: callee_typ,
+                }),
+                arguments: typed_arguments,
+            },
+        };
+
+        Ok(typed_ast::Expression {
+            typ: return_type2,
+            kind,
+        })
+    }
+
+    /// Check number of arguments and type of each argument.
     fn check_call_arguments(
         &mut self,
         location: &Location,
-        argument_types: Vec<MyType>,
+        argument_types: &[MyType],
         arguments: Vec<ast::Expression>,
     ) -> Result<Vec<typed_ast::Expression>, ()> {
         if argument_types.len() == arguments.len() {
             let mut typed_arguments = vec![];
             for (argument, arg_typ) in arguments.into_iter().zip(argument_types.iter()) {
-                let typed_argument = self.coerce(arg_typ, argument)?;
-                typed_arguments.push(typed_argument);
+                typed_arguments.push(self.coerce(arg_typ, argument)?);
             }
             Ok(typed_arguments)
         } else {
@@ -1040,13 +1165,33 @@ impl TypeChecker {
         }
     }
 
+    /// We are calling a type constructor type, evaluate to type and/or
+    /// create instance
+    fn check_type_construction(
+        &mut self,
+        location: Location,
+        type_constructor: typed_ast::TypeConstructor,
+        arguments: Vec<ast::Expression>,
+    ) -> Result<typed_ast::Expression, ()> {
+        match type_constructor {
+            typed_ast::TypeConstructor::Any(typ) => {
+                self.check_instantiation(location, typ, arguments)
+            }
+            typed_ast::TypeConstructor::EnumOption { enum_type, choice } => {
+                self.check_enum_instantiation(location, enum_type, choice, arguments)
+            }
+        }
+    }
+
     fn check_instantiation(
         &mut self,
         location: Location,
         typ: MyType,
+        arguments: Vec<ast::Expression>,
     ) -> Result<typed_ast::Expression, ()> {
         match typ {
             MyType::Class { .. } => {
+                self.check_call_arguments(&location, &[], arguments)?;
                 // Class instantiate!
                 Ok(typed_ast::Expression {
                     typ,
@@ -1067,32 +1212,18 @@ impl TypeChecker {
         &mut self,
         location: Location,
         enum_type: EnumType,
-        choice: EnumOption,
+        enum_choice: usize,
         arguments: Vec<ast::Expression>,
     ) -> Result<typed_ast::Expression, ()> {
-        if arguments.len() == choice.data.len() {
-            let mut typed_arguments = vec![];
-            for (arg, arg_typ) in arguments.into_iter().zip(choice.data.iter()) {
-                typed_arguments.push(self.coerce(arg_typ, arg)?)
-            }
-            Ok(typed_ast::Expression {
-                typ: MyType::Enum(enum_type),
-                kind: typed_ast::ExpressionType::EnumLiteral {
-                    choice,
-                    arguments: typed_arguments,
-                },
-            })
-        } else {
-            self.error(
-                location,
-                format!(
-                    "Expected {} arguments, but got {}",
-                    choice.data.len(),
-                    arguments.len()
-                ),
-            );
-            Err(())
-        }
+        let typed_arguments =
+            self.check_call_arguments(&location, &enum_type.choices[enum_choice].data, arguments)?;
+        Ok(typed_ast::Expression {
+            typ: MyType::Enum(enum_type),
+            kind: typed_ast::ExpressionType::EnumLiteral {
+                choice: enum_choice,
+                arguments: typed_arguments,
+            },
+        })
     }
 
     fn add_import(&mut self, name: String, typ: MyType) {

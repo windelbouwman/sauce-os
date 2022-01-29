@@ -48,29 +48,55 @@ where
         writeln!(self.w, r"declare i8* @rt_str_concat(i8*, i8*) nounwind")?;
         writeln!(self.w)?;
 
-        // Types:
-        for typedef in program.struct_types {
-            let type_name = self.new_local(Some(
-                typedef
-                    .name
-                    .map(|n| format!("{}Type", n))
-                    .unwrap_or("DaType".to_owned()),
-            ));
-            let mut type_size = 0;
-            for field_type in &typedef.fields {
-                type_size += self.get_sizeof(field_type);
-            }
-            self.type_names.push((type_name.clone(), type_size));
-            let fields: Vec<String> = typedef
-                .fields
-                .iter()
-                .map(|f| self.get_llvm_typ(f))
-                .collect();
-            writeln!(self.w, r"{} = type {{ {} }}", type_name, fields.join(", "))?;
+        self.gen_types(program.types)?;
+        self.gen_imports(program.imports)?;
+
+        writeln!(self.w)?;
+        for function in program.functions {
+            self.gen_function(function)?;
         }
 
-        // Handle imports!
-        for import in program.imports {
+        for literal in &self.string_literals {
+            writeln!(self.w, "{}", literal)?;
+        }
+        writeln!(self.w)?;
+
+        Ok(())
+    }
+
+    fn gen_types(&mut self, typedefs: Vec<bytecode::TypeDef>) -> Result<(), std::io::Error> {
+        for typedef in typedefs {
+            match typedef {
+                bytecode::TypeDef::Struct(struct_def) => {
+                    let type_name = self.new_local(Some(
+                        struct_def
+                            .name
+                            .map(|n| format!("{}Type", n))
+                            .unwrap_or("DaType".to_owned()),
+                    ));
+                    let mut type_size = 0;
+                    for field_type in &struct_def.fields {
+                        type_size += self.get_sizeof(field_type);
+                    }
+                    self.type_names.push((type_name.clone(), type_size));
+                    let fields: Vec<String> = struct_def
+                        .fields
+                        .iter()
+                        .map(|f| self.get_llvm_typ(f))
+                        .collect();
+                    writeln!(self.w, r"{} = type {{ {} }}", type_name, fields.join(", "))?;
+                }
+                bytecode::TypeDef::Union(union_def) => {
+                    unimplemented!("TODO!");
+                }
+            }
+        }
+        Ok(())
+    }
+
+    // Handle imports!
+    fn gen_imports(&mut self, imports: Vec<bytecode::Import>) -> Result<(), std::io::Error> {
+        for import in imports {
             let p_text = import
                 .parameter_types
                 .iter()
@@ -91,17 +117,6 @@ where
             )?;
         }
         writeln!(self.w)?;
-
-        writeln!(self.w)?;
-        for function in program.functions {
-            self.gen_function(function)?;
-        }
-
-        for literal in &self.string_literals {
-            writeln!(self.w, "{}", literal)?;
-        }
-        writeln!(self.w)?;
-
         Ok(())
     }
 
@@ -131,7 +146,10 @@ where
             bytecode::Typ::Float => "double".to_owned(),
             bytecode::Typ::String => "i8*".to_owned(),
             bytecode::Typ::Ptr(t) => format!("{}*", self.get_llvm_typ(t)),
-            bytecode::Typ::Struct(index) => self.type_names[*index].0.clone(),
+            bytecode::Typ::Composite(index) => self.type_names[*index].0.clone(),
+            bytecode::Typ::Void => {
+                unimplemented!("TODO");
+            }
         }
     }
 
@@ -143,7 +161,10 @@ where
             bytecode::Typ::Float => 8,  // Conservative, estimate as f64
             bytecode::Typ::String => 8, // assume pointer to u8
             bytecode::Typ::Ptr(_) => 8, // assume 64 bit
-            bytecode::Typ::Struct(index) => self.type_names[*index].1,
+            bytecode::Typ::Composite(index) => self.type_names[*index].1,
+            bytecode::Typ::Void => {
+                unimplemented!("TODO");
+            }
         }
     }
 
@@ -339,6 +360,9 @@ where
                 self.push(typ.clone(), val.clone());
                 self.push(typ, val);
             }
+            Instruction::DropTop => {
+                self.pop();
+            }
             Instruction::Comparison { op, typ } => {
                 match typ {
                     bytecode::Typ::Int => {
@@ -456,6 +480,9 @@ where
                     "    br i1 {}, label %block{}, label %block{}",
                     condition, label, else_label
                 )?;
+            }
+            Instruction::JumpTable(_jump_table) => {
+                unimplemented!("TODO!");
             }
             Instruction::Return(amount) => match amount {
                 0 => {
