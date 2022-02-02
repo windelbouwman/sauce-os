@@ -15,6 +15,7 @@ impl AstPrinter {
     }
 
     fn print_prog(&mut self, prog: &typed_ast::Program) {
+        println!("======== TYPED AST ============>>");
         for type_def in &prog.type_defs {
             println!(
                 "{}type {} = {:?}",
@@ -253,8 +254,9 @@ impl AstPrinter {
                     }
                     typed_ast::TypeConstructor::EnumOption { enum_type, choice } => {
                         println!(
-                            "{}Type constructor (enum option): {:?}",
+                            "{}Type constructor (enum option) choice={} : {:?}",
                             self.get_indent(),
+                            choice,
                             enum_type
                         );
                     }
@@ -289,7 +291,12 @@ impl AstPrinter {
                 println!("{}self", self.get_indent());
             }
             typed_ast::ExpressionType::GetAttr { base, attr } => {
-                println!("{}get attr={}", self.get_indent(), attr);
+                println!(
+                    "{}get attr={} : {:?}",
+                    self.get_indent(),
+                    attr,
+                    expression.typ
+                );
                 self.indent();
                 self.print_expression(base);
                 self.dedent();

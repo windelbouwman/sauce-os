@@ -461,7 +461,10 @@ impl TypeChecker {
                         }
                     }
                 } else {
-                    self.error(location.clone(), format!("Module has no field: {}", member));
+                    self.error(
+                        location.clone(),
+                        format!("Module has no member: {}", member),
+                    );
                     Err(())
                 }
             }
@@ -638,7 +641,7 @@ impl TypeChecker {
                 self.enter_scope();
                 self.check_block(body);
                 self.leave_scope();
-                unimplemented!("TODO: for loop {}!", name);
+                unimplemented!("for loop {}!", name);
             }
             ast::StatementType::If {
                 condition,

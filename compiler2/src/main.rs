@@ -1,10 +1,13 @@
 mod bytecode;
 mod compilation;
+mod desugar;
 mod errors;
 mod ir_gen;
 mod llvm_backend;
 mod parsing;
 mod semantics;
+mod simple_ast;
+mod simple_ast_printer;
 mod vm;
 
 use compilation::CompileOptions;

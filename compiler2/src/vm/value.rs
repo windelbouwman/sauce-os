@@ -17,7 +17,8 @@ pub enum Value {
     /// A structured type is a vector of values!
     Struct(Arc<Struct>),
 
-    Enum(i64, Box<Value>),
+    Union(Arc<Union>),
+    // Enum(i64, Box<Value>),
 }
 
 #[derive(Debug, Default)]
@@ -39,6 +40,29 @@ impl Struct {
 
     pub fn set_field(&self, index: usize, value: Value) {
         self.fields.lock().unwrap()[index] = value;
+    }
+}
+
+#[derive(Debug)]
+pub struct Union {
+    value: Mutex<Value>,
+}
+
+impl Union {
+    pub fn new(_typ: &bytecode::UnionDef) -> Self {
+        Self {
+            value: Mutex::new(Value::Uninitialized),
+        }
+    }
+
+    pub fn get_field(&self, _index: usize) -> Value {
+        // TODO: use index?
+        self.value.lock().unwrap().clone()
+    }
+
+    pub fn set_field(&self, _index: usize, value: Value) {
+        // TBD: use index?
+        *self.value.lock().unwrap() = value;
     }
 }
 

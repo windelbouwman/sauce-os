@@ -5,7 +5,7 @@
 //! This intermediate form has most language
 //! constructs, and types attached.
 
-use super::type_system::{ClassTypeRef, EnumOption, EnumType, MyType};
+use super::type_system::{ClassTypeRef, EnumType, MyType};
 use crate::parsing::ast;
 
 pub struct Program {
@@ -129,7 +129,7 @@ pub enum MatchPattern {
         arguments: Vec<MatchPattern>,
     },
     WildCard(String),
-    Constant(Literal),
+    // Constant(Literal),
 }
 
 pub struct Expression {

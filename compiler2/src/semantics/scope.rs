@@ -1,6 +1,6 @@
 //! Symbol table related code.
 
-use super::type_system::{EnumOption, EnumType, FunctionType, MyType, StructField, StructType};
+use super::type_system::{EnumType, FunctionType, MyType};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -79,15 +79,15 @@ impl Scope {
         self.define(name.to_owned(), Symbol::Typ(typ));
     }
 
-    pub fn define_struct(&mut self, name: String, fields: Vec<StructField>) {
-        self.define(
-            name.clone(),
-            Symbol::Typ(MyType::Struct(StructType {
-                name: Some(name),
-                fields,
-            })),
-        );
-    }
+    // pub fn define_struct(&mut self, name: String, fields: Vec<StructField>) {
+    //     self.define(
+    //         name.clone(),
+    //         Symbol::Typ(MyType::Struct(StructType {
+    //             name: Some(name),
+    //             fields,
+    //         })),
+    //     );
+    // }
 
     pub fn is_defined(&self, name: &str) -> bool {
         self.symbols.contains_key(name)

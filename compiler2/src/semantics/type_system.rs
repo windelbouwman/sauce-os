@@ -25,6 +25,9 @@ pub enum MyType {
     /// A custom defined struct type!
     Struct(StructType),
 
+    /// A union type, same as the C-union type.
+    Union(UnionType),
+
     Enum(EnumType),
 
     Class(ClassTypeRef),
@@ -35,12 +38,33 @@ pub enum MyType {
 }
 
 impl MyType {
-    pub fn as_enum(self) -> EnumType {
+    pub fn into_enum(self) -> EnumType {
         if let MyType::Enum(enum_type) = self {
             enum_type
         } else {
             panic!("Expected enum type!");
         }
+    }
+
+    /// Narrow the type to struct type.
+    pub fn into_struct(self) -> StructType {
+        if let MyType::Struct(struct_type) = self {
+            struct_type
+        } else {
+            panic!("Expected struct type!");
+        }
+    }
+
+    pub fn into_class(self) -> Arc<ClassType> {
+        if let MyType::Class(class_ref) = self {
+            class_ref.inner
+        } else {
+            panic!("Expected class type!");
+        }
+    }
+
+    pub fn is_void(&self) -> bool {
+        matches!(self, MyType::Void)
     }
 }
 
@@ -170,6 +194,12 @@ impl StructType {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnionType {
+    pub name: String,
+    pub fields: Vec<MyType>,
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct EnumType {
     pub name: String,
@@ -184,6 +214,33 @@ impl EnumType {
             }
         }
         None
+    }
+
+    pub fn get_data_union_type(&self) -> MyType {
+        let fields: Vec<MyType> = self
+            .choices
+            .iter()
+            .map(|choice| choice.get_payload_type())
+            .collect();
+        MyType::Union(UnionType {
+            name: format!("{}_data", self.name),
+            fields,
+        })
+    }
+
+    pub fn get_struct_type(&self) -> MyType {
+        let union_typ = self.get_data_union_type();
+        let fields: Vec<StructField> = vec![
+            StructField {
+                name: "tag".to_owned(),
+                typ: MyType::Int,
+            },
+            StructField {
+                name: "payload".to_owned(),
+                typ: union_typ,
+            },
+        ];
+        MyType::Struct(StructType { name: None, fields })
     }
 }
 

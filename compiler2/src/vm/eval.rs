@@ -1,4 +1,4 @@
-use super::value::Struct;
+use super::value::{Struct, Union};
 use super::Vm;
 use super::{Frame, Value};
 use crate::bytecode;
@@ -34,8 +34,7 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
                         frame.push(Value::Struct(Arc::new(Struct::new(struct_def))));
                     }
                     bytecode::TypeDef::Union(union_def) => {
-                        // frame.push(Value::Struct(Arc::new(Struct::new(typ))));
-                        unimplemented!("TODO");
+                        frame.push(Value::Union(Arc::new(Union::new(union_def))));
                     }
                 }
             }
@@ -144,6 +143,9 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
                 Value::Struct(s) => {
                     frame.push(s.get_field(index));
                 }
+                Value::Union(union_value) => {
+                    frame.push(union_value.get_field(index));
+                }
                 other => {
                     panic!("Cannot get attr of non-struct: {:?}", other);
                 }
@@ -155,6 +157,9 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
             match base {
                 Value::Struct(s) => {
                     s.set_field(index, value);
+                }
+                Value::Union(union_value) => {
+                    union_value.set_field(index, value);
                 }
                 other => {
                     panic!("Cannot set attr of non-struct: {:?}", other);

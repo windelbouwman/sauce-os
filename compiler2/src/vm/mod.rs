@@ -37,8 +37,10 @@ fn invoke(vm: &Vm, callee: Value, parameters: Vec<Value>) -> Option<Value> {
         }
         Value::External(name) => match name.as_str() {
             "std_print" => runtime::std_print(parameters),
+            "std_int_to_str" => runtime::std_int_to_str(parameters),
+            "std_float_to_str" => runtime::std_float_to_str(parameters),
             other => {
-                panic!("ARG!{}", other);
+                panic!("Unknown external function: {}", other);
             }
         },
         other => {

@@ -87,7 +87,15 @@ where
                     writeln!(self.w, r"{} = type {{ {} }}", type_name, fields.join(", "))?;
                 }
                 bytecode::TypeDef::Union(union_def) => {
-                    unimplemented!("TODO!");
+                    // unimplemented!("TODO!");
+                    // Heave not working work in progress.
+                    let type_name = self.new_local(Some(format!("{}Type", union_def.name)));
+                    let type_size = 1334;
+                    self.type_names.push((type_name.clone(), type_size));
+
+                    for _subtype in union_def.choices {
+                        writeln!(self.w, r"{} = type {{ {} }}", type_name, "??")?;
+                    }
                 }
             }
         }
@@ -209,19 +217,7 @@ where
         }
 
         // Determine jump targets:
-        self.label_map.clear();
-        for instruction in &func.code {
-            match instruction {
-                bytecode::Instruction::Jump(label) => {
-                    self.get_label(*label);
-                }
-                bytecode::Instruction::JumpIf(label1, label2) => {
-                    self.get_label(*label1);
-                    self.get_label(*label2);
-                }
-                _other => {}
-            }
-        }
+        self.determine_jump_targets(&func.code);
 
         for (index, instruction) in func.code.into_iter().enumerate() {
             if let Some(label_name) = self.label_map.get(&index) {
@@ -236,6 +232,27 @@ where
         Ok(())
     }
 
+    fn determine_jump_targets(&mut self, code: &[bytecode::Instruction]) {
+        self.label_map.clear();
+        for instruction in code {
+            match instruction {
+                bytecode::Instruction::Jump(label) => {
+                    self.get_label(*label);
+                }
+                bytecode::Instruction::JumpIf(label1, label2) => {
+                    self.get_label(*label1);
+                    self.get_label(*label2);
+                }
+                bytecode::Instruction::JumpTable(targets) => {
+                    for label in targets {
+                        self.get_label(*label);
+                    }
+                }
+                _other => {}
+            }
+        }
+    }
+
     fn get_label(&mut self, label: usize) -> String {
         if self.label_map.contains_key(&label) {
             self.label_map
@@ -247,6 +264,10 @@ where
             self.label_map.insert(label, new_label.clone());
             new_label
         }
+    }
+
+    fn get_label_ref(&self, label: usize) -> String {
+        format!("label %{}", self.label_map.get(&label).unwrap())
     }
 
     fn gen_instruction(
@@ -471,18 +492,41 @@ where
                 self.push(typ, new_var);
             }
             Instruction::Jump(label) => {
-                writeln!(self.w, "    br label %block{}", label)?;
+                let label = self.get_label_ref(label);
+                writeln!(self.w, "    br {}", label)?;
             }
             Instruction::JumpIf(label, else_label) => {
                 let condition = self.pop_untyped();
+                let label = self.get_label_ref(label);
+                let else_label = self.get_label_ref(else_label);
+                writeln!(self.w, "    br i1 {}, {}, {}", condition, label, else_label)?;
+            }
+            Instruction::JumpTable(jump_table) => {
+                // TODO: when using jump table with a value on the stack,
+                // the stack must be saved somehow...
+
+                // Integer to choose lives on stack now.
+                let (typ, value) = self.pop();
+
+                // Ugh, ugly assumption here!
+                // TODO: implement proper panic handling.
+                let default_dest: usize = jump_table[0];
+
+                assert!(!jump_table.is_empty());
+                let options: Vec<String> = jump_table
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, label)| format!("i32 {}, {}", index, self.get_label_ref(label)))
+                    .collect();
+
                 writeln!(
                     self.w,
-                    "    br i1 {}, label %block{}, label %block{}",
-                    condition, label, else_label
+                    "    switch {} {}, label %block{} [ {} ]",
+                    typ,
+                    value,
+                    default_dest,
+                    options.join(" ")
                 )?;
-            }
-            Instruction::JumpTable(_jump_table) => {
-                unimplemented!("TODO!");
             }
             Instruction::Return(amount) => match amount {
                 0 => {

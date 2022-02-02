@@ -1,11 +1,11 @@
 use crate::bytecode;
 use crate::errors::{print_error, CompilationError};
-use crate::ir_gen;
 use crate::llvm_backend;
 use crate::parsing::{ast, parse_src};
 use crate::semantics::type_system::MyType;
 use crate::semantics::{print_ast, type_check, typed_ast};
 use crate::semantics::{Scope, Symbol};
+use crate::{desugar, ir_gen, simple_ast_printer};
 
 pub struct CompileOptions {
     pub dump_src: bool,
@@ -21,6 +21,8 @@ fn load_std_module(scope: &mut Scope) {
     std_scope.define_func("putc", vec![MyType::String], None);
     std_scope.define_func("print", vec![MyType::String], None);
     std_scope.define_func("read_file", vec![MyType::String], Some(MyType::String));
+    std_scope.define_func("int_to_str", vec![MyType::Int], Some(MyType::String));
+    std_scope.define_func("float_to_str", vec![MyType::Float], Some(MyType::String));
     let name = "std".to_owned();
     scope.define(
         name.clone(),
@@ -73,6 +75,7 @@ fn parse_one(
     Ok(prog)
 }
 
+/// Parse and type-check source file.
 fn stage1(
     path: &std::path::Path,
     options: &CompileOptions,
@@ -89,6 +92,21 @@ fn stage1(
     Ok(typed_prog)
 }
 
+/// Compile typed AST into bytecode.
+fn stage2(typed_prog: typed_ast::Program, options: &CompileOptions) -> bytecode::Program {
+    let simple_prog = desugar::desugar(typed_prog);
+    if options.dump_ast {
+        simple_ast_printer::print_ast(&simple_prog);
+    }
+
+    let bc = ir_gen::gen(simple_prog);
+    if options.dump_bc {
+        log::debug!("Dumping bytecode below");
+        bytecode::print_bytecode(&bc);
+    }
+    bc
+}
+
 pub fn compile_to_bytecode(
     path: &std::path::Path,
     options: &CompileOptions,
@@ -97,12 +115,7 @@ pub fn compile_to_bytecode(
     load_std_module(&mut module_scope);
 
     let typed_prog = stage1(path, options, &module_scope)?;
-
-    let bc = ir_gen::gen(typed_prog);
-    if options.dump_bc {
-        log::debug!("Dumping bytecode below");
-        bytecode::print_bytecode(&bc);
-    }
+    let bc = stage2(typed_prog, options);
 
     Ok(bc)
 }
@@ -180,12 +193,7 @@ pub fn build_multi(paths: &[&std::path::Path], options: &CompileOptions) {
                             let modname: String =
                                 path.file_stem().unwrap().to_str().unwrap().to_owned();
                             add_to_pool(modname, &typed_prog, &mut module_scope);
-
-                            let bc = ir_gen::gen(typed_prog);
-                            if options.dump_bc {
-                                log::debug!("Dumpin bytecode below");
-                                bytecode::print_bytecode(&bc);
-                            }
+                            let _bc = stage2(typed_prog, options);
 
                             // TODO: store for later usage? What now?
                         }
