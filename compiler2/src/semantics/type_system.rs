@@ -22,6 +22,9 @@ pub enum MyType {
 
     TypeVar(String),
 
+    /// Array type, a flat container type of fixed size.
+    Array(ArrayType),
+
     /// A custom defined struct type!
     Struct(StructType),
 
@@ -198,6 +201,12 @@ impl StructType {
 pub struct UnionType {
     pub name: String,
     pub fields: Vec<MyType>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayType {
+    pub element_type: Box<MyType>,
+    pub size: usize,
 }
 
 #[derive(Clone, PartialEq, Eq)]

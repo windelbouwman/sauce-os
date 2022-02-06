@@ -38,6 +38,17 @@ pub enum Symbol {
     },
 }
 
+impl Symbol {
+    pub fn into_type(self) -> MyType {
+        match self {
+            Symbol::Typ(t) => t,
+            other => {
+                panic!("Expected type, but got {:?}", other);
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Scope {
     symbols: HashMap<String, Symbol>,

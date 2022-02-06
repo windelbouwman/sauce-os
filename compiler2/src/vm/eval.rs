@@ -1,4 +1,4 @@
-use super::value::{Struct, Union};
+use super::value::{ArrayValue, Struct, Union};
 use super::Vm;
 use super::{Frame, Value};
 use crate::bytecode;
@@ -35,6 +35,12 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
                     }
                     bytecode::TypeDef::Union(union_def) => {
                         frame.push(Value::Union(Arc::new(Union::new(union_def))));
+                    }
+                    bytecode::TypeDef::Array {
+                        size,
+                        element_type: _,
+                    } => {
+                        frame.push(Value::Array(Arc::new(ArrayValue::new(*size as i64))));
                     }
                 }
             }
@@ -165,6 +171,18 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
                     panic!("Cannot set attr of non-struct: {:?}", other);
                 }
             }
+        }
+        Instruction::GetElement => {
+            let index = frame.pop().as_int();
+            let array_value = frame.pop().into_array();
+            let value = array_value.get_element(index as usize);
+            frame.push(value);
+        }
+        Instruction::SetElement => {
+            let value = frame.pop();
+            let index = frame.pop().as_int();
+            let array_value = frame.pop().into_array();
+            array_value.set_element(index as usize, value);
         }
         Instruction::Call { n_args, typ } => {
             let mut args: Vec<Value> = vec![];

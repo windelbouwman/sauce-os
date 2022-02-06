@@ -12,6 +12,7 @@ pub enum Token {
     KeywordCase,
     KeywordClass,
     KeywordContinue,
+    KeywordDefault,
     KeywordElse,
     KeywordEnum,
     KeywordFalse,
@@ -29,6 +30,7 @@ pub enum Token {
     KeywordPub,
     KeywordReturn,
     KeywordStruct,
+    KeywordSwitch,
     KeywordTrue,
     KeywordVar,
     KeywordWhile,
@@ -48,10 +50,17 @@ pub enum Token {
     Minus,
     Asterix,
     Slash,
+    ShiftRight,
+    ShiftLeft,
+    Pipe,
+    Hat,
+    Ampersand,
     OpeningParenthesis,
     ClosingParenthesis,
     OpeningBrace,
     ClosingBrace,
+    OpeningBracket,
+    ClosingBracket,
 }
 
 #[derive(Clone, Debug, Default)]

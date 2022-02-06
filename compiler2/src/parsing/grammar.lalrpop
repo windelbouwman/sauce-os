@@ -5,11 +5,13 @@ use super::token::{Token, Location};
 grammar;
 
 pub Program: ast::Program = {
+    <docstring:(String Newline)?>
     <imports:Import*>
     <typedefs:TypeDef*>
     <functions:FunctionDef*>
     => {
-        ast::Program { name: None, imports, typedefs, functions }
+        let docstring = docstring.map(|d| d.0);
+        ast::Program { docstring, name: None, imports, typedefs, functions }
     }
 };
 
@@ -161,13 +163,15 @@ Statement: ast::Statement = {
             }
         }
     },
-    <location:@L> "let" <mutable:"mut"?> <name:Identifier> (":" Type)? "=" <value:BlockExpression> => {
+    <location:@L> "let" <mutable:"mut"?> <name:Identifier> <type_hint:(":" Type)?> "=" <value:BlockExpression> => {
         let mutable: bool = mutable.is_some();
+        let type_hint = type_hint.map(|h| h.1);
         ast::Statement {
             location,
             kind: ast::StatementType::Let {
                 name,
                 mutable,
+                type_hint,
                 value,
             }
         }
@@ -189,6 +193,20 @@ Statement: ast::Statement = {
             kind: ast::StatementType::Case {
                 value,
                 arms,
+            }
+        }
+    },
+    <location:@L> "switch" <value:Expression> ":" Newline
+    Indent
+    <arms:SwitchArm+>
+    "else" ":" Newline <default:Block>
+    Dedent => {
+        ast::Statement {
+            location,
+            kind: ast::StatementType::Switch {
+                value,
+                arms,
+                default,
             }
         }
     },
@@ -282,6 +300,16 @@ CaseArm: ast::CaseArm = {
     }
 };
 
+SwitchArm: ast::SwitchArm = {
+    <location:@L> <value:Expression> ":" Newline <body:Block> => {
+        ast::SwitchArm {
+            location,
+            value,
+            body,
+        }
+    }
+};
+
 Block: ast::Block = {
     Indent <statements:Statement+> Dedent => statements
 };
@@ -356,7 +384,68 @@ Expression: ast::Expression = {
 };
 
 ArithmaticExpression: ast::Expression = {
-    <lhs:ArithmaticExpression> <location:@L> <op:AddOp> <rhs:Term> => {
+    BitwiseOr
+};
+
+BitwiseOr: ast::Expression = {
+    <lhs:BitwiseOr> <location:@L> "|" <rhs:BitwiseXor> => {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        let op = ast::BinaryOperator::Bit(ast::BitOperator::Or);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+        }
+    },
+    BitwiseXor
+};
+
+BitwiseXor: ast::Expression = {
+    <lhs:BitwiseXor> <location:@L> "^" <rhs:BitwiseAnd> => {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        let op = ast::BinaryOperator::Bit(ast::BitOperator::Xor);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+        }
+    },
+    BitwiseAnd
+};
+
+BitwiseAnd: ast::Expression = {
+    <lhs:BitwiseAnd> <location:@L> "&" <rhs:ShiftExpression> => {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        let op = ast::BinaryOperator::Bit(ast::BitOperator::And);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+        }
+    },
+    ShiftExpression
+};
+
+ShiftExpression: ast::Expression = {
+    <lhs:ShiftExpression> <location:@L> <op:ShiftOp> <rhs:Sum> => {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        let op = ast::BinaryOperator::Bit(op);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+        }
+    },
+    Sum,
+};
+
+ShiftOp: ast::BitOperator = {
+    "<<" => ast::BitOperator::ShiftLeft,
+    ">>" => ast::BitOperator::ShiftRight,
+};
+
+Sum: ast::Expression = {
+    <lhs:Sum> <location:@L> <op:AddOp> <rhs:Term> => {
         let lhs = Box::new(lhs);
         let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Math(op);
@@ -403,6 +492,16 @@ Atom2: ast::Expression = {
             }
         }
     },
+    <location:@L> <base:Atom2> "[" <indici:Comma<Expression>> "]" => {
+        let base = Box::new(base);
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::ArrayIndex {
+                base,
+                indici
+            }
+        }
+    },
     <base:Atom2> <location:@L> "." <attr:Identifier> => {
         ast::Expression {
             location,
@@ -425,6 +524,12 @@ Atom: ast::Expression = {
         ast::Expression {
             location,
             kind: ast::ExpressionType::Bool(false)
+        }
+    },
+    <location:@L> "[" <values:Comma<Expression>> "]" => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::ListLiteral(values),
         }
     },
     <location:@L> <s:String> => {
@@ -547,6 +652,7 @@ extern {
         "case" => Token::KeywordCase,
         "class" => Token::KeywordClass,
         "continue" => Token::KeywordContinue,
+        "default" => Token::KeywordDefault,
         "else" => Token::KeywordElse,
         "enum" => Token::KeywordEnum,
         "false" => Token::KeywordFalse,
@@ -564,6 +670,7 @@ extern {
         "pub" => Token::KeywordPub,
         "return" => Token::KeywordReturn,
         "struct" => Token::KeywordStruct,
+        "switch" => Token::KeywordSwitch,
         "true" => Token::KeywordTrue,
         "var" => Token::KeywordVar,
         "while" => Token::KeywordWhile,
@@ -571,6 +678,8 @@ extern {
         ")" => Token::ClosingParenthesis,
         "{" => Token::OpeningBrace,
         "}" => Token::ClosingBrace,
+        "[" => Token::OpeningBracket,
+        "]" => Token::ClosingBracket,
         ":" => Token::Colon,
         "::" => Token::DoubleColon,
         "," => Token::Comma,
@@ -587,5 +696,10 @@ extern {
         "/" => Token::Slash,
         "+" => Token::Plus,
         "-" => Token::Minus,
+        "<<" => Token::ShiftLeft,
+        ">>" => Token::ShiftRight,
+        "|" => Token::Pipe,
+        "&" => Token::Ampersand,
+        "^" => Token::Hat,
     }
 }

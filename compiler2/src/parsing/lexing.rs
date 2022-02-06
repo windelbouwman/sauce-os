@@ -13,7 +13,7 @@ fn handle_escapings(txt: String) -> String {
     txt.replace(r"\n", "\n")
 }
 
-#[derive(Logos)]
+#[derive(Logos, Debug)]
 enum LogosToken {
     #[regex("[a-zA-Z][a-zA-Z0-9_]*", |x| x.slice().to_string())]
     Identifier(String),
@@ -21,12 +21,20 @@ enum LogosToken {
     #[regex("[0-9]+", |x| x.slice().to_string())]
     Number(String),
 
+    #[regex("0x[0-9a-fA-F_]+", |x| x.slice().to_string())]
+    HexNumber(String),
+
+    #[regex("0b[0-1_]+", |x| x.slice().to_string())]
+    BinNumber(String),
+
     #[regex(r"[0-9]+\.[0-9]+", |x| x.slice().to_string())]
     FloatingPoint(String),
 
     #[regex(r#""[^"]*""#, |x| strip_quotes(x.slice()))]
     String(String),
 
+    //    #[regex(r#"""".*""""#, |x| strip_quotes(x.slice()))]
+    //TripleString(String),
     #[regex(r#"'[^']*'"#, |x| strip_quotes(x.slice()))]
     Character(String),
 
@@ -53,6 +61,21 @@ enum LogosToken {
 
     #[token("/")]
     Slash,
+
+    #[token("|")]
+    Pipe,
+
+    #[token("^")]
+    Hat,
+
+    #[token("&")]
+    Ampersand,
+
+    #[token(">>")]
+    ShiftRight,
+
+    #[token("<<")]
+    ShiftLeft,
 
     #[token("<")]
     Less,
@@ -89,6 +112,12 @@ enum LogosToken {
 
     #[token(r"}")]
     ClosingBrace,
+
+    #[token(r"[")]
+    OpeningBracket,
+
+    #[token(r"]")]
+    ClosingBracket,
 
     #[token("\n")]
     NewLine,
@@ -214,6 +243,7 @@ impl<'t> Lexer<'t> {
     }
 
     fn process2(&mut self, tok: LogosToken) -> Result<(), LexicalError> {
+        // println!("TOK: {:?}", tok);
         match tok {
             LogosToken::Identifier(name) => match name.as_str() {
                 "and" => self.emit(Token::KeywordAnd),
@@ -221,6 +251,7 @@ impl<'t> Lexer<'t> {
                 "case" => self.emit(Token::KeywordCase),
                 "class" => self.emit(Token::KeywordClass),
                 "continue" => self.emit(Token::KeywordContinue),
+                "default" => self.emit(Token::KeywordDefault),
                 "else" => self.emit(Token::KeywordElse),
                 "enum" => self.emit(Token::KeywordEnum),
                 "false" => self.emit(Token::KeywordFalse),
@@ -238,6 +269,7 @@ impl<'t> Lexer<'t> {
                 "pub" => self.emit(Token::KeywordPub),
                 "return" => self.emit(Token::KeywordReturn),
                 "struct" => self.emit(Token::KeywordStruct),
+                "switch" => self.emit(Token::KeywordSwitch),
                 "true" => self.emit(Token::KeywordTrue),
                 "var" => self.emit(Token::KeywordVar),
                 "while" => self.emit(Token::KeywordWhile),
@@ -252,14 +284,38 @@ impl<'t> Lexer<'t> {
                 let value: i64 = i64::from_str(&value).unwrap();
                 self.emit(Token::Number { value });
             }
+            LogosToken::HexNumber(value) => {
+                let value = value
+                    .strip_prefix("0x")
+                    .expect("Has 0x prefix")
+                    .replace("_", "");
+                let value: i64 = i64::from_str_radix(&value, 16).unwrap();
+                self.emit(Token::Number { value });
+            }
+            LogosToken::BinNumber(value) => {
+                let value = value
+                    .strip_prefix("0b")
+                    .expect("Has 0b prefix")
+                    .replace("_", "");
+                let value: i64 = i64::from_str_radix(&value, 2).unwrap();
+                self.emit(Token::Number { value });
+            }
             LogosToken::FloatingPoint(value) => {
                 use std::str::FromStr;
                 let value: f64 = f64::from_str(&value).unwrap();
                 self.emit(Token::FloatingPoint { value });
             }
             LogosToken::String(value) => {
+                // TBD: how to deal with multiline strings?
+                // let lines: Vec<_> = value.lines().collect();
+                // self.row += lines.len();
                 self.emit(Token::String { value });
             }
+            // LogosToken::TripleString(value) => {
+            //     let lines: Vec<_> = value.lines().collect();
+            //     self.row += lines.len();
+            //     self.emit(Token::String { value });
+            // }
             LogosToken::Character(value) => {
                 // TODO: should we use special type for chars?
                 let value = handle_escapings(value);
@@ -291,6 +347,21 @@ impl<'t> Lexer<'t> {
             }
             LogosToken::Slash => {
                 self.emit(Token::Slash);
+            }
+            LogosToken::ShiftRight => {
+                self.emit(Token::ShiftRight);
+            }
+            LogosToken::ShiftLeft => {
+                self.emit(Token::ShiftLeft);
+            }
+            LogosToken::Ampersand => {
+                self.emit(Token::Ampersand);
+            }
+            LogosToken::Hat => {
+                self.emit(Token::Hat);
+            }
+            LogosToken::Pipe => {
+                self.emit(Token::Pipe);
             }
             LogosToken::Less => {
                 self.emit(Token::Less);
@@ -324,6 +395,12 @@ impl<'t> Lexer<'t> {
             }
             LogosToken::ClosingBrace => {
                 self.emit(Token::ClosingBrace);
+            }
+            LogosToken::OpeningBracket => {
+                self.emit(Token::OpeningBracket);
+            }
+            LogosToken::ClosingBracket => {
+                self.emit(Token::ClosingBracket);
             }
             LogosToken::NewLine => self.newline(),
             LogosToken::Comment(value) => {

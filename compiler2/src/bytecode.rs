@@ -28,7 +28,7 @@ pub struct Import {
 pub enum TypeDef {
     Struct(StructDef),
     Union(UnionDef),
-    // Array???
+    Array { size: usize, element_type: Typ },
 }
 
 #[derive(Clone, Serialize, PartialEq, Eq, Hash)]
@@ -136,6 +136,12 @@ pub enum Instruction {
     SetAttr {
         index: usize,
     },
+
+    /// Get element from an array
+    GetElement,
+
+    /// Set element in an array
+    SetElement,
 }
 
 impl Instruction {
@@ -183,6 +189,7 @@ pub enum Comparison {
 }
 
 pub fn print_bytecode(bc: &Program) {
+    println!("=========== BYTECODE ==============>>");
     println!("Types:");
     for (index, typedef) in bc.types.iter().enumerate() {
         match typedef {
@@ -198,6 +205,12 @@ pub fn print_bytecode(bc: &Program) {
                 println!(
                     "  {}: union name={} types={:?}",
                     index, union_type.name, &union_type.choices
+                );
+            }
+            TypeDef::Array { size, element_type } => {
+                println!(
+                    "  {}: array size={} element_type={:?}",
+                    index, size, element_type
                 );
             }
         }

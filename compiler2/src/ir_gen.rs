@@ -7,7 +7,7 @@ use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
 use super::semantics::type_system::{
-    EnumOption, EnumType, FunctionType, MyType, StructType, UnionType,
+    ArrayType, EnumOption, EnumType, FunctionType, MyType, StructType, UnionType,
 };
 use super::semantics::typed_ast;
 use super::simple_ast;
@@ -208,16 +208,6 @@ impl Generator {
 
     fn gen_statement(&mut self, statement: simple_ast::Statement) {
         match statement {
-            simple_ast::Statement::Let {
-                name: _,
-                index,
-                value,
-            } => {
-                // let typ = Self::get_bytecode_typ(&value.typ);
-                self.gen_expression(value);
-                // store value in local variable:
-                self.emit(Instruction::StoreLocal { index });
-            }
             simple_ast::Statement::SetAttr {
                 base,
                 base_typ,
@@ -246,8 +236,12 @@ impl Generator {
                 self.jump(target_label);
             }
             simple_ast::Statement::Pass => {}
+            simple_ast::Statement::Compound(block) => self.gen_block(block),
             simple_ast::Statement::Return { value } => self.gen_return_statement(value),
             simple_ast::Statement::Case(case_statement) => self.gen_case_statement(case_statement),
+            simple_ast::Statement::Switch(switch_statement) => {
+                self.gen_switch(switch_statement);
+            }
             simple_ast::Statement::If(if_statement) => self.gen_if_statement(if_statement),
             simple_ast::Statement::Loop { body } => self.gen_loop(body),
             simple_ast::Statement::While(while_statement) => {
@@ -311,6 +305,11 @@ impl Generator {
             self.jump(final_label.clone());
         }
         self.set_label(final_label);
+    }
+
+    fn gen_switch(&mut self, _switch_statement: simple_ast::SwitchStatement) {
+        unimplemented!();
+        // self.jump_table(targets);
     }
 
     fn gen_unpack_enum_into_locals(
@@ -501,6 +500,16 @@ impl Generator {
         self.inject_type(union_typ)
     }
 
+    fn get_array_index(&mut self, array_type: &ArrayType) -> usize {
+        let element_type = self.get_bytecode_typ(&array_type.element_type);
+        let array_typ = bytecode::TypeDef::Array {
+            size: array_type.size,
+            element_type,
+        };
+
+        self.inject_type(array_typ)
+    }
+
     fn get_bytecode_typ(&mut self, ty: &MyType) -> bytecode::Typ {
         match ty {
             MyType::Bool => bytecode::Typ::Bool,
@@ -512,6 +521,9 @@ impl Generator {
             ))),
             MyType::Union(union_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
                 self.get_union_index(union_type),
+            ))),
+            MyType::Array(array_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
+                self.get_array_index(array_type),
             ))),
             MyType::Enum(enum_type) => self.get_bytecode_typ(&enum_type.get_struct_type()),
             MyType::Class(_) => {
@@ -549,6 +561,41 @@ impl Generator {
         }
     }
 
+    fn gen_union_literal(&mut self, typ: MyType, index: usize, value: simple_ast::Expression) {
+        let typ = self.get_bytecode_typ(&typ);
+        if let bytecode::Typ::Ptr(union_typ) = typ {
+            self.emit(Instruction::Malloc(*union_typ));
+        } else {
+            panic!("Assumed union literal is pointer to thing.");
+        }
+        match value {
+            simple_ast::Expression::VoidLiteral => {}
+            other => {
+                self.emit(Instruction::Duplicate);
+                self.gen_expression(other);
+                self.emit(Instruction::SetAttr { index });
+            }
+        }
+    }
+
+    /// Generate code for an array literal value
+    fn gen_array_literal(&mut self, typ: MyType, values: Vec<simple_ast::Expression>) {
+        // unimplemented!();
+        let typ = self.get_bytecode_typ(&typ);
+        if let bytecode::Typ::Ptr(array_typ) = typ {
+            self.emit(Instruction::Malloc(*array_typ));
+        } else {
+            panic!("Assumed array literal is pointer to thing.");
+        }
+
+        for (index, value) in values.into_iter().enumerate() {
+            self.emit(Instruction::Duplicate);
+            self.emit(Instruction::IntLiteral(index as i64));
+            self.gen_expression(value);
+            self.emit(Instruction::SetElement);
+        }
+    }
+
     fn gen_expression(&mut self, expression: simple_ast::Expression) {
         match expression {
             simple_ast::Expression::Literal(literal) => self.gen_literal(literal),
@@ -557,23 +604,13 @@ impl Generator {
                 self.gen_tuple_literal(typ, values);
             }
             simple_ast::Expression::UnionLiteral { typ, index, value } => {
-                let typ = self.get_bytecode_typ(&typ);
-                if let bytecode::Typ::Ptr(union_typ) = typ {
-                    self.emit(Instruction::Malloc(*union_typ));
-                } else {
-                    panic!("Assumed union literal is pointer to thing.");
-                }
-                match *value {
-                    simple_ast::Expression::VoidLiteral => {}
-                    other => {
-                        self.emit(Instruction::Duplicate);
-                        self.gen_expression(other);
-                        self.emit(Instruction::SetAttr { index });
-                    }
-                }
+                self.gen_union_literal(typ, index, *value);
             }
             simple_ast::Expression::VoidLiteral => {
                 // TBD: do something?
+            }
+            simple_ast::Expression::ArrayLiteral { typ, values } => {
+                self.gen_array_literal(typ, values);
             }
             simple_ast::Expression::Binop {
                 lhs,
@@ -589,25 +626,7 @@ impl Generator {
                 arguments,
                 typ,
             } => {
-                // let return_type = function_type
-                //     .return_type
-                //     .as_ref()
-                //     .map(|t| self.get_bytecode_typ(t));
-                let return_type = if typ.is_void() {
-                    None
-                } else {
-                    Some(self.get_bytecode_typ(&typ))
-                };
-
-                self.gen_expression(*callee);
-                let n_args = arguments.len();
-                for argument in arguments {
-                    self.gen_expression(argument);
-                }
-                self.emit(Instruction::Call {
-                    n_args,
-                    typ: return_type,
-                });
+                self.gen_call(*callee, arguments, typ);
             }
             simple_ast::Expression::GetAttr {
                 base,
@@ -623,6 +642,11 @@ impl Generator {
                     panic!("base type must be struct, not {:?}", other);
                 }
             },
+            simple_ast::Expression::GetIndex { base, index } => {
+                self.gen_expression(*base);
+                self.gen_expression(*index);
+                self.emit(Instruction::GetElement);
+            }
             simple_ast::Expression::LoadFunction(name) => {
                 self.emit(Instruction::LoadGlobalName(name));
             }
@@ -635,6 +659,34 @@ impl Generator {
                 self.emit(Instruction::LoadLocal { index, typ });
             }
         }
+    }
+
+    /// Generate bytecode for a function call.
+    fn gen_call(
+        &mut self,
+        callee: simple_ast::Expression,
+        arguments: Vec<simple_ast::Expression>,
+        typ: MyType,
+    ) {
+        // let return_type = function_type
+        //     .return_type
+        //     .as_ref()
+        //     .map(|t| self.get_bytecode_typ(t));
+        let return_type = if typ.is_void() {
+            None
+        } else {
+            Some(self.get_bytecode_typ(&typ))
+        };
+
+        self.gen_expression(callee);
+        let n_args = arguments.len();
+        for argument in arguments {
+            self.gen_expression(argument);
+        }
+        self.emit(Instruction::Call {
+            n_args,
+            typ: return_type,
+        });
     }
 
     fn gen_literal(&mut self, literal: typed_ast::Literal) {
@@ -714,6 +766,9 @@ impl Generator {
                 self.emit(Instruction::BoolLiteral(false));
                 self.jump(final_label.clone());
                 self.set_label(final_label);
+            }
+            ast::BinaryOperator::Bit(_) => {
+                unimplemented!();
             }
         }
     }

@@ -39,15 +39,19 @@ impl AstPrinter {
                 parameter.typ
             );
         }
+        println!("{}locals:", self.get_indent(),);
+        self.indent();
         for (index, local) in function_def.locals.iter().enumerate() {
             println!(
-                "{}local index={} name={} : {:?}",
+                "{}index={} name={} : {:?}",
                 self.get_indent(),
                 index,
                 local.name,
                 local.typ
             );
         }
+        self.dedent();
+        println!("{}code:", self.get_indent());
         self.indent();
         self.print_block(&function_def.body);
         self.dedent();
@@ -78,6 +82,9 @@ impl AstPrinter {
                     self.print_expression(value);
                     self.dedent();
                 }
+            }
+            simple_ast::Statement::Compound(block) => {
+                self.print_block(block);
             }
             simple_ast::Statement::If(simple_ast::IfStatement {
                 condition,
@@ -124,6 +131,26 @@ impl AstPrinter {
                 }
                 self.dedent();
             }
+            simple_ast::Statement::Switch(switch_statement) => {
+                println!("{}switch-statement", self.get_indent());
+                self.indent();
+                self.print_expression(&switch_statement.value);
+                for arm in &switch_statement.arms {
+                    self.indent();
+                    // self.print_expression(&arm.value);
+                    self.indent();
+                    self.print_block(&arm.body);
+                    self.dedent();
+                    self.dedent();
+                }
+                self.indent();
+                println!("{}default:", self.get_indent());
+                self.indent();
+                self.print_block(&switch_statement.default);
+                self.dedent();
+                self.dedent();
+                self.dedent();
+            }
             simple_ast::Statement::Expression(expression) => {
                 self.print_expression(expression);
             }
@@ -142,17 +169,6 @@ impl AstPrinter {
                 println!("{}set-attr-statement index={}", self.get_indent(), index);
                 self.indent();
                 self.print_expression(base);
-                self.print_expression(value);
-                self.dedent();
-            }
-            simple_ast::Statement::Let { name, index, value } => {
-                println!(
-                    "{}let-statement name={} index={}",
-                    self.get_indent(),
-                    name,
-                    index
-                );
-                self.indent();
                 self.print_expression(value);
                 self.dedent();
             }
@@ -212,6 +228,14 @@ impl AstPrinter {
                 self.print_expression(value);
                 self.dedent();
             }
+            simple_ast::Expression::ArrayLiteral { typ, values } => {
+                println!("{}array-literal : {:?}", self.get_indent(), typ);
+                self.indent();
+                for value in values {
+                    self.print_expression(value);
+                }
+                self.dedent();
+            }
             simple_ast::Expression::LoadFunction(name) => {
                 println!("{}Load function name={}", self.get_indent(), name);
             }
@@ -239,6 +263,13 @@ impl AstPrinter {
                 );
                 self.indent();
                 self.print_expression(base);
+                self.dedent();
+            }
+            simple_ast::Expression::GetIndex { base, index } => {
+                println!("{}get-index", self.get_indent());
+                self.indent();
+                self.print_expression(base);
+                self.print_expression(index);
                 self.dedent();
             }
         }

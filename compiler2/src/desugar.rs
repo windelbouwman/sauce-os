@@ -9,6 +9,7 @@
 use super::semantics::type_system::{ClassType, MyType, StructField, StructType};
 use super::semantics::typed_ast;
 use super::simple_ast;
+use crate::parsing::ast;
 use std::sync::Arc;
 
 /// Transform a typed_ast program into a simple_ast program
@@ -19,11 +20,15 @@ pub fn desugar(program: typed_ast::Program) -> simple_ast::Program {
 
 struct Desugarino {
     functions: Vec<simple_ast::FunctionDef>,
+    local_variables: Vec<typed_ast::LocalVariable>,
 }
 
 impl Desugarino {
     fn new() -> Self {
-        Desugarino { functions: vec![] }
+        Desugarino {
+            functions: vec![],
+            local_variables: vec![],
+        }
     }
 
     fn do_program(&mut self, program: typed_ast::Program) -> simple_ast::Program {
@@ -86,6 +91,7 @@ impl Desugarino {
             MyType::String => MyType::String,
             MyType::Void => MyType::Void,
             MyType::Struct(struct_type) => MyType::Struct(struct_type),
+            MyType::Array(array_type) => MyType::Array(array_type),
             MyType::Class(class_type) => Self::struct_for_class(class_type.inner),
             MyType::Enum(enum_type) => enum_type.get_struct_type(),
             other => {
@@ -110,6 +116,15 @@ impl Desugarino {
         })
     }
 
+    fn new_local_variable(&mut self, name: String, typ: MyType) -> usize {
+        let index = self.local_variables.len();
+        self.local_variables.push(typed_ast::LocalVariable {
+            name: name.clone(),
+            typ: typ.clone(),
+        });
+        index
+    }
+
     fn lower_method(
         &mut self,
         class_name: String,
@@ -118,10 +133,9 @@ impl Desugarino {
     ) {
         log::debug!("Desugaring class-method: {}", method.name);
         let parameters = method.parameters;
-        let body = self.lower_block(method.body);
         // TODO: do name mangling?
         let name = format!("{}_{}", class_name, method.name);
-        let locals = method
+        self.local_variables = method
             .locals
             .into_iter()
             .map(|loc| typed_ast::LocalVariable {
@@ -131,11 +145,13 @@ impl Desugarino {
             .collect();
         let return_type = method.return_type;
 
+        let body = self.lower_block(method.body);
+
         let func = simple_ast::FunctionDef {
             body,
             name,
             parameters,
-            locals,
+            locals: std::mem::take(&mut self.local_variables),
             return_type,
         };
 
@@ -145,9 +161,8 @@ impl Desugarino {
     fn do_function(&mut self, function: typed_ast::FunctionDef) {
         log::debug!("Desugaring function: {}", function.name);
         let parameters = function.parameters;
-        let body = self.lower_block(function.body);
         let name = function.name;
-        let locals = function
+        self.local_variables = function
             .locals
             .into_iter()
             .map(|loc| typed_ast::LocalVariable {
@@ -155,19 +170,20 @@ impl Desugarino {
                 typ: Self::type_fold(loc.typ),
             })
             .collect();
+        let body = self.lower_block(function.body);
         let return_type = function.return_type;
         let func = simple_ast::FunctionDef {
             body,
             name,
             parameters,
-            locals,
+            locals: std::mem::take(&mut self.local_variables),
             return_type,
         };
 
         self.functions.push(func);
     }
 
-    fn lower_block(&self, block: typed_ast::Block) -> simple_ast::Block {
+    fn lower_block(&mut self, block: typed_ast::Block) -> simple_ast::Block {
         let mut statements = vec![];
         for statement in block {
             statements.push(self.lower_statement(statement));
@@ -176,19 +192,39 @@ impl Desugarino {
         statements
     }
 
-    fn lower_statement(&self, statement: typed_ast::Statement) -> simple_ast::Statement {
+    fn lower_statement(&mut self, statement: typed_ast::Statement) -> simple_ast::Statement {
         match statement {
             typed_ast::Statement::Assignment(assignment) => self.lower_assignment(assignment),
-            typed_ast::Statement::Let { name, index, value } => {
+            typed_ast::Statement::Let {
+                name: _,
+                index,
+                value,
+            } => {
                 let value = self.lower_expression(value);
-                simple_ast::Statement::Let { name, index, value }
+                simple_ast::Statement::StoreLocal { index, value }
             }
             typed_ast::Statement::Match { value: _, arms: _ } => {
                 unimplemented!("match lowering!");
             }
-            typed_ast::Statement::Case(case_statement) => {
-                // unimplemented!("Case lowering!");
-                self.lower_case_statement(case_statement)
+            typed_ast::Statement::Case(case_statement) => self.lower_case_statement(case_statement),
+            typed_ast::Statement::Switch {
+                value,
+                arms,
+                default,
+            } => {
+                let value = self.lower_expression(value);
+                let mut arms2 = vec![];
+                for arm in arms {
+                    let body = self.lower_block(arm.body);
+                    arms2.push(simple_ast::SwitchArm { body });
+                }
+                let default = self.lower_block(default);
+                simple_ast::Statement::Switch(simple_ast::SwitchStatement {
+                    value,
+                    arms: arms2,
+                    default,
+                })
+                // unimplemented!();
             }
             typed_ast::Statement::Return { value } => {
                 let value = value.map(|v| self.lower_expression(v));
@@ -220,11 +256,102 @@ impl Desugarino {
                 let body = self.lower_block(body);
                 simple_ast::Statement::Loop { body }
             }
+            typed_ast::Statement::For(for_statement) => self.lower_for_statement(for_statement),
+        }
+    }
+
+    /// Transform for-loop into a while loop.
+    fn lower_for_statement(
+        &mut self,
+        for_statement: typed_ast::ForStatement,
+    ) -> simple_ast::Statement {
+        // Check if we loop over an array:
+        match for_statement.iterable.typ.clone() {
+            MyType::Array(array_type) => {
+                let mut for_body = self.lower_block(for_statement.body);
+                let index_local_id: usize =
+                    self.new_local_variable("index".to_owned(), MyType::Int);
+                let iter_local_id: usize =
+                    self.new_local_variable("iter".to_owned(), MyType::Array(array_type.clone()));
+
+                // index = 0
+                let zero_loop_index = simple_ast::Statement::StoreLocal {
+                    index: index_local_id,
+                    value: simple_ast::Expression::Literal(typed_ast::Literal::Integer(0)),
+                };
+
+                // iter_var = iterator
+                let set_iter_var = simple_ast::Statement::StoreLocal {
+                    index: iter_local_id,
+                    value: self.lower_expression(for_statement.iterable),
+                };
+
+                // Get current element: loop_var = array[index]
+                let get_loop_var = simple_ast::Statement::StoreLocal {
+                    index: for_statement.loop_var,
+                    value: simple_ast::Expression::GetIndex {
+                        base: Box::new(simple_ast::Expression::LoadLocal {
+                            index: iter_local_id,
+                            typ: MyType::Array(array_type.clone()),
+                        }),
+                        index: Box::new(simple_ast::Expression::LoadLocal {
+                            index: index_local_id,
+                            typ: MyType::Int,
+                        }),
+                    },
+                };
+                for_body.insert(0, get_loop_var);
+
+                // Increment index variable:
+                let inc_loop_index = simple_ast::Statement::StoreLocal {
+                    index: index_local_id,
+                    value: simple_ast::Expression::Binop {
+                        lhs: Box::new(simple_ast::Expression::LoadLocal {
+                            typ: MyType::Int,
+                            index: index_local_id,
+                        }),
+                        typ: MyType::Int,
+                        op_typ: MyType::Int,
+                        op: ast::BinaryOperator::Math(ast::MathOperator::Add),
+                        rhs: Box::new(simple_ast::Expression::Literal(
+                            typed_ast::Literal::Integer(1),
+                        )),
+                    },
+                };
+                for_body.push(inc_loop_index);
+
+                // While condition:
+                let loop_condition = simple_ast::Expression::Binop {
+                    lhs: Box::new(simple_ast::Expression::LoadLocal {
+                        typ: MyType::Int,
+                        index: index_local_id,
+                    }),
+                    typ: MyType::Int,
+                    op_typ: MyType::Int,
+                    op: ast::BinaryOperator::Comparison(ast::ComparisonOperator::Lt),
+                    rhs: Box::new(simple_ast::Expression::Literal(
+                        typed_ast::Literal::Integer(array_type.size as i64),
+                    )),
+                };
+
+                // Translate for-loop into while loop:
+                let while_statement = simple_ast::Statement::While(simple_ast::WhileStatement {
+                    condition: loop_condition,
+                    body: for_body,
+                });
+
+                let new_block = vec![zero_loop_index, set_iter_var, while_statement];
+
+                simple_ast::Statement::Compound(new_block)
+            }
+            other => {
+                unimplemented!("Cannot iterate {:?}", other);
+            }
         }
     }
 
     fn lower_case_statement(
-        &self,
+        &mut self,
         case_statement: typed_ast::CaseStatement,
     ) -> simple_ast::Statement {
         // Post-pone compilation of case statement to ir-gen phase.
@@ -314,6 +441,16 @@ impl Desugarino {
         match kind {
             typed_ast::ExpressionType::Literal(literal) => simple_ast::Expression::Literal(literal),
             typed_ast::ExpressionType::StructLiteral(values) => self.struct_literal(typ, values),
+            typed_ast::ExpressionType::ListLiteral(values) => {
+                let new_values: Vec<simple_ast::Expression> = values
+                    .into_iter()
+                    .map(|v| self.lower_expression(v))
+                    .collect();
+                simple_ast::Expression::ArrayLiteral {
+                    typ,
+                    values: new_values,
+                }
+            }
             typed_ast::ExpressionType::LoadParameter { name: _, index } => {
                 simple_ast::Expression::LoadParameter { index }
             }
@@ -365,6 +502,15 @@ impl Desugarino {
                 self.lower_enum_literal(typ, choice, arguments)
             }
             typed_ast::ExpressionType::GetAttr { base, attr } => self.lower_get_attr(*base, attr),
+            typed_ast::ExpressionType::Index { base, index } => {
+                let base = self.lower_expression(*base);
+                let index = self.lower_expression(*index);
+                simple_ast::Expression::GetIndex {
+                    base: Box::new(base),
+                    index: Box::new(index),
+                }
+                // unimplemented!();
+            }
         }
     }
 

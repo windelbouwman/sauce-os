@@ -11,8 +11,8 @@ If we pass the typechecker, code is in pretty good shape!
 */
 
 use super::type_system::{
-    ClassField, ClassType, ClassTypeRef, EnumOption, EnumType, FunctionType, MyType, StructField,
-    StructType,
+    ArrayType, ClassField, ClassType, ClassTypeRef, EnumOption, EnumType, FunctionType, MyType,
+    StructField, StructType,
 };
 use super::typed_ast;
 use super::{Scope, Symbol};
@@ -57,7 +57,17 @@ impl TypeChecker {
         self.define("int", Symbol::Typ(MyType::Int), &location);
         self.define("float", Symbol::Typ(MyType::Float), &location);
         self.define("bool", Symbol::Typ(MyType::Bool), &location);
-        // self.define("list", Symbol::Typ(MyType::Float), &location);
+        let list_class_typ = ClassTypeRef::new(ClassType {
+            name: "List".to_owned(),
+            fields: vec![],
+            methods: vec![],
+        });
+
+        let list_generic_type: MyType = MyType::Generic {
+            base: Box::new(MyType::Class(list_class_typ)),
+            type_parameters: vec!["x".to_string()],
+        };
+        self.define("list", Symbol::Typ(list_generic_type), &location);
     }
 
     fn check_prog(
@@ -317,17 +327,23 @@ impl TypeChecker {
             ast::TypeKind::GenericInstantiate {
                 base_type,
                 type_parameters: actual_types,
-            } => self.instantiate_type(&typ.location, base_type, actual_types),
+            } => {
+                let base_type = self.eval_type_expr(base_type)?;
+                let mut actual_types2 = vec![];
+                for actual_type in actual_types {
+                    actual_types2.push(self.eval_type_expr(actual_type)?);
+                }
+                self.instantiate_type(&typ.location, base_type, actual_types2)
+            }
         }
     }
 
     fn instantiate_type(
         &mut self,
         location: &Location,
-        base_type: &ast::Type,
-        actual_types: &[ast::Type],
+        base_type: MyType,
+        actual_types: Vec<MyType>,
     ) -> Result<MyType, ()> {
-        let base_type = self.eval_type_expr(base_type)?;
         match base_type {
             MyType::Generic {
                 base,
@@ -336,9 +352,8 @@ impl TypeChecker {
                 if type_parameters.len() == actual_types.len() {
                     let mut substitution_map: HashMap<String, MyType> = HashMap::new();
                     for (type_parameter, actual_type) in
-                        type_parameters.into_iter().zip(actual_types.iter())
+                        type_parameters.into_iter().zip(actual_types.into_iter())
                     {
-                        let actual_type = self.eval_type_expr(actual_type)?;
                         substitution_map.insert(type_parameter, actual_type);
                     }
                     let t = self.substitute_types(*base, &substitution_map)?;
@@ -388,6 +403,10 @@ impl TypeChecker {
                     name,
                     fields: new_fields,
                 })
+            }
+            MyType::Class(class_ref) => {
+                // TODO: actually replace some types!
+                MyType::Class(class_ref)
             }
             MyType::TypeVar(name) => {
                 if let Some(typ) = substitutions.get(&name) {
@@ -621,10 +640,18 @@ impl TypeChecker {
             ast::StatementType::Let {
                 name,
                 mutable,
+                type_hint,
                 value,
             } => {
-                let value = self.check_expresion(value)?;
-                let typ = value.typ.clone();
+                let (typ, value) = if let Some(type_hint) = type_hint {
+                    let typ = self.eval_type_expr(&type_hint)?;
+                    let value = self.coerce(&typ, value)?;
+                    (typ, value)
+                } else {
+                    let value = self.check_expresion(value)?;
+                    let typ = value.typ.clone();
+                    (typ, value)
+                };
                 let index = self.new_local_variable(&location, name.clone(), mutable, typ);
                 Ok(typed_ast::Statement::Let { name, index, value })
             }
@@ -637,11 +664,7 @@ impl TypeChecker {
                 ))
             }
             ast::StatementType::For { name, it, body } => {
-                self.check_expresion(it)?;
-                self.enter_scope();
-                self.check_block(body);
-                self.leave_scope();
-                unimplemented!("for loop {}!", name);
+                self.check_for_statement(location, name, it, body)
             }
             ast::StatementType::If {
                 condition,
@@ -691,6 +714,60 @@ impl TypeChecker {
             ast::StatementType::Match { value, arms } => self.check_match_statement(value, arms),
             ast::StatementType::Case { value, arms } => {
                 self.check_case_statement(location, value, arms)
+            }
+            ast::StatementType::Switch {
+                value,
+                arms,
+                default,
+            } => {
+                let value = self.coerce(&MyType::Int, value)?;
+                let mut new_arms = vec![];
+                for arm in arms {
+                    let arm_value = self.coerce(&MyType::Int, arm.value)?;
+                    let arm_body = self.check_block(arm.body);
+                    new_arms.push(typed_ast::SwitchArm {
+                        body: arm_body,
+                        value: arm_value,
+                    });
+                }
+                let default = self.check_block(default);
+                Ok(typed_ast::Statement::Switch {
+                    value,
+                    arms: new_arms,
+                    default,
+                })
+            }
+        }
+    }
+
+    /// Inspect for-statement.
+    ///
+    /// For example:
+    /// `for a in [1,2,3,4]:`
+    fn check_for_statement(
+        &mut self,
+        location: Location,
+        name: String,
+        it: ast::Expression,
+        body: ast::Block,
+    ) -> Result<typed_ast::Statement, ()> {
+        let iterable = self.check_expresion(it)?;
+        match iterable.typ.clone() {
+            MyType::Array(array_type) => {
+                let iterated_typ = *array_type.element_type.clone();
+                let loop_var = self.new_local_variable(&location, name, true, iterated_typ);
+                self.enter_scope();
+                let body = self.check_block(body);
+                self.leave_scope();
+                Ok(typed_ast::Statement::For(typed_ast::ForStatement {
+                    loop_var,
+                    iterable,
+                    body,
+                }))
+            }
+            other => {
+                self.error(location, format!("Cannot loop over {:?}", other));
+                Err(())
             }
         }
     }
@@ -987,6 +1064,10 @@ impl TypeChecker {
                 typ: MyType::Float,
                 kind: typed_ast::ExpressionType::Literal(typed_ast::Literal::Float(value)),
             }),
+            ast::ExpressionType::ListLiteral(values) => self.check_list_literal(values),
+            ast::ExpressionType::ArrayIndex { base, indici } => {
+                self.check_array_index(location, *base, indici)
+            }
             ast::ExpressionType::GetAttr { base, attr } => {
                 self.check_get_attr(location, *base, attr)
             }
@@ -1264,6 +1345,9 @@ impl TypeChecker {
                 let rhs = self.check_condition(rhs)?;
                 (MyType::Bool, lhs, rhs)
             }
+            ast::BinaryOperator::Bit(_op) => {
+                unimplemented!();
+            }
         };
         Ok(typed_ast::Expression {
             typ,
@@ -1298,6 +1382,32 @@ impl TypeChecker {
                 Err(())
             }
         }
+    }
+
+    fn check_list_literal(
+        &mut self,
+        // location: Location,
+        values: Vec<ast::Expression>,
+    ) -> Result<typed_ast::Expression, ()> {
+        assert!(!values.is_empty());
+        let mut value_iter = values.into_iter();
+        let mut typed_values = vec![];
+        let first_value = self.check_expresion(value_iter.next().unwrap())?;
+        let element_typ = first_value.typ.clone();
+        typed_values.push(first_value);
+        for value in value_iter {
+            typed_values.push(self.coerce(&element_typ, value)?);
+        }
+        // let list_generic: MyType = self.lookup(&location, "list")?.into_type();
+        // let list_type = self.instantiate_type(&location, list_generic, vec![element_typ])?;
+        let array_type = MyType::Array(ArrayType {
+            element_type: Box::new(element_typ),
+            size: typed_values.len(),
+        });
+        Ok(typed_ast::Expression {
+            typ: array_type,
+            kind: typed_ast::ExpressionType::ListLiteral(typed_values),
+        })
     }
 
     /// Try to fit an expression onto the given type.
@@ -1370,6 +1480,40 @@ impl TypeChecker {
         }
     }
 
+    /// Check array indexing!
+    ///
+    /// Base must be an array or a list like thingy
+    fn check_array_index(
+        &mut self,
+        location: Location,
+        base: ast::Expression,
+        indici: Vec<ast::Expression>,
+    ) -> Result<typed_ast::Expression, ()> {
+        let base = self.check_expresion(base)?;
+        match base.typ.clone() {
+            MyType::Array(array_type) => {
+                // { element_type, size }
+                if indici.len() == 1 {
+                    let index = indici.into_iter().next().expect("1 element");
+                    let index = self.coerce(&MyType::Int, index)?;
+                    Ok(typed_ast::Expression {
+                        typ: *array_type.element_type,
+                        kind: typed_ast::ExpressionType::Index {
+                            base: Box::new(base),
+                            index: Box::new(index),
+                        },
+                    })
+                } else {
+                    unimplemented!("Multi-indexing");
+                }
+            }
+            other => {
+                self.error(location, format!("Cannot array-index '{:?}' type.", other));
+                Err(())
+            }
+        }
+    }
+
     fn check_get_attr(
         &mut self,
         location: Location,
@@ -1423,7 +1567,7 @@ impl TypeChecker {
     }
 
     fn error(&mut self, location: Location, message: String) {
-        log::info!("Error: {}", message);
+        log::error!("Error: row {}: {}", location.row, message);
         self.errors.push(CompilationError::new(location, message))
     }
 

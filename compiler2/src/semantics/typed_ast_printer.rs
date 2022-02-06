@@ -55,24 +55,37 @@ impl AstPrinter {
     fn print_function(&mut self, function_def: &typed_ast::FunctionDef) {
         println!("{}fn {}", self.get_indent(), function_def.name);
         self.indent();
+
+        println!("{}parameters:", self.get_indent());
+        self.indent();
         for parameter in &function_def.parameters {
             println!(
-                "{}parameter {} : {:?}",
+                "{} - {} : {:?}",
                 self.get_indent(),
                 parameter.name,
                 parameter.typ
             );
         }
+        self.dedent();
+
+        println!("{}locals:", self.get_indent());
+        self.indent();
         for (index, local) in function_def.locals.iter().enumerate() {
             println!(
-                "{}local index={} name={} : {:?}",
+                "{}index={} name={} : {:?}",
                 self.get_indent(),
                 index,
                 local.name,
                 local.typ
             );
         }
+        self.dedent();
+
+        println!("{}code:", self.get_indent());
+        self.indent();
         self.print_block(&function_def.body);
+        self.dedent();
+
         self.dedent();
     }
 
@@ -128,6 +141,17 @@ impl AstPrinter {
                 self.print_block(body);
                 self.dedent();
             }
+            typed_ast::Statement::For(typed_ast::ForStatement {
+                loop_var,
+                iterable,
+                body,
+            }) => {
+                println!("{}for-statement loop-var={}", self.get_indent(), loop_var);
+                self.indent();
+                self.print_expression(iterable);
+                self.print_block(body);
+                self.dedent();
+            }
             typed_ast::Statement::Expression(expression) => {
                 self.print_expression(expression);
             }
@@ -155,7 +179,6 @@ impl AstPrinter {
                 self.indent();
                 self.print_expression(value);
                 for arm in arms {
-                    // self.print_expression(&arm.pattern);
                     self.indent();
                     println!("{}> {}", self.get_indent(), arm.choice);
                     self.indent();
@@ -163,6 +186,30 @@ impl AstPrinter {
                     self.dedent();
                     self.dedent();
                 }
+                self.dedent();
+            }
+            typed_ast::Statement::Switch {
+                value,
+                arms,
+                default,
+            } => {
+                println!("{}switch-statement", self.get_indent());
+                self.indent();
+                self.print_expression(value);
+                for arm in arms {
+                    self.indent();
+                    self.print_expression(&arm.value);
+                    self.indent();
+                    self.print_block(&arm.body);
+                    self.dedent();
+                    self.dedent();
+                }
+                self.indent();
+                println!("{}default:", self.get_indent());
+                self.indent();
+                self.print_block(default);
+                self.dedent();
+                self.dedent();
                 self.dedent();
             }
             typed_ast::Statement::Let { name, index, value } => {
@@ -244,6 +291,14 @@ impl AstPrinter {
                 }
                 self.dedent();
             }
+            typed_ast::ExpressionType::ListLiteral(values) => {
+                println!("{}List literal : {:?}", self.get_indent(), expression.typ);
+                self.indent();
+                for value in values {
+                    self.print_expression(value);
+                }
+                self.dedent();
+            }
             typed_ast::ExpressionType::LoadFunction(name) => {
                 println!("{}Load function name={}", self.get_indent(), name);
             }
@@ -299,6 +354,13 @@ impl AstPrinter {
                 );
                 self.indent();
                 self.print_expression(base);
+                self.dedent();
+            }
+            typed_ast::ExpressionType::Index { base, index } => {
+                println!("{}get-index : {:?}", self.get_indent(), expression.typ);
+                self.indent();
+                self.print_expression(base);
+                self.print_expression(index);
                 self.dedent();
             }
         }

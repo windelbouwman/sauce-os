@@ -97,6 +97,9 @@ where
                         writeln!(self.w, r"{} = type {{ {} }}", type_name, "??")?;
                     }
                 }
+                bytecode::TypeDef::Array { .. } => {
+                    unimplemented!();
+                }
             }
         }
         Ok(())
@@ -462,6 +465,12 @@ where
                     "    store {} {}, {}* {}",
                     value_type, value, value_type, element_ptr
                 )?;
+            }
+            Instruction::GetElement => {
+                unimplemented!();
+            }
+            Instruction::SetElement => {
+                unimplemented!();
             }
             Instruction::LoadParameter { index } => {
                 let (name, typ) = self.parameter_names_and_types[index].clone();

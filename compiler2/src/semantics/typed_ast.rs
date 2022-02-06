@@ -73,6 +73,7 @@ pub enum Statement {
         body: Block,
     },
     While(WhileStatement),
+    For(ForStatement),
     Return {
         value: Option<Expression>,
     },
@@ -81,6 +82,11 @@ pub enum Statement {
         arms: Vec<MatchArm>,
     },
     Case(CaseStatement),
+    Switch {
+        value: Expression,
+        arms: Vec<SwitchArm>,
+        default: Block,
+    },
     Pass,
     Break,
     Continue,
@@ -102,6 +108,13 @@ pub struct CaseArm {
     pub body: Block,
 }
 
+pub struct SwitchArm {
+    pub value: Expression,
+
+    /// The code of this case arm.
+    pub body: Block,
+}
+
 pub struct AssignmentStatement {
     pub target: Expression,
     pub value: Expression,
@@ -115,6 +128,12 @@ pub struct IfStatement {
 
 pub struct WhileStatement {
     pub condition: Expression,
+    pub body: Block,
+}
+
+pub struct ForStatement {
+    pub loop_var: usize,
+    pub iterable: Expression,
     pub body: Block,
 }
 
@@ -154,6 +173,8 @@ pub enum ExpressionType {
         arguments: Vec<Expression>,
     },
 
+    ListLiteral(Vec<Expression>),
+
     LoadFunction(String),
 
     // A TypeConstructor is an expression that can create
@@ -183,9 +204,17 @@ pub enum ExpressionType {
         method: String,
         arguments: Vec<Expression>,
     },
+
+    /// Get attribute of some object: base.attr
     GetAttr {
         base: Box<Expression>,
         attr: String,
+    },
+
+    /// Array like indexing operator: base[i]
+    Index {
+        base: Box<Expression>,
+        index: Box<Expression>,
     },
     Binop {
         lhs: Box<Expression>,

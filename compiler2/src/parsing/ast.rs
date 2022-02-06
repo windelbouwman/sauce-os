@@ -1,6 +1,7 @@
 use super::token::Location;
 
 pub struct Program {
+    pub docstring: Option<String>,
     pub name: Option<String>,
     pub imports: Vec<Import>,
     pub typedefs: Vec<TypeDef>,
@@ -110,6 +111,7 @@ pub enum StatementType {
     Let {
         name: String,
         mutable: bool,
+        type_hint: Option<Type>,
         value: Expression,
     },
 
@@ -126,10 +128,10 @@ pub enum StatementType {
     For {
         name: String,
         it: Expression,
-        body: Vec<Statement>,
+        body: Block,
     },
     Loop {
-        body: Vec<Statement>,
+        body: Block,
     },
     While {
         condition: Expression,
@@ -147,6 +149,11 @@ pub enum StatementType {
         value: Expression,
         arms: Vec<CaseArm>,
     },
+    Switch {
+        value: Expression,
+        arms: Vec<SwitchArm>,
+        default: Block,
+    },
     Return {
         value: Option<Expression>,
     },
@@ -158,14 +165,20 @@ pub enum StatementType {
 pub struct MatchArm {
     pub location: Location,
     pub pattern: Expression,
-    pub body: Vec<Statement>,
+    pub body: Block,
 }
 
 pub struct CaseArm {
     pub location: Location,
     pub constructor: ObjRef,
     pub arguments: Vec<String>,
-    pub body: Vec<Statement>,
+    pub body: Block,
+}
+
+pub struct SwitchArm {
+    pub location: Location,
+    pub value: Expression,
+    pub body: Block,
 }
 
 #[derive(Debug)]
@@ -185,9 +198,14 @@ pub enum ExpressionType {
         typ: Type,
         fields: Vec<StructLiteralField>,
     },
+    ListLiteral(Vec<Expression>),
     Call {
         callee: Box<Expression>,
         arguments: Vec<Expression>,
+    },
+    ArrayIndex {
+        base: Box<Expression>,
+        indici: Vec<Expression>,
     },
     GetAttr {
         base: Box<Expression>,
@@ -247,10 +265,20 @@ pub enum BinaryOperator {
     Math(MathOperator),
     Comparison(ComparisonOperator),
     Logic(LogicOperator),
+    Bit(BitOperator),
 }
 
 #[derive(Debug)]
 pub enum LogicOperator {
+    And,
+    Or,
+}
+
+#[derive(Debug)]
+pub enum BitOperator {
+    ShiftLeft,
+    ShiftRight,
+    Xor,
     And,
     Or,
 }

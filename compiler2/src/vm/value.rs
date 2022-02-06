@@ -19,6 +19,7 @@ pub enum Value {
 
     Union(Arc<Union>),
     // Enum(i64, Box<Value>),
+    Array(Arc<ArrayValue>),
 }
 
 #[derive(Debug, Default)]
@@ -66,6 +67,33 @@ impl Union {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct ArrayValue {
+    values: Mutex<Vec<Value>>,
+}
+
+impl ArrayValue {
+    pub fn new(size: i64) -> Self {
+        let mut values = vec![];
+        for i in 0..size {
+            // println!("i={}", i);
+            values.push(Value::Uninitialized);
+        }
+
+        Self {
+            values: Mutex::new(values),
+        }
+    }
+
+    pub fn get_element(&self, index: usize) -> Value {
+        self.values.lock().unwrap()[index].clone()
+    }
+
+    pub fn set_element(&self, index: usize, value: Value) {
+        self.values.lock().unwrap()[index] = value;
+    }
+}
+
 impl Value {
     /// Narrow value to f64, panics if not possible.
     pub fn as_float(&self) -> f64 {
@@ -93,6 +121,13 @@ impl Value {
         match self {
             Value::String(val) => val.clone(),
             other => panic!("Cannot use {:?} as string", other),
+        }
+    }
+
+    pub fn into_array(self) -> Arc<ArrayValue> {
+        match self {
+            Value::Array(array_value) => array_value,
+            other => panic!("Cannot convert {:?} into array", other),
         }
     }
 }

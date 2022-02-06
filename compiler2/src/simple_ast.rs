@@ -24,21 +24,18 @@ pub type Block = Vec<Statement>;
 
 pub enum Statement {
     Expression(Expression),
-    Let {
-        name: String,
-        index: usize,
-        value: Expression,
-    },
     If(IfStatement),
     Loop {
         body: Block,
     },
     While(WhileStatement),
+    Compound(Block),
 
     /// We allow case statements in the simple-ast form.
     /// `match` statements must be converted into case
     /// statements before.
     Case(CaseStatement),
+    Switch(SwitchStatement),
     Return {
         value: Option<Expression>,
     },
@@ -74,6 +71,17 @@ pub struct CaseArm {
     pub body: Block,
 }
 
+pub struct SwitchStatement {
+    pub value: Expression,
+    pub arms: Vec<SwitchArm>,
+    pub default: Block,
+}
+
+pub struct SwitchArm {
+    /// The code of this case arm.
+    pub body: Block,
+}
+
 pub struct IfStatement {
     pub condition: Expression,
     pub if_true: Block,
@@ -99,6 +107,11 @@ pub enum Expression {
     },
     VoidLiteral,
 
+    ArrayLiteral {
+        typ: MyType,
+        values: Vec<Expression>,
+    },
+
     LoadFunction(String),
 
     LoadParameter {
@@ -117,6 +130,10 @@ pub enum Expression {
         base: Box<Expression>,
         base_typ: MyType,
         index: usize,
+    },
+    GetIndex {
+        base: Box<Expression>,
+        index: Box<Expression>,
     },
     Binop {
         lhs: Box<Expression>,
