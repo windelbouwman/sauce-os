@@ -50,6 +50,8 @@ pub enum Token {
     Minus,
     Asterix,
     Slash,
+    PlusEqual,
+    MinusEqual,
     ShiftRight,
     ShiftLeft,
     Pipe,

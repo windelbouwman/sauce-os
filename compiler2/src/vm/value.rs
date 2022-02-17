@@ -75,7 +75,7 @@ pub struct ArrayValue {
 impl ArrayValue {
     pub fn new(size: i64) -> Self {
         let mut values = vec![];
-        for i in 0..size {
+        for _i in 0..size {
             // println!("i={}", i);
             values.push(Value::Uninitialized);
         }

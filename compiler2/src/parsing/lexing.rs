@@ -62,6 +62,12 @@ enum LogosToken {
     #[token("/")]
     Slash,
 
+    #[token("+=")]
+    PlusEqual,
+
+    #[token("-=")]
+    MinusEqual,
+
     #[token("|")]
     Pipe,
 
@@ -341,6 +347,12 @@ impl<'t> Lexer<'t> {
             }
             LogosToken::Minus => {
                 self.emit(Token::Minus);
+            }
+            LogosToken::PlusEqual => {
+                self.emit(Token::PlusEqual);
+            }
+            LogosToken::MinusEqual => {
+                self.emit(Token::MinusEqual);
             }
             LogosToken::Asterix => {
                 self.emit(Token::Asterix);

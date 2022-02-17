@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MyType {
+pub enum SlangType {
     Bool,
     Int,
     Float,
@@ -16,7 +16,7 @@ pub enum MyType {
 
     /// A parameterized type, may contain subtypes which are type variables.
     Generic {
-        base: Box<MyType>,
+        base: Box<SlangType>,
         type_parameters: Vec<String>,
     },
 
@@ -40,9 +40,9 @@ pub enum MyType {
     Function(FunctionType),
 }
 
-impl MyType {
+impl SlangType {
     pub fn into_enum(self) -> EnumType {
-        if let MyType::Enum(enum_type) = self {
+        if let SlangType::Enum(enum_type) = self {
             enum_type
         } else {
             panic!("Expected enum type!");
@@ -51,7 +51,7 @@ impl MyType {
 
     /// Narrow the type to struct type.
     pub fn into_struct(self) -> StructType {
-        if let MyType::Struct(struct_type) = self {
+        if let SlangType::Struct(struct_type) = self {
             struct_type
         } else {
             panic!("Expected struct type!");
@@ -59,7 +59,7 @@ impl MyType {
     }
 
     pub fn into_class(self) -> Arc<ClassType> {
-        if let MyType::Class(class_ref) = self {
+        if let SlangType::Class(class_ref) = self {
             class_ref.inner
         } else {
             panic!("Expected class type!");
@@ -67,14 +67,14 @@ impl MyType {
     }
 
     pub fn is_void(&self) -> bool {
-        matches!(self, MyType::Void)
+        matches!(self, SlangType::Void)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionType {
-    pub argument_types: Vec<MyType>,
-    pub return_type: Option<Box<MyType>>,
+    pub argument_types: Vec<SlangType>,
+    pub return_type: Option<Box<SlangType>>,
 }
 
 #[derive(Debug, Clone)]
@@ -93,7 +93,7 @@ impl ClassTypeRef {
         &self.inner.name
     }
 
-    pub fn lookup(&self, name: &str) -> Option<MyType> {
+    pub fn lookup(&self, name: &str) -> Option<SlangType> {
         self.inner.lookup(name)
     }
 }
@@ -124,11 +124,11 @@ impl std::fmt::Debug for ClassType {
 #[derive(Debug, Clone)]
 pub struct ClassField {
     pub name: String,
-    pub typ: MyType,
+    pub typ: SlangType,
 }
 
 impl ClassType {
-    pub fn lookup(&self, name: &str) -> Option<MyType> {
+    pub fn lookup(&self, name: &str) -> Option<SlangType> {
         // TBD: linear search is a bad idea.
         for field in &self.fields {
             if field.name == name {
@@ -174,11 +174,11 @@ impl std::fmt::Debug for StructType {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructField {
     pub name: String,
-    pub typ: MyType,
+    pub typ: SlangType,
 }
 
 impl StructType {
-    pub fn get_field(&self, name: &str) -> Option<MyType> {
+    pub fn get_field(&self, name: &str) -> Option<SlangType> {
         for field in &self.fields {
             if field.name == name {
                 return Some(field.typ.clone());
@@ -200,12 +200,12 @@ impl StructType {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnionType {
     pub name: String,
-    pub fields: Vec<MyType>,
+    pub fields: Vec<SlangType>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArrayType {
-    pub element_type: Box<MyType>,
+    pub element_type: Box<SlangType>,
     pub size: usize,
 }
 
@@ -225,31 +225,31 @@ impl EnumType {
         None
     }
 
-    pub fn get_data_union_type(&self) -> MyType {
-        let fields: Vec<MyType> = self
+    pub fn get_data_union_type(&self) -> SlangType {
+        let fields: Vec<SlangType> = self
             .choices
             .iter()
             .map(|choice| choice.get_payload_type())
             .collect();
-        MyType::Union(UnionType {
+        SlangType::Union(UnionType {
             name: format!("{}_data", self.name),
             fields,
         })
     }
 
-    pub fn get_struct_type(&self) -> MyType {
+    pub fn get_struct_type(&self) -> SlangType {
         let union_typ = self.get_data_union_type();
         let fields: Vec<StructField> = vec![
             StructField {
                 name: "tag".to_owned(),
-                typ: MyType::Int,
+                typ: SlangType::Int,
             },
             StructField {
                 name: "payload".to_owned(),
                 typ: union_typ,
             },
         ];
-        MyType::Struct(StructType { name: None, fields })
+        SlangType::Struct(StructType { name: None, fields })
     }
 }
 
@@ -264,15 +264,15 @@ impl std::fmt::Debug for EnumType {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EnumOption {
     pub name: String,
-    pub data: Vec<MyType>,
+    pub data: Vec<SlangType>,
 }
 
 impl EnumOption {
     /// Contrapt, void, basic type, or struct for this
     /// enum option.
-    pub fn get_payload_type(&self) -> MyType {
+    pub fn get_payload_type(&self) -> SlangType {
         if self.data.is_empty() {
-            MyType::Void
+            SlangType::Void
         } else if self.data.len() == 1 {
             self.data[0].clone()
         } else {
@@ -283,7 +283,7 @@ impl EnumOption {
                     name: format!("field_{}", index),
                 });
             }
-            MyType::Struct(StructType { name: None, fields })
+            SlangType::Struct(StructType { name: None, fields })
         }
     }
 }

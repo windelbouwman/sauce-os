@@ -5,7 +5,7 @@
 //! This intermediate form has most language
 //! constructs, and types attached.
 
-use super::type_system::{ClassTypeRef, EnumType, MyType};
+use super::type_system::{ClassTypeRef, EnumType, SlangType};
 use crate::parsing::ast;
 
 pub struct Program {
@@ -26,36 +26,36 @@ pub struct ClassDef {
 pub struct FieldDef {
     pub name: String,
     pub index: usize,
-    pub typ: MyType,
+    pub typ: SlangType,
     pub value: Expression,
 }
 
 pub struct TypeDef {
     pub name: String,
-    pub typ: MyType,
+    pub typ: SlangType,
 }
 
 pub struct Import {
     pub name: String,
-    pub typ: MyType,
+    pub typ: SlangType,
 }
 
 pub struct FunctionDef {
     pub name: String,
     pub parameters: Vec<Parameter>,
-    pub return_type: Option<MyType>,
+    pub return_type: Option<SlangType>,
     pub locals: Vec<LocalVariable>,
     pub body: Block,
 }
 
 pub struct LocalVariable {
     pub name: String,
-    pub typ: MyType,
+    pub typ: SlangType,
 }
 
 pub struct Parameter {
     pub name: String,
-    pub typ: MyType,
+    pub typ: SlangType,
 }
 
 pub type Block = Vec<Statement>;
@@ -76,10 +76,6 @@ pub enum Statement {
     For(ForStatement),
     Return {
         value: Option<Expression>,
-    },
-    Match {
-        value: Expression,
-        arms: Vec<MatchArm>,
     },
     Case(CaseStatement),
     Switch {
@@ -137,22 +133,8 @@ pub struct ForStatement {
     pub body: Block,
 }
 
-pub struct MatchArm {
-    pub pattern: MatchPattern,
-    pub body: Vec<Statement>,
-}
-
-pub enum MatchPattern {
-    Constructor {
-        constructor: TypeConstructor,
-        arguments: Vec<MatchPattern>,
-    },
-    WildCard(String),
-    // Constant(Literal),
-}
-
 pub struct Expression {
-    pub typ: MyType,
+    pub typ: SlangType,
     pub kind: ExpressionType,
 }
 
@@ -212,7 +194,7 @@ pub enum ExpressionType {
     },
 
     /// Array like indexing operator: base[i]
-    Index {
+    GetIndex {
         base: Box<Expression>,
         index: Box<Expression>,
     },
@@ -224,6 +206,6 @@ pub enum ExpressionType {
 }
 
 pub enum TypeConstructor {
-    Any(MyType),
+    Any(SlangType),
     EnumOption { enum_type: EnumType, choice: usize },
 }

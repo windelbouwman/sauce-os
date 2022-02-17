@@ -1,4 +1,4 @@
-use super::type_system::MyType;
+use super::type_system::SlangType;
 use super::typed_ast;
 
 pub fn print_ast(program: &typed_ast::Program) {
@@ -160,18 +160,6 @@ impl AstPrinter {
                 self.indent();
                 self.print_expression(target);
                 self.print_expression(value);
-                self.dedent();
-            }
-            typed_ast::Statement::Match { value, arms } => {
-                println!("{}match-statement", self.get_indent());
-                self.indent();
-                self.print_expression(value);
-                for arm in arms {
-                    // self.print_expression(&arm.pattern);
-                    self.indent();
-                    self.print_block(&arm.body);
-                    self.dedent();
-                }
                 self.dedent();
             }
             typed_ast::Statement::Case(typed_ast::CaseStatement { value, arms }) => {
@@ -356,7 +344,7 @@ impl AstPrinter {
                 self.print_expression(base);
                 self.dedent();
             }
-            typed_ast::ExpressionType::Index { base, index } => {
+            typed_ast::ExpressionType::GetIndex { base, index } => {
                 println!("{}get-index : {:?}", self.get_indent(), expression.typ);
                 self.indent();
                 self.print_expression(base);
@@ -366,7 +354,7 @@ impl AstPrinter {
         }
     }
 
-    fn print_literal(&self, literal: &typed_ast::Literal, typ: &MyType) {
+    fn print_literal(&self, literal: &typed_ast::Literal, typ: &SlangType) {
         match literal {
             typed_ast::Literal::Bool(value) => {
                 println!("{}Bool val={} : {:?}", self.get_indent(), value, typ);

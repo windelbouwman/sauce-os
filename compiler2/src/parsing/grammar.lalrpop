@@ -514,40 +514,11 @@ Atom2: ast::Expression = {
 };
 
 Atom: ast::Expression = {
-    <location:@L> "true" => {
-        ast::Expression {
-            location,
-            kind: ast::ExpressionType::Bool(true)
-        }
-    },
-    <location:@L> "false" => {
-        ast::Expression {
-            location,
-            kind: ast::ExpressionType::Bool(false)
-        }
-    },
+    Literal,
     <location:@L> "[" <values:Comma<Expression>> "]" => {
         ast::Expression {
             location,
             kind: ast::ExpressionType::ListLiteral(values),
-        }
-    },
-    <location:@L> <s:String> => {
-        ast::Expression {
-            location,
-            kind: ast::ExpressionType::String(s)
-        }
-    },
-    <location:@L> <n:Number> => {
-        ast::Expression {
-            location,
-            kind: ast::ExpressionType::Integer(n)
-        }
-    },
-    <location:@L> <n:FloatingPoint> => {
-        ast::Expression {
-            location,
-            kind: ast::ExpressionType::Float(n)
         }
     },
     <location:@L> <obj:ObjRef> => {
@@ -568,6 +539,39 @@ Atom: ast::Expression = {
         }
     },
     "(" <expr:Expression> ")" => expr,
+};
+
+Literal: ast::Expression = {
+    <location:@L> "true" => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Literal(ast::Literal::Bool(true))
+        }
+    },
+    <location:@L> "false" => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Literal(ast::Literal::Bool(false))
+        }
+    },
+    <location:@L> <s:String> => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Literal(ast::Literal::String(s))
+        }
+    },
+    <location:@L> <n:Number> => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Literal(ast::Literal::Integer(n))
+        }
+    },
+    <location:@L> <n:FloatingPoint> => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionType::Literal(ast::Literal::Float(n))
+        }
+    },
 };
 
 // References to named and scoped objects:

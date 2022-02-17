@@ -7,7 +7,7 @@ use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
 use super::semantics::type_system::{
-    ArrayType, EnumOption, EnumType, FunctionType, MyType, StructType, UnionType,
+    ArrayType, EnumOption, EnumType, FunctionType, SlangType, StructType, UnionType,
 };
 use super::semantics::typed_ast;
 use super::simple_ast;
@@ -59,7 +59,7 @@ impl Generator {
         let mut imports = vec![];
         for imp in prog.imports {
             match imp.typ {
-                MyType::Function(FunctionType {
+                SlangType::Function(FunctionType {
                     argument_types,
                     return_type,
                 }) => {
@@ -214,7 +214,7 @@ impl Generator {
                 index,
                 value,
             } => match &base_typ {
-                MyType::Struct(_struct_typ) => {
+                SlangType::Struct(_struct_typ) => {
                     self.gen_expression(base);
                     self.gen_expression(value);
                     self.emit(Instruction::SetAttr { index });
@@ -271,7 +271,7 @@ impl Generator {
         self.emit(bytecode::Instruction::Duplicate);
 
         // Retrieve enum descriminator:
-        let int_typ = self.get_bytecode_typ(&MyType::Int);
+        let int_typ = self.get_bytecode_typ(&SlangType::Int);
         self.emit(bytecode::Instruction::GetAttr {
             index: 0,
             typ: int_typ,
@@ -510,36 +510,36 @@ impl Generator {
         self.inject_type(array_typ)
     }
 
-    fn get_bytecode_typ(&mut self, ty: &MyType) -> bytecode::Typ {
+    fn get_bytecode_typ(&mut self, ty: &SlangType) -> bytecode::Typ {
         match ty {
-            MyType::Bool => bytecode::Typ::Bool,
-            MyType::Int => bytecode::Typ::Int,
-            MyType::Float => bytecode::Typ::Float,
-            MyType::String => bytecode::Typ::String,
-            MyType::Struct(struct_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
-                self.get_struct_index(struct_type),
-            ))),
-            MyType::Union(union_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
+            SlangType::Bool => bytecode::Typ::Bool,
+            SlangType::Int => bytecode::Typ::Int,
+            SlangType::Float => bytecode::Typ::Float,
+            SlangType::String => bytecode::Typ::String,
+            SlangType::Struct(struct_type) => bytecode::Typ::Ptr(Box::new(
+                bytecode::Typ::Composite(self.get_struct_index(struct_type)),
+            )),
+            SlangType::Union(union_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
                 self.get_union_index(union_type),
             ))),
-            MyType::Array(array_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
+            SlangType::Array(array_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
                 self.get_array_index(array_type),
             ))),
-            MyType::Enum(enum_type) => self.get_bytecode_typ(&enum_type.get_struct_type()),
-            MyType::Class(_) => {
+            SlangType::Enum(enum_type) => self.get_bytecode_typ(&enum_type.get_struct_type()),
+            SlangType::Class(_) => {
                 panic!("Cannot handle class-types");
             }
-            MyType::Generic { .. } => {
+            SlangType::Generic { .. } => {
                 panic!("Cannot compile generic type");
             }
-            MyType::TypeConstructor => {
+            SlangType::TypeConstructor => {
                 panic!("Cannot compile type constructor");
             }
-            MyType::Void => bytecode::Typ::Void,
-            MyType::TypeVar(_) => {
+            SlangType::Void => bytecode::Typ::Void,
+            SlangType::TypeVar(_) => {
                 panic!("Cannot compile type variable");
             }
-            MyType::Function(_) => {
+            SlangType::Function(_) => {
                 unimplemented!("function-type");
             }
         }
@@ -561,7 +561,7 @@ impl Generator {
         }
     }
 
-    fn gen_union_literal(&mut self, typ: MyType, index: usize, value: simple_ast::Expression) {
+    fn gen_union_literal(&mut self, typ: SlangType, index: usize, value: simple_ast::Expression) {
         let typ = self.get_bytecode_typ(&typ);
         if let bytecode::Typ::Ptr(union_typ) = typ {
             self.emit(Instruction::Malloc(*union_typ));
@@ -579,7 +579,7 @@ impl Generator {
     }
 
     /// Generate code for an array literal value
-    fn gen_array_literal(&mut self, typ: MyType, values: Vec<simple_ast::Expression>) {
+    fn gen_array_literal(&mut self, typ: SlangType, values: Vec<simple_ast::Expression>) {
         // unimplemented!();
         let typ = self.get_bytecode_typ(&typ);
         if let bytecode::Typ::Ptr(array_typ) = typ {
@@ -633,7 +633,7 @@ impl Generator {
                 base_typ,
                 index,
             } => match &base_typ {
-                MyType::Struct(struct_typ) => {
+                SlangType::Struct(struct_typ) => {
                     let typ = self.get_bytecode_typ(&struct_typ.fields[index].typ);
                     self.gen_expression(*base);
                     self.emit(Instruction::GetAttr { index, typ });
@@ -666,7 +666,7 @@ impl Generator {
         &mut self,
         callee: simple_ast::Expression,
         arguments: Vec<simple_ast::Expression>,
-        typ: MyType,
+        typ: SlangType,
     ) {
         // let return_type = function_type
         //     .return_type
@@ -708,8 +708,8 @@ impl Generator {
 
     fn gen_binop(
         &mut self,
-        typ: MyType,
-        op_typ: MyType,
+        typ: SlangType,
+        op_typ: SlangType,
         lhs: simple_ast::Expression,
         op: ast::BinaryOperator,
         rhs: simple_ast::Expression,

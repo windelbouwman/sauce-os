@@ -6,7 +6,7 @@
 //! - translate enum's into structs/unions
 //! - pattern matching compilation into switch statements
 
-use super::semantics::type_system::{ClassType, MyType, StructField, StructType};
+use super::semantics::type_system::{ClassType, SlangType, StructField, StructType};
 use super::semantics::typed_ast;
 use super::simple_ast;
 use crate::parsing::ast;
@@ -83,17 +83,17 @@ impl Desugarino {
         }
     }
 
-    fn type_fold(typ: MyType) -> MyType {
+    fn type_fold(typ: SlangType) -> SlangType {
         match typ {
-            MyType::Bool => MyType::Bool,
-            MyType::Int => MyType::Int,
-            MyType::Float => MyType::Float,
-            MyType::String => MyType::String,
-            MyType::Void => MyType::Void,
-            MyType::Struct(struct_type) => MyType::Struct(struct_type),
-            MyType::Array(array_type) => MyType::Array(array_type),
-            MyType::Class(class_type) => Self::struct_for_class(class_type.inner),
-            MyType::Enum(enum_type) => enum_type.get_struct_type(),
+            SlangType::Bool => SlangType::Bool,
+            SlangType::Int => SlangType::Int,
+            SlangType::Float => SlangType::Float,
+            SlangType::String => SlangType::String,
+            SlangType::Void => SlangType::Void,
+            SlangType::Struct(struct_type) => SlangType::Struct(struct_type),
+            SlangType::Array(array_type) => SlangType::Array(array_type),
+            SlangType::Class(class_type) => Self::struct_for_class(class_type.inner),
+            SlangType::Enum(enum_type) => enum_type.get_struct_type(),
             other => {
                 panic!("Cannot fold: {:?}", other);
             }
@@ -101,7 +101,7 @@ impl Desugarino {
     }
 
     /// Create a structured type for a class
-    fn struct_for_class(class_type: Arc<ClassType>) -> MyType {
+    fn struct_for_class(class_type: Arc<ClassType>) -> SlangType {
         let fields: Vec<StructField> = class_type
             .fields
             .iter()
@@ -110,13 +110,13 @@ impl Desugarino {
                 typ: f.typ.clone(),
             })
             .collect();
-        MyType::Struct(StructType {
+        SlangType::Struct(StructType {
             name: Some(class_type.name.clone()),
             fields,
         })
     }
 
-    fn new_local_variable(&mut self, name: String, typ: MyType) -> usize {
+    fn new_local_variable(&mut self, name: String, typ: SlangType) -> usize {
         let index = self.local_variables.len();
         self.local_variables.push(typed_ast::LocalVariable {
             name: name.clone(),
@@ -203,9 +203,6 @@ impl Desugarino {
                 let value = self.lower_expression(value);
                 simple_ast::Statement::StoreLocal { index, value }
             }
-            typed_ast::Statement::Match { value: _, arms: _ } => {
-                unimplemented!("match lowering!");
-            }
             typed_ast::Statement::Case(case_statement) => self.lower_case_statement(case_statement),
             typed_ast::Statement::Switch {
                 value,
@@ -267,12 +264,12 @@ impl Desugarino {
     ) -> simple_ast::Statement {
         // Check if we loop over an array:
         match for_statement.iterable.typ.clone() {
-            MyType::Array(array_type) => {
+            SlangType::Array(array_type) => {
                 let mut for_body = self.lower_block(for_statement.body);
                 let index_local_id: usize =
-                    self.new_local_variable("index".to_owned(), MyType::Int);
-                let iter_local_id: usize =
-                    self.new_local_variable("iter".to_owned(), MyType::Array(array_type.clone()));
+                    self.new_local_variable("index".to_owned(), SlangType::Int);
+                let iter_local_id: usize = self
+                    .new_local_variable("iter".to_owned(), SlangType::Array(array_type.clone()));
 
                 // index = 0
                 let zero_loop_index = simple_ast::Statement::StoreLocal {
@@ -292,11 +289,11 @@ impl Desugarino {
                     value: simple_ast::Expression::GetIndex {
                         base: Box::new(simple_ast::Expression::LoadLocal {
                             index: iter_local_id,
-                            typ: MyType::Array(array_type.clone()),
+                            typ: SlangType::Array(array_type.clone()),
                         }),
                         index: Box::new(simple_ast::Expression::LoadLocal {
                             index: index_local_id,
-                            typ: MyType::Int,
+                            typ: SlangType::Int,
                         }),
                     },
                 };
@@ -307,11 +304,11 @@ impl Desugarino {
                     index: index_local_id,
                     value: simple_ast::Expression::Binop {
                         lhs: Box::new(simple_ast::Expression::LoadLocal {
-                            typ: MyType::Int,
+                            typ: SlangType::Int,
                             index: index_local_id,
                         }),
-                        typ: MyType::Int,
-                        op_typ: MyType::Int,
+                        typ: SlangType::Int,
+                        op_typ: SlangType::Int,
                         op: ast::BinaryOperator::Math(ast::MathOperator::Add),
                         rhs: Box::new(simple_ast::Expression::Literal(
                             typed_ast::Literal::Integer(1),
@@ -323,11 +320,11 @@ impl Desugarino {
                 // While condition:
                 let loop_condition = simple_ast::Expression::Binop {
                     lhs: Box::new(simple_ast::Expression::LoadLocal {
-                        typ: MyType::Int,
+                        typ: SlangType::Int,
                         index: index_local_id,
                     }),
-                    typ: MyType::Int,
-                    op_typ: MyType::Int,
+                    typ: SlangType::Int,
+                    op_typ: SlangType::Int,
                     op: ast::BinaryOperator::Comparison(ast::ComparisonOperator::Lt),
                     rhs: Box::new(simple_ast::Expression::Literal(
                         typed_ast::Literal::Integer(array_type.size as i64),
@@ -383,7 +380,7 @@ impl Desugarino {
             typed_ast::ExpressionType::GetAttr { base, attr } => {
                 let base_typ = base.typ.clone();
                 match &base_typ {
-                    MyType::Struct(struct_typ) => {
+                    SlangType::Struct(struct_typ) => {
                         let index = struct_typ.index_of(&attr).expect("Field must be present");
                         let base = self.lower_expression(*base);
                         let value = self.lower_expression(assignment.value);
@@ -394,7 +391,7 @@ impl Desugarino {
                             value,
                         }
                     }
-                    MyType::Class(class_typ) => {
+                    SlangType::Class(class_typ) => {
                         let index = class_typ
                             .inner
                             .index_of(&attr)
@@ -426,7 +423,7 @@ impl Desugarino {
 
     fn struct_literal(
         &self,
-        typ: MyType,
+        typ: SlangType,
         values: Vec<typed_ast::Expression>,
     ) -> simple_ast::Expression {
         let values = values
@@ -502,7 +499,7 @@ impl Desugarino {
                 self.lower_enum_literal(typ, choice, arguments)
             }
             typed_ast::ExpressionType::GetAttr { base, attr } => self.lower_get_attr(*base, attr),
-            typed_ast::ExpressionType::Index { base, index } => {
+            typed_ast::ExpressionType::GetIndex { base, index } => {
                 let base = self.lower_expression(*base);
                 let index = self.lower_expression(*index);
                 simple_ast::Expression::GetIndex {
@@ -514,8 +511,8 @@ impl Desugarino {
         }
     }
 
-    fn lower_instantiate(&self, typ: MyType) -> simple_ast::Expression {
-        if let MyType::Class(class_type) = &typ {
+    fn lower_instantiate(&self, typ: SlangType) -> simple_ast::Expression {
+        if let SlangType::Class(class_type) = &typ {
             // Call class constructor auto-contrapted function!
             let ctor_name = class_type.inner.ctor_func_name();
             let callee = simple_ast::Expression::LoadFunction(ctor_name);
@@ -536,7 +533,7 @@ impl Desugarino {
         instance: typed_ast::Expression,
         method: String,
         arguments: Vec<typed_ast::Expression>,
-        typ: MyType,
+        typ: SlangType,
     ) -> simple_ast::Expression {
         let class_type = instance.typ.clone().into_class();
         let mut arguments: Vec<simple_ast::Expression> = arguments
@@ -558,7 +555,7 @@ impl Desugarino {
     fn lower_get_attr(&self, base: typed_ast::Expression, attr: String) -> simple_ast::Expression {
         let base_typ = Self::type_fold(base.typ.clone());
         match &base_typ {
-            MyType::Struct(struct_typ) => {
+            SlangType::Struct(struct_typ) => {
                 let index = struct_typ.index_of(&attr).expect("Field must be present");
                 let base = self.lower_expression(base);
                 simple_ast::Expression::GetAttr {
@@ -567,7 +564,7 @@ impl Desugarino {
                     index,
                 }
             }
-            MyType::Class(class_type_ref) => {
+            SlangType::Class(class_type_ref) => {
                 let index = class_type_ref
                     .inner
                     .index_of(&attr)
@@ -591,7 +588,7 @@ impl Desugarino {
     /// Lower enum literal into is a sort of integer/tuple pair
     fn lower_enum_literal(
         &self,
-        typ: MyType,
+        typ: SlangType,
         choice: usize,
         arguments: Vec<typed_ast::Expression>,
     ) -> simple_ast::Expression {

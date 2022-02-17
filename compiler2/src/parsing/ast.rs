@@ -149,6 +149,9 @@ pub enum StatementType {
         value: Expression,
         arms: Vec<CaseArm>,
     },
+
+    /// Switch statement over an integer value
+    /// TBD: maybe fold with the 'case' statement?
     Switch {
         value: Expression,
         arms: Vec<SwitchArm>,
@@ -190,10 +193,7 @@ pub struct Expression {
 #[derive(Debug)]
 pub enum ExpressionType {
     Object(ObjRef),
-    String(String),
-    Integer(i64),
-    Float(f64),
-    Bool(bool),
+    Literal(Literal),
     StructLiteral {
         typ: Type,
         fields: Vec<StructLiteralField>,
@@ -203,10 +203,12 @@ pub enum ExpressionType {
         callee: Box<Expression>,
         arguments: Vec<Expression>,
     },
+
     ArrayIndex {
         base: Box<Expression>,
         indici: Vec<Expression>,
     },
+
     GetAttr {
         base: Box<Expression>,
         attr: String,
@@ -218,6 +220,14 @@ pub enum ExpressionType {
         op: BinaryOperator,
         rhs: Box<Expression>,
     },
+}
+
+#[derive(Debug)]
+pub enum Literal {
+    Bool(bool),
+    String(String),
+    Integer(i64),
+    Float(f64),
 }
 
 /// A type specification

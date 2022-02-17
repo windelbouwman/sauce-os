@@ -36,25 +36,25 @@ Compile and run ${filename} example
     Run executable for ${filename}
 
 Compile slang code for ${filename}
-    ${result}=  Run Process  ${SLANG_COMPILER}  -vvv  ${EXAMPLES_FOLDER}/${filename}.slang  --output  ${EXAMPLES_FOLDER}/${filename}.ll
+    ${result}=  Run Process  ${SLANG_COMPILER}  -vvv  ${EXAMPLES_FOLDER}/${filename}.slang  --output  ${EXAMPLES_FOLDER}/build/${filename}.ll
     Log  ${result.stdout}
     Log  ${result.stderr}
     Should Be Equal As Integers  ${result.rc}  0
 
 Invoke LLVM text ${filename}
-    ${result}=  Run Process  llc  --relocation-model\=pic  -filetype\=obj  -o  ${EXAMPLES_FOLDER}/${filename}.o  ${EXAMPLES_FOLDER}/${filename}.ll
+    ${result}=  Run Process  llc  --relocation-model\=pic  -filetype\=obj  -o  ${EXAMPLES_FOLDER}/build/${filename}.o  ${EXAMPLES_FOLDER}/build/${filename}.ll
     Log  ${result.stdout}
     Log  ${result.stderr}
     Should Be Equal As Integers  ${result.rc}  0
 
 Create executable for ${filename}
-    ${result}=  Run Process  gcc  -o  ${EXAMPLES_FOLDER}/${filename}.exe  ${EXAMPLES_FOLDER}/build/runtime.o  ${EXAMPLES_FOLDER}/${filename}.o
+    ${result}=  Run Process  gcc  -o  ${EXAMPLES_FOLDER}/build/${filename}.exe  ${EXAMPLES_FOLDER}/build/runtime.o  ${EXAMPLES_FOLDER}/build/${filename}.o
     Log  ${result.stdout}
     Log  ${result.stderr}
     Should Be Equal As Integers  ${result.rc}  0
 
 Run executable for ${filename}
-    ${result}=  Run Process  ${EXAMPLES_FOLDER}/${filename}.exe
+    ${result}=  Run Process  ${EXAMPLES_FOLDER}/build/${filename}.exe
     Log  ${result.stdout}
     Log  ${result.stderr}
 

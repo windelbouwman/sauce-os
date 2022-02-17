@@ -1,18 +1,19 @@
 
 # export PYTHONPATH=..
 BUILDDIR=build
-SLANG_COMPILER=../compiler2/target/debug/compiler2
+SLANG_COMPILER=../compiler2/target/release/compiler2
+# SLANG_COMPILER=../compiler2/target/debug/compiler2
 # SLANG_COMPILER=python -m bootstrap-compiler.main
 
 EXECUTABLES = \
-	callings.exe \
-	classy.exe \
-	expressions.exe \
-	generics.exe \
-	hello-world.exe \
-	if-statements.exe \
-	mandel.exe \
-	structs-passing.exe
+	${BUILDDIR}/callings.exe \
+	${BUILDDIR}/classy.exe \
+	${BUILDDIR}/expressions.exe \
+	${BUILDDIR}/generics.exe \
+	${BUILDDIR}/hello-world.exe \
+	${BUILDDIR}/if-statements.exe \
+	${BUILDDIR}/mandel.exe \
+	${BUILDDIR}/structs-passing.exe
 
 RT_OBJ=${BUILDDIR}/runtime.o
 
@@ -28,7 +29,7 @@ ${BUILDDIR}:
 ${RT_OBJ}: ../runtime/runtime.c
 	gcc -c -o ${RT_OBJ} ../runtime/runtime.c
 
-%.exe: ${BUILDDIR}/%.o ${RT_OBJ}
+${BUILDDIR}/%.exe: ${BUILDDIR}/%.o ${RT_OBJ}
 	gcc $< ${RT_OBJ} -o $@
 
 ${BUILDDIR}/%.o: ${BUILDDIR}/%.ll
@@ -40,4 +41,4 @@ ${BUILDDIR}/%.ll: %.slang
 	${SLANG_COMPILER} --output $@ $<
 
 clean:
-	rm -rf ${BUILDDIR} *.exe
+	rm -rf ${BUILDDIR}

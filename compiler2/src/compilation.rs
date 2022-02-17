@@ -2,7 +2,7 @@ use crate::bytecode;
 use crate::errors::{print_error, CompilationError};
 use crate::llvm_backend;
 use crate::parsing::{ast, parse_src};
-use crate::semantics::type_system::MyType;
+use crate::semantics::type_system::SlangType;
 use crate::semantics::{print_ast, type_check, typed_ast};
 use crate::semantics::{Scope, Symbol};
 use crate::{desugar, ir_gen, simple_ast_printer};
@@ -18,11 +18,19 @@ fn load_std_module(scope: &mut Scope) {
     let mut std_scope = Scope::new();
 
     // TODO: these could be loaded from interface/header like file?
-    std_scope.define_func("putc", vec![MyType::String], None);
-    std_scope.define_func("print", vec![MyType::String], None);
-    std_scope.define_func("read_file", vec![MyType::String], Some(MyType::String));
-    std_scope.define_func("int_to_str", vec![MyType::Int], Some(MyType::String));
-    std_scope.define_func("float_to_str", vec![MyType::Float], Some(MyType::String));
+    std_scope.define_func("putc", vec![SlangType::String], None);
+    std_scope.define_func("print", vec![SlangType::String], None);
+    std_scope.define_func(
+        "read_file",
+        vec![SlangType::String],
+        Some(SlangType::String),
+    );
+    std_scope.define_func("int_to_str", vec![SlangType::Int], Some(SlangType::String));
+    std_scope.define_func(
+        "float_to_str",
+        vec![SlangType::Float],
+        Some(SlangType::String),
+    );
     let name = "std".to_owned();
     scope.define(
         name.clone(),

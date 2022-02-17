@@ -3,7 +3,7 @@
 //! This is almost a C-like language:
 //! almost only functions and structs
 
-use super::semantics::type_system::{EnumType, MyType};
+use super::semantics::type_system::{EnumType, SlangType};
 use super::semantics::typed_ast;
 use crate::parsing::ast;
 
@@ -15,7 +15,7 @@ pub struct Program {
 pub struct FunctionDef {
     pub name: String,
     pub parameters: Vec<typed_ast::Parameter>,
-    pub return_type: Option<MyType>,
+    pub return_type: Option<SlangType>,
     pub locals: Vec<typed_ast::LocalVariable>,
     pub body: Block,
 }
@@ -48,7 +48,7 @@ pub enum Statement {
     },
     SetAttr {
         base: Expression,
-        base_typ: MyType,
+        base_typ: SlangType,
         index: usize,
         value: Expression,
     },
@@ -96,19 +96,19 @@ pub struct WhileStatement {
 pub enum Expression {
     Literal(typed_ast::Literal),
     StructLiteral {
-        typ: MyType,
+        typ: SlangType,
         values: Vec<Expression>,
     },
 
     UnionLiteral {
-        typ: MyType,
+        typ: SlangType,
         index: usize,
         value: Box<Expression>,
     },
     VoidLiteral,
 
     ArrayLiteral {
-        typ: MyType,
+        typ: SlangType,
         values: Vec<Expression>,
     },
 
@@ -119,16 +119,16 @@ pub enum Expression {
     },
     LoadLocal {
         index: usize,
-        typ: MyType,
+        typ: SlangType,
     },
     Call {
         callee: Box<Expression>,
         arguments: Vec<Expression>,
-        typ: MyType,
+        typ: SlangType,
     },
     GetAttr {
         base: Box<Expression>,
-        base_typ: MyType,
+        base_typ: SlangType,
         index: usize,
     },
     GetIndex {
@@ -140,8 +140,8 @@ pub enum Expression {
         op: ast::BinaryOperator,
         rhs: Box<Expression>,
         /// Result type
-        typ: MyType,
+        typ: SlangType,
         /// Operand type
-        op_typ: MyType,
+        op_typ: SlangType,
     },
 }
