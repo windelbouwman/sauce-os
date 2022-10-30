@@ -1,5 +1,6 @@
 // use std::collections::HashMap;
 use super::typed_ast;
+use super::Symbol;
 use crate::parsing::ast;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
@@ -35,10 +36,6 @@ pub enum SlangType {
     /// User defined type
     User(UserType),
 
-    /// A union type, same as the C-union type.
-    // Union(UnionType),
-
-    // Enum(EnumType),
     Void,
 
     /// Unresolved type
@@ -91,7 +88,7 @@ impl std::fmt::Display for SlangType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum UserType {
     /// A custom defined struct type!
     Struct(Weak<typed_ast::StructDef>),
@@ -105,8 +102,17 @@ impl UserType {
     /// Try to retrieve a field from a user defined type
     pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<typed_ast::FieldDef>>> {
         match self {
-            UserType::Struct(struct_type) => struct_type.upgrade().unwrap().get_field(name),
+            UserType::Struct(struct_def) => struct_def.upgrade().unwrap().get_field(name),
             UserType::Union(union_def) => union_def.upgrade().unwrap().get_field(name),
+            _ => None,
+        }
+    }
+
+    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
+        match self {
+            UserType::Struct(struct_def) => struct_def.upgrade().unwrap().get_attr(name),
+            UserType::Union(union_def) => union_def.upgrade().unwrap().get_attr(name),
+            UserType::Class(class_def) => class_def.upgrade().unwrap().get_field(name),
             _ => None,
         }
     }
@@ -147,6 +153,13 @@ impl std::fmt::Display for UserType {
     }
 }
 
+impl std::fmt::Debug for UserType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // Use the display logic for debug as well:
+        write!(f, "{}", self)
+    }
+}
+
 impl SlangType {
     pub fn into_function_type(self) -> FunctionType {
         if let SlangType::Function(function_type) = self {
@@ -182,6 +195,13 @@ impl SlangType {
             struct_def.upgrade().unwrap()
         } else {
             panic!("Expected struct type, got {}", self);
+        }
+    }
+
+    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
+        match self {
+            SlangType::User(user_type) => user_type.get_attr(name),
+            _ => None,
         }
     }
 

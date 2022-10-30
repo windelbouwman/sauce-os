@@ -26,7 +26,7 @@ impl EnumDef {
                     Some(variant)
                 }
                 other => {
-                    panic!("Scope must contain only enum variants, not {:?}", other);
+                    panic!("Scope must contain only enum variants, not {}", other);
                 }
             },
             None => None,

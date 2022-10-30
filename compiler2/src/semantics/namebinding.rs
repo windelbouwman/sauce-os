@@ -70,7 +70,7 @@ impl NameBinder {
                         other => {
                             let location: Location = Default::default();
                             // TODO: get location? //self.context.get_location(type_expression.node_id);
-                            self.error(&location, format!("Symbol is no type, but: {:?}", other));
+                            self.error(&location, format!("Symbol is no type, but: {}", other));
                         }
                     }
                 }
@@ -118,7 +118,7 @@ impl NameBinder {
         member: &str,
     ) -> Result<Symbol, ()> {
         match base {
-            Symbol::Module { module_ref } => {
+            Symbol::Module(module_ref) => {
                 if module_ref.scope.is_defined(member) {
                     let obj = module_ref.scope.get(member).expect("We checked!").clone();
                     Ok(obj)
@@ -146,7 +146,7 @@ impl NameBinder {
                 }
             },
             other => {
-                self.error(location, format!("Cannot scope-access: {:?}", other));
+                self.error(location, format!("Cannot scope-access: {}", other));
                 Err(())
             }
         }

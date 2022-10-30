@@ -53,7 +53,7 @@ impl<'g> Phase1<'g> {
             match import {
                 ast::Import::Import { location, modname } => {
                     if let Some(module_ref) = self.load_module(location, modname) {
-                        self.define(modname, Symbol::Module { module_ref }, location);
+                        self.define(modname, Symbol::Module(module_ref), location);
                     }
                 }
                 ast::Import::ImportFrom {
@@ -116,9 +116,9 @@ impl<'g> Phase1<'g> {
                 .get(modname)
                 .expect("We checked this!")
             {
-                Symbol::Module { module_ref } => Some(module_ref.clone()),
+                Symbol::Module(module_ref) => Some(module_ref.clone()),
                 other => {
-                    panic!("Did not expect this symbol in module scope: {:?}", other);
+                    panic!("Did not expect this symbol in module scope: {}", other);
                 }
             }
         } else {
@@ -161,9 +161,7 @@ impl<'g> Phase1<'g> {
             // Might be a bad plan / overkill?
             self.define(
                 &field.name,
-                Symbol::Field {
-                    field_ref: Rc::downgrade(&field_def),
-                },
+                Symbol::Field(Rc::downgrade(&field_def)),
                 &field.location,
             );
             inner_defs.push(field_def);
@@ -262,9 +260,7 @@ impl<'g> Phase1<'g> {
 
             self.define(
                 &field.name,
-                Symbol::Field {
-                    field_ref: Rc::downgrade(&field_def),
-                },
+                Symbol::Field(Rc::downgrade(&field_def)),
                 &field.location,
             );
         }
@@ -313,7 +309,7 @@ impl<'g> Phase1<'g> {
 
             self.define(
                 &parameter.name,
-                Symbol::Parameter { param_ref },
+                Symbol::Parameter(param_ref),
                 &parameter.location,
             );
 
@@ -345,7 +341,7 @@ impl<'g> Phase1<'g> {
 
         self.define(
             &function_def.name,
-            Symbol::Function { func_ref },
+            Symbol::Function(func_ref),
             &function_def.location,
         );
 
@@ -660,13 +656,7 @@ impl<'g> Phase1<'g> {
             self.new_id(),
         )));
         let local_ref = Rc::downgrade(&new_var);
-        self.define(
-            &name,
-            Symbol::LocalVariable {
-                local_ref: local_ref.clone(),
-            },
-            location,
-        );
+        self.define(&name, Symbol::LocalVariable(local_ref.clone()), location);
         self.local_variables.push(new_var.clone());
         local_ref
     }

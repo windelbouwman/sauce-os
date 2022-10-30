@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 /// Check the given program for type correctness.
-pub fn check_types(program: &mut typed_ast::Program) -> Result<(), CompilationError> {
+pub fn check_types(program: &typed_ast::Program) -> Result<(), CompilationError> {
     log::debug!("Type checking!");
     let mut type_checker = TypeChecker::new(&program.path);
     type_checker.check_program(program);
@@ -484,15 +484,15 @@ impl TypeChecker {
                     expression.typ = typ.clone();
                     Ok(())
                 }
-                Symbol::Parameter { param_ref } => {
+                Symbol::Parameter(param_ref) => {
                     expression.typ = refer(param_ref).borrow().typ.clone();
                     Ok(())
                 }
-                Symbol::LocalVariable { local_ref } => {
+                Symbol::LocalVariable(local_ref) => {
                     expression.typ = refer(local_ref).borrow().typ.clone();
                     Ok(())
                 }
-                Symbol::Function { func_ref } => {
+                Symbol::Function(func_ref) => {
                     // TODO: function type might not be super nice to use ..
                     let function_type = refer(func_ref).borrow().get_type();
                     expression.typ = function_type;
@@ -502,11 +502,11 @@ impl TypeChecker {
                     expression.typ = SlangType::TypeConstructor;
                     Ok(())
                 }
-                Symbol::Module { .. } => {
+                Symbol::Module(_) => {
                     self.error(&expression.location, "cannot load module".to_string());
                     Err(())
                 }
-                Symbol::Field { .. } => {
+                Symbol::Field(_) => {
                     unimplemented!("Load field: Unlikely that this will ever happen.");
                 }
                 Symbol::EnumVariant(_variant) => {
@@ -540,56 +540,25 @@ impl TypeChecker {
             }
             typed_ast::ExpressionKind::GetAttr { base, attr } => {
                 self.check_expression(base)?;
-                match &base.typ {
-                    SlangType::User(UserType::Struct(struct_def)) => {
-                        // Check if struct has this field.
-                        let struct_def = struct_def.upgrade().unwrap();
-                        if let Some(field_ref) = struct_def.get_field(attr) {
-                            expression.typ = field_ref.borrow().typ.clone();
-                            Ok(())
-                        } else {
-                            self.error(
-                                &expression.location,
-                                format!(
-                                    "Struct '{}' has no field named: {}",
-                                    struct_def.name, attr
-                                ),
-                            );
-                            Err(())
+                if let Some(symbol) = base.typ.get_attr(attr) {
+                    expression.typ = match symbol {
+                        Symbol::Field(field_ref) => {
+                            field_ref.upgrade().unwrap().borrow().typ.clone()
                         }
-                    }
-
-                    SlangType::User(UserType::Class(class_def)) => {
-                        let class_def = class_def.upgrade().unwrap();
-                        if let Some(symbol) = class_def.get_field(attr) {
-                            expression.typ = match symbol {
-                                Symbol::Field { field_ref } => {
-                                    field_ref.upgrade().unwrap().borrow().typ.clone()
-                                }
-                                Symbol::Function { func_ref } => {
-                                    func_ref.upgrade().unwrap().borrow().get_type()
-                                }
-                                other => {
-                                    panic!("Unexpected class member: {:?}", other);
-                                }
-                            };
-                            Ok(())
-                        } else {
-                            self.error(
-                                &expression.location,
-                                format!("Class '{}' has no member named: {}", class_def.name, attr),
-                            );
-                            Err(())
+                        Symbol::Function(func_ref) => {
+                            func_ref.upgrade().unwrap().borrow().get_type()
                         }
-                    }
-
-                    other => {
-                        self.error(
-                            &expression.location,
-                            format!("'{}' has no attributes. Hence also not '{}'.", other, attr),
-                        );
-                        Err(())
-                    }
+                        other => {
+                            panic!("Unexpected user-type member: {}", other);
+                        }
+                    };
+                    Ok(())
+                } else {
+                    self.error(
+                        &expression.location,
+                        format!("Type '{}' has no attribute '{}'", base.typ, attr),
+                    );
+                    Err(())
                 }
             }
         }

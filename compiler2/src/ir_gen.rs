@@ -583,22 +583,22 @@ impl Generator {
                     self.import_external(full_name.clone(), typ.clone());
                     self.emit(Instruction::LoadGlobalName(full_name));
                 }
-                Symbol::Function { func_ref } => {
+                Symbol::Function(func_ref) => {
                     let name = refer(func_ref).borrow().name.clone();
                     self.emit(Instruction::LoadGlobalName(name));
                 }
-                Symbol::LocalVariable { local_ref } => {
+                Symbol::LocalVariable(local_ref) => {
                     // TBD: use name + id as hint?
                     let index: usize = *self.index_map.get(&refer(local_ref).borrow().id).unwrap();
                     self.emit(Instruction::LoadLocal { index });
                 }
-                Symbol::Parameter { param_ref } => {
+                Symbol::Parameter(param_ref) => {
                     // TBD: use name as a hint?
                     let index: usize = *self.index_map.get(&refer(param_ref).borrow().id).unwrap();
                     self.emit(Instruction::LoadParameter { index });
                 }
                 other => {
-                    unimplemented!("Loading {:?}", other);
+                    unimplemented!("Loading {}", other);
                 }
             },
             other => {

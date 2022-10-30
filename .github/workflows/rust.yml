@@ -6,8 +6,10 @@ on:
 
 jobs:
   build-compiler2:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout sources
+        uses: actions/checkout@v2
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v2
         with:

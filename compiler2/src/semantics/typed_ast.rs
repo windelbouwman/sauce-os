@@ -21,7 +21,6 @@ pub type NodeId = usize;
 
 pub type Ref<T> = Weak<RefCell<T>>;
 
-#[derive(Debug)]
 pub struct Program {
     pub name: String,
     pub path: std::path::PathBuf,
@@ -29,7 +28,6 @@ pub struct Program {
     pub definitions: Vec<Definition>,
 }
 
-#[derive(Debug)]
 pub enum Definition {
     Function(Rc<RefCell<FunctionDef>>),
     Class(Rc<ClassDef>),
@@ -39,7 +37,6 @@ pub enum Definition {
     // Field(Arc<FieldDef>),
 }
 
-#[derive(Debug)]
 pub struct StructDef {
     pub location: Location,
     pub name: String,
@@ -57,15 +54,19 @@ impl std::fmt::Display for StructDef {
 impl StructDef {
     /// Retrieve the given field from this struct
     pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<FieldDef>>> {
-        match self.scope.get(name) {
+        match self.get_attr(name) {
             Some(symbol) => match symbol {
-                Symbol::Field { field_ref } => Some(field_ref.upgrade().unwrap()),
+                Symbol::Field(field_ref) => Some(field_ref.upgrade().unwrap()),
                 other => {
-                    panic!("Struct may only contain fields, not {:?}", other);
+                    panic!("Struct may only contain fields, not {}", other);
                 }
             },
             None => None,
         }
+    }
+
+    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
+        self.scope.get(name).cloned()
     }
 }
 
@@ -98,12 +99,8 @@ impl StructDefBuilder {
             value: None,
         }));
 
-        self.scope.define(
-            name.to_owned(),
-            Symbol::Field {
-                field_ref: Rc::downgrade(&field),
-            },
-        );
+        self.scope
+            .define(name.to_owned(), Symbol::Field(Rc::downgrade(&field)));
 
         self.fields.push(field);
     }
@@ -133,7 +130,6 @@ impl StructDefBuilder {
 ///
 /// This type is not exposed in the language, but is an
 /// helper type.
-#[derive(Debug)]
 pub struct UnionDef {
     pub location: Location,
     pub name: String,
@@ -151,19 +147,22 @@ impl std::fmt::Display for UnionDef {
 impl UnionDef {
     /// Retrieve the given field from this struct
     pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<FieldDef>>> {
-        match self.scope.get(name) {
+        match self.get_attr(name) {
             Some(symbol) => match symbol {
-                Symbol::Field { field_ref } => Some(field_ref.upgrade().unwrap()),
+                Symbol::Field(field_ref) => Some(field_ref.upgrade().unwrap()),
                 other => {
-                    panic!("Union can only contain fields, not {:?}", other);
+                    panic!("Union can only contain fields, not {}", other);
                 }
             },
             None => None,
         }
     }
+
+    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
+        self.scope.get(name).cloned()
+    }
 }
 
-#[derive(Debug)]
 pub struct ClassDef {
     pub location: Location,
     pub id: NodeId,
@@ -185,7 +184,6 @@ impl ClassDef {
     }
 }
 
-#[derive(Debug)]
 pub struct FieldDef {
     pub location: Location,
     pub name: String,
@@ -200,11 +198,6 @@ pub struct TypeDef {
     pub typ: SlangType,
 }
 */
-#[derive(Debug)]
-pub struct Import {
-    pub name: String,
-    // pub node_id: NodeId,
-}
 
 /*
 #[derive(Debug)]
@@ -221,7 +214,7 @@ pub enum TypeExprKind {
 */
 
 /// A function definition.
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct FunctionDef {
     pub name: String,
     pub id: NodeId,
@@ -358,7 +351,6 @@ pub struct CaseStatement {
     pub arms: Vec<CaseArm>,
 }
 
-#[derive(Debug)]
 pub struct CaseArm {
     pub location: Location,
 
@@ -385,6 +377,16 @@ impl CaseArm {
                 panic!("Arm constructor contains no variant, but {:?}", other);
             }
         }
+    }
+}
+
+impl std::fmt::Debug for CaseArm {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("CaseArm")
+            .field("location", &self.location)
+            .field("constructor", &self.constructor)
+            .field("local_refs", &self.local_refs)
+            .finish()
     }
 }
 
@@ -453,19 +455,6 @@ impl Expression {
     pub fn get_attr(self, attr: &str) -> Self {
         get_attr(self, attr)
     }
-
-    /*
-    pub fn has_type(&self) -> bool {
-        self.typ.lock().unwrap().as_ref().is_some()
-    }
-    pub fn get_type(&self) -> SlangType {
-        self.typ.lock().unwrap().as_ref().unwrap().clone()
-    }
-
-    pub fn set_type(&self, typ: SlangType) {
-        *self.typ.lock().unwrap() = Option::Some(typ);
-    }
-    */
 
     // pub fn into_i64(self) -> i64 {
     //     match self.kind {
@@ -563,6 +552,16 @@ pub enum ExpressionKind {
     Object(ast::ObjRef),
 }
 
+impl ExpressionKind {
+    pub fn typed_expr(self, typ: SlangType) -> Expression {
+        Expression {
+            location: Default::default(),
+            typ,
+            kind: self,
+        }
+    }
+}
+
 /// Access base by index.
 ///
 /// For example:
@@ -578,14 +577,11 @@ where
         other => panic!("Cannot index type: {:?}", other),
     };
 
-    Expression {
-        location: Default::default(),
-        typ,
-        kind: ExpressionKind::GetIndex {
-            base: Box::new(base),
-            index: Box::new(index),
-        },
+    ExpressionKind::GetIndex {
+        base: Box::new(base),
+        index: Box::new(index),
     }
+    .typed_expr(typ)
 }
 
 /// Access expression by attribute
@@ -606,22 +602,15 @@ pub fn get_attr(base: Expression, attr: &str) -> Expression {
         other => panic!("Cannot get attribute '{}' from type: {}", attr, other),
     };
 
-    Expression {
-        location: Default::default(),
-        typ,
-        kind: ExpressionKind::GetAttr {
-            base: Box::new(base),
-            attr: attr.to_owned(),
-        },
+    ExpressionKind::GetAttr {
+        base: Box::new(base),
+        attr: attr.to_owned(),
     }
+    .typed_expr(typ)
 }
 
 pub fn integer_literal(value: i64) -> Expression {
-    Expression {
-        location: Default::default(),
-        typ: SlangType::Int,
-        kind: ExpressionKind::Literal(Literal::Integer(value)),
-    }
+    ExpressionKind::Literal(Literal::Integer(value)).typed_expr(SlangType::Int)
 }
 
 pub fn union_literal(union_type: SlangType, attr: String, value: Expression) -> Expression {
@@ -630,31 +619,20 @@ pub fn union_literal(union_type: SlangType, attr: String, value: Expression) -> 
         panic!("Union has no attribute named '{}'", attr);
     }
 
-    Expression {
-        location: Default::default(),
-        typ: union_type,
-        kind: ExpressionKind::UnionLiteral {
-            attr,
-            value: Box::new(value),
-        },
+    ExpressionKind::UnionLiteral {
+        attr,
+        value: Box::new(value),
     }
+    .typed_expr(union_type)
 }
 
 pub fn tuple_literal(tuple_typ: SlangType, values: Vec<Expression>) -> Expression {
-    Expression {
-        location: Default::default(),
-        typ: tuple_typ,
-        kind: ExpressionKind::TupleLiteral(values),
-    }
+    ExpressionKind::TupleLiteral(values).typed_expr(tuple_typ)
 }
 
 /// Produce an expression of undefined value and undefined type
 pub fn undefined_value() -> Expression {
-    Expression {
-        location: Default::default(),
-        typ: SlangType::Undefined,
-        kind: ExpressionKind::Undefined,
-    }
+    ExpressionKind::Undefined.typed_expr(SlangType::Undefined)
 }
 
 pub fn store_local<E>(local_ref: Ref<LocalVariable>, value: E) -> Statement
@@ -666,27 +644,22 @@ where
 }
 
 pub fn binop(lhs: Expression, op: ast::BinaryOperator, rhs: Expression) -> Expression {
-    Expression {
-        location: Default::default(),
-        typ: lhs.typ.clone(),
-        kind: ExpressionKind::Binop {
-            lhs: Box::new(lhs),
-            op,
-            rhs: Box::new(rhs),
-        },
+    let typ = lhs.typ.clone();
+    ExpressionKind::Binop {
+        lhs: Box::new(lhs),
+        op,
+        rhs: Box::new(rhs),
     }
+    .typed_expr(typ)
 }
 
 pub fn comparison(lhs: Expression, cmp_op: ast::ComparisonOperator, rhs: Expression) -> Expression {
-    Expression {
-        location: Default::default(),
-        typ: SlangType::Bool,
-        kind: ExpressionKind::Binop {
-            lhs: Box::new(lhs),
-            op: ast::BinaryOperator::Comparison(cmp_op),
-            rhs: Box::new(rhs),
-        },
+    ExpressionKind::Binop {
+        lhs: Box::new(lhs),
+        op: ast::BinaryOperator::Comparison(cmp_op),
+        rhs: Box::new(rhs),
     }
+    .typed_expr(SlangType::Bool)
 }
 
 pub fn while_loop(condition: Expression, body: Block) -> Statement {
@@ -733,19 +706,11 @@ where
 
 pub fn load_local(local_ref: Ref<LocalVariable>) -> Expression {
     let typ = local_ref.upgrade().unwrap().borrow().typ.clone();
-    Expression {
-        location: Default::default(),
-        typ,
-        kind: ExpressionKind::LoadSymbol(Symbol::LocalVariable { local_ref }),
-    }
+    ExpressionKind::LoadSymbol(Symbol::LocalVariable(local_ref)).typed_expr(typ)
 }
 
 pub fn obj_ref(obj_ref: ast::ObjRef) -> Expression {
-    Expression {
-        typ: SlangType::Undefined,
-        location: Default::default(),
-        kind: ExpressionKind::Object(obj_ref),
-    }
+    ExpressionKind::Object(obj_ref).typed_expr(SlangType::Undefined)
 }
 
 #[derive(Debug)]

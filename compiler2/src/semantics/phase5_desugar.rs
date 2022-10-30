@@ -367,12 +367,12 @@ fn lower_assignment(assignment: typed_ast::AssignmentStatement) -> typed_ast::St
         },
 
         typed_ast::ExpressionKind::LoadSymbol(symbol) => match symbol {
-            Symbol::LocalVariable { local_ref } => typed_ast::StatementKind::StoreLocal {
+            Symbol::LocalVariable(local_ref) => typed_ast::StatementKind::StoreLocal {
                 local_ref,
                 value: assignment.value,
             },
             other => {
-                unimplemented!("TODO: {:?}!", other);
+                unimplemented!("TODO: {}!", other);
             }
         },
         other => {

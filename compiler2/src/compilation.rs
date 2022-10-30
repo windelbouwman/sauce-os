@@ -56,9 +56,7 @@ pub fn compile_to_bytecode(
         let typed_prog_ref = Rc::new(typed_prog);
         context.modules_scope.define(
             typed_prog_ref.name.clone(),
-            Symbol::Module {
-                module_ref: typed_prog_ref.clone(),
-            },
+            Symbol::Module(typed_prog_ref.clone()),
         );
         typed_programs.push(typed_prog_ref);
     }

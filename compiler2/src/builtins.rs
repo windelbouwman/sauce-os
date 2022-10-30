@@ -54,10 +54,5 @@ pub fn load_std_module(scope: &mut Scope) {
         scope: Arc::new(std_scope),
     };
 
-    scope.define(
-        name,
-        Symbol::Module {
-            module_ref: Rc::new(std_module),
-        },
-    );
+    scope.define(name, Symbol::Module(Rc::new(std_module)));
 }

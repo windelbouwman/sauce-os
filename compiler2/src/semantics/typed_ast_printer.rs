@@ -353,7 +353,7 @@ impl AstPrinter {
             }
 
             typed_ast::ExpressionKind::LoadSymbol(symbol) => match symbol {
-                Symbol::Parameter { param_ref } => {
+                Symbol::Parameter(param_ref) => {
                     print!(
                         "{}Load-parameter name={} id={}",
                         self.get_indent(),
@@ -361,7 +361,7 @@ impl AstPrinter {
                         refer(param_ref).borrow().id
                     );
                 }
-                Symbol::LocalVariable { local_ref } => {
+                Symbol::LocalVariable(local_ref) => {
                     print!(
                         "{}Load-local(name={}, id={})",
                         self.get_indent(),
@@ -369,7 +369,7 @@ impl AstPrinter {
                         refer(local_ref).borrow().id
                     );
                 }
-                Symbol::Function { func_ref } => {
+                Symbol::Function(func_ref) => {
                     print!(
                         "{}Load-symbol-function(name={}, id={})",
                         self.get_indent(),
@@ -409,7 +409,7 @@ impl AstPrinter {
                 }
 
                 other => {
-                    print!("{}Load-symbol {:?}", self.get_indent(), other);
+                    print!("{}Load-symbol {}", self.get_indent(), other);
                 }
             },
             typed_ast::ExpressionKind::TypeConstructor(type_constructor) => {

@@ -4,9 +4,8 @@ use super::type_system::{FunctionType, SlangType};
 use super::Symbol;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
 pub struct Scope {
-    pub symbols: HashMap<String, Symbol>,
+    symbols: HashMap<String, Symbol>,
 }
 
 impl Scope {
