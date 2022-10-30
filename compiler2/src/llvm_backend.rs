@@ -46,6 +46,7 @@ where
         writeln!(self.w)?;
         writeln!(self.w, r"declare i8* @malloc(i64) nounwind")?;
         writeln!(self.w, r"declare i8* @rt_str_concat(i8*, i8*) nounwind")?;
+        writeln!(self.w, r"declare i1 @rt_str_compare(i8*, i8*) nounwind")?;
         writeln!(self.w)?;
 
         self.gen_types(program.types)?;
@@ -97,8 +98,14 @@ where
                         writeln!(self.w, r"{} = type {{ {} }}", type_name, "??")?;
                     }
                 }
-                bytecode::TypeDef::Array { .. } => {
-                    unimplemented!();
+                bytecode::TypeDef::Array { size, element_type } => {
+                    // let type_name = self.new_local(Some("ArrayType".to_owned()));
+
+                    let element_type = self.get_llvm_typ(&element_type);
+                    let type_name = format!("[{} x {}]", size, element_type);
+                    let type_size = 1334;
+                    self.type_names.push((type_name.clone(), type_size));
+                    // unimplemented!("Arrays");
                 }
             }
         }
@@ -215,8 +222,8 @@ where
             let local_name = self.new_local(Some(local.name));
             let local_typ = self.get_llvm_typ(&local.typ);
             writeln!(self.w, "    {} = alloca {}", local_name, local_typ)?;
-            let local_alloc_type = format!("{}*", local_typ);
-            self.local_names.push((local_alloc_type, local_name));
+            // let local_alloc_type = format!("{}*", local_typ);
+            self.local_names.push((local_typ, local_name));
         }
 
         // Determine jump targets:
@@ -246,8 +253,9 @@ where
                     self.get_label(*label1);
                     self.get_label(*label2);
                 }
-                bytecode::Instruction::JumpTable(targets) => {
-                    for label in targets {
+                bytecode::Instruction::JumpSwitch { default, options } => {
+                    self.get_label(*default);
+                    for (_, label) in options {
                         self.get_label(*label);
                     }
                 }
@@ -351,6 +359,9 @@ where
             Instruction::FloatLiteral(value) => {
                 self.push("double".to_owned(), format!("{:.30}", value));
             }
+            Instruction::UndefinedLiteral => {
+                self.push("undefined".to_owned(), "undefined".to_owned());
+            }
             Instruction::Malloc(typ) => {
                 //  TBD: use heap malloc or alloca on stack?
 
@@ -363,8 +374,8 @@ where
                 // TBD: use getelementptr hack to determine size?
                 let byte_size = self.get_sizeof(&typ);
 
-                let typ = self.get_llvm_typ(&typ);
-                let var_typ = format!("{}*", typ);
+                // let var_typ = self.get_llvm_typ(&typ);
+                let var_typ = format!("{}*", self.get_llvm_typ(&typ));
 
                 writeln!(
                     self.w,
@@ -423,6 +434,26 @@ where
                         writeln!(self.w, "    {} = {} {} {}, {}", new_var, op, typ, lhs, rhs)?;
                         self.push("i1".to_owned(), new_var);
                     }
+                    bytecode::Typ::String => {
+                        let rhs = self.pop_typed();
+                        let lhs = self.pop_typed();
+
+                        match op {
+                            bytecode::Comparison::Equal => {
+                                // Call run time
+                                let new_var = self.new_local(None);
+                                writeln!(
+                                    self.w,
+                                    "    {} = call i1 @rt_str_compare({}, {})",
+                                    new_var, lhs, rhs
+                                )?;
+                                self.push("i1".to_owned(), new_var);
+                            }
+                            other => {
+                                panic!("Cannot compare string by: {:?}", other);
+                            }
+                        }
+                    }
                     other => {
                         unimplemented!("Comparison not implemented for: {:?}", other);
                     }
@@ -434,43 +465,50 @@ where
             Instruction::GetAttr { index, typ } => {
                 let (base_type, base) = self.pop();
 
+                let index = format!("{}", index);
                 // Determine element pointer:
-                let element_ptr = self.get_element_ptr(base_type, base, index)?;
+                let element_ptr = self.get_element_ptr(&base_type, &base, "i32", &index)?;
                 let element_ptr_type = self.get_llvm_typ(&typ);
 
                 // Example:
                 // %field_ptr15 = getelementptr %HolderType1, %HolderType1* %messages10, i32 0, i32 1
                 // %field14 = load i8*, i8** %field_ptr15
                 // load value:
-                let loaded_value = self.new_local(None);
-                writeln!(
-                    self.w,
-                    "    {} = load {}, {}* {}",
-                    loaded_value, element_ptr_type, element_ptr_type, element_ptr
-                )?;
+                let loaded_value = self.emit_load(&element_ptr_type, &element_ptr, None)?;
                 self.push(element_ptr_type, loaded_value);
             }
             Instruction::SetAttr { index } => {
                 let (value_type, value) = self.pop();
                 let (base_type, base) = self.pop();
 
-                let element_ptr = self.get_element_ptr(base_type, base, index)?;
+                let index = format!("{}", index);
+                let element_ptr = self.get_element_ptr(&base_type, &base, "i32", &index)?;
 
                 // Example:
                 // %HolderType1 = type { i8*, i8* }
                 // %addr6 = getelementptr %HolderType1, %HolderType1* %new_op3, i32 0, i32 0
                 // store i8* %cast4, i8** %addr6
-                writeln!(
-                    self.w,
-                    "    store {} {}, {}* {}",
-                    value_type, value, value_type, element_ptr
-                )?;
+                self.emit_store(&value_type, &value, &element_ptr)?;
             }
-            Instruction::GetElement => {
-                unimplemented!();
+            Instruction::GetElement { typ } => {
+                let (index_type, index) = self.pop();
+                let (base_type, base) = self.pop();
+
+                let element_ptr_type = self.get_llvm_typ(&typ);
+
+                // %field_ptr15 = getelementptr %HolderType1, %HolderType1* %messages10, i32 0, i32 1
+                // %field14 = load i8*, i8** %field_ptr15
+                let element_ptr = self.get_element_ptr(&base_type, &base, &index_type, &index)?;
+                let loaded_value = self.emit_load(&element_ptr_type, &element_ptr, None)?;
+                self.push(element_ptr_type, loaded_value);
             }
             Instruction::SetElement => {
-                unimplemented!();
+                let (value_type, value) = self.pop();
+                let (index_type, index) = self.pop();
+                let (base_type, base) = self.pop();
+
+                let element_ptr = self.get_element_ptr(&base_type, &base, &index_type, &index)?;
+                self.emit_store(&value_type, &value, &element_ptr)?;
             }
             Instruction::LoadParameter { index } => {
                 let (name, typ) = self.parameter_names_and_types[index].clone();
@@ -480,25 +518,21 @@ where
                 self.push("".to_owned(), format!("@{}", name));
             }
             Instruction::StoreLocal { index } => {
-                // let typ = Self::get_llvm_typ(&typ);
                 let (value_type, value) = self.pop();
                 let (local_type, local_name) = self.local_names[index].clone();
-                writeln!(
-                    self.w,
-                    "    store {} {}, {} {}",
-                    value_type, value, local_type, local_name
-                )?;
+                log::info!(
+                    "Local type = {} <<= value type = {}",
+                    local_type,
+                    value_type
+                );
+                // assert!(value_type == local_type);
+                // Generate something like: store i64 %fuu_8, i64* %z_2
+                self.emit_store(&value_type, &value, &local_name)?;
             }
-            Instruction::LoadLocal { index, typ } => {
-                let typ = self.get_llvm_typ(&typ);
+            Instruction::LoadLocal { index } => {
                 let (local_type, local_name) = self.local_names[index].clone();
-                let new_var = self.new_local(None);
-                writeln!(
-                    self.w,
-                    "    {} = load {}, {} {}",
-                    new_var, typ, local_type, local_name
-                )?;
-                self.push(typ, new_var);
+                let new_var = self.emit_load(&local_type, &local_name, None)?;
+                self.push(local_type, new_var);
             }
             Instruction::Jump(label) => {
                 let label = self.get_label_ref(label);
@@ -510,30 +544,29 @@ where
                 let else_label = self.get_label_ref(else_label);
                 writeln!(self.w, "    br i1 {}, {}, {}", condition, label, else_label)?;
             }
-            Instruction::JumpTable(jump_table) => {
+            Instruction::JumpSwitch { default, options } => {
                 // TODO: when using jump table with a value on the stack,
                 // the stack must be saved somehow...
 
                 // Integer to choose lives on stack now.
                 let (typ, value) = self.pop();
 
-                // Ugh, ugly assumption here!
-                // TODO: implement proper panic handling.
-                let default_dest: usize = jump_table[0];
+                assert!(typ == "i64");
 
-                assert!(!jump_table.is_empty());
-                let options: Vec<String> = jump_table
+                let default_label = self.get_label_ref(default);
+
+                assert!(!options.is_empty());
+                let options: Vec<String> = options
                     .into_iter()
-                    .enumerate()
-                    .map(|(index, label)| format!("i32 {}, {}", index, self.get_label_ref(label)))
+                    .map(|(value, label)| format!("i64 {}, {}", value, self.get_label_ref(label)))
                     .collect();
 
                 writeln!(
                     self.w,
-                    "    switch {} {}, label %block{} [ {} ]",
+                    "    switch {} {}, {} [ {} ]",
                     typ,
                     value,
-                    default_dest,
+                    default_label,
                     options.join(" ")
                 )?;
             }
@@ -555,28 +588,72 @@ where
 
     fn get_element_ptr(
         &mut self,
-        base_type: String,
-        base: String,
-        index: usize,
+        base_type: &str,
+        base: &str,
+        index_type: &str,
+        index: &str,
     ) -> Result<String, std::io::Error> {
-        let mut base_type2 = base_type.clone();
-        base_type2.pop(); // trim trailing '*'
-
         // let base_type2 = "%HolderType1";
         let element_ptr = self.new_local(None);
         // let element_typ = "u8*";
+        log::info!("Base type = {}", base_type);
 
+        // Example:
+        // %HolderType1 = type { i8*, i8* }
+        // %addr6 = getelementptr %HolderType1, %HolderType1* %new_op3, i32 0, i32 0
+        // store i8* %cast4, i8** %addr6
+        // assert!(base_type)
+        assert!(is_pointer(base_type));
+        writeln!(
+            self.w,
+            "    {} = getelementptr {}, {} {}, i32 0, {} {}",
+            element_ptr,
+            un_pointerize(base_type),
+            base_type,
+            base,
+            index_type,
+            index
+        )?;
+
+        Ok(element_ptr)
+    }
+
+    /// Emit LLVM load instruction
+    ///
+    /// Generate something like: %fuu_3 = load i64, i64* %x_0
+    fn emit_load(
+        &mut self,
+        var_typ: &str,
+        var_name: &str,
+        hint: Option<String>,
+    ) -> Result<String, std::io::Error> {
+        let new_var = self.new_local(hint);
+        writeln!(
+            self.w,
+            "    {} = load {}, {}* {}",
+            new_var, var_typ, var_typ, var_name
+        )?;
+
+        Ok(new_var)
+    }
+
+    fn emit_store(
+        &mut self,
+        value_type: &str,
+        value: &str,
+        element_ptr: &str,
+    ) -> Result<(), std::io::Error> {
         // Example:
         // %HolderType1 = type { i8*, i8* }
         // %addr6 = getelementptr %HolderType1, %HolderType1* %new_op3, i32 0, i32 0
         // store i8* %cast4, i8** %addr6
         writeln!(
             self.w,
-            "    {} = getelementptr {}, {} {}, i32 0, i32 {}",
-            element_ptr, base_type2, base_type, base, index
+            "    store {} {}, {}* {}",
+            value_type, value, value_type, element_ptr
         )?;
 
-        Ok(element_ptr)
+        Ok(())
     }
 
     /// Generate LLVM code for a function call
@@ -645,4 +722,18 @@ where
         let (_, arg_name) = self.pop();
         arg_name
     }
+}
+
+/// Remove trailing asterix from string
+fn un_pointerize(llvm_type: &str) -> &str {
+    let mut x = llvm_type.chars();
+    // assert!(x.last().unwrap() == '*');
+    let last_char = x.next_back().unwrap();
+    assert!(last_char == '*');
+    x.as_str()
+}
+
+fn is_pointer(llvm_type: &str) -> bool {
+    let x = llvm_type.chars();
+    x.last().unwrap() == '*'
 }

@@ -1,151 +1,79 @@
+//! Main compiler driver.
+//!
+//! Drive code through the various stages of compilation.
+use crate::builtins::{define_builtins, load_std_module};
 use crate::bytecode;
-use crate::errors::{print_error, CompilationError};
+use crate::errors::CompilationError;
+use crate::ir_gen;
 use crate::llvm_backend;
-use crate::parsing::{ast, parse_src};
-use crate::semantics::type_system::SlangType;
-use crate::semantics::{print_ast, type_check, typed_ast};
-use crate::semantics::{Scope, Symbol};
-use crate::{desugar, ir_gen, simple_ast_printer};
+use crate::parsing::{ast, parse_file};
+use crate::semantics::{analyze, print_ast, Context, Scope, Symbol};
+use std::collections::HashMap;
+use std::rc::Rc;
 
 pub struct CompileOptions {
-    pub dump_src: bool,
     pub dump_ast: bool,
     pub dump_bc: bool,
 }
 
-/// Define functions provided by 'std' module.
-fn load_std_module(scope: &mut Scope) {
-    let mut std_scope = Scope::new();
-
-    // TODO: these could be loaded from interface/header like file?
-    std_scope.define_func("putc", vec![SlangType::String], None);
-    std_scope.define_func("print", vec![SlangType::String], None);
-    std_scope.define_func(
-        "read_file",
-        vec![SlangType::String],
-        Some(SlangType::String),
-    );
-    std_scope.define_func("int_to_str", vec![SlangType::Int], Some(SlangType::String));
-    std_scope.define_func(
-        "float_to_str",
-        vec![SlangType::Float],
-        Some(SlangType::String),
-    );
-    let name = "std".to_owned();
-    scope.define(
-        name.clone(),
-        Symbol::Module {
-            name,
-            scope: std_scope,
-        },
-    );
-}
-
-fn add_to_pool(name: String, prog: &typed_ast::Program, scope: &mut Scope) {
-    log::info!("Adding '{}' in the module mix!", name);
-    let mut inner_scope = Scope::new();
-
-    // Fill type-defs:
-    for typ_def in &prog.type_defs {
-        inner_scope.define_type(&typ_def.name, typ_def.typ.clone());
+/// Compile source files into bytecode.
+///
+/// Performs:
+/// - parsing
+/// - type checking
+/// - compilation into bytecode
+pub fn compile_to_bytecode(
+    paths: &[&std::path::Path],
+    options: &CompileOptions,
+) -> Result<bytecode::Program, CompilationError> {
+    log::info!("Parsing sources");
+    let mut parsed_programs = vec![];
+    for path in paths {
+        let program = parse_file(path)?;
+        parsed_programs.push(program);
     }
 
-    for func_def in &prog.functions {
-        inner_scope.define_func(
-            &func_def.name,
-            func_def.parameters.iter().map(|p| p.typ.clone()).collect(),
-            func_def.return_type.clone(),
+    // We have all modules, determine inter-dependencies
+    let sorted_programs = determine_dependecy_order(parsed_programs)?;
+
+    let mut builtin_scope = Scope::new();
+    define_builtins(&mut builtin_scope);
+
+    let mut context = Context::new(builtin_scope);
+    load_std_module(&mut context.modules_scope);
+
+    log::info!("Type checking");
+    let mut typed_programs = vec![];
+    for program in sorted_programs {
+        log::info!("Checking module: {}", program.name);
+
+        let mut typed_prog = analyze(program, &mut context, options.dump_ast)?;
+        if options.dump_ast {
+            log::debug!("Dumping typed AST");
+            print_ast(&mut typed_prog);
+        }
+
+        let typed_prog_ref = Rc::new(typed_prog);
+        context.modules_scope.define(
+            typed_prog_ref.name.clone(),
+            Symbol::Module {
+                module_ref: typed_prog_ref.clone(),
+            },
         );
+        typed_programs.push(typed_prog_ref);
     }
 
-    let module_obj = Symbol::Module {
-        name: name.clone(),
-        scope: inner_scope,
-    };
+    let bc = ir_gen::gen(&typed_programs);
 
-    scope.define(name, module_obj);
-}
-
-fn parse_one(
-    path: &std::path::Path,
-    options: &CompileOptions,
-) -> Result<ast::Program, CompilationError> {
-    log::info!("Reading: {}", path.display());
-    let source = std::fs::read_to_string(path).map_err(|err| {
-        CompilationError::simple(format!("Error opening {}: {}", path.display(), err))
-    })?;
-    if options.dump_src {
-        log::debug!("Dumpin sourcecode below");
-        println!("{}", source);
-    }
-    let prog = parse_src(&source)?;
-    log::info!("Parsing done&done");
-    Ok(prog)
-}
-
-/// Parse and type-check source file.
-fn stage1(
-    path: &std::path::Path,
-    options: &CompileOptions,
-    module_scope: &Scope,
-) -> Result<typed_ast::Program, CompilationError> {
-    let prog = parse_one(path, options)?;
-    let typed_prog = type_check(prog, module_scope.clone())?;
-    log::info!("Type check done&done");
-    if options.dump_ast {
-        log::debug!("Dumping typed AST");
-        print_ast(&typed_prog);
-    }
-
-    Ok(typed_prog)
-}
-
-/// Compile typed AST into bytecode.
-fn stage2(typed_prog: typed_ast::Program, options: &CompileOptions) -> bytecode::Program {
-    let simple_prog = desugar::desugar(typed_prog);
-    if options.dump_ast {
-        simple_ast_printer::print_ast(&simple_prog);
-    }
-
-    let bc = ir_gen::gen(simple_prog);
     if options.dump_bc {
         log::debug!("Dumping bytecode below");
         bytecode::print_bytecode(&bc);
     }
-    bc
-}
-
-pub fn compile_to_bytecode(
-    path: &std::path::Path,
-    options: &CompileOptions,
-) -> Result<bytecode::Program, CompilationError> {
-    let mut module_scope = Scope::new();
-    load_std_module(&mut module_scope);
-
-    let typed_prog = stage1(path, options, &module_scope)?;
-    let bc = stage2(typed_prog, options);
 
     Ok(bc)
 }
 
-/// Compile a single source file to a single LLVM output file
-pub fn compile(
-    path: &std::path::Path,
-    output_path: Option<&std::path::Path>,
-    options: &CompileOptions,
-) -> Result<(), CompilationError> {
-    let bc = compile_to_bytecode(path, options)?;
-
-    // ============
-    // HERE BEGINS STAGE 2
-    // Options:
-    // - serialize to disk!
-    // - run in interpreter
-    // - contrapt LLVM code
-    // - create WASM module!
-    let _serialized = serde_json::to_string_pretty(&bc).unwrap();
-    // println!("{}", serialized);
-
+pub fn bytecode_to_llvm(bc: bytecode::Program, output_path: Option<&std::path::Path>) {
     if let Some(output_path) = output_path {
         log::info!("Writing LLVM code to: {}", output_path.display());
         let mut output_writer = std::fs::OpenOptions::new()
@@ -161,67 +89,56 @@ pub fn compile(
         llvm_backend::create_llvm_text_code(bc, &mut buf2);
         println!("And result: {}", std::str::from_utf8(&buf2).unwrap());
     }
-
-    Ok(())
 }
 
-/// Build a slew of source files.
+/// Determine dependency order of loaded programs.
 ///
-/// This is a sort of driver mode, which loads sources onto a work queue
-/// and progresses where possible.
-pub fn build_multi(paths: &[&std::path::Path], options: &CompileOptions) {
-    let mut backlog = vec![];
-    for path in paths {
-        backlog.push(WorkItem::File(path.to_path_buf()));
-    }
+/// This is done using import statements.
+/// Detects eventual dependency cycles.
+fn determine_dependecy_order(
+    parsed_programs: Vec<ast::Program>,
+) -> Result<Vec<ast::Program>, CompilationError> {
+    let mut dep_graph = petgraph::graphmap::DiGraphMap::new();
 
-    let mut module_scope = Scope::new();
-    load_std_module(&mut module_scope);
-
-    while !backlog.is_empty() {
-        let x = backlog.pop().unwrap();
-        match x {
-            WorkItem::File(path) => {
-                log::info!("Parsing: {}", path.display());
-                match parse_one(&path, options) {
-                    Ok(program) => {
-                        backlog.push(WorkItem::Ast { path, program });
-                    }
-                    Err(err) => {
-                        print_error(&path, err);
-                    }
-                }
-            }
-            WorkItem::Ast { path, program } => {
-                // test if all imports are satisfied?
-                if program.deps().iter().all(|n| module_scope.is_defined(n)) {
-                    log::info!("Checking module: {}", path.display());
-                    match type_check(program, module_scope.clone()) {
-                        Ok(typed_prog) => {
-                            let modname: String =
-                                path.file_stem().unwrap().to_str().unwrap().to_owned();
-                            add_to_pool(modname, &typed_prog, &mut module_scope);
-                            let _bc = stage2(typed_prog, options);
-
-                            // TODO: store for later usage? What now?
-                        }
-                        Err(err) => {
-                            print_error(&path, err);
-                        }
-                    }
-                } else {
-                    log::error!("Too bad, module deps not all satisfied!");
-                    // TODO: retry? sort?
-                }
-            }
+    // Sort in topological order!
+    for program in &parsed_programs {
+        dep_graph.add_node(&program.name);
+        for dep in program.deps() {
+            dep_graph.add_edge(&program.name, dep, 1);
         }
     }
-}
 
-enum WorkItem {
-    File(std::path::PathBuf),
-    Ast {
-        path: std::path::PathBuf,
-        program: ast::Program,
-    },
+    let order = match petgraph::algo::toposort(&dep_graph, None) {
+        Ok(node_ids) => {
+            let mut order: Vec<String> = node_ids.into_iter().map(|n| n.clone()).collect();
+            order.reverse();
+            order
+        }
+        Err(cycle) => {
+            return Err(CompilationError::simple(format!(
+                "Module dependency cycles : {:?}",
+                cycle
+            )));
+        }
+    };
+    log::info!("Dependency order: {:?}", order);
+
+    // Now sort modules based upon order
+    let mut prog_map: HashMap<String, ast::Program> = HashMap::new();
+    for program in parsed_programs {
+        assert!(!prog_map.contains_key(&program.name));
+        prog_map.insert(program.name.clone(), program);
+    }
+
+    let mut sorted_programs = vec![];
+    for name in order {
+        if prog_map.contains_key(&name) {
+            let program = prog_map.remove(&name).unwrap();
+            sorted_programs.push(program);
+        }
+    }
+
+    assert!(prog_map.is_empty());
+
+    Ok(sorted_programs)
 }

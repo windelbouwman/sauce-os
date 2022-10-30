@@ -1,0 +1,18 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-compiler2:
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v2
+        with:
+          profile: minimal
+      - name: Run cargo build
+        run: |
+          cd compiler2
+          cargo build

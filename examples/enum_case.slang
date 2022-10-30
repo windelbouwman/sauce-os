@@ -1,7 +1,6 @@
 
 import std
 
-
 enum Option:
     None
     Some(str)
@@ -11,7 +10,7 @@ enum Option:
 fn main():
     let val: Option = Option::Some("TXT")
     foo(val)
-    let val2: Option = Option::None
+    let val2 = Option::None()
     foo(val2)
     let val3: Option = Option::Money(5, 2.3)
     foo(val3)
@@ -19,8 +18,6 @@ fn main():
 
 fn foo(val: Option):
     case val:
-        # Option::None:
-        #     std::print("Nothing here")
         Option::Some(x):
             std::print("And the message is: " + x)
         Option::None:

@@ -1,13 +1,16 @@
+//!
+//! SLANG compiler.
+//!
+//! Command line arguments can be given.
+//!
+mod builtins;
 mod bytecode;
 mod compilation;
-mod desugar;
 mod errors;
 mod ir_gen;
 mod llvm_backend;
 mod parsing;
 mod semantics;
-mod simple_ast;
-mod simple_ast_printer;
 mod vm;
 
 use compilation::CompileOptions;
@@ -33,16 +36,22 @@ fn main() -> Result<(), ()> {
         .arg(
             clap::Arg::with_name("dump-ast")
                 .long("dump-ast")
-                .help("Spit out bytecode intermediate format."),
+                .help("Print out bytecode intermediate format."),
         )
         .arg(
             clap::Arg::with_name("dump-bytecode")
                 .long("dump-bytecode")
-                .help("Spit out bytecode intermediate format."),
+                .help("Print out bytecode intermediate format."),
+        )
+        .arg(
+            clap::Arg::with_name("emit-bytecode")
+                .long("emit-bytecode")
+                .help("Spit out bytecode intermediate format in json format."),
         )
         .arg(
             clap::Arg::with_name("execute-bytecode")
                 .long("execute-bytecode")
+                .short("r")
                 .help("Run bytecode intermediate format. (sort of python-ish mode)"),
         )
         .arg(
@@ -64,54 +73,46 @@ fn main() -> Result<(), ()> {
     simple_logger::init_with_level(log_level).unwrap();
 
     let options = CompileOptions {
-        dump_bc: matches.is_present("dump-bytecode") || verbosity > 5,
-        dump_ast: matches.is_present("dump-ast") || verbosity > 5,
-        dump_src: verbosity > 5,
+        dump_bc: matches.is_present("dump-bytecode"),
+        dump_ast: matches.is_present("dump-ast"),
     };
 
-    if matches.is_present("execute-bytecode") {
-        let path = std::path::Path::new(matches.value_of("source").unwrap());
-        interpret_mode(path, &options);
-        Ok(())
-    } else if matches.occurrences_of("source") > 1 {
-        let paths: Vec<&std::path::Path> = matches
-            .values_of("source")
-            .unwrap()
-            .map(std::path::Path::new)
-            .collect();
-        for path in &paths {
-            log::debug!("Got: {}", path.display());
-        }
-        compilation::build_multi(&paths, &options);
-        Ok(())
-    } else {
-        let path = std::path::Path::new(matches.value_of("source").unwrap());
-        let output_path = matches.value_of("output").map(std::path::Path::new);
-        let res = compilation::compile(path, output_path, &options);
-        match res {
-            Ok(()) => {
-                log::info!("Great okidoki");
-                Ok(())
-            }
-            Err(err) => {
-                log::error!("Compilation errors");
-                print_error(path, err);
-                Err(())
-            }
-        }
-    }
-}
+    // Compile source to bytecode
+    let paths: Vec<&std::path::Path> = matches
+        .values_of("source")
+        .unwrap()
+        .map(std::path::Path::new)
+        .collect();
 
-fn interpret_mode(path: &std::path::Path, options: &CompileOptions) {
-    match compilation::compile_to_bytecode(path, options) {
-        Ok(bc) => {
-            log::info!("Running interpreted, python style!");
-            // Run in VM!!!
-            vm::execute(bc);
-            log::info!("Interpreting done & done");
-        }
-        Err(err) => {
-            print_error(path, err);
-        }
+    let bc = compilation::compile_to_bytecode(&paths, &options).map_err(|err| {
+        log::error!("Compilation errors");
+        print_error(err);
+    })?;
+
+    log::info!("Great okidoki");
+
+    // ============
+    // HERE BEGINS STAGE 2
+    // Options:
+    // - serialize to disk!
+    // - run in interpreter
+    // - contrapt LLVM code
+    // - contrapt QBE IR code.
+    // - create WASM module!
+
+    // Execute or compile to LLVM
+    if matches.is_present("execute-bytecode") {
+        log::info!("Running interpreted, python style!");
+        // Run in VM!!!
+        vm::execute(bc);
+        log::info!("Interpreting done & done");
+    } else if matches.is_present("emit-bytecode") {
+        let serialized = serde_json::to_string_pretty(&bc).unwrap();
+        println!("bytecode json: {}", serialized);
+    } else {
+        let output_path = matches.value_of("output").map(std::path::Path::new);
+        compilation::bytecode_to_llvm(bc, output_path);
     }
+
+    Ok(())
 }

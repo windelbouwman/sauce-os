@@ -6,6 +6,6 @@ fn main():
     foo()
 
 fn foo():
-    if 2 < 7:
+    if 2 < 7 - 1:
         std::print("Hello world2")
 

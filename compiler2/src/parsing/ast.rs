@@ -1,22 +1,40 @@
-use super::token::Location;
+use super::location::Location;
 
 pub struct Program {
     pub docstring: Option<String>,
-    pub name: Option<String>,
+    pub name: String,
+
+    /// The source file path
+    pub path: std::path::PathBuf,
+
+    /// Other used modules
     pub imports: Vec<Import>,
     pub typedefs: Vec<TypeDef>,
     pub functions: Vec<FunctionDef>,
 }
 
 impl Program {
-    pub fn deps(&self) -> Vec<String> {
-        self.imports.iter().map(|i| i.name.clone()).collect()
+    pub fn deps<'d>(&'d self) -> Vec<&'d String> {
+        self.imports
+            .iter()
+            .map(|i| match i {
+                Import::Import { modname, .. } => modname,
+                Import::ImportFrom { modname, .. } => modname,
+            })
+            .collect()
     }
 }
 
-pub struct Import {
-    pub location: Location,
-    pub name: String,
+pub enum Import {
+    Import {
+        location: Location,
+        modname: String,
+    },
+    ImportFrom {
+        location: Location,
+        modname: String,
+        name: String,
+    },
 }
 
 pub enum TypeDef {
@@ -33,7 +51,8 @@ pub enum TypeDef {
 
 /// A variant declaration
 ///
-/// rust's enum type, C's enum + optional data
+/// rust's enum type
+/// C's enum + optional data, or so called tagged union
 pub struct EnumDef {
     pub name: String,
     pub location: Location,
@@ -248,7 +267,7 @@ pub enum TypeKind {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ObjRef {
     Name {
         location: Location,

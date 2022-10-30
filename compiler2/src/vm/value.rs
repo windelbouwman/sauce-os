@@ -130,4 +130,8 @@ impl Value {
             other => panic!("Cannot convert {:?} into array", other),
         }
     }
+
+    pub fn is_undefined(&self) -> bool {
+        matches!(self, Value::Uninitialized)
+    }
 }

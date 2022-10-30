@@ -1,37 +1,39 @@
-use super::scope::Scope;
-use super::type_system::{EnumType, SlangType};
+//! Representation of a symbol.
+//!
+//! Symbols can refer to variables, parameters, functions etc..
+//!
+
+use super::type_system::SlangType;
+use super::typed_ast;
+use super::Ref;
+
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Symbol {
     Typ(SlangType),
     Function {
+        func_ref: Ref<typed_ast::FunctionDef>,
+    },
+    ExternFunction {
         name: String,
         typ: SlangType,
     },
+    // Class {
+    //     node_id: NodeId,
+    // },
     Module {
-        name: String,
-        scope: Scope,
+        module_ref: Rc<typed_ast::Program>,
     },
     Parameter {
-        typ: SlangType,
-        name: String,
-        index: usize,
+        param_ref: Ref<typed_ast::Parameter>,
     },
     LocalVariable {
-        mutable: bool,
-        name: String,
-        index: usize,
-        typ: SlangType,
+        local_ref: Ref<typed_ast::LocalVariable>,
     },
     Field {
-        class_typ: SlangType,
-        name: String,
-        index: usize,
-        typ: SlangType,
+        field_ref: Ref<typed_ast::FieldDef>,
     },
-    EnumOption {
-        /// An index in the enum type's options
-        choice: usize,
-        enum_type: EnumType,
-    },
+
+    EnumVariant(Ref<typed_ast::EnumVariant>),
 }

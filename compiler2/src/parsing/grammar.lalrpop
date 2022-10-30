@@ -1,6 +1,7 @@
 
-use super::{ast, LexicalError};
-use super::token::{Token, Location};
+use super::{ast, LexicalError, Location};
+use super::token::Token;
+
 
 grammar;
 
@@ -11,17 +12,24 @@ pub Program: ast::Program = {
     <functions:FunctionDef*>
     => {
         let docstring = docstring.map(|d| d.0);
-        ast::Program { docstring, name: None, imports, typedefs, functions }
+        ast::Program { docstring, path: Default::default(), name: Default::default(), imports, typedefs, functions }
     }
 };
 
 Import: ast::Import = {
-    <location:@L> "import" <name:Identifier> Newline => {
-        ast::Import {
+    <location:@L> "import" <modname:Identifier> Newline => {
+        ast::Import::Import {
             location,
+            modname
+        }
+    },
+    <location:@L> "from" <modname:Identifier> "import" <name:Identifier> Newline => {
+        ast::Import::ImportFrom {
+            location,
+            modname,
             name
         }
-    }
+    },
 };
 
 TypeDef: ast::TypeDef = {
@@ -199,8 +207,9 @@ Statement: ast::Statement = {
     <location:@L> "switch" <value:Expression> ":" Newline
     Indent
     <arms:SwitchArm+>
+    Dedent
     "else" ":" Newline <default:Block>
-    Dedent => {
+    => {
         ast::Statement {
             location,
             kind: ast::StatementType::Switch {
@@ -662,6 +671,7 @@ extern {
         "false" => Token::KeywordFalse,
         "fn" => Token::KeywordFn,
         "for" => Token::KeywordFor,
+        "from" => Token::KeywordFrom,
         "if" => Token::KeywordIf,
         "import" => Token::KeywordImport,
         "in" => Token::KeywordIn,

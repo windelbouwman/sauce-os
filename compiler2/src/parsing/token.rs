@@ -18,6 +18,7 @@ pub enum Token {
     KeywordFalse,
     KeywordFn,
     KeywordFor,
+    KeywordFrom,
     KeywordIf,
     KeywordImport,
     KeywordIn,
@@ -63,10 +64,4 @@ pub enum Token {
     ClosingBrace,
     OpeningBracket,
     ClosingBracket,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct Location {
-    pub row: i32,
-    pub column: i32,
 }

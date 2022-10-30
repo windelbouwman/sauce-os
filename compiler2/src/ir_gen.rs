@@ -6,17 +6,22 @@
 use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
-use super::semantics::type_system::{
-    ArrayType, EnumOption, EnumType, FunctionType, SlangType, StructType, UnionType,
-};
+use super::semantics::type_system::{ArrayType, FunctionType, SlangType, UserType};
 use super::semantics::typed_ast;
-use super::simple_ast;
+use crate::semantics::NodeId;
+use crate::semantics::{refer, Symbol};
 use std::collections::HashMap;
+use std::rc::Rc;
 
-pub fn gen(prog: simple_ast::Program) -> bytecode::Program {
+/// Compile a typed ast into bytecode.
+pub fn gen(progs: &[Rc<typed_ast::Program>]) -> bytecode::Program {
     log::info!("Generating IR bytecode");
-    let mut g = Generator::new();
-    g.gen_prog(prog)
+    let mut generator = Generator::new();
+    for prog in progs {
+        generator.gen_prog(prog)
+    }
+
+    generator.take_program()
 }
 
 #[derive(Hash, Eq, PartialEq, Clone)]
@@ -25,97 +30,147 @@ struct Label {
 }
 
 struct Generator {
+    imports: Vec<bytecode::Import>,
+    imported: HashMap<String, bool>,
     functions: Vec<bytecode::Function>,
     instructions: Vec<Instruction>,
     id_counter: usize,
     loop_stack: Vec<(Label, Label)>,
     types: Vec<bytecode::TypeDef>,
     type_to_id_map: HashMap<bytecode::TypeDef, usize>,
+    index_map: HashMap<NodeId, usize>,
     label_map: HashMap<Label, usize>,
     relocations: Vec<Relocation>,
 }
 
 enum Relocation {
-    Jump(usize, Label),
-    JumpIf(usize, Label, Label),
-    JumpTable(usize, Vec<Label>),
+    Jump {
+        pc: usize,
+        label: Label,
+    },
+    JumpIf {
+        pc: usize,
+        true_label: Label,
+        false_label: Label,
+    },
+    JumpSwitch {
+        pc: usize,
+        default: Label,
+        options: Vec<(i64, Label)>,
+    },
 }
 
 impl Generator {
     fn new() -> Self {
         Generator {
+            imports: vec![],
+            imported: HashMap::new(),
             functions: vec![],
             instructions: vec![],
             id_counter: 0,
             loop_stack: vec![],
             types: vec![],
             type_to_id_map: HashMap::new(),
+            index_map: HashMap::new(),
             label_map: HashMap::new(),
             relocations: vec![],
         }
     }
 
-    fn gen_prog(&mut self, prog: simple_ast::Program) -> bytecode::Program {
-        let mut imports = vec![];
-        for imp in prog.imports {
-            match imp.typ {
-                SlangType::Function(FunctionType {
-                    argument_types,
-                    return_type,
-                }) => {
-                    let bc_import = bytecode::Import {
-                        name: imp.name,
-                        parameter_types: argument_types
-                            .iter()
-                            .map(|t| self.get_bytecode_typ(t))
-                            .collect(),
-                        return_type: return_type.as_ref().map(|t| self.get_bytecode_typ(t)),
-                    };
-                    imports.push(bc_import);
+    fn gen_prog(&mut self, prog: &typed_ast::Program) {
+        for definition in &prog.definitions {
+            match definition {
+                typed_ast::Definition::Function(function) => {
+                    self.gen_func(&function.borrow());
                 }
-                other => {
-                    unimplemented!("Not implemented: {:?}", other);
+                typed_ast::Definition::Class(_) => {
+                    panic!("IR-gen does not support classes. Elimenate those earlier on.");
                 }
+                typed_ast::Definition::Struct(_struct_def) => {
+                    // ?
+                }
+                typed_ast::Definition::Union(_union_def) => {
+                    // ?
+                }
+                typed_ast::Definition::Enum(_) => {}
             }
         }
+    }
 
-        for function in prog.functions {
-            self.gen_func(function);
-        }
+    fn take_program(&mut self) -> bytecode::Program {
+        self.imported.clear();
 
         bytecode::Program {
-            imports,
+            imports: std::mem::take(&mut self.imports),
             types: std::mem::take(&mut self.types),
             functions: std::mem::take(&mut self.functions),
         }
     }
 
-    fn gen_func(&mut self, func: simple_ast::FunctionDef) {
+    fn import_external(&mut self, func_name: String, import_typ: SlangType) {
+        if self.imported.contains_key(&func_name) {
+            return;
+        } else {
+            self.imported.insert(func_name.clone(), true);
+        }
+
+        match import_typ {
+            SlangType::Function(FunctionType {
+                argument_types,
+                return_type,
+            }) => {
+                let bc_import = bytecode::Import {
+                    name: func_name,
+                    parameter_types: argument_types
+                        .iter()
+                        .map(|t| self.get_bytecode_typ(t))
+                        .collect(),
+                    return_type: return_type.as_ref().map(|t| self.get_bytecode_typ(t)),
+                };
+                self.imports.push(bc_import);
+            }
+            other => {
+                unimplemented!("Not implemented: {:?}", other);
+            }
+        }
+    }
+
+    fn gen_func(&mut self, func: &typed_ast::FunctionDef) {
         log::debug!("Gen code for {}", func.name);
 
         self.label_map.clear();
 
-        let parameters: Vec<bytecode::Parameter> = func
-            .parameters
-            .into_iter()
-            .map(|p| bytecode::Parameter {
-                name: p.name,
-                typ: self.get_bytecode_typ(&p.typ),
-            })
-            .collect();
+        // Create parameter space
+        let mut parameters: Vec<bytecode::Parameter> = vec![];
+        for (index, parameter) in func.parameters.iter().enumerate() {
+            let typ = parameter.borrow().typ.clone();
+            let name = parameter.borrow().name.clone();
+            self.index_map.insert(parameter.borrow().id, index);
+            parameters.push(bytecode::Parameter {
+                name,
+                typ: self.get_bytecode_typ(&typ),
+            });
+        }
 
-        let return_type = func.return_type.as_ref().map(|t| self.get_bytecode_typ(t));
+        let f_typ = func.get_type().clone().into_function_type();
+        let return_type = f_typ.return_type.as_ref().map(|t| self.get_bytecode_typ(t));
 
-        let locals = func
-            .locals
-            .into_iter()
-            .map(|v| bytecode::Local {
-                name: v.name,
-                typ: self.get_bytecode_typ(&v.typ),
-            })
-            .collect();
+        // Create local space:
+        let mut locals = vec![];
+        for (index, local_ref) in func.locals.iter().enumerate() {
+            let typ = local_ref.borrow().typ.clone();
+            let name = local_ref.borrow().name.clone();
+            self.index_map.insert(local_ref.borrow().id, index);
+            locals.push(bytecode::Local {
+                name,
+                typ: self.get_bytecode_typ(&typ),
+            });
+        }
 
-        self.gen_block(func.body);
+        self.gen_block(&func.body);
+
+        // Sort of a hack, insert NOP so we can jump this no-op..
+        self.emit(Instruction::Nop);
 
         // Hmm, a bit of a hack, to inject a void return here ..
         if !self.instructions.last().unwrap().is_terminator() {
@@ -126,7 +181,7 @@ impl Generator {
 
         let instructions = std::mem::take(&mut self.instructions);
         self.functions.push(bytecode::Function {
-            name: func.name,
+            name: func.name.clone(),
             parameters,
             return_type,
             locals,
@@ -134,126 +189,85 @@ impl Generator {
         })
     }
 
-    /// Get a new label we can jump to!
-    fn new_label(&mut self) -> Label {
-        let x = self.id_counter;
-        self.id_counter += 1;
-        Label { name: x }
-    }
-
-    fn set_label(&mut self, label: Label) {
-        let current_pc = self.instructions.len();
-        assert!(!self.label_map.contains_key(&label));
-        self.label_map.insert(label, current_pc);
-    }
-
-    /// Generate code to jump to the given label.
-    fn jump(&mut self, target_label: Label) {
-        // Check if the label is known, otherwise emit nop and resolve later.
-        if let Some(dest) = self.label_map.get(&target_label).cloned() {
-            self.emit(Instruction::Jump(dest));
-        } else {
-            let pc = self.instructions.len();
-            self.emit(Instruction::Nop);
-            self.relocations.push(Relocation::Jump(pc, target_label));
-        }
-    }
-
-    fn jump_if(&mut self, true_label: Label, false_label: Label) {
-        let pc = self.instructions.len();
-        // Emit NOP, fixup at the end.
-        // TODO: we might check if the labels are defined here
-        // and emit jump right away.
-        self.emit(Instruction::Nop);
-        // self.emit(Instruction::JumpIf(true_label, false_label));
-        self.relocations
-            .push(Relocation::JumpIf(pc, true_label, false_label));
-    }
-
-    fn jump_table(&mut self, targets: Vec<Label>) {
-        let pc = self.instructions.len();
-        self.emit(Instruction::Nop);
-        self.relocations.push(Relocation::JumpTable(pc, targets));
-    }
-
-    fn resolve_relocations(&mut self) {
-        for relocation in &self.relocations {
-            match relocation {
-                Relocation::Jump(pc, target) => {
-                    let target = self.label_map.get(target).unwrap();
-                    self.instructions[*pc] = bytecode::Instruction::Jump(*target);
-                }
-                Relocation::JumpIf(pc, true_target, false_target) => {
-                    let true_index: usize = *self.label_map.get(true_target).unwrap();
-                    let false_index: usize = *self.label_map.get(false_target).unwrap();
-                    self.instructions[*pc] = bytecode::Instruction::JumpIf(true_index, false_index);
-                }
-                Relocation::JumpTable(pc, targets) => {
-                    let resolved_target: Vec<usize> = targets
-                        .iter()
-                        .map(|t| *self.label_map.get(t).unwrap())
-                        .collect();
-                    self.instructions[*pc] = bytecode::Instruction::JumpTable(resolved_target);
-                }
-            }
-        }
-        self.relocations.clear();
-    }
-
-    fn gen_block(&mut self, block: simple_ast::Block) {
+    fn gen_block(&mut self, block: &typed_ast::Block) {
         for statement in block {
             self.gen_statement(statement);
         }
     }
 
-    fn gen_statement(&mut self, statement: simple_ast::Statement) {
-        match statement {
-            simple_ast::Statement::SetAttr {
-                base,
-                base_typ,
-                index,
-                value,
-            } => match &base_typ {
-                SlangType::Struct(_struct_typ) => {
+    fn gen_statement(&mut self, statement: &typed_ast::Statement) {
+        match &statement.kind {
+            typed_ast::StatementKind::SetAttr { base, attr, value } => match &base.typ {
+                SlangType::User(UserType::Struct(struct_ref)) => {
+                    let field2 = struct_ref.upgrade().unwrap().get_field(attr).unwrap();
+                    let field = field2.borrow();
                     self.gen_expression(base);
                     self.gen_expression(value);
-                    self.emit(Instruction::SetAttr { index });
+                    self.emit(Instruction::SetAttr { index: field.index });
                 }
                 other => {
                     panic!("Base type must be structured type, not {:?}.", other);
                 }
             },
-            simple_ast::Statement::StoreLocal { index, value } => {
+
+            typed_ast::StatementKind::SetIndex { base, index, value } => {
+                self.gen_expression(base);
+                self.gen_expression(index);
                 self.gen_expression(value);
+                self.emit(Instruction::SetElement);
+            }
+
+            typed_ast::StatementKind::StoreLocal { local_ref, value } => {
+                self.gen_expression(value);
+                let index: usize = *self.index_map.get(&refer(local_ref).borrow().id).unwrap();
                 self.emit(Instruction::StoreLocal { index });
             }
-            simple_ast::Statement::Break => {
+            typed_ast::StatementKind::Let { .. } => {
+                unimplemented!("let-statement not supported, please use store-local");
+            }
+            typed_ast::StatementKind::Assignment(_) => {
+                unimplemented!("assignment not supported, please use store-local or set-attr");
+            }
+            typed_ast::StatementKind::Break => {
                 let target_label = self.loop_stack.last().unwrap().1.clone();
                 self.jump(target_label);
             }
-            simple_ast::Statement::Continue => {
+            typed_ast::StatementKind::Continue => {
                 let target_label = self.loop_stack.last().unwrap().0.clone();
                 self.jump(target_label);
             }
-            simple_ast::Statement::Pass => {}
-            simple_ast::Statement::Compound(block) => self.gen_block(block),
-            simple_ast::Statement::Return { value } => self.gen_return_statement(value),
-            simple_ast::Statement::Case(case_statement) => self.gen_case_statement(case_statement),
-            simple_ast::Statement::Switch(switch_statement) => {
-                self.gen_switch(switch_statement);
+            typed_ast::StatementKind::Pass => {}
+            typed_ast::StatementKind::Unreachable => {
+                // TODO: think about unreachable code?
             }
-            simple_ast::Statement::If(if_statement) => self.gen_if_statement(if_statement),
-            simple_ast::Statement::Loop { body } => self.gen_loop(body),
-            simple_ast::Statement::While(while_statement) => {
+            typed_ast::StatementKind::Return { value } => self.gen_return_statement(value),
+            typed_ast::StatementKind::Case(_case_statement) => {
+                // self.gen_case_statement(case_statement)
+                unimplemented!("case statements must be rewritten into switch statements before reaching this phase.");
+            }
+            typed_ast::StatementKind::Switch(switch_statement) => {
+                self.gen_switch_statement(switch_statement);
+            }
+            typed_ast::StatementKind::For(_) => {
+                unimplemented!(
+                    "for-loops not supported, please rewrite into something else, like a while loop."
+                );
+            }
+            typed_ast::StatementKind::If(if_statement) => self.gen_if_statement(if_statement),
+            typed_ast::StatementKind::Loop { body } => self.gen_loop(body),
+            typed_ast::StatementKind::Compound(block) => {
+                self.gen_block(block);
+            }
+            typed_ast::StatementKind::While(while_statement) => {
                 self.gen_while_statement(while_statement)
             }
-            simple_ast::Statement::Expression(e) => {
-                self.gen_expression(e);
+            typed_ast::StatementKind::Expression(expression) => {
+                self.gen_expression(expression);
             }
         }
     }
 
-    fn gen_return_statement(&mut self, value: Option<simple_ast::Expression>) {
+    fn gen_return_statement(&mut self, value: &Option<typed_ast::Expression>) {
         if let Some(value) = value {
             self.gen_expression(value);
             self.emit(Instruction::Return(1));
@@ -263,133 +277,73 @@ impl Generator {
         // TBD: generate a new label here?
     }
 
-    fn gen_case_statement(&mut self, case_statement: simple_ast::CaseStatement) {
-        let enum_type: EnumType = case_statement.enum_type;
-        self.gen_expression(case_statement.value);
-
-        // Duplicate enum struct pointer, so we can later retrieve eventual contents
-        self.emit(bytecode::Instruction::Duplicate);
-
-        // Retrieve enum descriminator:
-        let int_typ = self.get_bytecode_typ(&SlangType::Int);
-        self.emit(bytecode::Instruction::GetAttr {
-            index: 0,
-            typ: int_typ,
-        });
-
-        let mut arms = case_statement.arms;
-        // Sort the arm, such that we can use the choice index into a jump table:
-        arms.sort_by_key(|a| a.choice);
+    fn gen_switch_statement(&mut self, switch_statement: &typed_ast::SwitchStatement) {
         let final_label = self.new_label();
-        let arm_labels: Vec<Label> = arms.iter().map(|_| self.new_label()).collect();
-        // choose between arms by means of a jump table:
-        self.jump_table(arm_labels.clone());
-        for (arm_label, arm) in arm_labels.into_iter().zip(arms.into_iter()) {
+        let default_label = self.new_label();
+
+        let mut options: Vec<(i64, Label)> = vec![];
+        let mut arm_labels: Vec<Label> = vec![];
+        for arm in &switch_statement.arms {
+            let arm_label = self.new_label();
+            // Many assumptions here:
+            // - value is constant
+            // - value has no duplicate in other arms
+            let arm_value: i64 = arm.value.eval().into_i64();
+            options.push((arm_value, arm_label.clone()));
+            arm_labels.push(arm_label);
+        }
+
+        // Emit switch jump based upon stack value.
+        self.gen_expression(&switch_statement.value);
+        self.jump_table(default_label.clone(), options);
+
+        // Generate code for each arm
+        for (arm_label, arm) in arm_labels.into_iter().zip(switch_statement.arms.iter()) {
             self.set_label(arm_label);
-
-            let bytecode_union_typ = self.get_bytecode_typ(&enum_type.get_data_union_type());
-            // Get the union with the data:
-            self.emit(bytecode::Instruction::GetAttr {
-                index: 1,
-                typ: bytecode_union_typ,
-            });
-
-            self.gen_unpack_enum_into_locals(
-                &enum_type.choices[arm.choice],
-                arm.choice,
-                arm.local_ids,
-            );
-
-            // Execute arm body:
-            self.gen_block(arm.body);
+            self.gen_block(&arm.body);
             self.jump(final_label.clone());
         }
+
+        // default case:
+        self.set_label(default_label);
+        self.gen_block(&switch_statement.default);
+        self.jump(final_label.clone());
+
         self.set_label(final_label);
     }
 
-    fn gen_switch(&mut self, _switch_statement: simple_ast::SwitchStatement) {
-        unimplemented!();
-        // self.jump_table(targets);
-    }
-
-    fn gen_unpack_enum_into_locals(
-        &mut self,
-        enum_option: &EnumOption,
-        choice: usize,
-        local_ids: Vec<usize>,
-    ) {
-        // Fill enum optional values:
-        if enum_option.data.is_empty() {
-            self.emit(bytecode::Instruction::DropTop);
-        } else {
-            if enum_option.data.len() == 1 {
-                // 1 argument enum
-                let data_typ = self.get_bytecode_typ(&enum_option.data[0]);
-                self.emit(bytecode::Instruction::GetAttr {
-                    index: choice,
-                    typ: data_typ,
-                });
-                self.emit(bytecode::Instruction::StoreLocal {
-                    index: local_ids[0],
-                });
-            } else {
-                // n argument enum
-                let struct_type = enum_option.get_payload_type();
-                let data_typ = self.get_bytecode_typ(&struct_type);
-                self.emit(bytecode::Instruction::GetAttr {
-                    index: choice,
-                    typ: data_typ,
-                });
-                let struct_type = struct_type.into_struct();
-                assert_eq!(struct_type.fields.len(), local_ids.len());
-                for (index, local_id_field_pair) in local_ids
-                    .into_iter()
-                    .zip(struct_type.fields.iter())
-                    .enumerate()
-                {
-                    let (local_index, field) = local_id_field_pair;
-                    self.emit(bytecode::Instruction::Duplicate);
-                    let typ = self.get_bytecode_typ(&field.typ);
-                    self.emit(bytecode::Instruction::GetAttr { index, typ });
-                    self.emit(bytecode::Instruction::StoreLocal { index: local_index });
-                }
-                self.emit(bytecode::Instruction::DropTop);
-            }
-        }
-    }
-
-    fn gen_if_statement(&mut self, if_statement: simple_ast::IfStatement) {
+    fn gen_if_statement(&mut self, if_statement: &typed_ast::IfStatement) {
         let true_label = self.new_label();
         let final_label = self.new_label();
-        if let Some(if_false) = if_statement.if_false {
+        if let Some(if_false) = &if_statement.if_false {
             let false_label = self.new_label();
             self.gen_condition(
-                if_statement.condition,
+                &if_statement.condition,
                 true_label.clone(),
                 false_label.clone(),
             );
 
             self.set_label(true_label);
-            self.gen_block(if_statement.if_true);
+            self.gen_block(&if_statement.if_true);
             self.jump(final_label.clone());
 
             self.set_label(false_label);
-            self.gen_block(if_false);
+            self.gen_block(&if_false);
         } else {
             self.gen_condition(
-                if_statement.condition,
+                &if_statement.condition,
                 true_label.clone(),
                 final_label.clone(),
             );
 
             self.set_label(true_label);
-            self.gen_block(if_statement.if_true);
+            self.gen_block(&if_statement.if_true);
         }
         self.jump(final_label.clone());
         self.set_label(final_label);
     }
 
-    fn gen_loop(&mut self, body: simple_ast::Block) {
+    fn gen_loop(&mut self, body: &typed_ast::Block) {
         let loop_start_label = self.new_label();
         let final_label = self.new_label();
         self.jump(loop_start_label.clone());
@@ -402,21 +356,21 @@ impl Generator {
         self.set_label(final_label);
     }
 
-    fn gen_while_statement(&mut self, while_statement: simple_ast::WhileStatement) {
+    fn gen_while_statement(&mut self, while_statement: &typed_ast::WhileStatement) {
         let loop_start_label = self.new_label();
         let true_label = self.new_label();
         let final_label = self.new_label();
         self.jump(loop_start_label.clone());
         self.set_label(loop_start_label.clone());
         self.gen_condition(
-            while_statement.condition,
+            &while_statement.condition,
             true_label.clone(),
             final_label.clone(),
         );
         self.set_label(true_label);
         self.loop_stack
             .push((loop_start_label.clone(), final_label.clone()));
-        self.gen_block(while_statement.body);
+        self.gen_block(&while_statement.body);
         self.loop_stack.pop();
         self.jump(loop_start_label);
         self.set_label(final_label);
@@ -425,31 +379,29 @@ impl Generator {
     /// Generate bytecode for condition statement.
     fn gen_condition(
         &mut self,
-        expression: simple_ast::Expression,
+        expression: &typed_ast::Expression,
         true_label: Label,
         false_label: Label,
     ) {
         // TODO: add 'not' operator
-        match expression {
-            simple_ast::Expression::Binop {
+        match &expression.kind {
+            typed_ast::ExpressionKind::Binop {
                 lhs,
                 op: ast::BinaryOperator::Logic(op2),
                 rhs,
-                typ: _,
-                op_typ: _,
             } => {
                 // Implement short-circuit logic for 'or' and 'and'
                 let middle_label = self.new_label();
                 match op2 {
                     ast::LogicOperator::And => {
-                        self.gen_condition(*lhs, middle_label.clone(), false_label.clone());
+                        self.gen_condition(lhs, middle_label.clone(), false_label.clone());
                         self.set_label(middle_label);
-                        self.gen_condition(*rhs, true_label, false_label);
+                        self.gen_condition(rhs, true_label, false_label);
                     }
                     ast::LogicOperator::Or => {
-                        self.gen_condition(*lhs, true_label.clone(), middle_label.clone());
+                        self.gen_condition(lhs, true_label.clone(), middle_label.clone());
                         self.set_label(middle_label);
-                        self.gen_condition(*rhs, true_label, false_label);
+                        self.gen_condition(rhs, true_label, false_label);
                     }
                 }
             }
@@ -473,29 +425,39 @@ impl Generator {
         }
     }
 
-    fn get_struct_index(&mut self, struct_type: &StructType) -> usize {
-        let fields: Vec<bytecode::Typ> = struct_type
-            .fields
-            .iter()
-            .map(|f| self.get_bytecode_typ(&f.typ))
-            .collect();
+    fn get_struct_index(&mut self, struct_def: Rc<typed_ast::StructDef>) -> usize {
+        // *self
+        // .type_to_id_map
+        // .get(&struct_type.upgrade().unwrap().id)
+        // .unwrap()
+        // unimplemented!();
+
+        // let struct_name = self.context.get_name(struct_type_node_id);
+        let mut bytecode_field_types: Vec<bytecode::Typ> = vec![];
+        for (_index, field_ref) in struct_def.fields.iter().enumerate() {
+            // self.index_map.insert(*f_id, index);
+            let field_type = self.get_bytecode_typ(&field_ref.borrow().typ);
+            bytecode_field_types.push(field_type);
+        }
+
+        let name = struct_def.name.clone();
+
         let typ = bytecode::TypeDef::Struct(bytecode::StructDef {
-            name: struct_type.name.clone(),
-            fields,
+            name: Some(name),
+            fields: bytecode_field_types,
         });
         self.inject_type(typ)
     }
 
-    fn get_union_index(&mut self, union_type: &UnionType) -> usize {
-        let choices: Vec<bytecode::Typ> = union_type
-            .fields
-            .iter()
-            .map(|choice| self.get_bytecode_typ(choice))
-            .collect();
-        let union_typ = bytecode::TypeDef::Union(bytecode::UnionDef {
-            name: format!("{}_data", union_type.name),
-            choices,
-        });
+    fn get_union_index(&mut self, union_def: Rc<typed_ast::UnionDef>) -> usize {
+        let mut choices: Vec<bytecode::Typ> = vec![];
+        for field_ref in union_def.fields.iter() {
+            let field_type = self.get_bytecode_typ(&field_ref.borrow().typ);
+            choices.push(field_type);
+        }
+        let name = union_def.name.clone();
+
+        let union_typ = bytecode::TypeDef::Union(bytecode::UnionDef { name, choices });
 
         self.inject_type(union_typ)
     }
@@ -516,79 +478,168 @@ impl Generator {
             SlangType::Int => bytecode::Typ::Int,
             SlangType::Float => bytecode::Typ::Float,
             SlangType::String => bytecode::Typ::String,
-            SlangType::Struct(struct_type) => bytecode::Typ::Ptr(Box::new(
-                bytecode::Typ::Composite(self.get_struct_index(struct_type)),
-            )),
-            SlangType::Union(union_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
-                self.get_union_index(union_type),
-            ))),
+            SlangType::Undefined => {
+                panic!("Undefined type");
+            }
+            SlangType::Unresolved(_) => {
+                panic!("AARG");
+            }
+            SlangType::User(user_type) => {
+                let composite_id: usize = match user_type {
+                    UserType::Struct(struct_type) => {
+                        self.get_struct_index(struct_type.upgrade().unwrap())
+                    }
+                    UserType::Union(union_type) => {
+                        self.get_union_index(union_type.upgrade().unwrap())
+                    }
+                    UserType::Enum(_) => {
+                        panic!("Cannot handle enum-types, please rewrite in tagged unions");
+                    }
+                    UserType::Class(_) => {
+                        panic!("Cannot handle class-types");
+                    }
+                };
+
+                bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
+            }
             SlangType::Array(array_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
                 self.get_array_index(array_type),
             ))),
-            SlangType::Enum(enum_type) => self.get_bytecode_typ(&enum_type.get_struct_type()),
-            SlangType::Class(_) => {
-                panic!("Cannot handle class-types");
-            }
-            SlangType::Generic { .. } => {
-                panic!("Cannot compile generic type");
-            }
+            // SlangType::Generic { .. } => {
+            //     panic!("Cannot compile generic type");
+            // }
             SlangType::TypeConstructor => {
                 panic!("Cannot compile type constructor");
             }
             SlangType::Void => bytecode::Typ::Void,
-            SlangType::TypeVar(_) => {
-                panic!("Cannot compile type variable");
-            }
+            // SlangType::TypeVar(_) => {
+            //     panic!("Cannot compile type variable");
+            // }
             SlangType::Function(_) => {
                 unimplemented!("function-type");
             }
         }
     }
 
-    /// Generate a struct literal, and fill all it's values!
-    fn gen_tuple_literal(&mut self, typ: bytecode::Typ, values: Vec<simple_ast::Expression>) {
-        // Alloc room for struct:
-        if let bytecode::Typ::Ptr(struct_typ) = typ {
-            self.emit(Instruction::Malloc(*struct_typ));
-        } else {
-            panic!("Assumed struct literal is pointer to thing.");
-        }
+    fn gen_expression(&mut self, expression: &typed_ast::Expression) {
+        match &expression.kind {
+            typed_ast::ExpressionKind::Literal(literal) => self.gen_literal(literal),
+            typed_ast::ExpressionKind::StructLiteral { .. } => {
+                unimplemented!("Struct literal, please use tuple literal instead.");
+            }
+            typed_ast::ExpressionKind::TupleLiteral(values) => {
+                self.gen_tuple_literal(&expression.typ, values);
+            }
+            typed_ast::ExpressionKind::UnionLiteral { attr, value } => {
+                self.gen_union_literal(&expression.typ, attr, value);
+            }
+            /*
+            typed_ast::ExpressionKind::VoidLiteral => {
+                // TBD: do something?
+            }
+            */
+            typed_ast::ExpressionKind::Undefined => {
+                // TBD: now what? Push undefined value onto the stack!
+                self.emit(Instruction::UndefinedLiteral);
+            }
+            typed_ast::ExpressionKind::ListLiteral(values) => {
+                self.gen_array_literal(&expression.typ, values);
+            }
+            typed_ast::ExpressionKind::Binop { lhs, op, rhs } => {
+                self.gen_binop(lhs, op, rhs);
+            }
 
-        for (index, value) in values.into_iter().enumerate() {
-            self.emit(Instruction::Duplicate);
-            self.gen_expression(value);
-            self.emit(Instruction::SetAttr { index });
-        }
-    }
+            typed_ast::ExpressionKind::Call { callee, arguments } => {
+                self.gen_call(callee, arguments);
+            }
 
-    fn gen_union_literal(&mut self, typ: SlangType, index: usize, value: simple_ast::Expression) {
-        let typ = self.get_bytecode_typ(&typ);
-        if let bytecode::Typ::Ptr(union_typ) = typ {
-            self.emit(Instruction::Malloc(*union_typ));
-        } else {
-            panic!("Assumed union literal is pointer to thing.");
-        }
-        match value {
-            simple_ast::Expression::VoidLiteral => {}
+            typed_ast::ExpressionKind::GetAttr { base, attr } => match &base.typ {
+                SlangType::User(user_type) => {
+                    let field2 = user_type.get_field(attr).unwrap();
+                    let field = field2.borrow();
+                    let typ = self.get_bytecode_typ(&field.typ);
+                    self.gen_expression(base);
+                    self.emit(Instruction::GetAttr {
+                        index: field.index,
+                        typ,
+                    });
+                }
+                other => {
+                    panic!("base type must be user-type, not {}", other);
+                }
+            },
+
+            typed_ast::ExpressionKind::GetIndex { base, index } => {
+                let typ = self.get_bytecode_typ(&expression.typ);
+                self.gen_expression(base);
+                self.gen_expression(index);
+                self.emit(Instruction::GetElement { typ });
+            }
+
+            typed_ast::ExpressionKind::LoadSymbol(symbol) => match symbol {
+                Symbol::ExternFunction { name, typ } => {
+                    // TODO: Gross hack! Not all functions are imported from std::!
+                    let full_name = format!("std_{}", name);
+                    self.import_external(full_name.clone(), typ.clone());
+                    self.emit(Instruction::LoadGlobalName(full_name));
+                }
+                Symbol::Function { func_ref } => {
+                    let name = refer(func_ref).borrow().name.clone();
+                    self.emit(Instruction::LoadGlobalName(name));
+                }
+                Symbol::LocalVariable { local_ref } => {
+                    // TBD: use name + id as hint?
+                    let index: usize = *self.index_map.get(&refer(local_ref).borrow().id).unwrap();
+                    self.emit(Instruction::LoadLocal { index });
+                }
+                Symbol::Parameter { param_ref } => {
+                    // TBD: use name as a hint?
+                    let index: usize = *self.index_map.get(&refer(param_ref).borrow().id).unwrap();
+                    self.emit(Instruction::LoadParameter { index });
+                }
+                other => {
+                    unimplemented!("Loading {:?}", other);
+                }
+            },
             other => {
-                self.emit(Instruction::Duplicate);
-                self.gen_expression(other);
-                self.emit(Instruction::SetAttr { index });
+                unimplemented!("EXPR {:?}", other);
             }
         }
     }
 
-    /// Generate code for an array literal value
-    fn gen_array_literal(&mut self, typ: SlangType, values: Vec<simple_ast::Expression>) {
-        // unimplemented!();
+    /// Generate code for a literal value.
+    fn gen_literal(&mut self, literal: &typed_ast::Literal) {
+        match literal {
+            typed_ast::Literal::Bool(value) => {
+                self.emit(Instruction::BoolLiteral(*value));
+            }
+            typed_ast::Literal::Integer(value) => {
+                self.emit(Instruction::IntLiteral(*value));
+            }
+            typed_ast::Literal::Float(value) => {
+                self.emit(Instruction::FloatLiteral(*value));
+            }
+            typed_ast::Literal::String(value) => {
+                self.emit(Instruction::StringLiteral(value.clone()));
+            }
+        }
+    }
+
+    fn allocate_composite_type(&mut self, typ: &SlangType) {
         let typ = self.get_bytecode_typ(&typ);
         if let bytecode::Typ::Ptr(array_typ) = typ {
             self.emit(Instruction::Malloc(*array_typ));
         } else {
-            panic!("Assumed array literal is pointer to thing.");
+            panic!("Assumed composite literal is pointer to thing.");
         }
+    }
 
-        for (index, value) in values.into_iter().enumerate() {
+    /// Generate code for an array literal value
+    fn gen_array_literal(&mut self, typ: &SlangType, values: &[typed_ast::Expression]) {
+        self.allocate_composite_type(typ);
+
+        // Generate a sequence of set-element operations:
+        for (index, value) in values.iter().enumerate() {
             self.emit(Instruction::Duplicate);
             self.emit(Instruction::IntLiteral(index as i64));
             self.gen_expression(value);
@@ -596,87 +647,44 @@ impl Generator {
         }
     }
 
-    fn gen_expression(&mut self, expression: simple_ast::Expression) {
-        match expression {
-            simple_ast::Expression::Literal(literal) => self.gen_literal(literal),
-            simple_ast::Expression::StructLiteral { typ, values } => {
-                let typ = self.get_bytecode_typ(&typ);
-                self.gen_tuple_literal(typ, values);
-            }
-            simple_ast::Expression::UnionLiteral { typ, index, value } => {
-                self.gen_union_literal(typ, index, *value);
-            }
-            simple_ast::Expression::VoidLiteral => {
-                // TBD: do something?
-            }
-            simple_ast::Expression::ArrayLiteral { typ, values } => {
-                self.gen_array_literal(typ, values);
-            }
-            simple_ast::Expression::Binop {
-                lhs,
-                op,
-                rhs,
-                typ,
-                op_typ,
-            } => {
-                self.gen_binop(typ, op_typ, *lhs, op, *rhs);
-            }
-            simple_ast::Expression::Call {
-                callee,
-                arguments,
-                typ,
-            } => {
-                self.gen_call(*callee, arguments, typ);
-            }
-            simple_ast::Expression::GetAttr {
-                base,
-                base_typ,
-                index,
-            } => match &base_typ {
-                SlangType::Struct(struct_typ) => {
-                    let typ = self.get_bytecode_typ(&struct_typ.fields[index].typ);
-                    self.gen_expression(*base);
-                    self.emit(Instruction::GetAttr { index, typ });
-                }
-                other => {
-                    panic!("base type must be struct, not {:?}", other);
-                }
-            },
-            simple_ast::Expression::GetIndex { base, index } => {
-                self.gen_expression(*base);
-                self.gen_expression(*index);
-                self.emit(Instruction::GetElement);
-            }
-            simple_ast::Expression::LoadFunction(name) => {
-                self.emit(Instruction::LoadGlobalName(name));
-            }
-            simple_ast::Expression::LoadParameter { index } => {
-                // TBD: use name as a hint?
-                self.emit(Instruction::LoadParameter { index });
-            }
-            simple_ast::Expression::LoadLocal { index, typ } => {
-                let typ = self.get_bytecode_typ(&typ);
-                self.emit(Instruction::LoadLocal { index, typ });
-            }
+    /// Generate a struct literal, and fill all it's values!
+    fn gen_tuple_literal(&mut self, typ: &SlangType, values: &[typed_ast::Expression]) {
+        self.allocate_composite_type(typ);
+
+        for (index, value) in values.iter().enumerate() {
+            self.emit(Instruction::Duplicate);
+            self.gen_expression(value);
+            self.emit(Instruction::SetAttr { index });
         }
     }
 
-    /// Generate bytecode for a function call.
-    fn gen_call(
-        &mut self,
-        callee: simple_ast::Expression,
-        arguments: Vec<simple_ast::Expression>,
-        typ: SlangType,
-    ) {
-        // let return_type = function_type
-        //     .return_type
-        //     .as_ref()
-        //     .map(|t| self.get_bytecode_typ(t));
-        let return_type = if typ.is_void() {
-            None
+    fn gen_union_literal(&mut self, typ: &SlangType, attr: &str, value: &typed_ast::Expression) {
+        let union_def = typ.as_union();
+
+        let typ = self.get_bytecode_typ(&typ);
+        if let bytecode::Typ::Ptr(union_typ) = typ {
+            self.emit(Instruction::Malloc(*union_typ));
         } else {
-            Some(self.get_bytecode_typ(&typ))
-        };
+            panic!("Assumed union literal is pointer to thing.");
+        }
+
+        let field = union_def.get_field(attr).unwrap();
+        let index = field.borrow().index;
+
+        self.emit(Instruction::Duplicate);
+        self.gen_expression(value);
+        self.emit(Instruction::SetAttr { index });
+    }
+
+    /// Generate bytecode for a function call.
+    fn gen_call(&mut self, callee: &typed_ast::Expression, arguments: &Vec<typed_ast::Expression>) {
+        let typ = callee.typ.clone().into_function_type().return_type.clone();
+        let return_type = typ.map(|t| self.get_bytecode_typ(&t));
+        // let return_type = if typ.is_void() {
+        //     None
+        // } else {
+        //     Some(self.get_bytecode_typ(&typ))
+        // };
 
         self.gen_expression(callee);
         let n_args = arguments.len();
@@ -689,34 +697,15 @@ impl Generator {
         });
     }
 
-    fn gen_literal(&mut self, literal: typed_ast::Literal) {
-        match literal {
-            typed_ast::Literal::Bool(value) => {
-                self.emit(Instruction::BoolLiteral(value));
-            }
-            typed_ast::Literal::Integer(value) => {
-                self.emit(Instruction::IntLiteral(value));
-            }
-            typed_ast::Literal::Float(value) => {
-                self.emit(Instruction::FloatLiteral(value));
-            }
-            typed_ast::Literal::String(value) => {
-                self.emit(Instruction::StringLiteral(value));
-            }
-        }
-    }
-
     fn gen_binop(
         &mut self,
-        typ: SlangType,
-        op_typ: SlangType,
-        lhs: simple_ast::Expression,
-        op: ast::BinaryOperator,
-        rhs: simple_ast::Expression,
+        lhs: &typed_ast::Expression,
+        op: &ast::BinaryOperator,
+        rhs: &typed_ast::Expression,
     ) {
         match op {
             ast::BinaryOperator::Math(op2) => {
-                let typ = self.get_bytecode_typ(&op_typ);
+                let typ = self.get_bytecode_typ(&lhs.typ);
                 self.gen_expression(lhs);
                 self.gen_expression(rhs);
                 let op = match op2 {
@@ -728,7 +717,7 @@ impl Generator {
                 self.emit(Instruction::Operator { op, typ });
             }
             ast::BinaryOperator::Comparison(op2) => {
-                let typ = self.get_bytecode_typ(&op_typ);
+                let typ = self.get_bytecode_typ(&lhs.typ);
                 self.gen_expression(lhs);
                 self.gen_expression(rhs);
                 // TBD: we could simplify by swapping lhs and rhs and using Lt instead of GtEqual
@@ -743,7 +732,9 @@ impl Generator {
 
                 self.emit(Instruction::Comparison { op, typ });
             }
-            ast::BinaryOperator::Logic(op) => {
+            ast::BinaryOperator::Logic(_op) => {
+                unimplemented!();
+                /*
                 let true_label = self.new_label();
                 let false_label = self.new_label();
                 let final_label = self.new_label();
@@ -766,6 +757,7 @@ impl Generator {
                 self.emit(Instruction::BoolLiteral(false));
                 self.jump(final_label.clone());
                 self.set_label(final_label);
+                */
             }
             ast::BinaryOperator::Bit(_) => {
                 unimplemented!();
@@ -773,6 +765,92 @@ impl Generator {
         }
     }
 
+    /// Get a new label we can jump to!
+    fn new_label(&mut self) -> Label {
+        let x = self.id_counter;
+        self.id_counter += 1;
+        Label { name: x }
+    }
+
+    /// Mark the current point with the given label.
+    fn set_label(&mut self, label: Label) {
+        let current_pc = self.instructions.len();
+        assert!(!self.label_map.contains_key(&label));
+        self.label_map.insert(label, current_pc);
+    }
+
+    /// Generate code to jump to the given label.
+    fn jump(&mut self, label: Label) {
+        // Check if the label is known, otherwise emit nop and resolve later.
+        if let Some(dest) = self.label_map.get(&label).cloned() {
+            self.emit(Instruction::Jump(dest));
+        } else {
+            let pc = self.instructions.len();
+            self.emit(Instruction::Nop);
+            self.relocations.push(Relocation::Jump { pc, label });
+        }
+    }
+
+    /// Conditionally jump to either the true or the false label.
+    fn jump_if(&mut self, true_label: Label, false_label: Label) {
+        // TODO: we might check if the labels are defined here
+        // self.emit(Instruction::JumpIf(true_label, false_label));
+
+        let pc = self.instructions.len();
+        // Emit NOP, fixup at the end.
+        // and emit jump right away.
+        self.emit(Instruction::Nop);
+        self.relocations.push(Relocation::JumpIf {
+            pc,
+            true_label,
+            false_label,
+        });
+    }
+
+    fn jump_table(&mut self, default: Label, options: Vec<(i64, Label)>) {
+        let pc = self.instructions.len();
+        self.emit(Instruction::Nop);
+        self.relocations.push(Relocation::JumpSwitch {
+            pc,
+            default,
+            options,
+        });
+    }
+
+    fn resolve_relocations(&mut self) {
+        for relocation in &self.relocations {
+            match relocation {
+                Relocation::Jump { pc, label } => {
+                    let target = self.label_map.get(label).unwrap();
+                    self.instructions[*pc] = bytecode::Instruction::Jump(*target);
+                }
+                Relocation::JumpIf {
+                    pc,
+                    true_label,
+                    false_label,
+                } => {
+                    let true_index: usize = *self.label_map.get(true_label).unwrap();
+                    let false_index: usize = *self.label_map.get(false_label).unwrap();
+                    self.instructions[*pc] = bytecode::Instruction::JumpIf(true_index, false_index);
+                }
+                Relocation::JumpSwitch {
+                    pc,
+                    default,
+                    options,
+                } => {
+                    let default: usize = *self.label_map.get(default).unwrap();
+                    let options: Vec<(i64, usize)> = options
+                        .iter()
+                        .map(|(v, t)| (*v, *self.label_map.get(t).unwrap()))
+                        .collect();
+                    self.instructions[*pc] = bytecode::Instruction::JumpSwitch { default, options };
+                }
+            }
+        }
+        self.relocations.clear();
+    }
+
+    /// Emit single instruction
     fn emit(&mut self, instruction: Instruction) {
         self.instructions.push(instruction);
     }

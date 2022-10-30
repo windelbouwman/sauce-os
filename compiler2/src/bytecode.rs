@@ -73,6 +73,8 @@ pub enum Instruction {
     FloatLiteral(f64),
     StringLiteral(String),
 
+    UndefinedLiteral,
+
     /// Duplicate top of stack value.
     Duplicate,
 
@@ -104,7 +106,6 @@ pub enum Instruction {
     /// Load local variable onto the stack.
     LoadLocal {
         index: usize,
-        typ: Typ,
     },
 
     /// Store value in local variable
@@ -118,9 +119,14 @@ pub enum Instruction {
 
     JumpIf(usize, usize),
 
-    /// Jump to one of the given targets,
-    /// indexed by the last value on the stack.
-    JumpTable(Vec<usize>),
+    /// Jump to one of the given targets.
+    /// selected by the last value on the stack (must be i64).
+    ///
+    /// IDEA: Java JVM has lookupswitch and tableswitch opcodes.
+    JumpSwitch {
+        default: usize,
+        options: Vec<(i64, usize)>,
+    },
 
     /// Return n values.
     /// For now return 0 or 1 values.
@@ -138,7 +144,9 @@ pub enum Instruction {
     },
 
     /// Get element from an array
-    GetElement,
+    GetElement {
+        typ: Typ,
+    },
 
     /// Set element in an array
     SetElement,
@@ -150,7 +158,7 @@ impl Instruction {
             Instruction::Return(_)
             | Instruction::Jump(_)
             | Instruction::JumpIf(_, _)
-            | Instruction::JumpTable(_) => true,
+            | Instruction::JumpSwitch { .. } => true,
             _ => false,
         }
     }

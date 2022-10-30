@@ -18,6 +18,7 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
         Instruction::StringLiteral(value) => frame.push(Value::String(value)),
         Instruction::BoolLiteral(value) => frame.push(Value::Bool(value)),
         Instruction::FloatLiteral(value) => frame.push(Value::Float(value)),
+        Instruction::UndefinedLiteral => frame.push(Value::Uninitialized),
         Instruction::Duplicate => {
             let value = frame.pop();
             frame.push(value.clone());
@@ -121,6 +122,16 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
                         bytecode::Comparison::LtEqual => lhs <= rhs,
                     }
                 }
+                bytecode::Typ::String => {
+                    let lhs = lhs.as_string();
+                    let rhs = rhs.as_string();
+                    match op {
+                        bytecode::Comparison::Equal => lhs == rhs,
+                        other => {
+                            unimplemented!("Cannot compare string {:?}", other);
+                        }
+                    }
+                }
                 other => {
                     unimplemented!("operator for {:?}", other);
                 }
@@ -135,7 +146,7 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
             let value = frame.get_parameter(index);
             frame.push(value);
         }
-        Instruction::LoadLocal { index, typ: _ } => {
+        Instruction::LoadLocal { index } => {
             let value = frame.get_local(index);
             frame.push(value);
         }
@@ -160,19 +171,21 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
         Instruction::SetAttr { index } => {
             let value = frame.pop();
             let base = frame.pop();
-            match base {
-                Value::Struct(s) => {
-                    s.set_field(index, value);
-                }
-                Value::Union(union_value) => {
-                    union_value.set_field(index, value);
-                }
-                other => {
-                    panic!("Cannot set attr of non-struct: {:?}", other);
+            if !value.is_undefined() {
+                match base {
+                    Value::Struct(s) => {
+                        s.set_field(index, value);
+                    }
+                    Value::Union(union_value) => {
+                        union_value.set_field(index, value);
+                    }
+                    other => {
+                        panic!("Cannot set attr of non-struct: {:?}", other);
+                    }
                 }
             }
         }
-        Instruction::GetElement => {
+        Instruction::GetElement { .. } => {
             let index = frame.pop().as_int();
             let array_value = frame.pop().into_array();
             let value = array_value.get_element(index as usize);
@@ -204,11 +217,17 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
         Instruction::Jump(label) => {
             frame.jump(label);
         }
-        Instruction::JumpTable(label_table) => {
-            let index = frame.pop().as_int();
+        Instruction::JumpSwitch { default, options } => {
+            let value = frame.pop().as_int();
             // TBD: maybe use last index as default?
             // Or use a default index when out of range?
-            frame.jump(label_table[index as usize]);
+            // PERF: linear search over possible jump targets..
+            let dest = options
+                .iter()
+                .find(|(v, _)| *v == value)
+                .map(|(_, d)| *d)
+                .unwrap_or(default);
+            frame.jump(dest);
         }
         Instruction::Return(amount) => match amount {
             0 => {

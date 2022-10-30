@@ -1,0 +1,16 @@
+x[2] = 11
+x[1] = 7
+BOOM a=1 a*a=1
+BOOM a=7 a*a=49
+BOOM a=11 a*a=121
+BOOM a=2 a*a=4
+BOOM a=550 a*a=302500
+BOOM a=232 a*a=53824
+BOOM a=12 a*a=144
+BOOM a=2 a*a=4
+WHILE BOOM x[2]=11
+WHILE BOOM x[3]=2
+WHILE BOOM x[4]=550
+WHILE BOOM x[5]=232
+WHILE BOOM x[6]=12
+z[1].a = 6

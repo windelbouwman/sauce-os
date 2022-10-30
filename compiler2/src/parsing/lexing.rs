@@ -1,4 +1,5 @@
-use super::token::{Location, Token};
+use super::location::Location;
+use super::token::Token;
 use logos::Logos;
 
 /// Remove leading and trailing double quotes from string
@@ -263,6 +264,7 @@ impl<'t> Lexer<'t> {
                 "false" => self.emit(Token::KeywordFalse),
                 "fn" => self.emit(Token::KeywordFn),
                 "for" => self.emit(Token::KeywordFor),
+                "from" => self.emit(Token::KeywordFrom),
                 "if" => self.emit(Token::KeywordIf),
                 "import" => self.emit(Token::KeywordImport),
                 "in" => self.emit(Token::KeywordIn),
@@ -415,8 +417,8 @@ impl<'t> Lexer<'t> {
                 self.emit(Token::ClosingBracket);
             }
             LogosToken::NewLine => self.newline(),
-            LogosToken::Comment(value) => {
-                log::debug!("Comment: '{}'", value);
+            LogosToken::Comment(_value) => {
+                // log::debug!("Comment: '{}'", value);
             }
             LogosToken::WhiteSpace(amount) => {
                 if self.at_bol {

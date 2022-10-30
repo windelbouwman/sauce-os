@@ -35,10 +35,31 @@ Example:
 
 ```
 fn main():
+    let x = 15
     if x < 10:
         std::print("x is a small number")
     else:
         std::print("x is somewhat larger")
+```
+
+# Loop statement
+
+```
+fn example():
+    let x = 1
+    while x < 10:
+        x = x + 1
+```
+
+```
+fn example():
+    let x = 1
+    loop:
+        x = x + 2
+        if x > 10:
+            break
+        else:
+            continue
 ```
 
 # Structs

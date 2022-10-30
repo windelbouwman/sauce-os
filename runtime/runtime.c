@@ -25,7 +25,7 @@ void std_panic(const char *message)
     std_exit(1);
 }
 
-char *std_to_string(int x)
+char *std_int_to_str(int x)
 {
     char buffer[50];
     snprintf(buffer, 50, "%d", x);
@@ -61,4 +61,16 @@ char *rt_str_concat(const char *a, const char *b)
     strcpy(buffer, a);
     strcat(buffer, b);
     return buffer;
+}
+
+unsigned char rt_str_compare(const char *a, const char *b)
+{
+    if (strcmp(a, b) == 0)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
 }

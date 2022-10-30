@@ -1,8 +1,15 @@
 // use std::collections::HashMap;
-use std::sync::Arc;
+use super::typed_ast;
+use crate::parsing::ast;
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
 
+// unused:
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlangType {
+    /// The type is undefined
+    Undefined,
+
     Bool,
     Int,
     Float,
@@ -15,49 +22,170 @@ pub enum SlangType {
     TypeConstructor,
 
     /// A parameterized type, may contain subtypes which are type variables.
-    Generic {
-        base: Box<SlangType>,
-        type_parameters: Vec<String>,
-    },
+    // Generic {
+    //     base: Box<SlangType>,
+    //     type_parameters: Vec<String>,
+    // },
 
-    TypeVar(String),
+    // TypeVar(String),
 
     /// Array type, a flat container type of fixed size.
     Array(ArrayType),
 
-    /// A custom defined struct type!
-    Struct(StructType),
+    /// User defined type
+    User(UserType),
 
     /// A union type, same as the C-union type.
-    Union(UnionType),
+    // Union(UnionType),
 
-    Enum(EnumType),
-
-    Class(ClassTypeRef),
-
+    // Enum(EnumType),
     Void,
+
+    /// Unresolved type
+    Unresolved(ast::ObjRef),
 
     Function(FunctionType),
 }
 
+impl std::fmt::Display for SlangType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SlangType::Undefined => {
+                write!(f, "undefined")
+            }
+            SlangType::Int => {
+                write!(f, "int")
+            }
+            SlangType::Bool => {
+                write!(f, "bool")
+            }
+            SlangType::Float => {
+                write!(f, "float")
+            }
+            SlangType::String => {
+                write!(f, "str")
+            }
+            SlangType::TypeConstructor => {
+                write!(f, "type-con")
+            }
+            SlangType::Array(array) => {
+                write!(f, "array({} x {})", array.size, array.element_type)
+            }
+            SlangType::User(user_type) => {
+                write!(f, "{}", user_type)
+            }
+            SlangType::Void => {
+                write!(f, "void")
+            }
+            SlangType::Unresolved(obj_ref) => {
+                write!(f, "unresolved({:?})", obj_ref)
+            }
+            SlangType::Function(function_type) => {
+                write!(
+                    f,
+                    "function({:?} -> {:?})",
+                    function_type.argument_types, function_type.return_type
+                )
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum UserType {
+    /// A custom defined struct type!
+    Struct(Weak<typed_ast::StructDef>),
+    Union(Weak<typed_ast::UnionDef>),
+    Enum(Weak<typed_ast::EnumDef>),
+    Class(Weak<typed_ast::ClassDef>),
+    // TODO: more user definable types?
+}
+
+impl UserType {
+    /// Try to retrieve a field from a user defined type
+    pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<typed_ast::FieldDef>>> {
+        match self {
+            UserType::Struct(struct_type) => struct_type.upgrade().unwrap().get_field(name),
+            UserType::Union(union_def) => union_def.upgrade().unwrap().get_field(name),
+            _ => None,
+        }
+    }
+}
+
+impl PartialEq for UserType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (UserType::Struct(s), UserType::Struct(o)) => s.ptr_eq(o),
+            (UserType::Enum(s), UserType::Enum(o)) => s.ptr_eq(o),
+            (UserType::Class(s), UserType::Class(o)) => s.ptr_eq(o),
+            _x => false,
+        }
+    }
+}
+
+impl Eq for UserType {}
+
+impl std::fmt::Display for UserType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            UserType::Struct(struct_ref) => {
+                let struct_ref = struct_ref.upgrade().unwrap();
+                write!(f, "user-{}", struct_ref)
+            }
+            UserType::Union(union_ref) => {
+                let union_ref = union_ref.upgrade().unwrap();
+                write!(f, "user-{}", union_ref)
+            }
+            UserType::Enum(enum_ref) => {
+                let enum_ref = enum_ref.upgrade().unwrap();
+                write!(f, "enum(name={}, id={})", enum_ref.name, enum_ref.id)
+            }
+            UserType::Class(_class_ref) => {
+                write!(f, "user-class")
+            }
+        }
+    }
+}
+
 impl SlangType {
-    pub fn into_enum(self) -> EnumType {
-        if let SlangType::Enum(enum_type) = self {
-            enum_type
+    pub fn into_function_type(self) -> FunctionType {
+        if let SlangType::Function(function_type) = self {
+            function_type
         } else {
-            panic!("Expected enum type!");
+            panic!("Expected function type!");
+        }
+    }
+
+    pub fn is_enum(&self) -> bool {
+        matches!(self, SlangType::User(UserType::Enum(_)))
+    }
+
+    pub fn as_enum(&self) -> Rc<typed_ast::EnumDef> {
+        if let SlangType::User(UserType::Enum(enum_type)) = self {
+            enum_type.upgrade().unwrap()
+        } else {
+            panic!("Expected enum type, but got {}", self);
+        }
+    }
+
+    pub fn as_union(&self) -> Rc<typed_ast::UnionDef> {
+        if let SlangType::User(UserType::Union(union_type)) = self {
+            union_type.upgrade().unwrap()
+        } else {
+            panic!("Expected union type, got {}", self);
         }
     }
 
     /// Narrow the type to struct type.
-    pub fn into_struct(self) -> StructType {
-        if let SlangType::Struct(struct_type) = self {
-            struct_type
+    pub fn as_struct(&self) -> Rc<typed_ast::StructDef> {
+        if let SlangType::User(UserType::Struct(struct_def)) = self {
+            struct_def.upgrade().unwrap()
         } else {
-            panic!("Expected struct type!");
+            panic!("Expected struct type, got {}", self);
         }
     }
 
+    /*
     pub fn into_class(self) -> Arc<ClassType> {
         if let SlangType::Class(class_ref) = self {
             class_ref.inner
@@ -65,6 +193,7 @@ impl SlangType {
             panic!("Expected class type!");
         }
     }
+    */
 
     pub fn is_void(&self) -> bool {
         matches!(self, SlangType::Void)
@@ -77,213 +206,8 @@ pub struct FunctionType {
     pub return_type: Option<Box<SlangType>>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ClassTypeRef {
-    pub inner: Arc<ClassType>,
-}
-
-impl ClassTypeRef {
-    pub fn new(inner: ClassType) -> Self {
-        Self {
-            inner: Arc::new(inner),
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        &self.inner.name
-    }
-
-    pub fn lookup(&self, name: &str) -> Option<SlangType> {
-        self.inner.lookup(name)
-    }
-}
-
-impl PartialEq for ClassTypeRef {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.inner, &other.inner)
-    }
-}
-
-impl Eq for ClassTypeRef {}
-
-// #[derive(Clone)]
-pub struct ClassType {
-    pub name: String,
-    pub fields: Vec<ClassField>,
-    pub methods: Vec<ClassField>,
-    // tbd?
-    // scope: Scope,
-}
-
-impl std::fmt::Debug for ClassType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.debug_struct("Class").field("name", &self.name).finish()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ClassField {
-    pub name: String,
-    pub typ: SlangType,
-}
-
-impl ClassType {
-    pub fn lookup(&self, name: &str) -> Option<SlangType> {
-        // TBD: linear search is a bad idea.
-        for field in &self.fields {
-            if field.name == name {
-                return Some(field.typ.clone());
-            }
-        }
-        for field in &self.methods {
-            if field.name == name {
-                return Some(field.typ.clone());
-            }
-        }
-        None
-    }
-
-    pub fn index_of(&self, name: &str) -> Option<usize> {
-        for (index, field) in self.fields.iter().enumerate() {
-            if field.name == name {
-                return Some(index);
-            }
-        }
-        None
-    }
-
-    /// Create a funky constructor name
-    pub fn ctor_func_name(&self) -> String {
-        format!("{}_ctor", self.name)
-    }
-}
-
-/// A custom defined struct type!
-#[derive(Clone, PartialEq, Eq)]
-pub struct StructType {
-    pub name: Option<String>,
-    pub fields: Vec<StructField>,
-}
-
-impl std::fmt::Debug for StructType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.debug_struct("Struct").field("name", &self.name).finish()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructField {
-    pub name: String,
-    pub typ: SlangType,
-}
-
-impl StructType {
-    pub fn get_field(&self, name: &str) -> Option<SlangType> {
-        for field in &self.fields {
-            if field.name == name {
-                return Some(field.typ.clone());
-            }
-        }
-        None
-    }
-
-    pub fn index_of(&self, name: &str) -> Option<usize> {
-        for (index, field) in self.fields.iter().enumerate() {
-            if field.name == name {
-                return Some(index);
-            }
-        }
-        None
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnionType {
-    pub name: String,
-    pub fields: Vec<SlangType>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArrayType {
     pub element_type: Box<SlangType>,
     pub size: usize,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub struct EnumType {
-    pub name: String,
-    pub choices: Vec<EnumOption>,
-}
-
-impl EnumType {
-    pub fn lookup(&self, name: &str) -> Option<usize> {
-        for (index, choice) in self.choices.iter().enumerate() {
-            if choice.name == name {
-                return Some(index);
-            }
-        }
-        None
-    }
-
-    pub fn get_data_union_type(&self) -> SlangType {
-        let fields: Vec<SlangType> = self
-            .choices
-            .iter()
-            .map(|choice| choice.get_payload_type())
-            .collect();
-        SlangType::Union(UnionType {
-            name: format!("{}_data", self.name),
-            fields,
-        })
-    }
-
-    pub fn get_struct_type(&self) -> SlangType {
-        let union_typ = self.get_data_union_type();
-        let fields: Vec<StructField> = vec![
-            StructField {
-                name: "tag".to_owned(),
-                typ: SlangType::Int,
-            },
-            StructField {
-                name: "payload".to_owned(),
-                typ: union_typ,
-            },
-        ];
-        SlangType::Struct(StructType { name: None, fields })
-    }
-}
-
-impl std::fmt::Debug for EnumType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.debug_struct("EnumType")
-            .field("name", &self.name)
-            .finish()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EnumOption {
-    pub name: String,
-    pub data: Vec<SlangType>,
-}
-
-impl EnumOption {
-    /// Contrapt, void, basic type, or struct for this
-    /// enum option.
-    pub fn get_payload_type(&self) -> SlangType {
-        if self.data.is_empty() {
-            SlangType::Void
-        } else if self.data.len() == 1 {
-            self.data[0].clone()
-        } else {
-            let mut fields = vec![];
-            for (index, typ) in self.data.iter().enumerate() {
-                fields.push(StructField {
-                    typ: typ.clone(),
-                    name: format!("field_{}", index),
-                });
-            }
-            SlangType::Struct(StructType { name: None, fields })
-        }
-    }
 }

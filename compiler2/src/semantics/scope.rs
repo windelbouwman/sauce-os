@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct Scope {
-    symbols: HashMap<String, Symbol>,
+    pub symbols: HashMap<String, Symbol>,
 }
 
 impl Scope {
@@ -16,12 +16,12 @@ impl Scope {
         }
     }
 
-    pub fn dump(&self) {
-        println!("Symbol table:");
-        for sym in self.symbols.keys() {
-            println!(" - {}", sym);
-        }
-    }
+    // pub fn dump(&self) {
+    //     println!("Symbol table:");
+    //     for sym in self.symbols.keys() {
+    //         println!(" - {}", sym);
+    //     }
+    // }
 
     pub fn define_func(
         &mut self,
@@ -29,20 +29,18 @@ impl Scope {
         argument_types: Vec<SlangType>,
         return_type: Option<SlangType>,
     ) {
+        let typ = SlangType::Function(FunctionType {
+            argument_types,
+            return_type: return_type.map(Box::new),
+        });
+
         self.define(
             name.to_owned(),
-            Symbol::Function {
+            Symbol::ExternFunction {
                 name: name.to_owned(),
-                typ: SlangType::Function(FunctionType {
-                    argument_types,
-                    return_type: return_type.map(Box::new),
-                }),
+                typ,
             },
         );
-    }
-
-    pub fn define_type(&mut self, name: &str, typ: SlangType) {
-        self.define(name.to_owned(), Symbol::Typ(typ));
     }
 
     pub fn is_defined(&self, name: &str) -> bool {

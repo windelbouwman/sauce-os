@@ -2,7 +2,11 @@ use crate::parsing::Location;
 
 #[derive(Debug)]
 pub enum CompilationError {
-    SingleError { location: Location, message: String },
+    SingleError {
+        path: std::path::PathBuf,
+        location: Location,
+        message: String,
+    },
     MultiError(Vec<CompilationError>),
     Simple(String),
 }
@@ -12,8 +16,12 @@ impl CompilationError {
         Self::Simple(message)
     }
 
-    pub fn new(location: Location, message: String) -> Self {
-        CompilationError::SingleError { location, message }
+    pub fn new(path: std::path::PathBuf, location: Location, message: String) -> Self {
+        CompilationError::SingleError {
+            path,
+            location,
+            message,
+        }
     }
 
     pub fn multi(errors: Vec<CompilationError>) -> Self {
@@ -22,11 +30,18 @@ impl CompilationError {
 }
 
 /// Output error in somewhat user friendly way
-pub fn print_error(path: &std::path::Path, error: CompilationError) {
+pub fn print_error(error: CompilationError) {
     match error {
-        CompilationError::SingleError { location, message } => {
+        CompilationError::SingleError {
+            path,
+            location,
+            message,
+        } => {
             // log::error!("{},{}: {}", location.row, location.column, message);
-            println!("********************* ERROR *************-----------");
+            println!(
+                "********************* ERROR: [{}] *********************",
+                path.display()
+            );
             let source = std::fs::read_to_string(path).unwrap();
             let err_row = location.row as usize;
             let err_column = location.column as usize;
@@ -46,7 +61,7 @@ pub fn print_error(path: &std::path::Path, error: CompilationError) {
         }
         CompilationError::MultiError(errors) => {
             for error in errors {
-                print_error(path, error);
+                print_error(error);
             }
         }
         CompilationError::Simple(message) => {

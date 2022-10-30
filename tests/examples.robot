@@ -8,24 +8,41 @@ ${EXAMPLES_FOLDER}      ../examples
 ${SLANG_COMPILER}       ../compiler2/target/debug/compiler2
 
 *** Test Cases ***
-Hello world
+Hello world compiled
     Compile and run hello-world example
+
+Hello world interpreted
     Run hello-world example in interpreter
 
-Expressions
+Expressions compiled
     Compile and run expressions example
+
+Expressions interpreted
     Run expressions example in interpreter
 
-If statements
+If statements compiled
     Compile and run if-statements example
+
+If statements interpreted
     Run if-statements example in interpreter
 
-Callings
+Callings compiled
     Compile and run callings example
+
+Callings interpreted
     Run callings example in interpreter
 
-Struct passing
+Struct passing compiled
     Compile and run structs-passing example
+
+Struct passing interpreted
+    Run structs-passing example in interpreter
+
+For loop compiled
+    Compile and run for-loop example
+
+For loop interpreted
+    Run for-loop example in interpreter
 
 
 *** Keywords ***
