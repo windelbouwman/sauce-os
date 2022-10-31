@@ -369,8 +369,10 @@ pub struct CaseArm {
 impl CaseArm {
     pub fn get_variant(&self) -> Rc<RefCell<EnumVariant>> {
         match &self.constructor.kind {
-            ExpressionKind::TypeConstructor(TypeConstructor::EnumVariant(variant))
-            | ExpressionKind::LoadSymbol(Symbol::EnumVariant(variant)) => {
+            // ExpressionKind::TypeConstructor(TypeConstructor::EnumVariant(variant))
+            // |
+            ExpressionKind::LoadSymbol(Symbol::EnumVariant(variant)) => {
+                //
                 variant.upgrade().unwrap()
             }
             other => {
@@ -456,6 +458,14 @@ impl Expression {
         get_attr(self, attr)
     }
 
+    /// Perform a typecast!
+    pub fn cast(self, typ: SlangType) -> Self {
+        let location = self.location.clone();
+        ExpressionKind::TypeCast(Box::new(self))
+            .typed_expr(typ)
+            .at(location)
+    }
+
     // pub fn into_i64(self) -> i64 {
     //     match self.kind {
     //         ExpressionKind::Literal(Literal::Integer(value)) => value,
@@ -512,8 +522,7 @@ pub enum ExpressionKind {
     // an instance of a type.
     //
     // TBD: this muight be a dubious expression kind:
-    TypeConstructor(TypeConstructor),
-
+    // TypeConstructor(TypeConstructor),
     /// Implicit 'self' in a class method.
     // ImplicitSelf,
 
@@ -522,6 +531,10 @@ pub enum ExpressionKind {
         callee: Box<Expression>,
         arguments: Vec<Expression>,
     },
+
+    /// Type-cast the given expression into another type
+    TypeCast(Box<Expression>),
+
     /*
     MethodCall {
         instance: Box<Expression>,
@@ -530,10 +543,7 @@ pub enum ExpressionKind {
     },
     */
     /// Get attribute of some object: base.attr
-    GetAttr {
-        base: Box<Expression>,
-        attr: String,
-    },
+    GetAttr { base: Box<Expression>, attr: String },
 
     /// Array like indexing operator: base[i]
     GetIndex {
@@ -743,9 +753,9 @@ pub struct FieldInit {
     pub value: Box<Expression>,
 }
 
-#[derive(Debug)]
-pub enum TypeConstructor {
-    // Any(SlangType),
-    ClassRef(NodeId),
-    EnumVariant(Ref<EnumVariant>),
-}
+// #[derive(Debug)]
+// pub enum TypeConstructor {
+//     // Any(SlangType),
+//     ClassRef(NodeId),
+//     EnumVariant(Ref<EnumVariant>),
+// }

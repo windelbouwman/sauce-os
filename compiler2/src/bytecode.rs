@@ -31,6 +31,15 @@ pub enum TypeDef {
     Array { size: usize, element_type: Typ },
 }
 
+impl TypeDef {
+    pub fn invalid() -> Self {
+        Self::Array {
+            size: 0,
+            element_type: Typ::Void,
+        }
+    }
+}
+
 #[derive(Clone, Serialize, PartialEq, Eq, Hash)]
 pub struct StructDef {
     pub name: Option<String>,
@@ -78,8 +87,7 @@ pub enum Instruction {
     /// Duplicate top of stack value.
     Duplicate,
 
-    DropTop,
-
+    // DropTop,
     /// Allocate new memory for the given type
     Malloc(Typ),
 
@@ -95,6 +103,7 @@ pub enum Instruction {
         op: Comparison,
         typ: Typ,
     },
+    TypeConvert(TypeConversion),
 
     LoadGlobalName(String),
 
@@ -162,6 +171,12 @@ impl Instruction {
             _ => false,
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub enum TypeConversion {
+    FloatToInt,
+    IntToFloat,
 }
 
 #[derive(Clone, Debug, Serialize)]

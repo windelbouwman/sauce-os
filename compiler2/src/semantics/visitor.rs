@@ -215,6 +215,9 @@ fn visit_expr<V: VisitorApi>(visitor: &mut V, expression: &mut typed_ast::Expres
             visit_expr(visitor, lhs);
             visit_expr(visitor, rhs);
         }
+        typed_ast::ExpressionKind::TypeCast(value) => {
+            visit_expr(visitor, value);
+        }
         typed_ast::ExpressionKind::Literal(_) => {}
         typed_ast::ExpressionKind::StructLiteral { typ, fields } => {
             visit_type_expr(visitor, typ);
@@ -248,7 +251,9 @@ fn visit_expr<V: VisitorApi>(visitor: &mut V, expression: &mut typed_ast::Expres
         }
 
         typed_ast::ExpressionKind::LoadSymbol(_) => {}
-        typed_ast::ExpressionKind::TypeConstructor(_) => {} /*
+        // typed_ast::ExpressionKind::TypeConstructor(_) => {}
+
+        /*
         typed_ast::ExpressionKind::MethodCall {
         instance,
         method: _,

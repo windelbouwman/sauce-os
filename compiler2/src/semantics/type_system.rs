@@ -122,6 +122,7 @@ impl PartialEq for UserType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (UserType::Struct(s), UserType::Struct(o)) => s.ptr_eq(o),
+            (UserType::Union(s), UserType::Union(o)) => s.ptr_eq(o),
             (UserType::Enum(s), UserType::Enum(o)) => s.ptr_eq(o),
             (UserType::Class(s), UserType::Class(o)) => s.ptr_eq(o),
             _x => false,
@@ -167,6 +168,14 @@ impl SlangType {
         } else {
             panic!("Expected function type!");
         }
+    }
+
+    pub fn is_int(&self) -> bool {
+        matches!(self, SlangType::Int)
+    }
+
+    pub fn is_float(&self) -> bool {
+        matches!(self, SlangType::Float)
     }
 
     pub fn is_enum(&self) -> bool {
@@ -215,9 +224,9 @@ impl SlangType {
     }
     */
 
-    pub fn is_void(&self) -> bool {
-        matches!(self, SlangType::Void)
-    }
+    // pub fn is_void(&self) -> bool {
+    //     matches!(self, SlangType::Void)
+    // }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

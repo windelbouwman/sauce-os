@@ -34,6 +34,15 @@ char *std_int_to_str(int x)
     return text;
 }
 
+char *std_float_to_str(double x)
+{
+    char buffer[50];
+    snprintf(buffer, 50, "%f", x);
+    char *text = malloc(strlen(buffer) + 1);
+    strcpy(text, buffer);
+    return text;
+}
+
 char *std_read_file(const char *filename)
 {
     char *buffer = 0;

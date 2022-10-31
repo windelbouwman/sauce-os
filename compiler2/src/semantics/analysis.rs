@@ -36,5 +36,9 @@ pub fn analyze(
         print_ast(&mut typed_prog);
     }
 
+    // Interesting:
+    // We can run the type checker again, on our modified program.
+    typechecker::check_types(&mut typed_prog)?;
+
     Ok(typed_prog)
 }

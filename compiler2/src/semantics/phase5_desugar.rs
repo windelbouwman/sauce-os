@@ -144,6 +144,8 @@ impl<'d> Desugar<'d> {
 
             if variant.data.is_empty() {
                 // no payload fields required!
+                // Add a place holder int as stub ..
+                union_builder.add_field(&union_field_name, SlangType::Int);
             } else if variant.data.len() == 1 {
                 // Single field!
                 let variant_typ = variant.data[0].clone();
@@ -299,8 +301,9 @@ impl<'d> Desugar<'d> {
                 let payload_name = variant.name.to_owned();
 
                 let union_value = if payload.is_empty() {
-                    // No payload
-                    typed_ast::undefined_value()
+                    // No payload (store int as dummy value)
+                    let value = typed_ast::integer_literal(0);
+                    typed_ast::union_literal(data_union_type, payload_name, value)
                 } else if payload.len() == 1 {
                     // Single payload value
                     let value = payload.into_iter().next().unwrap();

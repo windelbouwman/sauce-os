@@ -326,6 +326,9 @@ impl AstPrinter {
             typed_ast::ExpressionKind::Binop { op, .. } => {
                 print!("{}Binary operation {:?}", self.get_indent(), op);
             }
+            typed_ast::ExpressionKind::TypeCast(_) => {
+                print!("{}Type-cast", self.get_indent());
+            }
             typed_ast::ExpressionKind::Literal(literal) => {
                 self.print_literal(literal);
             }
@@ -412,25 +415,28 @@ impl AstPrinter {
                     print!("{}Load-symbol {}", self.get_indent(), other);
                 }
             },
-            typed_ast::ExpressionKind::TypeConstructor(type_constructor) => {
-                match type_constructor {
-                    other => {
-                        print!("{}type-constructor: {:?}", self.get_indent(), other);
-                    } /*
-                      typed_ast::TypeConstructor::Any(typ) => {
-                          println!("{}Type constructor (any): {:?}", self.get_indent(), typ);
-                      }
-                      typed_ast::TypeConstructor::EnumOption { enum_type, choice } => {
-                          println!(
-                              "{}Type constructor (enum option) choice={} : {:?}",
-                              self.get_indent(),
-                              choice,
-                              enum_type
-                          );
-                      }
-                      */
-                }
-            } // typed_ast::ExpressionKind::Instantiate => {
+            // typed_ast::ExpressionKind::TypeConstructor(type_constructor) => {
+            //     match type_constructor {
+            //         other => {
+            //             print!("{}type-constructor: {:?}", self.get_indent(), other);
+            //         }
+            /*
+            typed_ast::TypeConstructor::Any(typ) => {
+                println!("{}Type constructor (any): {:?}", self.get_indent(), typ);
+            }
+            typed_ast::TypeConstructor::EnumOption { enum_type, choice } => {
+                println!(
+                    "{}Type constructor (enum option) choice={} : {:?}",
+                    self.get_indent(),
+                    choice,
+                    enum_type
+                );
+            }
+            */
+            //     }
+            // }
+
+            // typed_ast::ExpressionKind::Instantiate => {
             //     print!("{}Create instance", self.get_indent(),);
             // }
             // typed_ast::ExpressionKind::ImplicitSelf => {

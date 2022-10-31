@@ -2,6 +2,7 @@ use super::refer;
 use super::symbol::Symbol;
 use super::type_system::{ArrayType, SlangType, UserType};
 use super::typed_ast;
+use super::typed_ast::{Expression, ExpressionKind};
 use super::Diagnostics;
 use crate::errors::CompilationError;
 use crate::parsing::ast;
@@ -229,10 +230,10 @@ impl TypeChecker {
         for arm in &mut case_statement.arms {
             // Ensure we referred to an enum constructor
             match &arm.constructor.kind {
-                typed_ast::ExpressionKind::TypeConstructor(
-                    typed_ast::TypeConstructor::EnumVariant(variant),
-                )
-                | typed_ast::ExpressionKind::LoadSymbol(Symbol::EnumVariant(variant)) => {
+                // ExpressionKind::TypeConstructor(
+                //     typed_ast::TypeConstructor::EnumVariant(variant),
+                // )
+                ExpressionKind::LoadSymbol(Symbol::EnumVariant(variant)) => {
                     let variant_ref = variant.upgrade().unwrap();
                     let variant = variant_ref.borrow();
 
@@ -299,10 +300,7 @@ impl TypeChecker {
         Ok(())
     }
 
-    fn use_as_enum_type(
-        &mut self,
-        value: &typed_ast::Expression,
-    ) -> Result<Rc<typed_ast::EnumDef>, ()> {
+    fn use_as_enum_type(&mut self, value: &Expression) -> Result<Rc<typed_ast::EnumDef>, ()> {
         if let SlangType::User(UserType::Enum(enum_type)) = &value.typ {
             Ok(enum_type.upgrade().unwrap())
         } else {
@@ -317,9 +315,9 @@ impl TypeChecker {
     /// Type check the given expression.
     ///
     /// Annotate the given expression with a type
-    fn check_expression(&mut self, expression: &mut typed_ast::Expression) -> Result<(), ()> {
+    fn check_expression(&mut self, expression: &mut Expression) -> Result<(), ()> {
         match &mut expression.kind {
-            typed_ast::ExpressionKind::Call { callee, arguments } => {
+            ExpressionKind::Call { callee, arguments } => {
                 self.check_expression(callee)?;
                 let callee_type = self.get_type(callee)?;
                 match callee_type {
@@ -339,16 +337,16 @@ impl TypeChecker {
 
                     SlangType::TypeConstructor => {
                         match &callee.kind {
-                            typed_ast::ExpressionKind::TypeConstructor(type_constructor) => {
-                                unimplemented!("{:?}", type_constructor);
-                                // match type_constructor {
-                                //     typed_ast::TypeConstructor::ClassRef(class_node_id) => {
-                                // let typ = SlangType::Class(*class_node_id);
-                                // Ok(typ)
-                                //     }
-                                // }
-                            }
-                            typed_ast::ExpressionKind::LoadSymbol(Symbol::Typ(typ)) => match typ {
+                            // ExpressionKind::TypeConstructor(type_constructor) => {
+                            //     unimplemented!("{:?}", type_constructor);
+                            // match type_constructor {
+                            //     typed_ast::TypeConstructor::ClassRef(class_node_id) => {
+                            // let typ = SlangType::Class(*class_node_id);
+                            // Ok(typ)
+                            //     }
+                            // }
+                            // }
+                            ExpressionKind::LoadSymbol(Symbol::Typ(typ)) => match typ {
                                 SlangType::User(UserType::Class(_)) => {
                                     expression.typ = typ.clone();
                                     Ok(())
@@ -361,7 +359,7 @@ impl TypeChecker {
                                     Err(())
                                 }
                             },
-                            typed_ast::ExpressionKind::LoadSymbol(Symbol::EnumVariant(variant)) => {
+                            ExpressionKind::LoadSymbol(Symbol::EnumVariant(variant)) => {
                                 let variant_rc = variant.upgrade().unwrap();
                                 let variant = variant_rc.borrow();
                                 self.check_call_arguments(
@@ -371,12 +369,11 @@ impl TypeChecker {
                                 )?;
 
                                 // std::mem::replace(
-                                expression.kind = typed_ast::ExpressionKind::EnumLiteral(
-                                    typed_ast::EnumLiteral {
+                                expression.kind =
+                                    ExpressionKind::EnumLiteral(typed_ast::EnumLiteral {
                                         variant: Rc::downgrade(&variant_rc),
                                         arguments: std::mem::take(arguments),
-                                    },
-                                );
+                                    });
                                 // );
                                 expression.typ = variant.get_parent_type();
 
@@ -394,18 +391,20 @@ impl TypeChecker {
                     }
                 }
             }
-            // typed_ast::ExpressionKind::MethodCall {
+            // ExpressionKind::MethodCall {
             //     instance,
             //     method,
             //     arguments,
             // } => self.check_method_call(&expression.location, instance, method, arguments),
-            typed_ast::ExpressionKind::Undefined => {
-                panic!("Should not happen!");
+            ExpressionKind::Undefined => {
+                // panic!("Should not happen!");
+                // Ehh, what now?
+                Ok(())
             }
-            typed_ast::ExpressionKind::Object(_) => {
+            ExpressionKind::Object(_) => {
                 panic!("Should be resolved before type checking.");
             }
-            typed_ast::ExpressionKind::Binop { lhs, op, rhs } => {
+            ExpressionKind::Binop { lhs, op, rhs } => {
                 expression.typ = match &op {
                     ast::BinaryOperator::Comparison(_compare_op) => {
                         self.check_expression(lhs)?;
@@ -415,13 +414,22 @@ impl TypeChecker {
                         self.check_equal_types(&expression.location, &lhs_typ, &rhs_typ)?;
                         SlangType::Bool
                     }
-                    ast::BinaryOperator::Math(_math_op) => {
+                    ast::BinaryOperator::Math(math_op) => {
                         self.check_expression(lhs)?;
                         self.check_expression(rhs)?;
+
                         let lhs_typ = self.get_type(lhs)?;
                         let rhs_typ = self.get_type(rhs)?;
-                        self.check_equal_types(&expression.location, &lhs_typ, &rhs_typ)?;
-                        lhs_typ.clone()
+                        let mut common_type =
+                            self.common_sub_type(&expression.location, &lhs_typ, &rhs_typ)?;
+
+                        let is_div = matches!(math_op, ast::MathOperator::Div);
+                        if is_div && common_type.is_int() {
+                            common_type = SlangType::Float;
+                        }
+                        Self::autoconv(lhs, &common_type);
+                        Self::autoconv(rhs, &common_type);
+                        common_type
                     }
                     ast::BinaryOperator::Logic(_logic_op) => {
                         self.check_condition(lhs)?;
@@ -434,7 +442,11 @@ impl TypeChecker {
                 };
                 Ok(())
             }
-            typed_ast::ExpressionKind::Literal(value) => {
+            ExpressionKind::TypeCast(_value) => {
+                // TODO: Check for some valid castings.
+                Ok(())
+            }
+            ExpressionKind::Literal(value) => {
                 expression.typ = match value {
                     typed_ast::Literal::Bool(_) => SlangType::Bool,
                     typed_ast::Literal::Integer(_) => SlangType::Int,
@@ -444,20 +456,38 @@ impl TypeChecker {
                 Ok(())
             }
 
-            typed_ast::ExpressionKind::StructLiteral { typ, fields } => {
+            ExpressionKind::StructLiteral { typ, fields } => {
                 self.check_struct_literal(&expression.location, typ, fields)?;
                 // struct_literal_to_tuple
                 expression.typ = typ.clone();
                 Ok(())
             }
-            typed_ast::ExpressionKind::TupleLiteral(_values) => {
-                // TODO: create struct data type
-                unimplemented!("Tuple literal");
+            ExpressionKind::TupleLiteral(values) => {
+                let struct_ref = expression.typ.as_struct();
+                assert_eq!(values.len(), struct_ref.fields.len());
+                for (field, value) in struct_ref.fields.iter().zip(values.iter_mut()) {
+                    let field = field.borrow();
+                    self.coerce(&field.typ, value)?;
+                }
+                Ok(())
             }
-            typed_ast::ExpressionKind::UnionLiteral { .. } => {
-                unimplemented!("Union literal");
+
+            ExpressionKind::UnionLiteral { attr, value } => {
+                let union_ref = expression.typ.as_union();
+                if let Some(field) = union_ref.get_field(attr) {
+                    let field = field.borrow();
+                    self.coerce(&field.typ, value)?;
+                    Ok(())
+                } else {
+                    self.error(
+                        &expression.location,
+                        format!("Union has no attribute '{}'", attr),
+                    );
+                    Err(())
+                }
             }
-            typed_ast::ExpressionKind::ListLiteral(values) => {
+
+            ExpressionKind::ListLiteral(values) => {
                 assert!(!values.is_empty());
 
                 let mut value_iter = values.iter_mut();
@@ -474,12 +504,13 @@ impl TypeChecker {
 
                 Ok(())
             }
-            typed_ast::ExpressionKind::EnumLiteral { .. } => {
+
+            ExpressionKind::EnumLiteral { .. } => {
                 // TODO: create struct data type
                 unimplemented!("Enum literal");
             }
 
-            typed_ast::ExpressionKind::LoadSymbol(symbol) => match symbol {
+            ExpressionKind::LoadSymbol(symbol) => match symbol {
                 Symbol::ExternFunction { name: _, typ } => {
                     expression.typ = typ.clone();
                     Ok(())
@@ -515,13 +546,13 @@ impl TypeChecker {
                 }
             },
 
-            typed_ast::ExpressionKind::TypeConstructor(_type_constructor) => {
-                unimplemented!("Type-con?");
-                // type_constructor
-                // let typ = SlangType::TypeConstructor;
-                // Ok(typ)
-            }
-            typed_ast::ExpressionKind::GetIndex { base, index } => {
+            // ExpressionKind::TypeConstructor(_type_constructor) => {
+            //     unimplemented!("Type-con?");
+            // type_constructor
+            // let typ = SlangType::TypeConstructor;
+            // Ok(typ)
+            // }
+            ExpressionKind::GetIndex { base, index } => {
                 self.check_expression(base)?;
                 match &base.typ {
                     SlangType::Array(array_type) => {
@@ -538,7 +569,8 @@ impl TypeChecker {
                     }
                 }
             }
-            typed_ast::ExpressionKind::GetAttr { base, attr } => {
+
+            ExpressionKind::GetAttr { base, attr } => {
                 self.check_expression(base)?;
                 if let Some(symbol) = base.typ.get_attr(attr) {
                     expression.typ = match symbol {
@@ -568,9 +600,9 @@ impl TypeChecker {
     fn check_method_call(
         &mut self,
         location: &Location,
-        instance: &typed_ast::Expression,
+        instance: &Expression,
         method: &str,
-        arguments: &[typed_ast::Expression],
+        arguments: &[Expression],
     ) -> Result<SlangType, ()> {
         unimplemented!();
         let instance_type = self.get_type(instance)?;
@@ -617,7 +649,7 @@ impl TypeChecker {
         &mut self,
         location: &Location,
         argument_types: &[SlangType],
-        arguments: &mut [typed_ast::Expression],
+        arguments: &mut [Expression],
     ) -> Result<(), ()> {
         if argument_types.len() == arguments.len() {
             for (arg_typ, argument) in argument_types.iter().zip(arguments.iter_mut()) {
@@ -701,14 +733,14 @@ impl TypeChecker {
     }
 
     /// Check if a condition is boolean type.
-    fn check_condition(&mut self, condition: &mut typed_ast::Expression) -> Result<(), ()> {
+    fn check_condition(&mut self, condition: &mut Expression) -> Result<(), ()> {
         self.check_expression(condition)?;
         let actual_type = self.get_type(condition)?;
         self.check_equal_types(&condition.location, &SlangType::Bool, &actual_type)
     }
 
     /// Get the type of an expression.
-    fn get_type(&self, expression: &typed_ast::Expression) -> Result<SlangType, ()> {
+    fn get_type(&self, expression: &Expression) -> Result<SlangType, ()> {
         if let SlangType::Undefined = &expression.typ {
             Err(())
         } else {
@@ -721,16 +753,41 @@ impl TypeChecker {
     /// Also determine the type of the expression after coercion.
     ///
     /// Future: insert automatic conversion
-    fn coerce(
-        &mut self,
-        wanted_typ: &SlangType,
-        value: &mut typed_ast::Expression,
-    ) -> Result<(), ()> {
+    fn coerce(&mut self, wanted_typ: &SlangType, value: &mut Expression) -> Result<(), ()> {
         self.check_expression(value)?;
-        let value_type = self.get_type(value)?;
-        // TODO: insert automatic conversion!
-        self.check_equal_types(&value.location, wanted_typ, &value_type)?;
+
+        // Insert automatic conversion:
+        if wanted_typ.is_float() && value.typ.is_int() {
+            Self::autoconv(value, wanted_typ);
+        }
+
+        self.check_equal_types(&value.location, wanted_typ, &value.typ)?;
         Ok(())
+    }
+
+    /// Auto convert!
+    fn autoconv(value: &mut Expression, wanted_typ: &SlangType) {
+        if &value.typ != wanted_typ {
+            log::trace!("Autoconving! {} -> {}", value.typ, wanted_typ);
+            let old_value = std::mem::replace(value, typed_ast::undefined_value());
+            *value = old_value.cast(wanted_typ.clone());
+        }
+    }
+
+    fn common_sub_type(
+        &mut self,
+        location: &Location,
+        type1: &SlangType,
+        type2: &SlangType,
+    ) -> Result<SlangType, ()> {
+        match (type1, type2) {
+            (SlangType::Float, SlangType::Int) => Ok(SlangType::Float),
+            (SlangType::Int, SlangType::Float) => Ok(SlangType::Float),
+            _ => {
+                self.check_equal_types(location, type1, type2)?;
+                Ok(type1.clone())
+            }
+        }
     }
 
     /// Check if two types are equal, and if not, emit an error message.

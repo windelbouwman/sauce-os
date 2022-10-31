@@ -66,20 +66,50 @@ where
     }
 
     fn gen_types(&mut self, typedefs: Vec<bytecode::TypeDef>) -> Result<(), std::io::Error> {
-        for typedef in typedefs {
+        // Create forward declarations first:
+        for typedef in &typedefs {
             match typedef {
                 bytecode::TypeDef::Struct(struct_def) => {
                     let type_name = self.new_local(Some(
                         struct_def
                             .name
+                            .as_ref()
                             .map(|n| format!("{}Type", n))
                             .unwrap_or("DaType".to_owned()),
                     ));
+                    let type_size = 1337;
+                    // writeln!(self.w, r"{} = type opaque", type_name)?;
+                    self.type_names.push((type_name, type_size));
+                }
+                bytecode::TypeDef::Union(union_def) => {
+                    let type_name = self.new_local(Some(format!("{}Type", union_def.name)));
+                    let type_size = 1334;
+
+                    // writeln!(self.w, r"{} = type opaque", type_name)?;
+                    self.type_names.push((type_name, type_size));
+                }
+                bytecode::TypeDef::Array {
+                    size,
+                    element_type: _,
+                } => {
+                    // let type_name = self.new_local(Some("ArrayType".to_owned()));
+                    let type_name = format!("[{} x ?]", size);
+                    let type_size = 1334;
+                    self.type_names.push((type_name, type_size));
+                }
+            }
+        }
+
+        for (index, typedef) in typedefs.iter().enumerate() {
+            let type_name: String = self.type_names[index].0.clone();
+            match typedef {
+                bytecode::TypeDef::Struct(struct_def) => {
                     let mut type_size = 0;
                     for field_type in &struct_def.fields {
                         type_size += self.get_sizeof(field_type);
                     }
-                    self.type_names.push((type_name.clone(), type_size));
+
+                    self.type_names[index].1 = type_size;
                     let fields: Vec<String> = struct_def
                         .fields
                         .iter()
@@ -88,24 +118,20 @@ where
                     writeln!(self.w, r"{} = type {{ {} }}", type_name, fields.join(", "))?;
                 }
                 bytecode::TypeDef::Union(union_def) => {
-                    // unimplemented!("TODO!");
-                    // Heave not working work in progress.
-                    let type_name = self.new_local(Some(format!("{}Type", union_def.name)));
                     let type_size = 1334;
-                    self.type_names.push((type_name.clone(), type_size));
+                    self.type_names[index].1 = type_size;
 
-                    for _subtype in union_def.choices {
-                        writeln!(self.w, r"{} = type {{ {} }}", type_name, "??")?;
+                    let mut fields: Vec<String> = vec![];
+                    for subtype in &union_def.choices {
+                        fields.push(self.get_llvm_typ(subtype));
                     }
+                    writeln!(self.w, r"{} = type {{ {} }}", type_name, fields.join(", "))?;
                 }
                 bytecode::TypeDef::Array { size, element_type } => {
-                    // let type_name = self.new_local(Some("ArrayType".to_owned()));
-
                     let element_type = self.get_llvm_typ(&element_type);
                     let type_name = format!("[{} x {}]", size, element_type);
                     let type_size = 1334;
-                    self.type_names.push((type_name.clone(), type_size));
-                    // unimplemented!("Arrays");
+                    self.type_names[index] = (type_name.clone(), type_size);
                 }
             }
         }
@@ -344,9 +370,22 @@ where
                     unimplemented!("Binary op for: {:?}", other);
                 }
             },
-            // Instruction::Nop => {
-            // Easy, nothing to do here!!
-            // }
+            Instruction::TypeConvert(_conversion) => {
+                let new_var = self.new_local(None);
+                let (typ, val) = self.pop();
+                let (opcode, to_typ) = match _conversion {
+                    bytecode::TypeConversion::FloatToInt => ("fptosi", bytecode::Typ::Int),
+                    bytecode::TypeConversion::IntToFloat => ("sitofp", bytecode::Typ::Float),
+                };
+                let to_typ = self.get_llvm_typ(&to_typ);
+
+                writeln!(
+                    self.w,
+                    "    {} = {} {} {} to {}",
+                    new_var, opcode, typ, val, to_typ
+                )?;
+                self.push(to_typ, new_var);
+            }
             Instruction::BoolLiteral(value) => {
                 self.push("i1".to_owned(), format!("{}", if value { 1 } else { 0 }));
             }
@@ -395,9 +434,9 @@ where
                 self.push(typ.clone(), val.clone());
                 self.push(typ, val);
             }
-            Instruction::DropTop => {
-                self.pop();
-            }
+            // Instruction::DropTop => {
+            //     self.pop();
+            // }
             Instruction::Comparison { op, typ } => {
                 match typ {
                     bytecode::Typ::Int => {

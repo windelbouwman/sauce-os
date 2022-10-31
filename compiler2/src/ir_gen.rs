@@ -38,6 +38,7 @@ struct Generator {
     loop_stack: Vec<(Label, Label)>,
     types: Vec<bytecode::TypeDef>,
     type_to_id_map: HashMap<bytecode::TypeDef, usize>,
+    type_to_id_map2: HashMap<typed_ast::NodeId, usize>,
     index_map: HashMap<NodeId, usize>,
     label_map: HashMap<Label, usize>,
     relocations: Vec<Relocation>,
@@ -71,6 +72,7 @@ impl Generator {
             loop_stack: vec![],
             types: vec![],
             type_to_id_map: HashMap::new(),
+            type_to_id_map2: HashMap::new(),
             index_map: HashMap::new(),
             label_map: HashMap::new(),
             relocations: vec![],
@@ -78,6 +80,56 @@ impl Generator {
     }
 
     fn gen_prog(&mut self, prog: &typed_ast::Program) {
+        // First fill typedefs
+        for definition in &prog.definitions {
+            match definition {
+                typed_ast::Definition::Struct(struct_def) => {
+                    self.type_to_id_map2.insert(struct_def.id, self.types.len());
+                    self.types.push(bytecode::TypeDef::invalid());
+                }
+                typed_ast::Definition::Union(union_def) => {
+                    self.type_to_id_map2.insert(union_def.id, self.types.len());
+                    self.types.push(bytecode::TypeDef::invalid());
+                }
+                _ => {}
+            }
+        }
+
+        for definition in &prog.definitions {
+            match definition {
+                typed_ast::Definition::Struct(struct_def) => {
+                    let mut bytecode_field_types: Vec<bytecode::Typ> = vec![];
+                    for field_ref in struct_def.fields.iter() {
+                        // self.index_map.insert(*f_id, index);
+                        let field_type = self.get_bytecode_typ(&field_ref.borrow().typ);
+                        bytecode_field_types.push(field_type);
+                    }
+
+                    let name = struct_def.name.clone();
+
+                    let typ = bytecode::TypeDef::Struct(bytecode::StructDef {
+                        name: Some(name),
+                        fields: bytecode_field_types,
+                    });
+
+                    self.types[self.type_to_id_map2[&struct_def.id]] = typ;
+                }
+                typed_ast::Definition::Union(union_def) => {
+                    let mut choices: Vec<bytecode::Typ> = vec![];
+                    for field_ref in union_def.fields.iter() {
+                        let field_type = self.get_bytecode_typ(&field_ref.borrow().typ);
+                        choices.push(field_type);
+                    }
+                    let name = union_def.name.clone();
+
+                    let union_typ = bytecode::TypeDef::Union(bytecode::UnionDef { name, choices });
+
+                    self.types[self.type_to_id_map2[&union_def.id]] = union_typ;
+                }
+                _ => {}
+            }
+        }
+
         for definition in &prog.definitions {
             match definition {
                 typed_ast::Definition::Function(function) => {
@@ -168,9 +220,6 @@ impl Generator {
         }
 
         self.gen_block(&func.body);
-
-        // Sort of a hack, insert NOP so we can jump this no-op..
-        self.emit(Instruction::Nop);
 
         // Hmm, a bit of a hack, to inject a void return here ..
         if !self.instructions.last().unwrap().is_terminator() {
@@ -310,6 +359,7 @@ impl Generator {
         self.jump(final_label.clone());
 
         self.set_label(final_label);
+        self.emit(Instruction::Nop);
     }
 
     fn gen_if_statement(&mut self, if_statement: &typed_ast::IfStatement) {
@@ -341,6 +391,7 @@ impl Generator {
         }
         self.jump(final_label.clone());
         self.set_label(final_label);
+        self.emit(Instruction::Nop);
     }
 
     fn gen_loop(&mut self, body: &typed_ast::Block) {
@@ -354,6 +405,7 @@ impl Generator {
         self.loop_stack.pop();
         self.jump(loop_start_label);
         self.set_label(final_label);
+        self.emit(Instruction::Nop);
     }
 
     fn gen_while_statement(&mut self, while_statement: &typed_ast::WhileStatement) {
@@ -374,6 +426,7 @@ impl Generator {
         self.loop_stack.pop();
         self.jump(loop_start_label);
         self.set_label(final_label);
+        self.emit(Instruction::Nop);
     }
 
     /// Generate bytecode for condition statement.
@@ -425,41 +478,12 @@ impl Generator {
         }
     }
 
-    fn get_struct_index(&mut self, struct_def: Rc<typed_ast::StructDef>) -> usize {
-        // *self
-        // .type_to_id_map
-        // .get(&struct_type.upgrade().unwrap().id)
-        // .unwrap()
-        // unimplemented!();
-
-        // let struct_name = self.context.get_name(struct_type_node_id);
-        let mut bytecode_field_types: Vec<bytecode::Typ> = vec![];
-        for (_index, field_ref) in struct_def.fields.iter().enumerate() {
-            // self.index_map.insert(*f_id, index);
-            let field_type = self.get_bytecode_typ(&field_ref.borrow().typ);
-            bytecode_field_types.push(field_type);
-        }
-
-        let name = struct_def.name.clone();
-
-        let typ = bytecode::TypeDef::Struct(bytecode::StructDef {
-            name: Some(name),
-            fields: bytecode_field_types,
-        });
-        self.inject_type(typ)
+    fn get_struct_index(&self, struct_def: Rc<typed_ast::StructDef>) -> usize {
+        *self.type_to_id_map2.get(&struct_def.id).unwrap()
     }
 
-    fn get_union_index(&mut self, union_def: Rc<typed_ast::UnionDef>) -> usize {
-        let mut choices: Vec<bytecode::Typ> = vec![];
-        for field_ref in union_def.fields.iter() {
-            let field_type = self.get_bytecode_typ(&field_ref.borrow().typ);
-            choices.push(field_type);
-        }
-        let name = union_def.name.clone();
-
-        let union_typ = bytecode::TypeDef::Union(bytecode::UnionDef { name, choices });
-
-        self.inject_type(union_typ)
+    fn get_union_index(&self, union_def: Rc<typed_ast::UnionDef>) -> usize {
+        *self.type_to_id_map2.get(&union_def.id).unwrap()
     }
 
     fn get_array_index(&mut self, array_type: &ArrayType) -> usize {
@@ -527,6 +551,9 @@ impl Generator {
             typed_ast::ExpressionKind::StructLiteral { .. } => {
                 unimplemented!("Struct literal, please use tuple literal instead.");
             }
+            typed_ast::ExpressionKind::EnumLiteral(_) => {
+                unimplemented!("Enum literal, please rewrite into tagged union.");
+            }
             typed_ast::ExpressionKind::TupleLiteral(values) => {
                 self.gen_tuple_literal(&expression.typ, values);
             }
@@ -542,21 +569,34 @@ impl Generator {
                 // TBD: now what? Push undefined value onto the stack!
                 self.emit(Instruction::UndefinedLiteral);
             }
+            typed_ast::ExpressionKind::Object(_) => {
+                panic!("Please resolve symbols before embarking into bytecode");
+            }
             typed_ast::ExpressionKind::ListLiteral(values) => {
                 self.gen_array_literal(&expression.typ, values);
             }
             typed_ast::ExpressionKind::Binop { lhs, op, rhs } => {
                 self.gen_binop(lhs, op, rhs);
             }
-
+            typed_ast::ExpressionKind::TypeCast(value) => {
+                self.gen_expression(value);
+                let cast_operation = match (&value.typ, &expression.typ) {
+                    (SlangType::Int, SlangType::Float) => bytecode::TypeConversion::IntToFloat,
+                    (SlangType::Float, SlangType::Int) => bytecode::TypeConversion::FloatToInt,
+                    (a, b) => {
+                        panic!("Unsupported type casting: {} -> {}", a, b);
+                    }
+                };
+                self.emit(Instruction::TypeConvert(cast_operation));
+            }
             typed_ast::ExpressionKind::Call { callee, arguments } => {
                 self.gen_call(callee, arguments);
             }
 
             typed_ast::ExpressionKind::GetAttr { base, attr } => match &base.typ {
                 SlangType::User(user_type) => {
-                    let field2 = user_type.get_field(attr).unwrap();
-                    let field = field2.borrow();
+                    let field_ref = user_type.get_field(attr).unwrap();
+                    let field = field_ref.borrow();
                     let typ = self.get_bytecode_typ(&field.typ);
                     self.gen_expression(base);
                     self.emit(Instruction::GetAttr {
@@ -601,9 +641,6 @@ impl Generator {
                     unimplemented!("Loading {}", other);
                 }
             },
-            other => {
-                unimplemented!("EXPR {:?}", other);
-            }
         }
     }
 
@@ -821,16 +858,16 @@ impl Generator {
         for relocation in &self.relocations {
             match relocation {
                 Relocation::Jump { pc, label } => {
-                    let target = self.label_map.get(label).unwrap();
-                    self.instructions[*pc] = bytecode::Instruction::Jump(*target);
+                    let target = self.get_jump_dest(label);
+                    self.instructions[*pc] = bytecode::Instruction::Jump(target);
                 }
                 Relocation::JumpIf {
                     pc,
                     true_label,
                     false_label,
                 } => {
-                    let true_index: usize = *self.label_map.get(true_label).unwrap();
-                    let false_index: usize = *self.label_map.get(false_label).unwrap();
+                    let true_index: usize = self.get_jump_dest(true_label);
+                    let false_index: usize = self.get_jump_dest(false_label);
                     self.instructions[*pc] = bytecode::Instruction::JumpIf(true_index, false_index);
                 }
                 Relocation::JumpSwitch {
@@ -838,16 +875,30 @@ impl Generator {
                     default,
                     options,
                 } => {
-                    let default: usize = *self.label_map.get(default).unwrap();
+                    let default: usize = self.get_jump_dest(default);
                     let options: Vec<(i64, usize)> = options
                         .iter()
-                        .map(|(v, t)| (*v, *self.label_map.get(t).unwrap()))
+                        .map(|(v, t)| (*v, self.get_jump_dest(t)))
                         .collect();
                     self.instructions[*pc] = bytecode::Instruction::JumpSwitch { default, options };
                 }
             }
         }
         self.relocations.clear();
+    }
+
+    // fn patch_code(&mut self, pc: usize, instruction: Instruction) {
+    //     self.instructions[pc] = instruction;
+    // }
+
+    fn get_jump_dest(&self, label: &Label) -> usize {
+        let dst = *self.label_map.get(label).unwrap();
+        assert!(dst < self.instructions.len());
+        // if dst == self.instructions.len() - 1 {
+        // Append NOP when jump target is last instruction!
+        // self.emit(Instruction::Nop);
+        // }
+        dst
     }
 
     /// Emit single instruction

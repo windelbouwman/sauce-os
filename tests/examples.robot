@@ -44,6 +44,11 @@ For loop compiled
 For loop interpreted
     Run for-loop example in interpreter
 
+Switching compiled
+    Run switching example in interpreter
+
+Switching interpreted
+    Run switching example in interpreter
 
 *** Keywords ***
 Compile and run ${filename} example

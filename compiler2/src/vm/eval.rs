@@ -24,9 +24,9 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
             frame.push(value.clone());
             frame.push(value);
         }
-        Instruction::DropTop => {
-            frame.pop();
-        }
+        // Instruction::DropTop => {
+        //     frame.pop();
+        // }
         Instruction::Malloc(typ) => match typ {
             bytecode::Typ::Composite(index) => {
                 let typ = vm.get_type(index);
@@ -137,6 +137,14 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
                 }
             };
             frame.push(Value::Bool(result));
+        }
+        Instruction::TypeConvert(conversion) => {
+            let value = frame.pop();
+            let cast_value = match conversion {
+                bytecode::TypeConversion::FloatToInt => Value::Integer(value.as_float() as i64),
+                bytecode::TypeConversion::IntToFloat => Value::Float(value.as_int() as f64),
+            };
+            frame.push(cast_value);
         }
         Instruction::LoadGlobalName(name) => {
             let val = vm.lookup(&name);
