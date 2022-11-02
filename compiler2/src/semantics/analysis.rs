@@ -1,6 +1,9 @@
 use super::fillscope;
 use super::namebinding;
 use super::phase5_desugar;
+use super::rewriting_classes::rewrite_classes;
+use super::rewriting_enums::rewrite_enums;
+use super::rewriting_for_loop::rewrite_for_loops;
 use super::typechecker;
 use super::typed_ast;
 use super::typed_ast_printer::print_ast;
@@ -35,6 +38,11 @@ pub fn analyze(
     if show_ast {
         print_ast(&mut typed_prog);
     }
+
+    // TBD: what order to rewrite the code?
+    rewrite_classes(&mut typed_prog, context);
+    rewrite_enums(&mut typed_prog, context);
+    rewrite_for_loops(&mut typed_prog, context);
 
     // Interesting:
     // We can run the type checker again, on our modified program.

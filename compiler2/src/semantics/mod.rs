@@ -29,6 +29,9 @@ pub mod typed_ast;
 mod typed_ast_printer;
 use std::cell::RefCell;
 use std::rc::Rc;
+mod rewriting_classes;
+mod rewriting_enums;
+mod rewriting_for_loop;
 mod visitor;
 
 pub use context::Context;

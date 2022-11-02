@@ -135,8 +135,11 @@ impl Generator {
                 typed_ast::Definition::Function(function) => {
                     self.gen_func(&function.borrow());
                 }
-                typed_ast::Definition::Class(_) => {
-                    panic!("IR-gen does not support classes. Elimenate those earlier on.");
+                typed_ast::Definition::Class(class_def) => {
+                    panic!(
+                        "IR-gen does not support classes, like '{}'. Elimenate those earlier on.",
+                        class_def.name
+                    );
                 }
                 typed_ast::Definition::Struct(_struct_def) => {
                     // ?
@@ -144,7 +147,12 @@ impl Generator {
                 typed_ast::Definition::Union(_union_def) => {
                     // ?
                 }
-                typed_ast::Definition::Enum(_) => {}
+                typed_ast::Definition::Enum(enum_def) => {
+                    panic!(
+                        "IR-gen does not enum types, like '{}'. Elimenate those earlier on.",
+                        enum_def.name
+                    );
+                }
             }
         }
     }

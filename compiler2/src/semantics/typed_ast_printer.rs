@@ -138,6 +138,11 @@ impl AstPrinter {
                 );
                 self.indent();
                 self.print_fields(&class_def.fields);
+
+                for method in &class_def.methods {
+                    self.print_function(&method.borrow());
+                    self.dedent();
+                }
             }
             typed_ast::Definition::Struct(struct_def) => {
                 println!(

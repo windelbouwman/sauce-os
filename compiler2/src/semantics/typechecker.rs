@@ -96,11 +96,11 @@ impl TypeChecker {
                 refer(local_ref).borrow_mut().typ = typ;
                 Ok(())
             }
-            typed_ast::StatementKind::StoreLocal {
-                local_ref: _,
-                value,
-            } => {
+            typed_ast::StatementKind::StoreLocal { local_ref, value } => {
                 self.check_expression(value)?;
+                let typ = self.get_type(value)?;
+                // TODO: do we want to annotate the local or check against the type?
+                refer(local_ref).borrow_mut().typ = typ;
                 Ok(())
             }
             typed_ast::StatementKind::Assignment(typed_ast::AssignmentStatement {

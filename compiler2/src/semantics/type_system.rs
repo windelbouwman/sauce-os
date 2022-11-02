@@ -108,11 +108,18 @@ impl UserType {
         }
     }
 
+    pub fn get_method(&self, name: &str) -> Option<Rc<RefCell<typed_ast::FunctionDef>>> {
+        match self {
+            UserType::Class(class_def) => class_def.upgrade().unwrap().get_method(name),
+            _ => None,
+        }
+    }
+
     pub fn get_attr(&self, name: &str) -> Option<Symbol> {
         match self {
             UserType::Struct(struct_def) => struct_def.upgrade().unwrap().get_attr(name),
             UserType::Union(union_def) => union_def.upgrade().unwrap().get_attr(name),
-            UserType::Class(class_def) => class_def.upgrade().unwrap().get_field(name),
+            UserType::Class(class_def) => class_def.upgrade().unwrap().get_attr(name),
             _ => None,
         }
     }
@@ -147,8 +154,13 @@ impl std::fmt::Display for UserType {
                 let enum_ref = enum_ref.upgrade().unwrap();
                 write!(f, "enum(name={}, id={})", enum_ref.name, enum_ref.id)
             }
-            UserType::Class(_class_ref) => {
-                write!(f, "user-class")
+            UserType::Class(class_ref) => {
+                let class_ref = class_ref.upgrade().unwrap();
+                write!(
+                    f,
+                    "user-class(name={}, id={})",
+                    class_ref.name, class_ref.id
+                )
             }
         }
     }
@@ -207,9 +219,24 @@ impl SlangType {
         }
     }
 
+    pub fn as_class(&self) -> Rc<typed_ast::ClassDef> {
+        if let SlangType::User(UserType::Class(class_def)) = self {
+            class_def.upgrade().unwrap()
+        } else {
+            panic!("Expected class type, but got {}", self);
+        }
+    }
+
     pub fn get_attr(&self, name: &str) -> Option<Symbol> {
         match self {
             SlangType::User(user_type) => user_type.get_attr(name),
+            _ => None,
+        }
+    }
+
+    pub fn get_method(&self, name: &str) -> Option<Rc<RefCell<typed_ast::FunctionDef>>> {
+        match self {
+            SlangType::User(user_type) => user_type.get_method(name),
             _ => None,
         }
     }

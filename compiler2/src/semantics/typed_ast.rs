@@ -176,11 +176,18 @@ pub struct ClassDef {
 }
 
 impl ClassDef {
-    pub fn get_field(&self, name: &str) -> Option<Symbol> {
+    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
         self.scope.get(name).cloned()
-        //     Some(Symbol::Field { field_ref }) => Some(field_ref.upgrade().unwrap()),
-        //     _other => None,
-        // }
+    }
+
+    pub fn get_method(&self, name: &str) -> Option<Rc<RefCell<FunctionDef>>> {
+        match self.get_attr(name) {
+            Some(symbol) => match symbol {
+                Symbol::Function(function_ref) => Some(function_ref.upgrade().unwrap()),
+                _other => None,
+            },
+            None => None,
+        }
     }
 }
 
@@ -345,7 +352,7 @@ impl StatementKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CaseStatement {
     pub value: Expression,
     pub arms: Vec<CaseArm>,
@@ -425,7 +432,7 @@ pub struct WhileStatement {
     pub body: Block,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ForStatement {
     pub loop_var: Ref<LocalVariable>,
     pub iterable: Expression,
@@ -458,6 +465,10 @@ impl Expression {
         get_attr(self, attr)
     }
 
+    // pub fn set_attr(self, attr: &str, value: Expression) -> Statement {
+    //     set_attr(self, attr, value)
+    // }
+
     /// Perform a typecast!
     pub fn cast(self, typ: SlangType) -> Self {
         let location = self.location.clone();
@@ -484,6 +495,12 @@ impl Expression {
 impl From<i64> for Expression {
     fn from(value: i64) -> Self {
         integer_literal(value)
+    }
+}
+
+impl Default for Expression {
+    fn default() -> Self {
+        undefined_value()
     }
 }
 
@@ -619,6 +636,20 @@ pub fn get_attr(base: Expression, attr: &str) -> Expression {
     .typed_expr(typ)
 }
 
+// pub fn set_attr(base: Expression, attr: &str, value: Expression) -> Statement {
+//     assert!(base.typ.get_attr(attr).is_some());
+//     StatementKind::SetAttr {
+//         base,
+//         attr: attr.to_owned(),
+//         value,
+//     }
+//     .into_statement()
+// }
+
+pub fn return_value(value: Expression) -> Statement {
+    StatementKind::Return { value: Some(value) }.into_statement()
+}
+
 pub fn integer_literal(value: i64) -> Expression {
     ExpressionKind::Literal(Literal::Integer(value)).typed_expr(SlangType::Int)
 }
@@ -717,6 +748,16 @@ where
 pub fn load_local(local_ref: Ref<LocalVariable>) -> Expression {
     let typ = local_ref.upgrade().unwrap().borrow().typ.clone();
     ExpressionKind::LoadSymbol(Symbol::LocalVariable(local_ref)).typed_expr(typ)
+}
+
+// pub fn load_parameter(parameter_ref: Ref<Parameter>) -> Expression {
+//     let typ = parameter_ref.upgrade().unwrap().borrow().typ.clone();
+//     ExpressionKind::LoadSymbol(Symbol::Parameter(parameter_ref)).typed_expr(typ)
+// }
+
+pub fn load_function(function_ref: Ref<FunctionDef>) -> Expression {
+    let typ = SlangType::Undefined; // TODO!
+    ExpressionKind::LoadSymbol(Symbol::Function(function_ref)).typed_expr(typ)
 }
 
 pub fn obj_ref(obj_ref: ast::ObjRef) -> Expression {
