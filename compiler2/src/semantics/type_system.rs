@@ -219,6 +219,10 @@ impl SlangType {
         }
     }
 
+    pub fn is_class(&self) -> bool {
+        matches!(self, SlangType::User(UserType::Class(_)))
+    }
+
     pub fn as_class(&self) -> Rc<typed_ast::ClassDef> {
         if let SlangType::User(UserType::Class(class_def)) = self {
             class_def.upgrade().unwrap()

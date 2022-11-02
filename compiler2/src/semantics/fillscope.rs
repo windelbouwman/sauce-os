@@ -82,7 +82,7 @@ impl<'g> Phase1<'g> {
         }
 
         for function_def in prog.functions {
-            match self.on_function_def(function_def) {
+            match self.on_function_def(function_def, None) {
                 Ok(typed_function_def) => {
                     defs.push(typed_ast::Definition::Function(typed_function_def))
                 }
@@ -267,7 +267,7 @@ impl<'g> Phase1<'g> {
 
         let mut methods = vec![];
         for method in class_def.methods {
-            let typed_func = self.on_function_def(method)?;
+            let typed_func = self.on_function_def(method, Some("this".to_owned()))?;
             methods.push(typed_func);
         }
 
@@ -295,25 +295,23 @@ impl<'g> Phase1<'g> {
     fn on_function_def(
         &mut self,
         function_def: ast::FunctionDef,
+        this_param: Option<String>,
     ) -> Result<Rc<RefCell<typed_ast::FunctionDef>>, ()> {
         self.enter_scope();
+        let this_param = if let Some(name) = this_param {
+            Some(self.new_parameter(function_def.location.clone(), name, SlangType::Undefined))
+        } else {
+            None
+        };
+
         let mut typed_parameters: Vec<Rc<RefCell<typed_ast::Parameter>>> = vec![];
         for parameter in function_def.parameters.into_iter() {
-            let param = Rc::new(RefCell::new(typed_ast::Parameter {
-                location: parameter.location.clone(),
-                name: parameter.name.clone(),
-                typ: self.on_type_expression(parameter.typ),
-                id: self.new_id(),
-            }));
-            let param_ref = Rc::downgrade(&param);
-
-            self.define(
-                &parameter.name,
-                Symbol::Parameter(param_ref),
-                &parameter.location,
-            );
-
-            typed_parameters.push(param);
+            let param_typ = self.on_type_expression(parameter.typ);
+            typed_parameters.push(self.new_parameter(
+                parameter.location,
+                parameter.name,
+                param_typ,
+            ));
         }
         let body = self.on_block(function_def.body);
         let scope = self.leave_scope();
@@ -329,6 +327,7 @@ impl<'g> Phase1<'g> {
         let func = Rc::new(RefCell::new(typed_ast::FunctionDef {
             name: function_def.name.clone(),
             id: self.new_id(),
+            this_param,
             location: function_def.location.clone(),
             parameters: typed_parameters,
             return_type,
@@ -346,6 +345,24 @@ impl<'g> Phase1<'g> {
         );
 
         Ok(func)
+    }
+
+    fn new_parameter(
+        &mut self,
+        location: Location,
+        name: String,
+        typ: SlangType,
+    ) -> Rc<RefCell<typed_ast::Parameter>> {
+        let param = Rc::new(RefCell::new(typed_ast::Parameter {
+            location: location.clone(),
+            name: name.clone(),
+            typ,
+            id: self.new_id(),
+        }));
+        let param_ref = Rc::downgrade(&param);
+
+        self.define(&name, Symbol::Parameter(param_ref), &location);
+        param
     }
 
     fn on_type_expression(&mut self, type_expression: ast::Type) -> SlangType {
@@ -684,6 +701,7 @@ impl<'g> Phase1<'g> {
     fn leave_scope(&mut self) -> Scope {
         log::trace!("Leave scope");
         let scope = self.scopes.pop().unwrap();
+        scope.dump();
         scope
     }
 

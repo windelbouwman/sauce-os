@@ -489,6 +489,7 @@ impl VisitorApi for AstPrinter {
             VisitedNode::Definition(definition) => {
                 self.pre_definition(definition);
             }
+            VisitedNode::Function(_) => {}
             VisitedNode::Statement(statement) => {
                 self.pre_stmt(statement);
             }
@@ -509,6 +510,7 @@ impl VisitorApi for AstPrinter {
     fn post_node(&mut self, node: VisitedNode) {
         match node {
             VisitedNode::Program(_) | VisitedNode::TypeExpr(_) => {}
+            VisitedNode::Function(_) => {}
             VisitedNode::Definition(definition) => {
                 self.post_definition(definition);
             }

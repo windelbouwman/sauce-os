@@ -19,3 +19,9 @@ jobs:
         run: |
           cd compiler2
           cargo build
+          cd ..
+      - name: Compile samples
+        run: |
+          cd examples
+          make
+          cd ..

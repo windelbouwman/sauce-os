@@ -15,12 +15,12 @@ impl Scope {
         }
     }
 
-    // pub fn dump(&self) {
-    //     println!("Symbol table:");
-    //     for sym in self.symbols.keys() {
-    //         println!(" - {}", sym);
-    //     }
-    // }
+    pub fn dump(&self) {
+        log::trace!("Symbol table:");
+        for sym in self.symbols.keys() {
+            log::trace!(" - {}", sym);
+        }
+    }
 
     pub fn define_func(
         &mut self,

@@ -4,7 +4,7 @@ use super::phase5_desugar;
 use super::rewriting_classes::rewrite_classes;
 use super::rewriting_enums::rewrite_enums;
 use super::rewriting_for_loop::rewrite_for_loops;
-use super::typechecker;
+use super::typechecker::check_types;
 use super::typed_ast;
 use super::typed_ast_printer::print_ast;
 use super::Context;
@@ -28,7 +28,7 @@ pub fn analyze(
         print_ast(&mut typed_prog);
     }
 
-    typechecker::check_types(&mut typed_prog)?;
+    check_types(&mut typed_prog)?;
     log::debug!("Type checking done & done");
     if show_ast {
         print_ast(&mut typed_prog);
@@ -41,12 +41,24 @@ pub fn analyze(
 
     // TBD: what order to rewrite the code?
     rewrite_classes(&mut typed_prog, context);
+    check_types(&mut typed_prog)?;
+
+    if show_ast {
+        print_ast(&mut typed_prog);
+    }
+
     rewrite_enums(&mut typed_prog, context);
+    check_types(&mut typed_prog)?;
+
+    if show_ast {
+        print_ast(&mut typed_prog);
+    }
+
     rewrite_for_loops(&mut typed_prog, context);
 
     // Interesting:
     // We can run the type checker again, on our modified program.
-    typechecker::check_types(&mut typed_prog)?;
+    check_types(&mut typed_prog)?;
 
     Ok(typed_prog)
 }

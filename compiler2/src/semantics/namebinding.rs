@@ -154,7 +154,7 @@ impl NameBinder {
 
     fn enter_scope(&mut self, scope: Arc<Scope>) {
         log::trace!("Enter scope");
-        // scope.dump();
+        scope.dump();
         self.scopes.push(scope);
     }
 
@@ -201,6 +201,7 @@ fn get_scope(node: &VisitedNode) -> Option<Arc<Scope>> {
             }
             _ => None,
         },
+        VisitedNode::Function(function_def) => Some(function_def.scope.clone()),
         VisitedNode::CaseArm(case_arm) => Some(case_arm.scope.clone()),
         _ => None,
     }
@@ -213,16 +214,13 @@ impl VisitorApi for NameBinder {
         }
 
         match node {
-            VisitedNode::Program(_)
-            | VisitedNode::Definition(_)
-            | VisitedNode::Statement(_)
-            | VisitedNode::CaseArm(_) => {}
             VisitedNode::TypeExpr(type_expression) => {
                 self.check_type_expression(type_expression);
             }
             VisitedNode::Expression(expression) => {
                 self.check_expr(expression);
             }
+            _ => {}
         }
     }
 

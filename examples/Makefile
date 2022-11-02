@@ -1,23 +1,24 @@
 
 # export PYTHONPATH=..
 BUILDDIR=build
-SLANG_COMPILER=../compiler2/target/release/compiler2
-# SLANG_COMPILER=../compiler2/target/debug/compiler2
+# SLANG_COMPILER=../compiler2/target/release/compiler2
+SLANG_COMPILER=../compiler2/target/debug/compiler2
 # SLANG_COMPILER=python -m bootstrap-compiler.main
 
 # TODO: figure out unions in LLVM:
 
-# ${BUILDDIR}/classy.exe 
 # ${BUILDDIR}/generics.exe
 
 EXECUTABLES = \
 	${BUILDDIR}/callings.exe \
+	${BUILDDIR}/classy.exe \
 	${BUILDDIR}/expressions.exe \
 	${BUILDDIR}/enum_case.exe \
 	${BUILDDIR}/for-loop.exe \
 	${BUILDDIR}/hello-world.exe \
 	${BUILDDIR}/if-statements.exe \
 	${BUILDDIR}/list-int.exe \
+	${BUILDDIR}/list-int-oo.exe \
 	${BUILDDIR}/mandel.exe \
 	${BUILDDIR}/structs-passing.exe \
 	${BUILDDIR}/switching.exe

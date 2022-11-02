@@ -227,6 +227,7 @@ pub struct FunctionDef {
     pub id: NodeId,
     pub location: Location,
     pub parameters: Vec<Rc<RefCell<Parameter>>>,
+    pub this_param: Option<Rc<RefCell<Parameter>>>,
     pub return_type: Option<SlangType>,
     pub scope: Arc<Scope>,
     pub locals: Vec<Rc<RefCell<LocalVariable>>>,

@@ -6,6 +6,7 @@ use std::rc::Rc;
 pub enum VisitedNode<'n> {
     Program(&'n mut typed_ast::Program),
     Definition(&'n typed_ast::Definition),
+    Function(&'n typed_ast::FunctionDef),
     Statement(&'n mut typed_ast::Statement),
     CaseArm(&'n mut typed_ast::CaseArm),
     Expression(&'n mut typed_ast::Expression),
@@ -37,7 +38,9 @@ fn visit_definition<V: VisitorApi>(visitor: &mut V, definition: &typed_ast::Defi
             }
 
             for method in &class_def.methods {
+                visitor.pre_node(VisitedNode::Function(&method.borrow()));
                 visit_function(visitor, method);
+                visitor.post_node(VisitedNode::Function(&method.borrow()));
             }
         }
         typed_ast::Definition::Struct(struct_def) => {

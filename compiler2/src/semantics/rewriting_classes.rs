@@ -42,7 +42,7 @@ struct ClassRewriter<'d> {
     new_definitions: Vec<typed_ast::Definition>,
 
     /// Mapping from enum types to tagged-union types!
-    enum_map: HashMap<NodeId, SlangType>,
+    class_map: HashMap<NodeId, SlangType>,
     ctor_map: HashMap<NodeId, Ref<typed_ast::FunctionDef>>,
 }
 
@@ -51,7 +51,7 @@ impl<'d> ClassRewriter<'d> {
         Self {
             context,
             new_definitions: vec![],
-            enum_map: HashMap::new(),
+            class_map: HashMap::new(),
             ctor_map: HashMap::new(),
         }
     }
@@ -78,12 +78,12 @@ impl<'d> ClassRewriter<'d> {
         self.new_definitions
             .push(typed_ast::Definition::Struct(struct_def));
 
-        self.enum_map.insert(class_def.id, struct_ty.clone());
+        self.class_map.insert(class_def.id, struct_ty.clone());
     }
 
     /// Create constructor function
     fn create_constructor(&mut self, class_def: &typed_ast::ClassDef) {
-        let struct_ty = self.enum_map.get(&class_def.id).unwrap().clone();
+        let struct_ty = self.class_map.get(&class_def.id).unwrap().clone();
 
         // let this_param = Rc::new(RefCell::new(typed_ast::Parameter {
         //     name: "this".to_owned(),
@@ -116,6 +116,7 @@ impl<'d> ClassRewriter<'d> {
             name: ctor_name,
             id: self.new_id(),
             location: class_def.location.clone(),
+            this_param: None,
             body: ctor_code,
             scope: Arc::new(Scope::new()),
             parameters: vec![],
@@ -141,19 +142,15 @@ impl<'d> ClassRewriter<'d> {
     /// fn Bar_foo(this: Bar):   # Bar is struct type
     ///     passs
     fn transform_methods(&mut self, class_def: &typed_ast::ClassDef) {
-        let struct_ty = self.enum_map.get(&class_def.id).unwrap().clone();
+        let struct_ty = self.class_map.get(&class_def.id).unwrap().clone();
         for method_ref in &class_def.methods {
-            // Create 'this' parameter to refer to struct itself
-            let this_param = Rc::new(RefCell::new(typed_ast::Parameter {
-                name: "this".to_owned(),
-                id: self.new_id(),
-                location: Default::default(),
-                typ: struct_ty.clone(),
-            }));
+            // Take 'this' parameter and refer to struct instead of class
+            let this_param = std::mem::take(&mut method_ref.borrow_mut().this_param).unwrap();
+            this_param.borrow_mut().typ = struct_ty.clone();
 
             // Add first parameter as this:
             let mut method = method_ref.borrow_mut();
-            method.parameters.insert(0, this_param.clone());
+            method.parameters.insert(0, this_param);
             method.name = format!("{}_{}", class_def.name, method.name);
 
             self.new_definitions
@@ -240,6 +237,16 @@ impl<'d> VisitorApi for ClassRewriter<'d> {
                     }
                 }
                 program.definitions.append(&mut self.new_definitions);
+            }
+            VisitedNode::TypeExpr(type_expr) => {
+                if type_expr.is_class() {
+                    let struct_type = self
+                        .class_map
+                        .get(&type_expr.as_class().id)
+                        .unwrap()
+                        .clone();
+                    *type_expr = struct_type;
+                }
             }
             _ => {}
         }

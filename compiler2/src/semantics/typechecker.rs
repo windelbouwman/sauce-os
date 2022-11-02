@@ -39,6 +39,9 @@ impl TypeChecker {
                     }
 
                     for method in &class_def.methods {
+                        let this_var = method.borrow().this_param.as_ref().unwrap().clone();
+                        this_var.borrow_mut().typ =
+                            SlangType::User(UserType::Class(Rc::downgrade(&class_def)));
                         self.check_function(method);
                     }
                 }
@@ -505,9 +508,14 @@ impl TypeChecker {
                 Ok(())
             }
 
-            ExpressionKind::EnumLiteral { .. } => {
-                // TODO: create struct data type
-                unimplemented!("Enum literal");
+            ExpressionKind::EnumLiteral(enum_literal) => {
+                let enum_variant_ref = enum_literal.variant.upgrade().unwrap();
+                self.check_call_arguments(
+                    &expression.location,
+                    &enum_variant_ref.borrow().data,
+                    &mut enum_literal.arguments,
+                )?;
+                Ok(())
             }
 
             ExpressionKind::LoadSymbol(symbol) => match symbol {
