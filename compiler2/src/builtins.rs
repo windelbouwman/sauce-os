@@ -50,6 +50,7 @@ pub fn load_std_module(scope: &mut Scope) {
     let std_module = typed_ast::Program {
         name: name.clone(),
         path: Default::default(),
+        generics: vec![],
         definitions: vec![],
         scope: Arc::new(std_scope),
     };

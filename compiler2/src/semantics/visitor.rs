@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 pub enum VisitedNode<'n> {
     Program(&'n mut typed_ast::Program),
+    Generic(&'n typed_ast::GenericDef),
     Definition(&'n typed_ast::Definition),
     Function(&'n typed_ast::FunctionDef),
     Statement(&'n mut typed_ast::Statement),
@@ -20,6 +21,13 @@ pub trait VisitorApi {
 
 pub fn visit_program<V: VisitorApi>(visitor: &mut V, program: &mut typed_ast::Program) {
     visitor.pre_node(VisitedNode::Program(program));
+
+    for generic in &program.generics {
+        visitor.pre_node(VisitedNode::Generic(generic));
+        visit_definition(visitor, &generic.base);
+        visitor.post_node(VisitedNode::Generic(generic));
+    }
+
     for definition in &program.definitions {
         visit_definition(visitor, definition);
     }
@@ -91,6 +99,17 @@ fn visit_function<V: VisitorApi>(visitor: &mut V, function: &Rc<RefCell<typed_as
 
 fn visit_type_expr<V: VisitorApi>(visitor: &mut V, type_expr: &mut SlangType) {
     visitor.pre_node(VisitedNode::TypeExpr(type_expr));
+    match type_expr {
+        SlangType::GenericInstance {
+            type_parameters, ..
+        } => {
+            for type_parameter in type_parameters {
+                visit_type_expr(visitor, type_parameter);
+            }
+        }
+        _ => {}
+    }
+    visitor.post_node(VisitedNode::TypeExpr(type_expr));
 }
 
 fn visit_block<V: VisitorApi>(visitor: &mut V, block: &mut [typed_ast::Statement]) {

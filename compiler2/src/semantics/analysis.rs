@@ -1,4 +1,5 @@
-use super::fillscope;
+use super::fillscope::ast_to_nodes;
+use super::generic_expansion::expand_generics;
 use super::namebinding;
 use super::phase5_desugar;
 use super::rewriting_classes::rewrite_classes;
@@ -17,13 +18,18 @@ pub fn analyze(
     context: &mut Context,
     show_ast: bool,
 ) -> Result<typed_ast::Program, CompilationError> {
-    let mut typed_prog = fillscope::ast_to_nodes(program, context)?;
+    let mut typed_prog = ast_to_nodes(program, context)?;
     if show_ast {
         print_ast(&mut typed_prog);
     }
 
     namebinding::bind_names(&mut typed_prog, context.builtin_scope.clone())?;
     log::debug!("Name binding done & done");
+    if show_ast {
+        print_ast(&mut typed_prog);
+    }
+
+    expand_generics(&mut typed_prog, context)?;
     if show_ast {
         print_ast(&mut typed_prog);
     }

@@ -12,12 +12,13 @@ Phase 3:
 
 */
 
-// mod generics;
 mod analysis;
 mod context;
 mod diagnostics;
 mod enum_type;
 mod fillscope;
+// mod generics;
+mod generic_expansion;
 mod id_generator;
 mod namebinding;
 mod phase5_desugar;

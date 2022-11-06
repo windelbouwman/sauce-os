@@ -25,7 +25,32 @@ pub struct Program {
     pub name: String,
     pub path: std::path::PathBuf,
     pub scope: Arc<Scope>,
+    pub generics: Vec<Rc<GenericDef>>,
     pub definitions: Vec<Definition>,
+}
+
+/// A parameterized type, may contain subtypes which are type variables.
+pub struct GenericDef {
+    pub name: String,
+    pub id: NodeId,
+    pub scope: Arc<Scope>,
+    pub base: Definition,
+    pub location: Location,
+    pub type_parameters: Vec<Rc<TypeVar>>,
+    // Idea: keep track of the instances of this template?
+    // instantiations: Vec<Definition>,
+}
+
+pub struct TypeVar {
+    pub location: Location,
+    pub name: String,
+    pub id: NodeId,
+}
+
+impl std::fmt::Display for TypeVar {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "type-var(name={}, id={})", self.name, self.id)
+    }
 }
 
 pub enum Definition {
@@ -104,6 +129,10 @@ impl StructDefBuilder {
 
         self.fields.push(field);
     }
+
+    // pub fn set_name(&mut self, name: String) {
+    //     self.name = name;
+    // }
 
     pub fn finish_struct(self) -> StructDef {
         StructDef {
@@ -245,7 +274,7 @@ impl FunctionDef {
         }
         SlangType::Function(FunctionType {
             argument_types,
-            return_type: self.return_type.clone().map(|x| Box::new(x)),
+            return_type: self.return_type.clone().map(Box::new),
         })
     }
 }
@@ -620,9 +649,9 @@ where
 pub fn get_attr(base: Expression, attr: &str) -> Expression {
     let typ: SlangType = match &base.typ {
         SlangType::User(user_type) => {
-            if let Some(field) = user_type.get_field(&attr) {
+            if let Some(field) = user_type.get_field(attr) {
                 let typ = field.borrow().typ.clone();
-                typ.clone()
+                typ
             } else {
                 panic!("User type {} has no attribute '{}'", user_type, attr);
             }

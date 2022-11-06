@@ -270,13 +270,13 @@ impl<'d> EnumRewriter<'d> {
         let new_var = Rc::new(RefCell::new(typed_ast::LocalVariable::new(
             Default::default(),
             false,
-            name.clone(),
+            name,
             self.new_id(),
         )));
         new_var.borrow_mut().typ = typ;
         let local_ref = Rc::downgrade(&new_var);
 
-        self.local_variables.push(new_var.clone());
+        self.local_variables.push(new_var);
         local_ref
     }
 

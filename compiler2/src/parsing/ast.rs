@@ -262,7 +262,7 @@ pub enum TypeKind {
 
     // generic types!
     GenericInstantiate {
-        base_type: Box<Type>,
+        base_type: ObjRef,
         type_parameters: Vec<Type>,
     },
 }
@@ -280,6 +280,14 @@ pub enum ObjRef {
         base: Box<ObjRef>,
         member: String,
     },
+}
+
+impl ObjRef {
+    pub fn location(&self) -> Location {
+        match self {
+            ObjRef::Name { location, .. } | ObjRef::Inner { location, .. } => location.clone(),
+        }
+    }
 }
 
 #[derive(Debug)]

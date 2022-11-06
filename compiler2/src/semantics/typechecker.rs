@@ -545,6 +545,13 @@ impl TypeChecker {
                     self.error(&expression.location, "cannot load module".to_string());
                     Err(())
                 }
+                Symbol::Generic(_) => {
+                    self.error(
+                        &expression.location,
+                        "cannot load type template / generic".to_string(),
+                    );
+                    Err(())
+                }
                 Symbol::Field(_) => {
                     unimplemented!("Load field: Unlikely that this will ever happen.");
                 }

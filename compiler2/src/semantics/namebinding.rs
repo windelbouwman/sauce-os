@@ -11,7 +11,7 @@ TBD: could be combined with the type checker?
 
 */
 
-use super::type_system::{SlangType, UserType};
+use super::type_system::{Generic, SlangType, UserType};
 use super::typed_ast;
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
 use super::{Diagnostics, Scope, Symbol};
@@ -60,7 +60,7 @@ impl NameBinder {
     }
 
     fn check_type_expression(&mut self, type_expression: &mut SlangType) {
-        match &type_expression {
+        match type_expression {
             SlangType::Unresolved(obj_ref) => {
                 if let Some(symbol) = self.resolve_obj(&obj_ref) {
                     match symbol {
@@ -68,18 +68,34 @@ impl NameBinder {
                             *type_expression = typ;
                         }
                         other => {
-                            let location: Location = Default::default();
+                            let location: Location = obj_ref.location();
                             // TODO: get location? //self.context.get_location(type_expression.node_id);
                             self.error(&location, format!("Symbol is no type, but: {}", other));
                         }
                     }
                 }
             }
-            SlangType::Undefined => {
+            SlangType::GenericInstance { generic, .. } => match generic {
+                Generic::Unresolved(obj_ref) => {
+                    if let Some(symbol) = self.resolve_obj(obj_ref) {
+                        match symbol {
+                            Symbol::Generic(generic_def) => {
+                                *generic = Generic::Generic(generic_def);
+                            }
+                            other => {
+                                let location: Location = obj_ref.location();
+                                self.error(
+                                    &location,
+                                    format!("Expected generic, but got: {}", other),
+                                );
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            },
+            _ => {
                 // Fine?
-            }
-            other => {
-                unimplemented!("{:?}", other);
             }
         }
     }
@@ -195,6 +211,7 @@ impl NameBinder {
 fn get_scope(node: &VisitedNode) -> Option<Arc<Scope>> {
     match node {
         VisitedNode::Program(program) => Some(program.scope.clone()),
+        VisitedNode::Generic(generic) => Some(generic.scope.clone()),
         VisitedNode::Definition(definition) => match definition {
             typed_ast::Definition::Function(function_def) => {
                 Some(function_def.borrow().scope.clone())

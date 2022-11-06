@@ -138,11 +138,6 @@ impl AstPrinter {
                 );
                 self.indent();
                 self.print_fields(&class_def.fields);
-
-                for method in &class_def.methods {
-                    self.print_function(&method.borrow());
-                    self.dedent();
-                }
             }
             typed_ast::Definition::Struct(struct_def) => {
                 println!(
@@ -485,11 +480,28 @@ impl VisitorApi for AstPrinter {
                 }
                 */
             }
+            VisitedNode::Generic(generic) => {
+                // Ehm?
+                let type_parameters: Vec<String> = generic
+                    .type_parameters
+                    .iter()
+                    .map(|p| format!("{}", p))
+                    .collect();
+                println!(
+                    "{}generic {} ({}):",
+                    self.get_indent(),
+                    generic.name,
+                    type_parameters.join(",")
+                );
+                self.indent();
+            }
 
             VisitedNode::Definition(definition) => {
                 self.pre_definition(definition);
             }
-            VisitedNode::Function(_) => {}
+            VisitedNode::Function(function_def) => {
+                self.print_function(function_def);
+            }
             VisitedNode::Statement(statement) => {
                 self.pre_stmt(statement);
             }
@@ -510,7 +522,13 @@ impl VisitorApi for AstPrinter {
     fn post_node(&mut self, node: VisitedNode) {
         match node {
             VisitedNode::Program(_) | VisitedNode::TypeExpr(_) => {}
-            VisitedNode::Function(_) => {}
+            VisitedNode::Generic(_) => {
+                self.dedent();
+            }
+
+            VisitedNode::Function(_) => {
+                self.dedent();
+            }
             VisitedNode::Definition(definition) => {
                 self.post_definition(definition);
             }

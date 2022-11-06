@@ -22,13 +22,7 @@ pub enum SlangType {
     /// a user defined class, or an enum option like `Option::None`
     TypeConstructor,
 
-    /// A parameterized type, may contain subtypes which are type variables.
-    // Generic {
-    //     base: Box<SlangType>,
-    //     type_parameters: Vec<String>,
-    // },
-
-    // TypeVar(String),
+    TypeVar(TypeVarRef),
 
     /// Array type, a flat container type of fixed size.
     Array(ArrayType),
@@ -41,8 +35,90 @@ pub enum SlangType {
     /// Unresolved type
     Unresolved(ast::ObjRef),
 
+    GenericInstance {
+        generic: Generic,
+        type_parameters: Vec<SlangType>,
+    },
+
     Function(FunctionType),
 }
+
+#[derive(Clone)]
+pub struct TypeVarRef {
+    pub ptr: Weak<typed_ast::TypeVar>,
+}
+
+impl PartialEq for TypeVarRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr.ptr_eq(&other.ptr)
+    }
+}
+impl Eq for TypeVarRef {}
+
+impl std::fmt::Display for TypeVarRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let v = self.ptr.upgrade().unwrap();
+        write!(f, "{}", v)
+    }
+}
+
+impl std::fmt::Debug for TypeVarRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // Use the display logic for debug as well:
+        write!(f, "{}", self)
+    }
+}
+
+#[derive(Clone)]
+pub enum Generic {
+    Unresolved(ast::ObjRef),
+
+    Generic(Weak<typed_ast::GenericDef>),
+}
+
+impl Generic {
+    pub fn get_def(&self) -> Rc<typed_ast::GenericDef> {
+        match self {
+            Generic::Unresolved(_obj_ref) => {
+                panic!("Unresolved generic!");
+            }
+            Generic::Generic(generic) => generic.upgrade().unwrap(),
+        }
+    }
+}
+
+impl PartialEq for Generic {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Generic::Generic(s), Generic::Generic(o)) => s.ptr_eq(o),
+            (Generic::Unresolved(s), Generic::Unresolved(o)) => s == o,
+            _x => false,
+        }
+    }
+}
+
+impl std::fmt::Display for Generic {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Generic::Generic(generic) => {
+                let generic = generic.upgrade().unwrap();
+                write!(f, "generic({})", generic.name)
+            }
+            Generic::Unresolved(obj_ref) => {
+                write!(f, "unresolved-generic({:?})", obj_ref)
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for Generic {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // Use the display logic for debug as well:
+        write!(f, "{}", self)
+    }
+}
+
+impl Eq for Generic {}
 
 impl std::fmt::Display for SlangType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -65,6 +141,9 @@ impl std::fmt::Display for SlangType {
             SlangType::TypeConstructor => {
                 write!(f, "type-con")
             }
+            SlangType::TypeVar(v) => {
+                write!(f, "type-var({})", v)
+            }
             SlangType::Array(array) => {
                 write!(f, "array({} x {})", array.size, array.element_type)
             }
@@ -74,6 +153,13 @@ impl std::fmt::Display for SlangType {
             SlangType::Void => {
                 write!(f, "void")
             }
+            SlangType::GenericInstance {
+                generic,
+                type_parameters,
+            } => {
+                write!(f, "generic-instance({} -> {:?})", generic, type_parameters)
+            }
+
             SlangType::Unresolved(obj_ref) => {
                 write!(f, "unresolved({:?})", obj_ref)
             }
@@ -121,6 +207,18 @@ impl UserType {
             UserType::Union(union_def) => union_def.upgrade().unwrap().get_attr(name),
             UserType::Class(class_def) => class_def.upgrade().unwrap().get_attr(name),
             _ => None,
+        }
+    }
+
+    pub fn mangle_name(&self) -> String {
+        match self {
+            UserType::Struct(struct_def) => {
+                let struct_def = struct_def.upgrade().unwrap();
+                struct_def.name.clone()
+            }
+            other => {
+                panic!("Cannot name mangle: {}", other);
+            }
         }
     }
 }
@@ -179,6 +277,19 @@ impl SlangType {
             function_type
         } else {
             panic!("Expected function type!");
+        }
+    }
+
+    /// Retrieve a name suitable for name mangling
+    pub fn mangle_name(&self) -> String {
+        match self {
+            SlangType::Int => "int".to_owned(),
+            SlangType::Bool => "bool".to_owned(),
+            SlangType::String => "str".to_owned(),
+            SlangType::User(user_type) => user_type.mangle_name(),
+            other => {
+                panic!("Cannot name mangle: {}", other);
+            }
         }
     }
 

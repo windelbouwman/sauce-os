@@ -516,6 +516,9 @@ impl Generator {
             SlangType::Unresolved(_) => {
                 panic!("AARG");
             }
+            SlangType::GenericInstance { .. } => {
+                panic!("AARG");
+            }
             SlangType::User(user_type) => {
                 let composite_id: usize = match user_type {
                     UserType::Struct(struct_type) => {
@@ -544,9 +547,9 @@ impl Generator {
                 panic!("Cannot compile type constructor");
             }
             SlangType::Void => bytecode::Typ::Void,
-            // SlangType::TypeVar(_) => {
-            //     panic!("Cannot compile type variable");
-            // }
+            SlangType::TypeVar(v) => {
+                panic!("Cannot compile type variable {}", v);
+            }
             SlangType::Function(_) => {
                 unimplemented!("function-type");
             }

@@ -7,7 +7,8 @@ struct<T> Bla:
 
 struct<A> Fuu:
     x: A
-    bla: Bla<A>
+    bla: Bla<Bla <A> >
+    # bla: Bla<Bla<A> >
 
 fn main():
     
@@ -22,9 +23,20 @@ fn main():
     std::print(a.message)
     std::print(b.message)
 
+    let double_bla = Bla<Bla <bool> >:
+        message: "double-bla"
+        value: b
+
     let fu_b = Fuu<bool>:
         x: false
-        bla: b
+        bla: double_bla
+    
+    std::print(fu_b.bla.value.message)
+
+    let triple_b = Bla < Bla<Bla <bool> > >:
+        message: "double-bla"
+        value: double_bla
+
 
 # fn foo(x: Bla):
 #     pass

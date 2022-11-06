@@ -7,16 +7,14 @@ use super::type_system::SlangType;
 use super::typed_ast;
 use super::Ref;
 
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 #[derive(Clone)]
 pub enum Symbol {
+    Generic(Weak<typed_ast::GenericDef>),
     Typ(SlangType),
     Function(Ref<typed_ast::FunctionDef>),
     ExternFunction { name: String, typ: SlangType },
-    // Class {
-    //     node_id: NodeId,
-    // },
     Module(Rc<typed_ast::Program>),
     Parameter(Ref<typed_ast::Parameter>),
     LocalVariable(Ref<typed_ast::LocalVariable>),
@@ -27,6 +25,10 @@ pub enum Symbol {
 impl std::fmt::Display for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Symbol::Generic(generic) => {
+                let generic = generic.upgrade().unwrap();
+                write!(f, "symbol-generic({})", generic.name)
+            }
             Symbol::Typ(typ) => {
                 write!(f, "symbol-typ({})", typ)
             }

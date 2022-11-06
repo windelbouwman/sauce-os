@@ -8,7 +8,7 @@
 //! - Assign unique ID to each symbol.
 
 use super::context::Context;
-use super::type_system::{SlangType, UserType};
+use super::type_system::{Generic, SlangType, TypeVarRef, UserType};
 use super::typed_ast;
 use super::NodeId;
 use super::Ref;
@@ -74,10 +74,10 @@ impl<'g> Phase1<'g> {
         }
 
         let mut defs = vec![];
+        let mut generics = vec![];
         for type_def in prog.typedefs {
-            match self.on_type_def(type_def) {
-                Ok(definition) => defs.push(definition),
-                Err(()) => {}
+            if let Some(definition) = self.on_type_def(type_def, &mut generics) {
+                defs.push(definition);
             }
         }
 
@@ -97,6 +97,7 @@ impl<'g> Phase1<'g> {
             name: prog.name,
             path: prog.path,
             scope: Arc::new(prog_scope),
+            generics,
             definitions: defs,
         };
 
@@ -127,13 +128,65 @@ impl<'g> Phase1<'g> {
         }
     }
 
-    fn on_type_def(&mut self, type_def: ast::TypeDef) -> Result<typed_ast::Definition, ()> {
+    fn on_type_def(
+        &mut self,
+        type_def: ast::TypeDef,
+        generics: &mut Vec<Rc<typed_ast::GenericDef>>,
+    ) -> Option<typed_ast::Definition> {
         match type_def {
-            ast::TypeDef::Class(class_def) => self.check_class_def(class_def),
-            ast::TypeDef::Struct(struct_def) => self.check_struct_def(struct_def),
-            ast::TypeDef::Enum(enum_def) => self.check_enum_def(enum_def),
-            ast::TypeDef::Generic { .. } => {
-                unimplemented!("TODO: generics");
+            ast::TypeDef::Class(class_def) => self.check_class_def(class_def).ok(),
+            ast::TypeDef::Struct(struct_def) => self.check_struct_def(struct_def).ok(),
+            ast::TypeDef::Enum(enum_def) => self.check_enum_def(enum_def).ok(),
+            ast::TypeDef::Generic {
+                name,
+                location,
+                base,
+                parameters,
+            } => {
+                self.enter_scope();
+                let mut type_parameters = vec![];
+                // Register type variables as parameters!
+                for type_var in parameters {
+                    let type_var2 = Rc::new(typed_ast::TypeVar {
+                        name: type_var.name.clone(),
+                        location: type_var.location.clone(),
+                        id: self.new_id(),
+                    });
+                    self.define(
+                        &type_var.name,
+                        Symbol::Typ(SlangType::TypeVar(TypeVarRef {
+                            ptr: Rc::downgrade(&type_var2),
+                        })),
+                        &type_var.location,
+                    );
+                    type_parameters.push(type_var2);
+                }
+
+                // TODO: this code needs cleaning...
+                let mut temp_vec = vec![];
+                let base = self.on_type_def(*base, &mut temp_vec).unwrap();
+                assert!(temp_vec.is_empty());
+
+                let scope = Arc::new(self.leave_scope());
+
+                let generic_def = Rc::new(typed_ast::GenericDef {
+                    base,
+                    scope,
+                    name: name.clone(),
+                    id: self.new_id(),
+                    location: location.clone(),
+                    type_parameters,
+                });
+
+                self.define(
+                    &name,
+                    Symbol::Generic(Rc::downgrade(&generic_def)),
+                    &location,
+                );
+
+                generics.push(generic_def);
+
+                None
             }
         }
     }
@@ -368,8 +421,19 @@ impl<'g> Phase1<'g> {
     fn on_type_expression(&mut self, type_expression: ast::Type) -> SlangType {
         match type_expression.kind {
             ast::TypeKind::Object(obj_ref) => SlangType::Unresolved(obj_ref),
-            ast::TypeKind::GenericInstantiate { .. } => {
-                unimplemented!();
+            ast::TypeKind::GenericInstantiate {
+                base_type,
+                type_parameters,
+            } => {
+                let generic = Generic::Unresolved(base_type);
+                let type_parameters = type_parameters
+                    .into_iter()
+                    .map(|p| self.on_type_expression(p))
+                    .collect();
+                SlangType::GenericInstance {
+                    generic,
+                    type_parameters,
+                }
             }
         }
     }
@@ -400,7 +464,7 @@ impl<'g> Phase1<'g> {
                 } else {
                     None
                 };
-                let local_var_ref = self.new_local_variable(&location, name.clone());
+                let local_var_ref = self.new_local_variable(&location, name);
                 typed_ast::StatementKind::Let {
                     local_ref: local_var_ref,
                     type_hint,
@@ -483,10 +547,7 @@ impl<'g> Phase1<'g> {
                     default,
                 })
             }
-            ast::StatementType::Case { value, arms } => {
-                let k = self.on_case_statement(value, arms)?;
-                k
-            }
+            ast::StatementType::Case { value, arms } => self.on_case_statement(value, arms)?,
 
             ast::StatementType::Match { .. } => {
                 unimplemented!("TODO: match statement");
