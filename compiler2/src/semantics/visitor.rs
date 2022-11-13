@@ -241,7 +241,7 @@ fn visit_expr<V: VisitorApi>(visitor: &mut V, expression: &mut typed_ast::Expres
             visit_expr(visitor, value);
         }
         typed_ast::ExpressionKind::Literal(_) => {}
-        typed_ast::ExpressionKind::StructLiteral { typ, fields } => {
+        typed_ast::ExpressionKind::ObjectInitializer { typ, fields } => {
             visit_type_expr(visitor, typ);
             for field in fields {
                 visit_expr(visitor, &mut field.value);

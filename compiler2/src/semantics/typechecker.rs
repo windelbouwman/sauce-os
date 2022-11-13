@@ -459,7 +459,7 @@ impl TypeChecker {
                 Ok(())
             }
 
-            ExpressionKind::StructLiteral { typ, fields } => {
+            ExpressionKind::ObjectInitializer { typ, fields } => {
                 self.check_struct_literal(&expression.location, typ, fields)?;
                 // struct_literal_to_tuple
                 expression.typ = typ.clone();
@@ -695,7 +695,7 @@ impl TypeChecker {
         &mut self,
         location: &Location,
         typ: &SlangType,
-        fields: &mut [typed_ast::FieldInit],
+        fields: &mut [typed_ast::LabeledField],
     ) -> Result<(), ()> {
         match typ {
             SlangType::User(UserType::Struct(struct_ref)) => {

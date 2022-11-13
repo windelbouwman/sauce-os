@@ -33,7 +33,7 @@ pub enum Import {
     ImportFrom {
         location: Location,
         modname: String,
-        name: String,
+        names: Vec<String>,
     },
 }
 
@@ -213,9 +213,9 @@ pub struct Expression {
 pub enum ExpressionType {
     Object(ObjRef),
     Literal(Literal),
-    StructLiteral {
+    ObjectInitializer {
         typ: Type,
-        fields: Vec<StructLiteralField>,
+        fields: Vec<LabeledField>,
     },
     ListLiteral(Vec<Expression>),
     Call {
@@ -291,7 +291,7 @@ impl ObjRef {
 }
 
 #[derive(Debug)]
-pub struct StructLiteralField {
+pub struct LabeledField {
     pub location: Location,
     pub name: String,
     pub value: Expression,

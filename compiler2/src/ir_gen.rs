@@ -559,8 +559,8 @@ impl Generator {
     fn gen_expression(&mut self, expression: &typed_ast::Expression) {
         match &expression.kind {
             typed_ast::ExpressionKind::Literal(literal) => self.gen_literal(literal),
-            typed_ast::ExpressionKind::StructLiteral { .. } => {
-                unimplemented!("Struct literal, please use tuple literal instead.");
+            typed_ast::ExpressionKind::ObjectInitializer { .. } => {
+                unimplemented!("Object initializer, please use tuple literal instead.");
             }
             typed_ast::ExpressionKind::EnumLiteral(_) => {
                 unimplemented!("Enum literal, please rewrite into tagged union.");

@@ -332,8 +332,8 @@ impl AstPrinter {
             typed_ast::ExpressionKind::Literal(literal) => {
                 self.print_literal(literal);
             }
-            typed_ast::ExpressionKind::StructLiteral { .. } => {
-                print!("{}Struct-literal", self.get_indent());
+            typed_ast::ExpressionKind::ObjectInitializer { .. } => {
+                print!("{}Object-initializer", self.get_indent());
             }
             typed_ast::ExpressionKind::TupleLiteral(_values) => {
                 print!("{}Tuple-literal", self.get_indent());

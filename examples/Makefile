@@ -7,14 +7,13 @@ SLANG_COMPILER=../compiler2/target/debug/compiler2
 
 # TODO: figure out unions in LLVM:
 
-# ${BUILDDIR}/generics.exe
-
 EXECUTABLES = \
 	${BUILDDIR}/callings.exe \
 	${BUILDDIR}/classy.exe \
 	${BUILDDIR}/expressions.exe \
 	${BUILDDIR}/enum_case.exe \
 	${BUILDDIR}/for-loop.exe \
+	${BUILDDIR}/generics.exe \
 	${BUILDDIR}/hello-world.exe \
 	${BUILDDIR}/if-statements.exe \
 	${BUILDDIR}/list-int.exe \

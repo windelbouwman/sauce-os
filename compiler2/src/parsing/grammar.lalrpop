@@ -23,28 +23,34 @@ Import: ast::Import = {
             modname
         }
     },
-    <location:@L> "from" <modname:Identifier> "import" <name:Identifier> Newline => {
+    <location:@L> "from" <modname:Identifier> "import" <names:Comma<Identifier>> Newline => {
         ast::Import::ImportFrom {
             location,
             modname,
-            name
+            names
         }
     },
 };
 
 TypeDef: ast::TypeDef = {
     StructDef,
-    <c:ClassDef> => ast::TypeDef::Class(c),
-    <v:EnumDef> => ast::TypeDef::Enum(v),
+    ClassDef,
+    EnumDef,
 };
 
-EnumDef: ast::EnumDef = {
-    "enum" <location:@L> <name:Identifier> ":" Newline
+EnumDef: ast::TypeDef = {
+    "enum" <location:@L> <typevars:TypeVars?> <name:Identifier> ":" Newline
     Indent <options:EnumDefOption+> Dedent => {
-        ast::EnumDef {
-            name,
-            location,
+        let enum_def = ast::TypeDef::Enum(ast::EnumDef {
+            name: name.clone(),
+            location: location.clone(),
             options,
+        });
+
+        if let Some(typevars) = typevars {
+            ast::TypeDef::Generic { name, location, parameters: typevars, base: Box::new(enum_def) }
+        } else {
+            enum_def
         }
     }
 };
@@ -67,33 +73,39 @@ EnumDefOption: ast::EnumDefOption = {
 };
 
 StructDef: ast::TypeDef = {
-    "struct" <typevars:TypeVars?> <location:@L> <name:Identifier> ":" Newline
+    "struct" <location:@L> <typevars:TypeVars?> <name:Identifier> ":" Newline
     Indent <fields:StructDefField+> Dedent => {
-        let s = ast::TypeDef::Struct(ast::StructDef {
+        let struct_def = ast::TypeDef::Struct(ast::StructDef {
             location: location.clone(),
             name: name.clone(),
             fields,
         });
 
         if let Some(typevars) = typevars {
-            ast::TypeDef::Generic { name, location, parameters: typevars, base: Box::new(s) }
+            ast::TypeDef::Generic { name, location, parameters: typevars, base: Box::new(struct_def) }
         } else {
-            s
+            struct_def
         }
     }
 };
 
-ClassDef: ast::ClassDef = {
-    "class" <location:@L> <name:Identifier> ":" Newline
+ClassDef: ast::TypeDef = {
+    "class" <location:@L> <typevars:TypeVars?> <name:Identifier> ":" Newline
     Indent
     <fields:VariableDef+>
     <methods:FunctionDef+>
     Dedent => {
-        ast::ClassDef {
-            name,
-            location,
+        let class_def = ast::TypeDef::Class(ast::ClassDef {
+            name: name.clone(),
+            location: location.clone(),
             fields,
             methods,
+        });
+
+        if let Some(typevars) = typevars {
+            ast::TypeDef::Generic { name, location, parameters: typevars, base: Box::new(class_def) }
+        } else {
+            class_def
         }
     }
 };
@@ -329,10 +341,10 @@ BlockExpression: ast::Expression = {
     // TODO: should be able to use Condition below??
     <value:Expression> Newline => value,
     <typ:Type> <location:@L> ":" Newline
-    Indent <fields:LinesOf<StructLiteralField>> Dedent => {
+    Indent <fields:LinesOf<LabeledField>> Dedent => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::StructLiteral { typ, fields }
+            kind: ast::ExpressionType::ObjectInitializer { typ, fields }
         }
     }
 };
@@ -343,12 +355,10 @@ Condition: ast::Expression = {
 
 OrTest: ast::Expression = {
     <lhs:OrTest> <location:@L> "or" <rhs:AndTest> => {
-        let lhs = Box::new(lhs);
-        let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Logic(ast::LogicOperator::Or);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     AndTest,
@@ -356,12 +366,10 @@ OrTest: ast::Expression = {
 
 AndTest: ast::Expression = {
     <lhs:AndTest> <location:@L> "and" <rhs:Comparison> => {
-        let lhs = Box::new(lhs);
-        let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Logic(ast::LogicOperator::And);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     Comparison,
@@ -369,12 +377,10 @@ AndTest: ast::Expression = {
 
 Comparison: ast::Expression = {
     <lhs:Expression> <location:@L> <op:CmpOp> <rhs:Expression> => {
-        let lhs = Box::new(lhs);
-        let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Comparison(op);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     }
 };
@@ -398,12 +404,10 @@ ArithmaticExpression: ast::Expression = {
 
 BitwiseOr: ast::Expression = {
     <lhs:BitwiseOr> <location:@L> "|" <rhs:BitwiseXor> => {
-        let lhs = Box::new(lhs);
-        let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Bit(ast::BitOperator::Or);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     BitwiseXor
@@ -411,12 +415,10 @@ BitwiseOr: ast::Expression = {
 
 BitwiseXor: ast::Expression = {
     <lhs:BitwiseXor> <location:@L> "^" <rhs:BitwiseAnd> => {
-        let lhs = Box::new(lhs);
-        let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Bit(ast::BitOperator::Xor);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     BitwiseAnd
@@ -424,12 +426,10 @@ BitwiseXor: ast::Expression = {
 
 BitwiseAnd: ast::Expression = {
     <lhs:BitwiseAnd> <location:@L> "&" <rhs:ShiftExpression> => {
-        let lhs = Box::new(lhs);
-        let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Bit(ast::BitOperator::And);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     ShiftExpression
@@ -437,30 +437,26 @@ BitwiseAnd: ast::Expression = {
 
 ShiftExpression: ast::Expression = {
     <lhs:ShiftExpression> <location:@L> <op:ShiftOp> <rhs:Sum> => {
-        let lhs = Box::new(lhs);
-        let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Bit(op);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     Sum,
 };
 
 ShiftOp: ast::BitOperator = {
-    "<<" => ast::BitOperator::ShiftLeft,
-    ">>" => ast::BitOperator::ShiftRight,
+    "shl" => ast::BitOperator::ShiftLeft,
+    "shr" => ast::BitOperator::ShiftRight,
 };
 
 Sum: ast::Expression = {
     <lhs:Sum> <location:@L> <op:AddOp> <rhs:Term> => {
-        let lhs = Box::new(lhs);
-        let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Math(op);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     Term,
@@ -473,12 +469,10 @@ AddOp: ast::MathOperator = {
 
 Term: ast::Expression = {
     <lhs:Term> <location:@L> <op:MulOp> <rhs:Atom2> => {
-        let lhs = Box::new(lhs);
-        let rhs = Box::new(rhs);
         let op = ast::BinaryOperator::Math(op);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs, op, rhs }
+            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     Atom2,
@@ -536,18 +530,9 @@ Atom: ast::Expression = {
             kind: ast::ExpressionType::Object(obj)
         }
     },
-    <typ:ObjRef> <location:@L> "{" <fields:Comma<StructLiteralField>> "}" => {
-        // TODO: we should be able to use typ:Type instead of typ:ObjRef
-        let typ = ast::Type {
-            location: location.clone(),
-            kind: ast::TypeKind::Object(typ)
-        };
-        ast::Expression {
-            location,
-            kind: ast::ExpressionType::StructLiteral { typ, fields }
-        }
-    },
     "(" <expr:Expression> ")" => expr,
+    // TODO: should we allow types in expressions?
+    // <t:Type> => t,
 };
 
 Literal: ast::Expression = {
@@ -620,9 +605,9 @@ Type: ast::Type = {
     },
 };
 
-StructLiteralField: ast::StructLiteralField = {
+LabeledField: ast::LabeledField = {
     <location:@L> <name:Identifier> ":" <value:Expression> => {
-        ast::StructLiteralField {
+        ast::LabeledField {
             location,
             name,
             value
@@ -641,11 +626,7 @@ Comma<T>: Vec<T> = {
 
 #[inline]
 LinesOf<T>: Vec<T> = {
-    <items: (<T> Newline)+> => {
-        // let mut items = items;
-        // items.extend(last);
-        items
-    }
+    <items: (<T> Newline)+> => items
 };
 
 extern {
@@ -710,8 +691,8 @@ extern {
         "/" => Token::Slash,
         "+" => Token::Plus,
         "-" => Token::Minus,
-        "<<" => Token::ShiftLeft,
-        ">>" => Token::ShiftRight,
+        "shl" => Token::ShiftLeft,
+        "shr" => Token::ShiftRight,
         "|" => Token::Pipe,
         "&" => Token::Ampersand,
         "^" => Token::Hat,

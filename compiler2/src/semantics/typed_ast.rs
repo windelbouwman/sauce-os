@@ -542,10 +542,10 @@ pub enum ExpressionKind {
     /// A literal value.
     Literal(Literal),
 
-    // StructLiteral(Vec<Expression>),
-    StructLiteral {
+    /// Object initializer
+    ObjectInitializer {
         typ: SlangType,
-        fields: Vec<FieldInit>,
+        fields: Vec<LabeledField>,
     },
 
     /// A tuple with mixed type values!
@@ -818,7 +818,7 @@ impl Literal {
 }
 
 #[derive(Debug)]
-pub struct FieldInit {
+pub struct LabeledField {
     pub location: Location,
     pub name: String,
     pub value: Box<Expression>,

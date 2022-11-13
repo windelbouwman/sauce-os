@@ -59,14 +59,19 @@ impl<'g> Phase1<'g> {
                 ast::Import::ImportFrom {
                     location,
                     modname,
-                    name,
+                    names,
                 } => {
                     if let Some(module_ref) = self.load_module(location, modname) {
-                        if module_ref.scope.is_defined(name) {
-                            let symbol = module_ref.scope.get(name).expect("We checked!");
-                            self.define(name, symbol.clone(), location);
-                        } else {
-                            self.error(location, format!("Module has no item member: {}", name));
+                        for name in names {
+                            if module_ref.scope.is_defined(name) {
+                                let symbol = module_ref.scope.get(name).expect("We checked!");
+                                self.define(name, symbol.clone(), location);
+                            } else {
+                                self.error(
+                                    location,
+                                    format!("Module has no item member: {}", name),
+                                );
+                            }
                         }
                     }
                 }
@@ -645,18 +650,18 @@ impl<'g> Phase1<'g> {
                     attr,
                 }
             }
-            ast::ExpressionType::StructLiteral { typ, fields } => {
+            ast::ExpressionType::ObjectInitializer { typ, fields } => {
                 let typ = self.on_type_expression(typ);
                 let mut fields2 = vec![];
                 for field in fields {
                     let value = self.on_expression(field.value)?;
-                    fields2.push(typed_ast::FieldInit {
+                    fields2.push(typed_ast::LabeledField {
                         location: field.location,
                         name: field.name,
                         value: Box::new(value),
                     });
                 }
-                typed_ast::ExpressionKind::StructLiteral {
+                typed_ast::ExpressionKind::ObjectInitializer {
                     typ,
                     fields: fields2,
                 }

@@ -249,8 +249,11 @@ impl std::fmt::Display for UserType {
                 write!(f, "user-{}", union_ref)
             }
             UserType::Enum(enum_ref) => {
-                let enum_ref = enum_ref.upgrade().unwrap();
-                write!(f, "enum(name={}, id={})", enum_ref.name, enum_ref.id)
+                if let Some(enum_ref) = enum_ref.upgrade() {
+                    write!(f, "enum(name={}, id={})", enum_ref.name, enum_ref.id)
+                } else {
+                    write!(f, "enum(NULL)")
+                }
             }
             UserType::Class(class_ref) => {
                 let class_ref = class_ref.upgrade().unwrap();

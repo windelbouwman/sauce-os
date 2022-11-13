@@ -47,7 +47,7 @@ impl Desugar {
 
     fn lower_expression(&mut self, expression: &mut typed_ast::Expression) {
         match &mut expression.kind {
-            typed_ast::ExpressionKind::StructLiteral { typ, fields } => {
+            typed_ast::ExpressionKind::ObjectInitializer { typ, fields } => {
                 let values = struct_literal_to_tuple(typ, std::mem::take(fields));
                 expression.kind = typed_ast::ExpressionKind::TupleLiteral(values)
             }
@@ -91,7 +91,7 @@ fn lower_assignment(assignment: typed_ast::AssignmentStatement) -> typed_ast::St
 /// definition.
 fn struct_literal_to_tuple(
     typ: &SlangType,
-    initializers: Vec<typed_ast::FieldInit>,
+    initializers: Vec<typed_ast::LabeledField>,
 ) -> Vec<typed_ast::Expression> {
     match typ {
         SlangType::User(UserType::Struct(struct_def)) => {

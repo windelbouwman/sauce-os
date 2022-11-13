@@ -78,12 +78,6 @@ enum LogosToken {
     #[token("&")]
     Ampersand,
 
-    #[token(">>")]
-    ShiftRight,
-
-    #[token("<<")]
-    ShiftLeft,
-
     #[token("<")]
     Less,
 
@@ -276,6 +270,8 @@ impl<'t> Lexer<'t> {
                 "pass" => self.emit(Token::KeywordPass),
                 "pub" => self.emit(Token::KeywordPub),
                 "return" => self.emit(Token::KeywordReturn),
+                "shl" => self.emit(Token::ShiftLeft),
+                "shr" => self.emit(Token::ShiftRight),
                 "struct" => self.emit(Token::KeywordStruct),
                 "switch" => self.emit(Token::KeywordSwitch),
                 "true" => self.emit(Token::KeywordTrue),
@@ -361,12 +357,6 @@ impl<'t> Lexer<'t> {
             }
             LogosToken::Slash => {
                 self.emit(Token::Slash);
-            }
-            LogosToken::ShiftRight => {
-                self.emit(Token::ShiftRight);
-            }
-            LogosToken::ShiftLeft => {
-                self.emit(Token::ShiftLeft);
             }
             LogosToken::Ampersand => {
                 self.emit(Token::Ampersand);
