@@ -69,7 +69,6 @@ impl NameBinder {
                         }
                         other => {
                             let location: Location = obj_ref.location();
-                            // TODO: get location? //self.context.get_location(type_expression.node_id);
                             self.error(&location, format!("Symbol is no type, but: {}", other));
                         }
                     }

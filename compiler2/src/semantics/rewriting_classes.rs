@@ -112,6 +112,11 @@ impl<'d> ClassRewriter<'d> {
 
         let ctor_name = format!("{}_ctor", class_def.name);
 
+        let signature = Rc::new(RefCell::new(typed_ast::FunctionSignature {
+            parameters: vec![],
+            return_type: Some(struct_ty.clone()),
+        }));
+
         let ctor_func = Rc::new(RefCell::new(typed_ast::FunctionDef {
             name: ctor_name,
             id: self.new_id(),
@@ -119,9 +124,8 @@ impl<'d> ClassRewriter<'d> {
             this_param: None,
             body: ctor_code,
             scope: Arc::new(Scope::new()),
-            parameters: vec![],
+            signature,
             locals: vec![],
-            return_type: Some(struct_ty.clone()),
         }));
 
         self.ctor_map
@@ -144,13 +148,20 @@ impl<'d> ClassRewriter<'d> {
     fn transform_methods(&mut self, class_def: &typed_ast::ClassDef) {
         let struct_ty = self.class_map.get(&class_def.id).unwrap().clone();
         for method_ref in &class_def.methods {
+            let mut method = method_ref.borrow_mut();
+
             // Take 'this' parameter and refer to struct instead of class
-            let this_param = std::mem::take(&mut method_ref.borrow_mut().this_param).unwrap();
+            let this_param = std::mem::take(&mut method.this_param).unwrap();
             this_param.borrow_mut().typ = struct_ty.clone();
 
             // Add first parameter as this:
-            let mut method = method_ref.borrow_mut();
-            method.parameters.insert(0, this_param);
+            method
+                .signature
+                .borrow_mut()
+                .parameters
+                .insert(0, this_param);
+
+            // Rename method:
             method.name = format!("{}_{}", class_def.name, method.name);
 
             self.new_definitions

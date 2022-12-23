@@ -6,7 +6,7 @@
 use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
-use super::semantics::type_system::{ArrayType, FunctionType, SlangType, UserType};
+use super::semantics::type_system::{ArrayType, SlangType, UserType};
 use super::semantics::typed_ast;
 use crate::semantics::NodeId;
 use crate::semantics::{refer, Symbol};
@@ -175,17 +175,19 @@ impl Generator {
         }
 
         match import_typ {
-            SlangType::Function(FunctionType {
-                argument_types,
-                return_type,
-            }) => {
+            SlangType::User(UserType::Function(signature)) => {
+                let signature = signature.borrow();
                 let bc_import = bytecode::Import {
                     name: func_name,
-                    parameter_types: argument_types
+                    parameter_types: signature
+                        .parameters
                         .iter()
-                        .map(|t| self.get_bytecode_typ(t))
+                        .map(|p| self.get_bytecode_typ(&p.borrow().typ))
                         .collect(),
-                    return_type: return_type.as_ref().map(|t| self.get_bytecode_typ(t)),
+                    return_type: signature
+                        .return_type
+                        .as_ref()
+                        .map(|t| self.get_bytecode_typ(t)),
                 };
                 self.imports.push(bc_import);
             }
@@ -201,8 +203,9 @@ impl Generator {
         self.label_map.clear();
 
         // Create parameter space
+        let signature = func.signature.borrow();
         let mut parameters: Vec<bytecode::Parameter> = vec![];
-        for (index, parameter) in func.parameters.iter().enumerate() {
+        for (index, parameter) in signature.parameters.iter().enumerate() {
             let typ = parameter.borrow().typ.clone();
             let name = parameter.borrow().name.clone();
             self.index_map.insert(parameter.borrow().id, index);
@@ -212,8 +215,11 @@ impl Generator {
             });
         }
 
-        let f_typ = func.get_type().clone().into_function_type();
-        let return_type = f_typ.return_type.as_ref().map(|t| self.get_bytecode_typ(t));
+        // let f_typ = func.get_type().clone().into_function_type();
+        let return_type = signature
+            .return_type
+            .as_ref()
+            .map(|t| self.get_bytecode_typ(t));
 
         // Create local space:
         let mut locals = vec![];
@@ -519,24 +525,37 @@ impl Generator {
             SlangType::GenericInstance { .. } => {
                 panic!("AARG");
             }
-            SlangType::User(user_type) => {
-                let composite_id: usize = match user_type {
-                    UserType::Struct(struct_type) => {
-                        self.get_struct_index(struct_type.upgrade().unwrap())
-                    }
-                    UserType::Union(union_type) => {
-                        self.get_union_index(union_type.upgrade().unwrap())
-                    }
-                    UserType::Enum(_) => {
-                        panic!("Cannot handle enum-types, please rewrite in tagged unions");
-                    }
-                    UserType::Class(_) => {
-                        panic!("Cannot handle class-types");
-                    }
-                };
+            SlangType::User(user_type) => match user_type {
+                UserType::Struct(struct_type) => {
+                    let composite_id: usize = self.get_struct_index(struct_type.upgrade().unwrap());
+                    bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
+                }
+                UserType::Union(union_type) => {
+                    let composite_id: usize = self.get_union_index(union_type.upgrade().unwrap());
+                    bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
+                }
+                UserType::Enum(_) => {
+                    panic!("Cannot handle enum-types, please rewrite in tagged unions");
+                }
+                UserType::Class(_) => {
+                    panic!("Cannot handle class-types");
+                }
+                UserType::Function(signature) => {
+                    let signature = signature.borrow();
 
-                bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
-            }
+                    let mut parameters = vec![];
+                    for parameter in &signature.parameters {
+                        parameters.push(self.get_bytecode_typ(&parameter.borrow().typ));
+                    }
+                    let result = if let Some(t) = &signature.return_type {
+                        Some(Box::new(self.get_bytecode_typ(t)))
+                    } else {
+                        None
+                    };
+                    // TBD: we might want to store this as a forward definition, and refer by ID.
+                    bytecode::Typ::Function { parameters, result }
+                }
+            },
             SlangType::Array(array_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
                 self.get_array_index(array_type),
             ))),
@@ -549,9 +568,6 @@ impl Generator {
             SlangType::Void => bytecode::Typ::Void,
             SlangType::TypeVar(v) => {
                 panic!("Cannot compile type variable {}", v);
-            }
-            SlangType::Function(_) => {
-                unimplemented!("function-type");
             }
         }
     }
@@ -632,11 +648,18 @@ impl Generator {
                     // TODO: Gross hack! Not all functions are imported from std::!
                     let full_name = format!("std_{}", name);
                     self.import_external(full_name.clone(), typ.clone());
-                    self.emit(Instruction::LoadGlobalName(full_name));
+                    let typ = self.get_bytecode_typ(typ);
+                    self.emit(Instruction::LoadGlobalName {
+                        name: full_name,
+                        typ,
+                    });
                 }
                 Symbol::Function(func_ref) => {
-                    let name = refer(func_ref).borrow().name.clone();
-                    self.emit(Instruction::LoadGlobalName(name));
+                    let func_ref1 = refer(func_ref);
+                    let func_ref = func_ref1.borrow();
+                    let name = func_ref.name.clone();
+                    let typ = self.get_bytecode_typ(&func_ref.get_type());
+                    self.emit(Instruction::LoadGlobalName { name, typ });
                 }
                 Symbol::LocalVariable(local_ref) => {
                     // TBD: use name + id as hint?
@@ -726,13 +749,14 @@ impl Generator {
 
     /// Generate bytecode for a function call.
     fn gen_call(&mut self, callee: &typed_ast::Expression, arguments: &Vec<typed_ast::Expression>) {
-        let typ = callee.typ.clone().into_function_type().return_type.clone();
+        let typ = callee
+            .typ
+            .clone()
+            .into_function_type()
+            .borrow()
+            .return_type
+            .clone();
         let return_type = typ.map(|t| self.get_bytecode_typ(&t));
-        // let return_type = if typ.is_void() {
-        //     None
-        // } else {
-        //     Some(self.get_bytecode_typ(&typ))
-        // };
 
         self.gen_expression(callee);
         let n_args = arguments.len();

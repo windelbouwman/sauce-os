@@ -8,11 +8,16 @@ grammar;
 pub Program: ast::Program = {
     <docstring:(String Newline)?>
     <imports:Import*>
-    <typedefs:TypeDef*>
-    <functions:FunctionDef*>
+    <definitions:Definition*>
     => {
         let docstring = docstring.map(|d| d.0);
-        ast::Program { docstring, path: Default::default(), name: Default::default(), imports, typedefs, functions }
+        ast::Program {
+            docstring,
+            path: Default::default(),
+            name: Default::default(),
+            imports,
+            definitions
+        }
     }
 };
 
@@ -32,23 +37,26 @@ Import: ast::Import = {
     },
 };
 
-TypeDef: ast::TypeDef = {
+Definition: ast::Definition = {
     StructDef,
     ClassDef,
     EnumDef,
+    <func:FunctionDef> => {
+        ast::Definition::Function(func)
+    },
 };
 
-EnumDef: ast::TypeDef = {
+EnumDef: ast::Definition = {
     "enum" <location:@L> <typevars:TypeVars?> <name:Identifier> ":" Newline
     Indent <options:EnumDefOption+> Dedent => {
-        let enum_def = ast::TypeDef::Enum(ast::EnumDef {
+        let enum_def = ast::Definition::Enum(ast::EnumDef {
             name: name.clone(),
             location: location.clone(),
             options,
         });
 
         if let Some(typevars) = typevars {
-            ast::TypeDef::Generic { name, location, parameters: typevars, base: Box::new(enum_def) }
+            ast::Definition::Generic { name, location, parameters: typevars, base: Box::new(enum_def) }
         } else {
             enum_def
         }
@@ -72,30 +80,30 @@ EnumDefOption: ast::EnumDefOption = {
     },
 };
 
-StructDef: ast::TypeDef = {
+StructDef: ast::Definition = {
     "struct" <location:@L> <typevars:TypeVars?> <name:Identifier> ":" Newline
     Indent <fields:StructDefField+> Dedent => {
-        let struct_def = ast::TypeDef::Struct(ast::StructDef {
+        let struct_def = ast::Definition::Struct(ast::StructDef {
             location: location.clone(),
             name: name.clone(),
             fields,
         });
 
         if let Some(typevars) = typevars {
-            ast::TypeDef::Generic { name, location, parameters: typevars, base: Box::new(struct_def) }
+            ast::Definition::Generic { name, location, parameters: typevars, base: Box::new(struct_def) }
         } else {
             struct_def
         }
     }
 };
 
-ClassDef: ast::TypeDef = {
+ClassDef: ast::Definition = {
     "class" <location:@L> <typevars:TypeVars?> <name:Identifier> ":" Newline
     Indent
     <fields:VariableDef+>
     <methods:FunctionDef+>
     Dedent => {
-        let class_def = ast::TypeDef::Class(ast::ClassDef {
+        let class_def = ast::Definition::Class(ast::ClassDef {
             name: name.clone(),
             location: location.clone(),
             fields,
@@ -103,7 +111,7 @@ ClassDef: ast::TypeDef = {
         });
 
         if let Some(typevars) = typevars {
-            ast::TypeDef::Generic { name, location, parameters: typevars, base: Box::new(class_def) }
+            ast::Definition::Generic { name, location, parameters: typevars, base: Box::new(class_def) }
         } else {
             class_def
         }
@@ -146,16 +154,14 @@ StructDefField: ast::StructDefField = {
 
 FunctionDef: ast::FunctionDef = {
     <public:"pub"?> <location:@L> "fn" <name:Identifier>
-    "(" <parameters:Comma<Parameter>> ")" <return_type:("->" Type)?> ":"
+    <signature:FunctionSignature> ":"
     Newline <body:Block> => {
         let public = public.is_some();
-        let return_type = return_type.map(|r| r.1);
         ast::FunctionDef {
             location,
             name,
             public,
-            parameters,
-            return_type,
+            signature,
             body
         }
     }
@@ -176,7 +182,7 @@ Statement: ast::Statement = {
         let if_false = if_false.map(|e|e.3);
         ast::Statement {
             location,
-            kind: ast::StatementType::If {
+            kind: ast::StatementKind::If {
                 condition,
                 if_true,
                 if_false,
@@ -188,7 +194,7 @@ Statement: ast::Statement = {
         let type_hint = type_hint.map(|h| h.1);
         ast::Statement {
             location,
-            kind: ast::StatementType::Let {
+            kind: ast::StatementKind::Let {
                 name,
                 mutable,
                 type_hint,
@@ -200,7 +206,7 @@ Statement: ast::Statement = {
     Indent <arms:MatchArm+> Dedent => {
         ast::Statement {
             location,
-            kind: ast::StatementType::Match {
+            kind: ast::StatementKind::Match {
                 value,
                 arms,
             }
@@ -210,7 +216,7 @@ Statement: ast::Statement = {
     Indent <arms:CaseArm+> Dedent => {
         ast::Statement {
             location,
-            kind: ast::StatementType::Case {
+            kind: ast::StatementKind::Case {
                 value,
                 arms,
             }
@@ -224,7 +230,7 @@ Statement: ast::Statement = {
     => {
         ast::Statement {
             location,
-            kind: ast::StatementType::Switch {
+            kind: ast::StatementKind::Switch {
                 value,
                 arms,
                 default,
@@ -234,7 +240,7 @@ Statement: ast::Statement = {
     <target:Expression> <location:@L> "=" <value:Expression> Newline => {
         ast::Statement {
             location,
-            kind: ast::StatementType::Assignment {
+            kind: ast::StatementKind::Assignment {
                 target,
                 value,
             }
@@ -243,7 +249,7 @@ Statement: ast::Statement = {
     <location:@L> "while" <condition:Condition> ":" Newline <body:Block> => {
         ast::Statement {
             location,
-            kind: ast::StatementType::While {
+            kind: ast::StatementKind::While {
                 condition,
                 body,
             }
@@ -252,7 +258,7 @@ Statement: ast::Statement = {
     <location:@L> "for" <name:Identifier> "in" <it:Expression> ":" Newline <body:Block> => {
         ast::Statement {
             location,
-            kind: ast::StatementType::For {
+            kind: ast::StatementKind::For {
                 name,
                 it,
                 body,
@@ -262,7 +268,7 @@ Statement: ast::Statement = {
     <location:@L> "loop" ":" Newline <body:Block> => {
         ast::Statement {
             location,
-            kind: ast::StatementType::Loop {
+            kind: ast::StatementKind::Loop {
                 body,
             }
         }
@@ -270,31 +276,31 @@ Statement: ast::Statement = {
     <location:@L> "return" <value:Expression?> Newline => {
         ast::Statement {
             location,
-            kind: ast::StatementType::Return { value }
+            kind: ast::StatementKind::Return { value }
         }
     },
     <location:@L> "break" Newline => {
         ast::Statement {
             location,
-            kind: ast::StatementType::Break
+            kind: ast::StatementKind::Break
         }
     },
     <location:@L> "continue" Newline => {
         ast::Statement {
             location,
-            kind: ast::StatementType::Continue
+            kind: ast::StatementKind::Continue
         }
     },
     <location:@L> "pass" Newline => {
         ast::Statement {
             location,
-            kind: ast::StatementType::Pass
+            kind: ast::StatementKind::Pass
         }
     },
     <e:Expression> Newline => {
         ast::Statement {
             location: e.location.clone(),
-            kind: ast::StatementType::Expression(e)
+            kind: ast::StatementKind::Expression(e)
         }
     },
 };
@@ -340,11 +346,11 @@ Block: ast::Block = {
 BlockExpression: ast::Expression = {
     // TODO: should be able to use Condition below??
     <value:Expression> Newline => value,
-    <typ:Type> <location:@L> ":" Newline
+    <typ:Expression> <location:@L> ":" Newline
     Indent <fields:LinesOf<LabeledField>> Dedent => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::ObjectInitializer { typ, fields }
+            kind: ast::ExpressionKind::ObjectInitializer { typ: Box::new(typ), fields }
         }
     }
 };
@@ -358,7 +364,7 @@ OrTest: ast::Expression = {
         let op = ast::BinaryOperator::Logic(ast::LogicOperator::Or);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
+            kind: ast::ExpressionKind::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     AndTest,
@@ -369,7 +375,7 @@ AndTest: ast::Expression = {
         let op = ast::BinaryOperator::Logic(ast::LogicOperator::And);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
+            kind: ast::ExpressionKind::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     Comparison,
@@ -380,7 +386,7 @@ Comparison: ast::Expression = {
         let op = ast::BinaryOperator::Comparison(op);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
+            kind: ast::ExpressionKind::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     }
 };
@@ -407,7 +413,7 @@ BitwiseOr: ast::Expression = {
         let op = ast::BinaryOperator::Bit(ast::BitOperator::Or);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
+            kind: ast::ExpressionKind::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     BitwiseXor
@@ -418,7 +424,7 @@ BitwiseXor: ast::Expression = {
         let op = ast::BinaryOperator::Bit(ast::BitOperator::Xor);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
+            kind: ast::ExpressionKind::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     BitwiseAnd
@@ -429,7 +435,7 @@ BitwiseAnd: ast::Expression = {
         let op = ast::BinaryOperator::Bit(ast::BitOperator::And);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
+            kind: ast::ExpressionKind::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     ShiftExpression
@@ -440,7 +446,7 @@ ShiftExpression: ast::Expression = {
         let op = ast::BinaryOperator::Bit(op);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
+            kind: ast::ExpressionKind::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     Sum,
@@ -456,7 +462,7 @@ Sum: ast::Expression = {
         let op = ast::BinaryOperator::Math(op);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
+            kind: ast::ExpressionKind::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     Term,
@@ -472,7 +478,7 @@ Term: ast::Expression = {
         let op = ast::BinaryOperator::Math(op);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
+            kind: ast::ExpressionKind::Binop { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }
         }
     },
     Atom2,
@@ -489,7 +495,7 @@ Atom2: ast::Expression = {
         let callee = Box::new(callee);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Call {
+            kind: ast::ExpressionKind::Call {
                 callee,
                 arguments
             }
@@ -499,7 +505,7 @@ Atom2: ast::Expression = {
         let base = Box::new(base);
         ast::Expression {
             location,
-            kind: ast::ExpressionType::ArrayIndex {
+            kind: ast::ExpressionKind::ArrayIndex {
                 base,
                 indici
             }
@@ -508,7 +514,7 @@ Atom2: ast::Expression = {
     <base:Atom2> <location:@L> "." <attr:Identifier> => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::GetAttr {
+            kind: ast::ExpressionKind::GetAttr {
                 base: Box::new(base),
                 attr
             }
@@ -521,13 +527,13 @@ Atom: ast::Expression = {
     <location:@L> "[" <values:Comma<Expression>> "]" => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::ListLiteral(values),
+            kind: ast::ExpressionKind::ListLiteral(values),
         }
     },
     <location:@L> <obj:ObjRef> => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Object(obj)
+            kind: ast::ExpressionKind::Object(obj)
         }
     },
     "(" <expr:Expression> ")" => expr,
@@ -539,33 +545,54 @@ Literal: ast::Expression = {
     <location:@L> "true" => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Literal(ast::Literal::Bool(true))
+            kind: ast::ExpressionKind::Literal(ast::Literal::Bool(true))
         }
     },
     <location:@L> "false" => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Literal(ast::Literal::Bool(false))
+            kind: ast::ExpressionKind::Literal(ast::Literal::Bool(false))
         }
     },
     <location:@L> <s:String> => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Literal(ast::Literal::String(s))
+            kind: ast::ExpressionKind::Literal(ast::Literal::String(s))
         }
     },
     <location:@L> <n:Number> => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Literal(ast::Literal::Integer(n))
+            kind: ast::ExpressionKind::Literal(ast::Literal::Integer(n))
         }
     },
     <location:@L> <n:FloatingPoint> => {
         ast::Expression {
             location,
-            kind: ast::ExpressionType::Literal(ast::Literal::Float(n))
+            kind: ast::ExpressionKind::Literal(ast::Literal::Float(n))
         }
     },
+};
+
+FunctionSignature: ast::FunctionSignature = {
+    "(" <parameters:Comma<Parameter>> ")" <return_type:("->" Type)?> => {
+        let return_type = return_type.map(|r| r.1);
+
+        ast::FunctionSignature {
+            parameters,
+            return_type
+        }
+    }
+};
+
+Type: ast::Expression = {
+    <location:@L> "fn" <signature:FunctionSignature> => {
+        ast::Expression {
+            location,
+            kind: ast::ExpressionKind::FunctionType(Box::new(signature)),
+        }
+    },
+    Expression,
 };
 
 // References to named and scoped objects:
@@ -585,25 +612,7 @@ ObjRef: ast::ObjRef = {
     },
 };
 
-Type: ast::Type = {
-    <location:@L> <obj:ObjRef> => {
-        ast::Type {
-            location,
-            kind: ast::TypeKind::Object(obj)
-        }
-    },
 
-    // templated types like List<int>
-    <location:@L> <base_type:ObjRef> "<" <type_parameters:Comma<Type>> ">" => {
-        ast::Type {
-            location,
-            kind: ast::TypeKind::GenericInstantiate {
-                base_type: base_type,
-                type_parameters,
-            }
-        }
-    },
-};
 
 LabeledField: ast::LabeledField = {
     <location:@L> <name:Identifier> ":" <value:Expression> => {
@@ -697,4 +706,5 @@ extern {
         "&" => Token::Ampersand,
         "^" => Token::Hat,
     }
-}
+} 
+

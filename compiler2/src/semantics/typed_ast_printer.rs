@@ -30,10 +30,11 @@ impl AstPrinter {
         );
         self.indent();
 
-        if !function_def.parameters.is_empty() {
+        let signature = function_def.signature.borrow();
+        if !signature.parameters.is_empty() {
             println!("{}parameters:", self.get_indent());
             self.indent();
-            for parameter in &function_def.parameters {
+            for parameter in &signature.parameters {
                 let parameter = parameter.borrow();
                 println!(
                     "{}name={} id={} typ={}",
@@ -46,7 +47,7 @@ impl AstPrinter {
             self.dedent();
         }
 
-        if let Some(return_type) = &function_def.return_type {
+        if let Some(return_type) = &signature.return_type {
             println!("{}Return type: {:?}", self.get_indent(), return_type);
         }
 

@@ -324,15 +324,23 @@ impl TypeChecker {
                 self.check_expression(callee)?;
                 let callee_type = self.get_type(callee)?;
                 match callee_type {
-                    SlangType::Function(function_type) => {
+                    SlangType::User(UserType::Function(function_type)) => {
+                        let function_type = function_type.borrow();
+                        let parameter_types: Vec<SlangType> = function_type
+                            .parameters
+                            .iter()
+                            .map(|p| p.borrow().typ.clone())
+                            .collect();
                         self.check_call_arguments(
                             &expression.location,
-                            &function_type.argument_types,
+                            &parameter_types,
                             arguments,
                         )?;
+
                         let return_type: SlangType = function_type
                             .return_type
-                            .map(|t| *t)
+                            .as_ref()
+                            .map(|t| t.clone())
                             .unwrap_or(SlangType::Void);
                         expression.typ = return_type;
                         Ok(())

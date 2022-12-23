@@ -9,8 +9,8 @@ pub struct Program {
 
     /// Other used modules
     pub imports: Vec<Import>,
-    pub typedefs: Vec<TypeDef>,
-    pub functions: Vec<FunctionDef>,
+
+    pub definitions: Vec<Definition>,
 }
 
 impl Program {
@@ -37,16 +37,17 @@ pub enum Import {
     },
 }
 
-pub enum TypeDef {
+pub enum Definition {
     Struct(StructDef),
     Generic {
         name: String,
         location: Location,
         parameters: Vec<TypeVar>,
-        base: Box<TypeDef>,
+        base: Box<Definition>,
     },
     Class(ClassDef),
     Enum(EnumDef),
+    Function(FunctionDef),
 }
 
 /// A variant declaration
@@ -65,7 +66,7 @@ pub struct EnumDefOption {
     pub location: Location,
 
     // An enum can have payload fields:
-    pub data: Vec<Type>,
+    pub data: Vec<Expression>,
 }
 
 pub struct ClassDef {
@@ -78,7 +79,7 @@ pub struct ClassDef {
 pub struct VariableDef {
     pub location: Location,
     pub name: String,
-    pub typ: Type,
+    pub typ: Expression,
     pub value: Expression,
 }
 
@@ -98,39 +99,45 @@ pub struct TypeVar {
 pub struct StructDefField {
     pub location: Location,
     pub name: String,
-    pub typ: Type,
+    pub typ: Expression,
 }
 
 pub struct FunctionDef {
     pub location: Location,
     pub name: String,
     pub public: bool,
-    pub parameters: Vec<Parameter>,
-    pub return_type: Option<Type>,
+    pub signature: FunctionSignature,
     pub body: Block,
 }
 
+#[derive(Debug)]
+pub struct FunctionSignature {
+    pub parameters: Vec<Parameter>,
+    pub return_type: Option<Expression>,
+}
+
+#[derive(Debug)]
 pub struct Parameter {
     pub location: Location,
     pub name: String,
-    pub typ: Type,
+    pub typ: Expression,
 }
 
 pub type Block = Vec<Statement>;
 
 pub struct Statement {
     pub location: Location,
-    pub kind: StatementType,
+    pub kind: StatementKind,
 }
 
-pub enum StatementType {
+pub enum StatementKind {
     Expression(Expression),
 
     /// Assign and define variable
     Let {
         name: String,
         mutable: bool,
-        type_hint: Option<Type>,
+        type_hint: Option<Expression>,
         value: Expression,
     },
 
@@ -206,15 +213,15 @@ pub struct SwitchArm {
 #[derive(Debug)]
 pub struct Expression {
     pub location: Location,
-    pub kind: ExpressionType,
+    pub kind: ExpressionKind,
 }
 
 #[derive(Debug)]
-pub enum ExpressionType {
+pub enum ExpressionKind {
     Object(ObjRef),
     Literal(Literal),
     ObjectInitializer {
-        typ: Type,
+        typ: Box<Expression>,
         fields: Vec<LabeledField>,
     },
     ListLiteral(Vec<Expression>),
@@ -222,6 +229,8 @@ pub enum ExpressionType {
         callee: Box<Expression>,
         arguments: Vec<Expression>,
     },
+
+    FunctionType(Box<FunctionSignature>),
 
     ArrayIndex {
         base: Box<Expression>,
@@ -247,24 +256,6 @@ pub enum Literal {
     String(String),
     Integer(i64),
     Float(f64),
-}
-
-/// A type specification
-#[derive(Debug)]
-pub struct Type {
-    pub location: Location,
-    pub kind: TypeKind,
-}
-
-#[derive(Debug)]
-pub enum TypeKind {
-    Object(ObjRef),
-
-    // generic types!
-    GenericInstantiate {
-        base_type: ObjRef,
-        type_parameters: Vec<Type>,
-    },
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

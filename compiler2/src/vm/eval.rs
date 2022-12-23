@@ -146,7 +146,7 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
             };
             frame.push(cast_value);
         }
-        Instruction::LoadGlobalName(name) => {
+        Instruction::LoadGlobalName { name, typ: _ } => {
             let val = vm.lookup(&name);
             frame.push(val);
         }

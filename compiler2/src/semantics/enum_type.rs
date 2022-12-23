@@ -54,3 +54,57 @@ impl EnumVariant {
         SlangType::User(UserType::Enum(self.parent.clone()))
     }
 }
+
+pub struct EnumDefBuilder {
+    name: String,
+    id: NodeId,
+    location: Location,
+    scope: Scope,
+    variants: Vec<Rc<RefCell<EnumVariant>>>,
+}
+
+impl EnumDefBuilder {
+    pub fn new(name: String, id: NodeId) -> Self {
+        EnumDefBuilder {
+            name,
+            id,
+            location: Default::default(),
+            scope: Scope::new(),
+            variants: vec![],
+        }
+    }
+
+    pub fn add_variant(&mut self, name: &str, data: Vec<SlangType>) {
+        let index = self.variants.len();
+        let variant = Rc::new(RefCell::new(EnumVariant {
+            location: Default::default(),
+            name: name.to_owned(),
+            index,
+            data,
+            parent: Default::default(),
+        }));
+
+        self.scope.define(
+            name.to_owned(),
+            Symbol::EnumVariant(Rc::downgrade(&variant)),
+        );
+
+        self.variants.push(variant);
+    }
+
+    pub fn finish(self) -> Rc<EnumDef> {
+        let enum_def = Rc::new(EnumDef {
+            name: self.name,
+            id: self.id,
+            location: self.location,
+            variants: self.variants,
+            scope: self.scope,
+        });
+
+        for variant in &enum_def.variants {
+            variant.borrow_mut().parent = Rc::downgrade(&enum_def);
+        }
+
+        enum_def
+    }
+}

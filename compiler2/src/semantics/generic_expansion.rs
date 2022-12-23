@@ -1,5 +1,6 @@
 //! Expand generic types like templates
 
+use super::enum_type::EnumDefBuilder;
 use super::type_system::{SlangType, UserType};
 use super::typed_ast;
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
@@ -95,6 +96,40 @@ impl<'e> Expander<'e> {
                         self.instance_cache.insert(new_struct_name, typ.clone());
                         self.new_definitions
                             .push(typed_ast::Definition::Struct(new_struct_ref));
+                        Ok(typ)
+                    }
+                }
+                typed_ast::Definition::Enum(enum_def) => {
+                    log::info!("Expanding generic type");
+                    let types_suffix: Vec<String> =
+                        actual_types.iter().map(|t| t.mangle_name()).collect();
+
+                    let new_enum_name = format!("{}_{}", enum_def.name, types_suffix.join("_"));
+                    if self.instance_cache.contains_key(&new_enum_name) {
+                        let typ = self.instance_cache.get(&new_enum_name).unwrap().clone();
+                        Ok(typ)
+                    } else {
+                        let mut builder = EnumDefBuilder::new(new_enum_name.clone(), self.new_id());
+
+                        for variant in &enum_def.variants {
+                            let variant = variant.borrow();
+
+                            let mut d_types = vec![];
+                            for payload_ty in &variant.data {
+                                let typ: SlangType =
+                                    self.substitute_type_var(payload_ty, &substitution_map)?;
+                                d_types.push(typ);
+                            }
+                            builder.add_variant(&variant.name, d_types);
+                        }
+                        let new_enum_ref = builder.finish();
+                        let typ = SlangType::User(UserType::Enum(Rc::downgrade(&new_enum_ref)));
+
+                        self.instance_cache.insert(new_enum_name, typ.clone());
+
+                        self.new_definitions
+                            .push(typed_ast::Definition::Enum(new_enum_ref));
+
                         Ok(typ)
                     }
                 }
@@ -197,6 +232,20 @@ impl<'e> VisitorApi for Expander<'e> {
 
                     if let Some(new_type) = res {
                         *type_expression = new_type;
+                    }
+                }
+            }
+            VisitedNode::Expression(expression) => {
+                if !self.in_generic {
+                    match &expression.kind {
+                        typed_ast::ExpressionKind::GetIndex { base, index: _ } => {
+                            match base {
+                                // typed_ast::ExpressionKind::
+                                _ => {}
+                            }
+                            // unimplemented!("TODO");
+                        }
+                        _ => {}
                     }
                 }
             }

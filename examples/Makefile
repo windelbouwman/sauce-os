@@ -13,6 +13,7 @@ EXECUTABLES = \
 	${BUILDDIR}/expressions.exe \
 	${BUILDDIR}/enum_case.exe \
 	${BUILDDIR}/for-loop.exe \
+	${BUILDDIR}/func_ptr.exe \
 	${BUILDDIR}/generics.exe \
 	${BUILDDIR}/hello-world.exe \
 	${BUILDDIR}/if-statements.exe \
@@ -27,6 +28,8 @@ RT_OBJ=${BUILDDIR}/runtime.o
 
 .PHONY: all
 all: ${BUILDDIR} ${EXECUTABLES}
+
+ir-code:$(patsubst %.exe,%.ll,${EXECUTABLES})
 
 #compiler:
 #	cargo build

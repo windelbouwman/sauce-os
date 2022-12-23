@@ -103,9 +103,14 @@ pub enum Instruction {
         op: Comparison,
         typ: Typ,
     },
+
     TypeConvert(TypeConversion),
 
-    LoadGlobalName(String),
+    /// Load a global value onto the stack.
+    LoadGlobalName {
+        name: String,
+        typ: Typ,
+    },
 
     /// Load function parameter value on the stack.
     LoadParameter {
@@ -199,6 +204,11 @@ pub enum Typ {
 
     /// This is a reference to the types table
     Composite(usize),
+
+    Function {
+        parameters: Vec<Typ>,
+        result: Option<Box<Typ>>,
+    },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -249,13 +259,19 @@ pub fn print_bytecode(bc: &Program) {
 
     for func in &bc.functions {
         println!("Function: {} : {:?}", func.name, func.return_type);
-        println!("  Parameters:");
-        for parameter in &func.parameters {
-            println!("    {} : {:?}", parameter.name, parameter.typ);
+
+        if !func.parameters.is_empty() {
+            println!("  Parameters:");
+            for parameter in &func.parameters {
+                println!("    {} : {:?}", parameter.name, parameter.typ);
+            }
         }
-        println!("  Locals:");
-        for (index, local) in func.locals.iter().enumerate() {
-            println!("    {}: {} : {:?}", index, local.name, local.typ);
+
+        if !func.locals.is_empty() {
+            println!("  Locals:");
+            for (index, local) in func.locals.iter().enumerate() {
+                println!("    {}: {} : {:?}", index, local.name, local.typ);
+            }
         }
         print_instructions(&func.code);
     }

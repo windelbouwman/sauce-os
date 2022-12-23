@@ -1,4 +1,4 @@
-use super::type_system::SlangType;
+use super::type_system::{SlangType, UserType};
 use super::typed_ast;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -81,17 +81,21 @@ fn visit_field<V: VisitorApi>(visitor: &mut V, field_def: &Rc<RefCell<typed_ast:
     }
 }
 
-fn visit_function<V: VisitorApi>(visitor: &mut V, function: &Rc<RefCell<typed_ast::FunctionDef>>) {
-    for parameter in &function.borrow().parameters {
+fn visit_signature<V: VisitorApi>(visitor: &mut V, signature: &mut typed_ast::FunctionSignature) {
+    for parameter in &signature.parameters {
         visit_type_expr(visitor, &mut parameter.borrow_mut().typ);
     }
 
+    if let Some(ret_type) = &mut signature.return_type {
+        visit_type_expr(visitor, ret_type);
+    }
+}
+
+fn visit_function<V: VisitorApi>(visitor: &mut V, function: &Rc<RefCell<typed_ast::FunctionDef>>) {
+    visit_signature(visitor, &mut function.borrow().signature.borrow_mut());
+
     for local in &function.borrow().locals {
         visit_type_expr(visitor, &mut local.borrow_mut().typ);
-    }
-
-    if let Some(ret_type) = &mut function.borrow_mut().return_type {
-        visit_type_expr(visitor, ret_type);
     }
 
     visit_block(visitor, &mut function.borrow_mut().body);
@@ -105,6 +109,16 @@ fn visit_type_expr<V: VisitorApi>(visitor: &mut V, type_expr: &mut SlangType) {
         } => {
             for type_parameter in type_parameters {
                 visit_type_expr(visitor, type_parameter);
+            }
+        }
+        SlangType::User(UserType::Function(signature)) => {
+            let mut signature = signature.borrow_mut();
+            for parameter in &signature.parameters {
+                let mut parameter = parameter.borrow_mut();
+                visit_type_expr(visitor, &mut parameter.typ);
+            }
+            if let Some(t) = &mut signature.return_type {
+                visit_type_expr(visitor, t);
             }
         }
         _ => {}

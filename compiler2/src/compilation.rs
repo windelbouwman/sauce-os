@@ -40,7 +40,7 @@ pub fn compile_to_bytecode(
     define_builtins(&mut builtin_scope);
 
     let mut context = Context::new(builtin_scope);
-    load_std_module(&mut context.modules_scope);
+    load_std_module(&mut context);
 
     log::info!("Type checking");
     let mut typed_programs = vec![];

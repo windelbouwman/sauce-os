@@ -78,20 +78,11 @@ impl<'g> Phase1<'g> {
             }
         }
 
-        let mut defs = vec![];
+        let mut definitions = vec![];
         let mut generics = vec![];
-        for type_def in prog.typedefs {
-            if let Some(definition) = self.on_type_def(type_def, &mut generics) {
-                defs.push(definition);
-            }
-        }
-
-        for function_def in prog.functions {
-            match self.on_function_def(function_def, None) {
-                Ok(typed_function_def) => {
-                    defs.push(typed_ast::Definition::Function(typed_function_def))
-                }
-                Err(()) => {}
+        for definition in prog.definitions {
+            if let Some(definition) = self.on_definition(definition, &mut generics) {
+                definitions.push(definition);
             }
         }
 
@@ -103,7 +94,7 @@ impl<'g> Phase1<'g> {
             path: prog.path,
             scope: Arc::new(prog_scope),
             generics,
-            definitions: defs,
+            definitions,
         };
 
         self.diagnostics.value_or_error(typed_prog)
@@ -133,16 +124,24 @@ impl<'g> Phase1<'g> {
         }
     }
 
-    fn on_type_def(
+    fn on_definition(
         &mut self,
-        type_def: ast::TypeDef,
+        type_def: ast::Definition,
         generics: &mut Vec<Rc<typed_ast::GenericDef>>,
     ) -> Option<typed_ast::Definition> {
         match type_def {
-            ast::TypeDef::Class(class_def) => self.check_class_def(class_def).ok(),
-            ast::TypeDef::Struct(struct_def) => self.check_struct_def(struct_def).ok(),
-            ast::TypeDef::Enum(enum_def) => self.check_enum_def(enum_def).ok(),
-            ast::TypeDef::Generic {
+            ast::Definition::Class(class_def) => self.check_class_def(class_def).ok(),
+            ast::Definition::Struct(struct_def) => self.check_struct_def(struct_def).ok(),
+            ast::Definition::Enum(enum_def) => self.check_enum_def(enum_def).ok(),
+            ast::Definition::Function(function_def) => {
+                match self.on_function_def(function_def, None) {
+                    Ok(typed_function_def) => {
+                        Some(typed_ast::Definition::Function(typed_function_def))
+                    }
+                    Err(()) => None,
+                }
+            }
+            ast::Definition::Generic {
                 name,
                 location,
                 base,
@@ -169,7 +168,7 @@ impl<'g> Phase1<'g> {
 
                 // TODO: this code needs cleaning...
                 let mut temp_vec = vec![];
-                let base = self.on_type_def(*base, &mut temp_vec).unwrap();
+                let base = self.on_definition(*base, &mut temp_vec).unwrap();
                 assert!(temp_vec.is_empty());
 
                 let scope = Arc::new(self.leave_scope());
@@ -205,7 +204,7 @@ impl<'g> Phase1<'g> {
 
         let mut inner_defs = vec![];
         for (index, field) in struct_def.fields.into_iter().enumerate() {
-            let field_typ = self.on_type_expression(field.typ);
+            let field_typ = self.on_type_expression(field.typ)?;
 
             let field_def = Rc::new(RefCell::new(typed_ast::FieldDef {
                 location: field.location.clone(),
@@ -252,7 +251,7 @@ impl<'g> Phase1<'g> {
         for (index, option) in enum_def.options.into_iter().enumerate() {
             let mut payload_types = vec![];
             for typ in option.data {
-                payload_types.push(self.on_type_expression(typ));
+                payload_types.push(self.on_type_expression(typ)?);
             }
 
             let variant = Rc::new(RefCell::new(typed_ast::EnumVariant {
@@ -304,7 +303,7 @@ impl<'g> Phase1<'g> {
 
         let mut fields = vec![];
         for (index, field) in class_def.fields.into_iter().enumerate() {
-            let field_typ = self.on_type_expression(field.typ);
+            let field_typ = self.on_type_expression(field.typ)?;
             let value = self.on_expression(field.value)?;
             let field_def = Rc::new(RefCell::new(typed_ast::FieldDef {
                 location: field.location.clone(),
@@ -362,23 +361,10 @@ impl<'g> Phase1<'g> {
             None
         };
 
-        let mut typed_parameters: Vec<Rc<RefCell<typed_ast::Parameter>>> = vec![];
-        for parameter in function_def.parameters.into_iter() {
-            let param_typ = self.on_type_expression(parameter.typ);
-            typed_parameters.push(self.new_parameter(
-                parameter.location,
-                parameter.name,
-                param_typ,
-            ));
-        }
+        let signature = self.on_function_signature(function_def.signature)?;
+
         let body = self.on_block(function_def.body);
         let scope = self.leave_scope();
-
-        let return_type = if let Some(return_type) = function_def.return_type {
-            Some(self.on_type_expression(return_type))
-        } else {
-            None
-        };
 
         let local_variables = std::mem::take(&mut self.local_variables);
 
@@ -387,8 +373,7 @@ impl<'g> Phase1<'g> {
             id: self.new_id(),
             this_param,
             location: function_def.location.clone(),
-            parameters: typed_parameters,
-            return_type,
+            signature,
             scope: Arc::new(scope),
             locals: local_variables,
             body,
@@ -403,6 +388,32 @@ impl<'g> Phase1<'g> {
         );
 
         Ok(func)
+    }
+
+    fn on_function_signature(
+        &mut self,
+        signature: ast::FunctionSignature,
+    ) -> Result<Rc<RefCell<typed_ast::FunctionSignature>>, ()> {
+        let mut typed_parameters: Vec<Rc<RefCell<typed_ast::Parameter>>> = vec![];
+        for parameter in signature.parameters.into_iter() {
+            let param_typ = self.on_type_expression(parameter.typ)?;
+            typed_parameters.push(self.new_parameter(
+                parameter.location,
+                parameter.name,
+                param_typ,
+            ));
+        }
+
+        let return_type = if let Some(return_type) = signature.return_type {
+            Some(self.on_type_expression(return_type)?)
+        } else {
+            None
+        };
+
+        Ok(Rc::new(RefCell::new(typed_ast::FunctionSignature {
+            parameters: typed_parameters,
+            return_type,
+        })))
     }
 
     fn new_parameter(
@@ -423,22 +434,46 @@ impl<'g> Phase1<'g> {
         param
     }
 
-    fn on_type_expression(&mut self, type_expression: ast::Type) -> SlangType {
+    fn on_type_expression(&mut self, type_expression: ast::Expression) -> Result<SlangType, ()> {
         match type_expression.kind {
-            ast::TypeKind::Object(obj_ref) => SlangType::Unresolved(obj_ref),
-            ast::TypeKind::GenericInstantiate {
-                base_type,
-                type_parameters,
-            } => {
-                let generic = Generic::Unresolved(base_type);
-                let type_parameters = type_parameters
-                    .into_iter()
-                    .map(|p| self.on_type_expression(p))
-                    .collect();
-                SlangType::GenericInstance {
+            ast::ExpressionKind::Object(obj_ref) => Ok(SlangType::Unresolved(obj_ref)),
+            ast::ExpressionKind::ArrayIndex { base, indici } => {
+                let generic = self.on_generic_ref(*base)?;
+                let mut type_parameters = vec![];
+                for p in indici {
+                    type_parameters.push(self.on_type_expression(p)?);
+                }
+                Ok(SlangType::GenericInstance {
                     generic,
                     type_parameters,
-                }
+                })
+            }
+            ast::ExpressionKind::FunctionType(signature) => {
+                self.enter_scope();
+                let signature = self.on_function_signature(*signature)?;
+                // Temporary scope to process function signature.
+                let _scope = self.leave_scope();
+                Ok(SlangType::User(UserType::Function(signature)))
+            }
+            _other => {
+                self.error(
+                    &type_expression.location,
+                    "Invalid type expression".to_owned(),
+                );
+                Err(())
+            }
+        }
+    }
+
+    fn on_generic_ref(&mut self, generic_ref: ast::Expression) -> Result<Generic, ()> {
+        match generic_ref.kind {
+            ast::ExpressionKind::Object(r) => {
+                let generic = Generic::Unresolved(r);
+                Ok(generic)
+            }
+            _other => {
+                self.error(&generic_ref.location, "Invalid generic".to_owned());
+                Err(())
             }
         }
     }
@@ -457,7 +492,7 @@ impl<'g> Phase1<'g> {
     fn on_statement(&mut self, statement: ast::Statement) -> Result<typed_ast::Statement, ()> {
         let (location, kind) = (statement.location, statement.kind);
         let kind: typed_ast::StatementKind = match kind {
-            ast::StatementType::Let {
+            ast::StatementKind::Let {
                 name,
                 mutable: _,
                 type_hint,
@@ -465,7 +500,7 @@ impl<'g> Phase1<'g> {
             } => {
                 let value = self.on_expression(value)?;
                 let type_hint = if let Some(type_hint) = type_hint {
-                    Some(self.on_type_expression(type_hint))
+                    Some(self.on_type_expression(type_hint)?)
                 } else {
                     None
                 };
@@ -476,7 +511,7 @@ impl<'g> Phase1<'g> {
                     value,
                 }
             }
-            ast::StatementType::Assignment { target, value } => {
+            ast::StatementKind::Assignment { target, value } => {
                 let target = self.on_expression(target)?;
                 let value = self.on_expression(value)?;
                 typed_ast::StatementKind::Assignment(typed_ast::AssignmentStatement {
@@ -484,7 +519,7 @@ impl<'g> Phase1<'g> {
                     value,
                 })
             }
-            ast::StatementType::For { name, it, body } => {
+            ast::StatementKind::For { name, it, body } => {
                 let iterable = self.on_expression(it)?;
                 let loop_var = self.new_local_variable(&location, name);
                 let body = self.on_block(body);
@@ -494,7 +529,7 @@ impl<'g> Phase1<'g> {
                     body,
                 })
             }
-            ast::StatementType::If {
+            ast::StatementKind::If {
                 condition,
                 if_true,
                 if_false,
@@ -508,14 +543,14 @@ impl<'g> Phase1<'g> {
                     if_false,
                 })
             }
-            ast::StatementType::Expression(expr) => {
+            ast::StatementKind::Expression(expr) => {
                 let expr = self.on_expression(expr)?;
                 typed_ast::StatementKind::Expression(expr)
             }
-            ast::StatementType::Pass => typed_ast::StatementKind::Pass,
-            ast::StatementType::Continue => typed_ast::StatementKind::Continue,
-            ast::StatementType::Break => typed_ast::StatementKind::Break,
-            ast::StatementType::Return { value } => {
+            ast::StatementKind::Pass => typed_ast::StatementKind::Pass,
+            ast::StatementKind::Continue => typed_ast::StatementKind::Continue,
+            ast::StatementKind::Break => typed_ast::StatementKind::Break,
+            ast::StatementKind::Return { value } => {
                 let value = if let Some(value) = value {
                     Some(self.on_expression(value)?)
                 } else {
@@ -523,16 +558,16 @@ impl<'g> Phase1<'g> {
                 };
                 typed_ast::StatementKind::Return { value }
             }
-            ast::StatementType::Loop { body } => {
+            ast::StatementKind::Loop { body } => {
                 let body = self.on_block(body);
                 typed_ast::StatementKind::Loop { body }
             }
-            ast::StatementType::While { condition, body } => {
+            ast::StatementKind::While { condition, body } => {
                 let condition = self.on_expression(condition)?;
                 let body = self.on_block(body);
                 typed_ast::StatementKind::While(typed_ast::WhileStatement { condition, body })
             }
-            ast::StatementType::Switch {
+            ast::StatementKind::Switch {
                 value,
                 arms,
                 default,
@@ -552,9 +587,9 @@ impl<'g> Phase1<'g> {
                     default,
                 })
             }
-            ast::StatementType::Case { value, arms } => self.on_case_statement(value, arms)?,
+            ast::StatementKind::Case { value, arms } => self.on_case_statement(value, arms)?,
 
-            ast::StatementType::Match { .. } => {
+            ast::StatementKind::Match { .. } => {
                 unimplemented!("TODO: match statement");
             }
         };
@@ -605,10 +640,10 @@ impl<'g> Phase1<'g> {
     fn on_expression(&mut self, expression: ast::Expression) -> Result<typed_ast::Expression, ()> {
         let (kind, location) = (expression.kind, expression.location);
         let kind: typed_ast::ExpressionKind = match kind {
-            ast::ExpressionType::Call { callee, arguments } => {
+            ast::ExpressionKind::Call { callee, arguments } => {
                 self.check_call(*callee, arguments)?
             }
-            ast::ExpressionType::Binop { lhs, op, rhs } => {
+            ast::ExpressionKind::Binop { lhs, op, rhs } => {
                 let lhs = self.on_expression(*lhs)?;
                 let rhs = self.on_expression(*rhs)?;
                 typed_ast::ExpressionKind::Binop {
@@ -617,8 +652,11 @@ impl<'g> Phase1<'g> {
                     rhs: Box::new(rhs),
                 }
             }
-            ast::ExpressionType::Object(obj_ref) => typed_ast::ExpressionKind::Object(obj_ref),
-            ast::ExpressionType::Literal(value) => match value {
+            ast::ExpressionKind::Object(obj_ref) => typed_ast::ExpressionKind::Object(obj_ref),
+            ast::ExpressionKind::FunctionType(_signature) => {
+                panic!("Should not occur!");
+            }
+            ast::ExpressionKind::Literal(value) => match value {
                 ast::Literal::Bool(value) => {
                     typed_ast::ExpressionKind::Literal(typed_ast::Literal::Bool(value))
                 }
@@ -632,7 +670,7 @@ impl<'g> Phase1<'g> {
                     typed_ast::ExpressionKind::Literal(typed_ast::Literal::Float(value))
                 }
             },
-            ast::ExpressionType::ListLiteral(values) => {
+            ast::ExpressionKind::ListLiteral(values) => {
                 assert!(!values.is_empty());
                 let mut typed_values = vec![];
                 for value in values {
@@ -640,18 +678,18 @@ impl<'g> Phase1<'g> {
                 }
                 typed_ast::ExpressionKind::ListLiteral(typed_values)
             }
-            ast::ExpressionType::ArrayIndex { base, indici } => {
+            ast::ExpressionKind::ArrayIndex { base, indici } => {
                 self.do_array_index(*base, indici)?
             }
-            ast::ExpressionType::GetAttr { base, attr } => {
+            ast::ExpressionKind::GetAttr { base, attr } => {
                 let base = self.on_expression(*base)?;
                 typed_ast::ExpressionKind::GetAttr {
                     base: Box::new(base),
                     attr,
                 }
             }
-            ast::ExpressionType::ObjectInitializer { typ, fields } => {
-                let typ = self.on_type_expression(typ);
+            ast::ExpressionKind::ObjectInitializer { typ, fields } => {
+                let typ = self.on_type_expression(*typ)?;
                 let mut fields2 = vec![];
                 for field in fields {
                     let value = self.on_expression(field.value)?;
@@ -754,7 +792,7 @@ impl<'g> Phase1<'g> {
         if scope.is_defined(name) {
             self.error(location, format!("Symbol {} already defined!", name));
         } else {
-            log::trace!("define symbol '{}' at {:?}", name, location);
+            log::trace!("define symbol '{}' at {}", name, location);
             scope.define(name.to_string(), symbol);
         }
     }

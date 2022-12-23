@@ -39,8 +39,6 @@ pub enum SlangType {
         generic: Generic,
         type_parameters: Vec<SlangType>,
     },
-
-    Function(FunctionType),
 }
 
 #[derive(Clone)]
@@ -163,13 +161,6 @@ impl std::fmt::Display for SlangType {
             SlangType::Unresolved(obj_ref) => {
                 write!(f, "unresolved({:?})", obj_ref)
             }
-            SlangType::Function(function_type) => {
-                write!(
-                    f,
-                    "function({:?} -> {:?})",
-                    function_type.argument_types, function_type.return_type
-                )
-            }
         }
     }
 }
@@ -181,6 +172,7 @@ pub enum UserType {
     Union(Weak<typed_ast::UnionDef>),
     Enum(Weak<typed_ast::EnumDef>),
     Class(Weak<typed_ast::ClassDef>),
+    Function(Rc<RefCell<typed_ast::FunctionSignature>>),
     // TODO: more user definable types?
 }
 
@@ -230,6 +222,9 @@ impl PartialEq for UserType {
             (UserType::Union(s), UserType::Union(o)) => s.ptr_eq(o),
             (UserType::Enum(s), UserType::Enum(o)) => s.ptr_eq(o),
             (UserType::Class(s), UserType::Class(o)) => s.ptr_eq(o),
+            (UserType::Function(s), UserType::Function(o)) => {
+                s.borrow().compatible_signature(&o.borrow())
+            }
             _x => false,
         }
     }
@@ -263,6 +258,21 @@ impl std::fmt::Display for UserType {
                     class_ref.name, class_ref.id
                 )
             }
+            UserType::Function(signature) => {
+                let signature = signature.borrow();
+                write!(f, "function(")?;
+
+                for parameter in &signature.parameters {
+                    let parameter = parameter.borrow();
+                    write!(f, "{}, ", parameter.typ)?;
+                }
+
+                if let Some(t) = &signature.return_type {
+                    write!(f, ") -> {}", t)
+                } else {
+                    write!(f, ")")
+                }
+            }
         }
     }
 }
@@ -275,8 +285,8 @@ impl std::fmt::Debug for UserType {
 }
 
 impl SlangType {
-    pub fn into_function_type(self) -> FunctionType {
-        if let SlangType::Function(function_type) = self {
+    pub fn into_function_type(self) -> Rc<RefCell<typed_ast::FunctionSignature>> {
+        if let SlangType::User(UserType::Function(function_type)) = self {
             function_type
         } else {
             panic!("Expected function type!");
@@ -372,12 +382,6 @@ impl SlangType {
     // pub fn is_void(&self) -> bool {
     //     matches!(self, SlangType::Void)
     // }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionType {
-    pub argument_types: Vec<SlangType>,
-    pub return_type: Option<Box<SlangType>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

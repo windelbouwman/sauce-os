@@ -191,6 +191,22 @@ where
             bytecode::Typ::String => "i8*".to_owned(),
             bytecode::Typ::Ptr(t) => format!("{}*", self.get_llvm_typ(t)),
             bytecode::Typ::Composite(index) => self.type_names[*index].0.clone(),
+            bytecode::Typ::Function { parameters, result } => {
+                // function: f64(i32, i32)*
+                // function returning i32 from float: 'i32(f32,f64)*'
+                let mut parameter_types = vec![];
+                for parameter in parameters {
+                    parameter_types.push(self.get_llvm_typ(parameter));
+                }
+                let llvm_return_type: String = if let Some(typ) = result {
+                    self.get_llvm_typ(typ)
+                } else {
+                    "void".to_owned()
+                };
+                // Assume function type are always pointers.
+                let type_name = format!("{}({})*", llvm_return_type, parameter_types.join(","));
+                type_name
+            }
             bytecode::Typ::Void => {
                 unimplemented!("TODO");
             }
@@ -206,6 +222,7 @@ where
             bytecode::Typ::String => 8, // assume pointer to u8
             bytecode::Typ::Ptr(_) => 8, // assume 64 bit
             bytecode::Typ::Composite(index) => self.type_names[*index].1,
+            bytecode::Typ::Function { .. } => 8, // assume 64 bit
             bytecode::Typ::Void => {
                 unimplemented!("TODO");
             }
@@ -553,8 +570,9 @@ where
                 let (name, typ) = self.parameter_names_and_types[index].clone();
                 self.push(typ, name);
             }
-            Instruction::LoadGlobalName(name) => {
-                self.push("".to_owned(), format!("@{}", name));
+            Instruction::LoadGlobalName { name, typ } => {
+                let typ = self.get_llvm_typ(&typ);
+                self.push(typ, format!("@{}", name));
             }
             Instruction::StoreLocal { index } => {
                 let (value_type, value) = self.pop();

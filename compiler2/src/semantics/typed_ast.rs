@@ -10,7 +10,7 @@
 pub use super::enum_type::{EnumDef, EnumVariant};
 use super::scope::Scope;
 use super::symbol::Symbol;
-use super::type_system::{FunctionType, SlangType};
+use super::type_system::{SlangType, UserType};
 use crate::parsing::ast;
 use crate::parsing::Location;
 use std::cell::RefCell;
@@ -255,27 +255,38 @@ pub struct FunctionDef {
     pub name: String,
     pub id: NodeId,
     pub location: Location,
-    pub parameters: Vec<Rc<RefCell<Parameter>>>,
+    pub signature: Rc<RefCell<FunctionSignature>>,
     pub this_param: Option<Rc<RefCell<Parameter>>>,
-    pub return_type: Option<SlangType>,
     pub scope: Arc<Scope>,
     pub locals: Vec<Rc<RefCell<LocalVariable>>>,
     pub body: Block,
 }
 
+/// A function signature.
+pub struct FunctionSignature {
+    pub parameters: Vec<Rc<RefCell<Parameter>>>,
+    pub return_type: Option<SlangType>,
+}
+
+impl FunctionSignature {
+    /// Check if the types of signatures are equal
+    pub fn compatible_signature(&self, other: &Self) -> bool {
+        if self.parameters.len() != other.parameters.len() {
+            return false;
+        }
+
+        for (p1, p2) in self.parameters.iter().zip(other.parameters.iter()) {
+            if p1.borrow().typ != p2.borrow().typ {
+                return false;
+            }
+        }
+        self.return_type == other.return_type
+    }
+}
+
 impl FunctionDef {
     pub fn get_type(&self) -> SlangType {
-        // unimplemented!();
-        // log::warn!("Oei, get func type?");
-        let mut argument_types = vec![];
-        for p in &self.parameters {
-            // TODO: we clone this type here, is this good?
-            argument_types.push(p.borrow().typ.clone());
-        }
-        SlangType::Function(FunctionType {
-            argument_types,
-            return_type: self.return_type.clone().map(Box::new),
-        })
+        SlangType::User(UserType::Function(self.signature.clone()))
     }
 }
 

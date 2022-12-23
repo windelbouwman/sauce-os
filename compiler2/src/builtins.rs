@@ -1,6 +1,6 @@
 use crate::semantics::type_system::SlangType;
 use crate::semantics::typed_ast;
-use crate::semantics::{Scope, Symbol};
+use crate::semantics::{Context, Scope, Symbol};
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -28,21 +28,38 @@ pub fn define_builtins(scope: &mut Scope) {
 }
 
 /// Define functions provided by 'std' module.
-pub fn load_std_module(scope: &mut Scope) {
+pub fn load_std_module(context: &mut Context) {
     let mut std_scope = Scope::new();
 
     // TODO: these could be loaded from interface/header like file?
-    std_scope.define_func("putc", vec![SlangType::String], None);
-    std_scope.define_func("print", vec![SlangType::String], None);
     std_scope.define_func(
+        context,
+        "putc",
+        vec![("char".to_owned(), SlangType::String)],
+        None,
+    );
+    std_scope.define_func(
+        context,
+        "print",
+        vec![("message".to_owned(), SlangType::String)],
+        None,
+    );
+    std_scope.define_func(
+        context,
         "read_file",
-        vec![SlangType::String],
+        vec![("filename".to_owned(), SlangType::String)],
         Some(SlangType::String),
     );
-    std_scope.define_func("int_to_str", vec![SlangType::Int], Some(SlangType::String));
     std_scope.define_func(
+        context,
+        "int_to_str",
+        vec![("value".to_owned(), SlangType::Int)],
+        Some(SlangType::String),
+    );
+    std_scope.define_func(
+        context,
         "float_to_str",
-        vec![SlangType::Float],
+        vec![("value".to_owned(), SlangType::Float)],
         Some(SlangType::String),
     );
     let name = "std".to_owned();
@@ -55,5 +72,7 @@ pub fn load_std_module(scope: &mut Scope) {
         scope: Arc::new(std_scope),
     };
 
-    scope.define(name, Symbol::Module(Rc::new(std_module)));
+    context
+        .modules_scope
+        .define(name, Symbol::Module(Rc::new(std_module)));
 }
