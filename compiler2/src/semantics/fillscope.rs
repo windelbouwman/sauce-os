@@ -8,6 +8,7 @@
 //! - Assign unique ID to each symbol.
 
 use super::context::Context;
+use super::generics::{GenericDef, TypeVar};
 use super::type_system::{Generic, SlangType, TypeVarRef, UserType};
 use super::typed_ast;
 use super::NodeId;
@@ -127,7 +128,7 @@ impl<'g> Phase1<'g> {
     fn on_definition(
         &mut self,
         type_def: ast::Definition,
-        generics: &mut Vec<Rc<typed_ast::GenericDef>>,
+        generics: &mut Vec<Rc<GenericDef>>,
     ) -> Option<typed_ast::Definition> {
         match type_def {
             ast::Definition::Class(class_def) => self.check_class_def(class_def).ok(),
@@ -151,7 +152,7 @@ impl<'g> Phase1<'g> {
                 let mut type_parameters = vec![];
                 // Register type variables as parameters!
                 for type_var in parameters {
-                    let type_var2 = Rc::new(typed_ast::TypeVar {
+                    let type_var2 = Rc::new(TypeVar {
                         name: type_var.name.clone(),
                         location: type_var.location.clone(),
                         id: self.new_id(),
@@ -173,7 +174,7 @@ impl<'g> Phase1<'g> {
 
                 let scope = Arc::new(self.leave_scope());
 
-                let generic_def = Rc::new(typed_ast::GenericDef {
+                let generic_def = Rc::new(GenericDef {
                     base,
                     scope,
                     name: name.clone(),
@@ -609,7 +610,7 @@ impl<'g> Phase1<'g> {
 
         let mut typed_arms = vec![];
         for arm in arms {
-            let constructor = typed_ast::obj_ref(arm.constructor).at(arm.location.clone());
+            let variant = typed_ast::VariantRef::Name(arm.variant);
 
             self.enter_scope();
 
@@ -624,7 +625,7 @@ impl<'g> Phase1<'g> {
 
             typed_arms.push(typed_ast::CaseArm {
                 location: arm.location,
-                constructor,
+                variant,
                 local_refs,
                 scope,
                 body,

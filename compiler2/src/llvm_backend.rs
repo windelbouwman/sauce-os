@@ -189,7 +189,12 @@ where
             bytecode::Typ::Int => "i64".to_owned(),
             bytecode::Typ::Float => "double".to_owned(),
             bytecode::Typ::String => "i8*".to_owned(),
-            bytecode::Typ::Ptr(t) => format!("{}*", self.get_llvm_typ(t)),
+            bytecode::Typ::Ptr(pointed_type) => match pointed_type.as_ref() {
+                bytecode::Typ::Void => "i8*".to_owned(),
+                other => {
+                    format!("{}*", self.get_llvm_typ(other))
+                }
+            },
             bytecode::Typ::Composite(index) => self.type_names[*index].0.clone(),
             bytecode::Typ::Function { parameters, result } => {
                 // function: f64(i32, i32)*
@@ -393,6 +398,10 @@ where
                 let (opcode, to_typ) = match _conversion {
                     bytecode::TypeConversion::FloatToInt => ("fptosi", bytecode::Typ::Int),
                     bytecode::TypeConversion::IntToFloat => ("sitofp", bytecode::Typ::Float),
+                    bytecode::TypeConversion::UserToOpaque => {
+                        ("bitcast", bytecode::Typ::Ptr(Box::new(bytecode::Typ::Void)))
+                    }
+                    bytecode::TypeConversion::OpaqueToUser(to_typ) => ("bitcast", to_typ),
                 };
                 let to_typ = self.get_llvm_typ(&to_typ);
 

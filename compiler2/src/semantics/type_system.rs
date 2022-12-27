@@ -1,5 +1,9 @@
-// use std::collections::HashMap;
+//! Various types to describe types in the SLANG lang.
+//!
+
+use super::generics::{replace_type_vars_top, GenericDef, TypeVar};
 use super::typed_ast;
+use super::typed_ast::Definition;
 use super::Symbol;
 use crate::parsing::ast;
 use std::cell::RefCell;
@@ -20,7 +24,13 @@ pub enum SlangType {
     ///
     /// This is the type for type constructors, for example
     /// a user defined class, or an enum option like `Option::None`
-    TypeConstructor,
+    TypeConstructor(Box<SlangType>),
+
+    /// An opaque object
+    ///
+    /// Useful when rewriting generic types into opaque
+    /// pointers with type casts.
+    Opaque,
 
     TypeVar(TypeVarRef),
 
@@ -43,7 +53,7 @@ pub enum SlangType {
 
 #[derive(Clone)]
 pub struct TypeVarRef {
-    pub ptr: Weak<typed_ast::TypeVar>,
+    pub ptr: Weak<TypeVar>,
 }
 
 impl PartialEq for TypeVarRef {
@@ -71,17 +81,31 @@ impl std::fmt::Debug for TypeVarRef {
 pub enum Generic {
     Unresolved(ast::ObjRef),
 
-    Generic(Weak<typed_ast::GenericDef>),
+    Generic(Weak<GenericDef>),
 }
 
 impl Generic {
-    pub fn get_def(&self) -> Rc<typed_ast::GenericDef> {
+    pub fn get_def(&self) -> Rc<GenericDef> {
         match self {
             Generic::Unresolved(_obj_ref) => {
                 panic!("Unresolved generic!");
             }
             Generic::Generic(generic) => generic.upgrade().unwrap(),
         }
+    }
+
+    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
+        self.get_def().get_attr(name)
+    }
+
+    /// Apply types to this generic, creates a new type!
+    ///
+    /// This is a sort of template instantiation, in that a
+    /// new type will be created!
+    #[allow(dead_code)]
+    pub fn apply(&self, types: &[SlangType]) -> Definition {
+        let generic_def = self.get_def();
+        generic_def.apply(types)
     }
 }
 
@@ -136,8 +160,11 @@ impl std::fmt::Display for SlangType {
             SlangType::String => {
                 write!(f, "str")
             }
-            SlangType::TypeConstructor => {
-                write!(f, "type-con")
+            SlangType::TypeConstructor(typ) => {
+                write!(f, "type-con({})", typ)
+            }
+            SlangType::Opaque => {
+                write!(f, "opaque")
             }
             SlangType::TypeVar(v) => {
                 write!(f, "type-var({})", v)
@@ -154,9 +181,30 @@ impl std::fmt::Display for SlangType {
             SlangType::GenericInstance {
                 generic,
                 type_parameters,
-            } => {
-                write!(f, "generic-instance({} -> {:?})", generic, type_parameters)
-            }
+            } => match generic {
+                Generic::Generic(generic_def) => {
+                    let generic_def = generic_def.upgrade().unwrap();
+                    let bindings: String =
+                        if generic_def.type_parameters.len() == type_parameters.len() {
+                            let mut bounds: Vec<String> = vec![];
+                            for (type_param, typ) in generic_def
+                                .type_parameters
+                                .iter()
+                                .zip(type_parameters.iter())
+                            {
+                                bounds.push(format!("{}={}", type_param.name, typ));
+                            }
+
+                            bounds.join(", ")
+                        } else {
+                            "mismatched-type-parameters".to_owned()
+                        };
+                    write!(f, "generic-instance({} [{}])", generic_def.name, bindings)
+                }
+                Generic::Unresolved(obj_ref) => {
+                    write!(f, "generic-instance(unresolved:{:?})", obj_ref)
+                }
+            },
 
             SlangType::Unresolved(obj_ref) => {
                 write!(f, "unresolved({:?})", obj_ref)
@@ -193,6 +241,7 @@ impl UserType {
         }
     }
 
+    /// Retrieve attribute from user type.
     pub fn get_attr(&self, name: &str) -> Option<Symbol> {
         match self {
             UserType::Struct(struct_def) => struct_def.upgrade().unwrap().get_attr(name),
@@ -260,17 +309,17 @@ impl std::fmt::Display for UserType {
             }
             UserType::Function(signature) => {
                 let signature = signature.borrow();
-                write!(f, "function(")?;
 
+                let mut parameter_text: Vec<String> = vec![];
                 for parameter in &signature.parameters {
                     let parameter = parameter.borrow();
-                    write!(f, "{}, ", parameter.typ)?;
+                    parameter_text.push(format!("{}", parameter.typ));
                 }
 
                 if let Some(t) = &signature.return_type {
-                    write!(f, ") -> {}", t)
+                    write!(f, "function({}) -> {}", parameter_text.join(", "), t)
                 } else {
-                    write!(f, ")")
+                    write!(f, "function({})", parameter_text.join(", "))
                 }
             }
         }
@@ -294,6 +343,7 @@ impl SlangType {
     }
 
     /// Retrieve a name suitable for name mangling
+    #[allow(dead_code)]
     pub fn mangle_name(&self) -> String {
         match self {
             SlangType::Int => "int".to_owned(),
@@ -306,12 +356,36 @@ impl SlangType {
         }
     }
 
+    #[allow(dead_code)]
+    pub fn is_void(&self) -> bool {
+        matches!(self, SlangType::Void)
+    }
+
+    #[allow(dead_code)]
+    pub fn is_type_var(&self) -> bool {
+        matches!(self, SlangType::TypeVar(_))
+    }
+
+    /// Check if this type is a bound generic
+    pub fn is_generic_instance(&self) -> bool {
+        matches!(self, SlangType::GenericInstance { .. })
+    }
+
     pub fn is_int(&self) -> bool {
         matches!(self, SlangType::Int)
     }
 
     pub fn is_float(&self) -> bool {
         matches!(self, SlangType::Float)
+    }
+
+    /// Check if this type is a user defined type.
+    pub fn is_user(&self) -> bool {
+        matches!(self, SlangType::User(_))
+    }
+
+    pub fn is_heap_type(&self) -> bool {
+        self.is_user() || self.is_generic_instance()
     }
 
     pub fn is_enum(&self) -> bool {
@@ -355,9 +429,47 @@ impl SlangType {
         }
     }
 
-    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
+    #[allow(dead_code)]
+    fn get_attr(&self, name: &str) -> Option<Symbol> {
         match self {
             SlangType::User(user_type) => user_type.get_attr(name),
+            SlangType::TypeConstructor(type_con) => match type_con.as_ref() {
+                SlangType::User(UserType::Enum(enum_def)) => {
+                    enum_def.upgrade().unwrap().get_attr(name)
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Try to retrieve an attribute and get its type
+    pub fn get_attr_type(&self, name: &str) -> Option<SlangType> {
+        match self {
+            SlangType::User(user_type) => user_type.get_attr(name).map(|f| f.get_type()),
+            SlangType::GenericInstance {
+                generic,
+                type_parameters,
+            } => {
+                if let Some(attr) = generic.get_attr(name) {
+                    Some(replace_type_vars_top(
+                        &generic.get_def().type_parameters,
+                        type_parameters,
+                        attr.get_type(),
+                    ))
+                } else {
+                    None
+                }
+                // Interesting idea: apply types to generic, to create a new typ
+                // Use this new type to get the attr.
+                // if let Some(field) = generic.get_def().get_attr(name) {
+                //     // let def = generic.apply(type_parameters);
+                //     // def.get_attr(name)
+                //     // field.
+                // } else {
+                //     None
+                // }
+            }
             _ => None,
         }
     }
@@ -369,19 +481,44 @@ impl SlangType {
         }
     }
 
-    /*
-    pub fn into_class(self) -> Arc<ClassType> {
-        if let SlangType::Class(class_ref) = self {
-            class_ref.inner
-        } else {
-            panic!("Expected class type!");
+    /// Treat this type as a struct, and retrieve struct fields
+    ///
+    /// In case of a generic instance, this will replace type variables
+    /// with concrete type values.
+    pub fn get_struct_fields(&self) -> Option<Vec<(String, SlangType)>> {
+        match self {
+            SlangType::User(UserType::Struct(struct_ref)) => {
+                // Get a firm hold to the struct type:
+                let struct_ref = struct_ref.upgrade().unwrap();
+
+                Some(struct_ref.get_struct_fields())
+            }
+            SlangType::GenericInstance {
+                generic,
+                type_parameters,
+            } => {
+                let generic = generic.get_def();
+
+                match &generic.base {
+                    typed_ast::Definition::Struct(struct_def) => {
+                        let mut fields = vec![];
+                        for field in &struct_def.fields {
+                            let field_type: SlangType = replace_type_vars_top(
+                                &generic.type_parameters,
+                                type_parameters,
+                                field.borrow().typ.clone(),
+                            );
+                            fields.push((field.borrow().name.clone(), field_type));
+                        }
+
+                        Some(fields)
+                    }
+                    _other => None,
+                }
+            }
+            _other => None,
         }
     }
-    */
-
-    // pub fn is_void(&self) -> bool {
-    //     matches!(self, SlangType::Void)
-    // }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

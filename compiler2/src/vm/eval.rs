@@ -143,6 +143,8 @@ pub fn dispatch(vm: &Vm, frame: &mut Frame, opcode: bytecode::Instruction) -> Ex
             let cast_value = match conversion {
                 bytecode::TypeConversion::FloatToInt => Value::Integer(value.as_float() as i64),
                 bytecode::TypeConversion::IntToFloat => Value::Float(value.as_int() as f64),
+                bytecode::TypeConversion::UserToOpaque => value, // Do nothing?
+                bytecode::TypeConversion::OpaqueToUser(_) => value, // Nothing to do?
             };
             frame.push(cast_value);
         }

@@ -9,31 +9,47 @@ struct<A> Fuu:
     x: A
     bla: Bla[Bla[A]]
 
+# Boxed version of a bool
+struct Bool:
+    value: bool
+
+# Boxed integer
+struct Int:
+    value: int
 
 fn main():
     
-    let a = Bla[int]:
-        message: "Hello cool world!!"
+    let i_boxed = Int:
         value: 2
 
-    let b = Bla[bool]:
-        message: "W00t"
+    let a = Bla[Int]:
+        message: "Hello cool world!!"
+        value: i_boxed
+
+    let b_boxed = Bool:
         value: true
+
+    let b = Bla[Bool]:
+        message: "W00t"
+        value: b_boxed
     
     std::print(a.message)
     std::print(b.message)
 
-    let double_bla = Bla[Bla[bool]]:
+    let double_bla = Bla[Bla[Bool]]:
         message: "double-bla"
         value: b
 
-    let fu_b = Fuu[bool]:
-        x: false
+    let b_false_boxed = Bool:
+        value: false
+
+    let fu_b = Fuu[Bool]:
+        x: b_false_boxed
         bla: double_bla
     
     display_fuu(fu_b)
     
-    let triple_b = Bla[Bla[Bla[bool]]]:
+    let triple_b = Bla[Bla[Bla[Bool]]]:
         message: "triple-bla"
         value: double_bla
     
@@ -42,7 +58,7 @@ fn main():
     std::print(triple_b.value.value.message)
 
 
-fn display_fuu(fu_b: Fuu[bool]):
+fn display_fuu(fu_b: Fuu[Bool]):
     std::print(fu_b.bla.message)
     std::print(fu_b.bla.value.message)
 

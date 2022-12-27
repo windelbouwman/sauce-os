@@ -2,7 +2,7 @@ use super::refer;
 use super::symbol::Symbol;
 use super::type_system::{ArrayType, SlangType, UserType};
 use super::typed_ast;
-use super::typed_ast::{Expression, ExpressionKind};
+use super::typed_ast::{Expression, ExpressionKind, Statement, StatementKind};
 use super::Diagnostics;
 use crate::errors::CompilationError;
 use crate::parsing::ast;
@@ -21,12 +21,14 @@ pub fn check_types(program: &typed_ast::Program) -> Result<(), CompilationError>
 
 struct TypeChecker {
     diagnostics: Diagnostics,
+    function_signatures: Vec<Rc<RefCell<typed_ast::FunctionSignature>>>,
 }
 
 impl TypeChecker {
     fn new(path: &std::path::Path) -> Self {
         Self {
             diagnostics: Diagnostics::new(path),
+            function_signatures: vec![],
         }
     }
 
@@ -55,8 +57,13 @@ impl TypeChecker {
                         self.check_field(field);
                     }
                 }
-                typed_ast::Definition::Enum(_enum_def) => {
-                    // unimplemented!();
+                typed_ast::Definition::Enum(enum_def) => {
+                    for variant in &enum_def.variants {
+                        let variant = variant.borrow();
+                        for payload_type in &variant.data {
+                            self.check_type(&variant.location, payload_type);
+                        }
+                    }
                 }
                 typed_ast::Definition::Function(function_def) => {
                     self.check_function(function_def);
@@ -65,26 +72,67 @@ impl TypeChecker {
         }
     }
 
+    fn check_type(&mut self, location: &Location, typ: &SlangType) {
+        match typ {
+            SlangType::GenericInstance {
+                generic,
+                type_parameters,
+            } => {
+                // Check bound generic for:
+                // 1. amount of type parameters
+                // 2. types supplied must be pointer types
+                let generic = generic.get_def();
+
+                // Amount of generic parameters:
+                if generic.type_parameters.len() != type_parameters.len() {
+                    self.error(
+                        location,
+                        format!(
+                            "Wrong number of types for generic, expected {}, but got {} types",
+                            generic.type_parameters.len(),
+                            type_parameters.len()
+                        ),
+                    );
+                }
+
+                // Check generic types to be of complicated type
+                for type_value in type_parameters {
+                    if !type_value.is_heap_type() {
+                        self.error(
+                            location,
+                            format!("Expect only heap allocated type, not {}", type_value),
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn check_field(&mut self, field_def: &Rc<RefCell<typed_ast::FieldDef>>) {
         let mut field = field_def.borrow_mut();
+        self.check_type(&field.location, &field.typ);
         if let Some(value) = &mut field.value {
             self.check_expression(value).ok();
         }
     }
 
     fn check_function(&mut self, function_def: &Rc<RefCell<typed_ast::FunctionDef>>) {
+        self.function_signatures
+            .push(function_def.borrow().signature.clone());
         self.check_block(&mut function_def.borrow_mut().body);
+        self.function_signatures.pop();
     }
 
-    fn check_block(&mut self, block: &mut [typed_ast::Statement]) {
+    fn check_block(&mut self, block: &mut [Statement]) {
         for statement in block {
             self.check_statement(statement).ok();
         }
     }
 
-    fn check_statement(&mut self, statement: &mut typed_ast::Statement) -> Result<(), ()> {
+    fn check_statement(&mut self, statement: &mut Statement) -> Result<(), ()> {
         match &mut statement.kind {
-            typed_ast::StatementKind::Let {
+            StatementKind::Let {
                 local_ref,
                 type_hint,
                 value,
@@ -99,23 +147,20 @@ impl TypeChecker {
                 refer(local_ref).borrow_mut().typ = typ;
                 Ok(())
             }
-            typed_ast::StatementKind::StoreLocal { local_ref, value } => {
+            StatementKind::StoreLocal { local_ref, value } => {
                 self.check_expression(value)?;
                 let typ = self.get_type(value)?;
                 // TODO: do we want to annotate the local or check against the type?
                 refer(local_ref).borrow_mut().typ = typ;
                 Ok(())
             }
-            typed_ast::StatementKind::Assignment(typed_ast::AssignmentStatement {
-                target,
-                value,
-            }) => {
+            StatementKind::Assignment(typed_ast::AssignmentStatement { target, value }) => {
                 self.check_expression(target)?;
                 let target_type = self.get_type(target)?;
                 self.coerce(&target_type, value)?;
                 Ok(())
             }
-            typed_ast::StatementKind::SetAttr {
+            StatementKind::SetAttr {
                 base,
                 attr: _,
                 value,
@@ -124,23 +169,42 @@ impl TypeChecker {
                 self.check_expression(value)?;
                 Ok(())
             }
-            typed_ast::StatementKind::SetIndex { base, index, value } => {
+            StatementKind::SetIndex { base, index, value } => {
                 self.check_expression(base)?;
                 self.check_expression(index)?;
                 self.check_expression(value)?;
                 Ok(())
             }
-            typed_ast::StatementKind::Pass => Ok(()),
-            typed_ast::StatementKind::Unreachable => Ok(()),
-            typed_ast::StatementKind::Break | typed_ast::StatementKind::Continue => Ok(()),
-            typed_ast::StatementKind::Return { value } => {
+            StatementKind::Pass => Ok(()),
+            StatementKind::Unreachable => Ok(()),
+            StatementKind::Break | StatementKind::Continue => Ok(()),
+            StatementKind::Return { value } => {
+                let sig_ref = self.function_signatures.last().unwrap().clone();
+                let signature = sig_ref.borrow();
+
+                // Check return type:
                 if let Some(value) = value {
                     self.check_expression(value)?;
+                    if let Some(typ) = &signature.return_type {
+                        self.check_equal_types(&statement.location, typ, &value.typ)?;
+                    } else {
+                        self.error(
+                            &statement.location,
+                            "Function does not return anything".to_owned(),
+                        );
+                    }
+                } else {
+                    if let Some(typ) = &signature.return_type {
+                        self.error(
+                            &statement.location,
+                            format!("Return nothing, but expected: {}", typ),
+                        );
+                    }
                 }
-                // TODO: check return type
+
                 Ok(())
             }
-            typed_ast::StatementKind::For(typed_ast::ForStatement {
+            StatementKind::For(typed_ast::ForStatement {
                 iterable,
                 loop_var,
                 body,
@@ -160,7 +224,7 @@ impl TypeChecker {
                 Ok(())
             }
 
-            typed_ast::StatementKind::If(typed_ast::IfStatement {
+            StatementKind::If(typed_ast::IfStatement {
                 condition,
                 if_true,
                 if_false,
@@ -172,20 +236,20 @@ impl TypeChecker {
                 }
                 Ok(())
             }
-            typed_ast::StatementKind::Loop { body } => {
+            StatementKind::Loop { body } => {
                 self.check_block(body);
                 Ok(())
             }
-            typed_ast::StatementKind::Compound(block) => {
+            StatementKind::Compound(block) => {
                 self.check_block(block);
                 Ok(())
             }
-            typed_ast::StatementKind::While(typed_ast::WhileStatement { condition, body }) => {
+            StatementKind::While(typed_ast::WhileStatement { condition, body }) => {
                 self.check_condition(condition)?;
                 self.check_block(body);
                 Ok(())
             }
-            typed_ast::StatementKind::Switch(typed_ast::SwitchStatement {
+            StatementKind::Switch(typed_ast::SwitchStatement {
                 value,
                 arms,
                 default,
@@ -198,12 +262,12 @@ impl TypeChecker {
                 self.check_block(default);
                 Ok(())
             }
-            typed_ast::StatementKind::Case(case_statement) => {
+            StatementKind::Case(case_statement) => {
                 self.check_case_statement(&statement.location, case_statement)?;
                 Ok(())
             }
 
-            typed_ast::StatementKind::Expression(expression) => {
+            StatementKind::Expression(expression) => {
                 // TBD: check for VOID value now?
                 self.check_expression(expression)?;
                 Ok(())
@@ -232,55 +296,60 @@ impl TypeChecker {
 
         for arm in &mut case_statement.arms {
             // Ensure we referred to an enum constructor
-            match &arm.constructor.kind {
-                // ExpressionKind::TypeConstructor(
-                //     typed_ast::TypeConstructor::EnumVariant(variant),
-                // )
-                ExpressionKind::LoadSymbol(Symbol::EnumVariant(variant)) => {
+            let variant_ref = match &arm.variant {
+                typed_ast::VariantRef::Variant(variant) => {
                     let variant_ref = variant.upgrade().unwrap();
-                    let variant = variant_ref.borrow();
-
-                    // Check for arm compatibility:
-                    self.check_equal_types(
-                        &arm.location,
-                        &case_statement.value.typ,
-                        &variant.get_parent_type(),
-                    )?;
-
-                    // Check for duplicate arms:
-                    if value_map.contains_key(&variant.index) {
-                        self.error(&arm.location, format!("Duplicate field: {}", variant.name));
+                    variant_ref
+                }
+                typed_ast::VariantRef::Name(variant_name) => {
+                    // We refer to the enum variant by name, lookup the name in the enum.
+                    let variant_ref = enum_type.lookup(variant_name);
+                    if let Some(variant_ref) = variant_ref {
+                        arm.variant = typed_ast::VariantRef::Variant(Rc::downgrade(&variant_ref));
+                        variant_ref
                     } else {
-                        value_map.insert(variant.index, true);
-
-                        let arg_types: Vec<SlangType> = variant.data.clone();
-
-                        // Check for number of payload variables:
-                        if arg_types.len() == arm.local_refs.len() {
-                            for (arg_typ, local_ref) in
-                                arg_types.into_iter().zip(arm.local_refs.iter())
-                            {
-                                local_ref.upgrade().unwrap().borrow_mut().typ = arg_typ;
-                            }
-                        } else {
-                            self.error(
-                                &arm.location,
-                                format!(
-                                    "Got {} constructor arguments, but expected {}",
-                                    arm.local_refs.len(),
-                                    arg_types.len()
-                                ),
-                            );
-                        }
+                        self.error(
+                            &arm.location,
+                            format!("Enum has no variant named: {}", variant_name),
+                        );
+                        continue;
                     }
                 }
-                other => {
-                    // Err!
-                    self.error(
-                        &arm.location,
-                        format!("Expected enum variant constructor, not {:?}", other),
-                    );
+            };
+
+            let variant = variant_ref.borrow();
+
+            // Check for arm compatibility:
+            self.check_equal_types(
+                &arm.location,
+                &case_statement.value.typ,
+                &variant.get_parent_type(),
+            )?;
+
+            // Check for duplicate arms:
+            if value_map.contains_key(&variant.index) {
+                self.error(&arm.location, format!("Duplicate field: {}", variant.name));
+                continue;
+            } else {
+                value_map.insert(variant.index, true);
+            }
+
+            let arg_types: Vec<SlangType> = variant.data.clone();
+
+            // Check for number of payload variables:
+            if arg_types.len() == arm.local_refs.len() {
+                for (arg_typ, local_ref) in arg_types.into_iter().zip(arm.local_refs.iter()) {
+                    local_ref.upgrade().unwrap().borrow_mut().typ = arg_typ;
                 }
+            } else {
+                self.error(
+                    &arm.location,
+                    format!(
+                        "Got {} constructor arguments, but expected {}",
+                        arm.local_refs.len(),
+                        arg_types.len()
+                    ),
+                );
             }
 
             self.check_block(&mut arm.body);
@@ -346,7 +415,7 @@ impl TypeChecker {
                         Ok(())
                     }
 
-                    SlangType::TypeConstructor => {
+                    SlangType::TypeConstructor(_t) => {
                         match &callee.kind {
                             // ExpressionKind::TypeConstructor(type_constructor) => {
                             //     unimplemented!("{:?}", type_constructor);
@@ -453,8 +522,10 @@ impl TypeChecker {
                 };
                 Ok(())
             }
-            ExpressionKind::TypeCast(_value) => {
+            ExpressionKind::TypeCast { value, to_type } => {
                 // TODO: Check for some valid castings.
+                self.check_expression(value)?;
+                expression.typ = to_type.clone();
                 Ok(())
             }
             ExpressionKind::Literal(value) => {
@@ -468,6 +539,7 @@ impl TypeChecker {
             }
 
             ExpressionKind::ObjectInitializer { typ, fields } => {
+                self.check_type(&expression.location, typ);
                 self.check_struct_literal(&expression.location, typ, fields)?;
                 // struct_literal_to_tuple
                 expression.typ = typ.clone();
@@ -527,26 +599,15 @@ impl TypeChecker {
             }
 
             ExpressionKind::LoadSymbol(symbol) => match symbol {
-                Symbol::ExternFunction { name: _, typ } => {
-                    expression.typ = typ.clone();
+                Symbol::LocalVariable(_)
+                | Symbol::Parameter(_)
+                | Symbol::Function(_)
+                | Symbol::ExternFunction { .. } => {
+                    expression.typ = symbol.get_type();
                     Ok(())
                 }
-                Symbol::Parameter(param_ref) => {
-                    expression.typ = refer(param_ref).borrow().typ.clone();
-                    Ok(())
-                }
-                Symbol::LocalVariable(local_ref) => {
-                    expression.typ = refer(local_ref).borrow().typ.clone();
-                    Ok(())
-                }
-                Symbol::Function(func_ref) => {
-                    // TODO: function type might not be super nice to use ..
-                    let function_type = refer(func_ref).borrow().get_type();
-                    expression.typ = function_type;
-                    Ok(())
-                }
-                Symbol::Typ(_typ) => {
-                    expression.typ = SlangType::TypeConstructor;
+                Symbol::Typ(typ) => {
+                    expression.typ = SlangType::TypeConstructor(Box::new(typ.clone()));
                     Ok(())
                 }
                 Symbol::Module(_) => {
@@ -563,8 +624,10 @@ impl TypeChecker {
                 Symbol::Field(_) => {
                     unimplemented!("Load field: Unlikely that this will ever happen.");
                 }
-                Symbol::EnumVariant(_variant) => {
-                    expression.typ = SlangType::TypeConstructor;
+                Symbol::EnumVariant(variant) => {
+                    expression.typ = SlangType::TypeConstructor(Box::new(
+                        variant.upgrade().unwrap().borrow().get_parent_type(),
+                    ));
                     Ok(())
                 }
             },
@@ -595,18 +658,8 @@ impl TypeChecker {
 
             ExpressionKind::GetAttr { base, attr } => {
                 self.check_expression(base)?;
-                if let Some(symbol) = base.typ.get_attr(attr) {
-                    expression.typ = match symbol {
-                        Symbol::Field(field_ref) => {
-                            field_ref.upgrade().unwrap().borrow().typ.clone()
-                        }
-                        Symbol::Function(func_ref) => {
-                            func_ref.upgrade().unwrap().borrow().get_type()
-                        }
-                        other => {
-                            panic!("Unexpected user-type member: {}", other);
-                        }
-                    };
+                if let Some(typ) = base.typ.get_attr_type(attr) {
+                    expression.typ = typ;
                     Ok(())
                 } else {
                     self.error(
@@ -705,53 +758,47 @@ impl TypeChecker {
         typ: &SlangType,
         fields: &mut [typed_ast::LabeledField],
     ) -> Result<(), ()> {
-        match typ {
-            SlangType::User(UserType::Struct(struct_ref)) => {
-                // Get a firm hold to the struct type:
-                let struct_ref = struct_ref.upgrade().unwrap();
-                // List if fields that must be filled:
-                let mut required_fields: HashMap<String, SlangType> = HashMap::new();
+        let mut required_fields = if let Some(struct_fields) = typ.get_struct_fields() {
+            let mut required_fields: HashMap<String, SlangType> = HashMap::new();
 
-                for field in &struct_ref.fields {
-                    let field_name = field.borrow().name.clone();
-                    let field_type = field.borrow().typ.clone();
-                    required_fields.insert(field_name, field_type);
-                }
-
-                let mut ok = true;
-
-                for field in fields {
-                    if required_fields.contains_key(&field.name) {
-                        let wanted_typ = required_fields
-                            .remove(&field.name)
-                            .expect("Has this key, we checked above");
-                        self.coerce(&wanted_typ, &mut field.value)?;
-                    } else {
-                        // Error here on duplicate and non-existing fields
-                        self.error(
-                            &field.location,
-                            format!("Superfluous field: {}", field.name),
-                        );
-                        ok = false;
-                    }
-                }
-
-                // Check missed fields:
-                for field in required_fields.keys() {
-                    self.error(location, format!("Missing field: {}", field));
-                    ok = false;
-                }
-
-                if ok {
-                    Ok(())
-                } else {
-                    Err(())
-                }
+            for (field_name, field_type) in struct_fields {
+                required_fields.insert(field_name, field_type);
             }
-            other => {
-                self.error(location, format!("Must be struct type, not {}", other));
-                Err(())
+
+            required_fields
+        } else {
+            self.error(location, format!("Must be struct type, not {}", typ));
+            return Err(());
+        };
+
+        let mut ok = true;
+
+        for field in fields {
+            if required_fields.contains_key(&field.name) {
+                let wanted_typ = required_fields
+                    .remove(&field.name)
+                    .expect("Has this key, we checked above");
+                self.coerce(&wanted_typ, &mut field.value)?;
+            } else {
+                // Error here on duplicate and non-existing fields
+                self.error(
+                    &field.location,
+                    format!("Superfluous field: {}", field.name),
+                );
+                ok = false;
             }
+        }
+
+        // Check missed fields:
+        for field in required_fields.keys() {
+            self.error(location, format!("Missing field: {}", field));
+            ok = false;
+        }
+
+        if ok {
+            Ok(())
+        } else {
+            Err(())
         }
     }
 

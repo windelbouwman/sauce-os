@@ -236,7 +236,9 @@ impl Generator {
         self.gen_block(&func.body);
 
         // Hmm, a bit of a hack, to inject a void return here ..
-        if !self.instructions.last().unwrap().is_terminator() {
+        if self.instructions.is_empty() {
+            self.emit(Instruction::Return(0));
+        } else if !self.instructions.last().unwrap().is_terminator() {
             self.emit(Instruction::Return(0));
         }
 
@@ -525,49 +527,58 @@ impl Generator {
             SlangType::GenericInstance { .. } => {
                 panic!("AARG");
             }
-            SlangType::User(user_type) => match user_type {
-                UserType::Struct(struct_type) => {
-                    let composite_id: usize = self.get_struct_index(struct_type.upgrade().unwrap());
-                    bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
-                }
-                UserType::Union(union_type) => {
-                    let composite_id: usize = self.get_union_index(union_type.upgrade().unwrap());
-                    bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
-                }
-                UserType::Enum(_) => {
-                    panic!("Cannot handle enum-types, please rewrite in tagged unions");
-                }
-                UserType::Class(_) => {
-                    panic!("Cannot handle class-types");
-                }
-                UserType::Function(signature) => {
-                    let signature = signature.borrow();
-
-                    let mut parameters = vec![];
-                    for parameter in &signature.parameters {
-                        parameters.push(self.get_bytecode_typ(&parameter.borrow().typ));
-                    }
-                    let result = if let Some(t) = &signature.return_type {
-                        Some(Box::new(self.get_bytecode_typ(t)))
-                    } else {
-                        None
-                    };
-                    // TBD: we might want to store this as a forward definition, and refer by ID.
-                    bytecode::Typ::Function { parameters, result }
-                }
-            },
+            SlangType::User(user_type) => self.get_bytecode_typ_for_user_type(user_type),
             SlangType::Array(array_type) => bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(
                 self.get_array_index(array_type),
             ))),
             // SlangType::Generic { .. } => {
             //     panic!("Cannot compile generic type");
             // }
-            SlangType::TypeConstructor => {
-                panic!("Cannot compile type constructor");
+            SlangType::TypeConstructor(typ) => {
+                panic!("Cannot compile type constructor:{}", typ);
+            }
+            SlangType::Opaque => {
+                // A "void*" type
+                bytecode::Typ::Ptr(Box::new(bytecode::Typ::Void))
             }
             SlangType::Void => bytecode::Typ::Void,
             SlangType::TypeVar(v) => {
                 panic!("Cannot compile type variable {}", v);
+            }
+        }
+    }
+
+    /// Get bytecode type for the given user type
+    fn get_bytecode_typ_for_user_type(&mut self, user_type: &UserType) -> bytecode::Typ {
+        match user_type {
+            UserType::Struct(struct_type) => {
+                let composite_id: usize = self.get_struct_index(struct_type.upgrade().unwrap());
+                bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
+            }
+            UserType::Union(union_type) => {
+                let composite_id: usize = self.get_union_index(union_type.upgrade().unwrap());
+                bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
+            }
+            UserType::Enum(_) => {
+                panic!("Cannot handle enum-types, please rewrite in tagged unions");
+            }
+            UserType::Class(_) => {
+                panic!("Cannot handle class-types");
+            }
+            UserType::Function(signature) => {
+                let signature = signature.borrow();
+
+                let mut parameters = vec![];
+                for parameter in &signature.parameters {
+                    parameters.push(self.get_bytecode_typ(&parameter.borrow().typ));
+                }
+                let result = if let Some(t) = &signature.return_type {
+                    Some(Box::new(self.get_bytecode_typ(t)))
+                } else {
+                    None
+                };
+                // TBD: we might want to store this as a forward definition, and refer by ID.
+                bytecode::Typ::Function { parameters, result }
             }
         }
     }
@@ -605,11 +616,19 @@ impl Generator {
             typed_ast::ExpressionKind::Binop { lhs, op, rhs } => {
                 self.gen_binop(lhs, op, rhs);
             }
-            typed_ast::ExpressionKind::TypeCast(value) => {
+            typed_ast::ExpressionKind::TypeCast { to_type, value } => {
                 self.gen_expression(value);
                 let cast_operation = match (&value.typ, &expression.typ) {
                     (SlangType::Int, SlangType::Float) => bytecode::TypeConversion::IntToFloat,
                     (SlangType::Float, SlangType::Int) => bytecode::TypeConversion::FloatToInt,
+                    (SlangType::User(_user_type), SlangType::Opaque) => {
+                        bytecode::TypeConversion::UserToOpaque
+                    }
+                    (SlangType::Opaque, SlangType::User(user_type)) => {
+                        bytecode::TypeConversion::OpaqueToUser(
+                            self.get_bytecode_typ_for_user_type(user_type),
+                        )
+                    }
                     (a, b) => {
                         panic!("Unsupported type casting: {} -> {}", a, b);
                     }

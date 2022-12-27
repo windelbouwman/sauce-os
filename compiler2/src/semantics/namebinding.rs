@@ -145,21 +145,17 @@ impl NameBinder {
                     Err(())
                 }
             }
-            Symbol::Typ(typ) => match typ {
-                SlangType::User(UserType::Enum(enum_type)) => {
-                    let enum_type = enum_type.upgrade().unwrap();
-                    if let Some(variant) = enum_type.lookup(member) {
-                        Ok(Symbol::EnumVariant(Rc::downgrade(&variant)))
-                    } else {
-                        self.error(location, format!("Enum has no variant named '{}'", member));
-                        Err(())
-                    }
-                }
-                other => {
-                    self.error(location, format!("Cannot scope-access type: {}", other));
+
+            Symbol::Typ(SlangType::User(UserType::Enum(enum_type))) => {
+                let enum_type = enum_type.upgrade().unwrap();
+                if let Some(variant) = enum_type.lookup(member) {
+                    Ok(Symbol::EnumVariant(Rc::downgrade(&variant)))
+                } else {
+                    self.error(location, format!("Enum has no variant named '{}'", member));
                     Err(())
                 }
-            },
+            }
+
             other => {
                 self.error(location, format!("Cannot scope-access: {}", other));
                 Err(())
@@ -219,6 +215,10 @@ fn get_scope(node: &VisitedNode) -> Option<Arc<Scope>> {
         },
         VisitedNode::Function(function_def) => Some(function_def.scope.clone()),
         VisitedNode::CaseArm(case_arm) => Some(case_arm.scope.clone()),
+        // VisitedNode::Statement(statement) => match statement.kind {
+        //     typed_ast::StatementKind::Case(case_statement) => Some(case_statement.scope.clone()),
+        //     _ => None,
+        // },
         _ => None,
     }
 }

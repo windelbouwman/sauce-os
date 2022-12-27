@@ -11,8 +11,8 @@ impl IdGenerator {
 
     /// Generate a new unique ID.
     pub fn gimme(&mut self) -> NodeId {
-        let x = self.nxt;
+        // Skip 0 id:
         self.nxt += 1;
-        x
+        self.nxt
     }
 }

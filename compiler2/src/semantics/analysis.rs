@@ -1,10 +1,11 @@
 use super::fillscope::ast_to_nodes;
-use super::generic_expansion::expand_generics;
+// use super::generic_expansion::expand_generics;
 use super::namebinding;
-use super::phase5_desugar;
+use super::phase5_desugar::desugar;
 use super::rewriting_classes::rewrite_classes;
 use super::rewriting_enums::rewrite_enums;
 use super::rewriting_for_loop::rewrite_for_loops;
+use super::rewriting_generics::rewrite_generics;
 use super::typechecker::check_types;
 use super::typed_ast;
 use super::typed_ast_printer::print_ast;
@@ -29,10 +30,12 @@ pub fn analyze(
         print_ast(&mut typed_prog);
     }
 
+    /*
     expand_generics(&mut typed_prog, context)?;
     if show_ast {
         print_ast(&mut typed_prog);
     }
+    */
 
     check_types(&mut typed_prog)?;
     log::debug!("Type checking done & done");
@@ -40,7 +43,14 @@ pub fn analyze(
         print_ast(&mut typed_prog);
     }
 
-    phase5_desugar::desugar(&mut typed_prog, context);
+    rewrite_generics(&mut typed_prog, context);
+    if show_ast {
+        print_ast(&mut typed_prog);
+    }
+
+    check_types(&mut typed_prog)?;
+
+    desugar(&mut typed_prog, context);
     if show_ast {
         print_ast(&mut typed_prog);
     }

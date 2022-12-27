@@ -199,7 +199,7 @@ pub struct MatchArm {
 
 pub struct CaseArm {
     pub location: Location,
-    pub constructor: ObjRef,
+    pub variant: String,
     pub arguments: Vec<String>,
     pub body: Block,
 }

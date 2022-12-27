@@ -3,6 +3,7 @@
 //! Symbols can refer to variables, parameters, functions etc..
 //!
 
+use super::generics::GenericDef;
 use super::type_system::SlangType;
 use super::typed_ast;
 use super::Ref;
@@ -11,7 +12,7 @@ use std::rc::{Rc, Weak};
 
 #[derive(Clone)]
 pub enum Symbol {
-    Generic(Weak<typed_ast::GenericDef>),
+    Generic(Weak<GenericDef>),
     Typ(SlangType),
     Function(Ref<typed_ast::FunctionDef>),
     ExternFunction { name: String, typ: SlangType },
@@ -20,6 +21,22 @@ pub enum Symbol {
     LocalVariable(Ref<typed_ast::LocalVariable>),
     Field(Ref<typed_ast::FieldDef>),
     EnumVariant(Ref<typed_ast::EnumVariant>),
+}
+
+impl Symbol {
+    /// Try to retrieve a type from this symbol.
+    pub fn get_type(&self) -> SlangType {
+        match self {
+            Symbol::Field(field_ref) => field_ref.upgrade().unwrap().borrow().typ.clone(),
+            Symbol::Function(func_ref) => func_ref.upgrade().unwrap().borrow().get_type(),
+            Symbol::Parameter(param_ref) => param_ref.upgrade().unwrap().borrow().typ.clone(),
+            Symbol::LocalVariable(local_ref) => local_ref.upgrade().unwrap().borrow().typ.clone(),
+            Symbol::ExternFunction { name: _, typ } => typ.clone(),
+            other => {
+                panic!("Unexpected user-type member: {}", other);
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for Symbol {

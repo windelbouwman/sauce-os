@@ -327,8 +327,8 @@ impl AstPrinter {
             typed_ast::ExpressionKind::Binop { op, .. } => {
                 print!("{}Binary operation {:?}", self.get_indent(), op);
             }
-            typed_ast::ExpressionKind::TypeCast(_) => {
-                print!("{}Type-cast", self.get_indent());
+            typed_ast::ExpressionKind::TypeCast { to_type, value: _ } => {
+                print!("{}Type-cast to {}", self.get_indent(), to_type);
             }
             typed_ast::ExpressionKind::Literal(literal) => {
                 self.print_literal(literal);

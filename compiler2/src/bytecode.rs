@@ -182,6 +182,8 @@ impl Instruction {
 pub enum TypeConversion {
     FloatToInt,
     IntToFloat,
+    UserToOpaque,
+    OpaqueToUser(Typ),
 }
 
 #[derive(Clone, Debug, Serialize)]

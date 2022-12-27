@@ -8,15 +8,16 @@
 // use super::type_system::{ClassTypeRef, EnumType, SlangType};
 
 pub use super::enum_type::{EnumDef, EnumVariant};
+use super::generics::GenericDef;
 use super::scope::Scope;
+pub use super::struct_type::{StructDef, StructDefBuilder, UnionDef};
 use super::symbol::Symbol;
-use super::type_system::{SlangType, UserType};
+use super::type_system::{self, SlangType, UserType};
 use crate::parsing::ast;
 use crate::parsing::Location;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
-
 pub type NodeId = usize;
 
 pub type Ref<T> = Weak<RefCell<T>>;
@@ -29,30 +30,7 @@ pub struct Program {
     pub definitions: Vec<Definition>,
 }
 
-/// A parameterized type, may contain subtypes which are type variables.
-pub struct GenericDef {
-    pub name: String,
-    pub id: NodeId,
-    pub scope: Arc<Scope>,
-    pub base: Definition,
-    pub location: Location,
-    pub type_parameters: Vec<Rc<TypeVar>>,
-    // Idea: keep track of the instances of this template?
-    // instantiations: Vec<Definition>,
-}
-
-pub struct TypeVar {
-    pub location: Location,
-    pub name: String,
-    pub id: NodeId,
-}
-
-impl std::fmt::Display for TypeVar {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "type-var(name={}, id={})", self.name, self.id)
-    }
-}
-
+#[derive(Clone)]
 pub enum Definition {
     Function(Rc<RefCell<FunctionDef>>),
     Class(Rc<ClassDef>),
@@ -62,133 +40,44 @@ pub enum Definition {
     // Field(Arc<FieldDef>),
 }
 
-pub struct StructDef {
-    pub location: Location,
-    pub name: String,
-    pub id: NodeId,
-    pub scope: Arc<Scope>,
-    pub fields: Vec<Rc<RefCell<FieldDef>>>,
-}
-
-impl std::fmt::Display for StructDef {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "struct(name={}, id={})", self.name, self.id)
-    }
-}
-
-impl StructDef {
-    /// Retrieve the given field from this struct
-    pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<FieldDef>>> {
-        match self.get_attr(name) {
-            Some(symbol) => match symbol {
-                Symbol::Field(field_ref) => Some(field_ref.upgrade().unwrap()),
-                other => {
-                    panic!("Struct may only contain fields, not {}", other);
-                }
-            },
-            None => None,
+impl Definition {
+    /// Create type for this definition!
+    pub fn create_type(&self) -> SlangType {
+        match self {
+            Definition::Struct(struct_def) => {
+                SlangType::User(UserType::Struct(Rc::downgrade(&struct_def)))
+            }
+            Definition::Union(union_def) => {
+                SlangType::User(UserType::Union(Rc::downgrade(&union_def)))
+            }
+            Definition::Enum(enum_def) => SlangType::User(UserType::Enum(Rc::downgrade(&enum_def))),
+            Definition::Class(class_def) => {
+                SlangType::User(UserType::Class(Rc::downgrade(&class_def)))
+            }
+            Definition::Function(function_def) => {
+                SlangType::User(UserType::Function(function_def.borrow().signature.clone()))
+            }
         }
     }
 
+    /// Narrow the type to struct type.
+    #[allow(dead_code)]
+    pub fn as_struct(&self) -> Rc<StructDef> {
+        if let Definition::Struct(struct_def) = self {
+            struct_def.clone()
+        } else {
+            panic!("Expected struct type");
+        }
+    }
+
+    /// Get attribute from this definition
     pub fn get_attr(&self, name: &str) -> Option<Symbol> {
-        self.scope.get(name).cloned()
-    }
-}
-
-pub struct StructDefBuilder {
-    name: String,
-    id: NodeId,
-    location: Location,
-    scope: Scope,
-    fields: Vec<Rc<RefCell<FieldDef>>>,
-}
-
-impl StructDefBuilder {
-    pub fn new(name: String, id: NodeId) -> Self {
-        StructDefBuilder {
-            name,
-            id,
-            location: Default::default(),
-            scope: Scope::new(),
-            fields: vec![],
+        match self {
+            Definition::Struct(struct_def) => struct_def.get_attr(name),
+            Definition::Union(union_def) => union_def.get_attr(name),
+            Definition::Class(class_def) => class_def.get_attr(name),
+            _ => None,
         }
-    }
-
-    pub fn add_field(&mut self, name: &str, typ: SlangType) {
-        let index = self.fields.len();
-        let field = Rc::new(RefCell::new(FieldDef {
-            index,
-            name: name.to_owned(),
-            typ,
-            location: Default::default(),
-            value: None,
-        }));
-
-        self.scope
-            .define(name.to_owned(), Symbol::Field(Rc::downgrade(&field)));
-
-        self.fields.push(field);
-    }
-
-    // pub fn set_name(&mut self, name: String) {
-    //     self.name = name;
-    // }
-
-    pub fn finish_struct(self) -> StructDef {
-        StructDef {
-            name: self.name,
-            id: self.id,
-            location: self.location,
-            fields: self.fields,
-            scope: Arc::new(self.scope),
-        }
-    }
-
-    pub fn finish_union(self) -> UnionDef {
-        UnionDef {
-            name: self.name,
-            id: self.id,
-            location: self.location,
-            fields: self.fields,
-            scope: Arc::new(self.scope),
-        }
-    }
-}
-
-/// A C-style union type.
-///
-/// This type is not exposed in the language, but is an
-/// helper type.
-pub struct UnionDef {
-    pub location: Location,
-    pub name: String,
-    pub id: NodeId,
-    pub scope: Arc<Scope>,
-    pub fields: Vec<Rc<RefCell<FieldDef>>>,
-}
-
-impl std::fmt::Display for UnionDef {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "union(name={}, id={})", self.name, self.id)
-    }
-}
-
-impl UnionDef {
-    /// Retrieve the given field from this struct
-    pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<FieldDef>>> {
-        match self.get_attr(name) {
-            Some(symbol) => match symbol {
-                Symbol::Field(field_ref) => Some(field_ref.upgrade().unwrap()),
-                other => {
-                    panic!("Union can only contain fields, not {}", other);
-                }
-            },
-            None => None,
-        }
-    }
-
-    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
-        self.scope.get(name).cloned()
     }
 }
 
@@ -286,7 +175,7 @@ impl FunctionSignature {
 
 impl FunctionDef {
     pub fn get_type(&self) -> SlangType {
-        SlangType::User(UserType::Function(self.signature.clone()))
+        SlangType::User(type_system::UserType::Function(self.signature.clone()))
     }
 }
 
@@ -403,7 +292,7 @@ pub struct CaseArm {
     pub location: Location,
 
     /// Index into the chosen enum variant:
-    pub constructor: Expression,
+    pub variant: VariantRef,
 
     /// Id's of local variables used for this arms unpacked values
     pub local_refs: Vec<Ref<LocalVariable>>,
@@ -416,13 +305,10 @@ pub struct CaseArm {
 
 impl CaseArm {
     pub fn get_variant(&self) -> Rc<RefCell<EnumVariant>> {
-        match &self.constructor.kind {
+        match &self.variant {
             // ExpressionKind::TypeConstructor(TypeConstructor::EnumVariant(variant))
             // |
-            ExpressionKind::LoadSymbol(Symbol::EnumVariant(variant)) => {
-                //
-                variant.upgrade().unwrap()
-            }
+            VariantRef::Variant(variant) => variant.upgrade().unwrap(),
             other => {
                 panic!("Arm constructor contains no variant, but {:?}", other);
             }
@@ -434,10 +320,16 @@ impl std::fmt::Debug for CaseArm {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmt.debug_struct("CaseArm")
             .field("location", &self.location)
-            .field("constructor", &self.constructor)
+            .field("variant", &self.variant)
             .field("local_refs", &self.local_refs)
             .finish()
     }
+}
+
+#[derive(Debug)]
+pub enum VariantRef {
+    Name(String),
+    Variant(Ref<EnumVariant>),
 }
 
 #[derive(Debug)]
@@ -513,9 +405,12 @@ impl Expression {
     /// Perform a typecast!
     pub fn cast(self, typ: SlangType) -> Self {
         let location = self.location.clone();
-        ExpressionKind::TypeCast(Box::new(self))
-            .typed_expr(typ)
-            .at(location)
+        ExpressionKind::TypeCast {
+            value: Box::new(self),
+            to_type: typ,
+        }
+        .into_expr()
+        .at(location)
     }
 
     // pub fn into_i64(self) -> i64 {
@@ -591,7 +486,10 @@ pub enum ExpressionKind {
     },
 
     /// Type-cast the given expression into another type
-    TypeCast(Box<Expression>),
+    TypeCast {
+        to_type: SlangType,
+        value: Box<Expression>,
+    },
 
     /*
     MethodCall {
@@ -625,6 +523,15 @@ impl ExpressionKind {
         Expression {
             location: Default::default(),
             typ,
+            kind: self,
+        }
+    }
+
+    /// Move this expression kind into an untyped expression.
+    pub fn into_expr(self) -> Expression {
+        Expression {
+            location: Default::default(),
+            typ: SlangType::Undefined,
             kind: self,
         }
     }
@@ -801,6 +708,7 @@ pub fn load_function(function_ref: Ref<FunctionDef>) -> Expression {
     ExpressionKind::LoadSymbol(Symbol::Function(function_ref)).typed_expr(typ)
 }
 
+#[allow(dead_code)]
 pub fn obj_ref(obj_ref: ast::ObjRef) -> Expression {
     ExpressionKind::Object(obj_ref).typed_expr(SlangType::Undefined)
 }

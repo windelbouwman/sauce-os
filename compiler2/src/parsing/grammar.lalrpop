@@ -316,11 +316,11 @@ MatchArm: ast::MatchArm = {
 };
 
 CaseArm: ast::CaseArm = {
-    <location:@L> <constructor:ObjRef> <arguments:("(" Comma<Identifier> ")")?> ":" Newline <body:Block> => {
+    <location:@L> <variant:Identifier> <arguments:("(" Comma<Identifier> ")")?> ":" Newline <body:Block> => {
         let arguments = arguments.map(|a| a.1).unwrap_or(vec![]);
         ast::CaseArm {
             location,
-            constructor,
+            variant,
             arguments,
             body,
         }

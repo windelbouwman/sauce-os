@@ -1,3 +1,4 @@
+use super::generics::GenericDef;
 use super::type_system::{SlangType, UserType};
 use super::typed_ast;
 use std::cell::RefCell;
@@ -5,7 +6,7 @@ use std::rc::Rc;
 
 pub enum VisitedNode<'n> {
     Program(&'n mut typed_ast::Program),
-    Generic(&'n typed_ast::GenericDef),
+    Generic(&'n GenericDef),
     Definition(&'n typed_ast::Definition),
     Function(&'n typed_ast::FunctionDef),
     Statement(&'n mut typed_ast::Statement),
@@ -210,7 +211,7 @@ fn visit_statement<V: VisitorApi>(visitor: &mut V, statement: &mut typed_ast::St
             visit_expr(visitor, value);
             for arm in arms {
                 visitor.pre_node(VisitedNode::CaseArm(arm));
-                visit_expr(visitor, &mut arm.constructor);
+                // visit_expr(visitor, &mut arm.constructor);
                 visit_block(visitor, &mut arm.body);
                 visitor.post_node(VisitedNode::CaseArm(arm));
             }
@@ -251,7 +252,8 @@ fn visit_expr<V: VisitorApi>(visitor: &mut V, expression: &mut typed_ast::Expres
             visit_expr(visitor, lhs);
             visit_expr(visitor, rhs);
         }
-        typed_ast::ExpressionKind::TypeCast(value) => {
+        typed_ast::ExpressionKind::TypeCast { value, to_type: _ } => {
+            // TBD: visit to_type?
             visit_expr(visitor, value);
         }
         typed_ast::ExpressionKind::Literal(_) => {}

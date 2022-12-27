@@ -16,6 +16,7 @@ pub struct EnumDef {
 }
 
 impl EnumDef {
+    /// See if this enum contains a variant with the given name
     pub fn lookup(&self, name: &str) -> Option<Rc<RefCell<EnumVariant>>> {
         match self.scope.get(name) {
             Some(symbol) => match symbol {
@@ -31,6 +32,10 @@ impl EnumDef {
             },
             None => None,
         }
+    }
+
+    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
+        self.scope.get(name).cloned()
     }
 }
 
@@ -50,6 +55,7 @@ pub struct EnumVariant {
 }
 
 impl EnumVariant {
+    /// Get the enum type which this is a variant for.
     pub fn get_parent_type(&self) -> SlangType {
         SlangType::User(UserType::Enum(self.parent.clone()))
     }
@@ -64,6 +70,7 @@ pub struct EnumDefBuilder {
 }
 
 impl EnumDefBuilder {
+    #[allow(dead_code)]
     pub fn new(name: String, id: NodeId) -> Self {
         EnumDefBuilder {
             name,
@@ -74,6 +81,7 @@ impl EnumDefBuilder {
         }
     }
 
+    #[allow(dead_code)]
     pub fn add_variant(&mut self, name: &str, data: Vec<SlangType>) {
         let index = self.variants.len();
         let variant = Rc::new(RefCell::new(EnumVariant {
@@ -92,6 +100,7 @@ impl EnumDefBuilder {
         self.variants.push(variant);
     }
 
+    #[allow(dead_code)]
     pub fn finish(self) -> Rc<EnumDef> {
         let enum_def = Rc::new(EnumDef {
             name: self.name,

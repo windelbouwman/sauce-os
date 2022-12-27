@@ -13,7 +13,7 @@ For example:
 
 */
 
-use super::type_system::{SlangType, UserType};
+use super::type_system::SlangType;
 use super::typed_ast;
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
 use super::{Context, Symbol};
@@ -93,31 +93,27 @@ fn struct_literal_to_tuple(
     typ: &SlangType,
     initializers: Vec<typed_ast::LabeledField>,
 ) -> Vec<typed_ast::Expression> {
-    match typ {
-        SlangType::User(UserType::Struct(struct_def)) => {
-            // First turn named initializers into a name->value mapping:
-            let mut value_map: HashMap<String, typed_ast::Expression> = HashMap::new();
-            for initializer in initializers {
-                assert!(!value_map.contains_key(&initializer.name));
-                value_map.insert(initializer.name, *initializer.value);
-            }
-
-            // Loop over the struct fields in turn
-            let struct_def = struct_def.upgrade().unwrap();
-            let mut values = vec![];
-            for field in &struct_def.fields {
-                values.push(
-                    value_map
-                        .remove(&field.borrow().name)
-                        .expect("Struct initializer must be legit!"),
-                );
-            }
-            values
-        }
-        other => {
-            panic!("Expected struct type, not {:?}", other);
-        }
+    // First turn named initializers into a name->value mapping:
+    let mut value_map: HashMap<String, typed_ast::Expression> = HashMap::new();
+    for initializer in initializers {
+        assert!(!value_map.contains_key(&initializer.name));
+        value_map.insert(initializer.name, *initializer.value);
     }
+
+    // We can assume we checked for struct-ness
+    let fields = typ
+        .get_struct_fields()
+        .expect("We type checked this before!");
+
+    let mut values = vec![];
+    for (name, _typ) in fields {
+        values.push(
+            value_map
+                .remove(&name)
+                .expect("Struct initializer must be legit!"),
+        );
+    }
+    values
 }
 
 impl VisitorApi for Desugar {

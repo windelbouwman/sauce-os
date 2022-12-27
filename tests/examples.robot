@@ -14,6 +14,12 @@ Hello world compiled
 Hello world interpreted
     Run hello-world example in interpreter
 
+Enum case compiled
+    Compile and run enum_case example
+
+Enum case interpreted
+    Run enum_case example in interpreter
+
 Expressions compiled
     Compile and run expressions example
 

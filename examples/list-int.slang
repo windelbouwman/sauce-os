@@ -20,9 +20,9 @@ struct ListIter:
 fn list_iter_next(iter: ListIter) -> Option:
     let opt = iter.next_element
     case opt:
-        Option::None:
+        None:
             pass
-        Option::Some(nxt_element):
+        Some(nxt_element):
             iter.next_element = nxt_element.next
     return opt
 
@@ -37,15 +37,15 @@ fn list_append(this: List, val: int):
         data: val
     
     case this.head_element:
-        Option::None:
+        None:
             this.head_element = Option::Some(new_tail_element)
-        Option::Some(element):
+        Some(element):
             let mabye_element = element.next
             loop:
                 case element.next:
-                    Option::None:
+                    None:
                         break
-                    Option::Some(nxt_element):
+                    Some(nxt_element):
                         element = nxt_element
             element.next = Option::Some(new_tail_element)
 
@@ -54,9 +54,9 @@ fn list_walk(x: List):
     let mabye_element = x.head_element
     loop:
         case mabye_element:
-            Option::None:
+            None:
                 break
-            Option::Some(element):
+            Some(element):
                 std::print("Item[" + std::int_to_str(i) + "]=" + std::int_to_str(element.data))
                 mabye_element = element.next
         i = i + 1
@@ -83,9 +83,9 @@ fn main():
     loop:
         let opt = list_iter_next(it)
         case opt:
-            Option::None:
+            None:
                 break
-            Option::Some(element):
+            Some(element):
                 std::print("Item[" + std::int_to_str(n) + "]=" + std::int_to_str(element.data))
 
 

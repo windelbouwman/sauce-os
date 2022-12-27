@@ -13,15 +13,15 @@ class List:
             data: val
         
         case this.head_element:
-            Option::None:
+            None:
                 this.head_element = Option::Some(new_tail_element)
-            Option::Some(element):
+            Some(element):
                 let mabye_element = element.next
                 loop:
                     case element.next:
-                        Option::None:
+                        None:
                             break
-                        Option::Some(nxt_element):
+                        Some(nxt_element):
                             element = nxt_element
                 element.next = Option::Some(new_tail_element)
 
@@ -30,9 +30,9 @@ class List:
         let mabye_element = this.head_element
         loop:
             case mabye_element:
-                Option::None:
+                None:
                     break
-                Option::Some(element):
+                Some(element):
                     std::print("Item[" + std::int_to_str(i) + "]=" + std::int_to_str(element.data))
                     mabye_element = element.next
             i = i + 1
@@ -57,9 +57,9 @@ class ListIter:
     fn next() -> Option:
         let opt = this.next_element
         case opt:
-            Option::None:
+            None:
                 pass
-            Option::Some(nxt_element):
+            Some(nxt_element):
                 this.next_element = nxt_element.next
         return opt
 
@@ -86,7 +86,8 @@ fn main():
     loop:
         let opt = it.next()
         case opt:
-            Option::None:
+            None:
                 break
-            Option::Some(element):
+            Some(element):
                 std::print("Item[" + std::int_to_str(n) + "]=" + std::int_to_str(element.data))
+        n = n + 1
