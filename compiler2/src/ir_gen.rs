@@ -6,15 +6,14 @@
 use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
-use super::semantics::type_system::{ArrayType, SlangType, UserType};
-use super::semantics::typed_ast;
-use crate::semantics::NodeId;
+use super::semantics::tast;
+use super::semantics::tast::{ArrayType, BasicType, NodeId, SlangType, UserType};
 use crate::semantics::{refer, Symbol};
 use std::collections::HashMap;
 use std::rc::Rc;
 
 /// Compile a typed ast into bytecode.
-pub fn gen(progs: &[Rc<typed_ast::Program>]) -> bytecode::Program {
+pub fn gen(progs: &[Rc<tast::Program>]) -> bytecode::Program {
     log::info!("Generating IR bytecode");
     let mut generator = Generator::new();
     for prog in progs {
@@ -38,7 +37,7 @@ struct Generator {
     loop_stack: Vec<(Label, Label)>,
     types: Vec<bytecode::TypeDef>,
     type_to_id_map: HashMap<bytecode::TypeDef, usize>,
-    type_to_id_map2: HashMap<typed_ast::NodeId, usize>,
+    type_to_id_map2: HashMap<tast::NodeId, usize>,
     index_map: HashMap<NodeId, usize>,
     label_map: HashMap<Label, usize>,
     relocations: Vec<Relocation>,
@@ -79,15 +78,16 @@ impl Generator {
         }
     }
 
-    fn gen_prog(&mut self, prog: &typed_ast::Program) {
+    fn gen_prog(&mut self, prog: &tast::Program) {
         // First fill typedefs
         for definition in &prog.definitions {
             match definition {
-                typed_ast::Definition::Struct(struct_def) => {
-                    self.type_to_id_map2.insert(struct_def.id, self.types.len());
+                tast::Definition::Struct(struct_def) => {
+                    self.type_to_id_map2
+                        .insert(struct_def.name.id, self.types.len());
                     self.types.push(bytecode::TypeDef::invalid());
                 }
-                typed_ast::Definition::Union(union_def) => {
+                tast::Definition::Union(union_def) => {
                     self.type_to_id_map2.insert(union_def.id, self.types.len());
                     self.types.push(bytecode::TypeDef::invalid());
                 }
@@ -97,7 +97,7 @@ impl Generator {
 
         for definition in &prog.definitions {
             match definition {
-                typed_ast::Definition::Struct(struct_def) => {
+                tast::Definition::Struct(struct_def) => {
                     let mut bytecode_field_types: Vec<bytecode::Typ> = vec![];
                     for field_ref in struct_def.fields.iter() {
                         // self.index_map.insert(*f_id, index);
@@ -105,16 +105,16 @@ impl Generator {
                         bytecode_field_types.push(field_type);
                     }
 
-                    let name = struct_def.name.clone();
+                    let name = struct_def.name.name.clone();
 
                     let typ = bytecode::TypeDef::Struct(bytecode::StructDef {
                         name: Some(name),
                         fields: bytecode_field_types,
                     });
 
-                    self.types[self.type_to_id_map2[&struct_def.id]] = typ;
+                    self.types[self.type_to_id_map2[&struct_def.name.id]] = typ;
                 }
-                typed_ast::Definition::Union(union_def) => {
+                tast::Definition::Union(union_def) => {
                     let mut choices: Vec<bytecode::Typ> = vec![];
                     for field_ref in union_def.fields.iter() {
                         let field_type = self.get_bytecode_typ(&field_ref.borrow().typ);
@@ -132,22 +132,22 @@ impl Generator {
 
         for definition in &prog.definitions {
             match definition {
-                typed_ast::Definition::Function(function) => {
+                tast::Definition::Function(function) => {
                     self.gen_func(&function.borrow());
                 }
-                typed_ast::Definition::Class(class_def) => {
+                tast::Definition::Class(class_def) => {
                     panic!(
                         "IR-gen does not support classes, like '{}'. Elimenate those earlier on.",
                         class_def.name
                     );
                 }
-                typed_ast::Definition::Struct(_struct_def) => {
+                tast::Definition::Struct(_struct_def) => {
                     // ?
                 }
-                typed_ast::Definition::Union(_union_def) => {
+                tast::Definition::Union(_union_def) => {
                     // ?
                 }
-                typed_ast::Definition::Enum(enum_def) => {
+                tast::Definition::Enum(enum_def) => {
                     panic!(
                         "IR-gen does not enum types, like '{}'. Elimenate those earlier on.",
                         enum_def.name
@@ -197,7 +197,7 @@ impl Generator {
         }
     }
 
-    fn gen_func(&mut self, func: &typed_ast::FunctionDef) {
+    fn gen_func(&mut self, func: &tast::FunctionDef) {
         log::debug!("Gen code for {}", func.name);
 
         self.label_map.clear();
@@ -207,8 +207,8 @@ impl Generator {
         let mut parameters: Vec<bytecode::Parameter> = vec![];
         for (index, parameter) in signature.parameters.iter().enumerate() {
             let typ = parameter.borrow().typ.clone();
-            let name = parameter.borrow().name.clone();
-            self.index_map.insert(parameter.borrow().id, index);
+            let name = parameter.borrow().name.name.clone();
+            self.index_map.insert(parameter.borrow().name.id, index);
             parameters.push(bytecode::Parameter {
                 name,
                 typ: self.get_bytecode_typ(&typ),
@@ -225,8 +225,8 @@ impl Generator {
         let mut locals = vec![];
         for (index, local_ref) in func.locals.iter().enumerate() {
             let typ = local_ref.borrow().typ.clone();
-            let name = local_ref.borrow().name.clone();
-            self.index_map.insert(local_ref.borrow().id, index);
+            let name = local_ref.borrow().name.name.clone();
+            self.index_map.insert(local_ref.borrow().name.id, index);
             locals.push(bytecode::Local {
                 name,
                 typ: self.get_bytecode_typ(&typ),
@@ -246,7 +246,7 @@ impl Generator {
 
         let instructions = std::mem::take(&mut self.instructions);
         self.functions.push(bytecode::Function {
-            name: func.name.clone(),
+            name: func.name.name.clone(),
             parameters,
             return_type,
             locals,
@@ -254,17 +254,22 @@ impl Generator {
         })
     }
 
-    fn gen_block(&mut self, block: &typed_ast::Block) {
+    fn gen_block(&mut self, block: &tast::Block) {
         for statement in block {
             self.gen_statement(statement);
         }
     }
 
-    fn gen_statement(&mut self, statement: &typed_ast::Statement) {
+    fn gen_statement(&mut self, statement: &tast::Statement) {
         match &statement.kind {
-            typed_ast::StatementKind::SetAttr { base, attr, value } => match &base.typ {
-                SlangType::User(UserType::Struct(struct_ref)) => {
-                    let field2 = struct_ref.upgrade().unwrap().get_field(attr).unwrap();
+            tast::StatementKind::SetAttr { base, attr, value } => match &base.typ {
+                SlangType::User(UserType::Struct(struct_type)) => {
+                    let field2 = struct_type
+                        .struct_ref
+                        .upgrade()
+                        .unwrap()
+                        .get_field(attr)
+                        .unwrap();
                     let field = field2.borrow();
                     self.gen_expression(base);
                     self.gen_expression(value);
@@ -275,64 +280,67 @@ impl Generator {
                 }
             },
 
-            typed_ast::StatementKind::SetIndex { base, index, value } => {
+            tast::StatementKind::SetIndex { base, index, value } => {
                 self.gen_expression(base);
                 self.gen_expression(index);
                 self.gen_expression(value);
                 self.emit(Instruction::SetElement);
             }
 
-            typed_ast::StatementKind::StoreLocal { local_ref, value } => {
+            tast::StatementKind::StoreLocal { local_ref, value } => {
                 self.gen_expression(value);
-                let index: usize = *self.index_map.get(&refer(local_ref).borrow().id).unwrap();
+                let index: usize = *self
+                    .index_map
+                    .get(&refer(local_ref).borrow().name.id)
+                    .unwrap();
                 self.emit(Instruction::StoreLocal { index });
             }
-            typed_ast::StatementKind::Let { .. } => {
+            tast::StatementKind::Let { .. } => {
                 unimplemented!("let-statement not supported, please use store-local");
             }
-            typed_ast::StatementKind::Assignment(_) => {
+            tast::StatementKind::Assignment(_) => {
                 unimplemented!("assignment not supported, please use store-local or set-attr");
             }
-            typed_ast::StatementKind::Break => {
+            tast::StatementKind::Break => {
                 let target_label = self.loop_stack.last().unwrap().1.clone();
                 self.jump(target_label);
             }
-            typed_ast::StatementKind::Continue => {
+            tast::StatementKind::Continue => {
                 let target_label = self.loop_stack.last().unwrap().0.clone();
                 self.jump(target_label);
             }
-            typed_ast::StatementKind::Pass => {}
-            typed_ast::StatementKind::Unreachable => {
+            tast::StatementKind::Pass => {}
+            tast::StatementKind::Unreachable => {
                 // TODO: think about unreachable code?
             }
-            typed_ast::StatementKind::Return { value } => self.gen_return_statement(value),
-            typed_ast::StatementKind::Case(_case_statement) => {
+            tast::StatementKind::Return { value } => self.gen_return_statement(value),
+            tast::StatementKind::Case(_case_statement) => {
                 // self.gen_case_statement(case_statement)
                 unimplemented!("case statements must be rewritten into switch statements before reaching this phase.");
             }
-            typed_ast::StatementKind::Switch(switch_statement) => {
+            tast::StatementKind::Switch(switch_statement) => {
                 self.gen_switch_statement(switch_statement);
             }
-            typed_ast::StatementKind::For(_) => {
+            tast::StatementKind::For(_) => {
                 unimplemented!(
                     "for-loops not supported, please rewrite into something else, like a while loop."
                 );
             }
-            typed_ast::StatementKind::If(if_statement) => self.gen_if_statement(if_statement),
-            typed_ast::StatementKind::Loop { body } => self.gen_loop(body),
-            typed_ast::StatementKind::Compound(block) => {
+            tast::StatementKind::If(if_statement) => self.gen_if_statement(if_statement),
+            tast::StatementKind::Loop { body } => self.gen_loop(body),
+            tast::StatementKind::Compound(block) => {
                 self.gen_block(block);
             }
-            typed_ast::StatementKind::While(while_statement) => {
+            tast::StatementKind::While(while_statement) => {
                 self.gen_while_statement(while_statement)
             }
-            typed_ast::StatementKind::Expression(expression) => {
+            tast::StatementKind::Expression(expression) => {
                 self.gen_expression(expression);
             }
         }
     }
 
-    fn gen_return_statement(&mut self, value: &Option<typed_ast::Expression>) {
+    fn gen_return_statement(&mut self, value: &Option<tast::Expression>) {
         if let Some(value) = value {
             self.gen_expression(value);
             self.emit(Instruction::Return(1));
@@ -342,7 +350,7 @@ impl Generator {
         // TBD: generate a new label here?
     }
 
-    fn gen_switch_statement(&mut self, switch_statement: &typed_ast::SwitchStatement) {
+    fn gen_switch_statement(&mut self, switch_statement: &tast::SwitchStatement) {
         let final_label = self.new_label();
         let default_label = self.new_label();
 
@@ -378,7 +386,7 @@ impl Generator {
         self.emit(Instruction::Nop);
     }
 
-    fn gen_if_statement(&mut self, if_statement: &typed_ast::IfStatement) {
+    fn gen_if_statement(&mut self, if_statement: &tast::IfStatement) {
         let true_label = self.new_label();
         let final_label = self.new_label();
         if let Some(if_false) = &if_statement.if_false {
@@ -410,7 +418,7 @@ impl Generator {
         self.emit(Instruction::Nop);
     }
 
-    fn gen_loop(&mut self, body: &typed_ast::Block) {
+    fn gen_loop(&mut self, body: &tast::Block) {
         let loop_start_label = self.new_label();
         let final_label = self.new_label();
         self.jump(loop_start_label.clone());
@@ -424,7 +432,7 @@ impl Generator {
         self.emit(Instruction::Nop);
     }
 
-    fn gen_while_statement(&mut self, while_statement: &typed_ast::WhileStatement) {
+    fn gen_while_statement(&mut self, while_statement: &tast::WhileStatement) {
         let loop_start_label = self.new_label();
         let true_label = self.new_label();
         let final_label = self.new_label();
@@ -448,13 +456,13 @@ impl Generator {
     /// Generate bytecode for condition statement.
     fn gen_condition(
         &mut self,
-        expression: &typed_ast::Expression,
+        expression: &tast::Expression,
         true_label: Label,
         false_label: Label,
     ) {
         // TODO: add 'not' operator
         match &expression.kind {
-            typed_ast::ExpressionKind::Binop {
+            tast::ExpressionKind::Binop {
                 lhs,
                 op: ast::BinaryOperator::Logic(op2),
                 rhs,
@@ -494,11 +502,11 @@ impl Generator {
         }
     }
 
-    fn get_struct_index(&self, struct_def: Rc<typed_ast::StructDef>) -> usize {
-        *self.type_to_id_map2.get(&struct_def.id).unwrap()
+    fn get_struct_index(&self, struct_def: Rc<tast::StructDef>) -> usize {
+        *self.type_to_id_map2.get(&struct_def.name.id).unwrap()
     }
 
-    fn get_union_index(&self, union_def: Rc<typed_ast::UnionDef>) -> usize {
+    fn get_union_index(&self, union_def: Rc<tast::UnionDef>) -> usize {
         *self.type_to_id_map2.get(&union_def.id).unwrap()
     }
 
@@ -514,17 +522,16 @@ impl Generator {
 
     fn get_bytecode_typ(&mut self, ty: &SlangType) -> bytecode::Typ {
         match ty {
-            SlangType::Bool => bytecode::Typ::Bool,
-            SlangType::Int => bytecode::Typ::Int,
-            SlangType::Float => bytecode::Typ::Float,
-            SlangType::String => bytecode::Typ::String,
+            SlangType::Basic(basic_type) => match basic_type {
+                BasicType::Bool => bytecode::Typ::Bool,
+                BasicType::Int => bytecode::Typ::Int,
+                BasicType::Float => bytecode::Typ::Float,
+                BasicType::String => bytecode::Typ::String,
+            },
             SlangType::Undefined => {
                 panic!("Undefined type");
             }
             SlangType::Unresolved(_) => {
-                panic!("AARG");
-            }
-            SlangType::GenericInstance { .. } => {
                 panic!("AARG");
             }
             SlangType::User(user_type) => self.get_bytecode_typ_for_user_type(user_type),
@@ -552,7 +559,8 @@ impl Generator {
     fn get_bytecode_typ_for_user_type(&mut self, user_type: &UserType) -> bytecode::Typ {
         match user_type {
             UserType::Struct(struct_type) => {
-                let composite_id: usize = self.get_struct_index(struct_type.upgrade().unwrap());
+                let composite_id: usize =
+                    self.get_struct_index(struct_type.struct_ref.upgrade().unwrap());
                 bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
             }
             UserType::Union(union_type) => {
@@ -583,44 +591,55 @@ impl Generator {
         }
     }
 
-    fn gen_expression(&mut self, expression: &typed_ast::Expression) {
+    fn gen_expression(&mut self, expression: &tast::Expression) {
         match &expression.kind {
-            typed_ast::ExpressionKind::Literal(literal) => self.gen_literal(literal),
-            typed_ast::ExpressionKind::ObjectInitializer { .. } => {
+            tast::ExpressionKind::Literal(literal) => self.gen_literal(literal),
+            tast::ExpressionKind::ObjectInitializer { .. } => {
                 unimplemented!("Object initializer, please use tuple literal instead.");
             }
-            typed_ast::ExpressionKind::EnumLiteral(_) => {
+            tast::ExpressionKind::EnumLiteral(_) => {
                 unimplemented!("Enum literal, please rewrite into tagged union.");
             }
-            typed_ast::ExpressionKind::TupleLiteral(values) => {
+            tast::ExpressionKind::TupleLiteral(values) => {
                 self.gen_tuple_literal(&expression.typ, values);
             }
-            typed_ast::ExpressionKind::UnionLiteral { attr, value } => {
+            tast::ExpressionKind::UnionLiteral { attr, value } => {
                 self.gen_union_literal(&expression.typ, attr, value);
             }
             /*
-            typed_ast::ExpressionKind::VoidLiteral => {
+            tast::ExpressionKind::VoidLiteral => {
                 // TBD: do something?
             }
             */
-            typed_ast::ExpressionKind::Undefined => {
+            tast::ExpressionKind::Undefined => {
                 // TBD: now what? Push undefined value onto the stack!
                 self.emit(Instruction::UndefinedLiteral);
             }
-            typed_ast::ExpressionKind::Object(_) => {
+            tast::ExpressionKind::Object(_) => {
                 panic!("Please resolve symbols before embarking into bytecode");
             }
-            typed_ast::ExpressionKind::ListLiteral(values) => {
+            tast::ExpressionKind::ListLiteral(values) => {
                 self.gen_array_literal(&expression.typ, values);
             }
-            typed_ast::ExpressionKind::Binop { lhs, op, rhs } => {
+            tast::ExpressionKind::Binop { lhs, op, rhs } => {
                 self.gen_binop(lhs, op, rhs);
             }
-            typed_ast::ExpressionKind::TypeCast { to_type, value } => {
+            tast::ExpressionKind::TypeCast { to_type, value } => {
                 self.gen_expression(value);
                 let cast_operation = match (&value.typ, &expression.typ) {
-                    (SlangType::Int, SlangType::Float) => bytecode::TypeConversion::IntToFloat,
-                    (SlangType::Float, SlangType::Int) => bytecode::TypeConversion::FloatToInt,
+                    (SlangType::Basic(from_type), SlangType::Basic(to_type)) => {
+                        match (from_type, to_type) {
+                            (BasicType::Int, BasicType::Float) => {
+                                bytecode::TypeConversion::IntToFloat
+                            }
+                            (BasicType::Float, BasicType::Int) => {
+                                bytecode::TypeConversion::FloatToInt
+                            }
+                            (a, b) => {
+                                panic!("Unsupported type casting: {} -> {}", a, b);
+                            }
+                        }
+                    }
                     (SlangType::User(_user_type), SlangType::Opaque) => {
                         bytecode::TypeConversion::UserToOpaque
                     }
@@ -635,11 +654,11 @@ impl Generator {
                 };
                 self.emit(Instruction::TypeConvert(cast_operation));
             }
-            typed_ast::ExpressionKind::Call { callee, arguments } => {
+            tast::ExpressionKind::Call { callee, arguments } => {
                 self.gen_call(callee, arguments);
             }
 
-            typed_ast::ExpressionKind::GetAttr { base, attr } => match &base.typ {
+            tast::ExpressionKind::GetAttr { base, attr } => match &base.typ {
                 SlangType::User(user_type) => {
                     let field_ref = user_type.get_field(attr).unwrap();
                     let field = field_ref.borrow();
@@ -655,14 +674,14 @@ impl Generator {
                 }
             },
 
-            typed_ast::ExpressionKind::GetIndex { base, index } => {
+            tast::ExpressionKind::GetIndex { base, index } => {
                 let typ = self.get_bytecode_typ(&expression.typ);
                 self.gen_expression(base);
                 self.gen_expression(index);
                 self.emit(Instruction::GetElement { typ });
             }
 
-            typed_ast::ExpressionKind::LoadSymbol(symbol) => match symbol {
+            tast::ExpressionKind::LoadSymbol(symbol) => match symbol {
                 Symbol::ExternFunction { name, typ } => {
                     // TODO: Gross hack! Not all functions are imported from std::!
                     let full_name = format!("std_{}", name);
@@ -676,18 +695,24 @@ impl Generator {
                 Symbol::Function(func_ref) => {
                     let func_ref1 = refer(func_ref);
                     let func_ref = func_ref1.borrow();
-                    let name = func_ref.name.clone();
+                    let name = func_ref.name.name.clone();
                     let typ = self.get_bytecode_typ(&func_ref.get_type());
                     self.emit(Instruction::LoadGlobalName { name, typ });
                 }
                 Symbol::LocalVariable(local_ref) => {
                     // TBD: use name + id as hint?
-                    let index: usize = *self.index_map.get(&refer(local_ref).borrow().id).unwrap();
+                    let index: usize = *self
+                        .index_map
+                        .get(&refer(local_ref).borrow().name.id)
+                        .unwrap();
                     self.emit(Instruction::LoadLocal { index });
                 }
                 Symbol::Parameter(param_ref) => {
                     // TBD: use name as a hint?
-                    let index: usize = *self.index_map.get(&refer(param_ref).borrow().id).unwrap();
+                    let index: usize = *self
+                        .index_map
+                        .get(&refer(param_ref).borrow().name.id)
+                        .unwrap();
                     self.emit(Instruction::LoadParameter { index });
                 }
                 other => {
@@ -698,18 +723,18 @@ impl Generator {
     }
 
     /// Generate code for a literal value.
-    fn gen_literal(&mut self, literal: &typed_ast::Literal) {
+    fn gen_literal(&mut self, literal: &tast::Literal) {
         match literal {
-            typed_ast::Literal::Bool(value) => {
+            tast::Literal::Bool(value) => {
                 self.emit(Instruction::BoolLiteral(*value));
             }
-            typed_ast::Literal::Integer(value) => {
+            tast::Literal::Integer(value) => {
                 self.emit(Instruction::IntLiteral(*value));
             }
-            typed_ast::Literal::Float(value) => {
+            tast::Literal::Float(value) => {
                 self.emit(Instruction::FloatLiteral(*value));
             }
-            typed_ast::Literal::String(value) => {
+            tast::Literal::String(value) => {
                 self.emit(Instruction::StringLiteral(value.clone()));
             }
         }
@@ -725,7 +750,7 @@ impl Generator {
     }
 
     /// Generate code for an array literal value
-    fn gen_array_literal(&mut self, typ: &SlangType, values: &[typed_ast::Expression]) {
+    fn gen_array_literal(&mut self, typ: &SlangType, values: &[tast::Expression]) {
         self.allocate_composite_type(typ);
 
         // Generate a sequence of set-element operations:
@@ -738,7 +763,7 @@ impl Generator {
     }
 
     /// Generate a struct literal, and fill all it's values!
-    fn gen_tuple_literal(&mut self, typ: &SlangType, values: &[typed_ast::Expression]) {
+    fn gen_tuple_literal(&mut self, typ: &SlangType, values: &[tast::Expression]) {
         self.allocate_composite_type(typ);
 
         for (index, value) in values.iter().enumerate() {
@@ -748,7 +773,7 @@ impl Generator {
         }
     }
 
-    fn gen_union_literal(&mut self, typ: &SlangType, attr: &str, value: &typed_ast::Expression) {
+    fn gen_union_literal(&mut self, typ: &SlangType, attr: &str, value: &tast::Expression) {
         let union_def = typ.as_union();
 
         let typ = self.get_bytecode_typ(&typ);
@@ -767,7 +792,7 @@ impl Generator {
     }
 
     /// Generate bytecode for a function call.
-    fn gen_call(&mut self, callee: &typed_ast::Expression, arguments: &Vec<typed_ast::Expression>) {
+    fn gen_call(&mut self, callee: &tast::Expression, arguments: &Vec<tast::Expression>) {
         let typ = callee
             .typ
             .clone()
@@ -790,9 +815,9 @@ impl Generator {
 
     fn gen_binop(
         &mut self,
-        lhs: &typed_ast::Expression,
+        lhs: &tast::Expression,
         op: &ast::BinaryOperator,
-        rhs: &typed_ast::Expression,
+        rhs: &tast::Expression,
     ) {
         match op {
             ast::BinaryOperator::Math(op2) => {

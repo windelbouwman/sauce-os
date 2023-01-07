@@ -22,15 +22,21 @@
 //!         data: OptionData
 //!
 
-use super::type_system::{SlangType, UserType};
-use super::typed_ast;
+use super::tast::SlangType;
+use super::tast::{
+    compound, integer_literal, load_local, store_local, tuple_literal, union_literal,
+    unreachable_code,
+};
+use super::tast::{Block, Expression, ExpressionKind, Statement, StatementKind};
+use super::tast::{CaseStatement, SwitchArm, SwitchStatement};
+use super::tast::{Definition, EnumDef, LocalVariable, Program, StructDef, StructDefBuilder};
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
 use super::{Context, NodeId, Ref};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub fn rewrite_enums(program: &mut typed_ast::Program, context: &mut Context) {
+pub fn rewrite_enums(program: &mut Program, context: &mut Context) {
     log::info!("Rewriting enums into tagged unions");
     let mut rewriter = EnumRewriter::new(context);
     visit_program(&mut rewriter, program);
@@ -38,8 +44,8 @@ pub fn rewrite_enums(program: &mut typed_ast::Program, context: &mut Context) {
 
 struct EnumRewriter<'d> {
     context: &'d mut Context,
-    local_variables: Vec<Rc<RefCell<typed_ast::LocalVariable>>>,
-    new_definitions: Vec<typed_ast::Definition>,
+    local_variables: Vec<Rc<RefCell<LocalVariable>>>,
+    new_definitions: Vec<Definition>,
 
     /// Mapping from enum types to tagged-union types!
     enum_map: HashMap<NodeId, SlangType>,
@@ -55,9 +61,9 @@ impl<'d> EnumRewriter<'d> {
         }
     }
 
-    fn lower_statement(&mut self, statement: &mut typed_ast::Statement) {
+    fn lower_statement(&mut self, statement: &mut Statement) {
         match &mut statement.kind {
-            typed_ast::StatementKind::Case(case_statement) => {
+            StatementKind::Case(case_statement) => {
                 let case_statement = std::mem::take(case_statement);
 
                 statement.kind = self.lower_case_statement(case_statement)
@@ -68,9 +74,9 @@ impl<'d> EnumRewriter<'d> {
 
     /// Contrapt new types for the given enum type.
     ///
-    fn contrapt_tagged_union(&mut self, enum_def: Rc<typed_ast::EnumDef>) {
-        let union_name = format!("{}Data", enum_def.name);
-        let mut union_builder = typed_ast::StructDefBuilder::new(union_name, self.new_id());
+    fn contrapt_tagged_union(&mut self, enum_def: Rc<EnumDef>) {
+        let union_name = format!("{}Data", enum_def.name.name);
+        let mut union_builder = StructDefBuilder::new(union_name, self.new_id());
 
         // let union_builder
         for variant in &enum_def.variants {
@@ -80,7 +86,7 @@ impl<'d> EnumRewriter<'d> {
             if variant.data.is_empty() {
                 // no payload fields required!
                 // Add a place holder int as stub ..
-                union_builder.add_field(&union_field_name, SlangType::Int);
+                union_builder.add_field(&union_field_name, SlangType::int());
             } else if variant.data.len() == 1 {
                 // Single field!
                 let variant_typ = variant.data[0].clone();
@@ -88,9 +94,9 @@ impl<'d> EnumRewriter<'d> {
             } else {
                 // multi-payload field, create sub struct!
                 let multi_field_enum_struct_name =
-                    format!("{}{}Data", enum_def.name.clone(), variant.name);
+                    format!("{}{}Data", enum_def.name.name.clone(), variant.name);
                 let mut struct_builder2 =
-                    typed_ast::StructDefBuilder::new(multi_field_enum_struct_name, self.new_id());
+                    StructDefBuilder::new(multi_field_enum_struct_name, self.new_id());
                 for (index, payload_typ) in variant.data.iter().enumerate() {
                     let payload_name = format!("f_{}", index);
                     struct_builder2.add_field(&payload_name, payload_typ.clone());
@@ -101,100 +107,94 @@ impl<'d> EnumRewriter<'d> {
             }
         }
 
-        let union_def = Rc::new(union_builder.finish_union());
-        let union_typ = SlangType::User(UserType::Union(Rc::downgrade(&union_def)));
-        self.new_definitions
-            .push(typed_ast::Definition::Union(union_def));
+        let union_def = Definition::Union(Rc::new(union_builder.finish_union()));
+        let union_typ = union_def.create_type(vec![]);
+        self.new_definitions.push(union_def);
 
         // Create tagged union struct:
-        let mut struct_builder =
-            typed_ast::StructDefBuilder::new(enum_def.name.clone(), self.new_id());
-        struct_builder.add_field("tag", SlangType::Int);
+        let mut struct_builder = StructDefBuilder::new(enum_def.name.name.clone(), self.new_id());
+        struct_builder.add_field("tag", SlangType::int());
         struct_builder.add_field("data", union_typ);
         let tagged_union_typ = self.define_struct(struct_builder.finish_struct());
 
         // register tagged union for later usage!
-        self.enum_map.insert(enum_def.id, tagged_union_typ);
+        self.enum_map.insert(enum_def.name.id, tagged_union_typ);
 
         // ?
     }
 
     // fn define_union() -> a {
-    fn define_struct(&mut self, struct_def: typed_ast::StructDef) -> SlangType {
-        let struct_def = Rc::new(struct_def);
-        let typ = SlangType::User(UserType::Struct(Rc::downgrade(&struct_def)));
-        self.new_definitions
-            .push(typed_ast::Definition::Struct(struct_def));
+    fn define_struct(&mut self, struct_def: StructDef) -> SlangType {
+        let struct_def = struct_def.into_def();
+        let typ = struct_def.create_type(vec![]);
+        self.new_definitions.push(struct_def);
         typ
     }
 
     /// Transform case statement into switch statement, using a tagged union.
-    fn lower_case_statement(
-        &mut self,
-        mut case_statement: typed_ast::CaseStatement,
-    ) -> typed_ast::StatementKind {
+    fn lower_case_statement(&mut self, mut case_statement: CaseStatement) -> StatementKind {
         // Load tagged union discriminating tag
         let enum_type = case_statement.value.typ.as_enum();
         let tagged_union_type = self
             .enum_map
-            .get(&enum_type.id)
+            .get(&enum_type.enum_ref.upgrade().unwrap().name.id)
             .expect("Enum is translated")
             .clone();
         let tagged_union_ref =
             self.new_local_variable("tagged_union".to_owned(), tagged_union_type);
 
         // Store tagged value for later usage
-        let prelude = typed_ast::store_local(tagged_union_ref.clone(), case_statement.value);
+        let prelude = store_local(tagged_union_ref.clone(), case_statement.value);
 
         // Retrieve tag from tagged value:
-        let tag_value = typed_ast::load_local(tagged_union_ref.clone()).get_attr("tag");
+        let tag_value = load_local(tagged_union_ref.clone()).get_attr("tag");
 
         let mut switch_arms = vec![];
         for arm in case_statement.arms.iter_mut() {
             let variant = arm.get_variant();
 
             // This arm tag:
-            let arm_value = typed_ast::integer_literal(variant.borrow().index as i64);
+            let arm_value = integer_literal(variant.borrow().index as i64);
             let payload_name = variant.borrow().name.clone();
 
-            let mut body: typed_ast::Block = vec![];
+            let mut body: Block = vec![];
 
             // Unpack variant data into local variables:
             if arm.local_refs.is_empty() {
                 // Nothing to unpack
             } else if arm.local_refs.len() == 1 {
                 // single value to unpack!
-                let variant_value = typed_ast::load_local(tagged_union_ref.clone())
+                let variant_value = load_local(tagged_union_ref.clone())
                     .get_attr("data")
                     .get_attr(&payload_name);
                 let local_ref = arm.local_refs[0].clone();
 
-                body.push(typed_ast::store_local(local_ref, variant_value));
+                body.push(store_local(local_ref, variant_value));
             } else {
                 for (index, local_ref) in arm.local_refs.iter().enumerate() {
                     let field_name = format!("f_{}", index);
-                    let variant_value = typed_ast::load_local(tagged_union_ref.clone())
+                    let variant_value = load_local(tagged_union_ref.clone())
                         .get_attr("data")
                         .get_attr(&payload_name)
                         .get_attr(&field_name);
-                    body.push(typed_ast::store_local(local_ref.clone(), variant_value));
+                    body.push(store_local(local_ref.clone(), variant_value));
                 }
             }
 
             body.append(&mut arm.body);
 
-            switch_arms.push(typed_ast::SwitchArm {
+            switch_arms.push(SwitchArm {
                 value: arm_value,
                 body,
             });
         }
 
         // Default case, could be an error case?
-        let default_block = vec![typed_ast::unreachable_code()];
+        let default_block = vec![unreachable_code()];
 
-        typed_ast::compound(vec![
+        compound(vec![
             prelude,
-            typed_ast::StatementKind::Switch(typed_ast::SwitchStatement {
+            StatementKind::Switch(SwitchStatement {
                 value: tag_value,
                 arms: switch_arms,
                 default: default_block,
@@ -204,15 +204,15 @@ impl<'d> EnumRewriter<'d> {
         .kind
     }
 
-    fn lower_expression(&mut self, expression: &mut typed_ast::Expression) {
+    fn lower_expression(&mut self, expression: &mut Expression) {
         match &mut expression.kind {
-            typed_ast::ExpressionKind::EnumLiteral(enum_literal) => {
+            ExpressionKind::EnumLiteral(enum_literal) => {
                 let variant_ref = enum_literal.variant.upgrade().unwrap();
                 let variant = variant_ref.borrow();
 
                 let tagged_union_typ = self
                     .enum_map
-                    .get(&variant.parent.upgrade().unwrap().id)
+                    .get(&variant.parent.upgrade().unwrap().name.id)
                     .unwrap()
                     .clone();
 
@@ -227,19 +227,19 @@ impl<'d> EnumRewriter<'d> {
                 let payload = std::mem::take(&mut enum_literal.arguments);
 
                 // Marker value to indicate variant choice:
-                let tag_value = typed_ast::integer_literal(variant.index as i64);
+                let tag_value = integer_literal(variant.index as i64);
 
                 let payload_name = variant.name.to_owned();
 
                 let union_value = if payload.is_empty() {
                     // No payload (store int as dummy value)
-                    let value = typed_ast::integer_literal(0);
-                    typed_ast::union_literal(data_union_type, payload_name, value)
+                    let value = integer_literal(0);
+                    union_literal(data_union_type, payload_name, value)
                 } else if payload.len() == 1 {
                     // Single payload value
                     let value = payload.into_iter().next().unwrap();
 
-                    typed_ast::union_literal(data_union_type, payload_name, value)
+                    union_literal(data_union_type, payload_name, value)
                 } else {
                     // multi payload value
                     let payload_struct_type = data_union_type
@@ -250,24 +250,20 @@ impl<'d> EnumRewriter<'d> {
                         .typ
                         .clone();
 
-                    let struct_value = typed_ast::tuple_literal(payload_struct_type, payload);
-                    typed_ast::union_literal(data_union_type, payload_name, struct_value)
+                    let struct_value = tuple_literal(payload_struct_type, payload);
+                    union_literal(data_union_type, payload_name, struct_value)
                 };
 
                 let tagged_union = vec![tag_value, union_value];
-                expression.kind = typed_ast::ExpressionKind::TupleLiteral(tagged_union);
+                expression.kind = ExpressionKind::TupleLiteral(tagged_union);
                 expression.typ = tagged_union_typ;
             }
             _ => {}
         }
     }
 
-    fn new_local_variable(
-        &mut self,
-        name: String,
-        typ: SlangType,
-    ) -> Ref<typed_ast::LocalVariable> {
-        let new_var = Rc::new(RefCell::new(typed_ast::LocalVariable::new(
+    fn new_local_variable(&mut self, name: String, typ: SlangType) -> Ref<LocalVariable> {
+        let new_var = Rc::new(RefCell::new(LocalVariable::new(
             Default::default(),
             false,
             name,
@@ -292,7 +288,7 @@ impl<'d> VisitorApi for EnumRewriter<'d> {
             VisitedNode::Program(program) => {
                 for definition in &program.definitions {
                     match definition {
-                        typed_ast::Definition::Enum(enum_def) => {
+                        Definition::Enum(enum_def) => {
                             self.contrapt_tagged_union(enum_def.clone());
                         }
                         _ => {}
@@ -302,7 +298,12 @@ impl<'d> VisitorApi for EnumRewriter<'d> {
             }
             VisitedNode::TypeExpr(type_expr) => {
                 if type_expr.is_enum() {
-                    let tagged_union = self.enum_map.get(&type_expr.as_enum().id).unwrap().clone();
+                    let enum_type = type_expr.as_enum();
+                    let tagged_union = self
+                        .enum_map
+                        .get(&enum_type.enum_ref.upgrade().unwrap().name.id)
+                        .unwrap()
+                        .clone();
                     *type_expr = tagged_union;
                 }
 
@@ -318,11 +319,11 @@ impl<'d> VisitorApi for EnumRewriter<'d> {
                 // remove enum's from definitions:
                 program
                     .definitions
-                    .retain(|d| !matches!(d, typed_ast::Definition::Enum(_)));
+                    .retain(|d| !matches!(d, Definition::Enum(_)));
             }
             VisitedNode::Definition(definition) => {
                 match definition {
-                    typed_ast::Definition::Function(function_def) => {
+                    Definition::Function(function_def) => {
                         if !self.local_variables.is_empty() {
                             // Append newly created local variables:
                             function_def

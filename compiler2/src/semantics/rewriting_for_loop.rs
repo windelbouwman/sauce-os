@@ -1,12 +1,16 @@
-use super::type_system::SlangType;
-use super::typed_ast;
+use super::tast::{
+    comparison, compound, get_index, integer_literal, load_local, store_local, while_loop,
+};
+use super::tast::{Definition, LocalVariable, Program, SlangType};
+use super::tast::{ForStatement, Statement, StatementKind};
+use super::tast::{NodeId, Ref};
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
-use super::{Context, NodeId, Ref};
+use super::Context;
 use crate::parsing::ast;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub fn rewrite_for_loops(program: &mut typed_ast::Program, context: &mut Context) {
+pub fn rewrite_for_loops(program: &mut Program, context: &mut Context) {
     log::info!("Rewriting for loops into while loops");
     let mut rewriter = ForLoopRewriter::new(context);
     visit_program(&mut rewriter, program);
@@ -15,7 +19,7 @@ pub fn rewrite_for_loops(program: &mut typed_ast::Program, context: &mut Context
 
 struct ForLoopRewriter<'d> {
     context: &'d mut Context,
-    local_variables: Vec<Rc<RefCell<typed_ast::LocalVariable>>>,
+    local_variables: Vec<Rc<RefCell<LocalVariable>>>,
 }
 
 impl<'d> ForLoopRewriter<'d> {
@@ -26,9 +30,9 @@ impl<'d> ForLoopRewriter<'d> {
         }
     }
 
-    fn lower_statement(&mut self, statement: &mut typed_ast::Statement) {
+    fn lower_statement(&mut self, statement: &mut Statement) {
         match &mut statement.kind {
-            typed_ast::StatementKind::For(for_statement) => {
+            StatementKind::For(for_statement) => {
                 let for_statement = std::mem::take(for_statement);
                 statement.kind = self.lower_for_statement(for_statement).kind
             }
@@ -39,55 +43,51 @@ impl<'d> ForLoopRewriter<'d> {
     /// Transform for-loop into a while loop.
     ///
     /// Create an extra variable for the loop index.
-    fn lower_for_statement(
-        &mut self,
-        for_statement: typed_ast::ForStatement,
-    ) -> typed_ast::Statement {
+    fn lower_for_statement(&mut self, for_statement: ForStatement) -> Statement {
         // Check if we loop over an array:
         match for_statement.iterable.typ.clone() {
             SlangType::Array(array_type) => {
                 let mut for_body = for_statement.body;
-                let index_local_ref = self.new_local_variable("index".to_owned(), SlangType::Int);
+                let index_local_ref = self.new_local_variable("index".to_owned(), SlangType::int());
                 let iter_local_ref = self
                     .new_local_variable("iter".to_owned(), SlangType::Array(array_type.clone()));
 
                 // index = 0
-                let zero_loop_index = typed_ast::store_local(index_local_ref.clone(), 0);
+                let zero_loop_index = store_local(index_local_ref.clone(), 0);
 
                 // iter_var = iterator
-                let set_iter_var =
-                    typed_ast::store_local(iter_local_ref.clone(), for_statement.iterable);
+                let set_iter_var = store_local(iter_local_ref.clone(), for_statement.iterable);
 
                 // Get current element: loop_var = array[index]
-                let get_loop_var = typed_ast::store_local(
+                let get_loop_var = store_local(
                     for_statement.loop_var,
-                    typed_ast::get_index(
-                        typed_ast::load_local(iter_local_ref),
-                        typed_ast::load_local(index_local_ref.clone()),
+                    get_index(
+                        load_local(iter_local_ref),
+                        load_local(index_local_ref.clone()),
                     ),
                 );
                 for_body.insert(0, get_loop_var);
 
                 // Increment index variable:
-                let inc_loop_index = typed_ast::store_local(
+                let inc_loop_index = store_local(
                     index_local_ref.clone(),
-                    typed_ast::load_local(index_local_ref.clone()) + 1,
+                    load_local(index_local_ref.clone()) + 1,
                 );
                 for_body.push(inc_loop_index);
 
                 // While condition:
-                let loop_condition = typed_ast::comparison(
-                    typed_ast::load_local(index_local_ref),
+                let loop_condition = comparison(
+                    load_local(index_local_ref),
                     ast::ComparisonOperator::Lt,
-                    typed_ast::integer_literal(array_type.size as i64),
+                    integer_literal(array_type.size as i64),
                 );
 
                 // Translate for-loop into while loop:
-                let while_statement = typed_ast::while_loop(loop_condition, for_body);
+                let while_statement = while_loop(loop_condition, for_body);
 
                 let new_block = vec![zero_loop_index, set_iter_var, while_statement];
 
-                typed_ast::compound(new_block)
+                compound(new_block)
             }
             other => {
                 unimplemented!("Cannot iterate {:?}", other);
@@ -95,12 +95,8 @@ impl<'d> ForLoopRewriter<'d> {
         }
     }
 
-    fn new_local_variable(
-        &mut self,
-        name: String,
-        typ: SlangType,
-    ) -> Ref<typed_ast::LocalVariable> {
-        let new_var = Rc::new(RefCell::new(typed_ast::LocalVariable::new(
+    fn new_local_variable(&mut self, name: String, typ: SlangType) -> Ref<LocalVariable> {
+        let new_var = Rc::new(RefCell::new(LocalVariable::new(
             Default::default(),
             false,
             name,
@@ -126,7 +122,7 @@ impl<'d> VisitorApi for ForLoopRewriter<'d> {
         match node {
             VisitedNode::Definition(definition) => {
                 match definition {
-                    typed_ast::Definition::Function(function_def) => {
+                    Definition::Function(function_def) => {
                         if !self.local_variables.is_empty() {
                             // Append newly created local variables:
                             function_def

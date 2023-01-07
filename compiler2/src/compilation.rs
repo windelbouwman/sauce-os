@@ -42,7 +42,7 @@ pub fn compile_to_bytecode(
     let mut context = Context::new(builtin_scope);
     load_std_module(&mut context);
 
-    log::info!("Type checking");
+    log::info!("Parsing done. Semantic analysis begins.");
     let mut typed_programs = vec![];
     for program in sorted_programs {
         log::info!("Checking module: {}", program.name);

@@ -11,18 +11,16 @@ TBD: could be combined with the type checker?
 
 */
 
-use super::type_system::{Generic, SlangType, UserType};
-use super::typed_ast;
+use super::tast::{Definition, Expression, ExpressionKind, Program};
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
 use super::{Diagnostics, Scope, Symbol};
 use crate::errors::CompilationError;
 use crate::parsing::{ast, Location};
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// Modify the AST such that all symbols are resolved.
 pub fn bind_names(
-    program: &mut typed_ast::Program,
+    program: &mut Program,
     builtin_scope: Arc<Scope>,
 ) -> Result<(), CompilationError> {
     log::debug!("Name binding '{}'", program.name);
@@ -48,54 +46,14 @@ impl NameBinder {
 
     /// Check if expression is an unresolved reference
     /// resolve it, and update the expression to the resolved object.
-    fn check_expr(&mut self, expression: &mut typed_ast::Expression) {
+    fn check_expr(&mut self, expression: &mut Expression) {
         match &expression.kind {
-            typed_ast::ExpressionKind::Object(obj_ref) => {
+            ExpressionKind::Object(obj_ref) => {
                 if let Some(symbol) = self.resolve_obj(&obj_ref) {
-                    expression.kind = typed_ast::ExpressionKind::LoadSymbol(symbol);
+                    expression.kind = ExpressionKind::LoadSymbol(symbol);
                 }
             }
             _ => {}
-        }
-    }
-
-    fn check_type_expression(&mut self, type_expression: &mut SlangType) {
-        match type_expression {
-            SlangType::Unresolved(obj_ref) => {
-                if let Some(symbol) = self.resolve_obj(&obj_ref) {
-                    match symbol {
-                        Symbol::Typ(typ) => {
-                            *type_expression = typ;
-                        }
-                        other => {
-                            let location: Location = obj_ref.location();
-                            self.error(&location, format!("Symbol is no type, but: {}", other));
-                        }
-                    }
-                }
-            }
-            SlangType::GenericInstance { generic, .. } => match generic {
-                Generic::Unresolved(obj_ref) => {
-                    if let Some(symbol) = self.resolve_obj(obj_ref) {
-                        match symbol {
-                            Symbol::Generic(generic_def) => {
-                                *generic = Generic::Generic(generic_def);
-                            }
-                            other => {
-                                let location: Location = obj_ref.location();
-                                self.error(
-                                    &location,
-                                    format!("Expected generic, but got: {}", other),
-                                );
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            },
-            _ => {
-                // Fine?
-            }
         }
     }
 
@@ -146,6 +104,7 @@ impl NameBinder {
                 }
             }
 
+            /*
             Symbol::Typ(SlangType::User(UserType::Enum(enum_type))) => {
                 let enum_type = enum_type.upgrade().unwrap();
                 if let Some(variant) = enum_type.lookup(member) {
@@ -155,7 +114,7 @@ impl NameBinder {
                     Err(())
                 }
             }
-
+            */
             other => {
                 self.error(location, format!("Cannot scope-access: {}", other));
                 Err(())
@@ -206,19 +165,14 @@ impl NameBinder {
 fn get_scope(node: &VisitedNode) -> Option<Arc<Scope>> {
     match node {
         VisitedNode::Program(program) => Some(program.scope.clone()),
-        VisitedNode::Generic(generic) => Some(generic.scope.clone()),
         VisitedNode::Definition(definition) => match definition {
-            typed_ast::Definition::Function(function_def) => {
-                Some(function_def.borrow().scope.clone())
-            }
+            Definition::Function(function_def) => Some(function_def.borrow().scope.clone()),
+            Definition::Enum(enum_def) => Some(enum_def.scope.clone()),
+            Definition::Struct(struct_def) => Some(struct_def.scope.clone()),
             _ => None,
         },
         VisitedNode::Function(function_def) => Some(function_def.scope.clone()),
         VisitedNode::CaseArm(case_arm) => Some(case_arm.scope.clone()),
-        // VisitedNode::Statement(statement) => match statement.kind {
-        //     typed_ast::StatementKind::Case(case_statement) => Some(case_statement.scope.clone()),
-        //     _ => None,
-        // },
         _ => None,
     }
 }
@@ -230,8 +184,8 @@ impl VisitorApi for NameBinder {
         }
 
         match node {
-            VisitedNode::TypeExpr(type_expression) => {
-                self.check_type_expression(type_expression);
+            VisitedNode::TypeExpr(_type_expression) => {
+                // self.check_type_expression(type_expression);
             }
             VisitedNode::Expression(expression) => {
                 self.check_expr(expression);

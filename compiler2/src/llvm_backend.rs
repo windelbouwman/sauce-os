@@ -662,7 +662,7 @@ where
         // let base_type2 = "%HolderType1";
         let element_ptr = self.new_local(None);
         // let element_typ = "u8*";
-        log::info!("Base type = {}", base_type);
+        // log::info!("Base type = {}", base_type);
 
         // Example:
         // %HolderType1 = type { i8*, i8* }

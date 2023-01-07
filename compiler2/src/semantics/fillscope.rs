@@ -8,12 +8,11 @@
 //! - Assign unique ID to each symbol.
 
 use super::context::Context;
-use super::generics::{GenericDef, TypeVar};
-use super::type_system::{Generic, SlangType, TypeVarRef, UserType};
-use super::typed_ast;
-use super::NodeId;
-use super::Ref;
+use super::symbol::DefinitionRef;
+use super::tast;
+use super::tast::{NameNodeId, SlangType, TypeExpression, TypeVar, UserType};
 use super::{Diagnostics, Scope, Symbol};
+use super::{NodeId, Ref};
 use crate::parsing::{ast, Location};
 use crate::CompilationError;
 use std::cell::RefCell;
@@ -23,7 +22,7 @@ use std::sync::Arc;
 pub fn ast_to_nodes(
     program: ast::Program,
     context: &mut Context,
-) -> Result<typed_ast::Program, CompilationError> {
+) -> Result<tast::Program, CompilationError> {
     log::debug!("Filling scopes");
     let phase1 = Phase1::new(&program.path, context);
     let prog = phase1.on_prog(program)?;
@@ -35,7 +34,7 @@ struct Phase1<'g> {
     context: &'g mut Context,
     scopes: Vec<Scope>,
     diagnostics: Diagnostics,
-    local_variables: Vec<Rc<RefCell<typed_ast::LocalVariable>>>,
+    local_variables: Vec<Rc<RefCell<tast::LocalVariable>>>,
 }
 
 impl<'g> Phase1<'g> {
@@ -48,7 +47,7 @@ impl<'g> Phase1<'g> {
         }
     }
 
-    fn on_prog(mut self, prog: ast::Program) -> Result<typed_ast::Program, CompilationError> {
+    fn on_prog(mut self, prog: ast::Program) -> Result<tast::Program, CompilationError> {
         self.enter_scope();
         for import in &prog.imports {
             match import {
@@ -80,9 +79,8 @@ impl<'g> Phase1<'g> {
         }
 
         let mut definitions = vec![];
-        let mut generics = vec![];
         for definition in prog.definitions {
-            if let Some(definition) = self.on_definition(definition, &mut generics) {
+            if let Ok(definition) = self.on_definition(definition) {
                 definitions.push(definition);
             }
         }
@@ -90,11 +88,10 @@ impl<'g> Phase1<'g> {
         let prog_scope = self.leave_scope();
         assert!(self.scopes.is_empty());
 
-        let typed_prog = typed_ast::Program {
+        let typed_prog = tast::Program {
             name: prog.name,
             path: prog.path,
             scope: Arc::new(prog_scope),
-            generics,
             definitions,
         };
 
@@ -102,11 +99,7 @@ impl<'g> Phase1<'g> {
     }
 
     /// Try to load a module by the given name.
-    fn load_module(
-        &mut self,
-        location: &Location,
-        modname: &str,
-    ) -> Option<Rc<typed_ast::Program>> {
+    fn load_module(&mut self, location: &Location, modname: &str) -> Option<Rc<tast::Program>> {
         if self.context.modules_scope.is_defined(modname) {
             match self
                 .context
@@ -125,89 +118,49 @@ impl<'g> Phase1<'g> {
         }
     }
 
-    fn on_definition(
-        &mut self,
-        type_def: ast::Definition,
-        generics: &mut Vec<Rc<GenericDef>>,
-    ) -> Option<typed_ast::Definition> {
+    fn on_definition(&mut self, type_def: ast::Definition) -> Result<tast::Definition, ()> {
         match type_def {
-            ast::Definition::Class(class_def) => self.check_class_def(class_def).ok(),
-            ast::Definition::Struct(struct_def) => self.check_struct_def(struct_def).ok(),
-            ast::Definition::Enum(enum_def) => self.check_enum_def(enum_def).ok(),
+            ast::Definition::Class(class_def) => self.check_class_def(class_def),
+            ast::Definition::Struct(struct_def) => self.on_struct_def(struct_def),
+            ast::Definition::Enum(enum_def) => self.on_enum_def(enum_def),
             ast::Definition::Function(function_def) => {
                 match self.on_function_def(function_def, None) {
-                    Ok(typed_function_def) => {
-                        Some(typed_ast::Definition::Function(typed_function_def))
-                    }
-                    Err(()) => None,
+                    Ok(typed_function_def) => Ok(tast::Definition::Function(typed_function_def)),
+                    Err(()) => Err(()),
                 }
-            }
-            ast::Definition::Generic {
-                name,
-                location,
-                base,
-                parameters,
-            } => {
-                self.enter_scope();
-                let mut type_parameters = vec![];
-                // Register type variables as parameters!
-                for type_var in parameters {
-                    let type_var2 = Rc::new(TypeVar {
-                        name: type_var.name.clone(),
-                        location: type_var.location.clone(),
-                        id: self.new_id(),
-                    });
-                    self.define(
-                        &type_var.name,
-                        Symbol::Typ(SlangType::TypeVar(TypeVarRef {
-                            ptr: Rc::downgrade(&type_var2),
-                        })),
-                        &type_var.location,
-                    );
-                    type_parameters.push(type_var2);
-                }
-
-                // TODO: this code needs cleaning...
-                let mut temp_vec = vec![];
-                let base = self.on_definition(*base, &mut temp_vec).unwrap();
-                assert!(temp_vec.is_empty());
-
-                let scope = Arc::new(self.leave_scope());
-
-                let generic_def = Rc::new(GenericDef {
-                    base,
-                    scope,
-                    name: name.clone(),
-                    id: self.new_id(),
-                    location: location.clone(),
-                    type_parameters,
-                });
-
-                self.define(
-                    &name,
-                    Symbol::Generic(Rc::downgrade(&generic_def)),
-                    &location,
-                );
-
-                generics.push(generic_def);
-
-                None
             }
         }
     }
 
+    fn on_type_parameters(&mut self, parameters: Vec<ast::TypeVar>) -> Vec<Rc<TypeVar>> {
+        let mut type_parameters = vec![];
+        // Register type variables as parameters!
+        for type_var in parameters {
+            let type_var2 = Rc::new(TypeVar {
+                name: type_var.name.clone(),
+                location: type_var.location.clone(),
+                id: self.new_id(),
+            });
+            self.define(
+                &type_var.name,
+                Symbol::Typ(SlangType::type_var(&type_var2)),
+                &type_var.location,
+            );
+            type_parameters.push(type_var2);
+        }
+        type_parameters
+    }
+
     /// Process a struct definition.
-    fn check_struct_def(
-        &mut self,
-        struct_def: ast::StructDef,
-    ) -> Result<typed_ast::Definition, ()> {
+    fn on_struct_def(&mut self, struct_def: ast::StructDef) -> Result<tast::Definition, ()> {
         self.enter_scope();
+        let type_parameters = self.on_type_parameters(struct_def.type_parameters);
 
         let mut inner_defs = vec![];
         for (index, field) in struct_def.fields.into_iter().enumerate() {
             let field_typ = self.on_type_expression(field.typ)?;
 
-            let field_def = Rc::new(RefCell::new(typed_ast::FieldDef {
+            let field_def = Rc::new(RefCell::new(tast::FieldDef {
                 location: field.location.clone(),
                 name: field.name.clone(),
                 typ: field_typ,
@@ -227,27 +180,30 @@ impl<'g> Phase1<'g> {
 
         let struct_scope = self.leave_scope();
 
-        let struct_ref = Rc::new(typed_ast::StructDef {
+        let struct_ref = Rc::new(tast::StructDef {
             location: struct_def.location.clone(),
-            name: struct_def.name.clone(),
-            id: self.new_id(),
+            name: NameNodeId {
+                name: struct_def.name.clone(),
+                id: self.new_id(),
+            },
+            type_parameters,
             scope: Arc::new(struct_scope),
             fields: inner_defs,
         });
 
         self.define(
             &struct_def.name,
-            Symbol::Typ(SlangType::User(UserType::Struct(Rc::downgrade(
-                &struct_ref,
-            )))),
+            Symbol::Definition(DefinitionRef::Struct(Rc::downgrade(&struct_ref))),
             &struct_def.location,
         );
 
-        Ok(typed_ast::Definition::Struct(struct_ref))
+        Ok(tast::Definition::Struct(struct_ref))
     }
 
-    fn check_enum_def(&mut self, enum_def: ast::EnumDef) -> Result<typed_ast::Definition, ()> {
+    fn on_enum_def(&mut self, enum_def: ast::EnumDef) -> Result<tast::Definition, ()> {
         self.enter_scope();
+        let type_parameters = self.on_type_parameters(enum_def.type_parameters);
+
         let mut variants = vec![];
         for (index, option) in enum_def.options.into_iter().enumerate() {
             let mut payload_types = vec![];
@@ -255,7 +211,7 @@ impl<'g> Phase1<'g> {
                 payload_types.push(self.on_type_expression(typ)?);
             }
 
-            let variant = Rc::new(RefCell::new(typed_ast::EnumVariant {
+            let variant = Rc::new(RefCell::new(tast::EnumVariant {
                 location: option.location.clone(),
                 name: option.name.clone(),
                 data: payload_types,
@@ -271,12 +227,15 @@ impl<'g> Phase1<'g> {
         }
         let enum_scope = self.leave_scope();
 
-        let typed_enum_def = Rc::new(typed_ast::EnumDef {
+        let typed_enum_def = Rc::new(tast::EnumDef {
             location: enum_def.location.clone(),
-            id: self.new_id(),
-            name: enum_def.name.clone(),
+            name: NameNodeId {
+                name: enum_def.name.clone(),
+                id: self.new_id(),
+            },
             variants,
-            scope: enum_scope,
+            scope: Arc::new(enum_scope),
+            type_parameters,
         });
 
         let enum_ref = Rc::downgrade(&typed_enum_def);
@@ -288,25 +247,25 @@ impl<'g> Phase1<'g> {
 
         self.define(
             &enum_def.name,
-            Symbol::Typ(SlangType::User(UserType::Enum(enum_ref))),
+            Symbol::Definition(DefinitionRef::Enum(enum_ref)),
             &enum_def.location,
         );
 
-        Ok(typed_ast::Definition::Enum(typed_enum_def))
+        Ok(tast::Definition::Enum(typed_enum_def))
     }
 
     /// Process a class definition.
     ///
     /// - Store class in current scope
     /// - Process individual fields in class in new scope
-    fn check_class_def(&mut self, class_def: ast::ClassDef) -> Result<typed_ast::Definition, ()> {
+    fn check_class_def(&mut self, class_def: ast::ClassDef) -> Result<tast::Definition, ()> {
         self.enter_scope();
 
         let mut fields = vec![];
         for (index, field) in class_def.fields.into_iter().enumerate() {
             let field_typ = self.on_type_expression(field.typ)?;
             let value = self.on_expression(field.value)?;
-            let field_def = Rc::new(RefCell::new(typed_ast::FieldDef {
+            let field_def = Rc::new(RefCell::new(tast::FieldDef {
                 location: field.location.clone(),
                 name: field.name.clone(),
                 typ: field_typ,
@@ -331,10 +290,13 @@ impl<'g> Phase1<'g> {
 
         let class_scope = self.leave_scope();
 
-        let class_ref = Rc::new(typed_ast::ClassDef {
+        let class_ref = Rc::new(tast::ClassDef {
             location: class_def.location.clone(),
-            id: self.new_id(),
-            name: class_def.name.clone(),
+            name: NameNodeId {
+                name: class_def.name.clone(),
+                id: self.new_id(),
+            },
+            type_parameters: vec![],
             fields,
             methods,
             scope: Arc::new(class_scope),
@@ -342,11 +304,11 @@ impl<'g> Phase1<'g> {
 
         self.define(
             &class_def.name,
-            Symbol::Typ(SlangType::User(UserType::Class(Rc::downgrade(&class_ref)))),
+            Symbol::Definition(DefinitionRef::Class(Rc::downgrade(&class_ref))),
             &class_def.location,
         );
 
-        Ok(typed_ast::Definition::Class(class_ref))
+        Ok(tast::Definition::Class(class_ref))
     }
 
     /// Process function definition.
@@ -354,7 +316,7 @@ impl<'g> Phase1<'g> {
         &mut self,
         function_def: ast::FunctionDef,
         this_param: Option<String>,
-    ) -> Result<Rc<RefCell<typed_ast::FunctionDef>>, ()> {
+    ) -> Result<Rc<RefCell<tast::FunctionDef>>, ()> {
         self.enter_scope();
         let this_param = if let Some(name) = this_param {
             Some(self.new_parameter(function_def.location.clone(), name, SlangType::Undefined))
@@ -369,9 +331,11 @@ impl<'g> Phase1<'g> {
 
         let local_variables = std::mem::take(&mut self.local_variables);
 
-        let func = Rc::new(RefCell::new(typed_ast::FunctionDef {
-            name: function_def.name.clone(),
-            id: self.new_id(),
+        let func = Rc::new(RefCell::new(tast::FunctionDef {
+            name: NameNodeId {
+                name: function_def.name.clone(),
+                id: self.new_id(),
+            },
             this_param,
             location: function_def.location.clone(),
             signature,
@@ -394,8 +358,8 @@ impl<'g> Phase1<'g> {
     fn on_function_signature(
         &mut self,
         signature: ast::FunctionSignature,
-    ) -> Result<Rc<RefCell<typed_ast::FunctionSignature>>, ()> {
-        let mut typed_parameters: Vec<Rc<RefCell<typed_ast::Parameter>>> = vec![];
+    ) -> Result<Rc<RefCell<tast::FunctionSignature>>, ()> {
+        let mut typed_parameters: Vec<Rc<RefCell<tast::Parameter>>> = vec![];
         for parameter in signature.parameters.into_iter() {
             let param_typ = self.on_type_expression(parameter.typ)?;
             typed_parameters.push(self.new_parameter(
@@ -411,7 +375,7 @@ impl<'g> Phase1<'g> {
             None
         };
 
-        Ok(Rc::new(RefCell::new(typed_ast::FunctionSignature {
+        Ok(Rc::new(RefCell::new(tast::FunctionSignature {
             parameters: typed_parameters,
             return_type,
         })))
@@ -422,12 +386,14 @@ impl<'g> Phase1<'g> {
         location: Location,
         name: String,
         typ: SlangType,
-    ) -> Rc<RefCell<typed_ast::Parameter>> {
-        let param = Rc::new(RefCell::new(typed_ast::Parameter {
+    ) -> Rc<RefCell<tast::Parameter>> {
+        let param = Rc::new(RefCell::new(tast::Parameter {
             location: location.clone(),
-            name: name.clone(),
+            name: NameNodeId {
+                name: name.clone(),
+                id: self.new_id(),
+            },
             typ,
-            id: self.new_id(),
         }));
         let param_ref = Rc::downgrade(&param);
 
@@ -436,50 +402,20 @@ impl<'g> Phase1<'g> {
     }
 
     fn on_type_expression(&mut self, type_expression: ast::Expression) -> Result<SlangType, ()> {
+        /*
         match type_expression.kind {
             ast::ExpressionKind::Object(obj_ref) => Ok(SlangType::Unresolved(obj_ref)),
-            ast::ExpressionKind::ArrayIndex { base, indici } => {
-                let generic = self.on_generic_ref(*base)?;
-                let mut type_parameters = vec![];
-                for p in indici {
-                    type_parameters.push(self.on_type_expression(p)?);
-                }
-                Ok(SlangType::GenericInstance {
-                    generic,
-                    type_parameters,
-                })
-            }
             ast::ExpressionKind::FunctionType(signature) => {
-                self.enter_scope();
-                let signature = self.on_function_signature(*signature)?;
-                // Temporary scope to process function signature.
-                let _scope = self.leave_scope();
-                Ok(SlangType::User(UserType::Function(signature)))
-            }
-            _other => {
-                self.error(
-                    &type_expression.location,
-                    "Invalid type expression".to_owned(),
-                );
-                Err(())
             }
         }
+        */
+        let unresolved = self.on_expression(type_expression)?;
+        Ok(SlangType::Unresolved(TypeExpression {
+            expr: Box::new(unresolved),
+        }))
     }
 
-    fn on_generic_ref(&mut self, generic_ref: ast::Expression) -> Result<Generic, ()> {
-        match generic_ref.kind {
-            ast::ExpressionKind::Object(r) => {
-                let generic = Generic::Unresolved(r);
-                Ok(generic)
-            }
-            _other => {
-                self.error(&generic_ref.location, "Invalid generic".to_owned());
-                Err(())
-            }
-        }
-    }
-
-    fn on_block(&mut self, block: Vec<ast::Statement>) -> Vec<typed_ast::Statement> {
+    fn on_block(&mut self, block: Vec<ast::Statement>) -> Vec<tast::Statement> {
         let mut typed_statements = vec![];
         for statement in block {
             match self.on_statement(statement) {
@@ -490,9 +426,9 @@ impl<'g> Phase1<'g> {
         typed_statements
     }
 
-    fn on_statement(&mut self, statement: ast::Statement) -> Result<typed_ast::Statement, ()> {
+    fn on_statement(&mut self, statement: ast::Statement) -> Result<tast::Statement, ()> {
         let (location, kind) = (statement.location, statement.kind);
-        let kind: typed_ast::StatementKind = match kind {
+        let kind: tast::StatementKind = match kind {
             ast::StatementKind::Let {
                 name,
                 mutable: _,
@@ -506,7 +442,7 @@ impl<'g> Phase1<'g> {
                     None
                 };
                 let local_var_ref = self.new_local_variable(&location, name);
-                typed_ast::StatementKind::Let {
+                tast::StatementKind::Let {
                     local_ref: local_var_ref,
                     type_hint,
                     value,
@@ -515,16 +451,13 @@ impl<'g> Phase1<'g> {
             ast::StatementKind::Assignment { target, value } => {
                 let target = self.on_expression(target)?;
                 let value = self.on_expression(value)?;
-                typed_ast::StatementKind::Assignment(typed_ast::AssignmentStatement {
-                    target,
-                    value,
-                })
+                tast::StatementKind::Assignment(tast::AssignmentStatement { target, value })
             }
             ast::StatementKind::For { name, it, body } => {
                 let iterable = self.on_expression(it)?;
                 let loop_var = self.new_local_variable(&location, name);
                 let body = self.on_block(body);
-                typed_ast::StatementKind::For(typed_ast::ForStatement {
+                tast::StatementKind::For(tast::ForStatement {
                     loop_var,
                     iterable,
                     body,
@@ -538,7 +471,7 @@ impl<'g> Phase1<'g> {
                 let condition = self.on_expression(condition)?;
                 let if_true = self.on_block(if_true);
                 let if_false = if_false.map(|e| self.on_block(e));
-                typed_ast::StatementKind::If(typed_ast::IfStatement {
+                tast::StatementKind::If(tast::IfStatement {
                     condition,
                     if_true,
                     if_false,
@@ -546,27 +479,27 @@ impl<'g> Phase1<'g> {
             }
             ast::StatementKind::Expression(expr) => {
                 let expr = self.on_expression(expr)?;
-                typed_ast::StatementKind::Expression(expr)
+                tast::StatementKind::Expression(expr)
             }
-            ast::StatementKind::Pass => typed_ast::StatementKind::Pass,
-            ast::StatementKind::Continue => typed_ast::StatementKind::Continue,
-            ast::StatementKind::Break => typed_ast::StatementKind::Break,
+            ast::StatementKind::Pass => tast::StatementKind::Pass,
+            ast::StatementKind::Continue => tast::StatementKind::Continue,
+            ast::StatementKind::Break => tast::StatementKind::Break,
             ast::StatementKind::Return { value } => {
                 let value = if let Some(value) = value {
                     Some(self.on_expression(value)?)
                 } else {
                     None
                 };
-                typed_ast::StatementKind::Return { value }
+                tast::StatementKind::Return { value }
             }
             ast::StatementKind::Loop { body } => {
                 let body = self.on_block(body);
-                typed_ast::StatementKind::Loop { body }
+                tast::StatementKind::Loop { body }
             }
             ast::StatementKind::While { condition, body } => {
                 let condition = self.on_expression(condition)?;
                 let body = self.on_block(body);
-                typed_ast::StatementKind::While(typed_ast::WhileStatement { condition, body })
+                tast::StatementKind::While(tast::WhileStatement { condition, body })
             }
             ast::StatementKind::Switch {
                 value,
@@ -576,13 +509,13 @@ impl<'g> Phase1<'g> {
                 let value = self.on_expression(value)?;
                 let mut new_arms = vec![];
                 for arm in arms {
-                    new_arms.push(typed_ast::SwitchArm {
+                    new_arms.push(tast::SwitchArm {
                         value: self.on_expression(arm.value)?,
                         body: self.on_block(arm.body),
                     });
                 }
                 let default = self.on_block(default);
-                typed_ast::StatementKind::Switch(typed_ast::SwitchStatement {
+                tast::StatementKind::Switch(tast::SwitchStatement {
                     value,
                     arms: new_arms,
                     default,
@@ -595,7 +528,7 @@ impl<'g> Phase1<'g> {
             }
         };
 
-        let stmt = typed_ast::Statement { location, kind };
+        let stmt = tast::Statement { location, kind };
 
         Ok(stmt)
     }
@@ -605,12 +538,12 @@ impl<'g> Phase1<'g> {
         &mut self,
         value: ast::Expression,
         arms: Vec<ast::CaseArm>,
-    ) -> Result<typed_ast::StatementKind, ()> {
+    ) -> Result<tast::StatementKind, ()> {
         let value = self.on_expression(value)?;
 
         let mut typed_arms = vec![];
         for arm in arms {
-            let variant = typed_ast::VariantRef::Name(arm.variant);
+            let variant = tast::VariantRef::Name(arm.variant);
 
             self.enter_scope();
 
@@ -623,7 +556,7 @@ impl<'g> Phase1<'g> {
             let body = self.on_block(arm.body);
             let scope = Arc::new(self.leave_scope());
 
-            typed_arms.push(typed_ast::CaseArm {
+            typed_arms.push(tast::CaseArm {
                 location: arm.location,
                 variant,
                 local_refs,
@@ -632,43 +565,48 @@ impl<'g> Phase1<'g> {
             });
         }
 
-        Ok(typed_ast::StatementKind::Case(typed_ast::CaseStatement {
+        Ok(tast::StatementKind::Case(tast::CaseStatement {
             value,
             arms: typed_arms,
         }))
     }
 
-    fn on_expression(&mut self, expression: ast::Expression) -> Result<typed_ast::Expression, ()> {
+    fn on_expression(&mut self, expression: ast::Expression) -> Result<tast::Expression, ()> {
         let (kind, location) = (expression.kind, expression.location);
-        let kind: typed_ast::ExpressionKind = match kind {
+        let kind: tast::ExpressionKind = match kind {
             ast::ExpressionKind::Call { callee, arguments } => {
                 self.check_call(*callee, arguments)?
             }
             ast::ExpressionKind::Binop { lhs, op, rhs } => {
                 let lhs = self.on_expression(*lhs)?;
                 let rhs = self.on_expression(*rhs)?;
-                typed_ast::ExpressionKind::Binop {
+                tast::ExpressionKind::Binop {
                     lhs: Box::new(lhs),
                     op,
                     rhs: Box::new(rhs),
                 }
             }
-            ast::ExpressionKind::Object(obj_ref) => typed_ast::ExpressionKind::Object(obj_ref),
-            ast::ExpressionKind::FunctionType(_signature) => {
-                panic!("Should not occur!");
+            ast::ExpressionKind::Object(obj_ref) => tast::ExpressionKind::Object(obj_ref),
+            ast::ExpressionKind::FunctionType(signature) => {
+                // Temporary scope to process function signature.
+                self.enter_scope();
+                let signature = self.on_function_signature(*signature)?;
+                let _scope = self.leave_scope();
+                let typ = SlangType::User(UserType::Function(signature));
+                tast::ExpressionKind::LoadSymbol(Symbol::Typ(typ))
             }
             ast::ExpressionKind::Literal(value) => match value {
                 ast::Literal::Bool(value) => {
-                    typed_ast::ExpressionKind::Literal(typed_ast::Literal::Bool(value))
+                    tast::ExpressionKind::Literal(tast::Literal::Bool(value))
                 }
                 ast::Literal::Integer(value) => {
-                    typed_ast::ExpressionKind::Literal(typed_ast::Literal::Integer(value))
+                    tast::ExpressionKind::Literal(tast::Literal::Integer(value))
                 }
                 ast::Literal::String(value) => {
-                    typed_ast::ExpressionKind::Literal(typed_ast::Literal::String(value))
+                    tast::ExpressionKind::Literal(tast::Literal::String(value))
                 }
                 ast::Literal::Float(value) => {
-                    typed_ast::ExpressionKind::Literal(typed_ast::Literal::Float(value))
+                    tast::ExpressionKind::Literal(tast::Literal::Float(value))
                 }
             },
             ast::ExpressionKind::ListLiteral(values) => {
@@ -677,14 +615,14 @@ impl<'g> Phase1<'g> {
                 for value in values {
                     typed_values.push(self.on_expression(value)?);
                 }
-                typed_ast::ExpressionKind::ListLiteral(typed_values)
+                tast::ExpressionKind::ListLiteral(typed_values)
             }
             ast::ExpressionKind::ArrayIndex { base, indici } => {
                 self.do_array_index(*base, indici)?
             }
             ast::ExpressionKind::GetAttr { base, attr } => {
                 let base = self.on_expression(*base)?;
-                typed_ast::ExpressionKind::GetAttr {
+                tast::ExpressionKind::GetAttr {
                     base: Box::new(base),
                     attr,
                 }
@@ -694,20 +632,20 @@ impl<'g> Phase1<'g> {
                 let mut fields2 = vec![];
                 for field in fields {
                     let value = self.on_expression(field.value)?;
-                    fields2.push(typed_ast::LabeledField {
+                    fields2.push(tast::LabeledField {
                         location: field.location,
                         name: field.name,
                         value: Box::new(value),
                     });
                 }
-                typed_ast::ExpressionKind::ObjectInitializer {
+                tast::ExpressionKind::ObjectInitializer {
                     typ,
                     fields: fields2,
                 }
             }
         };
 
-        let expr = typed_ast::Expression::new(location, kind);
+        let expr = tast::Expression::new(location, kind);
 
         Ok(expr)
     }
@@ -716,7 +654,7 @@ impl<'g> Phase1<'g> {
         &mut self,
         callee: ast::Expression,
         arguments: Vec<ast::Expression>,
-    ) -> Result<typed_ast::ExpressionKind, ()> {
+    ) -> Result<tast::ExpressionKind, ()> {
         let mut typed_arguments = vec![];
         for argument in arguments {
             typed_arguments.push(self.on_expression(argument)?);
@@ -728,7 +666,7 @@ impl<'g> Phase1<'g> {
             //     kind: ast::ExpressionType::GetAttr { base, attr },
             // } => {
             //     let instance = self.on_expression(*base)?;
-            //     typed_ast::ExpressionKind::MethodCall {
+            //     tast::ExpressionKind::MethodCall {
             //         instance: Box::new(instance),
             //         method: attr,
             //         arguments: typed_arguments,
@@ -736,7 +674,7 @@ impl<'g> Phase1<'g> {
             // }
             other => {
                 let callee = self.on_expression(other)?;
-                typed_ast::ExpressionKind::Call {
+                tast::ExpressionKind::Call {
                     callee: Box::new(callee),
                     arguments: typed_arguments,
                 }
@@ -753,11 +691,11 @@ impl<'g> Phase1<'g> {
         &mut self,
         base: ast::Expression,
         indici: Vec<ast::Expression>,
-    ) -> Result<typed_ast::ExpressionKind, ()> {
+    ) -> Result<tast::ExpressionKind, ()> {
         let base = self.on_expression(base)?;
         if indici.len() == 1 {
             let index = self.on_expression(indici.into_iter().next().expect("1 element"))?;
-            Ok(typed_ast::ExpressionKind::GetIndex {
+            Ok(tast::ExpressionKind::GetIndex {
                 base: Box::new(base),
                 index: Box::new(index),
             })
@@ -770,8 +708,8 @@ impl<'g> Phase1<'g> {
         &mut self,
         location: &Location,
         name: String,
-    ) -> Ref<typed_ast::LocalVariable> {
-        let new_var = Rc::new(RefCell::new(typed_ast::LocalVariable::new(
+    ) -> Ref<tast::LocalVariable> {
+        let new_var = Rc::new(RefCell::new(tast::LocalVariable::new(
             location.clone(),
             false,
             name.clone(),

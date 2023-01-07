@@ -33,12 +33,12 @@ fn list_iter_new(x: List) -> ListIter:
 
 fn list_append(this: List, val: int):
     let new_tail_element = ListElement:
-        next: Option::None()
+        next: Option.None()
         data: val
     
     case this.head_element:
         None:
-            this.head_element = Option::Some(new_tail_element)
+            this.head_element = Option.Some(new_tail_element)
         Some(element):
             let mabye_element = element.next
             loop:
@@ -47,7 +47,7 @@ fn list_append(this: List, val: int):
                         break
                     Some(nxt_element):
                         element = nxt_element
-            element.next = Option::Some(new_tail_element)
+            element.next = Option.Some(new_tail_element)
 
 fn list_walk(x: List):
     let i = 0
@@ -91,5 +91,5 @@ fn main():
 
 fn list_new() -> List:
     let x = List:
-        head_element: Option::None()
+        head_element: Option.None()
     return x

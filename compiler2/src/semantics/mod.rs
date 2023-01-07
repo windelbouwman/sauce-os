@@ -15,31 +15,27 @@ Phase 3:
 mod analysis;
 mod context;
 mod diagnostics;
-mod enum_type;
 mod fillscope;
-mod generics;
-mod struct_type;
 // mod generic_expansion;
 mod id_generator;
 mod namebinding;
+mod pass2;
 mod phase5_desugar;
 mod scope;
 mod symbol;
-pub mod type_system;
+pub mod tast;
 mod typechecker;
-pub mod typed_ast;
 mod typed_ast_printer;
 use std::cell::RefCell;
 use std::rc::Rc;
 mod rewriting_classes;
 mod rewriting_enums;
 mod rewriting_for_loop;
-mod rewriting_generics;
+// mod rewriting_generics;
 mod visitor;
 
 pub use context::Context;
-pub use typed_ast::NodeId;
-use typed_ast::Ref;
+pub use tast::{NodeId, Ref};
 
 /// Refer to the given reference
 pub fn refer<'t, T>(r: &'t Ref<T>) -> Rc<RefCell<T>> {

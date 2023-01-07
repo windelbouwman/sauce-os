@@ -22,16 +22,20 @@
 //!     std::print(this.bar)
 //!
 
-use super::type_system::{SlangType, UserType};
-use super::typed_ast;
+use super::tast::{
+    load_function, return_value, tuple_literal, undefined_value, Expression, ExpressionKind,
+};
+use super::tast::{ClassDef, Definition, FunctionDef, FunctionSignature, Program};
+use super::tast::{NameNodeId, NodeId, Ref};
+use super::tast::{SlangType, StructDefBuilder};
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
-use super::{Context, NodeId, Ref, Scope, Symbol};
+use super::{Context, Scope, Symbol};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-pub fn rewrite_classes(program: &mut typed_ast::Program, context: &mut Context) {
+pub fn rewrite_classes(program: &mut Program, context: &mut Context) {
     log::info!("Rewriting classes into structs and functions");
     let mut rewriter = ClassRewriter::new(context);
     visit_program(&mut rewriter, program);
@@ -39,11 +43,11 @@ pub fn rewrite_classes(program: &mut typed_ast::Program, context: &mut Context) 
 
 struct ClassRewriter<'d> {
     context: &'d mut Context,
-    new_definitions: Vec<typed_ast::Definition>,
+    new_definitions: Vec<Definition>,
 
     /// Mapping from enum types to tagged-union types!
     class_map: HashMap<NodeId, SlangType>,
-    ctor_map: HashMap<NodeId, Ref<typed_ast::FunctionDef>>,
+    ctor_map: HashMap<NodeId, Ref<FunctionDef>>,
 }
 
 impl<'d> ClassRewriter<'d> {
@@ -56,15 +60,14 @@ impl<'d> ClassRewriter<'d> {
         }
     }
 
-    fn compile_class(&mut self, class_def: Rc<typed_ast::ClassDef>) {
+    fn compile_class(&mut self, class_def: Rc<ClassDef>) {
         self.define_struct_type(&class_def);
         self.create_constructor(&class_def);
         self.transform_methods(&class_def);
     }
 
-    fn define_struct_type(&mut self, class_def: &typed_ast::ClassDef) {
-        let mut struct_builder =
-            typed_ast::StructDefBuilder::new(class_def.name.clone(), self.new_id());
+    fn define_struct_type(&mut self, class_def: &ClassDef) {
+        let mut struct_builder = StructDefBuilder::new(class_def.name.name.clone(), self.new_id());
 
         for field in &class_def.fields {
             let field = field.borrow();
@@ -73,19 +76,18 @@ impl<'d> ClassRewriter<'d> {
 
         let struct_def = struct_builder.finish_struct();
 
-        let struct_def = Rc::new(struct_def);
-        let struct_ty = SlangType::User(UserType::Struct(Rc::downgrade(&struct_def)));
-        self.new_definitions
-            .push(typed_ast::Definition::Struct(struct_def));
+        let struct_def = struct_def.into_def();
+        let struct_ty = struct_def.create_type(vec![]);
+        self.new_definitions.push(struct_def);
 
-        self.class_map.insert(class_def.id, struct_ty.clone());
+        self.class_map.insert(class_def.name.id, struct_ty.clone());
     }
 
     /// Create constructor function
-    fn create_constructor(&mut self, class_def: &typed_ast::ClassDef) {
-        let struct_ty = self.class_map.get(&class_def.id).unwrap().clone();
+    fn create_constructor(&mut self, class_def: &ClassDef) {
+        let struct_ty = self.class_map.get(&class_def.name.id).unwrap().clone();
 
-        // let this_param = Rc::new(RefCell::new(typed_ast::Parameter {
+        // let this_param = Rc::new(RefCell::new(Parameter {
         //     name: "this".to_owned(),
         //     id: self.new_id(),
         //     location: Default::default(),
@@ -98,28 +100,27 @@ impl<'d> ClassRewriter<'d> {
             if let Some(init_value) = std::mem::take(&mut field.value) {
                 init_values.push(init_value);
                 // ctor_code.push(
-                //     typed_ast::load_parameter(Rc::downgrade(&this_param))
+                //     load_parameter(Rc::downgrade(&this_param))
                 //         .set_attr(&field.name, init_value),
                 // );
             } else {
                 panic!("All class fields must initialize! (otherwise no tuple literal!)");
             }
         }
-        let ctor_code = vec![typed_ast::return_value(typed_ast::tuple_literal(
-            struct_ty.clone(),
-            init_values,
-        ))];
+        let ctor_code = vec![return_value(tuple_literal(struct_ty.clone(), init_values))];
 
-        let ctor_name = format!("{}_ctor", class_def.name);
+        let ctor_name = format!("{}_ctor", class_def.name.name);
 
-        let signature = Rc::new(RefCell::new(typed_ast::FunctionSignature {
+        let signature = Rc::new(RefCell::new(FunctionSignature {
             parameters: vec![],
             return_type: Some(struct_ty.clone()),
         }));
 
-        let ctor_func = Rc::new(RefCell::new(typed_ast::FunctionDef {
-            name: ctor_name,
-            id: self.new_id(),
+        let ctor_func = Rc::new(RefCell::new(FunctionDef {
+            name: NameNodeId {
+                name: ctor_name,
+                id: self.new_id(),
+            },
             location: class_def.location.clone(),
             this_param: None,
             body: ctor_code,
@@ -129,10 +130,9 @@ impl<'d> ClassRewriter<'d> {
         }));
 
         self.ctor_map
-            .insert(class_def.id, Rc::downgrade(&ctor_func));
+            .insert(class_def.name.id, Rc::downgrade(&ctor_func));
 
-        self.new_definitions
-            .push(typed_ast::Definition::Function(ctor_func));
+        self.new_definitions.push(Definition::Function(ctor_func));
     }
 
     /// transform methods
@@ -145,8 +145,8 @@ impl<'d> ClassRewriter<'d> {
     ///
     /// fn Bar_foo(this: Bar):   # Bar is struct type
     ///     passs
-    fn transform_methods(&mut self, class_def: &typed_ast::ClassDef) {
-        let struct_ty = self.class_map.get(&class_def.id).unwrap().clone();
+    fn transform_methods(&mut self, class_def: &ClassDef) {
+        let struct_ty = self.class_map.get(&class_def.name.id).unwrap().clone();
         for method_ref in &class_def.methods {
             let mut method = method_ref.borrow_mut();
 
@@ -162,16 +162,16 @@ impl<'d> ClassRewriter<'d> {
                 .insert(0, this_param);
 
             // Rename method:
-            method.name = format!("{}_{}", class_def.name, method.name);
+            method.name.name = format!("{}_{}", class_def.name.name, method.name.name);
 
             self.new_definitions
-                .push(typed_ast::Definition::Function(method_ref.clone()));
+                .push(Definition::Function(method_ref.clone()));
         }
     }
 
-    fn lower_expression(&mut self, expression: &mut typed_ast::Expression) {
+    fn lower_expression(&mut self, expression: &mut Expression) {
         match &mut expression.kind {
-            typed_ast::ExpressionKind::Call { callee, arguments } => {
+            ExpressionKind::Call { callee, arguments } => {
                 self.transform_method_call(callee, arguments);
                 self.transform_constructor_call(callee);
             }
@@ -185,46 +185,32 @@ impl<'d> ClassRewriter<'d> {
     ///
     /// becomes:
     ///     do_thing(obj, a, b, c)
-    fn transform_method_call(
-        &self,
-        callee: &mut typed_ast::Expression,
-        arguments: &mut Vec<typed_ast::Expression>,
-    ) {
-        let res: Option<(typed_ast::Expression, typed_ast::Expression)> = match &mut callee.kind {
-            typed_ast::ExpressionKind::GetAttr { base, attr } => {
-                let obj: typed_ast::Expression =
-                    std::mem::replace(base, typed_ast::undefined_value());
+    fn transform_method_call(&self, callee: &mut Expression, arguments: &mut Vec<Expression>) {
+        match &mut callee.kind {
+            ExpressionKind::GetAttr { base, attr } => {
+                let obj: Expression = std::mem::replace(base, undefined_value());
                 let method = obj.typ.get_method(attr).unwrap();
-                let method_func = typed_ast::load_function(Rc::downgrade(&method));
-                Some((method_func, obj))
-            }
-            _ => None,
-        };
+                let method_func = load_function(Rc::downgrade(&method));
 
-        if let Some((method_func, obj)) = res {
-            arguments.insert(0, obj);
-            *callee = method_func;
+                arguments.insert(0, obj);
+                *callee = method_func;
+            }
+            _ => {}
         }
     }
 
     /// Transform calls to constructor!
     ///
-    fn transform_constructor_call(&self, callee: &mut typed_ast::Expression) {
+    fn transform_constructor_call(&self, callee: &mut Expression) {
         match &mut callee.kind {
-            typed_ast::ExpressionKind::LoadSymbol(symbol) => {
-                let new_sym = match symbol {
-                    Symbol::Typ(typ) => {
-                        let class_def = typ.as_class();
-                        let ctor_func = self.ctor_map.get(&class_def.id).unwrap();
-                        Some(Symbol::Function(ctor_func.clone()))
-                    }
-                    _ => None,
-                };
-
-                if let Some(s) = new_sym {
-                    *symbol = s;
+            ExpressionKind::LoadSymbol(symbol) => match symbol {
+                Symbol::Typ(typ) => {
+                    let class_def = typ.as_class();
+                    let ctor_func = self.ctor_map.get(&class_def.name.id).unwrap();
+                    *symbol = Symbol::Function(ctor_func.clone());
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -241,7 +227,7 @@ impl<'d> VisitorApi for ClassRewriter<'d> {
             VisitedNode::Program(program) => {
                 for definition in &program.definitions {
                     match definition {
-                        typed_ast::Definition::Class(class_def) => {
+                        Definition::Class(class_def) => {
                             self.compile_class(class_def.clone());
                         }
                         _ => {}
@@ -253,7 +239,7 @@ impl<'d> VisitorApi for ClassRewriter<'d> {
                 if type_expr.is_class() {
                     let struct_type = self
                         .class_map
-                        .get(&type_expr.as_class().id)
+                        .get(&type_expr.as_class().name.id)
                         .unwrap()
                         .clone();
                     *type_expr = struct_type;
@@ -269,7 +255,7 @@ impl<'d> VisitorApi for ClassRewriter<'d> {
                 // remove all classes from definitions:
                 program
                     .definitions
-                    .retain(|d| !matches!(d, typed_ast::Definition::Class(_)));
+                    .retain(|d| !matches!(d, Definition::Class(_)));
             }
             VisitedNode::Expression(expression) => {
                 self.lower_expression(expression);

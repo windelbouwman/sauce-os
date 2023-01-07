@@ -77,11 +77,7 @@ impl<'d> GenericRewriter<'d> {
     fn update_expression(&self, expression: &mut typed_ast::Expression) {
         match &mut expression.kind {
             typed_ast::ExpressionKind::GetAttr { base, attr } => {
-                if let SlangType::GenericInstance {
-                    generic,
-                    type_parameters,
-                } = &base.typ
-                {
+                if let SlangType::GenericInstance(generic_instance) = &base.typ {
                     // If we get an attribute which is a type var
                     // Introduce a cast from opaque, to the concrete type.
 
@@ -89,12 +85,11 @@ impl<'d> GenericRewriter<'d> {
                     // A bit lame to do it like this ..
                     let original_expr_type = expression.typ.clone();
 
-                    let generic = generic.get_def();
+                    let generic = generic_instance.get_def();
                     let attr_typ = generic.get_attr(attr).expect("We checked this").get_type();
 
                     if let SlangType::TypeVar(type_var) = attr_typ {
-                        let type_var_map =
-                            get_substitution_map(&generic.type_parameters, type_parameters);
+                        let type_var_map = generic_instance.get_substitution_map();
                         let mut typ = type_var_map
                             .get(&type_var.ptr.upgrade().unwrap().name)
                             .cloned()
@@ -113,11 +108,7 @@ impl<'d> GenericRewriter<'d> {
             }
             typed_ast::ExpressionKind::ObjectInitializer { typ, fields } => {
                 // Initialization of an object, by a set of named fields!
-                if let SlangType::GenericInstance {
-                    generic,
-                    type_parameters: _,
-                } = typ
-                {
+                if let SlangType::GenericInstance(generic_instance) = typ {
                     // If we initialize a bound generic, we need to do something.
                     // let base_struct = generic.get_def().base.as_struct();
 
@@ -127,7 +118,7 @@ impl<'d> GenericRewriter<'d> {
                     // println!("On object init: {:?}", typ);
                     for field in fields {
                         // println!("Field: {} = {:?}", field.name, field.value);
-                        let attr_type = generic.get_attr(&field.name).unwrap().get_type();
+                        let attr_type = generic_instance.get_attr(&field.name).unwrap().get_type();
                         if let SlangType::TypeVar(_var_type_ref) = attr_type {
                             // If we initialize a field whose type is a type variable
                             // Transform this initial value into an opaque pointer.
@@ -149,12 +140,13 @@ impl<'d> GenericRewriter<'d> {
     /// - Replace Generic instances, by the concrete type for this generic.
     fn update_type(&self, typ: &mut SlangType) {
         match typ {
-            SlangType::GenericInstance {
-                generic,
-                type_parameters: _,
-            } => {
+            SlangType::GenericInstance(generic_instance) => {
                 // Okay, if we refer to a generic instance, replace with opaque generic type!
-                *typ = self.type_map.get(&generic.get_def().id).unwrap().clone();
+                *typ = self
+                    .type_map
+                    .get(&generic_instance.get_def().id)
+                    .unwrap()
+                    .clone();
             }
             SlangType::TypeVar(_) => {
                 // Replace type variables with opaque pointers!
@@ -198,6 +190,12 @@ impl<'d> VisitorApi for GenericRewriter<'d> {
             VisitedNode::TypeExpr(_type_expr) => {
                 // self.update_type(type_expr);
             }
+            VisitedNode::Statement(statement) => match &statement.kind {
+                typed_ast::StatementKind::Case(_case_statement) => {
+                    panic!("Unsupported, case statements must be rewritten first.");
+                }
+                _ => {}
+            },
             _ => {}
         }
     }

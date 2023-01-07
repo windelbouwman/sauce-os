@@ -1,8 +1,13 @@
 use super::refer;
 use super::symbol::Symbol;
-use super::type_system::{ArrayType, SlangType, UserType};
-use super::typed_ast;
-use super::typed_ast::{Expression, ExpressionKind, Statement, StatementKind};
+use super::tast::undefined_value;
+use super::tast::Literal;
+use super::tast::{ArrayType, BasicType, SlangType, UserType};
+use super::tast::{
+    AssignmentStatement, CaseStatement, ForStatement, IfStatement, SwitchStatement, WhileStatement,
+};
+use super::tast::{Definition, FieldDef, FunctionDef, FunctionSignature, Program};
+use super::tast::{Expression, ExpressionKind, LabeledField, Statement, StatementKind, VariantRef};
 use super::Diagnostics;
 use crate::errors::CompilationError;
 use crate::parsing::ast;
@@ -12,7 +17,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 /// Check the given program for type correctness.
-pub fn check_types(program: &typed_ast::Program) -> Result<(), CompilationError> {
+pub fn check_types(program: &Program) -> Result<(), CompilationError> {
     log::debug!("Type checking!");
     let mut type_checker = TypeChecker::new(&program.path);
     type_checker.check_program(program);
@@ -21,7 +26,7 @@ pub fn check_types(program: &typed_ast::Program) -> Result<(), CompilationError>
 
 struct TypeChecker {
     diagnostics: Diagnostics,
-    function_signatures: Vec<Rc<RefCell<typed_ast::FunctionSignature>>>,
+    function_signatures: Vec<Rc<RefCell<FunctionSignature>>>,
 }
 
 impl TypeChecker {
@@ -32,10 +37,10 @@ impl TypeChecker {
         }
     }
 
-    fn check_program(&mut self, program: &typed_ast::Program) {
+    fn check_program(&mut self, program: &Program) {
         for definition in &program.definitions {
             match definition {
-                typed_ast::Definition::Class(class_def) => {
+                Definition::Class(class_def) => {
                     for field in &class_def.fields {
                         self.check_field(field)
                     }
@@ -47,17 +52,17 @@ impl TypeChecker {
                         self.check_function(method);
                     }
                 }
-                typed_ast::Definition::Struct(struct_def) => {
+                Definition::Struct(struct_def) => {
                     for field in &struct_def.fields {
                         self.check_field(field);
                     }
                 }
-                typed_ast::Definition::Union(union_def) => {
+                Definition::Union(union_def) => {
                     for field in &union_def.fields {
                         self.check_field(field);
                     }
                 }
-                typed_ast::Definition::Enum(enum_def) => {
+                Definition::Enum(enum_def) => {
                     for variant in &enum_def.variants {
                         let variant = variant.borrow();
                         for payload_type in &variant.data {
@@ -65,7 +70,7 @@ impl TypeChecker {
                         }
                     }
                 }
-                typed_ast::Definition::Function(function_def) => {
+                Definition::Function(function_def) => {
                     self.check_function(function_def);
                 }
             }
@@ -74,6 +79,8 @@ impl TypeChecker {
 
     fn check_type(&mut self, location: &Location, typ: &SlangType) {
         match typ {
+            /*
+
             SlangType::GenericInstance {
                 generic,
                 type_parameters,
@@ -83,33 +90,13 @@ impl TypeChecker {
                 // 2. types supplied must be pointer types
                 let generic = generic.get_def();
 
-                // Amount of generic parameters:
-                if generic.type_parameters.len() != type_parameters.len() {
-                    self.error(
-                        location,
-                        format!(
-                            "Wrong number of types for generic, expected {}, but got {} types",
-                            generic.type_parameters.len(),
-                            type_parameters.len()
-                        ),
-                    );
-                }
-
-                // Check generic types to be of complicated type
-                for type_value in type_parameters {
-                    if !type_value.is_heap_type() {
-                        self.error(
-                            location,
-                            format!("Expect only heap allocated type, not {}", type_value),
-                        );
-                    }
-                }
             }
+             */
             _ => {}
         }
     }
 
-    fn check_field(&mut self, field_def: &Rc<RefCell<typed_ast::FieldDef>>) {
+    fn check_field(&mut self, field_def: &Rc<RefCell<FieldDef>>) {
         let mut field = field_def.borrow_mut();
         self.check_type(&field.location, &field.typ);
         if let Some(value) = &mut field.value {
@@ -117,7 +104,7 @@ impl TypeChecker {
         }
     }
 
-    fn check_function(&mut self, function_def: &Rc<RefCell<typed_ast::FunctionDef>>) {
+    fn check_function(&mut self, function_def: &Rc<RefCell<FunctionDef>>) {
         self.function_signatures
             .push(function_def.borrow().signature.clone());
         self.check_block(&mut function_def.borrow_mut().body);
@@ -154,7 +141,7 @@ impl TypeChecker {
                 refer(local_ref).borrow_mut().typ = typ;
                 Ok(())
             }
-            StatementKind::Assignment(typed_ast::AssignmentStatement { target, value }) => {
+            StatementKind::Assignment(AssignmentStatement { target, value }) => {
                 self.check_expression(target)?;
                 let target_type = self.get_type(target)?;
                 self.coerce(&target_type, value)?;
@@ -204,7 +191,7 @@ impl TypeChecker {
 
                 Ok(())
             }
-            StatementKind::For(typed_ast::ForStatement {
+            StatementKind::For(ForStatement {
                 iterable,
                 loop_var,
                 body,
@@ -224,7 +211,7 @@ impl TypeChecker {
                 Ok(())
             }
 
-            StatementKind::If(typed_ast::IfStatement {
+            StatementKind::If(IfStatement {
                 condition,
                 if_true,
                 if_false,
@@ -244,19 +231,19 @@ impl TypeChecker {
                 self.check_block(block);
                 Ok(())
             }
-            StatementKind::While(typed_ast::WhileStatement { condition, body }) => {
+            StatementKind::While(WhileStatement { condition, body }) => {
                 self.check_condition(condition)?;
                 self.check_block(body);
                 Ok(())
             }
-            StatementKind::Switch(typed_ast::SwitchStatement {
+            StatementKind::Switch(SwitchStatement {
                 value,
                 arms,
                 default,
             }) => {
-                self.coerce(&SlangType::Int, value)?;
+                self.coerce(&SlangType::int(), value)?;
                 for arm in arms {
-                    self.coerce(&SlangType::Int, &mut arm.value)?;
+                    self.coerce(&SlangType::int(), &mut arm.value)?;
                     self.check_block(&mut arm.body);
                 }
                 self.check_block(default);
@@ -281,12 +268,22 @@ impl TypeChecker {
     fn check_case_statement(
         &mut self,
         location: &Location,
-        case_statement: &mut typed_ast::CaseStatement,
+        case_statement: &mut CaseStatement,
     ) -> Result<(), ()> {
         self.check_expression(&mut case_statement.value)?;
 
+        let value_type = &case_statement.value.typ;
         // Check if the case type is an enum type:
-        let enum_type = self.use_as_enum_type(&case_statement.value)?;
+        // let enum_type = self.use_as_enum_type(&case_statement.value)?;
+        if !value_type.is_enum() {
+            self.error(
+                &case_statement.value.location,
+                format!("Expected enum type, not {}", value_type),
+            );
+            return Err(());
+        }
+
+        let enum_type = value_type.as_enum();
 
         // Check for:
         // - duplicate arms
@@ -297,15 +294,15 @@ impl TypeChecker {
         for arm in &mut case_statement.arms {
             // Ensure we referred to an enum constructor
             let variant_ref = match &arm.variant {
-                typed_ast::VariantRef::Variant(variant) => {
+                VariantRef::Variant(variant) => {
                     let variant_ref = variant.upgrade().unwrap();
                     variant_ref
                 }
-                typed_ast::VariantRef::Name(variant_name) => {
+                VariantRef::Name(variant_name) => {
                     // We refer to the enum variant by name, lookup the name in the enum.
-                    let variant_ref = enum_type.lookup(variant_name);
+                    let variant_ref = enum_type.lookup_variant(variant_name);
                     if let Some(variant_ref) = variant_ref {
-                        arm.variant = typed_ast::VariantRef::Variant(Rc::downgrade(&variant_ref));
+                        arm.variant = VariantRef::Variant(Rc::downgrade(&variant_ref));
                         variant_ref
                     } else {
                         self.error(
@@ -320,11 +317,11 @@ impl TypeChecker {
             let variant = variant_ref.borrow();
 
             // Check for arm compatibility:
-            self.check_equal_types(
-                &arm.location,
-                &case_statement.value.typ,
-                &variant.get_parent_type(),
-            )?;
+            // self.check_equal_types(
+            //     &arm.location,
+            //     &case_statement.value.typ,
+            //     &variant.get_parent_type(),
+            // )?;
 
             // Check for duplicate arms:
             if value_map.contains_key(&variant.index) {
@@ -334,7 +331,7 @@ impl TypeChecker {
                 value_map.insert(variant.index, true);
             }
 
-            let arg_types: Vec<SlangType> = variant.data.clone();
+            let arg_types: Vec<SlangType> = enum_type.get_variant_data_types(variant.index);
 
             // Check for number of payload variables:
             if arg_types.len() == arm.local_refs.len() {
@@ -357,7 +354,7 @@ impl TypeChecker {
 
         // Check if all cases are covered:
         let mut missed_variants = vec![];
-        for variant in &enum_type.variants {
+        for variant in enum_type.get_variants() {
             if !value_map.contains_key(&variant.borrow().index) {
                 missed_variants.push(variant.borrow().name.clone());
             }
@@ -372,7 +369,8 @@ impl TypeChecker {
         Ok(())
     }
 
-    fn use_as_enum_type(&mut self, value: &Expression) -> Result<Rc<typed_ast::EnumDef>, ()> {
+    /*
+    fn use_as_enum_type(&mut self, value: &Expression) -> Result<Rc<EnumDef>, ()> {
         if let SlangType::User(UserType::Enum(enum_type)) = &value.typ {
             Ok(enum_type.upgrade().unwrap())
         } else {
@@ -383,6 +381,7 @@ impl TypeChecker {
             Err(())
         }
     }
+    */
 
     /// Type check the given expression.
     ///
@@ -420,7 +419,7 @@ impl TypeChecker {
                             // ExpressionKind::TypeConstructor(type_constructor) => {
                             //     unimplemented!("{:?}", type_constructor);
                             // match type_constructor {
-                            //     typed_ast::TypeConstructor::ClassRef(class_node_id) => {
+                            //     TypeConstructor::ClassRef(class_node_id) => {
                             // let typ = SlangType::Class(*class_node_id);
                             // Ok(typ)
                             //     }
@@ -440,6 +439,7 @@ impl TypeChecker {
                                 }
                             },
                             ExpressionKind::LoadSymbol(Symbol::EnumVariant(variant)) => {
+                                /*
                                 let variant_rc = variant.upgrade().unwrap();
                                 let variant = variant_rc.borrow();
                                 self.check_call_arguments(
@@ -450,14 +450,16 @@ impl TypeChecker {
 
                                 // std::mem::replace(
                                 expression.kind =
-                                    ExpressionKind::EnumLiteral(typed_ast::EnumLiteral {
+                                    ExpressionKind::EnumLiteral(EnumLiteral {
                                         variant: Rc::downgrade(&variant_rc),
                                         arguments: std::mem::take(arguments),
                                     });
-                                // );
-                                expression.typ = variant.get_parent_type();
+                                    // );
+                                    expression.typ = variant.get_parent_type();
 
-                                Ok(())
+                                    Ok(())
+                                    */
+                                panic!("Should not reach this point!");
                             }
                             other => {
                                 panic!("No go: {:?}", other);
@@ -492,7 +494,7 @@ impl TypeChecker {
                         let lhs_typ = self.get_type(lhs)?;
                         let rhs_typ = self.get_type(rhs)?;
                         self.check_equal_types(&expression.location, &lhs_typ, &rhs_typ)?;
-                        SlangType::Bool
+                        SlangType::bool()
                     }
                     ast::BinaryOperator::Math(math_op) => {
                         self.check_expression(lhs)?;
@@ -505,7 +507,7 @@ impl TypeChecker {
 
                         let is_div = matches!(math_op, ast::MathOperator::Div);
                         if is_div && common_type.is_int() {
-                            common_type = SlangType::Float;
+                            common_type = SlangType::float();
                         }
                         Self::autoconv(lhs, &common_type);
                         Self::autoconv(rhs, &common_type);
@@ -514,7 +516,7 @@ impl TypeChecker {
                     ast::BinaryOperator::Logic(_logic_op) => {
                         self.check_condition(lhs)?;
                         self.check_condition(rhs)?;
-                        SlangType::Bool
+                        SlangType::bool()
                     }
                     ast::BinaryOperator::Bit(_op) => {
                         unimplemented!();
@@ -529,12 +531,12 @@ impl TypeChecker {
                 Ok(())
             }
             ExpressionKind::Literal(value) => {
-                expression.typ = match value {
-                    typed_ast::Literal::Bool(_) => SlangType::Bool,
-                    typed_ast::Literal::Integer(_) => SlangType::Int,
-                    typed_ast::Literal::String(_) => SlangType::String,
-                    typed_ast::Literal::Float(_) => SlangType::Float,
-                };
+                expression.typ = SlangType::Basic(match value {
+                    Literal::Bool(_) => BasicType::Bool,
+                    Literal::Integer(_) => BasicType::Int,
+                    Literal::String(_) => BasicType::String,
+                    Literal::Float(_) => BasicType::Float,
+                });
                 Ok(())
             }
 
@@ -546,11 +548,11 @@ impl TypeChecker {
                 Ok(())
             }
             ExpressionKind::TupleLiteral(values) => {
-                let struct_ref = expression.typ.as_struct();
-                assert_eq!(values.len(), struct_ref.fields.len());
-                for (field, value) in struct_ref.fields.iter().zip(values.iter_mut()) {
-                    let field = field.borrow();
-                    self.coerce(&field.typ, value)?;
+                let struct_type = expression.typ.as_struct();
+                let fields = struct_type.get_struct_fields();
+                assert_eq!(values.len(), fields.len());
+                for (field, value) in fields.iter().zip(values.iter_mut()) {
+                    self.coerce(&field.1, value)?;
                 }
                 Ok(())
             }
@@ -590,11 +592,15 @@ impl TypeChecker {
 
             ExpressionKind::EnumLiteral(enum_literal) => {
                 let enum_variant_ref = enum_literal.variant.upgrade().unwrap();
+                let data_types = enum_literal
+                    .enum_type
+                    .get_variant_data_types(enum_variant_ref.borrow().index);
                 self.check_call_arguments(
                     &expression.location,
-                    &enum_variant_ref.borrow().data,
+                    &data_types,
                     &mut enum_literal.arguments,
                 )?;
+                expression.typ = enum_literal.enum_type.clone().into();
                 Ok(())
             }
 
@@ -614,21 +620,19 @@ impl TypeChecker {
                     self.error(&expression.location, "cannot load module".to_string());
                     Err(())
                 }
-                Symbol::Generic(_) => {
-                    self.error(
-                        &expression.location,
-                        "cannot load type template / generic".to_string(),
-                    );
+                Symbol::Definition(_) => {
+                    self.error(&expression.location, "cannot load definition".to_string());
                     Err(())
                 }
                 Symbol::Field(_) => {
                     unimplemented!("Load field: Unlikely that this will ever happen.");
                 }
                 Symbol::EnumVariant(variant) => {
-                    expression.typ = SlangType::TypeConstructor(Box::new(
-                        variant.upgrade().unwrap().borrow().get_parent_type(),
-                    ));
-                    Ok(())
+                    // expression.typ = SlangType::TypeConstructor(Box::new(
+                    //     variant.upgrade().unwrap().borrow().get_parent_type(),
+                    // ));
+                    // Ok(())
+                    unimplemented!("Ehm, now what?");
                 }
             },
 
@@ -642,7 +646,7 @@ impl TypeChecker {
                 self.check_expression(base)?;
                 match &base.typ {
                     SlangType::Array(array_type) => {
-                        self.coerce(&SlangType::Int, index)?;
+                        self.coerce(&SlangType::int(), index)?;
                         expression.typ = *array_type.element_type.clone();
                         Ok(())
                     }
@@ -756,20 +760,21 @@ impl TypeChecker {
         &mut self,
         location: &Location,
         typ: &SlangType,
-        fields: &mut [typed_ast::LabeledField],
+        fields: &mut [LabeledField],
     ) -> Result<(), ()> {
-        let mut required_fields = if let Some(struct_fields) = typ.get_struct_fields() {
-            let mut required_fields: HashMap<String, SlangType> = HashMap::new();
-
-            for (field_name, field_type) in struct_fields {
-                required_fields.insert(field_name, field_type);
-            }
-
-            required_fields
-        } else {
+        if !typ.is_struct() {
             self.error(location, format!("Must be struct type, not {}", typ));
             return Err(());
-        };
+        }
+
+        let struct_type = typ.as_struct();
+
+        let struct_fields = struct_type.get_struct_fields();
+        let mut required_fields: HashMap<String, SlangType> = HashMap::new();
+
+        for (field_name, field_type) in struct_fields {
+            required_fields.insert(field_name, field_type);
+        }
 
         let mut ok = true;
 
@@ -806,7 +811,7 @@ impl TypeChecker {
     fn check_condition(&mut self, condition: &mut Expression) -> Result<(), ()> {
         self.check_expression(condition)?;
         let actual_type = self.get_type(condition)?;
-        self.check_equal_types(&condition.location, &SlangType::Bool, &actual_type)
+        self.check_equal_types(&condition.location, &SlangType::bool(), &actual_type)
     }
 
     /// Get the type of an expression.
@@ -839,8 +844,9 @@ impl TypeChecker {
     fn autoconv(value: &mut Expression, wanted_typ: &SlangType) {
         if &value.typ != wanted_typ {
             log::trace!("Autoconving! {} -> {}", value.typ, wanted_typ);
-            let old_value = std::mem::replace(value, typed_ast::undefined_value());
+            let old_value = std::mem::replace(value, undefined_value());
             *value = old_value.cast(wanted_typ.clone());
+            value.typ = wanted_typ.clone();
         }
     }
 
@@ -851,8 +857,12 @@ impl TypeChecker {
         type2: &SlangType,
     ) -> Result<SlangType, ()> {
         match (type1, type2) {
-            (SlangType::Float, SlangType::Int) => Ok(SlangType::Float),
-            (SlangType::Int, SlangType::Float) => Ok(SlangType::Float),
+            (SlangType::Basic(BasicType::Float), SlangType::Basic(BasicType::Int)) => {
+                Ok(SlangType::float())
+            }
+            (SlangType::Basic(BasicType::Int), SlangType::Basic(BasicType::Float)) => {
+                Ok(SlangType::float())
+            }
             _ => {
                 self.check_equal_types(location, type1, type2)?;
                 Ok(type1.clone())

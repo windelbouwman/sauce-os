@@ -3,24 +3,94 @@
 //! Symbols can refer to variables, parameters, functions etc..
 //!
 
-use super::generics::GenericDef;
-use super::type_system::SlangType;
-use super::typed_ast;
-use super::Ref;
+use super::tast::{
+    ClassDef, Definition, EnumDef, EnumVariant, FieldDef, FunctionDef, LocalVariable, Parameter,
+    Program, Ref, SlangType, StructDef, TypeVar,
+};
 
 use std::rc::{Rc, Weak};
 
 #[derive(Clone)]
+pub enum DefinitionRef {
+    Struct(Weak<StructDef>),
+    Enum(Weak<EnumDef>),
+    Class(Weak<ClassDef>),
+}
+
+impl DefinitionRef {
+    /// Turn this reference to a definition into a true definition.
+    pub fn into_definition(self) -> Definition {
+        match self {
+            DefinitionRef::Struct(struct_ref) => {
+                let struct_def = struct_ref.upgrade().unwrap();
+                Definition::Struct(struct_def)
+            }
+            DefinitionRef::Enum(enum_ref) => {
+                let enum_def = enum_ref.upgrade().unwrap();
+                Definition::Enum(enum_def)
+            }
+            DefinitionRef::Class(class_ref) => {
+                let class_def = class_ref.upgrade().unwrap();
+                Definition::Class(class_def)
+            }
+        }
+    }
+
+    pub fn get_type_parameters(&self) -> Vec<Rc<TypeVar>> {
+        match self {
+            DefinitionRef::Struct(struct_ref) => {
+                let struct_def = struct_ref.upgrade().unwrap();
+                struct_def.type_parameters.clone()
+            }
+            DefinitionRef::Enum(enum_ref) => {
+                let enum_def = enum_ref.upgrade().unwrap();
+                enum_def.type_parameters.clone()
+            }
+            DefinitionRef::Class(class_ref) => {
+                let class_def = class_ref.upgrade().unwrap();
+                class_def.type_parameters.clone()
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for DefinitionRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            DefinitionRef::Struct(struct_ref) => {
+                let struct_def = struct_ref.upgrade().unwrap();
+                write!(f, "ref-{}", struct_def)
+            }
+            DefinitionRef::Enum(enum_ref) => {
+                let enum_def = enum_ref.upgrade().unwrap();
+                write!(f, "ref-{}", enum_def)
+            }
+            DefinitionRef::Class(class_ref) => {
+                let class_def = class_ref.upgrade().unwrap();
+                write!(f, "ref-{}", class_def)
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum Symbol {
-    Generic(Weak<GenericDef>),
     Typ(SlangType),
-    Function(Ref<typed_ast::FunctionDef>),
-    ExternFunction { name: String, typ: SlangType },
-    Module(Rc<typed_ast::Program>),
-    Parameter(Ref<typed_ast::Parameter>),
-    LocalVariable(Ref<typed_ast::LocalVariable>),
-    Field(Ref<typed_ast::FieldDef>),
-    EnumVariant(Ref<typed_ast::EnumVariant>),
+    Definition(DefinitionRef),
+    Function(Ref<FunctionDef>),
+    ExternFunction {
+        name: String,
+        typ: SlangType,
+    },
+    Module(Rc<Program>),
+    Parameter(Ref<Parameter>),
+    LocalVariable(Ref<LocalVariable>),
+    Field(Ref<FieldDef>),
+    EnumVariant(
+        // typ: SlangType,
+        // variant:
+        Ref<EnumVariant>,
+    ),
 }
 
 impl Symbol {
@@ -42,10 +112,7 @@ impl Symbol {
 impl std::fmt::Display for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Symbol::Generic(generic) => {
-                let generic = generic.upgrade().unwrap();
-                write!(f, "symbol-generic({})", generic.name)
-            }
+            Symbol::Definition(definition_ref) => definition_ref.fmt(f),
             Symbol::Typ(typ) => {
                 write!(f, "symbol-typ({})", typ)
             }

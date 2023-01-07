@@ -49,7 +49,7 @@ ${BUILDDIR}/%.o: ${BUILDDIR}/%.ll
 .SUFFIXES: .slang
 .PRECIOUS: ${BUILDDIR}/%.ll
 ${BUILDDIR}/%.ll: %.slang
-	${SLANG_COMPILER} --output $@ $<
+	${SLANG_COMPILER} -v --output $@ $<
 
 clean:
 	rm -rf ${BUILDDIR}

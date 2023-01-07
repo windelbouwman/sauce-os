@@ -1,31 +1,35 @@
 //! Various types to deal with structs and unions.
 //!
-use super::scope::Scope;
-use super::symbol::Symbol;
-use super::type_system::SlangType;
+use super::generics::TypeVar;
+use super::{Scope, SlangType, Symbol};
 use crate::parsing::Location;
 
-use super::typed_ast::FieldDef;
+use super::typed_ast::{self, FieldDef};
+use super::{NameNodeId, NodeId};
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::Arc;
-pub type NodeId = usize;
 
 pub struct StructDef {
     pub location: Location,
-    pub name: String,
-    pub id: NodeId,
+    pub name: NameNodeId,
+    pub type_parameters: Vec<Rc<TypeVar>>,
     pub scope: Arc<Scope>,
     pub fields: Vec<Rc<RefCell<FieldDef>>>,
 }
 
 impl std::fmt::Display for StructDef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "struct(name={}, id={})", self.name, self.id)
+        write!(f, "struct({})", self.name)
     }
 }
 
 impl StructDef {
+    /// Turn this structure into a definition
+    pub fn into_def(self) -> typed_ast::Definition {
+        typed_ast::Definition::Struct(Rc::new(self))
+    }
+
     /// Retrieve the given field from this struct
     pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<FieldDef>>> {
         match self.get_attr(name) {
@@ -133,10 +137,13 @@ impl StructDefBuilder {
 
     pub fn finish_struct(self) -> StructDef {
         StructDef {
-            name: self.name,
-            id: self.id,
+            name: NameNodeId {
+                name: self.name,
+                id: self.id,
+            },
             location: self.location,
             fields: self.fields,
+            type_parameters: vec![],
             scope: Arc::new(self.scope),
         }
     }
@@ -149,5 +156,43 @@ impl StructDefBuilder {
             fields: self.fields,
             scope: Arc::new(self.scope),
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct StructType {
+    pub struct_ref: Weak<StructDef>,
+    pub type_arguments: Vec<SlangType>,
+}
+
+impl PartialEq for StructType {
+    fn eq(&self, other: &Self) -> bool {
+        self.struct_ref.ptr_eq(&other.struct_ref) && self.type_arguments == other.type_arguments
+    }
+}
+
+impl Eq for StructType {}
+
+impl std::fmt::Display for StructType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let struct_def = self.struct_ref.upgrade().unwrap();
+        write!(f, "user-{}", struct_def)
+    }
+}
+
+impl StructType {
+    /// Treat this type as a struct, and retrieve struct fields
+    ///
+    /// In case of a generic instance, this will replace type variables
+    /// with concrete type values.
+    pub fn get_struct_fields(&self) -> Vec<(String, SlangType)> {
+        // Get a firm hold to the struct type:
+        let struct_ref = self.struct_ref.upgrade().unwrap();
+
+        struct_ref.get_struct_fields()
+    }
+
+    pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<typed_ast::FieldDef>>> {
+        self.struct_ref.upgrade().unwrap().get_field(name)
     }
 }

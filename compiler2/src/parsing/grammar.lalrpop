@@ -47,19 +47,16 @@ Definition: ast::Definition = {
 };
 
 EnumDef: ast::Definition = {
-    "enum" <location:@L> <typevars:TypeVars?> <name:Identifier> ":" Newline
+    "enum" <location:@L> <type_parameters:TypeVars?> <name:Identifier> ":" Newline
     Indent <options:EnumDefOption+> Dedent => {
-        let enum_def = ast::Definition::Enum(ast::EnumDef {
+        let type_parameters = type_parameters.unwrap_or_default();
+
+        ast::Definition::Enum(ast::EnumDef {
             name: name.clone(),
             location: location.clone(),
+            type_parameters,
             options,
-        });
-
-        if let Some(typevars) = typevars {
-            ast::Definition::Generic { name, location, parameters: typevars, base: Box::new(enum_def) }
-        } else {
-            enum_def
-        }
+        })
     }
 };
 
@@ -81,40 +78,33 @@ EnumDefOption: ast::EnumDefOption = {
 };
 
 StructDef: ast::Definition = {
-    "struct" <location:@L> <typevars:TypeVars?> <name:Identifier> ":" Newline
+    "struct" <location:@L> <type_parameters:TypeVars?> <name:Identifier> ":" Newline
     Indent <fields:StructDefField+> Dedent => {
-        let struct_def = ast::Definition::Struct(ast::StructDef {
+        let type_parameters = type_parameters.unwrap_or_default();
+
+        ast::Definition::Struct(ast::StructDef {
             location: location.clone(),
             name: name.clone(),
+            type_parameters,
             fields,
-        });
-
-        if let Some(typevars) = typevars {
-            ast::Definition::Generic { name, location, parameters: typevars, base: Box::new(struct_def) }
-        } else {
-            struct_def
-        }
+        })
     }
 };
 
 ClassDef: ast::Definition = {
-    "class" <location:@L> <typevars:TypeVars?> <name:Identifier> ":" Newline
+    "class" <location:@L> <type_parameters:TypeVars?> <name:Identifier> ":" Newline
     Indent
     <fields:VariableDef+>
     <methods:FunctionDef+>
     Dedent => {
-        let class_def = ast::Definition::Class(ast::ClassDef {
+        let type_parameters = type_parameters.unwrap_or_default();
+
+        ast::Definition::Class(ast::ClassDef {
             name: name.clone(),
             location: location.clone(),
             fields,
             methods,
-        });
-
-        if let Some(typevars) = typevars {
-            ast::Definition::Generic { name, location, parameters: typevars, base: Box::new(class_def) }
-        } else {
-            class_def
-        }
+        })
     }
 };
 

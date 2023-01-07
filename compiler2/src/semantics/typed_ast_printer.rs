@@ -1,12 +1,14 @@
 use super::refer;
-use super::type_system::SlangType;
-use super::typed_ast;
+use super::tast::SlangType;
+use super::tast::{AssignmentStatement, CaseStatement, ForStatement, IfStatement, WhileStatement};
+use super::tast::{Definition, FieldDef, FunctionDef, Program};
+use super::tast::{EnumLiteral, Expression, ExpressionKind, Literal, Statement, StatementKind};
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
 use super::Symbol;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub fn print_ast(program: &mut typed_ast::Program) {
+pub fn print_ast(program: &mut Program) {
     let mut printer = AstPrinter::new();
     visit_program(&mut printer, program);
 }
@@ -20,12 +22,11 @@ impl AstPrinter {
         AstPrinter { indent_level: 0 }
     }
 
-    fn print_function(&mut self, function_def: &typed_ast::FunctionDef) {
+    fn print_function(&mut self, function_def: &FunctionDef) {
         println!(
-            "{}fn name={} id={} location={}",
+            "{}fn {} location={}",
             self.get_indent(),
             function_def.name,
-            function_def.id,
             function_def.location
         );
         self.indent();
@@ -37,10 +38,9 @@ impl AstPrinter {
             for parameter in &signature.parameters {
                 let parameter = parameter.borrow();
                 println!(
-                    "{}name={} id={} typ={}",
+                    "{}{} typ={}",
                     self.get_indent(),
                     parameter.name,
-                    parameter.id,
                     parameter.typ
                 );
             }
@@ -57,11 +57,10 @@ impl AstPrinter {
             for (index, local_ref) in function_def.locals.iter().enumerate() {
                 let local_ref = local_ref.borrow();
                 println!(
-                    "{}index={} name={} id={} typ={}",
+                    "{}index={} {} typ={}",
                     self.get_indent(),
                     index,
                     local_ref.name,
-                    local_ref.id,
                     local_ref.typ,
                 );
             }
@@ -71,18 +70,18 @@ impl AstPrinter {
         println!("{}code:", self.get_indent());
     }
 
-    fn print_literal(&self, literal: &typed_ast::Literal) {
+    fn print_literal(&self, literal: &Literal) {
         match literal {
-            typed_ast::Literal::Bool(value) => {
+            Literal::Bool(value) => {
                 print!("{}Bool val={}", self.get_indent(), value);
             }
-            typed_ast::Literal::Integer(value) => {
+            Literal::Integer(value) => {
                 print!("{}Integer val={}", self.get_indent(), value);
             }
-            typed_ast::Literal::Float(value) => {
+            Literal::Float(value) => {
                 print!("{}Float val={}", self.get_indent(), value);
             }
-            typed_ast::Literal::String(value) => {
+            Literal::String(value) => {
                 print!("{}String val='{}'", self.get_indent(), value);
             }
         }
@@ -91,7 +90,7 @@ impl AstPrinter {
     /// Print some additional attributes
     ///
     /*
-    fn print_attributes(&self, node_id: typed_ast::NodeId) {
+    fn print_attributes(&self, node_id: NodeId) {
         if self.context.has_location(node_id) {
             let location = self.context.get_location(node_id);
             print!(" location={}:{}", location.row, location.column);
@@ -123,35 +122,25 @@ impl AstPrinter {
         self.indent_level -= 1;
     }
 
-    fn pre_definition(&mut self, definition: &typed_ast::Definition) {
+    fn pre_definition(&mut self, definition: &Definition) {
         match definition {
-            typed_ast::Definition::Function(function_def) => {
+            Definition::Function(function_def) => {
                 self.print_function(&function_def.borrow());
                 self.indent();
             }
 
-            typed_ast::Definition::Class(class_def) => {
-                println!(
-                    "{}class name={} id={}",
-                    self.get_indent(),
-                    class_def.name,
-                    class_def.id
-                );
+            Definition::Class(class_def) => {
+                println!("{}class {}", self.get_indent(), class_def.name,);
                 self.indent();
                 self.print_fields(&class_def.fields);
             }
-            typed_ast::Definition::Struct(struct_def) => {
-                println!(
-                    "{}struct name={} id={}",
-                    self.get_indent(),
-                    struct_def.name,
-                    struct_def.id
-                );
+            Definition::Struct(struct_def) => {
+                println!("{}struct {}", self.get_indent(), struct_def.name,);
 
                 self.indent();
                 self.print_fields(&struct_def.fields);
             }
-            typed_ast::Definition::Union(union_def) => {
+            Definition::Union(union_def) => {
                 println!(
                     "{}union name={} id={}",
                     self.get_indent(),
@@ -163,27 +152,31 @@ impl AstPrinter {
                 self.print_fields(&union_def.fields);
             }
 
-            // typed_ast::Definition::Field(field_def) => {
+            // Definition::Field(field_def) => {
 
             // self.print_attributes(field_def.node_id);
             // }
-            typed_ast::Definition::Enum(enum_def) => {
-                println!(
-                    "{}enum name={} id={}",
-                    self.get_indent(),
-                    enum_def.name,
-                    enum_def.id
-                );
+            Definition::Enum(enum_def) => {
+                println!("{}{}", self.get_indent(), enum_def);
                 self.indent();
                 for variant in &enum_def.variants {
                     let variant = variant.borrow();
-                    println!("{}variant name={}", self.get_indent(), variant.name,);
+                    let mut type_texts = vec![];
+                    for t in &variant.data {
+                        type_texts.push(format!("{}", t));
+                    }
+                    println!(
+                        "{}variant {}({})",
+                        self.get_indent(),
+                        variant.name,
+                        type_texts.join(", ")
+                    );
                 }
             }
         }
     }
 
-    fn print_fields(&mut self, fields: &[Rc<RefCell<typed_ast::FieldDef>>]) {
+    fn print_fields(&mut self, fields: &[Rc<RefCell<FieldDef>>]) {
         for field_def in fields {
             let field = field_def.borrow();
             println!(
@@ -195,54 +188,54 @@ impl AstPrinter {
         }
     }
 
-    fn post_definition(&mut self, definition: &typed_ast::Definition) {
+    fn post_definition(&mut self, definition: &Definition) {
         match definition {
-            typed_ast::Definition::Function(_) => {
+            Definition::Function(_) => {
                 self.dedent();
                 self.dedent();
             }
-            typed_ast::Definition::Class(_) => {
+            Definition::Class(_) => {
                 self.dedent();
             }
-            typed_ast::Definition::Struct(_) | typed_ast::Definition::Union(_) => {
+            Definition::Struct(_) | Definition::Union(_) => {
                 self.dedent();
             }
-            typed_ast::Definition::Enum(_) => {
+            Definition::Enum(_) => {
                 self.dedent();
             }
         }
     }
 
-    fn pre_stmt(&mut self, statement: &mut typed_ast::Statement) {
+    fn pre_stmt(&mut self, statement: &mut Statement) {
         match &statement.kind {
-            typed_ast::StatementKind::Break => {
+            StatementKind::Break => {
                 print!("{}break", self.get_indent());
             }
-            typed_ast::StatementKind::Continue => {
+            StatementKind::Continue => {
                 print!("{}continue", self.get_indent());
             }
-            typed_ast::StatementKind::Unreachable => {
+            StatementKind::Unreachable => {
                 print!("{}unreachable", self.get_indent());
             }
-            typed_ast::StatementKind::Pass => {
+            StatementKind::Pass => {
                 print!("{}pass", self.get_indent());
             }
-            typed_ast::StatementKind::Return { .. } => {
+            StatementKind::Return { .. } => {
                 print!("{}return", self.get_indent());
             }
-            typed_ast::StatementKind::If(typed_ast::IfStatement { .. }) => {
+            StatementKind::If(IfStatement { .. }) => {
                 print!("{}if-statement", self.get_indent());
             }
-            typed_ast::StatementKind::While(typed_ast::WhileStatement { .. }) => {
+            StatementKind::While(WhileStatement { .. }) => {
                 print!("{}while-statement", self.get_indent());
             }
-            typed_ast::StatementKind::Loop { .. } => {
+            StatementKind::Loop { .. } => {
                 print!("{}loop-statement", self.get_indent());
             }
-            typed_ast::StatementKind::Compound(_) => {
+            StatementKind::Compound(_) => {
                 print!("{}compound-statement", self.get_indent());
             }
-            typed_ast::StatementKind::For(typed_ast::ForStatement {
+            StatementKind::For(ForStatement {
                 loop_var,
                 iterable: _,
                 body: _,
@@ -253,19 +246,19 @@ impl AstPrinter {
                     refer(loop_var).borrow().name
                 );
             }
-            typed_ast::StatementKind::Expression(_) => {
+            StatementKind::Expression(_) => {
                 print!("{}expression-statement", self.get_indent());
             }
-            typed_ast::StatementKind::Assignment(typed_ast::AssignmentStatement { .. }) => {
+            StatementKind::Assignment(AssignmentStatement { .. }) => {
                 print!("{}assignment-statement", self.get_indent());
             }
-            typed_ast::StatementKind::Case(typed_ast::CaseStatement { .. }) => {
+            StatementKind::Case(CaseStatement { .. }) => {
                 print!("{}case-statement", self.get_indent());
             }
-            typed_ast::StatementKind::Switch { .. } => {
+            StatementKind::Switch { .. } => {
                 print!("{}switch-statement", self.get_indent());
             }
-            typed_ast::StatementKind::Let {
+            StatementKind::Let {
                 local_ref,
                 type_hint: _,
                 value: _,
@@ -277,7 +270,7 @@ impl AstPrinter {
                 );
             }
 
-            typed_ast::StatementKind::SetAttr {
+            StatementKind::SetAttr {
                 base: _,
                 attr,
                 value: _,
@@ -285,16 +278,15 @@ impl AstPrinter {
                 print!("{}set-attr-statement attr={}", self.get_indent(), attr);
             }
 
-            typed_ast::StatementKind::SetIndex { .. } => {
+            StatementKind::SetIndex { .. } => {
                 print!("{}set-index-statement", self.get_indent());
             }
 
-            typed_ast::StatementKind::StoreLocal { local_ref, .. } => {
+            StatementKind::StoreLocal { local_ref, .. } => {
                 print!(
-                    "{}store-local-variable(name={}, id={})",
+                    "{}store-local-variable({})",
                     self.get_indent(),
                     refer(local_ref).borrow().name,
-                    refer(local_ref).borrow().id
                 );
             }
         }
@@ -304,19 +296,19 @@ impl AstPrinter {
         self.indent();
     }
 
-    fn pre_expr(&mut self, expression: &mut typed_ast::Expression) {
+    fn pre_expr(&mut self, expression: &mut Expression) {
         match &expression.kind {
-            typed_ast::ExpressionKind::Undefined => {
+            ExpressionKind::Undefined => {
                 print!("{}undefined", self.get_indent());
             }
-            typed_ast::ExpressionKind::Object(_) => {
+            ExpressionKind::Object(_) => {
                 print!("{}ref", self.get_indent());
             }
-            typed_ast::ExpressionKind::Call { .. } => {
+            ExpressionKind::Call { .. } => {
                 print!("{}call", self.get_indent());
             }
             /*
-            typed_ast::ExpressionKind::MethodCall {
+            ExpressionKind::MethodCall {
                 instance,
                 method,
                 arguments,
@@ -324,25 +316,26 @@ impl AstPrinter {
                 print!("{}method-call method={}", self.get_indent(), method);
             }
             */
-            typed_ast::ExpressionKind::Binop { op, .. } => {
+            ExpressionKind::Binop { op, .. } => {
                 print!("{}Binary operation {:?}", self.get_indent(), op);
             }
-            typed_ast::ExpressionKind::TypeCast { to_type, value: _ } => {
+            ExpressionKind::TypeCast { to_type, value: _ } => {
                 print!("{}Type-cast to {}", self.get_indent(), to_type);
             }
-            typed_ast::ExpressionKind::Literal(literal) => {
+            ExpressionKind::Literal(literal) => {
                 self.print_literal(literal);
             }
-            typed_ast::ExpressionKind::ObjectInitializer { .. } => {
+            ExpressionKind::ObjectInitializer { .. } => {
                 print!("{}Object-initializer", self.get_indent());
             }
-            typed_ast::ExpressionKind::TupleLiteral(_values) => {
+            ExpressionKind::TupleLiteral(_values) => {
                 print!("{}Tuple-literal", self.get_indent());
             }
-            typed_ast::ExpressionKind::UnionLiteral { attr, value: _ } => {
+            ExpressionKind::UnionLiteral { attr, value: _ } => {
                 print!("{}Union-literal: {}", self.get_indent(), attr);
             }
-            typed_ast::ExpressionKind::EnumLiteral(typed_ast::EnumLiteral {
+            ExpressionKind::EnumLiteral(EnumLiteral {
+                enum_type: _,
                 variant,
                 arguments: _,
             }) => {
@@ -352,33 +345,30 @@ impl AstPrinter {
                     variant.upgrade().unwrap().borrow().name
                 );
             }
-            typed_ast::ExpressionKind::ListLiteral(_values) => {
+            ExpressionKind::ListLiteral(_values) => {
                 print!("{}List-literal", self.get_indent());
             }
 
-            typed_ast::ExpressionKind::LoadSymbol(symbol) => match symbol {
+            ExpressionKind::LoadSymbol(symbol) => match symbol {
                 Symbol::Parameter(param_ref) => {
                     print!(
-                        "{}Load-parameter name={} id={}",
+                        "{}Load-parameter {}",
                         self.get_indent(),
                         refer(param_ref).borrow().name,
-                        refer(param_ref).borrow().id
                     );
                 }
                 Symbol::LocalVariable(local_ref) => {
                     print!(
-                        "{}Load-local(name={}, id={})",
+                        "{}Load-local({})",
                         self.get_indent(),
                         refer(local_ref).borrow().name,
-                        refer(local_ref).borrow().id
                     );
                 }
                 Symbol::Function(func_ref) => {
                     print!(
-                        "{}Load-symbol-function(name={}, id={})",
+                        "{}Load-symbol-function({})",
                         self.get_indent(),
-                        refer(func_ref).borrow().name,
-                        refer(func_ref).borrow().id
+                        refer(func_ref).borrow().name
                     );
                 }
                 Symbol::ExternFunction { name, typ: _ } => {
@@ -416,16 +406,16 @@ impl AstPrinter {
                     print!("{}Load-symbol {}", self.get_indent(), other);
                 }
             },
-            // typed_ast::ExpressionKind::TypeConstructor(type_constructor) => {
+            // ExpressionKind::TypeConstructor(type_constructor) => {
             //     match type_constructor {
             //         other => {
             //             print!("{}type-constructor: {:?}", self.get_indent(), other);
             //         }
             /*
-            typed_ast::TypeConstructor::Any(typ) => {
+            TypeConstructor::Any(typ) => {
                 println!("{}Type constructor (any): {:?}", self.get_indent(), typ);
             }
-            typed_ast::TypeConstructor::EnumOption { enum_type, choice } => {
+            TypeConstructor::EnumOption { enum_type, choice } => {
                 println!(
                     "{}Type constructor (enum option) choice={} : {:?}",
                     self.get_indent(),
@@ -437,16 +427,16 @@ impl AstPrinter {
             //     }
             // }
 
-            // typed_ast::ExpressionKind::Instantiate => {
+            // ExpressionKind::Instantiate => {
             //     print!("{}Create instance", self.get_indent(),);
             // }
-            // typed_ast::ExpressionKind::ImplicitSelf => {
+            // ExpressionKind::ImplicitSelf => {
             //     print!("{}self", self.get_indent());
             // }
-            typed_ast::ExpressionKind::GetAttr { attr, .. } => {
+            ExpressionKind::GetAttr { attr, .. } => {
                 print!("{}get attr={}", self.get_indent(), attr);
             }
-            typed_ast::ExpressionKind::GetIndex { .. } => {
+            ExpressionKind::GetIndex { .. } => {
                 print!("{}get-index", self.get_indent());
             }
         }
@@ -481,21 +471,6 @@ impl VisitorApi for AstPrinter {
                 }
                 */
             }
-            VisitedNode::Generic(generic) => {
-                // Ehm?
-                let type_parameters: Vec<String> = generic
-                    .type_parameters
-                    .iter()
-                    .map(|p| format!("{}", p))
-                    .collect();
-                println!(
-                    "{}generic {} ({}):",
-                    self.get_indent(),
-                    generic.name,
-                    type_parameters.join(",")
-                );
-                self.indent();
-            }
 
             VisitedNode::Definition(definition) => {
                 self.pre_definition(definition);
@@ -523,9 +498,6 @@ impl VisitorApi for AstPrinter {
     fn post_node(&mut self, node: VisitedNode) {
         match node {
             VisitedNode::Program(_) | VisitedNode::TypeExpr(_) => {}
-            VisitedNode::Generic(_) => {
-                self.dedent();
-            }
 
             VisitedNode::Function(_) => {
                 self.dedent();

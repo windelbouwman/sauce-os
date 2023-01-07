@@ -10,6 +10,7 @@ pub struct Program {
     /// Other used modules
     pub imports: Vec<Import>,
 
+    /// Items defined in this module.
     pub definitions: Vec<Definition>,
 }
 
@@ -39,12 +40,6 @@ pub enum Import {
 
 pub enum Definition {
     Struct(StructDef),
-    Generic {
-        name: String,
-        location: Location,
-        parameters: Vec<TypeVar>,
-        base: Box<Definition>,
-    },
     Class(ClassDef),
     Enum(EnumDef),
     Function(FunctionDef),
@@ -57,6 +52,7 @@ pub enum Definition {
 pub struct EnumDef {
     pub name: String,
     pub location: Location,
+    pub type_parameters: Vec<TypeVar>,
     pub options: Vec<EnumDefOption>,
 }
 
@@ -87,6 +83,7 @@ pub struct VariableDef {
 pub struct StructDef {
     pub location: Location,
     pub name: String,
+    pub type_parameters: Vec<TypeVar>,
     pub fields: Vec<StructDefField>,
 }
 
@@ -258,7 +255,7 @@ pub enum Literal {
     Float(f64),
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug)]
 pub enum ObjRef {
     Name {
         location: Location,
@@ -272,7 +269,7 @@ pub enum ObjRef {
         member: String,
     },
 }
-
+/*
 impl ObjRef {
     pub fn location(&self) -> Location {
         match self {
@@ -280,6 +277,7 @@ impl ObjRef {
         }
     }
 }
+*/
 
 #[derive(Debug)]
 pub struct LabeledField {

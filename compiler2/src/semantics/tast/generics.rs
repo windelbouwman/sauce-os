@@ -1,17 +1,19 @@
 //! Types to describe generics.
 //!
 
-pub use super::enum_type::{EnumDef, EnumVariant};
-use super::scope::Scope;
-pub use super::struct_type::{StructDef, StructDefBuilder, UnionDef};
-use super::symbol::Symbol;
-use super::type_system::SlangType;
+use super::{EnumDef, EnumType, EnumVariant};
+use super::{Scope, Symbol};
+use super::{StructDef, StructDefBuilder, UnionDef};
+
+use super::type_system::{SlangType, UserType};
 use super::typed_ast::Definition;
 use crate::parsing::Location;
 use std::rc::Rc;
 use std::sync::Arc;
 pub type NodeId = usize;
 use std::collections::HashMap;
+
+/*
 
 /// A parameterized type, may contain subtypes which are type variables.
 pub struct GenericDef {
@@ -66,6 +68,7 @@ impl GenericDef {
         self.base.get_attr(name)
     }
 }
+ */
 
 pub struct TypeVar {
     pub location: Location,
@@ -102,18 +105,26 @@ pub fn replace_type_vars_sub(
             .get(&type_var.ptr.upgrade().unwrap().name)
             .unwrap()
             .clone(),
-        SlangType::GenericInstance {
-            generic,
-            type_parameters,
-        } => {
-            let type_parameters = type_parameters
-                .into_iter()
-                .map(|p| replace_type_vars_sub(p, type_var_map))
-                .collect();
-            SlangType::GenericInstance {
-                generic,
-                type_parameters,
-            }
+        SlangType::User(user_type) => {
+            let ut2 = match user_type {
+                UserType::Enum(enum_type) => {
+                    let type_arguments = enum_type
+                        .type_arguments
+                        .into_iter()
+                        .map(|p| replace_type_vars_sub(p, type_var_map))
+                        .collect();
+                    UserType::Enum(EnumType {
+                        enum_ref: enum_type.enum_ref,
+                        type_arguments,
+                    })
+                }
+                _x => {
+                    // unimplemented!("TODO!");
+                    _x
+                }
+            };
+
+            SlangType::User(ut2)
         }
         other => other,
     }

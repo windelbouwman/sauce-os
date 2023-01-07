@@ -8,11 +8,11 @@ enum Option:
 
 
 fn main():
-    let val: Option = Option::Some("TXT")
+    let val: Option = Option.Some("TXT")
     foo(val)
-    let val2 = Option::None()
+    let val2 = Option.None()
     foo(val2)
-    let val3: Option = Option::Money(5, 2.3)
+    let val3: Option = Option.Money(5, 2.3)
     foo(val3)
 
 

@@ -1,7 +1,6 @@
 //! Symbol table related code.
 
-use super::type_system::{SlangType, UserType};
-use super::typed_ast;
+use super::tast::{FunctionSignature, NameNodeId, Parameter, SlangType, UserType};
 use super::Context;
 use super::Symbol;
 use std::cell::RefCell;
@@ -35,15 +34,17 @@ impl Scope {
     ) {
         let mut parameters = vec![];
         for (name, typ) in argument_types {
-            parameters.push(Rc::new(RefCell::new(typed_ast::Parameter {
+            parameters.push(Rc::new(RefCell::new(Parameter {
                 location: Default::default(),
-                id: context.id_generator.gimme(),
-                name,
+                name: NameNodeId {
+                    id: context.id_generator.gimme(),
+                    name,
+                },
                 typ,
             })));
         }
 
-        let signature = Rc::new(RefCell::new(typed_ast::FunctionSignature {
+        let signature = Rc::new(RefCell::new(FunctionSignature {
             parameters,
             return_type,
         }));
