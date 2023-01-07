@@ -13,10 +13,10 @@ For example:
 
 */
 
-use super::tast::{AssignmentStatement, Expression, ExpressionKind, LabeledField, StatementKind};
-use super::tast::{Program, SlangType};
-use super::visitor::{visit_program, VisitedNode, VisitorApi};
-use super::{Context, Symbol};
+use super::Context;
+use crate::tast::{visit_program, VisitedNode, VisitorApi};
+use crate::tast::{AssignmentStatement, Expression, ExpressionKind, LabeledField, StatementKind};
+use crate::tast::{Program, SlangType, Symbol};
 use std::collections::HashMap;
 
 pub fn desugar(program: &mut Program, _context: &mut Context) {
@@ -79,8 +79,8 @@ fn lower_assignment(assignment: AssignmentStatement) -> StatementKind {
                 unimplemented!("TODO: {}!", other);
             }
         },
-        other => {
-            unimplemented!("TODO: {:?}", other);
+        _other => {
+            unimplemented!("TODO");
         }
     }
 }

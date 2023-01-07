@@ -22,16 +22,16 @@
 //!         data: OptionData
 //!
 
-use super::tast::SlangType;
-use super::tast::{
+use crate::semantics::Context;
+use crate::tast::{
     compound, integer_literal, load_local, store_local, tuple_literal, union_literal,
     unreachable_code,
 };
-use super::tast::{Block, Expression, ExpressionKind, Statement, StatementKind};
-use super::tast::{CaseStatement, SwitchArm, SwitchStatement};
-use super::tast::{Definition, EnumDef, LocalVariable, Program, StructDef, StructDefBuilder};
-use super::visitor::{visit_program, VisitedNode, VisitorApi};
-use super::{Context, NodeId, Ref};
+use crate::tast::{visit_program, VisitedNode, VisitorApi};
+use crate::tast::{Block, Expression, ExpressionKind, Statement, StatementKind};
+use crate::tast::{CaseStatement, SwitchArm, SwitchStatement};
+use crate::tast::{Definition, EnumDef, LocalVariable, Program, StructDef, StructDefBuilder};
+use crate::tast::{NodeId, Ref, SlangType};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;

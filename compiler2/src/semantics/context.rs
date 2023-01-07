@@ -1,5 +1,5 @@
 use super::id_generator::IdGenerator;
-use super::scope::Scope;
+use crate::tast::Scope;
 use std::sync::Arc;
 
 pub struct Context {

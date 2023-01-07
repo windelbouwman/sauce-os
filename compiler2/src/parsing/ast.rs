@@ -68,6 +68,7 @@ pub struct EnumDefOption {
 pub struct ClassDef {
     pub name: String,
     pub location: Location,
+    pub type_parameters: Vec<TypeVar>,
     pub fields: Vec<VariableDef>,
     pub methods: Vec<FunctionDef>,
 }

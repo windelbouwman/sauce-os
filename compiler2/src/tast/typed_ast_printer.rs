@@ -1,10 +1,9 @@
 use super::refer;
-use super::tast::SlangType;
-use super::tast::{AssignmentStatement, CaseStatement, ForStatement, IfStatement, WhileStatement};
-use super::tast::{Definition, FieldDef, FunctionDef, Program};
-use super::tast::{EnumLiteral, Expression, ExpressionKind, Literal, Statement, StatementKind};
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
-use super::Symbol;
+use crate::tast::{AssignmentStatement, CaseStatement, ForStatement, IfStatement, WhileStatement};
+use crate::tast::{Definition, FieldDef, FunctionDef, Program};
+use crate::tast::{EnumLiteral, Expression, ExpressionKind, Literal, Statement, StatementKind};
+use crate::tast::{SlangType, Symbol};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -48,7 +47,7 @@ impl AstPrinter {
         }
 
         if let Some(return_type) = &signature.return_type {
-            println!("{}Return type: {:?}", self.get_indent(), return_type);
+            println!("{}Return type: {}", self.get_indent(), return_type);
         }
 
         if !function_def.locals.is_empty() {

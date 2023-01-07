@@ -1,8 +1,8 @@
 //! Symbol table related code.
 
-use super::tast::{FunctionSignature, NameNodeId, Parameter, SlangType, UserType};
-use super::Context;
 use super::Symbol;
+use super::{FunctionSignature, NameNodeId, Parameter, SlangType, UserType};
+use crate::semantics::Context;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;

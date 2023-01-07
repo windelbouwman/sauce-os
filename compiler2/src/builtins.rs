@@ -1,5 +1,5 @@
-use crate::semantics::tast::{Program, SlangType};
-use crate::semantics::{Context, Scope, Symbol};
+use crate::semantics::Context;
+use crate::tast::{Program, Scope, SlangType, Symbol};
 
 use std::rc::Rc;
 use std::sync::Arc;

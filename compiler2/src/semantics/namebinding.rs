@@ -11,11 +11,11 @@ TBD: could be combined with the type checker?
 
 */
 
-use super::tast::{Definition, Expression, ExpressionKind, Program};
-use super::visitor::{visit_program, VisitedNode, VisitorApi};
-use super::{Diagnostics, Scope, Symbol};
+use super::Diagnostics;
 use crate::errors::CompilationError;
 use crate::parsing::{ast, Location};
+use crate::tast::{visit_program, VisitedNode, VisitorApi};
+use crate::tast::{Definition, Expression, ExpressionKind, Program, Scope, Symbol};
 use std::sync::Arc;
 
 /// Modify the AST such that all symbols are resolved.

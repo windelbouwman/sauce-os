@@ -1,12 +1,12 @@
-use super::tast::{
+use crate::parsing::ast;
+use crate::semantics::Context;
+use crate::tast::{
     comparison, compound, get_index, integer_literal, load_local, store_local, while_loop,
 };
-use super::tast::{Definition, LocalVariable, Program, SlangType};
-use super::tast::{ForStatement, Statement, StatementKind};
-use super::tast::{NodeId, Ref};
-use super::visitor::{visit_program, VisitedNode, VisitorApi};
-use super::Context;
-use crate::parsing::ast;
+use crate::tast::{visit_program, VisitedNode, VisitorApi};
+use crate::tast::{Definition, LocalVariable, Program, SlangType};
+use crate::tast::{ForStatement, Statement, StatementKind};
+use crate::tast::{NodeId, Ref};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -90,7 +90,7 @@ impl<'d> ForLoopRewriter<'d> {
                 compound(new_block)
             }
             other => {
-                unimplemented!("Cannot iterate {:?}", other);
+                unimplemented!("Cannot iterate {}", other);
             }
         }
     }

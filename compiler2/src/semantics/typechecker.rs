@@ -1,17 +1,13 @@
-use super::refer;
-use super::symbol::Symbol;
-use super::tast::undefined_value;
-use super::tast::Literal;
-use super::tast::{ArrayType, BasicType, SlangType, UserType};
-use super::tast::{
-    AssignmentStatement, CaseStatement, ForStatement, IfStatement, SwitchStatement, WhileStatement,
-};
-use super::tast::{Definition, FieldDef, FunctionDef, FunctionSignature, Program};
-use super::tast::{Expression, ExpressionKind, LabeledField, Statement, StatementKind, VariantRef};
 use super::Diagnostics;
 use crate::errors::CompilationError;
-use crate::parsing::ast;
-use crate::parsing::Location;
+use crate::parsing::{ast, Location};
+use crate::tast::{refer, undefined_value, Literal};
+use crate::tast::{ArrayType, BasicType, SlangType, UserType};
+use crate::tast::{
+    AssignmentStatement, CaseStatement, ForStatement, IfStatement, SwitchStatement, WhileStatement,
+};
+use crate::tast::{Definition, FieldDef, FunctionDef, FunctionSignature, Program, Symbol};
+use crate::tast::{Expression, ExpressionKind, LabeledField, Statement, StatementKind, VariantRef};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -77,7 +73,7 @@ impl TypeChecker {
         }
     }
 
-    fn check_type(&mut self, location: &Location, typ: &SlangType) {
+    fn check_type(&mut self, _location: &Location, typ: &SlangType) {
         match typ {
             /*
 
@@ -438,7 +434,7 @@ impl TypeChecker {
                                     Err(())
                                 }
                             },
-                            ExpressionKind::LoadSymbol(Symbol::EnumVariant(variant)) => {
+                            ExpressionKind::LoadSymbol(Symbol::EnumVariant(_variant)) => {
                                 /*
                                 let variant_rc = variant.upgrade().unwrap();
                                 let variant = variant_rc.borrow();
@@ -461,8 +457,8 @@ impl TypeChecker {
                                     */
                                 panic!("Should not reach this point!");
                             }
-                            other => {
-                                panic!("No go: {:?}", other);
+                            _other => {
+                                panic!("No go");
                             }
                         }
                     }
@@ -627,7 +623,7 @@ impl TypeChecker {
                 Symbol::Field(_) => {
                     unimplemented!("Load field: Unlikely that this will ever happen.");
                 }
-                Symbol::EnumVariant(variant) => {
+                Symbol::EnumVariant(_variant) => {
                     // expression.typ = SlangType::TypeConstructor(Box::new(
                     //     variant.upgrade().unwrap().borrow().get_parent_type(),
                     // ));

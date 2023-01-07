@@ -11,6 +11,8 @@ mod ir_gen;
 mod llvm_backend;
 mod parsing;
 mod semantics;
+mod tast;
+mod transformation;
 mod vm;
 
 use compilation::CompileOptions;

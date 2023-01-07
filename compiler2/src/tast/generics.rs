@@ -1,17 +1,10 @@
 //! Types to describe generics.
 //!
 
-use super::{EnumDef, EnumType, EnumVariant};
-use super::{Scope, Symbol};
-use super::{StructDef, StructDefBuilder, UnionDef};
-
-use super::type_system::{SlangType, UserType};
-use super::typed_ast::Definition;
+use super::{EnumType, NameNodeId, SlangType, UserType};
 use crate::parsing::Location;
-use std::rc::Rc;
-use std::sync::Arc;
-pub type NodeId = usize;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 /*
 
@@ -72,19 +65,19 @@ impl GenericDef {
 
 pub struct TypeVar {
     pub location: Location,
-    pub name: String,
-    pub id: NodeId,
+    pub name: NameNodeId,
 }
 
 impl std::fmt::Display for TypeVar {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "type-var(name={}, id={})", self.name, self.id)
+        write!(f, "type-var-{}", self.name)
     }
 }
 
 /// Apply concrete types to a type containing type variables.
 ///
 /// This performs type variable replacing.
+#[allow(dead_code)]
 pub fn replace_type_vars_top(
     type_parameters: &[Rc<TypeVar>],
     types: &[SlangType],
@@ -102,7 +95,7 @@ pub fn replace_type_vars_sub(
 ) -> SlangType {
     match typ {
         SlangType::TypeVar(type_var) => type_var_map
-            .get(&type_var.ptr.upgrade().unwrap().name)
+            .get(&type_var.ptr.upgrade().unwrap().name.name)
             .unwrap()
             .clone(),
         SlangType::User(user_type) => {
@@ -138,7 +131,7 @@ pub fn get_substitution_map(
     let mut type_var_map: HashMap<String, SlangType> = HashMap::new();
     assert!(type_parameters.len() == types.len());
     for (v, p) in type_parameters.iter().zip(types.iter()) {
-        type_var_map.insert(v.name.clone(), p.clone());
+        type_var_map.insert(v.name.name.clone(), p.clone());
     }
     type_var_map
 }

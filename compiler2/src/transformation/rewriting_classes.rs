@@ -22,14 +22,14 @@
 //!     std::print(this.bar)
 //!
 
-use super::tast::{
+use crate::semantics::Context;
+use crate::tast::{
     load_function, return_value, tuple_literal, undefined_value, Expression, ExpressionKind,
 };
-use super::tast::{ClassDef, Definition, FunctionDef, FunctionSignature, Program};
-use super::tast::{NameNodeId, NodeId, Ref};
-use super::tast::{SlangType, StructDefBuilder};
-use super::visitor::{visit_program, VisitedNode, VisitorApi};
-use super::{Context, Scope, Symbol};
+use crate::tast::{visit_program, VisitedNode, VisitorApi};
+use crate::tast::{ClassDef, Definition, FunctionDef, FunctionSignature, Program};
+use crate::tast::{NameNodeId, NodeId, Ref, Scope, Symbol};
+use crate::tast::{SlangType, StructDefBuilder};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;

@@ -12,24 +12,30 @@ mod class_type;
 mod enum_type;
 mod expressions;
 mod generics;
+mod scope;
 mod statements;
 mod struct_type;
+mod symbol;
 mod type_system;
 mod typed_ast;
+mod typed_ast_printer;
+mod visitor;
 
 use std::cell::RefCell;
-use std::rc::Weak;
+use std::rc::{Rc, Weak};
 
 // re-exports:
 pub use class_type::ClassDef;
 pub use enum_type::{EnumDef, EnumType, EnumVariant};
 pub use expressions::{Expression, ExpressionKind, Literal};
-pub use generics::TypeVar;
+pub use generics::{get_substitution_map, TypeVar};
+pub use scope::Scope;
 pub use statements::{
     AssignmentStatement, CaseArm, CaseStatement, ForStatement, IfStatement, Statement,
     StatementKind, SwitchArm, SwitchStatement, WhileStatement,
 };
 pub use struct_type::{StructDef, StructDefBuilder, StructType, UnionDef};
+pub use symbol::{DefinitionRef, Symbol};
 pub use type_system::{ArrayType, BasicType, SlangType, TypeExpression, TypeVarRef, UserType};
 pub use typed_ast::{
     comparison, compound, get_attr, get_index, integer_literal, load_function, load_local,
@@ -40,12 +46,16 @@ pub use typed_ast::{
     Block, Definition, EnumLiteral, FieldDef, FunctionDef, FunctionSignature, LabeledField,
     LocalVariable, Parameter, Program, VariantRef,
 };
-
-use super::scope::Scope;
-use super::symbol::Symbol;
+pub use typed_ast_printer::print_ast;
+pub use visitor::{visit_program, VisitedNode, VisitorApi};
 
 pub type NodeId = usize;
 pub type Ref<T> = Weak<RefCell<T>>;
+
+/// Refer to the given reference
+pub fn refer<'t, T>(r: &'t Ref<T>) -> Rc<RefCell<T>> {
+    r.upgrade().unwrap()
+}
 
 #[derive(Debug)]
 pub struct NameNodeId {

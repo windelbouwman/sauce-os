@@ -6,14 +6,13 @@
 use super::bytecode;
 use super::bytecode::Instruction;
 use super::parsing::ast;
-use super::semantics::tast;
-use super::semantics::tast::{ArrayType, BasicType, NodeId, SlangType, UserType};
-use crate::semantics::{refer, Symbol};
+use crate::tast;
+use crate::tast::{refer, ArrayType, BasicType, NodeId, SlangType, Symbol, UserType};
 use std::collections::HashMap;
 use std::rc::Rc;
 
 /// Compile a typed ast into bytecode.
-pub fn gen(progs: &[Rc<tast::Program>]) -> bytecode::Program {
+pub fn generate_bytecode(progs: &[Rc<tast::Program>]) -> bytecode::Program {
     log::info!("Generating IR bytecode");
     let mut generator = Generator::new();
     for prog in progs {
@@ -192,7 +191,7 @@ impl Generator {
                 self.imports.push(bc_import);
             }
             other => {
-                unimplemented!("Not implemented: {:?}", other);
+                unimplemented!("Not implemented: {}", other);
             }
         }
     }
@@ -276,7 +275,7 @@ impl Generator {
                     self.emit(Instruction::SetAttr { index: field.index });
                 }
                 other => {
-                    panic!("Base type must be structured type, not {:?}.", other);
+                    panic!("Base type must be structured type, not {}.", other);
                 }
             },
 
@@ -624,7 +623,7 @@ impl Generator {
             tast::ExpressionKind::Binop { lhs, op, rhs } => {
                 self.gen_binop(lhs, op, rhs);
             }
-            tast::ExpressionKind::TypeCast { to_type, value } => {
+            tast::ExpressionKind::TypeCast { to_type: _, value } => {
                 self.gen_expression(value);
                 let cast_operation = match (&value.typ, &expression.typ) {
                     (SlangType::Basic(from_type), SlangType::Basic(to_type)) => {

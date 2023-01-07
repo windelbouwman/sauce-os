@@ -1,4 +1,4 @@
-use super::tast::NodeId;
+use crate::tast::NodeId;
 
 pub struct IdGenerator {
     nxt: usize,

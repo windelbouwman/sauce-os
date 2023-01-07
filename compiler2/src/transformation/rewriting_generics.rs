@@ -12,11 +12,13 @@ Tasks involved in type erasure:
  */
 
 // use super::type_system::{SlangType, UserType};
-use super::generics::get_substitution_map;
-use super::type_system::SlangType;
-use super::typed_ast::{self, Definition, FunctionDef, Program};
-use super::visitor::{visit_program, VisitedNode, VisitorApi};
-use super::{Context, NodeId};
+use crate::semantics::Context;
+use crate::tast::get_substitution_map;
+use crate::tast::{visit_program, VisitedNode, VisitorApi};
+use crate::tast::{Definition, FunctionDef, Program};
+use crate::tast::{
+    Expression, ExpressionKind, NodeId, SlangType, Statement, StatementKind, UserType,
+};
 use std::collections::HashMap;
 
 pub fn rewrite_generics(program: &mut Program, context: &mut Context) {
@@ -74,10 +76,10 @@ impl<'d> GenericRewriter<'d> {
     /// - Object initializer:
     ///     Check if we initialize a bound generic
     ///     Cast specifics to opaque pointers.
-    fn update_expression(&self, expression: &mut typed_ast::Expression) {
+    fn update_expression(&self, expression: &mut Expression) {
         match &mut expression.kind {
-            typed_ast::ExpressionKind::GetAttr { base, attr } => {
-                if let SlangType::GenericInstance(generic_instance) = &base.typ {
+            ExpressionKind::GetAttr { base, attr } => {
+                if let SlangType::User(UserType::Struct(struct_type)) = &base.typ {
                     // If we get an attribute which is a type var
                     // Introduce a cast from opaque, to the concrete type.
 
@@ -85,13 +87,19 @@ impl<'d> GenericRewriter<'d> {
                     // A bit lame to do it like this ..
                     let original_expr_type = expression.typ.clone();
 
-                    let generic = generic_instance.get_def();
-                    let attr_typ = generic.get_attr(attr).expect("We checked this").get_type();
+                    let struct_def = struct_type.struct_ref.upgrade().unwrap();
+                    let attr_typ = struct_def
+                        .get_attr(attr)
+                        .expect("We checked this")
+                        .get_type();
 
                     if let SlangType::TypeVar(type_var) = attr_typ {
-                        let type_var_map = generic_instance.get_substitution_map();
+                        let type_var_map = get_substitution_map(
+                            &struct_def.type_parameters,
+                            &struct_type.type_arguments,
+                        );
                         let mut typ = type_var_map
-                            .get(&type_var.ptr.upgrade().unwrap().name)
+                            .get(&type_var.ptr.upgrade().unwrap().name.name)
                             .cloned()
                             .expect("We checked!");
                         self.update_type(&mut typ);
@@ -103,10 +111,11 @@ impl<'d> GenericRewriter<'d> {
                     }
                 }
             }
-            typed_ast::ExpressionKind::TupleLiteral(_) => {
+            ExpressionKind::TupleLiteral(_) => {
                 // self.update_type(&mut expression.typ);
             }
-            typed_ast::ExpressionKind::ObjectInitializer { typ, fields } => {
+            /*
+            ExpressionKind::ObjectInitializer { typ, fields } => {
                 // Initialization of an object, by a set of named fields!
                 if let SlangType::GenericInstance(generic_instance) = typ {
                     // If we initialize a bound generic, we need to do something.
@@ -130,6 +139,7 @@ impl<'d> GenericRewriter<'d> {
 
                 self.update_type(typ);
             }
+            */
             _ => {}
         }
     }
@@ -140,14 +150,16 @@ impl<'d> GenericRewriter<'d> {
     /// - Replace Generic instances, by the concrete type for this generic.
     fn update_type(&self, typ: &mut SlangType) {
         match typ {
+            /*
             SlangType::GenericInstance(generic_instance) => {
                 // Okay, if we refer to a generic instance, replace with opaque generic type!
                 *typ = self
-                    .type_map
-                    .get(&generic_instance.get_def().id)
-                    .unwrap()
-                    .clone();
+                .type_map
+                .get(&generic_instance.get_def().id)
+                .unwrap()
+                .clone();
             }
+            */
             SlangType::TypeVar(_) => {
                 // Replace type variables with opaque pointers!
                 *typ = SlangType::Opaque;
@@ -155,32 +167,27 @@ impl<'d> GenericRewriter<'d> {
             _ => {}
         }
     }
-
-    #[allow(dead_code)]
-    fn new_id(&mut self) -> NodeId {
-        self.context.id_generator.gimme()
-    }
 }
 
 impl<'d> VisitorApi for GenericRewriter<'d> {
     fn pre_node(&mut self, node: VisitedNode) {
         match node {
-            VisitedNode::Program(program) => {
+            VisitedNode::Program(_program) => {
                 // Promote internal definitions from generics to
                 // top level definition
-                for generic in &program.generics {
-                    // Take each generic, and move it up a notch:
-                    let new_def = generic.base.clone();
-                    let new_type = new_def.create_type();
-                    self.type_map.insert(generic.id, new_type);
-                    self.new_definitions.push(new_def);
-                }
+                // for generic in &program.generics {
+                //     // Take each generic, and move it up a notch:
+                //     let new_def = generic.base.clone();
+                //     let new_type = new_def.create_type();
+                //     self.type_map.insert(generic.id, new_type);
+                //     self.new_definitions.push(new_def);
+                // }
 
-                program.definitions.append(&mut self.new_definitions);
+                // program.definitions.append(&mut self.new_definitions);
             }
             VisitedNode::Definition(_definition) => {
                 // match definition {
-                // typed_ast::Definition::
+                // Definition::
                 // }
             }
             VisitedNode::Expression(expression) => {
@@ -191,7 +198,7 @@ impl<'d> VisitorApi for GenericRewriter<'d> {
                 // self.update_type(type_expr);
             }
             VisitedNode::Statement(statement) => match &statement.kind {
-                typed_ast::StatementKind::Case(_case_statement) => {
+                StatementKind::Case(_case_statement) => {
                     panic!("Unsupported, case statements must be rewritten first.");
                 }
                 _ => {}

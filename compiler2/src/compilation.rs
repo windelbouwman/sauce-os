@@ -4,10 +4,12 @@
 use crate::builtins::{define_builtins, load_std_module};
 use crate::bytecode;
 use crate::errors::CompilationError;
-use crate::ir_gen;
+use crate::ir_gen::generate_bytecode;
 use crate::llvm_backend;
 use crate::parsing::{ast, parse_file};
-use crate::semantics::{analyze, print_ast, Context, Scope, Symbol};
+use crate::semantics::{analyze, Context};
+use crate::tast::{print_ast, Scope, Symbol};
+use crate::transformation::transform;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -53,6 +55,8 @@ pub fn compile_to_bytecode(
             print_ast(&mut typed_prog);
         }
 
+        transform(&mut typed_prog, &mut context, options.dump_ast);
+
         let typed_prog_ref = Rc::new(typed_prog);
         context.modules_scope.define(
             typed_prog_ref.name.clone(),
@@ -61,7 +65,7 @@ pub fn compile_to_bytecode(
         typed_programs.push(typed_prog_ref);
     }
 
-    let bc = ir_gen::gen(&typed_programs);
+    let bc = generate_bytecode(&typed_programs);
 
     if options.dump_bc {
         log::debug!("Dumping bytecode below");

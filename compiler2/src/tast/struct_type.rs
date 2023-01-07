@@ -13,6 +13,9 @@ use std::sync::Arc;
 pub struct StructDef {
     pub location: Location,
     pub name: NameNodeId,
+
+    // Idea: Indicator whether this struct is union type.
+    // pub is_union: bool,
     pub type_parameters: Vec<Rc<TypeVar>>,
     pub scope: Arc<Scope>,
     pub fields: Vec<Rc<RefCell<FieldDef>>>,
@@ -20,7 +23,7 @@ pub struct StructDef {
 
 impl std::fmt::Display for StructDef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "struct({})", self.name)
+        write!(f, "struct-{}", self.name)
     }
 }
 
@@ -43,7 +46,7 @@ impl StructDef {
         }
     }
 
-    pub fn get_struct_fields(&self) -> Vec<(String, SlangType)> {
+    fn get_struct_fields(&self) -> Vec<(String, SlangType)> {
         let mut fields = vec![];
 
         for field in &self.fields {
@@ -176,7 +179,7 @@ impl Eq for StructType {}
 impl std::fmt::Display for StructType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let struct_def = self.struct_ref.upgrade().unwrap();
-        write!(f, "user-{}", struct_def)
+        struct_def.fmt(f)
     }
 }
 

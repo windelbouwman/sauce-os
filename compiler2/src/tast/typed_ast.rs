@@ -82,6 +82,7 @@ impl Definition {
     }
 
     /// Get attribute from this definition
+    #[allow(dead_code)]
     pub fn get_attr(&self, name: &str) -> Option<Symbol> {
         match self {
             Definition::Struct(struct_def) => struct_def.get_attr(name),
@@ -122,7 +123,6 @@ pub enum TypeExprKind {
 */
 
 /// A function definition.
-// #[derive(Debug)]
 pub struct FunctionDef {
     pub name: NameNodeId,
     pub location: Location,
@@ -161,7 +161,6 @@ impl FunctionDef {
     }
 }
 
-#[derive(Debug)]
 pub struct LocalVariable {
     pub location: Location,
     pub mutable: bool,
@@ -180,7 +179,6 @@ impl LocalVariable {
     }
 }
 
-#[derive(Debug)]
 pub struct Parameter {
     pub location: Location,
     pub name: NameNodeId,
@@ -200,7 +198,6 @@ impl Parameter {
 
 pub type Block = Vec<Statement>;
 
-#[derive(Debug)]
 pub enum VariantRef {
     Name(String),
     Variant(Ref<EnumVariant>),
@@ -218,7 +215,7 @@ where
     let index = index.into();
     let typ: SlangType = match &base.typ {
         SlangType::Array(array_type) => *array_type.element_type.clone(),
-        other => panic!("Cannot index type: {:?}", other),
+        other => panic!("Cannot index type: {}", other),
     };
 
     ExpressionKind::GetIndex {
@@ -384,21 +381,18 @@ pub fn obj_ref(obj_ref: ast::ObjRef) -> Expression {
     ExpressionKind::Object(obj_ref).typed_expr(SlangType::Undefined)
 }
 
-#[derive(Debug)]
 pub struct EnumLiteral {
     pub enum_type: EnumType,
     pub variant: Ref<EnumVariant>,
     pub arguments: Vec<Expression>,
 }
 
-#[derive(Debug)]
 pub struct LabeledField {
     pub location: Location,
     pub name: String,
     pub value: Box<Expression>,
 }
 
-// #[derive(Debug)]
 // pub enum TypeConstructor {
 //     // Any(SlangType),
 //     ClassRef(NodeId),

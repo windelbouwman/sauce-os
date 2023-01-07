@@ -34,6 +34,7 @@ impl EnumDef {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_attr(&self, name: &str) -> Option<Symbol> {
         self.scope.get(name).cloned()
     }
@@ -49,14 +50,13 @@ impl std::fmt::Display for EnumDef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut type_var_names: Vec<String> = vec![];
         for type_var in self.type_parameters.iter() {
-            type_var_names.push(type_var.name.clone());
+            type_var_names.push(type_var.name.name.clone());
         }
 
         write!(f, "enum({})[{}]", self.name, type_var_names.join(", "))
     }
 }
 
-#[derive(Debug)]
 pub struct EnumVariant {
     pub location: Location,
     pub name: String,
@@ -135,7 +135,7 @@ impl EnumDefBuilder {
 }
 
 /// Representation for an enum type.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct EnumType {
     pub enum_ref: Weak<EnumDef>,
     pub type_arguments: Vec<SlangType>,

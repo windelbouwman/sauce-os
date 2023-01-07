@@ -1,19 +1,19 @@
-//! Transform AST into typed AST and fill scopes
-//! in during this process.
+//! Transform AST into typed AST (TAST) and fill scopes
+//! during this process.
 //!
-//! Ideas:
 //! Tasks involved here:
 //! - Translate ast into typed_ast.
 //! - Fill scopes with symbols.
 //! - Assign unique ID to each symbol.
 
 use super::context::Context;
-use super::symbol::DefinitionRef;
-use super::tast;
-use super::tast::{NameNodeId, SlangType, TypeExpression, TypeVar, UserType};
-use super::{Diagnostics, Scope, Symbol};
-use super::{NodeId, Ref};
+use super::Diagnostics;
 use crate::parsing::{ast, Location};
+use crate::tast;
+use crate::tast::{
+    DefinitionRef, NameNodeId, NodeId, Ref, Scope, SlangType, Symbol, TypeExpression, TypeVar,
+    UserType,
+};
 use crate::CompilationError;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
@@ -137,9 +137,11 @@ impl<'g> Phase1<'g> {
         // Register type variables as parameters!
         for type_var in parameters {
             let type_var2 = Rc::new(TypeVar {
-                name: type_var.name.clone(),
+                name: NameNodeId {
+                    name: type_var.name.clone(),
+                    id: self.new_id(),
+                },
                 location: type_var.location.clone(),
-                id: self.new_id(),
             });
             self.define(
                 &type_var.name,

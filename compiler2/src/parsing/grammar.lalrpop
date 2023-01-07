@@ -102,6 +102,7 @@ ClassDef: ast::Definition = {
         ast::Definition::Class(ast::ClassDef {
             name: name.clone(),
             location: location.clone(),
+            type_parameters,
             fields,
             methods,
         })

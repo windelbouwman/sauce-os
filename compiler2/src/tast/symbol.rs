@@ -3,7 +3,7 @@
 //! Symbols can refer to variables, parameters, functions etc..
 //!
 
-use super::tast::{
+use super::{
     ClassDef, Definition, EnumDef, EnumVariant, FieldDef, FunctionDef, LocalVariable, Parameter,
     Program, Ref, SlangType, StructDef, TypeVar,
 };
@@ -141,6 +141,8 @@ impl std::fmt::Display for Symbol {
     }
 }
 
+/*
+*/
 impl std::fmt::Debug for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // Use the display logic for debug as well:

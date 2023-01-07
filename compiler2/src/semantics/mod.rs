@@ -1,51 +1,32 @@
-/* Ideas:
-
-Phase 1:
-- Translate ast into typed_ast.
-- Fill scopes with symbols.
-
-Phase 2:
-- Resolve symbols
-
-Phase 3:
-- Type check
-
-*/
+//! Semantic phase.
+//!
+//! Phase 1: fillscrope.rs
+//! - Translate ast into typed_ast.
+//! - Fill scopes with symbols.
+//!
+//! Phase 2: namebinding.rs
+//! - Resolve symbols
+//!
+//! Phase 3: pass2.rs
+//! - Evaluate type expressions
+//!
+//! Phase 4: typechecker.rs
+//! - Type check
 
 mod analysis;
 mod context;
 mod diagnostics;
 mod fillscope;
-// mod generic_expansion;
 mod id_generator;
 mod namebinding;
 mod pass2;
 mod phase5_desugar;
-mod scope;
-mod symbol;
-pub mod tast;
 mod typechecker;
-mod typed_ast_printer;
-use std::cell::RefCell;
-use std::rc::Rc;
-mod rewriting_classes;
-mod rewriting_enums;
-mod rewriting_for_loop;
-// mod rewriting_generics;
-mod visitor;
 
 pub use context::Context;
-pub use tast::{NodeId, Ref};
-
-/// Refer to the given reference
-pub fn refer<'t, T>(r: &'t Ref<T>) -> Rc<RefCell<T>> {
-    r.upgrade().unwrap()
-}
 
 pub use diagnostics::Diagnostics;
-pub use scope::Scope;
-pub use symbol::Symbol;
-pub use typed_ast_printer::print_ast;
 
 // phased type checker:
 pub use analysis::analyze;
+pub use typechecker::check_types;

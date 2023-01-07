@@ -2,15 +2,15 @@
 //!
 
 use super::{
-    ClassDef, EnumType, EnumVariant, Expression, FieldDef, FunctionDef, FunctionSignature,
-    StructType, Symbol, TypeVar, UnionDef,
+    ClassDef, EnumType, Expression, FieldDef, FunctionDef, FunctionSignature, StructType, Symbol,
+    TypeVar, UnionDef,
 };
 
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 // unused:
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum SlangType {
     /// The type is undefined
     Undefined,
@@ -27,6 +27,7 @@ pub enum SlangType {
     ///
     /// Useful when rewriting generic types into opaque
     /// pointers with type casts.
+    #[allow(dead_code)]
     Opaque,
 
     TypeVar(TypeVarRef),
@@ -78,7 +79,6 @@ impl std::fmt::Debug for TypeVarRef {
 }
 
 /// Unresolved type expression
-#[derive(Debug)]
 pub struct TypeExpression {
     pub expr: Box<Expression>,
 }
@@ -122,9 +122,7 @@ impl std::fmt::Display for SlangType {
             SlangType::Opaque => {
                 write!(f, "opaque")
             }
-            SlangType::TypeVar(v) => {
-                write!(f, "type-var({})", v)
-            }
+            SlangType::TypeVar(type_var_ref) => type_var_ref.fmt(f),
             SlangType::Array(array) => {
                 write!(f, "array({} x {})", array.size, array.element_type)
             }
@@ -134,8 +132,8 @@ impl std::fmt::Display for SlangType {
             SlangType::Void => {
                 write!(f, "void")
             }
-            SlangType::Unresolved(type_expr) => {
-                write!(f, "unresolved({:?})", type_expr)
+            SlangType::Unresolved(_type_expr) => {
+                write!(f, "unresolved-expr")
             }
         }
     }
@@ -397,7 +395,7 @@ impl SlangType {
         match self {
             SlangType::User(user_type) => user_type.get_attr(name),
             SlangType::TypeConstructor(type_con) => match type_con.as_ref() {
-                SlangType::User(UserType::Enum(enum_def)) => {
+                SlangType::User(UserType::Enum(_enum_def)) => {
                     // enum_def.upgrade().unwrap().get_attr(name)
                     unimplemented!("TODO?");
                 }
@@ -423,7 +421,7 @@ impl SlangType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ArrayType {
     pub element_type: Box<SlangType>,
     pub size: usize,

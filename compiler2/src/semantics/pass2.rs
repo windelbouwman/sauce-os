@@ -4,17 +4,16 @@
 //! - Instantiate generics
 //! - Create
 
-use super::symbol::DefinitionRef;
-use super::tast::{EnumLiteral, Program, SlangType, TypeExpression, TypeVar};
-use super::tast::{Expression, ExpressionKind};
-use super::visitor::{visit_program, VisitedNode, VisitorApi};
-use super::{Diagnostics, Symbol};
+use super::Diagnostics;
 use crate::errors::CompilationError;
 use crate::parsing::Location;
+use crate::tast::{visit_program, VisitedNode, VisitorApi};
+use crate::tast::{DefinitionRef, EnumLiteral, Program, SlangType, TypeExpression, TypeVar};
+use crate::tast::{Expression, ExpressionKind, Symbol};
 use std::rc::Rc;
 
 pub fn pass2(program: &mut Program) -> Result<(), CompilationError> {
-    log::debug!("Evaluating types '{}'", program.name);
+    log::debug!("Evaluating type expressions for '{}'", program.name);
     let mut pass2 = Pass2::new(&program.path);
     visit_program(&mut pass2, program);
     pass2.diagnostics.value_or_error(())
@@ -78,13 +77,10 @@ impl Pass2 {
                 self.instantiate_generic(&type_expr.location, *base, type_arguments)
             }
 
-            other => {
+            _other => {
                 // Ai!
                 let location: &Location = &type_expr.location;
-                self.error(
-                    location,
-                    format!("Invalid type expression is no type, but: {:?}", other),
-                );
+                self.error(location, format!("Invalid type expression is no type"));
                 Err(())
             }
         }
@@ -149,8 +145,8 @@ impl Pass2 {
     fn on_generic_ref(&mut self, expr: Expression) -> Result<DefinitionRef, ()> {
         match expr.kind {
             ExpressionKind::LoadSymbol(Symbol::Definition(definition_ref)) => Ok(definition_ref),
-            other => {
-                self.error(&expr.location, format!("Invalid generic: {:?}", other));
+            _other => {
+                self.error(&expr.location, format!("Invalid generic"));
                 Err(())
             }
         }
@@ -167,7 +163,7 @@ impl VisitorApi for Pass2 {
             VisitedNode::TypeExpr(_type_expression) => {
                 // self.check_type_expression(type_expression);
             }
-            VisitedNode::Expression(expression) => {
+            VisitedNode::Expression(_expression) => {
                 // self.check_expr(expression);
             }
             _ => {}
@@ -182,8 +178,8 @@ impl VisitorApi for Pass2 {
             VisitedNode::Expression(expression) => {
                 match &mut expression.kind {
                     // TBD: this could be a whole seperate pass?
-                    ExpressionKind::GetIndex { base, index } => match &base.kind {
-                        ExpressionKind::LoadSymbol(Symbol::Definition(definition_ref)) => {
+                    ExpressionKind::GetIndex { base, index: _ } => match &base.kind {
+                        ExpressionKind::LoadSymbol(Symbol::Definition(_definition_ref)) => {
                             let old_expr = std::mem::take(expression);
                             // self.instantiate_generic(old_expr);
                             let typ = self.transform_into_type(old_expr).unwrap();

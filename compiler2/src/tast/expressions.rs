@@ -2,7 +2,6 @@ use super::{get_attr, integer_literal, undefined_value};
 use super::{EnumLiteral, LabeledField, SlangType, Symbol};
 use crate::parsing::{ast, Location};
 
-#[derive(Debug)]
 pub struct Expression {
     pub location: Location,
     pub kind: ExpressionKind,
@@ -55,7 +54,7 @@ impl Expression {
     pub fn eval(&self) -> Literal {
         match &self.kind {
             ExpressionKind::Literal(literal) => literal.clone(),
-            other => panic!("Cannot evaluate {:?}", other),
+            _other => panic!("Cannot evaluate expression"),
         }
     }
 }
@@ -72,7 +71,6 @@ impl Default for Expression {
     }
 }
 
-#[derive(Debug)]
 pub enum ExpressionKind {
     /// Undefined value
     Undefined,

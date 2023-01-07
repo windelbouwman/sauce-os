@@ -8,13 +8,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-#[derive(Debug)]
 pub struct Statement {
     pub location: Location,
     pub kind: StatementKind,
 }
 
-#[derive(Debug)]
 pub enum StatementKind {
     Expression(Expression),
     Let {
@@ -69,13 +67,12 @@ impl StatementKind {
     }
 }
 
-#[derive(Debug)]
 pub struct SwitchStatement {
     pub value: Expression,
     pub arms: Vec<SwitchArm>,
     pub default: Block,
 }
-#[derive(Debug)]
+
 pub struct SwitchArm {
     pub value: Expression,
 
@@ -83,33 +80,30 @@ pub struct SwitchArm {
     pub body: Block,
 }
 
-#[derive(Debug)]
 pub struct AssignmentStatement {
     pub target: Expression,
     pub value: Expression,
 }
 
-#[derive(Debug)]
 pub struct IfStatement {
     pub condition: Expression,
     pub if_true: Block,
     pub if_false: Option<Block>,
 }
 
-#[derive(Debug)]
 pub struct WhileStatement {
     pub condition: Expression,
     pub body: Block,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct ForStatement {
     pub loop_var: Ref<LocalVariable>,
     pub iterable: Expression,
     pub body: Block,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct CaseStatement {
     pub value: Expression,
     pub arms: Vec<CaseArm>,
@@ -136,19 +130,9 @@ impl CaseArm {
             // ExpressionKind::TypeConstructor(TypeConstructor::EnumVariant(variant))
             // |
             VariantRef::Variant(variant) => variant.upgrade().unwrap(),
-            other => {
-                panic!("Arm constructor contains no variant, but {:?}", other);
+            VariantRef::Name(name) => {
+                panic!("Arm constructor contains no variant, but {}", name);
             }
         }
-    }
-}
-
-impl std::fmt::Debug for CaseArm {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        fmt.debug_struct("CaseArm")
-            .field("location", &self.location)
-            .field("variant", &self.variant)
-            .field("local_refs", &self.local_refs)
-            .finish()
     }
 }

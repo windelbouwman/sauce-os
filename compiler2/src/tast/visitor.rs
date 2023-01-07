@@ -2,12 +2,12 @@
 //!
 //! This logic can visit a whole typed ast.
 
-use super::tast::{
+use crate::tast::{
     CaseArm, CaseStatement, EnumLiteral, IfStatement, SwitchStatement, WhileStatement,
 };
-use super::tast::{Definition, FieldDef, FunctionDef, FunctionSignature, Program};
-use super::tast::{Expression, ExpressionKind, Statement, StatementKind};
-use super::tast::{SlangType, UserType};
+use crate::tast::{Definition, FieldDef, FunctionDef, FunctionSignature, Program};
+use crate::tast::{Expression, ExpressionKind, Statement, StatementKind};
+use crate::tast::{SlangType, UserType};
 use std::cell::RefCell;
 use std::rc::Rc;
 
