@@ -7,8 +7,8 @@
 
 // use super::type_system::{ClassTypeRef, EnumType, SlangType};
 
-use super::{ClassDef, StructDef, UnionDef};
-use super::{ClassType, EnumType, SlangType, StructType, UnionType, UserType};
+use super::{ClassDef, StructDef};
+use super::{ClassType, EnumType, SlangType, StructType, UserType};
 use super::{EnumDef, EnumVariant};
 use super::{Expression, ExpressionKind, Literal, Statement, StatementKind, WhileStatement};
 use super::{NameNodeId, NodeId, Ref};
@@ -31,7 +31,6 @@ pub enum Definition {
     Function(Rc<RefCell<FunctionDef>>),
     Class(Rc<ClassDef>),
     Struct(Rc<StructDef>),
-    Union(Rc<UnionDef>),
     Enum(Rc<EnumDef>),
     // Field(Arc<FieldDef>),
 }
@@ -44,13 +43,6 @@ impl Definition {
                 assert!(type_arguments.len() == struct_def.type_parameters.len());
                 UserType::Struct(StructType {
                     struct_ref: Rc::downgrade(struct_def),
-                    type_arguments,
-                })
-            }
-            Definition::Union(union_def) => {
-                assert!(type_arguments.len() == union_def.type_parameters.len());
-                UserType::Union(UnionType {
-                    union_ref: Rc::downgrade(union_def),
                     type_arguments,
                 })
             }
@@ -92,7 +84,6 @@ impl Definition {
     pub fn get_attr(&self, name: &str) -> Option<Symbol> {
         match self {
             Definition::Struct(struct_def) => struct_def.get_attr(name),
-            Definition::Union(union_def) => union_def.get_attr(name),
             Definition::Class(class_def) => class_def.get_attr(name),
             _ => None,
         }
@@ -275,9 +266,11 @@ pub fn integer_literal(value: i64) -> Expression {
     ExpressionKind::Literal(Literal::Integer(value)).typed_expr(SlangType::int())
 }
 
-pub fn union_literal(union_type: SlangType, attr: String, value: Expression) -> Expression {
+pub fn union_literal(typ: SlangType, attr: String, value: Expression) -> Expression {
     // Some sanity checking:
-    if union_type.as_union().get_field(&attr).is_none() {
+    let union_type = typ.as_struct();
+    assert!(union_type.is_union());
+    if union_type.get_field(&attr).is_none() {
         panic!("Union has no attribute named '{}'", attr);
     }
 
@@ -285,7 +278,7 @@ pub fn union_literal(union_type: SlangType, attr: String, value: Expression) -> 
         attr,
         value: Box::new(value),
     }
-    .typed_expr(union_type)
+    .typed_expr(typ)
 }
 
 /// Create a tuple literal expression

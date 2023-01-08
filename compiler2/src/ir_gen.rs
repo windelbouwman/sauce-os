@@ -86,11 +86,6 @@ impl Generator {
                         .insert(struct_def.name.id, self.types.len());
                     self.types.push(bytecode::TypeDef::invalid());
                 }
-                tast::Definition::Union(union_def) => {
-                    self.type_to_id_map2
-                        .insert(union_def.name.id, self.types.len());
-                    self.types.push(bytecode::TypeDef::invalid());
-                }
                 _ => {}
             }
         }
@@ -107,24 +102,19 @@ impl Generator {
 
                     let name = struct_def.name.name.clone();
 
-                    let typ = bytecode::TypeDef::Struct(bytecode::StructDef {
-                        name: Some(name),
-                        fields: bytecode_field_types,
-                    });
+                    let typ = if struct_def.is_union {
+                        bytecode::TypeDef::Union(bytecode::UnionDef {
+                            name,
+                            choices: bytecode_field_types,
+                        })
+                    } else {
+                        bytecode::TypeDef::Struct(bytecode::StructDef {
+                            name: Some(name),
+                            fields: bytecode_field_types,
+                        })
+                    };
 
                     self.types[self.type_to_id_map2[&struct_def.name.id]] = typ;
-                }
-                tast::Definition::Union(union_def) => {
-                    let mut choices: Vec<bytecode::Typ> = vec![];
-                    for field_ref in union_def.fields.iter() {
-                        let field_type = self.get_bytecode_typ(&field_ref.borrow().typ);
-                        choices.push(field_type);
-                    }
-                    let name = union_def.name.name.clone();
-
-                    let union_typ = bytecode::TypeDef::Union(bytecode::UnionDef { name, choices });
-
-                    self.types[self.type_to_id_map2[&union_def.name.id]] = union_typ;
                 }
                 _ => {}
             }
@@ -141,12 +131,7 @@ impl Generator {
                         class_def.name
                     );
                 }
-                tast::Definition::Struct(_struct_def) => {
-                    // ?
-                }
-                tast::Definition::Union(_union_def) => {
-                    // ?
-                }
+                tast::Definition::Struct(_struct_def) => {}
                 tast::Definition::Enum(enum_def) => {
                     panic!(
                         "IR-gen does not enum types, like '{}'. Elimenate those earlier on.",
@@ -512,10 +497,6 @@ impl Generator {
         *self.type_to_id_map2.get(&struct_def.name.id).unwrap()
     }
 
-    fn get_union_index(&self, union_def: Rc<tast::UnionDef>) -> usize {
-        *self.type_to_id_map2.get(&union_def.name.id).unwrap()
-    }
-
     fn get_array_index(&mut self, array_type: &ArrayType) -> usize {
         let element_type = self.get_bytecode_typ(&array_type.element_type);
         let array_typ = bytecode::TypeDef::Array {
@@ -567,11 +548,6 @@ impl Generator {
             UserType::Struct(struct_type) => {
                 let composite_id: usize =
                     self.get_struct_index(struct_type.struct_ref.upgrade().unwrap());
-                bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
-            }
-            UserType::Union(union_type) => {
-                let composite_id: usize =
-                    self.get_union_index(union_type.union_ref.upgrade().unwrap());
                 bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
             }
             UserType::Enum(_) => {
@@ -781,7 +757,8 @@ impl Generator {
     }
 
     fn gen_union_literal(&mut self, typ: &SlangType, attr: &str, value: &tast::Expression) {
-        let union_def = typ.as_union();
+        let union_type = typ.as_struct();
+        assert!(union_type.is_union());
 
         let typ = self.get_bytecode_typ(&typ);
         if let bytecode::Typ::Ptr(union_typ) = typ {
@@ -790,7 +767,7 @@ impl Generator {
             panic!("Assumed union literal is pointer to thing.");
         }
 
-        let field = union_def.get_field(attr).unwrap();
+        let field = union_type.get_field(attr).unwrap();
         let index = field.borrow().index;
 
         self.emit(Instruction::Duplicate);

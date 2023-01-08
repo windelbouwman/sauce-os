@@ -74,7 +74,7 @@ impl<'d> ClassRewriter<'d> {
             struct_builder.add_field(&field.name, field.typ.clone());
         }
 
-        let struct_def = struct_builder.finish_struct();
+        let struct_def = struct_builder.finish();
 
         let struct_def = struct_def.into_def();
         let struct_ty = struct_def.create_type(vec![]);

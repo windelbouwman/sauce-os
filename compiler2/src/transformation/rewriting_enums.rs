@@ -77,6 +77,7 @@ impl<'d> EnumRewriter<'d> {
     fn contrapt_tagged_union(&mut self, enum_def: Rc<EnumDef>) {
         let union_name = format!("{}Data", enum_def.name.name);
         let mut union_builder = StructDefBuilder::new(union_name, self.new_id());
+        union_builder.set_is_union(true);
 
         // let union_builder
         for variant in &enum_def.variants {
@@ -102,12 +103,12 @@ impl<'d> EnumRewriter<'d> {
                     struct_builder2.add_field(&payload_name, payload_typ.clone());
                 }
 
-                let variant_typ = self.define_struct(struct_builder2.finish_struct());
+                let variant_typ = self.define_struct(struct_builder2.finish());
                 union_builder.add_field(&union_field_name, variant_typ);
             }
         }
 
-        let union_def = Definition::Union(Rc::new(union_builder.finish_union()));
+        let union_def = union_builder.finish().into_def();
         let union_typ = union_def.create_type(vec![]);
         self.new_definitions.push(union_def);
 
@@ -115,7 +116,7 @@ impl<'d> EnumRewriter<'d> {
         let mut struct_builder = StructDefBuilder::new(enum_def.name.name.clone(), self.new_id());
         struct_builder.add_field("tag", SlangType::int());
         struct_builder.add_field("data", union_typ);
-        let tagged_union_typ = self.define_struct(struct_builder.finish_struct());
+        let tagged_union_typ = self.define_struct(struct_builder.finish());
 
         // register tagged union for later usage!
         self.enum_map.insert(enum_def.name.id, tagged_union_typ);
@@ -234,7 +235,7 @@ impl<'d> EnumRewriter<'d> {
                 } else {
                     // multi payload value
                     let payload_struct_type = data_union_type
-                        .as_union()
+                        .as_struct()
                         .get_attr_type(&payload_name)
                         .unwrap();
 

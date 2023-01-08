@@ -188,6 +188,7 @@ impl<'g> Phase1<'g> {
                 name: struct_def.name.clone(),
                 id: self.new_id(),
             },
+            is_union: false,
             type_parameters,
             scope: Arc::new(struct_scope),
             fields: inner_defs,

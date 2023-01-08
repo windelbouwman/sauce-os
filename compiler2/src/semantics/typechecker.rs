@@ -57,11 +57,6 @@ impl TypeChecker {
                         self.check_field(field);
                     }
                 }
-                Definition::Union(union_def) => {
-                    for field in &union_def.fields {
-                        self.check_field(field);
-                    }
-                }
                 Definition::Enum(enum_def) => {
                     for variant in &enum_def.variants {
                         let variant = variant.borrow();
@@ -536,7 +531,8 @@ impl TypeChecker {
             }
 
             ExpressionKind::UnionLiteral { attr, value } => {
-                let union_ref = expression.typ.as_union();
+                let union_ref = expression.typ.as_struct();
+                assert!(union_ref.is_union());
                 if let Some(field) = union_ref.get_field(attr) {
                     let field = field.borrow();
                     self.coerce(&field.typ, value)?;

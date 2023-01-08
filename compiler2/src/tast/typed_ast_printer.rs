@@ -134,16 +134,14 @@ impl AstPrinter {
                 self.print_fields(&class_def.fields);
             }
             Definition::Struct(struct_def) => {
-                println!("{}struct {}", self.get_indent(), struct_def.name);
+                if struct_def.is_union {
+                    println!("{}union {}", self.get_indent(), struct_def.name);
+                } else {
+                    println!("{}struct {}", self.get_indent(), struct_def.name);
+                }
 
                 self.indent();
                 self.print_fields(&struct_def.fields);
-            }
-            Definition::Union(union_def) => {
-                println!("{}union {}", self.get_indent(), union_def.name);
-
-                self.indent();
-                self.print_fields(&union_def.fields);
             }
 
             // Definition::Field(field_def) => {
@@ -191,7 +189,7 @@ impl AstPrinter {
             Definition::Class(_) => {
                 self.dedent();
             }
-            Definition::Struct(_) | Definition::Union(_) => {
+            Definition::Struct(_) => {
                 self.dedent();
             }
             Definition::Enum(_) => {

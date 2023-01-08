@@ -155,7 +155,6 @@ fn get_scope(node: &VisitedNode) -> Option<Arc<Scope>> {
             Definition::Enum(enum_def) => Some(enum_def.scope.clone()),
             Definition::Struct(struct_def) => Some(struct_def.scope.clone()),
             Definition::Class(class_def) => Some(class_def.scope.clone()),
-            _ => None,
         },
         VisitedNode::Function(function_def) => Some(function_def.scope.clone()),
         VisitedNode::CaseArm(case_arm) => Some(case_arm.scope.clone()),

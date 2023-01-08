@@ -3,7 +3,7 @@
 
 use super::{
     ClassType, EnumType, Expression, FieldDef, FunctionDef, FunctionSignature, StructType, Symbol,
-    TypeVar, UnionType,
+    TypeVar,
 };
 
 use std::cell::RefCell;
@@ -160,7 +160,6 @@ impl std::fmt::Display for BasicType {
 pub enum UserType {
     /// A custom defined struct type!
     Struct(StructType),
-    Union(UnionType),
     Enum(EnumType),
     Class(ClassType),
     Function(Rc<RefCell<FunctionSignature>>),
@@ -178,7 +177,6 @@ impl UserType {
     pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<FieldDef>>> {
         match self {
             UserType::Struct(struct_type) => struct_type.get_field(name),
-            UserType::Union(union_type) => union_type.get_field(name),
             _ => None,
         }
     }
@@ -196,7 +194,6 @@ impl UserType {
             UserType::Struct(struct_type) => {
                 struct_type.struct_ref.upgrade().unwrap().get_attr(name)
             }
-            UserType::Union(union_type) => union_type.union_ref.upgrade().unwrap().get_attr(name),
             UserType::Class(class_type) => class_type.class_ref.upgrade().unwrap().get_attr(name),
             _ => None,
         }
@@ -205,7 +202,6 @@ impl UserType {
     pub fn get_attr_type(&self, name: &str) -> Option<SlangType> {
         match self {
             UserType::Struct(struct_type) => struct_type.get_attr_type(name),
-            UserType::Union(union_type) => union_type.get_attr_type(name),
             UserType::Class(class_type) => class_type.get_attr_type(name),
             _ => None,
         }
@@ -228,7 +224,6 @@ impl PartialEq for UserType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (UserType::Struct(s), UserType::Struct(o)) => s == o,
-            (UserType::Union(s), UserType::Union(o)) => s == o,
             (UserType::Enum(s), UserType::Enum(o)) => s == o,
             (UserType::Class(s), UserType::Class(o)) => s == o,
             (UserType::Function(s), UserType::Function(o)) => {
@@ -245,7 +240,6 @@ impl std::fmt::Display for UserType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             UserType::Struct(struct_type) => struct_type.fmt(f),
-            UserType::Union(union_type) => union_type.fmt(f),
             UserType::Enum(enum_ref) => enum_ref.fmt(f),
             UserType::Class(class_type) => {
                 let class_def = class_type.class_ref.upgrade().unwrap();
@@ -356,14 +350,6 @@ impl SlangType {
             enum_type.clone()
         } else {
             panic!("Expected enum type, but got {}", self);
-        }
-    }
-
-    pub fn as_union(&self) -> UnionType {
-        if let SlangType::User(UserType::Union(union_type)) = self {
-            union_type.clone()
-        } else {
-            panic!("Expected union type, got {}", self);
         }
     }
 

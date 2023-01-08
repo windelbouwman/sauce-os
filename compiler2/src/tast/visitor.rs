@@ -57,11 +57,6 @@ fn visit_definition<V: VisitorApi>(visitor: &mut V, definition: &Definition) {
                 visit_field(visitor, field_def);
             }
         }
-        Definition::Union(union_def) => {
-            for field_def in &union_def.fields {
-                visit_field(visitor, field_def);
-            }
-        }
         Definition::Enum(enum_def) => {
             for enum_variant in &enum_def.variants {
                 for payload_type in &mut enum_variant.borrow_mut().data {

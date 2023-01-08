@@ -34,7 +34,7 @@ pub use statements::{
     AssignmentStatement, CaseArm, CaseStatement, ForStatement, IfStatement, Statement,
     StatementKind, SwitchArm, SwitchStatement, WhileStatement,
 };
-pub use struct_type::{StructDef, StructDefBuilder, StructType, UnionDef, UnionType};
+pub use struct_type::{StructDef, StructDefBuilder, StructType};
 pub use symbol::{DefinitionRef, Symbol};
 pub use type_system::{ArrayType, BasicType, SlangType, TypeExpression, TypeVarRef, UserType};
 pub use typed_ast::{
