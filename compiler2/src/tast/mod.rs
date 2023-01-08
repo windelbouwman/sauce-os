@@ -25,16 +25,16 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 // re-exports:
-pub use class_type::ClassDef;
+pub use class_type::{ClassDef, ClassType};
 pub use enum_type::{EnumDef, EnumType, EnumVariant};
 pub use expressions::{Expression, ExpressionKind, Literal};
-pub use generics::{get_substitution_map, TypeVar};
+pub use generics::{get_binding_text, get_substitution_map, replace_type_vars_sub, TypeVar};
 pub use scope::Scope;
 pub use statements::{
     AssignmentStatement, CaseArm, CaseStatement, ForStatement, IfStatement, Statement,
     StatementKind, SwitchArm, SwitchStatement, WhileStatement,
 };
-pub use struct_type::{StructDef, StructDefBuilder, StructType, UnionDef};
+pub use struct_type::{StructDef, StructDefBuilder, StructType, UnionDef, UnionType};
 pub use symbol::{DefinitionRef, Symbol};
 pub use type_system::{ArrayType, BasicType, SlangType, TypeExpression, TypeVarRef, UserType};
 pub use typed_ast::{

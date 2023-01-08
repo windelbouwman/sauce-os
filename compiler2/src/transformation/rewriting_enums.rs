@@ -216,13 +216,7 @@ impl<'d> EnumRewriter<'d> {
                     .unwrap()
                     .clone();
 
-                let data_union_type = tagged_union_typ
-                    .as_struct()
-                    .get_field("data")
-                    .unwrap()
-                    .borrow()
-                    .typ
-                    .clone();
+                let data_union_type = tagged_union_typ.as_struct().get_attr_type("data").unwrap();
 
                 let payload = std::mem::take(&mut enum_literal.arguments);
 
@@ -231,32 +225,28 @@ impl<'d> EnumRewriter<'d> {
 
                 let payload_name = variant.name.to_owned();
 
-                let union_value = if payload.is_empty() {
+                let value = if payload.is_empty() {
                     // No payload (store int as dummy value)
-                    let value = integer_literal(0);
-                    union_literal(data_union_type, payload_name, value)
+                    integer_literal(0)
                 } else if payload.len() == 1 {
                     // Single payload value
-                    let value = payload.into_iter().next().unwrap();
-
-                    union_literal(data_union_type, payload_name, value)
+                    payload.into_iter().next().unwrap()
                 } else {
                     // multi payload value
                     let payload_struct_type = data_union_type
                         .as_union()
-                        .get_field(&payload_name)
-                        .unwrap()
-                        .borrow()
-                        .typ
-                        .clone();
+                        .get_attr_type(&payload_name)
+                        .unwrap();
 
-                    let struct_value = tuple_literal(payload_struct_type, payload);
-                    union_literal(data_union_type, payload_name, struct_value)
+                    tuple_literal(payload_struct_type, payload)
                 };
+                let union_value = union_literal(data_union_type, payload_name, value);
 
                 let tagged_union = vec![tag_value, union_value];
-                expression.kind = ExpressionKind::TupleLiteral(tagged_union);
-                expression.typ = tagged_union_typ;
+                expression.kind = ExpressionKind::TupleLiteral {
+                    typ: tagged_union_typ,
+                    values: tagged_union,
+                };
             }
             _ => {}
         }

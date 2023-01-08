@@ -112,7 +112,7 @@ fn determine_dependecy_order(
 
     let order = match petgraph::algo::toposort(&dep_graph, None) {
         Ok(node_ids) => {
-            let mut order: Vec<String> = node_ids.into_iter().map(|n| n.clone()).collect();
+            let mut order: Vec<String> = node_ids.into_iter().map(|n| n.to_owned()).collect();
             order.reverse();
             order
         }

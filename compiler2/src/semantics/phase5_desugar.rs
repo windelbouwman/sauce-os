@@ -15,9 +15,8 @@ For example:
 
 use super::Context;
 use crate::tast::{visit_program, VisitedNode, VisitorApi};
-use crate::tast::{AssignmentStatement, Expression, ExpressionKind, LabeledField, StatementKind};
-use crate::tast::{Program, SlangType, Symbol};
-use std::collections::HashMap;
+use crate::tast::{AssignmentStatement, ExpressionKind, StatementKind};
+use crate::tast::{Program, Symbol};
 
 pub fn desugar(program: &mut Program, _context: &mut Context) {
     log::info!("Desugaring");
@@ -42,16 +41,6 @@ impl Desugar {
             } => StatementKind::StoreLocal { local_ref, value },
 
             other => other,
-        }
-    }
-
-    fn lower_expression(&mut self, expression: &mut Expression) {
-        match &mut expression.kind {
-            ExpressionKind::ObjectInitializer { typ, fields } => {
-                let values = struct_literal_to_tuple(typ, std::mem::take(fields));
-                expression.kind = ExpressionKind::TupleLiteral(values)
-            }
-            _ => {}
         }
     }
 }
@@ -85,32 +74,6 @@ fn lower_assignment(assignment: AssignmentStatement) -> StatementKind {
     }
 }
 
-/// Turn a list of field initializers into a struct tuple.
-///
-/// This means, tuple fields sorted by appearance in the struct
-/// definition.
-fn struct_literal_to_tuple(typ: &SlangType, initializers: Vec<LabeledField>) -> Vec<Expression> {
-    // First turn named initializers into a name->value mapping:
-    let mut value_map: HashMap<String, Expression> = HashMap::new();
-    for initializer in initializers {
-        assert!(!value_map.contains_key(&initializer.name));
-        value_map.insert(initializer.name, *initializer.value);
-    }
-
-    // We can assume we checked for struct-ness
-    let fields = typ.as_struct().get_struct_fields();
-
-    let mut values = vec![];
-    for (name, _typ) in fields {
-        values.push(
-            value_map
-                .remove(&name)
-                .expect("Struct initializer must be legit!"),
-        );
-    }
-    values
-}
-
 impl VisitorApi for Desugar {
     fn pre_node(&mut self, _node: VisitedNode) {}
 
@@ -119,9 +82,6 @@ impl VisitorApi for Desugar {
             VisitedNode::Statement(statement) => {
                 let kind = std::mem::replace(&mut statement.kind, StatementKind::Pass);
                 statement.kind = self.lower_statement(kind);
-            }
-            VisitedNode::Expression(expression) => {
-                self.lower_expression(expression);
             }
             _ => {}
         }

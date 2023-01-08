@@ -168,13 +168,13 @@ pub enum Instruction {
 
 impl Instruction {
     pub fn is_terminator(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Instruction::Return(_)
-            | Instruction::Jump(_)
-            | Instruction::JumpIf(_, _)
-            | Instruction::JumpSwitch { .. } => true,
-            _ => false,
-        }
+                | Instruction::Jump(_)
+                | Instruction::JumpIf(_, _)
+                | Instruction::JumpSwitch { .. }
+        )
     }
 }
 

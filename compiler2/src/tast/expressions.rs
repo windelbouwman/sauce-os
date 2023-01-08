@@ -85,7 +85,10 @@ pub enum ExpressionKind {
     },
 
     /// A tuple with mixed type values!
-    TupleLiteral(Vec<Expression>),
+    TupleLiteral {
+        typ: SlangType,
+        values: Vec<Expression>,
+    },
 
     UnionLiteral {
         attr: String,

@@ -271,7 +271,7 @@ fn visit_expr<V: VisitorApi>(visitor: &mut V, expression: &mut Expression) {
                 visit_expr(visitor, &mut field.value);
             }
         }
-        ExpressionKind::TupleLiteral(values) => {
+        ExpressionKind::TupleLiteral { typ: _, values } => {
             for value in values {
                 visit_expr(visitor, value);
             }

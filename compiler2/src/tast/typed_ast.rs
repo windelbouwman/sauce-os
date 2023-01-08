@@ -8,8 +8,8 @@
 // use super::type_system::{ClassTypeRef, EnumType, SlangType};
 
 use super::{ClassDef, StructDef, UnionDef};
+use super::{ClassType, EnumType, SlangType, StructType, UnionType, UserType};
 use super::{EnumDef, EnumVariant};
-use super::{EnumType, SlangType, StructType, UserType};
 use super::{Expression, ExpressionKind, Literal, Statement, StatementKind, WhileStatement};
 use super::{NameNodeId, NodeId, Ref};
 use super::{Scope, Symbol};
@@ -43,24 +43,30 @@ impl Definition {
             Definition::Struct(struct_def) => {
                 assert!(type_arguments.len() == struct_def.type_parameters.len());
                 UserType::Struct(StructType {
-                    struct_ref: Rc::downgrade(&struct_def),
+                    struct_ref: Rc::downgrade(struct_def),
                     type_arguments,
                 })
             }
             Definition::Union(union_def) => {
-                assert!(type_arguments.is_empty());
-                UserType::Union(Rc::downgrade(&union_def))
+                assert!(type_arguments.len() == union_def.type_parameters.len());
+                UserType::Union(UnionType {
+                    union_ref: Rc::downgrade(union_def),
+                    type_arguments,
+                })
             }
             Definition::Enum(enum_def) => {
                 assert!(type_arguments.len() == enum_def.type_parameters.len());
                 UserType::Enum(EnumType {
-                    enum_ref: Rc::downgrade(&enum_def),
+                    enum_ref: Rc::downgrade(enum_def),
                     type_arguments,
                 })
             }
             Definition::Class(class_def) => {
                 assert!(type_arguments.is_empty());
-                UserType::Class(Rc::downgrade(&class_def))
+                UserType::Class(ClassType {
+                    class_ref: Rc::downgrade(class_def),
+                    type_arguments,
+                })
             }
             Definition::Function(_function_def) => {
                 // UserType::Function(function_def.borrow().signature.clone())
@@ -284,7 +290,11 @@ pub fn union_literal(union_type: SlangType, attr: String, value: Expression) -> 
 
 /// Create a tuple literal expression
 pub fn tuple_literal(tuple_typ: SlangType, values: Vec<Expression>) -> Expression {
-    ExpressionKind::TupleLiteral(values).typed_expr(tuple_typ)
+    ExpressionKind::TupleLiteral {
+        typ: tuple_typ.clone(),
+        values,
+    }
+    .typed_expr(tuple_typ)
 }
 
 /// Produce an expression of undefined value and undefined type

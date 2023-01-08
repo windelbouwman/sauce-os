@@ -26,7 +26,7 @@ pub fn transform(program: &mut Program, context: &mut Context, show_ast: bool) {
 
     rewrite_for_loops(program, context);
 
-    rewrite_generics(program, context);
+    rewrite_generics(program);
 
     if show_ast {
         print_ast(program);

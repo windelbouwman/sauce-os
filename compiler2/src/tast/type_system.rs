@@ -2,8 +2,8 @@
 //!
 
 use super::{
-    ClassDef, EnumType, Expression, FieldDef, FunctionDef, FunctionSignature, StructType, Symbol,
-    TypeVar, UnionDef,
+    ClassType, EnumType, Expression, FieldDef, FunctionDef, FunctionSignature, StructType, Symbol,
+    TypeVar, UnionType,
 };
 
 use std::cell::RefCell;
@@ -27,7 +27,6 @@ pub enum SlangType {
     ///
     /// Useful when rewriting generic types into opaque
     /// pointers with type casts.
-    #[allow(dead_code)]
     Opaque,
 
     TypeVar(TypeVarRef),
@@ -44,7 +43,7 @@ pub enum SlangType {
     Unresolved(TypeExpression),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum BasicType {
     Bool,
     Int,
@@ -161,9 +160,9 @@ impl std::fmt::Display for BasicType {
 pub enum UserType {
     /// A custom defined struct type!
     Struct(StructType),
-    Union(Weak<UnionDef>),
+    Union(UnionType),
     Enum(EnumType),
-    Class(Weak<ClassDef>),
+    Class(ClassType),
     Function(Rc<RefCell<FunctionSignature>>),
     // TODO: more user definable types?
 }
@@ -179,14 +178,14 @@ impl UserType {
     pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<FieldDef>>> {
         match self {
             UserType::Struct(struct_type) => struct_type.get_field(name),
-            UserType::Union(union_def) => union_def.upgrade().unwrap().get_field(name),
+            UserType::Union(union_type) => union_type.get_field(name),
             _ => None,
         }
     }
 
     pub fn get_method(&self, name: &str) -> Option<Rc<RefCell<FunctionDef>>> {
         match self {
-            UserType::Class(class_def) => class_def.upgrade().unwrap().get_method(name),
+            UserType::Class(class_def) => class_def.class_ref.upgrade().unwrap().get_method(name),
             _ => None,
         }
     }
@@ -197,8 +196,17 @@ impl UserType {
             UserType::Struct(struct_type) => {
                 struct_type.struct_ref.upgrade().unwrap().get_attr(name)
             }
-            UserType::Union(union_def) => union_def.upgrade().unwrap().get_attr(name),
-            UserType::Class(class_def) => class_def.upgrade().unwrap().get_attr(name),
+            UserType::Union(union_type) => union_type.union_ref.upgrade().unwrap().get_attr(name),
+            UserType::Class(class_type) => class_type.class_ref.upgrade().unwrap().get_attr(name),
+            _ => None,
+        }
+    }
+
+    pub fn get_attr_type(&self, name: &str) -> Option<SlangType> {
+        match self {
+            UserType::Struct(struct_type) => struct_type.get_attr_type(name),
+            UserType::Union(union_type) => union_type.get_attr_type(name),
+            UserType::Class(class_type) => class_type.get_attr_type(name),
             _ => None,
         }
     }
@@ -220,9 +228,9 @@ impl PartialEq for UserType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (UserType::Struct(s), UserType::Struct(o)) => s == o,
-            (UserType::Union(s), UserType::Union(o)) => s.ptr_eq(o),
+            (UserType::Union(s), UserType::Union(o)) => s == o,
             (UserType::Enum(s), UserType::Enum(o)) => s == o,
-            (UserType::Class(s), UserType::Class(o)) => s.ptr_eq(o),
+            (UserType::Class(s), UserType::Class(o)) => s == o,
             (UserType::Function(s), UserType::Function(o)) => {
                 s.borrow().compatible_signature(&o.borrow())
             }
@@ -237,14 +245,11 @@ impl std::fmt::Display for UserType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             UserType::Struct(struct_type) => struct_type.fmt(f),
-            UserType::Union(union_ref) => {
-                let union_ref = union_ref.upgrade().unwrap();
-                write!(f, "user-{}", union_ref)
-            }
+            UserType::Union(union_type) => union_type.fmt(f),
             UserType::Enum(enum_ref) => enum_ref.fmt(f),
-            UserType::Class(class_ref) => {
-                let class_ref = class_ref.upgrade().unwrap();
-                class_ref.fmt(f)
+            UserType::Class(class_type) => {
+                let class_def = class_type.class_ref.upgrade().unwrap();
+                class_def.fmt(f)
             }
             UserType::Function(signature) => {
                 let signature = signature.borrow();
@@ -343,10 +348,7 @@ impl SlangType {
     }
 
     pub fn is_enum(&self) -> bool {
-        match self {
-            SlangType::User(UserType::Enum(_)) => true,
-            _ => false,
-        }
+        matches!(self, SlangType::User(UserType::Enum(_)))
     }
 
     pub fn as_enum(&self) -> EnumType {
@@ -357,9 +359,9 @@ impl SlangType {
         }
     }
 
-    pub fn as_union(&self) -> Rc<UnionDef> {
+    pub fn as_union(&self) -> UnionType {
         if let SlangType::User(UserType::Union(union_type)) = self {
-            union_type.upgrade().unwrap()
+            union_type.clone()
         } else {
             panic!("Expected union type, got {}", self);
         }
@@ -382,9 +384,9 @@ impl SlangType {
         matches!(self, SlangType::User(UserType::Class(_)))
     }
 
-    pub fn as_class(&self) -> Rc<ClassDef> {
-        if let SlangType::User(UserType::Class(class_def)) = self {
-            class_def.upgrade().unwrap()
+    pub fn as_class(&self) -> ClassType {
+        if let SlangType::User(UserType::Class(class_type)) = self {
+            class_type.clone()
         } else {
             panic!("Expected class type, but got {}", self);
         }
@@ -408,7 +410,7 @@ impl SlangType {
     /// Try to retrieve an attribute and get its type
     pub fn get_attr_type(&self, name: &str) -> Option<SlangType> {
         match self {
-            SlangType::User(user_type) => user_type.get_attr(name).map(|f| f.get_type()),
+            SlangType::User(user_type) => user_type.get_attr_type(name),
             _ => None,
         }
     }

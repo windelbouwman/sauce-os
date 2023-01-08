@@ -80,7 +80,7 @@ impl<'d> ClassRewriter<'d> {
         let struct_ty = struct_def.create_type(vec![]);
         self.new_definitions.push(struct_def);
 
-        self.class_map.insert(class_def.name.id, struct_ty.clone());
+        self.class_map.insert(class_def.name.id, struct_ty);
     }
 
     /// Create constructor function
@@ -205,7 +205,8 @@ impl<'d> ClassRewriter<'d> {
         match &mut callee.kind {
             ExpressionKind::LoadSymbol(symbol) => match symbol {
                 Symbol::Typ(typ) => {
-                    let class_def = typ.as_class();
+                    let class_type = typ.as_class();
+                    let class_def = class_type.class_ref.upgrade().unwrap();
                     let ctor_func = self.ctor_map.get(&class_def.name.id).unwrap();
                     *symbol = Symbol::Function(ctor_func.clone());
                 }
@@ -237,11 +238,9 @@ impl<'d> VisitorApi for ClassRewriter<'d> {
             }
             VisitedNode::TypeExpr(type_expr) => {
                 if type_expr.is_class() {
-                    let struct_type = self
-                        .class_map
-                        .get(&type_expr.as_class().name.id)
-                        .unwrap()
-                        .clone();
+                    let class_type = type_expr.as_class();
+                    let class_def = class_type.class_ref.upgrade().unwrap();
+                    let struct_type = self.class_map.get(&class_def.name.id).unwrap().clone();
                     *type_expr = struct_type;
                 }
             }

@@ -2,12 +2,12 @@ use super::Diagnostics;
 use crate::errors::CompilationError;
 use crate::parsing::{ast, Location};
 use crate::tast::{refer, undefined_value, Literal};
-use crate::tast::{ArrayType, BasicType, SlangType, UserType};
+use crate::tast::{ArrayType, BasicType, ClassType, SlangType, UserType};
 use crate::tast::{
     AssignmentStatement, CaseStatement, ForStatement, IfStatement, SwitchStatement, WhileStatement,
 };
 use crate::tast::{Definition, FieldDef, FunctionDef, FunctionSignature, Program, Symbol};
-use crate::tast::{Expression, ExpressionKind, LabeledField, Statement, StatementKind, VariantRef};
+use crate::tast::{Expression, ExpressionKind, Statement, StatementKind, VariantRef};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -41,10 +41,14 @@ impl TypeChecker {
                         self.check_field(field)
                     }
 
+                    let class_typ = SlangType::User(UserType::Class(ClassType {
+                        class_ref: Rc::downgrade(class_def),
+                        type_arguments: vec![],
+                    }));
+
                     for method in &class_def.methods {
                         let this_var = method.borrow().this_param.as_ref().unwrap().clone();
-                        this_var.borrow_mut().typ =
-                            SlangType::User(UserType::Class(Rc::downgrade(&class_def)));
+                        this_var.borrow_mut().typ = class_typ.clone();
                         self.check_function(method);
                     }
                 }
@@ -73,24 +77,7 @@ impl TypeChecker {
         }
     }
 
-    fn check_type(&mut self, _location: &Location, typ: &SlangType) {
-        match typ {
-            /*
-
-            SlangType::GenericInstance {
-                generic,
-                type_parameters,
-            } => {
-                // Check bound generic for:
-                // 1. amount of type parameters
-                // 2. types supplied must be pointer types
-                let generic = generic.get_def();
-
-            }
-             */
-            _ => {}
-        }
-    }
+    fn check_type(&mut self, _location: &Location, _typ: &SlangType) {}
 
     fn check_field(&mut self, field_def: &Rc<RefCell<FieldDef>>) {
         let mut field = field_def.borrow_mut();
@@ -176,13 +163,11 @@ impl TypeChecker {
                             "Function does not return anything".to_owned(),
                         );
                     }
-                } else {
-                    if let Some(typ) = &signature.return_type {
-                        self.error(
-                            &statement.location,
-                            format!("Return nothing, but expected: {}", typ),
-                        );
-                    }
+                } else if let Some(typ) = &signature.return_type {
+                    self.error(
+                        &statement.location,
+                        format!("Return nothing, but expected: {}", typ),
+                    );
                 }
 
                 Ok(())
@@ -404,7 +389,7 @@ impl TypeChecker {
                         let return_type: SlangType = function_type
                             .return_type
                             .as_ref()
-                            .map(|t| t.clone())
+                            .cloned()
                             .unwrap_or(SlangType::Void);
                         expression.typ = return_type;
                         Ok(())
@@ -536,20 +521,17 @@ impl TypeChecker {
                 Ok(())
             }
 
-            ExpressionKind::ObjectInitializer { typ, fields } => {
-                self.check_type(&expression.location, typ);
-                self.check_struct_literal(&expression.location, typ, fields)?;
-                // struct_literal_to_tuple
-                expression.typ = typ.clone();
-                Ok(())
+            ExpressionKind::ObjectInitializer { typ: _, fields: _ } => {
+                panic!("Object initializer should be squashed before.");
             }
-            ExpressionKind::TupleLiteral(values) => {
-                let struct_type = expression.typ.as_struct();
+            ExpressionKind::TupleLiteral { typ, values } => {
+                let struct_type = typ.as_struct();
                 let fields = struct_type.get_struct_fields();
                 assert_eq!(values.len(), fields.len());
                 for (field, value) in fields.iter().zip(values.iter_mut()) {
                     self.coerce(&field.1, value)?;
                 }
+                expression.typ = typ.clone();
                 Ok(())
             }
 
@@ -741,64 +723,6 @@ impl TypeChecker {
                     arguments.len()
                 ),
             );
-            Err(())
-        }
-    }
-
-    /// Check struct initialization.
-    ///
-    /// Checks:
-    /// - missing fields
-    /// - extra fields
-    /// - duplicate fields
-    /// - field types
-    fn check_struct_literal(
-        &mut self,
-        location: &Location,
-        typ: &SlangType,
-        fields: &mut [LabeledField],
-    ) -> Result<(), ()> {
-        if !typ.is_struct() {
-            self.error(location, format!("Must be struct type, not {}", typ));
-            return Err(());
-        }
-
-        let struct_type = typ.as_struct();
-
-        let struct_fields = struct_type.get_struct_fields();
-        let mut required_fields: HashMap<String, SlangType> = HashMap::new();
-
-        for (field_name, field_type) in struct_fields {
-            required_fields.insert(field_name, field_type);
-        }
-
-        let mut ok = true;
-
-        for field in fields {
-            if required_fields.contains_key(&field.name) {
-                let wanted_typ = required_fields
-                    .remove(&field.name)
-                    .expect("Has this key, we checked above");
-                self.coerce(&wanted_typ, &mut field.value)?;
-            } else {
-                // Error here on duplicate and non-existing fields
-                self.error(
-                    &field.location,
-                    format!("Superfluous field: {}", field.name),
-                );
-                ok = false;
-            }
-        }
-
-        // Check missed fields:
-        for field in required_fields.keys() {
-            self.error(location, format!("Missing field: {}", field));
-            ok = false;
-        }
-
-        if ok {
-            Ok(())
-        } else {
             Err(())
         }
     }

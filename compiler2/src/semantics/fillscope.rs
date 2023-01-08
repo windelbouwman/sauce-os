@@ -404,13 +404,6 @@ impl<'g> Phase1<'g> {
     }
 
     fn on_type_expression(&mut self, type_expression: ast::Expression) -> Result<SlangType, ()> {
-        /*
-        match type_expression.kind {
-            ast::ExpressionKind::Object(obj_ref) => Ok(SlangType::Unresolved(obj_ref)),
-            ast::ExpressionKind::FunctionType(signature) => {
-            }
-        }
-        */
         let unresolved = self.on_expression(type_expression)?;
         Ok(SlangType::Unresolved(TypeExpression {
             expr: Box::new(unresolved),

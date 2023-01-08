@@ -1,15 +1,12 @@
-/*
-
-Name binding
-
-Loop over the AST and resolve references to things.
-
-This phase mutates the AST such that objref nodes are
-replaced by proper references.
-
-TBD: could be combined with the type checker?
-
-*/
+//!
+//! Name binding
+//!
+//! Loop over the TAST and resolve references to things.
+//!
+//! This phase mutates the TAST such that objref nodes are
+//! replaced by proper references.
+//!
+//!
 
 use super::Diagnostics;
 use crate::errors::CompilationError;
@@ -103,18 +100,6 @@ impl NameBinder {
                     Err(())
                 }
             }
-
-            /*
-            Symbol::Typ(SlangType::User(UserType::Enum(enum_type))) => {
-                let enum_type = enum_type.upgrade().unwrap();
-                if let Some(variant) = enum_type.lookup(member) {
-                    Ok(Symbol::EnumVariant(Rc::downgrade(&variant)))
-                } else {
-                    self.error(location, format!("Enum has no variant named '{}'", member));
-                    Err(())
-                }
-            }
-            */
             other => {
                 self.error(location, format!("Cannot scope-access: {}", other));
                 Err(())
@@ -169,6 +154,7 @@ fn get_scope(node: &VisitedNode) -> Option<Arc<Scope>> {
             Definition::Function(function_def) => Some(function_def.borrow().scope.clone()),
             Definition::Enum(enum_def) => Some(enum_def.scope.clone()),
             Definition::Struct(struct_def) => Some(struct_def.scope.clone()),
+            Definition::Class(class_def) => Some(class_def.scope.clone()),
             _ => None,
         },
         VisitedNode::Function(function_def) => Some(function_def.scope.clone()),
@@ -184,9 +170,6 @@ impl VisitorApi for NameBinder {
         }
 
         match node {
-            VisitedNode::TypeExpr(_type_expression) => {
-                // self.check_type_expression(type_expression);
-            }
             VisitedNode::Expression(expression) => {
                 self.check_expr(expression);
             }

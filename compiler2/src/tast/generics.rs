@@ -1,7 +1,7 @@
 //! Types to describe generics.
 //!
 
-use super::{EnumType, NameNodeId, SlangType, UserType};
+use super::{NameNodeId, SlangType, UserType};
 use crate::parsing::Location;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -100,16 +100,23 @@ pub fn replace_type_vars_sub(
             .clone(),
         SlangType::User(user_type) => {
             let ut2 = match user_type {
-                UserType::Enum(enum_type) => {
+                UserType::Enum(mut enum_type) => {
                     let type_arguments = enum_type
                         .type_arguments
                         .into_iter()
                         .map(|p| replace_type_vars_sub(p, type_var_map))
                         .collect();
-                    UserType::Enum(EnumType {
-                        enum_ref: enum_type.enum_ref,
-                        type_arguments,
-                    })
+                    enum_type.type_arguments = type_arguments;
+                    UserType::Enum(enum_type)
+                }
+                UserType::Struct(mut struct_type) => {
+                    let type_arguments = struct_type
+                        .type_arguments
+                        .into_iter()
+                        .map(|p| replace_type_vars_sub(p, type_var_map))
+                        .collect();
+                    struct_type.type_arguments = type_arguments;
+                    UserType::Struct(struct_type)
                 }
                 _x => {
                     // unimplemented!("TODO!");
@@ -134,4 +141,16 @@ pub fn get_substitution_map(
         type_var_map.insert(v.name.name.clone(), p.clone());
     }
     type_var_map
+}
+
+/// Create a string to represent bound type parameters.
+pub fn get_binding_text(type_parameters: &[Rc<TypeVar>], type_arguments: &[SlangType]) -> String {
+    assert!(type_parameters.len() == type_arguments.len());
+
+    let mut bounds: Vec<String> = vec![];
+    for (type_param, typ) in type_parameters.iter().zip(type_arguments.iter()) {
+        bounds.push(format!("{}={}", type_param.name, typ));
+    }
+
+    bounds.join(", ")
 }

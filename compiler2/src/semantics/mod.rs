@@ -20,13 +20,11 @@ mod fillscope;
 mod id_generator;
 mod namebinding;
 mod pass2;
+mod pass3;
 mod phase5_desugar;
 mod typechecker;
 
-pub use context::Context;
-
-pub use diagnostics::Diagnostics;
-
-// phased type checker:
 pub use analysis::analyze;
+pub use context::Context;
+use diagnostics::Diagnostics;
 pub use typechecker::check_types;

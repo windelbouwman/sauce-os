@@ -129,23 +129,18 @@ impl AstPrinter {
             }
 
             Definition::Class(class_def) => {
-                println!("{}class {}", self.get_indent(), class_def.name,);
+                println!("{}class {}", self.get_indent(), class_def.name);
                 self.indent();
                 self.print_fields(&class_def.fields);
             }
             Definition::Struct(struct_def) => {
-                println!("{}struct {}", self.get_indent(), struct_def.name,);
+                println!("{}struct {}", self.get_indent(), struct_def.name);
 
                 self.indent();
                 self.print_fields(&struct_def.fields);
             }
             Definition::Union(union_def) => {
-                println!(
-                    "{}union name={} id={}",
-                    self.get_indent(),
-                    union_def.name,
-                    union_def.id
-                );
+                println!("{}union {}", self.get_indent(), union_def.name);
 
                 self.indent();
                 self.print_fields(&union_def.fields);
@@ -327,7 +322,7 @@ impl AstPrinter {
             ExpressionKind::ObjectInitializer { .. } => {
                 print!("{}Object-initializer", self.get_indent());
             }
-            ExpressionKind::TupleLiteral(_values) => {
+            ExpressionKind::TupleLiteral { typ: _, values: _ } => {
                 print!("{}Tuple-literal", self.get_indent());
             }
             ExpressionKind::UnionLiteral { attr, value: _ } => {

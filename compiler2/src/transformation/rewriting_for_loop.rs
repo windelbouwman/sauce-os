@@ -31,12 +31,9 @@ impl<'d> ForLoopRewriter<'d> {
     }
 
     fn lower_statement(&mut self, statement: &mut Statement) {
-        match &mut statement.kind {
-            StatementKind::For(for_statement) => {
-                let for_statement = std::mem::take(for_statement);
-                statement.kind = self.lower_for_statement(for_statement).kind
-            }
-            _ => {}
+        if let StatementKind::For(for_statement) = &mut statement.kind {
+            let for_statement = std::mem::take(for_statement);
+            statement.kind = self.lower_for_statement(for_statement).kind
         }
     }
 

@@ -1,45 +1,33 @@
-/*
-Rewrite generics using type erasure, and insert type casting at the proper
-places.
+//! Rewrite generics using type erasure, and insert type casting at the proper
+//! places.
+//!
+//! Basically there is two ways to implement generics:
+//! - Templates / code expansion: (example languages: C++)
+//! - type erasure: Java, C#
+//!
+//! Tasks involved in type erasure:
+//! - When accessing a struct member which is a type variable,
+//!   introduce a cast from opaque pointer to the specific type.
+//! - When setting a struct member, create a cast to an opaque pointer.
+//!
+//!
 
-Basically there is two ways to implement generics:
-- Templates / code expansion: (example languages: C++)
-- type erasure: Java, C#
-
-Tasks involved in type erasure:
-- replace generic struct with
-
- */
-
-// use super::type_system::{SlangType, UserType};
-use crate::semantics::Context;
 use crate::tast::get_substitution_map;
 use crate::tast::{visit_program, VisitedNode, VisitorApi};
 use crate::tast::{Definition, FunctionDef, Program};
-use crate::tast::{
-    Expression, ExpressionKind, NodeId, SlangType, Statement, StatementKind, UserType,
-};
-use std::collections::HashMap;
+use crate::tast::{Expression, ExpressionKind, SlangType, StatementKind, UserType};
 
-pub fn rewrite_generics(program: &mut Program, context: &mut Context) {
+pub fn rewrite_generics(program: &mut Program) {
     log::info!("Erasing types, where generics are involved");
-    let mut rewriter = GenericRewriter::new(context);
+    let mut rewriter = GenericRewriter::new();
     visit_program(&mut rewriter, program);
 }
 
-struct GenericRewriter<'d> {
-    context: &'d mut Context,
-    new_definitions: Vec<Definition>,
-    type_map: HashMap<NodeId, SlangType>,
-}
+struct GenericRewriter {}
 
-impl<'d> GenericRewriter<'d> {
-    fn new(context: &'d mut Context) -> Self {
-        Self {
-            context,
-            new_definitions: vec![],
-            type_map: HashMap::new(),
-        }
+impl GenericRewriter {
+    fn new() -> Self {
+        Self {}
     }
 
     /// Modify definitions and rewrite types used
@@ -111,35 +99,26 @@ impl<'d> GenericRewriter<'d> {
                     }
                 }
             }
-            ExpressionKind::TupleLiteral(_) => {
-                // self.update_type(&mut expression.typ);
-            }
-            /*
-            ExpressionKind::ObjectInitializer { typ, fields } => {
-                // Initialization of an object, by a set of named fields!
-                if let SlangType::GenericInstance(generic_instance) = typ {
-                    // If we initialize a bound generic, we need to do something.
-                    // let base_struct = generic.get_def().base.as_struct();
+            ExpressionKind::TupleLiteral { typ, values } => {
+                let struct_type = typ.as_struct();
+                let struct_def = struct_type.struct_ref.upgrade().unwrap();
+                // Insert type-casts of some field values.
 
-                    // let target_type = typ.get_struct_fields().unwrap();
-
-                    // Insert type-casts of some field values.
-                    // println!("On object init: {:?}", typ);
-                    for field in fields {
-                        // println!("Field: {} = {:?}", field.name, field.value);
-                        let attr_type = generic_instance.get_attr(&field.name).unwrap().get_type();
-                        if let SlangType::TypeVar(_var_type_ref) = attr_type {
-                            // If we initialize a field whose type is a type variable
-                            // Transform this initial value into an opaque pointer.
-                            let old_value = *std::mem::take(&mut field.value);
-                            field.value = Box::new(old_value.cast(SlangType::Opaque));
-                        }
+                for (value, field) in values.iter_mut().zip(struct_def.fields.iter()) {
+                    if field.borrow().typ.is_type_var() {
+                        // If we initialize a field whose type is a type variable
+                        // Transform this initial value into an opaque pointer.
+                        let old_value = std::mem::take(value);
+                        *value = old_value.cast(SlangType::Opaque);
                     }
                 }
 
                 self.update_type(typ);
             }
-            */
+
+            ExpressionKind::ObjectInitializer { .. } => {
+                panic!("Object initializers should be rewritten");
+            }
             _ => {}
         }
     }
@@ -169,7 +148,7 @@ impl<'d> GenericRewriter<'d> {
     }
 }
 
-impl<'d> VisitorApi for GenericRewriter<'d> {
+impl VisitorApi for GenericRewriter {
     fn pre_node(&mut self, node: VisitedNode) {
         match node {
             VisitedNode::Program(_program) => {
@@ -190,7 +169,7 @@ impl<'d> VisitorApi for GenericRewriter<'d> {
                 // Definition::
                 // }
             }
-            VisitedNode::Expression(expression) => {
+            VisitedNode::Expression(_expression) => {
                 // Update own type:
                 // self.update_type(&mut expression.typ);
             }

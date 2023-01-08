@@ -1,11 +1,10 @@
 //! Various types to deal with structs and unions.
 //!
-use super::generics::TypeVar;
-use super::{Scope, SlangType, Symbol};
-use crate::parsing::Location;
 
-use super::typed_ast::{self, FieldDef};
-use super::{NameNodeId, NodeId};
+use super::{get_binding_text, get_substitution_map, replace_type_vars_sub};
+use super::{Definition, Scope, SlangType, Symbol, TypeVar};
+use super::{FieldDef, NameNodeId, NodeId};
+use crate::parsing::Location;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
@@ -29,8 +28,8 @@ impl std::fmt::Display for StructDef {
 
 impl StructDef {
     /// Turn this structure into a definition
-    pub fn into_def(self) -> typed_ast::Definition {
-        typed_ast::Definition::Struct(Rc::new(self))
+    pub fn into_def(self) -> Definition {
+        Definition::Struct(Rc::new(self))
     }
 
     /// Retrieve the given field from this struct
@@ -68,15 +67,15 @@ impl StructDef {
 /// helper type.
 pub struct UnionDef {
     pub location: Location,
-    pub name: String,
-    pub id: NodeId,
+    pub name: NameNodeId,
+    pub type_parameters: Vec<Rc<TypeVar>>,
     pub scope: Arc<Scope>,
     pub fields: Vec<Rc<RefCell<FieldDef>>>,
 }
 
 impl std::fmt::Display for UnionDef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "union(name={}, id={})", self.name, self.id)
+        write!(f, "union({})", self.name)
     }
 }
 
@@ -103,6 +102,7 @@ pub struct StructDefBuilder {
     name: String,
     id: NodeId,
     location: Location,
+    type_parameters: Vec<Rc<TypeVar>>,
     scope: Scope,
     fields: Vec<Rc<RefCell<FieldDef>>>,
 }
@@ -115,7 +115,16 @@ impl StructDefBuilder {
             location: Default::default(),
             scope: Scope::new(),
             fields: vec![],
+            type_parameters: vec![],
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn add_type_parameter(&mut self, name: NameNodeId) {
+        self.type_parameters.push(Rc::new(TypeVar {
+            name,
+            location: Default::default(),
+        }));
     }
 
     pub fn add_field(&mut self, name: &str, typ: SlangType) {
@@ -146,16 +155,20 @@ impl StructDefBuilder {
             },
             location: self.location,
             fields: self.fields,
-            type_parameters: vec![],
+            type_parameters: self.type_parameters,
             scope: Arc::new(self.scope),
         }
     }
 
     pub fn finish_union(self) -> UnionDef {
+        assert!(self.type_parameters.is_empty());
         UnionDef {
-            name: self.name,
-            id: self.id,
+            name: NameNodeId {
+                name: self.name,
+                id: self.id,
+            },
             location: self.location,
+            type_parameters: self.type_parameters,
             fields: self.fields,
             scope: Arc::new(self.scope),
         }
@@ -179,7 +192,8 @@ impl Eq for StructType {}
 impl std::fmt::Display for StructType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let struct_def = self.struct_ref.upgrade().unwrap();
-        struct_def.fmt(f)
+        let bounds = get_binding_text(&struct_def.type_parameters, &self.type_arguments);
+        write!(f, "{}[{}]", struct_def, bounds)
     }
 }
 
@@ -190,12 +204,65 @@ impl StructType {
     /// with concrete type values.
     pub fn get_struct_fields(&self) -> Vec<(String, SlangType)> {
         // Get a firm hold to the struct type:
-        let struct_ref = self.struct_ref.upgrade().unwrap();
+        let struct_def = self.struct_ref.upgrade().unwrap();
 
-        struct_ref.get_struct_fields()
+        let type_mapping = get_substitution_map(&struct_def.type_parameters, &self.type_arguments);
+
+        let mut fields = vec![];
+        for (field_name, field_type) in struct_def.get_struct_fields() {
+            fields.push((field_name, replace_type_vars_sub(field_type, &type_mapping)));
+        }
+        fields
     }
 
-    pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<typed_ast::FieldDef>>> {
+    /// Retrieve type of the given field
+    pub fn get_attr_type(&self, name: &str) -> Option<SlangType> {
+        let struct_def = self.struct_ref.upgrade().unwrap();
+        let type_mapping = get_substitution_map(&struct_def.type_parameters, &self.type_arguments);
+
+        struct_def
+            .get_field(name)
+            .map(|f| replace_type_vars_sub(f.borrow().typ.clone(), &type_mapping))
+    }
+
+    pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<FieldDef>>> {
         self.struct_ref.upgrade().unwrap().get_field(name)
+    }
+}
+
+#[derive(Clone)]
+pub struct UnionType {
+    pub union_ref: Weak<UnionDef>,
+    pub type_arguments: Vec<SlangType>,
+}
+
+impl UnionType {
+    pub fn get_attr_type(&self, name: &str) -> Option<SlangType> {
+        let union_def = self.union_ref.upgrade().unwrap();
+        let type_mapping = get_substitution_map(&union_def.type_parameters, &self.type_arguments);
+
+        union_def
+            .get_field(name)
+            .map(|f| replace_type_vars_sub(f.borrow().typ.clone(), &type_mapping))
+    }
+
+    pub fn get_field(&self, name: &str) -> Option<Rc<RefCell<FieldDef>>> {
+        self.union_ref.upgrade().unwrap().get_field(name)
+    }
+}
+
+impl PartialEq for UnionType {
+    fn eq(&self, other: &Self) -> bool {
+        self.union_ref.ptr_eq(&other.union_ref) && self.type_arguments == other.type_arguments
+    }
+}
+
+impl Eq for UnionType {}
+
+impl std::fmt::Display for UnionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let union_def = self.union_ref.upgrade().unwrap();
+        let bounds = get_binding_text(&union_def.type_parameters, &self.type_arguments);
+        write!(f, "{}[{}]", union_def, bounds)
     }
 }

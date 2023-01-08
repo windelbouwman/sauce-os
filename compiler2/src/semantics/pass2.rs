@@ -2,7 +2,7 @@
 //!
 //! Can do:
 //! - Instantiate generics
-//! - Create
+//! - Create enum literals
 
 use super::Diagnostics;
 use crate::errors::CompilationError;
@@ -104,6 +104,7 @@ impl Pass2 {
         Ok(typ)
     }
 
+    /// Check if the type arguments passed are properly suited for the given type variables.
     fn check_type_arguments(
         &mut self,
         location: &Location,

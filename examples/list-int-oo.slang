@@ -5,16 +5,16 @@
 import std
 
 class List:
-    var head_element: Option = Option::None()
+    var head_element: Option = Option.None()
 
     fn append(val: int):
         let new_tail_element = ListElement:
-            next: Option::None()
+            next: Option.None()
             data: val
         
         case this.head_element:
             None:
-                this.head_element = Option::Some(new_tail_element)
+                this.head_element = Option.Some(new_tail_element)
             Some(element):
                 let mabye_element = element.next
                 loop:
@@ -23,7 +23,7 @@ class List:
                             break
                         Some(nxt_element):
                             element = nxt_element
-                element.next = Option::Some(new_tail_element)
+                element.next = Option.Some(new_tail_element)
 
     fn walk():
         let i = 0
@@ -52,7 +52,7 @@ struct ListElement:
     data: int
 
 class ListIter:
-    var next_element: Option = Option::None()
+    var next_element: Option = Option.None()
 
     fn next() -> Option:
         let opt = this.next_element

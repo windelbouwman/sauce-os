@@ -1,6 +1,7 @@
 use super::fillscope::ast_to_nodes;
 use super::namebinding::bind_names;
 use super::pass2::pass2;
+use super::pass3::pass3;
 use super::phase5_desugar::desugar;
 use super::typechecker::check_types;
 use super::Context;
@@ -27,6 +28,7 @@ pub fn analyze(
     }
 
     pass2(&mut typed_prog)?;
+    pass3(&mut typed_prog)?;
 
     check_types(&mut typed_prog)?;
     log::debug!("Type checking done & done");

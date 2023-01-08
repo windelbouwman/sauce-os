@@ -87,7 +87,8 @@ impl Generator {
                     self.types.push(bytecode::TypeDef::invalid());
                 }
                 tast::Definition::Union(union_def) => {
-                    self.type_to_id_map2.insert(union_def.id, self.types.len());
+                    self.type_to_id_map2
+                        .insert(union_def.name.id, self.types.len());
                     self.types.push(bytecode::TypeDef::invalid());
                 }
                 _ => {}
@@ -119,11 +120,11 @@ impl Generator {
                         let field_type = self.get_bytecode_typ(&field_ref.borrow().typ);
                         choices.push(field_type);
                     }
-                    let name = union_def.name.clone();
+                    let name = union_def.name.name.clone();
 
                     let union_typ = bytecode::TypeDef::Union(bytecode::UnionDef { name, choices });
 
-                    self.types[self.type_to_id_map2[&union_def.id]] = union_typ;
+                    self.types[self.type_to_id_map2[&union_def.name.id]] = union_typ;
                 }
                 _ => {}
             }
@@ -235,9 +236,15 @@ impl Generator {
         self.gen_block(&func.body);
 
         // Hmm, a bit of a hack, to inject a void return here ..
-        if self.instructions.is_empty() {
-            self.emit(Instruction::Return(0));
-        } else if !self.instructions.last().unwrap().is_terminator() {
+        // If either:
+        // - no instructions
+        // - last instruction is not a terminator
+        if self
+            .instructions
+            .last()
+            .map(|i| !i.is_terminator())
+            .unwrap_or(true)
+        {
             self.emit(Instruction::Return(0));
         }
 
@@ -401,7 +408,7 @@ impl Generator {
             self.jump(final_label.clone());
 
             self.set_label(false_label);
-            self.gen_block(&if_false);
+            self.gen_block(if_false);
         } else {
             self.gen_condition(
                 &if_statement.condition,
@@ -506,7 +513,7 @@ impl Generator {
     }
 
     fn get_union_index(&self, union_def: Rc<tast::UnionDef>) -> usize {
-        *self.type_to_id_map2.get(&union_def.id).unwrap()
+        *self.type_to_id_map2.get(&union_def.name.id).unwrap()
     }
 
     fn get_array_index(&mut self, array_type: &ArrayType) -> usize {
@@ -563,7 +570,8 @@ impl Generator {
                 bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
             }
             UserType::Union(union_type) => {
-                let composite_id: usize = self.get_union_index(union_type.upgrade().unwrap());
+                let composite_id: usize =
+                    self.get_union_index(union_type.union_ref.upgrade().unwrap());
                 bytecode::Typ::Ptr(Box::new(bytecode::Typ::Composite(composite_id)))
             }
             UserType::Enum(_) => {
@@ -599,8 +607,8 @@ impl Generator {
             tast::ExpressionKind::EnumLiteral(_) => {
                 unimplemented!("Enum literal, please rewrite into tagged union.");
             }
-            tast::ExpressionKind::TupleLiteral(values) => {
-                self.gen_tuple_literal(&expression.typ, values);
+            tast::ExpressionKind::TupleLiteral { typ, values } => {
+                self.gen_tuple_literal(typ, values);
             }
             tast::ExpressionKind::UnionLiteral { attr, value } => {
                 self.gen_union_literal(&expression.typ, attr, value);
