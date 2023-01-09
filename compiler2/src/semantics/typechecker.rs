@@ -530,12 +530,12 @@ impl TypeChecker {
                 Ok(())
             }
 
-            ExpressionKind::UnionLiteral { attr, value } => {
-                let union_ref = expression.typ.as_struct();
-                assert!(union_ref.is_union());
-                if let Some(field) = union_ref.get_field(attr) {
-                    let field = field.borrow();
-                    self.coerce(&field.typ, value)?;
+            ExpressionKind::UnionLiteral { typ, attr, value } => {
+                let union_type = expression.typ.as_struct();
+                assert!(union_type.is_union());
+                if let Some(wanted_typ) = union_type.get_attr_type(attr) {
+                    self.coerce(&wanted_typ, value)?;
+                    expression.typ = typ.clone();
                     Ok(())
                 } else {
                     self.error(

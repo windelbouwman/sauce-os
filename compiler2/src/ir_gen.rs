@@ -586,8 +586,8 @@ impl Generator {
             tast::ExpressionKind::TupleLiteral { typ, values } => {
                 self.gen_tuple_literal(typ, values);
             }
-            tast::ExpressionKind::UnionLiteral { attr, value } => {
-                self.gen_union_literal(&expression.typ, attr, value);
+            tast::ExpressionKind::UnionLiteral { typ, attr, value } => {
+                self.gen_union_literal(typ, attr, value);
             }
             /*
             tast::ExpressionKind::VoidLiteral => {

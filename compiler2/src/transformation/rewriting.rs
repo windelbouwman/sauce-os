@@ -18,11 +18,12 @@ pub fn transform(program: &mut Program, context: &mut Context, show_ast: bool) {
     }
 
     rewrite_enums(program, context);
-    check_types(program).unwrap();
 
     if show_ast {
         print_ast(program);
     }
+
+    check_types(program).unwrap();
 
     rewrite_for_loops(program, context);
 

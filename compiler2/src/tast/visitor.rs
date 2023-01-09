@@ -271,7 +271,11 @@ fn visit_expr<V: VisitorApi>(visitor: &mut V, expression: &mut Expression) {
                 visit_expr(visitor, value);
             }
         }
-        ExpressionKind::UnionLiteral { attr: _, value } => {
+        ExpressionKind::UnionLiteral {
+            typ: _,
+            attr: _,
+            value,
+        } => {
             visit_expr(visitor, value);
         }
         ExpressionKind::ListLiteral(values) => {

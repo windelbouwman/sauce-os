@@ -3,11 +3,11 @@
 
 use super::{
     ClassType, EnumType, Expression, FieldDef, FunctionDef, FunctionSignature, StructType, Symbol,
-    TypeVar,
+    TypeVar, TypeVarRef,
 };
 
 use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 // unused:
 #[derive(Clone, PartialEq, Eq)]
@@ -49,32 +49,6 @@ pub enum BasicType {
     Int,
     Float,
     String,
-}
-
-#[derive(Clone)]
-pub struct TypeVarRef {
-    pub ptr: Weak<TypeVar>,
-}
-
-impl PartialEq for TypeVarRef {
-    fn eq(&self, other: &Self) -> bool {
-        self.ptr.ptr_eq(&other.ptr)
-    }
-}
-impl Eq for TypeVarRef {}
-
-impl std::fmt::Display for TypeVarRef {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let v = self.ptr.upgrade().unwrap();
-        write!(f, "{}", v)
-    }
-}
-
-impl std::fmt::Debug for TypeVarRef {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        // Use the display logic for debug as well:
-        write!(f, "{}", self)
-    }
 }
 
 /// Unresolved type expression
@@ -264,13 +238,6 @@ impl std::fmt::Display for UserType {
     }
 }
 
-impl std::fmt::Debug for UserType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        // Use the display logic for debug as well:
-        write!(f, "{}", self)
-    }
-}
-
 impl SlangType {
     /// Create a new type of integer type
     pub fn int() -> Self {
@@ -290,9 +257,7 @@ impl SlangType {
     }
 
     pub fn type_var(type_var: &Rc<TypeVar>) -> Self {
-        SlangType::TypeVar(TypeVarRef {
-            ptr: Rc::downgrade(type_var),
-        })
+        SlangType::TypeVar(TypeVarRef::new(type_var))
     }
 
     pub fn into_function_type(self) -> Rc<RefCell<FunctionSignature>> {

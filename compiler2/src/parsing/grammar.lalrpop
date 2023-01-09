@@ -144,14 +144,16 @@ StructDefField: ast::StructDefField = {
 };
 
 FunctionDef: ast::FunctionDef = {
-    <public:"pub"?> <location:@L> "fn" <name:Identifier>
+    <public:"pub"?> <location:@L> "fn" <name:Identifier> <type_parameters:TypeVars?>
     <signature:FunctionSignature> ":"
     Newline <body:Block> => {
         let public = public.is_some();
+        let type_parameters = type_parameters.unwrap_or_default();
         ast::FunctionDef {
             location,
             name,
             public,
+            type_parameters,
             signature,
             body
         }

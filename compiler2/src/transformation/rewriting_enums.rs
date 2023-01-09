@@ -30,8 +30,8 @@ use crate::tast::{
 use crate::tast::{visit_program, VisitedNode, VisitorApi};
 use crate::tast::{Block, Expression, ExpressionKind, Statement, StatementKind};
 use crate::tast::{CaseStatement, SwitchArm, SwitchStatement};
-use crate::tast::{Definition, EnumDef, LocalVariable, Program, StructDef, StructDefBuilder};
-use crate::tast::{NodeId, Ref, SlangType};
+use crate::tast::{Definition, EnumDef, LocalVariable, Program, StructDefBuilder};
+use crate::tast::{DefinitionRef, EnumType, NodeId, Ref, SlangType, TypeVar};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -48,7 +48,7 @@ struct EnumRewriter<'d> {
     new_definitions: Vec<Definition>,
 
     /// Mapping from enum types to tagged-union types!
-    enum_map: HashMap<NodeId, SlangType>,
+    enum_map: HashMap<NodeId, DefinitionRef>,
 }
 
 impl<'d> EnumRewriter<'d> {
@@ -72,75 +72,106 @@ impl<'d> EnumRewriter<'d> {
         }
     }
 
-    /// Contrapt new types for the given enum type.
+    /// Craft new types for the given enum type.
     ///
-    fn contrapt_tagged_union(&mut self, enum_def: Rc<EnumDef>) {
+    fn contrapt_tagged_union(&mut self, enum_def: &Rc<EnumDef>) {
         let union_name = format!("{}Data", enum_def.name.name);
-        let mut union_builder = StructDefBuilder::new(union_name, self.new_id());
-        union_builder.set_is_union(true);
+        let mut data_union_builder = StructDefBuilder::new(union_name, self.new_id());
+        let data_union_type_arguments =
+            self.replicate_type_parameters(&mut data_union_builder, &enum_def.type_parameters);
+        data_union_builder.set_is_union(true);
+
+        // Create a new enum type with data union type variables as concrete types.
+        // A bit funky, but hopefully this works.
+        let tmp_enum_type = EnumType::from_def(enum_def, data_union_type_arguments.clone());
 
         // let union_builder
         for variant in &enum_def.variants {
             let variant = variant.borrow();
             let union_field_name = format!("{}", variant.name);
+            // let ug_type = enum_def.create_type(data_union_type_arguments)
+            let variant_data: Vec<SlangType> = tmp_enum_type.get_variant_data_types(variant.index);
 
-            if variant.data.is_empty() {
+            let variant_typ: SlangType = if variant_data.is_empty() {
                 // no payload fields required!
                 // Add a place holder int as stub ..
-                union_builder.add_field(&union_field_name, SlangType::int());
+                SlangType::int()
             } else if variant.data.len() == 1 {
                 // Single field!
-                let variant_typ = variant.data[0].clone();
-                union_builder.add_field(&union_field_name, variant_typ);
+                let variant_typ = variant_data.into_iter().next().unwrap();
+                variant_typ
             } else {
                 // multi-payload field, create sub struct!
                 let multi_field_enum_struct_name =
                     format!("{}{}Data", enum_def.name.name.clone(), variant.name);
-                let mut struct_builder2 =
+                let mut inner_struct_builder =
                     StructDefBuilder::new(multi_field_enum_struct_name, self.new_id());
-                for (index, payload_typ) in variant.data.iter().enumerate() {
+
+                let inner_struct_type_arguments = self.replicate_type_parameters(
+                    &mut inner_struct_builder,
+                    &enum_def.type_parameters,
+                );
+                let tmp_enum_type2 = EnumType::from_def(enum_def, inner_struct_type_arguments);
+
+                for (index, payload_typ) in tmp_enum_type2
+                    .get_variant_data_types(variant.index)
+                    .iter()
+                    .enumerate()
+                {
                     let payload_name = format!("f_{}", index);
-                    struct_builder2.add_field(&payload_name, payload_typ.clone());
+                    inner_struct_builder.add_field(&payload_name, payload_typ.clone());
                 }
 
-                let variant_typ = self.define_struct(struct_builder2.finish());
-                union_builder.add_field(&union_field_name, variant_typ);
-            }
+                let inner_struct_def = inner_struct_builder.finish().into_def();
+                let variant_typ = inner_struct_def.create_type(data_union_type_arguments.clone());
+                self.new_definitions.push(inner_struct_def);
+                variant_typ
+            };
+
+            data_union_builder.add_field(&union_field_name, variant_typ);
         }
 
-        let union_def = union_builder.finish().into_def();
-        let union_typ = union_def.create_type(vec![]);
-        self.new_definitions.push(union_def);
+        let data_union_def = data_union_builder.finish().into_def();
 
         // Create tagged union struct:
-        let mut struct_builder = StructDefBuilder::new(enum_def.name.name.clone(), self.new_id());
-        struct_builder.add_field("tag", SlangType::int());
-        struct_builder.add_field("data", union_typ);
-        let tagged_union_typ = self.define_struct(struct_builder.finish());
+        let mut tagged_struct_builder =
+            StructDefBuilder::new(enum_def.name.name.clone(), self.new_id());
+        let tagged_struct_type_arguments =
+            self.replicate_type_parameters(&mut tagged_struct_builder, &enum_def.type_parameters);
+        tagged_struct_builder.add_field("tag", SlangType::int());
+        tagged_struct_builder.add_field(
+            "data",
+            data_union_def.create_type(tagged_struct_type_arguments),
+        );
 
-        // register tagged union for later usage!
-        self.enum_map.insert(enum_def.name.id, tagged_union_typ);
-
-        // ?
+        let tagged_struct_def = tagged_struct_builder.finish().into_def();
+        self.enum_map
+            .insert(enum_def.name.id, tagged_struct_def.get_ref());
+        self.new_definitions.push(tagged_struct_def);
+        self.new_definitions.push(data_union_def);
     }
 
-    // fn define_union() -> a {
-    fn define_struct(&mut self, struct_def: StructDef) -> SlangType {
-        let struct_def = struct_def.into_def();
-        let typ = struct_def.create_type(vec![]);
-        self.new_definitions.push(struct_def);
-        typ
+    fn replicate_type_parameters(
+        &mut self,
+        struct_builder: &mut StructDefBuilder,
+        type_parameters: &[Rc<TypeVar>],
+    ) -> Vec<SlangType> {
+        let mut type_arguments: Vec<SlangType> = vec![];
+        for type_var in type_parameters {
+            type_arguments.push(
+                struct_builder
+                    .add_type_parameter(type_var.name.name.clone(), self.new_id())
+                    .into_type(),
+            );
+        }
+        type_arguments
     }
 
     /// Transform case statement into switch statement, using a tagged union.
     fn lower_case_statement(&mut self, mut case_statement: CaseStatement) -> StatementKind {
         // Load tagged union discriminating tag
         let enum_type = case_statement.value.typ.as_enum();
-        let tagged_union_type = self
-            .enum_map
-            .get(&enum_type.enum_ref.upgrade().unwrap().name.id)
-            .expect("Enum is translated")
-            .clone();
+        let tagged_union_type = self.get_tagged_union(enum_type);
         let tagged_union_ref =
             self.new_local_variable("tagged_union".to_owned(), tagged_union_type);
 
@@ -211,12 +242,7 @@ impl<'d> EnumRewriter<'d> {
                 let variant_ref = enum_literal.variant.upgrade().unwrap();
                 let variant = variant_ref.borrow();
 
-                let tagged_union_typ = self
-                    .enum_map
-                    .get(&variant.parent.upgrade().unwrap().name.id)
-                    .unwrap()
-                    .clone();
-
+                let tagged_union_typ = self.get_tagged_union(enum_literal.enum_type.clone());
                 let data_union_type = tagged_union_typ.as_struct().get_attr_type("data").unwrap();
 
                 let payload = std::mem::take(&mut enum_literal.arguments);
@@ -253,6 +279,15 @@ impl<'d> EnumRewriter<'d> {
         }
     }
 
+    fn get_tagged_union(&self, enum_type: EnumType) -> SlangType {
+        self.enum_map
+            .get(&enum_type.enum_ref.upgrade().unwrap().name.id)
+            .expect("Enum is translated")
+            .clone()
+            .into_definition()
+            .create_type(enum_type.type_arguments)
+    }
+
     fn new_local_variable(&mut self, name: String, typ: SlangType) -> Ref<LocalVariable> {
         let new_var = Rc::new(RefCell::new(LocalVariable::new(
             Default::default(),
@@ -280,7 +315,7 @@ impl<'d> VisitorApi for EnumRewriter<'d> {
                 for definition in &program.definitions {
                     match definition {
                         Definition::Enum(enum_def) => {
-                            self.contrapt_tagged_union(enum_def.clone());
+                            self.contrapt_tagged_union(enum_def);
                         }
                         _ => {}
                     }
@@ -288,17 +323,11 @@ impl<'d> VisitorApi for EnumRewriter<'d> {
                 program.definitions.append(&mut self.new_definitions);
             }
             VisitedNode::TypeExpr(type_expr) => {
+                // Replace enums by tagged unions!
                 if type_expr.is_enum() {
                     let enum_type = type_expr.as_enum();
-                    let tagged_union = self
-                        .enum_map
-                        .get(&enum_type.enum_ref.upgrade().unwrap().name.id)
-                        .unwrap()
-                        .clone();
-                    *type_expr = tagged_union;
+                    *type_expr = self.get_tagged_union(enum_type);
                 }
-
-                // Replace enums by tagged unions!
             }
             _ => {}
         }

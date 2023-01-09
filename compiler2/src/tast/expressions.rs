@@ -1,5 +1,5 @@
 use super::{get_attr, integer_literal, undefined_value};
-use super::{EnumLiteral, LabeledField, SlangType, Symbol};
+use super::{EnumType, EnumVariant, LabeledField, Ref, SlangType, Symbol};
 use crate::parsing::{ast, Location};
 
 pub struct Expression {
@@ -91,6 +91,7 @@ pub enum ExpressionKind {
     },
 
     UnionLiteral {
+        typ: SlangType,
         attr: String,
         value: Box<Expression>,
     },
@@ -171,6 +172,12 @@ impl ExpressionKind {
             kind: self,
         }
     }
+}
+
+pub struct EnumLiteral {
+    pub enum_type: EnumType,
+    pub variant: Ref<EnumVariant>,
+    pub arguments: Vec<Expression>,
 }
 
 #[derive(Debug, Clone)]

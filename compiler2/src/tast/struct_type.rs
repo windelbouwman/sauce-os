@@ -1,8 +1,8 @@
 //! Various types to deal with structs and unions.
 //!
 
-use super::{get_binding_text, get_substitution_map, replace_type_vars_sub};
-use super::{Definition, Scope, SlangType, Symbol, TypeVar};
+use super::{get_binding_text, get_substitution_map, get_type_vars_text, replace_type_vars_sub};
+use super::{Definition, Scope, SlangType, Symbol, TypeVar, TypeVarRef};
 use super::{FieldDef, NameNodeId, NodeId};
 use crate::parsing::Location;
 use std::cell::RefCell;
@@ -23,10 +23,11 @@ pub struct StructDef {
 
 impl std::fmt::Display for StructDef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let type_txt = get_type_vars_text(&self.type_parameters);
         if self.is_union {
-            write!(f, "union-{}", self.name)
+            write!(f, "union-{}[{}]", self.name, type_txt)
         } else {
-            write!(f, "struct-{}", self.name)
+            write!(f, "struct-{}[{}]", self.name, type_txt)
         }
     }
 }
@@ -89,12 +90,14 @@ impl StructDefBuilder {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn add_type_parameter(&mut self, name: NameNodeId) {
-        self.type_parameters.push(Rc::new(TypeVar {
-            name,
+    pub fn add_type_parameter(&mut self, name: String, id: NodeId) -> TypeVarRef {
+        let type_var = Rc::new(TypeVar {
+            name: NameNodeId { name, id },
             location: Default::default(),
-        }));
+        });
+        let type_var_ref = TypeVarRef::new(&type_var);
+        self.type_parameters.push(type_var);
+        type_var_ref
     }
 
     pub fn add_field(&mut self, name: &str, typ: SlangType) {
@@ -150,7 +153,11 @@ impl std::fmt::Display for StructType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let struct_def = self.struct_ref.upgrade().unwrap();
         let bounds = get_binding_text(&struct_def.type_parameters, &self.type_arguments);
-        write!(f, "{}[{}]", struct_def, bounds)
+        if struct_def.is_union {
+            write!(f, "union-{}[{}]", struct_def.name, bounds)
+        } else {
+            write!(f, "struct-{}[{}]", struct_def.name, bounds)
+        }
     }
 }
 

@@ -116,12 +116,16 @@ impl<'d> ClassRewriter<'d> {
             return_type: Some(struct_ty.clone()),
         }));
 
+        // TODO: fill something here:
+        let type_parameters = vec![];
+
         let ctor_func = Rc::new(RefCell::new(FunctionDef {
             name: NameNodeId {
                 name: ctor_name,
                 id: self.new_id(),
             },
             location: class_def.location.clone(),
+            type_parameters,
             this_param: None,
             body: ctor_code,
             scope: Arc::new(Scope::new()),

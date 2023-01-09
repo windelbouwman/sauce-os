@@ -7,12 +7,11 @@
 
 // use super::type_system::{ClassTypeRef, EnumType, SlangType};
 
-use super::{ClassDef, StructDef};
-use super::{ClassType, EnumType, SlangType, StructType, UserType};
-use super::{EnumDef, EnumVariant};
+use super::{Definition, EnumVariant};
 use super::{Expression, ExpressionKind, Literal, Statement, StatementKind, WhileStatement};
-use super::{NameNodeId, NodeId, Ref};
+use super::{NameNodeId, NodeId, Ref, TypeVar};
 use super::{Scope, Symbol};
+use super::{SlangType, UserType};
 use crate::parsing::ast;
 use crate::parsing::Location;
 use std::cell::RefCell;
@@ -24,70 +23,6 @@ pub struct Program {
     pub path: std::path::PathBuf,
     pub scope: Arc<Scope>,
     pub definitions: Vec<Definition>,
-}
-
-#[derive(Clone)]
-pub enum Definition {
-    Function(Rc<RefCell<FunctionDef>>),
-    Class(Rc<ClassDef>),
-    Struct(Rc<StructDef>),
-    Enum(Rc<EnumDef>),
-    // Field(Arc<FieldDef>),
-}
-
-impl Definition {
-    /// Create type for this definition!
-    pub fn create_type(&self, type_arguments: Vec<SlangType>) -> SlangType {
-        let user_type = match self {
-            Definition::Struct(struct_def) => {
-                assert!(type_arguments.len() == struct_def.type_parameters.len());
-                UserType::Struct(StructType {
-                    struct_ref: Rc::downgrade(struct_def),
-                    type_arguments,
-                })
-            }
-            Definition::Enum(enum_def) => {
-                assert!(type_arguments.len() == enum_def.type_parameters.len());
-                UserType::Enum(EnumType {
-                    enum_ref: Rc::downgrade(enum_def),
-                    type_arguments,
-                })
-            }
-            Definition::Class(class_def) => {
-                assert!(type_arguments.is_empty());
-                UserType::Class(ClassType {
-                    class_ref: Rc::downgrade(class_def),
-                    type_arguments,
-                })
-            }
-            Definition::Function(_function_def) => {
-                // UserType::Function(function_def.borrow().signature.clone())
-                unimplemented!();
-            }
-        };
-
-        SlangType::User(user_type)
-    }
-
-    /// Narrow the type to struct type.
-    #[allow(dead_code)]
-    pub fn as_struct(&self) -> Rc<StructDef> {
-        if let Definition::Struct(struct_def) = self {
-            struct_def.clone()
-        } else {
-            panic!("Expected struct type");
-        }
-    }
-
-    /// Get attribute from this definition
-    #[allow(dead_code)]
-    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
-        match self {
-            Definition::Struct(struct_def) => struct_def.get_attr(name),
-            Definition::Class(class_def) => class_def.get_attr(name),
-            _ => None,
-        }
-    }
 }
 
 pub struct FieldDef {
@@ -123,6 +58,7 @@ pub enum TypeExprKind {
 pub struct FunctionDef {
     pub name: NameNodeId,
     pub location: Location,
+    pub type_parameters: Vec<Rc<TypeVar>>,
     pub signature: Rc<RefCell<FunctionSignature>>,
     pub this_param: Option<Rc<RefCell<Parameter>>>,
     pub scope: Arc<Scope>,
@@ -275,6 +211,7 @@ pub fn union_literal(typ: SlangType, attr: String, value: Expression) -> Express
     }
 
     ExpressionKind::UnionLiteral {
+        typ: typ.clone(),
         attr,
         value: Box::new(value),
     }
@@ -382,12 +319,6 @@ pub fn load_function(function_ref: Ref<FunctionDef>) -> Expression {
 #[allow(dead_code)]
 pub fn obj_ref(obj_ref: ast::ObjRef) -> Expression {
     ExpressionKind::Object(obj_ref).typed_expr(SlangType::Undefined)
-}
-
-pub struct EnumLiteral {
-    pub enum_type: EnumType,
-    pub variant: Ref<EnumVariant>,
-    pub arguments: Vec<Expression>,
 }
 
 pub struct LabeledField {

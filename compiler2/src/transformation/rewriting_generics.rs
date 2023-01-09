@@ -87,7 +87,7 @@ impl GenericRewriter {
                             &struct_type.type_arguments,
                         );
                         let mut typ = type_var_map
-                            .get(&type_var.ptr.upgrade().unwrap().name.name)
+                            .get(&type_var.get_type_var().name.name)
                             .cloned()
                             .expect("We checked!");
                         self.update_type(&mut typ);
@@ -114,6 +114,15 @@ impl GenericRewriter {
                 }
 
                 self.update_type(typ);
+            }
+            ExpressionKind::UnionLiteral { typ, attr, value } => {
+                let struct_type = typ.as_struct();
+                let struct_def = struct_type.struct_ref.upgrade().unwrap();
+                let field = struct_def.get_field(attr).unwrap();
+                if field.borrow().typ.is_type_var() {
+                    let old_value = std::mem::take(value.as_mut());
+                    *value.as_mut() = old_value.cast(SlangType::Opaque);
+                }
             }
 
             ExpressionKind::ObjectInitializer { .. } => {

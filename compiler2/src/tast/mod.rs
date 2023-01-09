@@ -9,6 +9,7 @@
 
 // Own modules
 mod class_type;
+mod definitions;
 mod enum_type;
 mod expressions;
 mod generics;
@@ -26,25 +27,29 @@ use std::rc::{Rc, Weak};
 
 // re-exports:
 pub use class_type::{ClassDef, ClassType};
+pub use definitions::{Definition, DefinitionRef};
 pub use enum_type::{EnumDef, EnumType, EnumVariant};
-pub use expressions::{Expression, ExpressionKind, Literal};
-pub use generics::{get_binding_text, get_substitution_map, replace_type_vars_sub, TypeVar};
+pub use expressions::{EnumLiteral, Expression, ExpressionKind, Literal};
+pub use generics::{
+    get_binding_text, get_substitution_map, get_type_vars_text, replace_type_vars_sub,
+};
+pub use generics::{TypeVar, TypeVarRef};
 pub use scope::Scope;
 pub use statements::{
     AssignmentStatement, CaseArm, CaseStatement, ForStatement, IfStatement, Statement,
     StatementKind, SwitchArm, SwitchStatement, WhileStatement,
 };
 pub use struct_type::{StructDef, StructDefBuilder, StructType};
-pub use symbol::{DefinitionRef, Symbol};
-pub use type_system::{ArrayType, BasicType, SlangType, TypeExpression, TypeVarRef, UserType};
+pub use symbol::Symbol;
+pub use type_system::{ArrayType, BasicType, SlangType, TypeExpression, UserType};
 pub use typed_ast::{
     comparison, compound, get_attr, get_index, integer_literal, load_function, load_local,
     return_value, store_local, tuple_literal, undefined_value, union_literal, unreachable_code,
     while_loop,
 };
 pub use typed_ast::{
-    Block, Definition, EnumLiteral, FieldDef, FunctionDef, FunctionSignature, LabeledField,
-    LocalVariable, Parameter, Program, VariantRef,
+    Block, FieldDef, FunctionDef, FunctionSignature, LabeledField, LocalVariable, Parameter,
+    Program, VariantRef,
 };
 pub use typed_ast_printer::print_ast;
 pub use visitor::{visit_program, VisitedNode, VisitorApi};

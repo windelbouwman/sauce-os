@@ -321,6 +321,7 @@ impl<'g> Phase1<'g> {
         this_param: Option<String>,
     ) -> Result<Rc<RefCell<tast::FunctionDef>>, ()> {
         self.enter_scope();
+        let type_parameters = self.on_type_parameters(function_def.type_parameters);
         let this_param = if let Some(name) = this_param {
             Some(self.new_parameter(function_def.location.clone(), name, SlangType::Undefined))
         } else {
@@ -341,6 +342,7 @@ impl<'g> Phase1<'g> {
             },
             this_param,
             location: function_def.location.clone(),
+            type_parameters,
             signature,
             scope: Arc::new(scope),
             locals: local_variables,

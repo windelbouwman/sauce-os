@@ -4,7 +4,7 @@
 use super::{NameNodeId, SlangType, UserType};
 use crate::parsing::Location;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 /*
 
@@ -71,6 +71,41 @@ pub struct TypeVar {
 impl std::fmt::Display for TypeVar {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "type-var-{}", self.name)
+    }
+}
+
+#[derive(Clone)]
+pub struct TypeVarRef {
+    ptr: Weak<TypeVar>,
+}
+
+impl TypeVarRef {
+    pub fn new(type_var: &Rc<TypeVar>) -> Self {
+        TypeVarRef {
+            ptr: Rc::downgrade(type_var),
+        }
+    }
+
+    pub fn get_type_var(&self) -> Rc<TypeVar> {
+        self.ptr.upgrade().unwrap()
+    }
+
+    pub fn into_type(self) -> SlangType {
+        SlangType::TypeVar(self)
+    }
+}
+
+impl PartialEq for TypeVarRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr.ptr_eq(&other.ptr)
+    }
+}
+impl Eq for TypeVarRef {}
+
+impl std::fmt::Display for TypeVarRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let v = self.get_type_var();
+        write!(f, "{}", v)
     }
 }
 
@@ -153,4 +188,12 @@ pub fn get_binding_text(type_parameters: &[Rc<TypeVar>], type_arguments: &[Slang
     }
 
     bounds.join(", ")
+}
+
+pub fn get_type_vars_text(type_parameters: &[Rc<TypeVar>]) -> String {
+    let mut type_texts = vec![];
+    for type_parameter in type_parameters {
+        type_texts.push(format!("{}", type_parameter.name));
+    }
+    type_texts.join(",")
 }

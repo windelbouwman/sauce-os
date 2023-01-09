@@ -4,74 +4,11 @@
 //!
 
 use super::{
-    ClassDef, Definition, EnumDef, EnumVariant, FieldDef, FunctionDef, LocalVariable, Parameter,
-    Program, Ref, SlangType, StructDef, TypeVar,
+    DefinitionRef, EnumVariant, FieldDef, FunctionDef, LocalVariable, Parameter, Program, Ref,
+    SlangType,
 };
 
-use std::rc::{Rc, Weak};
-
-#[derive(Clone)]
-pub enum DefinitionRef {
-    Struct(Weak<StructDef>),
-    Enum(Weak<EnumDef>),
-    Class(Weak<ClassDef>),
-}
-
-impl DefinitionRef {
-    /// Turn this reference to a definition into a true definition.
-    pub fn into_definition(self) -> Definition {
-        match self {
-            DefinitionRef::Struct(struct_ref) => {
-                let struct_def = struct_ref.upgrade().unwrap();
-                Definition::Struct(struct_def)
-            }
-            DefinitionRef::Enum(enum_ref) => {
-                let enum_def = enum_ref.upgrade().unwrap();
-                Definition::Enum(enum_def)
-            }
-            DefinitionRef::Class(class_ref) => {
-                let class_def = class_ref.upgrade().unwrap();
-                Definition::Class(class_def)
-            }
-        }
-    }
-
-    pub fn get_type_parameters(&self) -> Vec<Rc<TypeVar>> {
-        match self {
-            DefinitionRef::Struct(struct_ref) => {
-                let struct_def = struct_ref.upgrade().unwrap();
-                struct_def.type_parameters.clone()
-            }
-            DefinitionRef::Enum(enum_ref) => {
-                let enum_def = enum_ref.upgrade().unwrap();
-                enum_def.type_parameters.clone()
-            }
-            DefinitionRef::Class(class_ref) => {
-                let class_def = class_ref.upgrade().unwrap();
-                class_def.type_parameters.clone()
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for DefinitionRef {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            DefinitionRef::Struct(struct_ref) => {
-                let struct_def = struct_ref.upgrade().unwrap();
-                write!(f, "ref-{}", struct_def)
-            }
-            DefinitionRef::Enum(enum_ref) => {
-                let enum_def = enum_ref.upgrade().unwrap();
-                write!(f, "ref-{}", enum_def)
-            }
-            DefinitionRef::Class(class_ref) => {
-                let class_def = class_ref.upgrade().unwrap();
-                write!(f, "ref-{}", class_def)
-            }
-        }
-    }
-}
+use std::rc::Rc;
 
 #[derive(Clone)]
 pub enum Symbol {
@@ -138,14 +75,5 @@ impl std::fmt::Display for Symbol {
                 write!(f, "symbol-enum-variant(..)")
             }
         }
-    }
-}
-
-/*
-*/
-impl std::fmt::Debug for Symbol {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        // Use the display logic for debug as well:
-        write!(f, "{}", self)
     }
 }

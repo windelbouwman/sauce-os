@@ -1,4 +1,6 @@
-use super::generics::{get_substitution_map, replace_type_vars_sub, TypeVar};
+use super::generics::{
+    get_binding_text, get_substitution_map, get_type_vars_text, replace_type_vars_sub, TypeVar,
+};
 use super::{NameNodeId, NodeId};
 use super::{Scope, SlangType, Symbol};
 
@@ -40,20 +42,10 @@ impl EnumDef {
     }
 }
 
-impl std::fmt::Debug for EnumDef {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.debug_struct("EnumDef").field("name", &self.name).finish()
-    }
-}
-
 impl std::fmt::Display for EnumDef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let mut type_var_names: Vec<String> = vec![];
-        for type_var in self.type_parameters.iter() {
-            type_var_names.push(type_var.name.name.clone());
-        }
-
-        write!(f, "enum({})[{}]", self.name, type_var_names.join(", "))
+        let type_txt = get_type_vars_text(&self.type_parameters);
+        write!(f, "enum-{}[{}]", self.name, type_txt)
     }
 }
 
@@ -152,7 +144,8 @@ impl Eq for EnumType {}
 impl std::fmt::Display for EnumType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if let Some(enum_def) = self.enum_ref.upgrade() {
-            enum_def.fmt(f)
+            let bounds = get_binding_text(&enum_def.type_parameters, &self.type_arguments);
+            write!(f, "enum-{}[{}]", enum_def.name, bounds)
         } else {
             write!(f, "enum(NULL)")
         }
@@ -160,33 +153,30 @@ impl std::fmt::Display for EnumType {
 }
 
 impl EnumType {
-    /*
-    pub fn id(&self) -> usize {
-        match self {
-            EnumType::Simple(enum_type) => {
-                let enum_def = enum_type.upgrade().unwrap();
-                enum_def.id
-            }
-            EnumType::Generic(generic_instance) => {
-                let generic_def = generic_instance.generic.upgrade().unwrap();
-                generic_def.base.create_type().as_enum().id()
-            }
+    pub fn from_def(enum_def: &Rc<EnumDef>, type_arguments: Vec<SlangType>) -> Self {
+        assert!(type_arguments.len() == enum_def.type_parameters.len());
+        Self {
+            enum_ref: Rc::downgrade(enum_def),
+            type_arguments,
         }
     }
-    */
+
+    fn get_def(&self) -> Rc<EnumDef> {
+        self.enum_ref.upgrade().unwrap()
+    }
 
     pub fn lookup_variant(&self, name: &str) -> Option<Rc<RefCell<EnumVariant>>> {
-        let enum_def = self.enum_ref.upgrade().unwrap();
+        let enum_def = self.get_def();
         enum_def.lookup(name)
     }
 
     pub fn get_variants(&self) -> Vec<Rc<RefCell<EnumVariant>>> {
-        let enum_def = self.enum_ref.upgrade().unwrap();
+        let enum_def = self.get_def();
         enum_def.variants.clone()
     }
 
     pub fn get_variant_data_types(&self, index: usize) -> Vec<SlangType> {
-        let enum_def = self.enum_ref.upgrade().unwrap();
+        let enum_def = self.get_def();
         let enum_variant = enum_def.variants[index].borrow();
         let data_types = enum_variant.data.clone();
 

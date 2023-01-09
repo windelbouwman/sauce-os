@@ -104,6 +104,7 @@ pub struct FunctionDef {
     pub location: Location,
     pub name: String,
     pub public: bool,
+    pub type_parameters: Vec<TypeVar>,
     pub signature: FunctionSignature,
     pub body: Block,
 }

@@ -1,9 +1,9 @@
 use super::refer;
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
+use crate::tast::{get_type_vars_text, SlangType, Symbol};
 use crate::tast::{AssignmentStatement, CaseStatement, ForStatement, IfStatement, WhileStatement};
 use crate::tast::{Definition, FieldDef, FunctionDef, Program};
 use crate::tast::{EnumLiteral, Expression, ExpressionKind, Literal, Statement, StatementKind};
-use crate::tast::{SlangType, Symbol};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -134,10 +134,21 @@ impl AstPrinter {
                 self.print_fields(&class_def.fields);
             }
             Definition::Struct(struct_def) => {
+                let type_txt = get_type_vars_text(&struct_def.type_parameters);
                 if struct_def.is_union {
-                    println!("{}union {}", self.get_indent(), struct_def.name);
+                    println!(
+                        "{}union {} [{}]",
+                        self.get_indent(),
+                        struct_def.name,
+                        type_txt
+                    );
                 } else {
-                    println!("{}struct {}", self.get_indent(), struct_def.name);
+                    println!(
+                        "{}struct {} [{}]",
+                        self.get_indent(),
+                        struct_def.name,
+                        type_txt
+                    );
                 }
 
                 self.indent();
@@ -323,7 +334,11 @@ impl AstPrinter {
             ExpressionKind::TupleLiteral { typ: _, values: _ } => {
                 print!("{}Tuple-literal", self.get_indent());
             }
-            ExpressionKind::UnionLiteral { attr, value: _ } => {
+            ExpressionKind::UnionLiteral {
+                typ: _,
+                attr,
+                value: _,
+            } => {
                 print!("{}Union-literal: {}", self.get_indent(), attr);
             }
             ExpressionKind::EnumLiteral(EnumLiteral {

@@ -64,7 +64,7 @@ impl Pass2 {
             ExpressionKind::LoadSymbol(Symbol::Definition(definition_ref)) => {
                 // If we have no type parameters, we can access this directly.
                 if definition_ref.get_type_parameters().is_empty() {
-                    Ok(definition_ref.into_definition().create_type(vec![]))
+                    Ok(definition_ref.create_type(vec![]))
                 } else {
                     let location: &Location = &type_expr.location;
                     self.error(location, "We need type arguments".to_owned());
@@ -100,7 +100,7 @@ impl Pass2 {
             &definition_ref.get_type_parameters(),
             type_expressions,
         )?;
-        let typ = definition_ref.into_definition().create_type(type_arguments);
+        let typ = definition_ref.create_type(type_arguments);
         Ok(typ)
     }
 
@@ -183,8 +183,10 @@ impl VisitorApi for Pass2 {
                         ExpressionKind::LoadSymbol(Symbol::Definition(_definition_ref)) => {
                             let old_expr = std::mem::take(expression);
                             // self.instantiate_generic(old_expr);
-                            let typ = self.transform_into_type(old_expr).unwrap();
-                            *expression = ExpressionKind::LoadSymbol(Symbol::Typ(typ)).into_expr();
+                            if let Ok(typ) = self.transform_into_type(old_expr) {
+                                *expression =
+                                    ExpressionKind::LoadSymbol(Symbol::Typ(typ)).into_expr();
+                            }
                             //
                             // let t = self.instantiate_generic(&expression.location, base, type_arguments)
                         }
@@ -228,7 +230,7 @@ impl VisitorApi for Pass2 {
                     ExpressionKind::LoadSymbol(Symbol::Definition(definition_ref)) => {
                         // Maybe we can directly use it (without type arguments)
                         if definition_ref.get_type_parameters().is_empty() {
-                            let typ = definition_ref.clone().into_definition().create_type(vec![]);
+                            let typ = definition_ref.create_type(vec![]);
                             expression.kind = ExpressionKind::LoadSymbol(Symbol::Typ(typ));
                         }
                     }

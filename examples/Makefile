@@ -15,6 +15,7 @@ EXECUTABLES = \
 	${BUILDDIR}/for-loop.exe \
 	${BUILDDIR}/func_ptr.exe \
 	${BUILDDIR}/generics.exe \
+	${BUILDDIR}/generic-enum.exe \
 	${BUILDDIR}/hello-world.exe \
 	${BUILDDIR}/if-statements.exe \
 	${BUILDDIR}/list-int.exe \
