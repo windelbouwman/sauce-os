@@ -6,11 +6,12 @@ import logging
 from .parsing import parse
 from .ast import print_ast
 from .analyze import analyze_ast
-from .codegeneration import gencode
+# from .codegeneration import gencode
+from .cppgenerator import gencode
 from .errors import CompilationError
 
 logger = logging.getLogger('compiler')
-install(show_locals=True)
+# install(show_locals=True)
 
 
 def main():
@@ -40,7 +41,7 @@ def do_compile(filename, output, known_modules):
         logger.error("Errors occurred during parsing!")
 
     else:
-        # print_ast(ast)
+        print_ast(ast)
         if analyze_ast(ast, code):
             gencode(ast, output)
             logger.info('DONE&DONE')

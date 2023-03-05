@@ -64,6 +64,8 @@ impl GenericRewriter {
     /// - Object initializer:
     ///     Check if we initialize a bound generic
     ///     Cast specifics to opaque pointers.
+    /// - Call:
+    ///     Each argument which should be a type-var, should be casted to opaque.
     fn update_expression(&self, expression: &mut Expression) {
         match &mut expression.kind {
             ExpressionKind::GetAttr { base, attr } => {
@@ -108,8 +110,7 @@ impl GenericRewriter {
                     if field.borrow().typ.is_type_var() {
                         // If we initialize a field whose type is a type variable
                         // Transform this initial value into an opaque pointer.
-                        let old_value = std::mem::take(value);
-                        *value = old_value.cast(SlangType::Opaque);
+                        Self::cast_to_opaque(value);
                     }
                 }
 
@@ -120,16 +121,33 @@ impl GenericRewriter {
                 let struct_def = struct_type.struct_ref.upgrade().unwrap();
                 let field = struct_def.get_field(attr).unwrap();
                 if field.borrow().typ.is_type_var() {
-                    let old_value = std::mem::take(value.as_mut());
-                    *value.as_mut() = old_value.cast(SlangType::Opaque);
+                    Self::cast_to_opaque(value.as_mut());
                 }
             }
 
             ExpressionKind::ObjectInitializer { .. } => {
                 panic!("Object initializers should be rewritten");
             }
+            ExpressionKind::Call { callee, arguments } => {
+                let signature = callee.as_function().get_original_signature();
+                for (parameter, argument) in signature
+                    .borrow()
+                    .parameters
+                    .iter()
+                    .zip(arguments.iter_mut())
+                {
+                    if parameter.borrow().typ.is_type_var() {
+                        Self::cast_to_opaque(argument);
+                    }
+                }
+            }
             _ => {}
         }
+    }
+
+    fn cast_to_opaque(value: &mut Expression) {
+        let old_value = std::mem::take(value);
+        *value = old_value.cast(SlangType::Opaque);
     }
 
     /// Do two things:

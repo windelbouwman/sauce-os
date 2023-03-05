@@ -47,9 +47,16 @@ fn visit_definition<V: VisitorApi>(visitor: &mut V, definition: &Definition) {
             }
 
             for method in &class_def.methods {
-                visitor.pre_node(VisitedNode::Function(&method.borrow()));
-                visit_function(visitor, method);
-                visitor.post_node(VisitedNode::Function(&method.borrow()));
+                match method {
+                    Definition::Function(method) => {
+                        visitor.pre_node(VisitedNode::Function(&method.borrow()));
+                        visit_function(visitor, method);
+                        visitor.post_node(VisitedNode::Function(&method.borrow()));
+                    }
+                    _other => {
+                        panic!("Only expect methods in a class.");
+                    }
+                }
             }
         }
         Definition::Struct(struct_def) => {
@@ -244,7 +251,7 @@ fn visit_expr<V: VisitorApi>(visitor: &mut V, expression: &mut Expression) {
 
     match &mut expression.kind {
         ExpressionKind::Undefined => {}
-        ExpressionKind::Object(_) => {}
+        ExpressionKind::Unresolved(_) => {}
         ExpressionKind::Call { callee, arguments } => {
             visit_expr(visitor, callee);
             for argument in arguments {
@@ -283,9 +290,6 @@ fn visit_expr<V: VisitorApi>(visitor: &mut V, expression: &mut Expression) {
                 visit_expr(visitor, value);
             }
         }
-        // ExpressionKind::ImplicitSelf => {}
-        // ExpressionKind::Instantiate => {}
-        // ExpressionKind::TypeConstructor(_) => {}
         ExpressionKind::EnumLiteral(EnumLiteral {
             variant: _,
             enum_type: _,
@@ -297,20 +301,9 @@ fn visit_expr<V: VisitorApi>(visitor: &mut V, expression: &mut Expression) {
         }
 
         ExpressionKind::LoadSymbol(_) => {}
-        // ExpressionKind::TypeConstructor(_) => {}
+        ExpressionKind::Typ(_) => {}
+        ExpressionKind::Function { .. } => {}
 
-        /*
-        ExpressionKind::MethodCall {
-        instance,
-        method: _,
-        arguments,
-        } => {
-        visit_expr(visitor, instance);
-        for argument in arguments {
-        visit_expr(visitor, argument);
-        }
-        }
-         */
         ExpressionKind::GetAttr { base, attr: _ } => {
             visit_expr(visitor, base);
         }

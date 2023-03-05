@@ -12,7 +12,7 @@ use super::Diagnostics;
 use crate::errors::CompilationError;
 use crate::parsing::{ast, Location};
 use crate::tast::{visit_program, VisitedNode, VisitorApi};
-use crate::tast::{Definition, Expression, ExpressionKind, Program, Scope, Symbol};
+use crate::tast::{Definition, Expression, ExpressionKind, Function, Program, Scope, Symbol};
 use std::sync::Arc;
 
 /// Modify the AST such that all symbols are resolved.
@@ -45,9 +45,20 @@ impl NameBinder {
     /// resolve it, and update the expression to the resolved object.
     fn check_expr(&mut self, expression: &mut Expression) {
         match &expression.kind {
-            ExpressionKind::Object(obj_ref) => {
-                if let Some(symbol) = self.resolve_obj(&obj_ref) {
-                    expression.kind = ExpressionKind::LoadSymbol(symbol);
+            ExpressionKind::Unresolved(obj_ref) => {
+                if let Some(symbol) = self.resolve_obj(obj_ref) {
+                    match symbol {
+                        Symbol::Typ(typ) => {
+                            expression.kind = ExpressionKind::Typ(typ);
+                        }
+                        Symbol::ExternFunction { name, typ } => {
+                            let function = Function::ExternFunction { name, typ };
+                            expression.kind = ExpressionKind::Function(function);
+                        }
+                        other => {
+                            expression.kind = ExpressionKind::LoadSymbol(other);
+                        }
+                    }
                 }
             }
             _ => {}
@@ -72,37 +83,28 @@ impl NameBinder {
                 member,
             } => {
                 let base = self.resolve_obj(base)?;
-                if let Ok(x) = self.access_symbol(location, base, member) {
-                    Some(x)
-                } else {
-                    None
-                }
+                self.access_symbol(location, base, member)
             }
         }
     }
 
-    fn access_symbol(
-        &mut self,
-        location: &Location,
-        base: Symbol,
-        member: &str,
-    ) -> Result<Symbol, ()> {
+    fn access_symbol(&mut self, location: &Location, base: Symbol, member: &str) -> Option<Symbol> {
         match base {
             Symbol::Module(module_ref) => {
                 if module_ref.scope.is_defined(member) {
                     let obj = module_ref.scope.get(member).expect("We checked!").clone();
-                    Ok(obj)
+                    Some(obj)
                 } else {
                     self.error(
                         location,
                         format!("Module '{}' has no member: {}", module_ref.name, member),
                     );
-                    Err(())
+                    None
                 }
             }
             other => {
                 self.error(location, format!("Cannot scope-access: {}", other));
-                Err(())
+                None
             }
         }
     }

@@ -4,8 +4,7 @@
 //!
 
 use super::{
-    DefinitionRef, EnumVariant, FieldDef, FunctionDef, LocalVariable, Parameter, Program, Ref,
-    SlangType,
+    DefinitionRef, EnumVariant, FieldDef, LocalVariable, Parameter, Program, Ref, SlangType,
 };
 
 use std::rc::Rc;
@@ -14,7 +13,6 @@ use std::rc::Rc;
 pub enum Symbol {
     Typ(SlangType),
     Definition(DefinitionRef),
-    Function(Ref<FunctionDef>),
     ExternFunction {
         name: String,
         typ: SlangType,
@@ -35,7 +33,6 @@ impl Symbol {
     pub fn get_type(&self) -> SlangType {
         match self {
             Symbol::Field(field_ref) => field_ref.upgrade().unwrap().borrow().typ.clone(),
-            Symbol::Function(func_ref) => func_ref.upgrade().unwrap().borrow().get_type(),
             Symbol::Parameter(param_ref) => param_ref.upgrade().unwrap().borrow().typ.clone(),
             Symbol::LocalVariable(local_ref) => local_ref.upgrade().unwrap().borrow().typ.clone(),
             Symbol::ExternFunction { name: _, typ } => typ.clone(),
@@ -52,9 +49,6 @@ impl std::fmt::Display for Symbol {
             Symbol::Definition(definition_ref) => definition_ref.fmt(f),
             Symbol::Typ(typ) => {
                 write!(f, "symbol-typ({})", typ)
-            }
-            Symbol::Function(_) => {
-                write!(f, "symbol-function(..)")
             }
             Symbol::ExternFunction { name, typ: _ } => {
                 write!(f, "symbol-extern-function(name={})", name)

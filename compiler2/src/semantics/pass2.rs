@@ -31,25 +31,16 @@ impl Pass2 {
     }
 
     fn check_type_expression(&mut self, type_expression: &mut SlangType) {
-        match type_expression {
-            SlangType::Unresolved(expr) => {
-                let t_expr = std::mem::replace(
-                    expr,
-                    TypeExpression {
-                        expr: Default::default(),
-                    },
-                );
+        if let SlangType::Unresolved(expr) = type_expression {
+            let t_expr = std::mem::replace(
+                expr,
+                TypeExpression {
+                    expr: Default::default(),
+                },
+            );
 
-                match self.transform_into_type(*t_expr.expr) {
-                    Ok(typ) => {
-                        *type_expression = typ;
-                    }
-                    Err(()) => {}
-                }
-            }
-
-            _ => {
-                // Fine? Yes, we have a good type.
+            if let Ok(typ) = self.transform_into_type(*t_expr.expr) {
+                *type_expression = typ;
             }
         }
     }
@@ -60,14 +51,21 @@ impl Pass2 {
     /// - get-index => array indexing, used for generic instantiation.
     fn transform_into_type(&mut self, type_expr: Expression) -> Result<SlangType, ()> {
         match type_expr.kind {
-            ExpressionKind::LoadSymbol(Symbol::Typ(typ)) => Ok(typ),
+            ExpressionKind::Typ(typ) => Ok(typ),
             ExpressionKind::LoadSymbol(Symbol::Definition(definition_ref)) => {
-                // If we have no type parameters, we can access this directly.
-                if definition_ref.get_type_parameters().is_empty() {
-                    Ok(definition_ref.create_type(vec![]))
+                if definition_ref.is_type_constructor() {
+                    // If we have no type parameters, we can access this directly.
+
+                    if definition_ref.get_type_parameters().is_empty() {
+                        Ok(definition_ref.create_type(vec![]))
+                    } else {
+                        let location: &Location = &type_expr.location;
+                        self.error(location, "We need type arguments".to_owned());
+                        Err(())
+                    }
                 } else {
                     let location: &Location = &type_expr.location;
-                    self.error(location, "We need type arguments".to_owned());
+                    self.error(location, "Expected type constructor".to_owned());
                     Err(())
                 }
             }
@@ -80,7 +78,7 @@ impl Pass2 {
             _other => {
                 // Ai!
                 let location: &Location = &type_expr.location;
-                self.error(location, format!("Invalid type expression is no type"));
+                self.error(location, "Invalid type expression is no type".to_string());
                 Err(())
             }
         }
@@ -147,7 +145,7 @@ impl Pass2 {
         match expr.kind {
             ExpressionKind::LoadSymbol(Symbol::Definition(definition_ref)) => Ok(definition_ref),
             _other => {
-                self.error(&expr.location, format!("Invalid generic"));
+                self.error(&expr.location, "Invalid generic".to_string());
                 Err(())
             }
         }
@@ -159,17 +157,7 @@ impl Pass2 {
 }
 
 impl VisitorApi for Pass2 {
-    fn pre_node(&mut self, node: VisitedNode) {
-        match node {
-            VisitedNode::TypeExpr(_type_expression) => {
-                // self.check_type_expression(type_expression);
-            }
-            VisitedNode::Expression(_expression) => {
-                // self.check_expr(expression);
-            }
-            _ => {}
-        }
-    }
+    fn pre_node(&mut self, _node: VisitedNode) {}
 
     fn post_node(&mut self, node: VisitedNode) {
         match node {
@@ -179,16 +167,25 @@ impl VisitorApi for Pass2 {
             VisitedNode::Expression(expression) => {
                 match &mut expression.kind {
                     // TBD: this could be a whole seperate pass?
-                    ExpressionKind::GetIndex { base, index: _ } => match &base.kind {
-                        ExpressionKind::LoadSymbol(Symbol::Definition(_definition_ref)) => {
-                            let old_expr = std::mem::take(expression);
-                            // self.instantiate_generic(old_expr);
-                            if let Ok(typ) = self.transform_into_type(old_expr) {
-                                *expression =
-                                    ExpressionKind::LoadSymbol(Symbol::Typ(typ)).into_expr();
+
+                    // Handle MyStruct[int]
+                    ExpressionKind::GetIndex { base, index } => match &base.kind {
+                        ExpressionKind::LoadSymbol(Symbol::Definition(definition_ref)) => {
+                            let type_parameters = definition_ref.get_type_parameters();
+                            let type_expressions = vec![*std::mem::take(index)];
+                            if let Ok(type_arguments) = self.check_type_arguments(
+                                &expression.location,
+                                &type_parameters,
+                                type_expressions,
+                            ) {
+                                if definition_ref.is_type_constructor() {
+                                    let typ = definition_ref.create_type(type_arguments);
+                                    expression.kind = ExpressionKind::Typ(typ);
+                                } else {
+                                    let function = definition_ref.create_function(type_arguments);
+                                    expression.kind = ExpressionKind::Function(function);
+                                }
                             }
-                            //
-                            // let t = self.instantiate_generic(&expression.location, base, type_arguments)
                         }
                         _ => {}
                     },
@@ -196,7 +193,7 @@ impl VisitorApi for Pass2 {
                         match &callee.kind {
                             ExpressionKind::GetAttr { base, attr } => {
                                 match &base.kind {
-                                    ExpressionKind::LoadSymbol(Symbol::Typ(typ)) => {
+                                    ExpressionKind::Typ(typ) => {
                                         // Is typ an enum?
                                         if typ.is_enum() {
                                             let enum_type = typ.as_enum();
@@ -214,7 +211,13 @@ impl VisitorApi for Pass2 {
                                                 }
                                                 None => {
                                                     // error!
-                                                    panic!("Error, no variant named: {}", attr);
+                                                    self.error(
+                                                        &callee.location,
+                                                        format!(
+                                                            "Error, no variant named: {}",
+                                                            attr
+                                                        ),
+                                                    );
                                                 }
                                             }
                                         }
@@ -228,10 +231,17 @@ impl VisitorApi for Pass2 {
                         }
                     }
                     ExpressionKind::LoadSymbol(Symbol::Definition(definition_ref)) => {
-                        // Maybe we can directly use it (without type arguments)
+                        // Short-hand when we refer to a definition without type parameters!
                         if definition_ref.get_type_parameters().is_empty() {
-                            let typ = definition_ref.create_type(vec![]);
-                            expression.kind = ExpressionKind::LoadSymbol(Symbol::Typ(typ));
+                            if definition_ref.is_type_constructor() {
+                                // Maybe we can directly use it (without type arguments)
+                                let typ = definition_ref.create_type(vec![]);
+                                expression.kind = ExpressionKind::Typ(typ);
+                            } else {
+                                // Assume function :-) ....
+                                let function = definition_ref.create_function(vec![]);
+                                expression.kind = ExpressionKind::Function(function);
+                            }
                         }
                     }
                     _ => {}

@@ -413,7 +413,7 @@ where
                 self.push(to_typ, new_var);
             }
             Instruction::BoolLiteral(value) => {
-                self.push("i1".to_owned(), format!("{}", if value { 1 } else { 0 }));
+                self.push("i1".to_owned(), format!("{}", i32::from(value)));
             }
             Instruction::IntLiteral(value) => {
                 self.push("i64".to_owned(), format!("{}", value));

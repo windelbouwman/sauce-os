@@ -2,7 +2,7 @@ use super::refer;
 use super::visitor::{visit_program, VisitedNode, VisitorApi};
 use crate::tast::{get_type_vars_text, SlangType, Symbol};
 use crate::tast::{AssignmentStatement, CaseStatement, ForStatement, IfStatement, WhileStatement};
-use crate::tast::{Definition, FieldDef, FunctionDef, Program};
+use crate::tast::{Definition, FieldDef, Function, FunctionDef, Program};
 use crate::tast::{EnumLiteral, Expression, ExpressionKind, Literal, Statement, StatementKind};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -29,6 +29,13 @@ impl AstPrinter {
             function_def.location
         );
         self.indent();
+
+        if !function_def.type_parameters.is_empty() {
+            println!("{}type-parameters:", self.get_indent());
+            for type_parameter in &function_def.type_parameters {
+                println!("{} {}", self.get_indent(), type_parameter);
+            }
+        }
 
         let signature = function_def.signature.borrow();
         if !signature.parameters.is_empty() {
@@ -304,7 +311,7 @@ impl AstPrinter {
             ExpressionKind::Undefined => {
                 print!("{}undefined", self.get_indent());
             }
-            ExpressionKind::Object(_) => {
+            ExpressionKind::Unresolved(_) => {
                 print!("{}ref", self.get_indent());
             }
             ExpressionKind::Call { .. } => {
@@ -371,13 +378,6 @@ impl AstPrinter {
                         refer(local_ref).borrow().name,
                     );
                 }
-                Symbol::Function(func_ref) => {
-                    print!(
-                        "{}Load-symbol-function({})",
-                        self.get_indent(),
-                        refer(func_ref).borrow().name
-                    );
-                }
                 Symbol::ExternFunction { name, typ: _ } => {
                     print!(
                         "{}Load-symbol-extern-function(name={})",
@@ -419,9 +419,6 @@ impl AstPrinter {
             //             print!("{}type-constructor: {:?}", self.get_indent(), other);
             //         }
             /*
-            TypeConstructor::Any(typ) => {
-                println!("{}Type constructor (any): {:?}", self.get_indent(), typ);
-            }
             TypeConstructor::EnumOption { enum_type, choice } => {
                 println!(
                     "{}Type constructor (enum option) choice={} : {:?}",
@@ -433,6 +430,24 @@ impl AstPrinter {
             */
             //     }
             // }
+            ExpressionKind::Typ(typ) => {
+                print!("{}Type {}", self.get_indent(), typ);
+            }
+            ExpressionKind::Function(function) => match function {
+                Function::InternFunction {
+                    function_ref,
+                    type_arguments: _,
+                } => {
+                    print!(
+                        "{}function({})",
+                        self.get_indent(),
+                        refer(function_ref).borrow().name
+                    );
+                }
+                Function::ExternFunction { name, typ: _ } => {
+                    print!("{}extern-function(name={})", self.get_indent(), name);
+                }
+            },
 
             // ExpressionKind::Instantiate => {
             //     print!("{}Create instance", self.get_indent(),);

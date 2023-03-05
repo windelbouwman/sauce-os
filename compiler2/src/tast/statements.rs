@@ -2,12 +2,15 @@
 //!
 
 use super::Scope;
-use super::{Block, EnumVariant, Expression, LocalVariable, Ref, SlangType, VariantRef};
+use super::{EnumVariant, Expression, LocalVariable, Ref, SlangType, VariantRef};
 use crate::parsing::Location;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+pub type Block = Vec<Statement>;
+
+/// A single statement.
 pub struct Statement {
     pub location: Location,
     pub kind: StatementKind,
@@ -67,6 +70,9 @@ impl StatementKind {
     }
 }
 
+/// A switch statement
+///
+/// Switch chooses an arm based on an integer value
 pub struct SwitchStatement {
     pub value: Expression,
     pub arms: Vec<SwitchArm>,

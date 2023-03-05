@@ -23,11 +23,7 @@
 //!
 
 use crate::semantics::Context;
-use crate::tast::{
-    compound, integer_literal, load_local, store_local, tuple_literal, union_literal,
-    unreachable_code,
-};
-use crate::tast::{visit_program, VisitedNode, VisitorApi};
+use crate::tast::{api, visit_program, VisitedNode, VisitorApi};
 use crate::tast::{Block, Expression, ExpressionKind, Statement, StatementKind};
 use crate::tast::{CaseStatement, SwitchArm, SwitchStatement};
 use crate::tast::{Definition, EnumDef, LocalVariable, Program, StructDefBuilder};
@@ -176,17 +172,17 @@ impl<'d> EnumRewriter<'d> {
             self.new_local_variable("tagged_union".to_owned(), tagged_union_type);
 
         // Store tagged value for later usage
-        let prelude = store_local(tagged_union_ref.clone(), case_statement.value);
+        let prelude = api::store_local(tagged_union_ref.clone(), case_statement.value);
 
         // Retrieve tag from tagged value:
-        let tag_value = load_local(tagged_union_ref.clone()).get_attr("tag");
+        let tag_value = api::load_local(tagged_union_ref.clone()).get_attr("tag");
 
         let mut switch_arms = vec![];
         for arm in case_statement.arms.iter_mut() {
             let variant = arm.get_variant();
 
             // This arm tag:
-            let arm_value = integer_literal(variant.borrow().index as i64);
+            let arm_value = api::integer_literal(variant.borrow().index as i64);
             let payload_name = variant.borrow().name.clone();
 
             let mut body: Block = vec![];
@@ -196,20 +192,20 @@ impl<'d> EnumRewriter<'d> {
                 // Nothing to unpack
             } else if arm.local_refs.len() == 1 {
                 // single value to unpack!
-                let variant_value = load_local(tagged_union_ref.clone())
+                let variant_value = api::load_local(tagged_union_ref.clone())
                     .get_attr("data")
                     .get_attr(&payload_name);
                 let local_ref = arm.local_refs[0].clone();
 
-                body.push(store_local(local_ref, variant_value));
+                body.push(api::store_local(local_ref, variant_value));
             } else {
                 for (index, local_ref) in arm.local_refs.iter().enumerate() {
                     let field_name = format!("f_{}", index);
-                    let variant_value = load_local(tagged_union_ref.clone())
+                    let variant_value = api::load_local(tagged_union_ref.clone())
                         .get_attr("data")
                         .get_attr(&payload_name)
                         .get_attr(&field_name);
-                    body.push(store_local(local_ref.clone(), variant_value));
+                    body.push(api::store_local(local_ref.clone(), variant_value));
                 }
             }
 
@@ -222,9 +218,9 @@ impl<'d> EnumRewriter<'d> {
         }
 
         // Default case, could be an error case?
-        let default_block = vec![unreachable_code()];
+        let default_block = vec![api::unreachable_code()];
 
-        compound(vec![
+        api::compound(vec![
             prelude,
             StatementKind::Switch(SwitchStatement {
                 value: tag_value,
@@ -248,13 +244,13 @@ impl<'d> EnumRewriter<'d> {
                 let payload = std::mem::take(&mut enum_literal.arguments);
 
                 // Marker value to indicate variant choice:
-                let tag_value = integer_literal(variant.index as i64);
+                let tag_value = api::integer_literal(variant.index as i64);
 
                 let payload_name = variant.name.to_owned();
 
                 let value = if payload.is_empty() {
                     // No payload (store int as dummy value)
-                    integer_literal(0)
+                    api::integer_literal(0)
                 } else if payload.len() == 1 {
                     // Single payload value
                     payload.into_iter().next().unwrap()
@@ -265,9 +261,9 @@ impl<'d> EnumRewriter<'d> {
                         .get_attr_type(&payload_name)
                         .unwrap();
 
-                    tuple_literal(payload_struct_type, payload)
+                    api::tuple_literal(payload_struct_type, payload)
                 };
-                let union_value = union_literal(data_union_type, payload_name, value);
+                let union_value = api::union_literal(data_union_type, payload_name, value);
 
                 let tagged_union = vec![tag_value, union_value];
                 expression.kind = ExpressionKind::TupleLiteral {

@@ -29,6 +29,9 @@ pub fn analyze(
 
     pass2(&mut typed_prog)?;
     pass3(&mut typed_prog)?;
+    if show_ast {
+        print_ast(&mut typed_prog);
+    }
 
     check_types(&mut typed_prog)?;
     log::debug!("Type checking done & done");

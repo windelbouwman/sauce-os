@@ -1,7 +1,9 @@
 """ Lexical analysis.
 """
 
+from typing import Iterable
 from .errors import print_error, LexError
+from .location import Location
 import logging
 import re
 
@@ -14,7 +16,7 @@ class Lexer:
 
 
 class Token:
-    def __init__(self, ty, value, location):
+    def __init__(self, ty: str, value, location: Location):
         self.ty = ty
         self.value = value
         self.location = location
@@ -23,16 +25,7 @@ class Token:
         return f'TOK(ty={self.ty}, val={self.value},loc={self.location})'
 
 
-class Location:
-    def __init__(self, row, column):
-        self.row = row
-        self.column = column
-
-    def __repr__(self):
-        return f'LOC=({self.row}, {self.column})'
-
-
-def detect_indentations(code, tokens):
+def detect_indentations(code: str, tokens: Iterable[Token]):
     """ Funky function to inject indentation tokens.
     """
     bol = True  # beginning of line
@@ -43,6 +36,8 @@ def detect_indentations(code, tokens):
             if bol:
                 new_indentation += len(token.value)
         elif token.ty == 'NEWLINE':
+            if not bol:
+                yield token
             new_indentation = 0
             bol = True
         else:
@@ -65,21 +60,22 @@ def detect_indentations(code, tokens):
         yield Token('DEDENT', '', Location(0, 0))
 
 
-def tokenize(code):
+def tokenize(code: str):
     token_spec = [
-        ("OP2", r"(->)|(==)|(<=)|(!=)|(>=)"),
-        ("OP", r"[\(\):+\-\*/\.,<>={}]"),
+        ("OP2", r"(->)|(::)|(==)|(<=)|(!=)|(>=)"),
+        ("OP", r"[\(\):+\-\*/\.,<>={}\[\]]"),
         ("ID", r"[A-Za-z][A-Za-z_0-9]*"),
+        ("FNUMBER", r"[0-9]+\.[0-9]+"),
         ("NUMBER", r"[0-9]+"),
         ("SPACE", r"[ ]+"),
         ("STRING", r"\"[^\"]*\""),
         ("NEWLINE", r"\n"),
-        ("COMMENT", r"#[^\n]*"),
+        ("COMMENT", r"#[^\n]*\n"),
         ("OTHER", r"."),
     ]
 
     keywords = {
-        'fn', 'import',
+        'fn', 'import', 'in',
         'if', 'else', 'elif',
         'and', 'or',
         'loop', 'break', 'continue', 'for', 'while',
@@ -95,7 +91,7 @@ def tokenize(code):
     col_start = 0
     for mo in re.finditer(regex, code, re.MULTILINE | re.DOTALL):
         # print(mo)
-        kind = mo.lastgroup
+        kind: str = mo.lastgroup
         value = mo.group()
         col = mo.start() - col_start + 1
         loc = Location(row, col)
@@ -110,6 +106,9 @@ def tokenize(code):
         elif kind == 'NUMBER':
             value = int(value)
             tok = Token(kind, value, loc)
+        elif kind == 'FNUMBER':
+            value = float(value)
+            tok = Token(kind, value, loc)
         elif kind == 'SPACE':
             tok = Token(kind, value, loc)
         elif kind == 'NEWLINE':
@@ -117,7 +116,10 @@ def tokenize(code):
             col_start = mo.end()
             row += 1
         elif kind == 'COMMENT':
-            pass
+            # Register line comment as newline!
+            tok = Token('NEWLINE', value, loc)
+            col_start = mo.end()
+            row += 1
         elif kind == 'OTHER':
             lex_error(code, loc, f'Lexing exception at {loc}: {value}')
         else:
@@ -127,6 +129,6 @@ def tokenize(code):
         yield tok
 
 
-def lex_error(code, location, message):
+def lex_error(code: str, location: Location, message: str):
     print_error(code, location, message)
     raise LexError(message)

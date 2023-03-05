@@ -11,7 +11,7 @@ class MyType:
 
 
 class BaseType(MyType):
-    def __init__(self, name):
+    def __init__(self, name: str):
         super().__init__()
         self.name = name
 
@@ -55,11 +55,18 @@ class StructType(MyType):
         return names.index(name)
 
 
+class ArrayType(MyType):
+    def __init__(self, size: int, element_type: MyType):
+        self.size = size
+        self.element_type = element_type
+
+
 class ModuleType(MyType):
     pass
 
 
 str_type = BaseType("str")
 int_type = BaseType("int")
+float_type = BaseType("float")
 bool_type = BaseType('bool')
 void_type = VoidType()

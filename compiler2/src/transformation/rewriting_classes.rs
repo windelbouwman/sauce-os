@@ -23,11 +23,9 @@
 //!
 
 use crate::semantics::Context;
-use crate::tast::{
-    load_function, return_value, tuple_literal, undefined_value, Expression, ExpressionKind,
-};
+use crate::tast::{api, Expression, ExpressionKind};
 use crate::tast::{visit_program, VisitedNode, VisitorApi};
-use crate::tast::{ClassDef, Definition, FunctionDef, FunctionSignature, Program};
+use crate::tast::{ClassDef, Definition, DefinitionRef, FunctionDef, FunctionSignature, Program};
 use crate::tast::{NameNodeId, NodeId, Ref, Scope, Symbol};
 use crate::tast::{SlangType, StructDefBuilder};
 use std::cell::RefCell;
@@ -107,7 +105,10 @@ impl<'d> ClassRewriter<'d> {
                 panic!("All class fields must initialize! (otherwise no tuple literal!)");
             }
         }
-        let ctor_code = vec![return_value(tuple_literal(struct_ty.clone(), init_values))];
+        let ctor_code = vec![api::return_value(api::tuple_literal(
+            struct_ty.clone(),
+            init_values,
+        ))];
 
         let ctor_name = format!("{}_ctor", class_def.name.name);
 
@@ -152,24 +153,31 @@ impl<'d> ClassRewriter<'d> {
     fn transform_methods(&mut self, class_def: &ClassDef) {
         let struct_ty = self.class_map.get(&class_def.name.id).unwrap().clone();
         for method_ref in &class_def.methods {
-            let mut method = method_ref.borrow_mut();
+            match method_ref {
+                Definition::Function(method_ref) => {
+                    let mut method = method_ref.borrow_mut();
 
-            // Take 'this' parameter and refer to struct instead of class
-            let this_param = std::mem::take(&mut method.this_param).unwrap();
-            this_param.borrow_mut().typ = struct_ty.clone();
+                    // Take 'this' parameter and refer to struct instead of class
+                    let this_param = std::mem::take(&mut method.this_param).unwrap();
+                    this_param.borrow_mut().typ = struct_ty.clone();
 
-            // Add first parameter as this:
-            method
-                .signature
-                .borrow_mut()
-                .parameters
-                .insert(0, this_param);
+                    // Add first parameter as this:
+                    method
+                        .signature
+                        .borrow_mut()
+                        .parameters
+                        .insert(0, this_param);
 
-            // Rename method:
-            method.name.name = format!("{}_{}", class_def.name.name, method.name.name);
+                    // Rename method:
+                    method.name.name = format!("{}_{}", class_def.name.name, method.name.name);
 
-            self.new_definitions
-                .push(Definition::Function(method_ref.clone()));
+                    self.new_definitions
+                        .push(Definition::Function(method_ref.clone()));
+                }
+                _other => {
+                    panic!("Only expect method definitions (for now)");
+                }
+            }
         }
     }
 
@@ -192,9 +200,9 @@ impl<'d> ClassRewriter<'d> {
     fn transform_method_call(&self, callee: &mut Expression, arguments: &mut Vec<Expression>) {
         match &mut callee.kind {
             ExpressionKind::GetAttr { base, attr } => {
-                let obj: Expression = std::mem::replace(base, undefined_value());
+                let obj: Expression = std::mem::take(base);
                 let method = obj.typ.get_method(attr).unwrap();
-                let method_func = load_function(Rc::downgrade(&method));
+                let method_func = api::load_function(Rc::downgrade(&method));
 
                 arguments.insert(0, obj);
                 *callee = method_func;
@@ -212,7 +220,7 @@ impl<'d> ClassRewriter<'d> {
                     let class_type = typ.as_class();
                     let class_def = class_type.class_ref.upgrade().unwrap();
                     let ctor_func = self.ctor_map.get(&class_def.name.id).unwrap();
-                    *symbol = Symbol::Function(ctor_func.clone());
+                    *symbol = Symbol::Definition(DefinitionRef::Function(ctor_func.clone()));
                 }
                 _ => {}
             },

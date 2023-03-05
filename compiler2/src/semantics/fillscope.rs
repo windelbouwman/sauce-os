@@ -123,12 +123,7 @@ impl<'g> Phase1<'g> {
             ast::Definition::Class(class_def) => self.check_class_def(class_def),
             ast::Definition::Struct(struct_def) => self.on_struct_def(struct_def),
             ast::Definition::Enum(enum_def) => self.on_enum_def(enum_def),
-            ast::Definition::Function(function_def) => {
-                match self.on_function_def(function_def, None) {
-                    Ok(typed_function_def) => Ok(tast::Definition::Function(typed_function_def)),
-                    Err(()) => Err(()),
-                }
-            }
+            ast::Definition::Function(function_def) => self.on_function_def(function_def, None),
         }
     }
 
@@ -319,7 +314,7 @@ impl<'g> Phase1<'g> {
         &mut self,
         function_def: ast::FunctionDef,
         this_param: Option<String>,
-    ) -> Result<Rc<RefCell<tast::FunctionDef>>, ()> {
+    ) -> Result<tast::Definition, ()> {
         self.enter_scope();
         let type_parameters = self.on_type_parameters(function_def.type_parameters);
         let this_param = if let Some(name) = this_param {
@@ -349,15 +344,16 @@ impl<'g> Phase1<'g> {
             body,
         }));
 
-        let func_ref = Rc::downgrade(&func);
+        let func_def = tast::Definition::Function(func);
+        let func_ref = func_def.get_ref();
 
         self.define(
             &function_def.name,
-            Symbol::Function(func_ref),
+            Symbol::Definition(func_ref),
             &function_def.location,
         );
 
-        Ok(func)
+        Ok(func_def)
     }
 
     fn on_function_signature(
@@ -584,14 +580,14 @@ impl<'g> Phase1<'g> {
                     rhs: Box::new(rhs),
                 }
             }
-            ast::ExpressionKind::Object(obj_ref) => tast::ExpressionKind::Object(obj_ref),
+            ast::ExpressionKind::Object(obj_ref) => tast::ExpressionKind::Unresolved(obj_ref),
             ast::ExpressionKind::FunctionType(signature) => {
                 // Temporary scope to process function signature.
                 self.enter_scope();
                 let signature = self.on_function_signature(*signature)?;
                 let _scope = self.leave_scope();
                 let typ = SlangType::User(UserType::Function(signature));
-                tast::ExpressionKind::LoadSymbol(Symbol::Typ(typ))
+                tast::ExpressionKind::Typ(typ)
             }
             ast::ExpressionKind::Literal(value) => match value {
                 ast::Literal::Bool(value) => {
@@ -715,7 +711,7 @@ impl<'g> Phase1<'g> {
         )));
         let local_ref = Rc::downgrade(&new_var);
         self.define(&name, Symbol::LocalVariable(local_ref.clone()), location);
-        self.local_variables.push(new_var.clone());
+        self.local_variables.push(new_var);
         local_ref
     }
 

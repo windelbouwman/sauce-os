@@ -1,14 +1,19 @@
 //! Various types to deal with structs and unions.
 //!
+//! Use the struct builder, to create struct definitions.
 
 use super::{get_binding_text, get_substitution_map, get_type_vars_text, replace_type_vars_sub};
 use super::{Definition, Scope, SlangType, Symbol, TypeVar, TypeVarRef};
-use super::{FieldDef, NameNodeId, NodeId};
+use super::{Expression, NameNodeId, NodeId};
 use crate::parsing::Location;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
+/// A struct definition.
+///
+/// Can have type parameters, so this is not a type, but
+/// it can be turned into a type.
 pub struct StructDef {
     pub location: Location,
     pub name: NameNodeId,
@@ -65,6 +70,14 @@ impl StructDef {
     pub fn get_attr(&self, name: &str) -> Option<Symbol> {
         self.scope.get(name).cloned()
     }
+}
+
+pub struct FieldDef {
+    pub location: Location,
+    pub name: String,
+    pub index: usize,
+    pub typ: SlangType,
+    pub value: Option<Expression>,
 }
 
 pub struct StructDefBuilder {

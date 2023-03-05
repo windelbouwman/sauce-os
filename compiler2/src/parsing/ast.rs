@@ -271,15 +271,6 @@ pub enum ObjRef {
         member: String,
     },
 }
-/*
-impl ObjRef {
-    pub fn location(&self) -> Location {
-        match self {
-            ObjRef::Name { location, .. } | ObjRef::Inner { location, .. } => location.clone(),
-        }
-    }
-}
-*/
 
 #[derive(Debug)]
 pub struct LabeledField {

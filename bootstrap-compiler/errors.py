@@ -1,7 +1,8 @@
 from rich import print
+from .location import Location
 
 
-def print_error(code, location, message):
+def print_error(code, location: Location, message: str):
     context_amount = 5
     for row_nr, text in enumerate(code.splitlines(), start=1):
         if row_nr < location.row - context_amount:

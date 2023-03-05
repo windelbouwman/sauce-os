@@ -292,7 +292,7 @@ impl<'t> Lexer<'t> {
                 let value = value
                     .strip_prefix("0x")
                     .expect("Has 0x prefix")
-                    .replace("_", "");
+                    .replace('_', "");
                 let value: i64 = i64::from_str_radix(&value, 16).unwrap();
                 self.emit(Token::Number { value });
             }
@@ -300,7 +300,7 @@ impl<'t> Lexer<'t> {
                 let value = value
                     .strip_prefix("0b")
                     .expect("Has 0b prefix")
-                    .replace("_", "");
+                    .replace('_', "");
                 let value: i64 = i64::from_str_radix(&value, 2).unwrap();
                 self.emit(Token::Number { value });
             }

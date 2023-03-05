@@ -1,9 +1,6 @@
 use crate::parsing::ast;
 use crate::semantics::Context;
-use crate::tast::{
-    comparison, compound, get_index, integer_literal, load_local, store_local, while_loop,
-};
-use crate::tast::{visit_program, VisitedNode, VisitorApi};
+use crate::tast::{api, visit_program, VisitedNode, VisitorApi};
 use crate::tast::{Definition, LocalVariable, Program, SlangType};
 use crate::tast::{ForStatement, Statement, StatementKind};
 use crate::tast::{NodeId, Ref};
@@ -50,41 +47,39 @@ impl<'d> ForLoopRewriter<'d> {
                     .new_local_variable("iter".to_owned(), SlangType::Array(array_type.clone()));
 
                 // index = 0
-                let zero_loop_index = store_local(index_local_ref.clone(), 0);
+                let zero_loop_index = api::store_local(index_local_ref.clone(), 0);
 
                 // iter_var = iterator
-                let set_iter_var = store_local(iter_local_ref.clone(), for_statement.iterable);
+                let set_iter_var = api::store_local(iter_local_ref.clone(), for_statement.iterable);
 
                 // Get current element: loop_var = array[index]
-                let get_loop_var = store_local(
+                let get_loop_var = api::store_local(
                     for_statement.loop_var,
-                    get_index(
-                        load_local(iter_local_ref),
-                        load_local(index_local_ref.clone()),
-                    ),
+                    api::load_local(iter_local_ref)
+                        .get_index(api::load_local(index_local_ref.clone())),
                 );
                 for_body.insert(0, get_loop_var);
 
                 // Increment index variable:
-                let inc_loop_index = store_local(
+                let inc_loop_index = api::store_local(
                     index_local_ref.clone(),
-                    load_local(index_local_ref.clone()) + 1,
+                    api::load_local(index_local_ref.clone()) + 1,
                 );
                 for_body.push(inc_loop_index);
 
                 // While condition:
-                let loop_condition = comparison(
-                    load_local(index_local_ref),
+                let loop_condition = api::comparison(
+                    api::load_local(index_local_ref),
                     ast::ComparisonOperator::Lt,
-                    integer_literal(array_type.size as i64),
+                    api::integer_literal(array_type.size as i64),
                 );
 
                 // Translate for-loop into while loop:
-                let while_statement = while_loop(loop_condition, for_body);
+                let while_statement = api::while_loop(loop_condition, for_body);
 
                 let new_block = vec![zero_loop_index, set_iter_var, while_statement];
 
-                compound(new_block)
+                api::compound(new_block)
             }
             other => {
                 unimplemented!("Cannot iterate {}", other);

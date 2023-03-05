@@ -1,4 +1,4 @@
-use super::{get_binding_text, Scope, Symbol};
+use super::{get_binding_text, Definition, DefinitionRef, Scope, Symbol};
 use super::{FieldDef, FunctionDef, NameNodeId, SlangType, TypeVar};
 use crate::parsing::Location;
 use std::cell::RefCell;
@@ -12,7 +12,7 @@ pub struct ClassDef {
     pub type_parameters: Vec<Rc<TypeVar>>,
     pub scope: Arc<Scope>,
     pub fields: Vec<Rc<RefCell<FieldDef>>>,
-    pub methods: Vec<Rc<RefCell<FunctionDef>>>,
+    pub methods: Vec<Definition>,
 }
 
 impl ClassDef {
@@ -23,7 +23,9 @@ impl ClassDef {
     pub fn get_method(&self, name: &str) -> Option<Rc<RefCell<FunctionDef>>> {
         match self.get_attr(name) {
             Some(symbol) => match symbol {
-                Symbol::Function(function_ref) => Some(function_ref.upgrade().unwrap()),
+                Symbol::Definition(DefinitionRef::Function(function_ref)) => {
+                    Some(function_ref.upgrade().unwrap())
+                }
                 _other => None,
             },
             None => None,

@@ -6,63 +6,6 @@ use crate::parsing::Location;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-/*
-
-/// A parameterized type, may contain subtypes which are type variables.
-pub struct GenericDef {
-    pub name: String,
-    pub id: NodeId,
-    pub scope: Arc<Scope>,
-    pub base: Definition,
-    pub location: Location,
-    pub type_parameters: Vec<Rc<TypeVar>>,
-    // Idea: keep track of the instances of this template?
-    // instantiations: Vec<Definition>,
-}
-
-impl GenericDef {
-    /// Apply the given set of types to this generic.
-    ///
-    /// Type application!
-    #[allow(dead_code)]
-    pub fn apply(&self, types: &[SlangType]) -> Definition {
-        let substitution_map = get_substitution_map(&self.type_parameters, types);
-
-        match &self.base {
-            Definition::Struct(struct_def) => {
-                let new_struct_name = &struct_def.name;
-                // Create struct with ID=0
-                let mut builder = StructDefBuilder::new(new_struct_name.clone(), 0);
-
-                for field in &struct_def.fields {
-                    let field = field.borrow();
-                    let typ: SlangType =
-                        replace_type_vars_sub(field.typ.clone(), &substitution_map);
-                    builder.add_field(&field.name, typ);
-                }
-
-                let new_struct_ref = Rc::new(builder.finish_struct());
-
-                // ehm
-                // let typ = SlangType::User(UserType::Struct(Rc::downgrade(&new_struct_ref)));
-                // (Definition::Struct(new_struct_ref), typ)
-                Definition::Struct(new_struct_ref)
-            }
-            Definition::Enum(_) => {
-                unimplemented!("Type application for enum");
-            }
-            _other => {
-                unimplemented!("Type application for ?????");
-            }
-        }
-    }
-
-    pub fn get_attr(&self, name: &str) -> Option<Symbol> {
-        self.base.get_attr(name)
-    }
-}
- */
-
 pub struct TypeVar {
     pub location: Location,
     pub name: NameNodeId,

@@ -8,18 +8,20 @@
 //!
 
 // Own modules
+pub mod api;
 mod class_type;
 mod definitions;
 mod enum_type;
 mod expressions;
+mod functions;
 mod generics;
+mod printer;
 mod scope;
 mod statements;
 mod struct_type;
 mod symbol;
-mod type_system;
 mod typed_ast;
-mod typed_ast_printer;
+mod types;
 mod visitor;
 
 use std::cell::RefCell;
@@ -29,29 +31,22 @@ use std::rc::{Rc, Weak};
 pub use class_type::{ClassDef, ClassType};
 pub use definitions::{Definition, DefinitionRef};
 pub use enum_type::{EnumDef, EnumType, EnumVariant};
-pub use expressions::{EnumLiteral, Expression, ExpressionKind, Literal};
+pub use expressions::{EnumLiteral, Expression, ExpressionKind, LabeledField, Literal};
+pub use functions::{Function, FunctionDef, FunctionSignature, LocalVariable, Parameter};
 pub use generics::{
     get_binding_text, get_substitution_map, get_type_vars_text, replace_type_vars_sub,
 };
 pub use generics::{TypeVar, TypeVarRef};
+pub use printer::print_ast;
 pub use scope::Scope;
 pub use statements::{
-    AssignmentStatement, CaseArm, CaseStatement, ForStatement, IfStatement, Statement,
+    AssignmentStatement, Block, CaseArm, CaseStatement, ForStatement, IfStatement, Statement,
     StatementKind, SwitchArm, SwitchStatement, WhileStatement,
 };
-pub use struct_type::{StructDef, StructDefBuilder, StructType};
+pub use struct_type::{FieldDef, StructDef, StructDefBuilder, StructType};
 pub use symbol::Symbol;
-pub use type_system::{ArrayType, BasicType, SlangType, TypeExpression, UserType};
-pub use typed_ast::{
-    comparison, compound, get_attr, get_index, integer_literal, load_function, load_local,
-    return_value, store_local, tuple_literal, undefined_value, union_literal, unreachable_code,
-    while_loop,
-};
-pub use typed_ast::{
-    Block, FieldDef, FunctionDef, FunctionSignature, LabeledField, LocalVariable, Parameter,
-    Program, VariantRef,
-};
-pub use typed_ast_printer::print_ast;
+pub use typed_ast::{Program, VariantRef};
+pub use types::{ArrayType, BasicType, SlangType, TypeExpression, UserType};
 pub use visitor::{visit_program, VisitedNode, VisitorApi};
 
 pub type NodeId = usize;
@@ -62,7 +57,7 @@ pub fn refer<'t, T>(r: &'t Ref<T>) -> Rc<RefCell<T>> {
     r.upgrade().unwrap()
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NameNodeId {
     pub name: String,
     pub id: NodeId,

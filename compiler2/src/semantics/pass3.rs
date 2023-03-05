@@ -11,7 +11,7 @@ use crate::tast::{Expression, ExpressionKind, LabeledField, Program, SlangType};
 use std::collections::{HashMap, HashSet};
 
 pub fn pass3(program: &mut Program) -> Result<(), CompilationError> {
-    log::debug!("Evaluating type expressions for '{}'", program.name);
+    log::debug!("Pass 3: '{}'", program.name);
     let mut pass3 = Pass3::new(&program.path);
     visit_program(&mut pass3, program);
     pass3.diagnostics.value_or_error(())

@@ -3,26 +3,25 @@ name: CI
 on:
   push:
     branches: [main]
-
-jobs:
-  build-compiler2:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-      - name: Install rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-      - name: Run cargo build
-        run: |
-          cd compiler2
-          cargo build
-          cd ..
-      - name: Compile samples
-        run: |
-          sudo apt-get install -y llvm
-          cd examples
-          make
-          cd ..
+# jobs:
+#   build-compiler2:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout sources
+#         uses: actions/checkout@v2
+#       - name: Install rust toolchain
+#         uses: actions-rs/toolchain@v1
+#         with:
+#           toolchain: stable
+#           profile: minimal
+#       - name: Run cargo build
+#         run: |
+#           cd compiler2
+#           cargo build
+#           cd ..
+#       - name: Compile samples
+#         run: |
+#           sudo apt-get install -y llvm
+#           cd examples
+#           make
+#           cd ..

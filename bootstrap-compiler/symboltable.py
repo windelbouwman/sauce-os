@@ -1,11 +1,11 @@
 
 
 class Scope:
-    def __init__(self, parent):
+    def __init__(self, parent: 'Scope'):
         self.parent = parent
         self.symbols = {}
 
-    def is_defined(self, name, search_parents=True):
+    def is_defined(self, name: str, search_parents: bool = True):
         if name in self.symbols:
             return True
         elif not search_parents:
@@ -16,13 +16,13 @@ class Scope:
             else:
                 return False
 
-    def lookup(self, name):
+    def lookup(self, name: str):
         if name in self.symbols:
             return self.symbols[name]
         else:
             return self.parent.lookup(name)
 
-    def define(self, name, symbol):
+    def define(self, name: str, symbol):
         self.symbols[name] = symbol
 
 

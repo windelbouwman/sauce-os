@@ -222,16 +222,17 @@ impl std::fmt::Display for UserType {
             UserType::Function(signature) => {
                 let signature = signature.borrow();
 
-                let mut parameter_text: Vec<String> = vec![];
-                for parameter in &signature.parameters {
-                    let parameter = parameter.borrow();
-                    parameter_text.push(format!("{}", parameter.typ));
-                }
+                let parameter_text_parts: Vec<String> = signature
+                    .parameters
+                    .iter()
+                    .map(|p| format!("{}", p.borrow().typ))
+                    .collect();
+                let parameter_text = parameter_text_parts.join(", ");
 
                 if let Some(t) = &signature.return_type {
-                    write!(f, "function({}) -> {}", parameter_text.join(", "), t)
+                    write!(f, "function({}) -> {}", parameter_text, t)
                 } else {
-                    write!(f, "function({})", parameter_text.join(", "))
+                    write!(f, "function({})", parameter_text)
                 }
             }
         }

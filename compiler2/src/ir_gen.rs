@@ -563,11 +563,11 @@ impl Generator {
                 for parameter in &signature.parameters {
                     parameters.push(self.get_bytecode_typ(&parameter.borrow().typ));
                 }
-                let result = if let Some(t) = &signature.return_type {
-                    Some(Box::new(self.get_bytecode_typ(t)))
-                } else {
-                    None
-                };
+                let result = signature
+                    .return_type
+                    .as_ref()
+                    .map(|t| Box::new(self.get_bytecode_typ(t)));
+
                 // TBD: we might want to store this as a forward definition, and refer by ID.
                 bytecode::Typ::Function { parameters, result }
             }
@@ -598,7 +598,7 @@ impl Generator {
                 // TBD: now what? Push undefined value onto the stack!
                 self.emit(Instruction::UndefinedLiteral);
             }
-            tast::ExpressionKind::Object(_) => {
+            tast::ExpressionKind::Unresolved(_) => {
                 panic!("Please resolve symbols before embarking into bytecode");
             }
             tast::ExpressionKind::ListLiteral(values) => {
@@ -609,33 +609,37 @@ impl Generator {
             }
             tast::ExpressionKind::TypeCast { to_type: _, value } => {
                 self.gen_expression(value);
-                let cast_operation = match (&value.typ, &expression.typ) {
-                    (SlangType::Basic(from_type), SlangType::Basic(to_type)) => {
-                        match (from_type, to_type) {
-                            (BasicType::Int, BasicType::Float) => {
-                                bytecode::TypeConversion::IntToFloat
-                            }
-                            (BasicType::Float, BasicType::Int) => {
-                                bytecode::TypeConversion::FloatToInt
-                            }
-                            (a, b) => {
-                                panic!("Unsupported type casting: {} -> {}", a, b);
+                // First, check if we actually need to cast
+                // This would be sloppy cast code, but hey :-)
+                if value.typ != expression.typ {
+                    let cast_operation = match (&value.typ, &expression.typ) {
+                        (SlangType::Basic(from_type), SlangType::Basic(to_type)) => {
+                            match (from_type, to_type) {
+                                (BasicType::Int, BasicType::Float) => {
+                                    bytecode::TypeConversion::IntToFloat
+                                }
+                                (BasicType::Float, BasicType::Int) => {
+                                    bytecode::TypeConversion::FloatToInt
+                                }
+                                (a, b) => {
+                                    panic!("Unsupported type casting: {} -> {}", a, b);
+                                }
                             }
                         }
-                    }
-                    (SlangType::User(_user_type), SlangType::Opaque) => {
-                        bytecode::TypeConversion::UserToOpaque
-                    }
-                    (SlangType::Opaque, SlangType::User(user_type)) => {
-                        bytecode::TypeConversion::OpaqueToUser(
-                            self.get_bytecode_typ_for_user_type(user_type),
-                        )
-                    }
-                    (a, b) => {
-                        panic!("Unsupported type casting: {} -> {}", a, b);
-                    }
-                };
-                self.emit(Instruction::TypeConvert(cast_operation));
+                        (SlangType::User(_user_type), SlangType::Opaque) => {
+                            bytecode::TypeConversion::UserToOpaque
+                        }
+                        (SlangType::Opaque, SlangType::User(user_type)) => {
+                            bytecode::TypeConversion::OpaqueToUser(
+                                self.get_bytecode_typ_for_user_type(user_type),
+                            )
+                        }
+                        (a, b) => {
+                            panic!("Unsupported type casting: {} -> {}", a, b);
+                        }
+                    };
+                    self.emit(Instruction::TypeConvert(cast_operation));
+                }
             }
             tast::ExpressionKind::Call { callee, arguments } => {
                 self.gen_call(callee, arguments);
@@ -664,8 +668,18 @@ impl Generator {
                 self.emit(Instruction::GetElement { typ });
             }
 
-            tast::ExpressionKind::LoadSymbol(symbol) => match symbol {
-                Symbol::ExternFunction { name, typ } => {
+            tast::ExpressionKind::Function(function) => match function {
+                tast::Function::InternFunction {
+                    function_ref,
+                    type_arguments: _,
+                } => {
+                    let func_ref1 = refer(function_ref);
+                    let func_ref = func_ref1.borrow();
+                    let name = func_ref.name.name.clone();
+                    let typ = self.get_bytecode_typ(&func_ref.get_type());
+                    self.emit(Instruction::LoadGlobalName { name, typ });
+                }
+                tast::Function::ExternFunction { name, typ } => {
                     // TODO: Gross hack! Not all functions are imported from std::!
                     let full_name = format!("std_{}", name);
                     self.import_external(full_name.clone(), typ.clone());
@@ -675,13 +689,15 @@ impl Generator {
                         typ,
                     });
                 }
-                Symbol::Function(func_ref) => {
-                    let func_ref1 = refer(func_ref);
-                    let func_ref = func_ref1.borrow();
-                    let name = func_ref.name.name.clone();
-                    let typ = self.get_bytecode_typ(&func_ref.get_type());
-                    self.emit(Instruction::LoadGlobalName { name, typ });
-                }
+            },
+
+            tast::ExpressionKind::LoadSymbol(symbol) => match symbol {
+                // Symbol::ExternFunction { name, typ } => {
+                //     panic!("Should not occur here?");
+                // }
+                // Symbol::Definition(DefinitionRef::Function(func_ref)) => {
+                //     panic!("Should not happen");
+                // }
                 Symbol::LocalVariable(local_ref) => {
                     // TBD: use name + id as hint?
                     let index: usize = *self
@@ -702,6 +718,9 @@ impl Generator {
                     unimplemented!("Loading {}", other);
                 }
             },
+            tast::ExpressionKind::Typ(_typ) => {
+                unimplemented!("Cannot evaluate type");
+            }
         }
     }
 
@@ -724,7 +743,7 @@ impl Generator {
     }
 
     fn allocate_composite_type(&mut self, typ: &SlangType) {
-        let typ = self.get_bytecode_typ(&typ);
+        let typ = self.get_bytecode_typ(typ);
         if let bytecode::Typ::Ptr(array_typ) = typ {
             self.emit(Instruction::Malloc(*array_typ));
         } else {

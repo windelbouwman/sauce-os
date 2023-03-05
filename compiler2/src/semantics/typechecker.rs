@@ -1,7 +1,7 @@
 use super::Diagnostics;
 use crate::errors::CompilationError;
 use crate::parsing::{ast, Location};
-use crate::tast::{refer, undefined_value, Literal};
+use crate::tast::{refer, Literal};
 use crate::tast::{ArrayType, BasicType, ClassType, SlangType, UserType};
 use crate::tast::{
     AssignmentStatement, CaseStatement, ForStatement, IfStatement, SwitchStatement, WhileStatement,
@@ -47,9 +47,16 @@ impl TypeChecker {
                     }));
 
                     for method in &class_def.methods {
-                        let this_var = method.borrow().this_param.as_ref().unwrap().clone();
-                        this_var.borrow_mut().typ = class_typ.clone();
-                        self.check_function(method);
+                        match method {
+                            Definition::Function(method) => {
+                                let this_var = method.borrow().this_param.as_ref().unwrap().clone();
+                                this_var.borrow_mut().typ = class_typ.clone();
+                                self.check_function(method);
+                            }
+                            _other => {
+                                panic!("Only expect methods");
+                            }
+                        }
                     }
                 }
                 Definition::Struct(struct_def) => {
@@ -249,8 +256,8 @@ impl TypeChecker {
         self.check_expression(&mut case_statement.value)?;
 
         let value_type = &case_statement.value.typ;
+
         // Check if the case type is an enum type:
-        // let enum_type = self.use_as_enum_type(&case_statement.value)?;
         if !value_type.is_enum() {
             self.error(
                 &case_statement.value.location,
@@ -332,32 +339,16 @@ impl TypeChecker {
         let mut missed_variants = vec![];
         for variant in enum_type.get_variants() {
             if !value_map.contains_key(&variant.borrow().index) {
-                missed_variants.push(variant.borrow().name.clone());
+                missed_variants.push(format!("'{}'", variant.borrow().name));
             }
         }
         if !missed_variants.is_empty() {
-            self.error(
-                location,
-                format!("Enum case '{:?}' not covered", missed_variants),
-            );
+            let missing_text = missed_variants.join(", ");
+            self.error(location, format!("Enum case {} not covered", missing_text));
         }
 
         Ok(())
     }
-
-    /*
-    fn use_as_enum_type(&mut self, value: &Expression) -> Result<Rc<EnumDef>, ()> {
-        if let SlangType::User(UserType::Enum(enum_type)) = &value.typ {
-            Ok(enum_type.upgrade().unwrap())
-        } else {
-            self.error(
-                &value.location,
-                format!("Expected enum type, not {}", value.typ),
-            );
-            Err(())
-        }
-    }
-    */
 
     /// Type check the given expression.
     ///
@@ -390,58 +381,19 @@ impl TypeChecker {
                         Ok(())
                     }
 
-                    SlangType::TypeConstructor(_t) => {
-                        match &callee.kind {
-                            // ExpressionKind::TypeConstructor(type_constructor) => {
-                            //     unimplemented!("{:?}", type_constructor);
-                            // match type_constructor {
-                            //     TypeConstructor::ClassRef(class_node_id) => {
-                            // let typ = SlangType::Class(*class_node_id);
-                            // Ok(typ)
-                            //     }
-                            // }
-                            // }
-                            ExpressionKind::LoadSymbol(Symbol::Typ(typ)) => match typ {
-                                SlangType::User(UserType::Class(_)) => {
-                                    expression.typ = typ.clone();
-                                    Ok(())
-                                }
-                                other => {
-                                    self.error(
-                                        &expression.location,
-                                        format!("Cannot call type: {}", other),
-                                    );
-                                    Err(())
-                                }
-                            },
-                            ExpressionKind::LoadSymbol(Symbol::EnumVariant(_variant)) => {
-                                /*
-                                let variant_rc = variant.upgrade().unwrap();
-                                let variant = variant_rc.borrow();
-                                self.check_call_arguments(
-                                    &expression.location,
-                                    &variant.data,
-                                    arguments,
-                                )?;
-
-                                // std::mem::replace(
-                                expression.kind =
-                                    ExpressionKind::EnumLiteral(EnumLiteral {
-                                        variant: Rc::downgrade(&variant_rc),
-                                        arguments: std::mem::take(arguments),
-                                    });
-                                    // );
-                                    expression.typ = variant.get_parent_type();
-
-                                    Ok(())
-                                    */
-                                panic!("Should not reach this point!");
-                            }
-                            _other => {
-                                panic!("No go");
-                            }
+                    SlangType::TypeConstructor(typ) => match typ.as_ref() {
+                        SlangType::User(UserType::Class(_)) => {
+                            expression.typ = typ.as_ref().clone();
+                            Ok(())
                         }
-                    }
+                        other => {
+                            self.error(
+                                &expression.location,
+                                format!("Cannot call type: {}", other),
+                            );
+                            Err(())
+                        }
+                    },
 
                     other => {
                         self.error(&expression.location, format!("Cannot call: {} ", other));
@@ -449,18 +401,21 @@ impl TypeChecker {
                     }
                 }
             }
-            // ExpressionKind::MethodCall {
-            //     instance,
-            //     method,
-            //     arguments,
-            // } => self.check_method_call(&expression.location, instance, method, arguments),
             ExpressionKind::Undefined => {
                 // panic!("Should not happen!");
                 // Ehh, what now?
                 Ok(())
             }
-            ExpressionKind::Object(_) => {
+            ExpressionKind::Unresolved(_) => {
                 panic!("Should be resolved before type checking.");
+            }
+            ExpressionKind::Typ(typ) => {
+                expression.typ = SlangType::TypeConstructor(Box::new(typ.clone()));
+                Ok(())
+            }
+            ExpressionKind::Function(function) => {
+                expression.typ = function.get_type();
+                Ok(())
             }
             ExpressionKind::Binop { lhs, op, rhs } => {
                 expression.typ = match &op {
@@ -579,22 +534,18 @@ impl TypeChecker {
             }
 
             ExpressionKind::LoadSymbol(symbol) => match symbol {
-                Symbol::LocalVariable(_)
-                | Symbol::Parameter(_)
-                | Symbol::Function(_)
-                | Symbol::ExternFunction { .. } => {
+                Symbol::LocalVariable(_) | Symbol::Parameter(_) | Symbol::ExternFunction { .. } => {
                     expression.typ = symbol.get_type();
                     Ok(())
                 }
-                Symbol::Typ(typ) => {
-                    expression.typ = SlangType::TypeConstructor(Box::new(typ.clone()));
-                    Ok(())
+                Symbol::Typ(_typ) => {
+                    unimplemented!("Should not happen");
                 }
                 Symbol::Module(_) => {
                     self.error(&expression.location, "cannot load module".to_string());
                     Err(())
                 }
-                Symbol::Definition(_) => {
+                Symbol::Definition(_definition_ref) => {
                     self.error(&expression.location, "cannot load definition".to_string());
                     Err(())
                 }
@@ -610,12 +561,6 @@ impl TypeChecker {
                 }
             },
 
-            // ExpressionKind::TypeConstructor(_type_constructor) => {
-            //     unimplemented!("Type-con?");
-            // type_constructor
-            // let typ = SlangType::TypeConstructor;
-            // Ok(typ)
-            // }
             ExpressionKind::GetIndex { base, index } => {
                 self.check_expression(base)?;
                 match &base.typ {
@@ -760,7 +705,7 @@ impl TypeChecker {
     fn autoconv(value: &mut Expression, wanted_typ: &SlangType) {
         if &value.typ != wanted_typ {
             log::trace!("Autoconving! {} -> {}", value.typ, wanted_typ);
-            let old_value = std::mem::replace(value, undefined_value());
+            let old_value = std::mem::take(value);
             *value = old_value.cast(wanted_typ.clone());
             value.typ = wanted_typ.clone();
         }
