@@ -2,14 +2,14 @@
 """
 
 import logging
-import re
 
 # try lark as parser
 from lark import Lark, Transformer as LarkTransformer
 from lark.lexer import Lexer as LarkLexer, Token as LarkToken
 
-from . import ast
+from . import ast, types
 from .lexer import detect_indentations, tokenize, Location
+
 logger = logging.getLogger('parser')
 
 
@@ -29,21 +29,6 @@ class CustomLarkLexer(LarkLexer):
 
     def lex(self, data):
         type_map = {
-            'and': 'KW_AND',
-            'break': 'KW_BREAK',
-            'continue': 'KW_CONTINUE',
-            'else': 'KW_ELSE',
-            'fn': 'KW_FN',
-            'for': 'KW_FOR',
-            'if': 'KW_IF',
-            'import': 'KW_IMPORT',
-            'in': 'KW_IN',
-            'let': 'KW_LET',
-            'loop': 'KW_LOOP',
-            'or': 'KW_OR',
-            'return': 'KW_RETURN',
-            'struct': 'KW_STRUCT',
-            'while': 'KW_WHILE',
             '(': 'LEFT_BRACE',
             ')': 'RIGHT_BRACE',
             '[': 'LEFT_BRACKET',
@@ -75,33 +60,30 @@ def get_loc(tok: LarkToken):
 
 class CustomTransformer(LarkTransformer):
     def start(self, x):
-        # print('start', x)
         return ast.Module(x[0], x[1])
 
-    def imports(self, a):
-        return a
+    def imports(self, x):
+        return x
 
     def import_(self, x):
         # print('import ', x)
         return ast.Import(x[1], get_loc(x[0]))
 
     def definitions(self, x):
-        # print('definitions!', x)
         return x
 
     def definition(self, x):
-        # print('definition!', x)
         return x[0]
 
     def func_def(self, x):
-        print('func_def', x)
         name = x[1]
         if isinstance(x[3], list):
             parameters = x[3]
         else:
             parameters = []
         body = x[-1]
-        return ast.FunctionDef(name, parameters, None, body, get_loc(x[0]))
+        return_type = types.void_type
+        return ast.FunctionDef(name, parameters, return_type, body, get_loc(x[0]))
 
     def parameters(self, x):
         if len(x) == 1:
@@ -112,41 +94,35 @@ class CustomTransformer(LarkTransformer):
     def struct_def(self, x):
         name = x[1]
         fields = x[5:-1]
-        # print(x, fields)
         return ast.StructDef(name, fields, get_loc(x[0]))
 
     def struct_field(self, x):
         return ast.StructFieldDef(x[0], x[2], get_loc(x[0]))
 
     def typ(self, x):
-        print('typ', x)
-        return ast.NameRef(x[0], get_loc(x[0]))
+        # print('typ', x)
+        return types.TypeExpression(ast.name_ref(x[0], get_loc(x[0])))
 
     def parameter(self, x):
         return ast.Parameter(x[0].value, x[2], get_loc(x[0]))
 
     def block(self, x):
-        # print('block', x)
         return x[1:-1]
 
     def statement(self, x):
-        # print('stmt', x)
         return x[0]
 
     def simple_statement(self, x):
         if len(x) == 3:
-            return ast.Assignment(x[0], x[2], get_loc(x[1]))
+            return ast.assignment_statement(x[0], x[2], get_loc(x[1]))
         elif isinstance(x[0], LarkToken) and x[0].type == 'KW_RETURN':
-            if len(x) > 1:
-                value = x[1]
-            else:
-                value = None
-            return ast.Return(value, get_loc(x[0]))
+            value = x[1] if len(x) > 1 else None
+            return ast.return_statement(value, get_loc(x[0]))
         elif isinstance(x[0], LarkToken) and x[0].type == 'KW_BREAK':
-            return ast.Break(get_loc(x[0]))
+            return ast.break_statement(get_loc(x[0]))
         elif isinstance(x[0], LarkToken) and x[0].type == 'KW_CONTINUE':
-            return ast.Continue(get_loc(x[0]))
-        return x[0]
+            return ast.continue_statement(get_loc(x[0]))
+        return ast.expression_statement(x[0], x[0].location)
 
     def if_statement(self, x):
         condition = x[1]
@@ -155,31 +131,30 @@ class CustomTransformer(LarkTransformer):
             false_statement = x[5]
         else:
             false_statement = None
-        return ast.IfStatement(condition, true_statement, false_statement, get_loc(x[0]))
+        return ast.if_statement(condition, true_statement, false_statement, get_loc(x[0]))
 
     def let_statement(self, x):
         """ KW_LET ID (COLON typ)? EQUALS expression NEWLINE """
         target = x[1]
         if isinstance(x[2], LarkToken) and x[2].type == 'COLON':
-            ty = x[3]
-            value = x[5]
+            assert isinstance(x[4], LarkToken) and x[4].type == 'EQUALS'
+            ty, value = x[3], x[5]
         else:
             assert isinstance(x[2], LarkToken) and x[2].type == 'EQUALS'
-            ty = None
-            value = x[3]
-        return ast.Let(target, ty, value, get_loc(x[0]))
+            ty, value = None, x[3]
+        return ast.let_statement(target, ty, value, get_loc(x[0]))
 
     def while_statement(self, x):
         condition, inner = x[1], x[4]
-        return ast.While(condition, inner, get_loc(x[0]))
+        return ast.while_statement(condition, inner, get_loc(x[0]))
 
     def loop_statement(self, x):
         inner = x[3]
-        return ast.Loop(inner, get_loc(x[0]))
+        return ast.loop_statement(inner, get_loc(x[0]))
 
     def for_statement(self, x):
         target, values, inner = x[1], x[3], x[6]
-        return ast.ForStatement(target, values, inner, get_loc(x[0]))
+        return ast.for_statement(target, values, inner, get_loc(x[0]))
 
     def else_clause(self, x):
         return x[-1]
@@ -193,7 +168,7 @@ class CustomTransformer(LarkTransformer):
         else:
             assert len(x) == 3
             lhs, op, rhs = x
-            return ast.Binop(lhs, op, rhs, get_loc(x[1]))
+            return ast.binop(lhs, op, rhs, get_loc(x[1]))
 
     def conjunction(self, x):
         if len(x) == 1:
@@ -201,7 +176,7 @@ class CustomTransformer(LarkTransformer):
         else:
             assert len(x) == 3
             lhs, op, rhs = x
-            return ast.Binop(lhs, op, rhs, get_loc(x[1]))
+            return ast.binop(lhs, op, rhs, get_loc(x[1]))
 
     def inversion(self, x):
         if len(x) == 1:
@@ -213,7 +188,7 @@ class CustomTransformer(LarkTransformer):
 
     def comparison(self, x):
         lhs, op, rhs = x
-        return ast.Binop(lhs, op, rhs, get_loc(x[1]))
+        return ast.binop(lhs, op, rhs, get_loc(x[1]))
 
     def cmpop(self, x):
         return x[0]
@@ -223,14 +198,14 @@ class CustomTransformer(LarkTransformer):
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.Binop(lhs, op, rhs, get_loc(x[1]))
+            return ast.binop(lhs, op, rhs, get_loc(x[1]))
 
     def sum(self, x):
         if len(x) == 1:
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.Binop(lhs, op, rhs, get_loc(x[1]))
+            return ast.binop(lhs, op, rhs, get_loc(x[1]))
 
     def addop(self, x):
         return x[0]
@@ -240,7 +215,7 @@ class CustomTransformer(LarkTransformer):
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.Binop(lhs, op, rhs, get_loc(x[1]))
+            return ast.binop(lhs, op, rhs, get_loc(x[1]))
 
     def mulop(self, x):
         return x[0]
@@ -252,19 +227,16 @@ class CustomTransformer(LarkTransformer):
         if len(x) == 1:
             return x[0]
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == 'LEFT_BRACE':
-            if len(x) == 4:
-                arguments = x[2]
-            else:
-                arguments = []
-            return ast.FunctionCall(x[0], arguments, get_loc(x[1]))
+            arguments = x[2] if len(x) == 4 else []
+            return ast.function_call(x[0], arguments, get_loc(x[1]))
         elif len(x) > 2 and isinstance(x[0], LarkToken) and x[0].type == 'LEFT_BRACE':
             return x[1]
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == 'LEFT_BRACKET':
             base, index = x[0], x[2]
-            return ast.ArrayIndex(base, index, get_loc(x[1]))
+            return ast.array_index(base, index, get_loc(x[1]))
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == 'DOT':
             base, field = x[0], x[2]
-            return ast.DotOperator(base, field, get_loc(x[1]))
+            return ast.dot_operator(base, field, get_loc(x[1]))
         else:
             raise NotImplementedError(str(x))
 
@@ -276,21 +248,21 @@ class CustomTransformer(LarkTransformer):
 
     def literal(self, x):
         if x[0].type == 'NUMBER':
-            return ast.NumericConstant(x[0].value, get_loc(x[0]))
+            return ast.numeric_constant(x[0].value, get_loc(x[0]))
         elif x[0].type == 'STRING':
-            return ast.StringConstant(x[0].value, get_loc(x[0]))
+            return ast.string_constant(x[0].value, get_loc(x[0]))
         elif x[0].type == 'FNUMBER':
-            return ast.NumericConstant(x[0].value, get_loc(x[0]))
+            return ast.numeric_constant(x[0].value, get_loc(x[0]))
         else:
             print('Literal!', x)
 
     def array_literal(self, x):
-        return ast.ArrayLiteral(x[1], get_loc(x[0]))
+        return ast.array_literal(x[1], get_loc(x[0]))
 
     def obj_init(self, x):
         "obj_init: ID COLON NEWLINE INDENT field_init+ DEDENT"
         ty, fields = x[0], x[4:-1]
-        return ast.NewOp(ty, fields, get_loc(x[1]))
+        return ast.new_op(ty, fields, get_loc(x[1]))
 
     def field_init(self, x):
         name, value = x[0], x[2]
@@ -298,9 +270,9 @@ class CustomTransformer(LarkTransformer):
 
     def obj_ref(self, x):
         if len(x) == 1:
-            return ast.NameRef(x[0].value, get_loc(x[0]))
+            return ast.name_ref(x[0].value, get_loc(x[0]))
         else:
-            return ast.DotOperator(x[0], x[2].value, get_loc(x[1]))
+            return ast.dot_operator(x[0], x[2].value, get_loc(x[1]))
 
 
 grammar = r"""

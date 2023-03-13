@@ -10,11 +10,6 @@ import re
 logger = logging.getLogger('lexer')
 
 
-class Lexer:
-    def __init__(self):
-        pass
-
-
 class Token:
     def __init__(self, ty: str, value, location: Location):
         self.ty = ty
@@ -75,19 +70,30 @@ def tokenize(code: str):
     ]
 
     keywords = {
-        'fn', 'import', 'in',
-        'if', 'else', 'elif',
-        'and', 'or',
-        'loop', 'break', 'continue', 'for', 'while',
-        'class', 'return',
-        'struct', 'enum', 'pass',
-        'let', 'mut'
+        'and': 'KW_AND',
+        'break': 'KW_BREAK',
+        'class': 'KW_CLASS',
+        'continue': 'KW_CONTINUE',
+        'else': 'KW_ELSE',
+        'elif': 'KW_ELIF',
+        'enum': 'KW_ENUM',
+        'fn': 'KW_FN',
+        'for': 'KW_FOR',
+        'if': 'KW_IF',
+        'import': 'KW_IMPORT',
+        'in': 'KW_IN',
+        'let': 'KW_LET',
+        'loop': 'KW_LOOP',
+        'mut': 'KW_MUT',
+        'or': 'KW_OR',
+        'pass': 'KW_PASS',
+        'return': 'KW_RETURN',
+        'struct': 'KW_STRUCT',
+        'while': 'KW_WHILE'
     }
 
     regex = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in token_spec)
-    # print('Using regex', regex)
-    row = 1
-    col = 1
+    row, col = 1, 1
     col_start = 0
     for mo in re.finditer(regex, code, re.MULTILINE | re.DOTALL):
         # print(mo)
@@ -99,7 +105,7 @@ def tokenize(code: str):
             tok = Token(value, value, loc)
         elif kind == 'ID':
             if value in keywords:
-                kind = value
+                kind = keywords[value]
             tok = Token(kind, value, loc)
         elif kind == 'STRING':
             tok = Token(kind, value, loc)

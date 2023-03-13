@@ -1,4 +1,6 @@
 
+
+from dataclasses import dataclass
 from rich.traceback import install
 from rich.logging import RichHandler
 import argparse
@@ -14,11 +16,18 @@ logger = logging.getLogger('compiler')
 # install(show_locals=True)
 
 
+@dataclass
+class Options:
+    dump_ast: bool = False
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('source')
-    parser.add_argument('--output', default='output.txt')
+    parser.add_argument('--output')
+    parser.add_argument('--dump-ast', action='store_true')
     args = parser.parse_args()
+    print(args)
     logformat = '%(asctime)s | %(levelname)8s | %(name)10.10s | %(message)s'
     # logging.basicConfig(level=logging.DEBUG, format=logformat)
     logging.basicConfig(
@@ -27,11 +36,13 @@ def main():
         handlers=[RichHandler()]
     )
 
+    options = Options(dump_ast=args.dump_ast)
+
     known_modules = {}
-    do_compile(args.source, args.output, known_modules)
+    do_compile(args.source, args.output, known_modules, options)
 
 
-def do_compile(filename, output, known_modules):
+def do_compile(filename, output, known_modules, options: Options):
     logger.info(f"Compiling {filename}")
     with open(filename, 'r') as f:
         code = f.read()
@@ -41,9 +52,16 @@ def do_compile(filename, output, known_modules):
         logger.error("Errors occurred during parsing!")
 
     else:
-        print_ast(ast)
-        if analyze_ast(ast, code):
-            gencode(ast, output)
+        if options.dump_ast:
+            logger.info('Dumping AST')
+            print_ast(ast)
+
+        if analyze_ast(ast, code, options):
+            if output:
+                with open(output, 'w') as f:
+                    gencode(ast, f=f)
+            else:
+                gencode(ast)
             logger.info('DONE&DONE')
         else:
             logger.error('Errors occurred during type checking!')
