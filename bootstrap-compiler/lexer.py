@@ -72,6 +72,7 @@ def tokenize(code: str):
     keywords = {
         'and': 'KW_AND',
         'break': 'KW_BREAK',
+        'case': 'KW_CASE',
         'class': 'KW_CLASS',
         'continue': 'KW_CONTINUE',
         'else': 'KW_ELSE',
@@ -79,6 +80,7 @@ def tokenize(code: str):
         'enum': 'KW_ENUM',
         'fn': 'KW_FN',
         'for': 'KW_FOR',
+        'from': 'KW_FROM',
         'if': 'KW_IF',
         'import': 'KW_IMPORT',
         'in': 'KW_IN',
@@ -89,6 +91,7 @@ def tokenize(code: str):
         'pass': 'KW_PASS',
         'return': 'KW_RETURN',
         'struct': 'KW_STRUCT',
+        'var': 'KW_VAR',
         'while': 'KW_WHILE'
     }
 

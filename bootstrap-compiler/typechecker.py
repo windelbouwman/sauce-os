@@ -6,7 +6,7 @@ import logging
 
 from . import ast, types
 from .basepass import BasePass
-from .types import BaseType, FunctionType, StructType
+from .location import Location
 from .types import bool_type, void_type
 
 logger = logging.getLogger('typechecker')
@@ -15,21 +15,20 @@ logger = logging.getLogger('typechecker')
 class TypeChecker(BasePass):
     def __init__(self, code: str):
         super().__init__(code)
-        assert self.types_equal(bool_type, bool_type)
 
     def check_module(self, module: ast.Module):
         for definition in module.definitions:
-            if isinstance(definition, ast.StructDef):
+            if isinstance(definition, (ast.StructDef, ast.EnumDef)):
                 pass
             elif isinstance(definition, ast.FunctionDef):
                 logger.debug(f"Checking function '{definition.name}'")
                 self.check_function(definition)
             else:
-                raise NotImplementedError(str(ty))
+                raise NotImplementedError(str(definition))
 
-    def check_function(self, func):
+    def check_function(self, func: ast.FunctionDef):
         self._function = func
-        self.visit_block(func.statements)
+        self.visit_statement(func.statements)
         self._function = None
 
     def visit_statement(self, statement: ast.Statement):
@@ -43,18 +42,22 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.WhileStatement):
             self.assert_type(kind.condition, bool_type)
         elif isinstance(kind, ast.ForStatement):
-            assert isinstance(kind.values.ty, types.ArrayType)
+            pass
         elif isinstance(kind, ast.IfStatement):
             self.assert_type(kind.condition, bool_type)
+        elif isinstance(kind, ast.CaseStatement):
+            pass  # handled in mid-statement hook
         elif isinstance(kind, ast.ExpressionStatement):
             # Check void type: Good idea?
             self.assert_type(kind.value, void_type)
         elif isinstance(kind, (ast.BreakStatement, ast.ContinueStatement)):
             # TODO!
             pass
+        elif isinstance(kind, (ast.PassStatement, ast.CompoundStatement)):
+            pass
         elif isinstance(kind, ast.ReturnStatement):
             if kind.value:
-                if not self.types_equal(kind.value.ty, self._function.ty.return_type):
+                if not kind.value.ty.equals(self._function.return_ty):
                     self.error(
                         statement.location, f"Returning wrong type {kind.value.ty} (should be {self._function.ty.return_type})")
 
@@ -66,12 +69,34 @@ class TypeChecker(BasePass):
                 kind.variable.ty = kind.value.ty
         elif isinstance(kind, ast.AssignmentStatement):
             pass
-        elif isinstance(statement, list):
-            pass
-        elif statement is None:
-            pass
         else:
             raise NotImplementedError(str(statement))
+
+    def mid_statement(self, statement: ast.Statement):
+        kind = statement.kind
+        if isinstance(kind, ast.CaseStatement):
+            if kind.value.ty.is_enum():
+                enum_def: ast.EnumDef = kind.value.ty.kind.enum_def
+                for arm in kind.arms:
+                    if enum_def.scope.is_defined(arm.name):
+                        variant: ast.EnumVariant = enum_def.scope.lookup(
+                            arm.name)
+                        assert len(variant.payload) == len(arm.variables)
+                        for v, t in zip(arm.variables, variant.payload):
+                            v.ty = t
+                        # TODO: check missing fields
+                    else:
+                        self.error(arm.location,
+                                   f'No enum variant {arm.name}')
+            else:
+                self.error(kind.value.location,
+                           f'Expected enum, not {kind.value.ty}')
+        elif isinstance(kind, ast.ForStatement):
+            if isinstance(kind.values.ty.kind, types.ArrayType):
+                kind.variable.ty = kind.values.ty.kind.element_type
+            else:
+                self.error(kind.values.location,
+                           f'Expected array, not {kind.values.ty}')
 
     def visit_expression(self, expression: ast.Expression):
         super().visit_expression(expression)
@@ -84,7 +109,7 @@ class TypeChecker(BasePass):
             pass
         elif isinstance(kind, ast.ArrayLiteral):
             assert len(kind.values) > 0
-            expression.ty = types.ArrayType(
+            expression.ty = types.array_type(
                 len(kind.values), kind.values[0].ty)
         elif isinstance(kind, ast.Binop):
             # Introduce some heuristics...
@@ -108,34 +133,29 @@ class TypeChecker(BasePass):
                 expression.ty = ty
 
         elif isinstance(kind, ast.DotOperator):
-            if isinstance(kind.base.ty, StructType):
-                if kind.base.ty.has_field(kind.field):
-                    expression.ty = kind.base.ty.get_field(kind.field)
+            if isinstance(kind.base.ty.kind, types.StructType):
+                if kind.base.ty.kind.has_field(kind.field):
+                    expression.ty = kind.base.ty.kind.get_field(kind.field)
                 else:
                     self.error(expression.location,
                                f'Struct has no field: {kind.field}')
                     expression.ty = void_type
             else:
                 self.error(expression.location,
-                           f'Cannot index: {kind.base.ty}')
+                           f'Cannot access: {kind.base.ty}')
 
         elif isinstance(kind, ast.ArrayIndex):
-            if isinstance(kind.base.ty, types.ArrayType):
-                expression.ty = kind.base.ty.element_type
+            if isinstance(kind.base.ty.kind, types.ArrayType):
+                expression.ty = kind.base.ty.kind.element_type
             else:
                 self.error(expression.location,
                            f"Indexing requires array type, not {kind.base.ty}")
 
         elif isinstance(kind, ast.FunctionCall):
-            if isinstance(kind.target.ty, FunctionType):
-                if len(kind.args) != len(kind.target.ty.parameter_types):
-                    self.error(
-                        expression.location, f'Got {len(kind.args)} arguments, expected {len(kind.target.ty.parameter_types)}')
-                for arg, expected_ty in zip(kind.args, kind.target.ty.parameter_types):
-                    if not self.types_equal(arg.ty, expected_ty):
-                        self.error(
-                            arg.location, f'Got {arg.ty}, but expected {expected_ty}')
-                expression.ty = kind.target.ty.return_type
+            if isinstance(kind.target.ty.kind, types.FunctionType):
+                self.check_arguments(
+                    kind.target.ty.kind.parameter_types, kind.args, expression.location)
+                expression.ty = kind.target.ty.kind.return_type
             else:
                 self.error(expression.location,
                            f'Trying to call non-function type: {kind.target.ty}')
@@ -145,23 +165,37 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.NameRef):
             raise ValueError(f"Must be resolved: {kind}")
         elif isinstance(kind, ast.StructLiteral):
-            assert len(kind.ty.struct_def.fields) == len(kind.values)
-            for field, value in zip(kind.ty.struct_def.fields, kind.values):
+            assert len(kind.ty.kind.struct_def.fields) == len(kind.values)
+            for field, value in zip(kind.ty.kind.struct_def.fields, kind.values):
                 self.assert_type(value, field.ty)
             expression.ty = kind.ty
+        elif isinstance(kind, ast.EnumLiteral):
+            self.check_arguments(kind.variant.payload,
+                                 kind.values, expression.location)
+            expression.ty = kind.enum_def.get_type()
         elif isinstance(kind, ast.ObjRef):
-            if isinstance(kind.obj, ast.Variable):
-                expression.ty = kind.obj.ty
-            elif isinstance(kind.obj, ast.BuiltinFunction):
-                expression.ty = kind.obj.ty
-            elif isinstance(kind.obj, ast.FunctionDef):
-                expression.ty = kind.obj.get_type()
-            elif isinstance(kind.obj, ast.Parameter):
-                expression.ty = kind.obj.ty
+            obj = kind.obj
+            if isinstance(obj, ast.Variable):
+                expression.ty = obj.ty
+            elif isinstance(obj, ast.BuiltinFunction):
+                expression.ty = obj.ty
+            elif isinstance(obj, ast.FunctionDef):
+                expression.ty = obj.get_type()
+            elif isinstance(obj, ast.Parameter):
+                expression.ty = obj.ty
             else:
                 raise NotImplementedError(str(kind))
         else:
             raise NotImplementedError(str(expression.kind))
+
+    def check_arguments(self, types: list[types.MyType], values: list[ast.Expression], location: Location):
+        """ Check amount and types a list of values """
+        if len(values) == len(types):
+            for arg, expected_ty in zip(values, types):
+                self.assert_type(arg, expected_ty)
+        else:
+            self.error(
+                location, f'Got {len(values)} arguments, expected {len(types)}')
 
     def assert_type(self, expression: ast.Expression, ty: types.MyType):
         """ Check if expression is of given type, raise error otherwise.
@@ -173,16 +207,8 @@ class TypeChecker(BasePass):
             expression.kind = ast.TypeCast(ty, old_expr)
             expression.ty = ty
 
-        if not self.types_equal(expression.ty, ty):
+        if not expression.ty.equals(ty):
             self.error(
                 expression.location,
-                f"Type error, got {expression.ty}, but expected {ty}"
+                f"Got {expression.ty}, expected {ty}"
             )
-
-    def types_equal(self, a_ty: types.MyType, b_ty: types.MyType):
-        if a_ty is b_ty:
-            return True
-        elif isinstance(a_ty, BaseType) and isinstance(b_ty, BaseType):
-            return a_ty.name == b_ty.name
-        else:
-            return False

@@ -17,14 +17,20 @@ class Expression(Node):
         self.ty = ty
 
     def __repr__(self):
-        return f'kind={self.kind}, ty={self.ty}'
+        return f'{self.kind}[ty={self.ty}]'
 
     def clone(self):
         return Expression(self.kind, self.ty, self.location)
 
+    def binop(self, op: str, rhs: 'Expression') -> 'Expression':
+        return binop(self, op, rhs, self.location)
+
+    def array_index(self, value: 'Expression') -> 'Expression':
+        return array_index(self, value, self.location)
+
 
 class Module(Node):
-    def __init__(self, imports: list['Import'] = (), definitions: list['Definition'] = ()):
+    def __init__(self, imports=(), definitions: list['Definition'] = ()):
         self.imports = list(imports)
         self.definitions = list(definitions)
         self.types = []
@@ -37,39 +43,82 @@ class Import(Node):
         self.name = name
 
 
+class ImportFrom(Node):
+    def __init__(self, modname: str, names: list[str], location: Location):
+        super().__init__(location)
+        assert isinstance(modname, str)
+        assert isinstance(names, list)
+        self.modname = modname
+        self.names = names
+
+
 class Definition(Node):
     pass
 
 
-class FunctionDef(Definition):
-    def __init__(self, name: str, parameters: list['Parameter'], return_ty: types.MyType, statements: list['Statement'], location: Location):
+def class_def(name: str, members, location: Location):
+    return ClassDef(name, members, location)
+
+
+class ClassDef(Definition):
+    def __init__(self, name: str, members, location: Location):
         super().__init__(location)
+        self.name = name
+        self.members = members
+
+
+def var_def(name, ty, value, location: Location):
+    assert isinstance(value, Expression)
+    return VarDef(name, ty, value, location)
+
+
+class VarDef(Definition):
+    def __init__(self, name: str, ty: types.MyType, value: Expression, location: Location):
+        super().__init__(location)
+        self.name = name
+        self.ty = ty
+        self.value = value
+
+
+def function_def(name: str, parameters: list['Parameter'], return_ty: types.MyType, statements: list['Statement'], location: Location):
+    return FunctionDef(name, parameters, return_ty, statements, location)
+
+
+class FunctionDef(Definition):
+    def __init__(self, name: str, parameters: list['Parameter'], return_ty: types.MyType, statements: 'Statement', location: Location):
+        super().__init__(location)
+        assert isinstance(name, str)
         self.name = name
         self.parameters: list[Parameter] = parameters
         self.return_ty = return_ty
         self.statements = statements
 
     def get_type(self):
-        return types.FunctionType([p.ty for p in self.parameters], self.return_ty)
+        return types.function_type([p.ty for p in self.parameters], self.return_ty)
 
 
 class Parameter(Node):
     def __init__(self, name: str, ty: types.MyType, location: Location):
         super().__init__(location)
+        assert isinstance(name, str)
         self.name = name
         assert isinstance(ty, types.MyType), str(ty)
         self.ty = ty
+
+    def __repr__(self):
+        return f"param({self.name})"
 
 
 class StructDef(Definition):
     def __init__(self, name: str, fields: list['StructFieldDef'], location: Location):
         super().__init__(location)
+        assert isinstance(name, str)
         self.name = name
         self.fields = fields
         self.scope = None
 
     def get_type(self):
-        return types.StructType(self)
+        return types.struct_type(self)
 
 
 class StructFieldDef(Node):
@@ -79,14 +128,51 @@ class StructFieldDef(Node):
         self.ty = ty
 
 
+class EnumDef(Definition):
+    def __init__(self, name: str, type_parameters, variants: list['EnumVariant'], location: Location):
+        super().__init__(location)
+        self.name = name
+        self.type_parameters = type_parameters
+        self.variants = variants
+        self.scope = None
+
+    def get_type(self):
+        return types.enum_type(self)
+
+
+class EnumVariant(Node):
+    def __init__(self, name: str, payload: list[types.MyType], location: Location):
+        super().__init__(location)
+        self.name = name
+        self.payload = payload
+    # def get_type(self):
+    #     return types.StructType(self)
+
+
 class Statement(Node):
     def __init__(self, kind: 'StatementKind', location: Location):
         super().__init__(location)
         self.kind = kind
 
+    def __repr__(self):
+        return f"stmt-{self.kind}"
+
 
 class StatementKind:
     pass
+
+
+def compound_statement(statements: list[Statement], location: Location):
+    return Statement(CompoundStatement(statements), location)
+
+
+class CompoundStatement(StatementKind):
+    def __init__(self, statements: list['Statement']):
+        super().__init__()
+        self.statements = statements
+
+    def __repr__(self):
+        return f"CompoundStatement"
 
 
 def expression_statement(value: Expression, location: Location) -> Statement:
@@ -104,21 +190,21 @@ class ExpressionStatement(StatementKind):
         return f"ExpressionStatement"
 
 
-def let_statement(target: str, ty: types.MyType | None, value: Expression, location: Location) -> Statement:
-    kind = LetStatement(target, ty, value)
+def let_statement(variable: 'Variable', ty: types.MyType | None, value: Expression, location: Location) -> Statement:
+    kind = LetStatement(variable, ty, value)
     return Statement(kind, location)
 
 
 class LetStatement(StatementKind):
-    def __init__(self, target: str, ty: types.MyType | None, value: Expression):
+    def __init__(self, variable: 'Variable', ty: types.MyType | None, value: Expression):
         super().__init__()
-        self.target = target
+        assert isinstance(variable, Variable)
         self.ty = ty
-        self.variable = None
+        self.variable = variable
         self.value = value
 
     def __repr__(self):
-        return f"Let({self.target})"
+        return f"Let({self.variable})"
 
 
 def loop_statement(inner: Statement, location: Location) -> Statement:
@@ -166,20 +252,42 @@ class IfStatement(StatementKind):
         return "IfStatement"
 
 
-def for_statement(target: str, values: Expression, inner: Statement, location: Location) -> Statement:
-    kind = ForStatement(target, values, inner)
+def case_statement(value: Expression, arms: list['CaseArm'], location: Location):
+    kind = CaseStatement(value, arms)
+    return Statement(kind, location)
+
+
+class CaseStatement(StatementKind):
+    def __init__(self, value: Expression, arms: list['CaseArm']):
+        self.value = value
+        self.arms = arms
+
+
+class CaseArm(Node):
+    def __init__(self, name: str, variables: list['Variable'], body: Statement, location: Location):
+        super().__init__(location)
+        assert isinstance(name, str)
+        self.name = name
+        self.variables = variables
+        self.body = body
+        self.scope = None
+
+
+def for_statement(variable: 'Variable', values: Expression, inner: Statement, location: Location) -> Statement:
+    kind = ForStatement(variable, values, inner)
     return Statement(kind, location)
 
 
 class ForStatement(StatementKind):
-    def __init__(self, target: str, values: Expression, inner: Statement):
+    def __init__(self, variable: 'Variable', values: Expression, inner: Statement):
         super().__init__()
-        self.target = target
+        assert isinstance(variable, Variable)
+        self.variable = variable
         self.values = values
         self.inner = inner
 
     def __repr__(self):
-        return f"ForStatement({self.target})"
+        return f"ForStatement({self.variable})"
 
 
 def break_statement(location: Location) -> Statement:
@@ -188,33 +296,35 @@ def break_statement(location: Location) -> Statement:
 
 
 class BreakStatement(StatementKind):
-    def __init__(self):
-        super().__init__()
-
     def __repr__(self):
         return "Break"
 
 
 def continue_statement(location: Location) -> Statement:
-    kind = ContinueStatement()
-    return Statement(kind, location)
+    return Statement(ContinueStatement(), location)
 
 
 class ContinueStatement(StatementKind):
-    def __init__(self):
-        super().__init__()
-
     def __repr__(self):
         return "Continue"
 
 
-def assignment_statement(target, value: Expression, location: Location):
+def pass_statement(location: Location) -> Statement:
+    return Statement(PassStatement(), location)
+
+
+class PassStatement(StatementKind):
+    def __repr__(self):
+        return "Pass"
+
+
+def assignment_statement(target: Expression, value: Expression, location: Location):
     kind = AssignmentStatement(target, value)
     return Statement(kind, location)
 
 
 class AssignmentStatement(StatementKind):
-    def __init__(self, target, value: Expression):
+    def __init__(self, target: Expression, value: Expression):
         super().__init__()
         self.target = target
         self.value = value
@@ -346,6 +456,19 @@ class NumericConstant(ExpressionKind):
         return f'NumericConstant({self.value})'
 
 
+def bool_constant(value: bool, location: Location):
+    return Expression(BoolLiteral(value), types.bool_type, location)
+
+
+class BoolLiteral(ExpressionKind):
+    def __init__(self, value: bool):
+        super().__init__()
+        self.value = value
+
+    def __repr__(self):
+        return f'BoolLiteral({self.value})'
+
+
 def array_literal(values: list[Expression], location: Location):
     kind = ArrayLiteral(values)
     ty = types.void_type
@@ -364,6 +487,30 @@ class ArrayLiteral(ExpressionKind):
 class StructLiteral(ExpressionKind):
     def __init__(self, ty: types.MyType, values: list[Expression]):
         self.ty = ty
+        self.values = values
+
+
+class SemiEnumLiteral(ExpressionKind):
+    """ Variant, selected from enum, but not called yet.
+
+    For example:
+    >>> Option.Some
+
+    To use the enum, call this expression:
+    >>> Option.Some(1337)
+    """
+
+    def __init__(self, enum_def: EnumDef, variant: EnumVariant):
+        super().__init__()
+        self.enum_def = enum_def
+        self.variant = variant
+
+
+class EnumLiteral(ExpressionKind):
+    def __init__(self, enum_def: EnumDef, variant: EnumVariant, values: list[Expression]):
+        super().__init__()
+        self.enum_def = enum_def
+        self.variant = variant
         self.values = values
 
 
@@ -422,6 +569,8 @@ class ArrayIndex(ExpressionKind):
 
     def __init__(self, base: Expression, index: Expression):
         super().__init__()
+        assert isinstance(base, Expression)
+        assert isinstance(index, Expression)
         self.base = base
         self.index = index
 
@@ -432,11 +581,18 @@ class ArrayIndex(ExpressionKind):
 class Variable:
     def __init__(self, name: str, ty: types.MyType):
         super().__init__()
+        assert isinstance(name, str)
+        assert isinstance(ty, types.MyType)
         self.name = name
         self.ty = ty
 
     def __repr__(self):
         return f'var({self.name})'
+
+    def ref_expr(self, location: Location) -> Expression:
+        """ Retrieve an expression referring to this variable! """
+        kind = ObjRef(self)
+        return Expression(kind, self.ty, location)
 
 
 class BuiltinModule:
@@ -448,9 +604,9 @@ class BuiltinModule:
 
 
 class BuiltinFunction:
-    def __init__(self, name: str, parameter_types, return_type):
+    def __init__(self, name: str, parameter_types: list[types.MyType], return_type: types.MyType):
         self.name = name
-        self.ty = types.FunctionType(parameter_types, return_type)
+        self.ty = types.function_type(parameter_types, return_type)
 
 
 class Undefined:
@@ -467,29 +623,45 @@ class AstVisitor:
         if isinstance(definition, FunctionDef):
             for parameter in definition.parameters:
                 self.visit_type(parameter.ty)
-            self.visit_block(definition.statements)
+            if definition.return_ty:
+                self.visit_type(definition.return_ty)
+            self.visit_statement(definition.statements)
         elif isinstance(definition, StructDef):
             for field in definition.fields:
                 self.visit_type(field.ty)
+        elif isinstance(definition, EnumDef):
+            for variant in definition.variants:
+                for ty in variant.payload:
+                    self.visit_type(ty)
+        elif isinstance(definition, ClassDef):
+            for member in definition.members:
+                self.visit_definition(member)
+        elif isinstance(definition, VarDef):
+            self.visit_type(definition.ty)
+            self.visit_expression(definition.value)
+
+    def visit_node(self, node: Node):
+        if isinstance(node, CaseArm):
+            self.visit_statement(node.body)
+        else:
+            raise NotImplementedError(str(node))
 
     def visit_type(self, ty: types.MyType):
-        if isinstance(ty, types.TypeExpression):
-            self.visit_expression(ty.expr)
-
-    def visit_block(self, block: list['Statement']):
-        if isinstance(block, list):
-            for statement in block:
-                self.visit_statement(statement)
-        else:
-            self.visit_statement(block)
+        if isinstance(ty.kind, types.TypeExpression):
+            self.visit_expression(ty.kind.expr)
 
     def visit_statement(self, statement: Statement):
         kind = statement.kind
         if isinstance(kind, IfStatement):
             self.visit_expression(kind.condition)
-            self.visit_block(kind.true_statement)
+            self.visit_statement(kind.true_statement)
             if kind.false_statement:
-                self.visit_block(kind.false_statement)
+                self.visit_statement(kind.false_statement)
+        elif isinstance(kind, CaseStatement):
+            self.visit_expression(kind.value)
+            self.mid_statement(statement)
+            for arm in kind.arms:
+                self.visit_node(arm)
         elif isinstance(kind, LetStatement):
             if kind.ty:
                 self.visit_type(kind.ty)
@@ -501,13 +673,27 @@ class AstVisitor:
             self.visit_expression(kind.value)
         elif isinstance(kind, WhileStatement):
             self.visit_expression(kind.condition)
-            self.visit_block(kind.inner)
+            self.visit_statement(kind.inner)
+        elif isinstance(kind, LoopStatement):
+            self.visit_statement(kind.inner)
         elif isinstance(kind, ForStatement):
             self.visit_expression(kind.values)
-            self.visit_block(kind.inner)
+            self.mid_statement(statement)
+            self.visit_statement(kind.inner)
         elif isinstance(kind, AssignmentStatement):
             self.visit_expression(kind.target)
             self.visit_expression(kind.value)
+        elif isinstance(kind, CompoundStatement):
+            for statement2 in kind.statements:
+                self.visit_statement(statement2)
+        elif isinstance(kind, (BreakStatement, ContinueStatement, PassStatement)):
+            pass
+        else:
+            raise NotImplementedError(str(kind))
+
+    def mid_statement(self, statement: Statement):
+        """ Extra hook to allow mid-statement handlers """
+        pass
 
     def visit_expression(self, expression: Expression):
         kind = expression.kind
@@ -521,6 +707,12 @@ class AstVisitor:
         elif isinstance(kind, DotOperator):
             self.visit_expression(kind.base)
         elif isinstance(kind, ArrayLiteral):
+            for value in kind.values:
+                self.visit_expression(value)
+        elif isinstance(kind, StructLiteral):
+            for value in kind.values:
+                self.visit_expression(value)
+        elif isinstance(kind, EnumLiteral):
             for value in kind.values:
                 self.visit_expression(value)
         elif isinstance(kind, NewOp):
@@ -553,24 +745,37 @@ class AstPrinter(AstVisitor):
         indent = ' ' * self._indent
         print(indent + txt)
 
-    def print_module(self, mod: Module):
+    def print_module(self, module: Module):
         self.emit('Imports:')
-        for imp in mod.imports:
-            self.emit(f'- {imp.name}')
+        for imp in module.imports:
+            self.emit(f'- {imp}')
 
-        self.emit('Functions:')
-        for definition in mod.definitions:
-            if isinstance(definition, FunctionDef):
-                self.emit(f'- fn {definition.name}')
-                self.indent()
-                self.visit_block(definition.statements)
-                self.dedent()
-            elif isinstance(definition, StructDef):
-                self.emit(f'- struct {definition.name}')
-                self.indent()
-                for field in definition.fields:
-                    self.emit(f'- {field.name} : {field.ty}')
-                self.dedent()
+        self.visit_module(module)
+
+    def visit_definition(self, definition: Definition):
+        if isinstance(definition, FunctionDef):
+            self.emit(f'- fn {definition.name}')
+            self.indent()
+        elif isinstance(definition, StructDef):
+            self.emit(f'- struct {definition.name}')
+            self.indent()
+            for field in definition.fields:
+                self.emit(f'- {field.name} : {field.ty}')
+        elif isinstance(definition, EnumDef):
+            self.emit(f'- enum {definition.name}')
+            self.indent()
+        elif isinstance(definition, ClassDef):
+            self.emit(f'- class {definition.name}')
+            self.indent()
+        elif isinstance(definition, VarDef):
+            self.emit(f'- var {definition.name}')
+            self.indent()
+        else:
+            self.emit(f'- ? {definition}')
+            self.indent()
+
+        super().visit_definition(definition)
+        self.dedent()
 
     def visit_statement(self, statement: Statement):
         self.emit(f'{statement.kind}')
@@ -579,7 +784,7 @@ class AstPrinter(AstVisitor):
         self.dedent()
 
     def visit_expression(self, expression: Expression):
-        self.emit(f'{expression.kind}')
+        self.emit(f'{expression}')
         self.indent()
         super().visit_expression(expression)
         self.dedent()

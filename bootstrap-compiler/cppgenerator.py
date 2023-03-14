@@ -27,22 +27,37 @@ class Generator:
         self.print("void std_print(std::string msg);")
         self.print("std::string std_int_to_str(int value);")
         self.print("")
+
+        # Do some forward declarations
+        for definition in module.definitions:
+            if isinstance(definition, ast.FunctionDef):
+                self.gen_func_decl(definition)
+            # elif isinstance(definition, ast.StructDef):
+            #    self.gen_struct_decl(definition)
+
+        self.print("")
+
         for definition in module.definitions:
             if isinstance(definition, ast.FunctionDef):
                 self.gen_func_def(definition)
             elif isinstance(definition, ast.StructDef):
                 self.gen_struct_def(definition)
-            else:
-                pass
+
+    def gen_func_decl(self, func_def: ast.FunctionDef):
+        decl = self.func_proto(func_def)
+        self.print(f"{decl};")
 
     def gen_func_def(self, func_def: ast.FunctionDef):
-        # TODO: return type
-        parameters = [
-            f'{self.gen_type(p.ty, p.name)}' for p in func_def.parameters]
-        self.print(f"void {func_def.name}({', '.join(parameters)}) {{")
+        decl = self.func_proto(func_def)
+        self.print(f"{decl} {{")
         self.gen_block(func_def.statements)
         self.print(f"}}")
         self.print(f"")
+
+    def func_proto(self, func_def: ast.FunctionDef):
+        parameters = ', '.join(
+            f'{self.gen_type(p.ty, p.name)}' for p in func_def.parameters)
+        return f"{self.gen_type(func_def.return_ty, func_def.name)}({parameters})"
 
     def gen_struct_def(self, struct_def: ast.StructDef):
         self.print(f"struct {struct_def.name} {{")
@@ -54,24 +69,26 @@ class Generator:
         self.print(f"")
 
     def gen_type(self, ty: types.MyType, name: str) -> str:
-        if isinstance(ty, types.BaseType):
+        kind = ty.kind
+        if isinstance(kind, types.BaseType):
             ctypes = {
                 'str': 'std::string',
                 'float': 'double',
             }
-            cty = ctypes.get(ty.name, ty.name)
-            return f"{cty} {name}"
-        elif isinstance(ty, types.ArrayType):
-            return f"{self.gen_type(ty.element_type, name)}[{ty.size}]"
-        elif isinstance(ty, types.StructType):
-            return f"struct {ty.struct_def.name} {name}"
+            cty = ctypes.get(kind.name, kind.name)
+            return f"{cty} {name}" if name else cty
+        elif isinstance(kind, types.ArrayType):
+            assert name
+            return f"{self.gen_type(kind.element_type, name)}[{kind.size}]"
+        elif isinstance(kind, types.StructType):
+            assert name
+            return f"struct {kind.struct_def.name} {name}"
         else:
-            return str(ty)
+            return f"{ty} {name}" if name else str(ty)
 
-    def gen_block(self, block: list[ast.Statement]):
+    def gen_block(self, block: ast.Statement):
         self.indent()
-        for statement in block:
-            self.gen_statement(statement)
+        self.gen_statement(block)
         self.dedent()
 
     def gen_statement(self, statement: ast.Statement):
@@ -80,7 +97,7 @@ class Generator:
             self.print(f"{self.gen_expr(kind.value)};")
         elif isinstance(kind, ast.LetStatement):
             # ty = 'int'  # TODO
-            dst = self.gen_type(kind.variable.ty, kind.target)
+            dst = self.gen_type(kind.variable.ty, kind.variable.name)
             value = self.gen_expr(kind.value, parens=False)
             self.print(
                 f"{dst} = {value};")
@@ -102,15 +119,9 @@ class Generator:
             self.gen_block(kind.inner)
             self.print(f"}}")
         elif isinstance(kind, ast.ForStatement):
-            # TODO!
-            self.print(
-                f"for (int {kind.target} = 1;111) {{")
-            self.gen_block(kind.inner)
-            self.print(f"}}")
+            raise ValueError("Rewrite for-loops into while")
         elif isinstance(kind, ast.LoopStatement):
-            self.print(f"while (true) {{")
-            self.gen_block(kind.inner)
-            self.print(f"}}")
+            raise ValueError("Rewrite loops into while")
         elif isinstance(kind, ast.BreakStatement):
             self.print(f"break;")
         elif isinstance(kind, ast.ContinueStatement):
@@ -120,6 +131,9 @@ class Generator:
                 self.print(f"return {self.gen_expr(kind.value)};")
             else:
                 self.print(f"return;")
+        elif isinstance(kind, ast.CompoundStatement):
+            for statement2 in kind.statements:
+                self.gen_statement(statement2)
         else:
             self.print(f"{statement}")
 
@@ -141,11 +155,16 @@ class Generator:
             x = f"{self.gen_expr(kind.lhs)} {op} {self.gen_expr(kind.rhs)}"
             return f"({x})" if parens else x
         elif isinstance(kind, ast.TypeCast):
-            return f"static_cast<{self.gen_type(kind.ty, '')}> ({self.gen_expr(kind.value)})"
+            return f"static_cast<{self.gen_type(kind.ty, '')}>({self.gen_expr(kind.value)})"
         elif isinstance(kind, ast.NumericConstant):
             return f"{kind.value}"
         elif isinstance(kind, ast.StringConstant):
             return f"{kind.text}"
+        elif isinstance(kind, ast.BoolLiteral):
+            txt = {
+                True: 'true', False: 'false'
+            }
+            return txt[kind.value]
         elif isinstance(kind, ast.ArrayLiteral):
             values = [self.gen_expr(e) for e in kind.values]
             return f"{{ {', '.join(values)} }}"

@@ -10,9 +10,9 @@ from .namebinding import ScopeFiller, NameBinder
 logger = logging.getLogger('analyzer')
 
 
-def analyze_ast(module: ast.Module, code: str, options) -> bool:
+def analyze_ast(module: ast.Module, code: str, known_modules: dict, options) -> bool:
     logger.info("Type checking")
-    filler = ScopeFiller(code)
+    filler = ScopeFiller(code, known_modules)
     filler.fill_module(module)
     logger.info("Scopes filled")
     if not filler._ok:
