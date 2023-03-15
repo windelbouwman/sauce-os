@@ -127,7 +127,8 @@ class CustomTransformer(LarkTransformer):
     def struct_def(self, x):
         name = x[1].value
         fields = x[5:-1]
-        return ast.StructDef(name, fields, get_loc(x[0]))
+        is_union = False
+        return ast.StructDef(name, is_union, fields, get_loc(x[0]))
 
     def struct_field(self, x):
         return ast.StructFieldDef(x[0], x[2], get_loc(x[0]))
@@ -215,6 +216,18 @@ class CustomTransformer(LarkTransformer):
             variables = []
         body = x[-1]
         return ast.CaseArm(name, variables, body, get_loc(x[0]))
+
+    def switch_statement(self, x):
+        # switch_statement: KW_SWITCH expression COLON NEWLINE INDENT switch_arm+ DEDENT KW_ELSE COLON NEWLINE block
+        value = x[1]
+        arms = x[5:-5]
+        default_body = x[-1]
+        return ast.switch_statement(value, arms, default_body, get_loc(x[0]))
+
+    def switch_arm(self, x):
+        # switch_arm: expression COLON NEWLINE block
+        print(x)
+        return ast.SwitchArm(x[0], x[3], get_loc(x[1]))
 
     def let_statement(self, x):
         """ KW_LET ID (COLON typ)? EQUALS expression NEWLINE """
@@ -317,10 +330,12 @@ class CustomTransformer(LarkTransformer):
             return x[1]
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == 'LEFT_BRACKET':
             base, index = x[0], x[2]
-            return ast.array_index(base, index, get_loc(x[1]))
+            ty = types.void_type
+            return ast.array_index(base, index, ty, get_loc(x[1]))
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == 'DOT':
             base, field = x[0], x[2]
-            return ast.dot_operator(base, field, get_loc(x[1]))
+            ty = types.void_type
+            return ast.dot_operator(base, field, ty, get_loc(x[1]))
         else:
             raise NotImplementedError(str(x))
 
@@ -362,7 +377,8 @@ class CustomTransformer(LarkTransformer):
         if len(x) == 1:
             return ast.name_ref(x[0].value, get_loc(x[0]))
         else:
-            return ast.dot_operator(x[0], x[2].value, get_loc(x[1]))
+            ty = types.void_type
+            return ast.dot_operator(x[0], x[2].value, ty, get_loc(x[1]))
 
 
 grammar = r"""
@@ -406,6 +422,7 @@ statement: simple_statement NEWLINE
          | let_statement
          | for_statement
          | case_statement
+         | switch_statement
 
 simple_statement: expression
                 | KW_BREAK
@@ -422,6 +439,8 @@ loop_statement: KW_LOOP COLON NEWLINE block
 for_statement: KW_FOR ID KW_IN expression COLON NEWLINE block
 case_statement: KW_CASE expression COLON NEWLINE INDENT case_arm+ DEDENT
 case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? COLON NEWLINE block
+switch_statement: KW_SWITCH expression COLON NEWLINE INDENT switch_arm+ DEDENT KW_ELSE COLON NEWLINE block
+switch_arm: expression COLON NEWLINE block
 
 test: disjunction
 disjunction: disjunction KW_OR conjunction
@@ -465,7 +484,7 @@ field_init: ID COLON expression NEWLINE
 %declare KW_ELSE KW_ENUM
 %declare KW_FN KW_FOR KW_FROM KW_IF KW_IMPORT KW_IN
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
-%declare KW_RETURN KW_STRUCT KW_VAR KW_WHILE
+%declare KW_RETURN KW_STRUCT KW_SWITCH KW_VAR KW_WHILE
 
 %declare LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON DOUBLE_COLON COMMA DOT ARROW

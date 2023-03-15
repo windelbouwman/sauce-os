@@ -9,7 +9,7 @@ struct Fu:
     msg: str
     b: int
 
-fn main():
+fn main() -> int:
     let messages = Holder:
         msg1: "Hello c22ool world!!"
         msg2: "W02220t"

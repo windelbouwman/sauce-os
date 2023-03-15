@@ -17,7 +17,10 @@ class MyType:
         return isinstance(self.kind, VoidType)
 
     def is_struct(self):
-        return isinstance(self.kind, StructType)
+        return isinstance(self.kind, StructType) and self.kind.is_struct()
+
+    def is_union(self):
+        return isinstance(self.kind, StructType) and self.kind.is_union()
 
     def is_enum(self):
         return isinstance(self.kind, EnumType)
@@ -27,6 +30,20 @@ class MyType:
 
     def is_float(self) -> bool:
         return isinstance(self.kind, BaseType) and self.kind.name == 'float'
+
+    def get_field_name(self, i: int | str) -> str:
+        """ Retrieve name of field. i can be index or name """
+        if isinstance(self.kind, StructType):
+            return self.kind.get_field_name(i)
+        else:
+            raise ValueError("Can only get field from struct/union")
+
+    def get_field_type(self, i: int | str) -> 'MyType':
+        """ Retrieve type of field. i can be index or name """
+        if isinstance(self.kind, StructType):
+            return self.kind.get_field_type(i)
+        else:
+            raise ValueError("Can only get field from struct/union")
 
     def equals(self, other: 'MyType'):
         if self is other:
@@ -95,17 +112,28 @@ class StructType(TypeKind):
         self.struct_def = struct_def
 
     def __repr__(self):
-        return f"enum-{self.struct_def.name}"
+        t = 'union' if self.struct_def.is_union else 'struct'
+        return f"{t}-{self.struct_def.name}"
+
+    def is_struct(self) -> bool:
+        return not self.is_union()
+
+    def is_union(self) -> bool:
+        return self.struct_def.is_union
 
     def is_reftype(self):
         return True
 
     def has_field(self, name: str) -> bool:
-        return self.struct_def.scope.is_defined(name)
+        return self.struct_def.has_field(name)
 
-    def get_field(self, name: str) -> MyType:
-        field = self.struct_def.scope.lookup(name)
+    def get_field_type(self, i: int | str) -> MyType:
+        field = self.struct_def.get_field(i)
         return field.ty
+
+    def get_field_name(self, i: int | str) -> str:
+        field = self.struct_def.get_field(i)
+        return field.name
 
     def index_of(self, name):
         names = [name for name, _ in self.fields]

@@ -1,6 +1,6 @@
 import std
 
-fn main():
+fn main() -> int:
     # """ Print a mandelbrot fractal to the console """
     let w = 75
     let h = 24
@@ -36,4 +36,7 @@ fn main():
         # std.putc('\n')
         std::print(line)
         y = y + 1
-    return  # TODO: fix implicit return somehow.
+    
+    # TODO: fix implicit return somehow.
+    return  0  
+ 

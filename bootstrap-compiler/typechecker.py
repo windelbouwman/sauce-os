@@ -47,6 +47,8 @@ class TypeChecker(BasePass):
             self.assert_type(kind.condition, bool_type)
         elif isinstance(kind, ast.CaseStatement):
             pass  # handled in mid-statement hook
+        elif isinstance(kind, ast.SwitchStatement):
+            self.assert_type(kind.value, types.int_type)
         elif isinstance(kind, ast.ExpressionStatement):
             # Check void type: Good idea?
             self.assert_type(kind.value, void_type)
@@ -68,7 +70,7 @@ class TypeChecker(BasePass):
             else:
                 kind.variable.ty = kind.value.ty
         elif isinstance(kind, ast.AssignmentStatement):
-            pass
+            self.assert_type(kind.value, kind.target.ty)
         else:
             raise NotImplementedError(str(statement))
 
@@ -81,6 +83,10 @@ class TypeChecker(BasePass):
                     if enum_def.scope.is_defined(arm.name):
                         variant: ast.EnumVariant = enum_def.scope.lookup(
                             arm.name)
+
+                        # HACK to pass variant to transform pass:
+                        arm.variant = variant
+
                         assert len(variant.payload) == len(arm.variables)
                         for v, t in zip(arm.variables, variant.payload):
                             v.ty = t

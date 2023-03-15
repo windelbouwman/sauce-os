@@ -26,22 +26,25 @@ class Generator:
         # contents from: runtime/runtime.hpp
         self.print("void std_print(std::string msg);")
         self.print("std::string std_int_to_str(int value);")
+        self.print("std::string std_float_to_str(double value);")
+        self.print("")
+
+        for definition in module.definitions:
+            if isinstance(definition, ast.StructDef):
+                self.gen_struct_def(definition)
+
         self.print("")
 
         # Do some forward declarations
         for definition in module.definitions:
             if isinstance(definition, ast.FunctionDef):
                 self.gen_func_decl(definition)
-            # elif isinstance(definition, ast.StructDef):
-            #    self.gen_struct_decl(definition)
 
         self.print("")
 
         for definition in module.definitions:
             if isinstance(definition, ast.FunctionDef):
                 self.gen_func_def(definition)
-            elif isinstance(definition, ast.StructDef):
-                self.gen_struct_def(definition)
 
     def gen_func_decl(self, func_def: ast.FunctionDef):
         decl = self.func_proto(func_def)
@@ -60,7 +63,8 @@ class Generator:
         return f"{self.gen_type(func_def.return_ty, func_def.name)}({parameters})"
 
     def gen_struct_def(self, struct_def: ast.StructDef):
-        self.print(f"struct {struct_def.name} {{")
+        t = 'union' if struct_def.is_union else 'struct'
+        self.print(f"{t} {struct_def.name} {{")
         self.indent()
         for field in struct_def.fields:
             self.print(f"{self.gen_type(field.ty, field.name)};")
@@ -82,7 +86,10 @@ class Generator:
             return f"{self.gen_type(kind.element_type, name)}[{kind.size}]"
         elif isinstance(kind, types.StructType):
             assert name
-            return f"struct {kind.struct_def.name} {name}"
+            t = 'union' if kind.struct_def.is_union else 'struct'
+            return f"{t} {kind.struct_def.name} {name}"
+        elif isinstance(kind, types.EnumType):
+            raise ValueError("C++ backend does not support enum types.")
         else:
             return f"{ty} {name}" if name else str(ty)
 
@@ -107,11 +114,32 @@ class Generator:
         elif isinstance(kind, ast.IfStatement):
             self.print(
                 f"if ({self.gen_expr(kind.condition, parens=False)}) {{")
-            # if statement.true_statement:
             self.gen_block(kind.true_statement)
             if kind.false_statement:
                 self.print(f"}} else {{")
                 self.gen_block(kind.false_statement)
+            self.print(f"}}")
+        elif isinstance(kind, ast.CaseStatement):
+            raise ValueError("C++ backend does not support case statements.")
+        elif isinstance(kind, ast.SwitchStatement):
+            self.print(
+                f"switch ({self.gen_expr(kind.value, parens=False)}) {{")
+            self.indent()
+            for arm in kind.arms:
+                self.print(f"case {self.gen_expr(arm.value)}: {{")
+                self.indent()
+                self.gen_statement(arm.body)
+                self.print(f"break;")
+                self.dedent()
+                self.print(f"}}")
+
+            self.print(f"default:")
+            self.indent()
+            self.gen_statement(kind.default_body)
+            self.print(f"break;")
+            self.dedent()
+
+            self.dedent()
             self.print(f"}}")
         elif isinstance(kind, ast.WhileStatement):
             self.print(
@@ -126,6 +154,8 @@ class Generator:
             self.print(f"break;")
         elif isinstance(kind, ast.ContinueStatement):
             self.print(f"continue;")
+        elif isinstance(kind, ast.PassStatement):
+            pass
         elif isinstance(kind, ast.ReturnStatement):
             if kind.value:
                 self.print(f"return {self.gen_expr(kind.value)};")
@@ -148,9 +178,7 @@ class Generator:
         elif isinstance(kind, ast.DotOperator):
             return f"{self.gen_expr(kind.base)}.{kind.field}"
         elif isinstance(kind, ast.Binop):
-            ops = {
-                'and': '&&', 'or': '||'
-            }
+            ops = {'and': '&&', 'or': '||'}
             op: str = ops.get(kind.op, kind.op)
             x = f"{self.gen_expr(kind.lhs)} {op} {self.gen_expr(kind.rhs)}"
             return f"({x})" if parens else x
@@ -161,9 +189,7 @@ class Generator:
         elif isinstance(kind, ast.StringConstant):
             return f"{kind.text}"
         elif isinstance(kind, ast.BoolLiteral):
-            txt = {
-                True: 'true', False: 'false'
-            }
+            txt = {True: 'true', False: 'false'}
             return txt[kind.value]
         elif isinstance(kind, ast.ArrayLiteral):
             values = [self.gen_expr(e) for e in kind.values]
@@ -171,6 +197,13 @@ class Generator:
         elif isinstance(kind, ast.StructLiteral):
             values = [self.gen_expr(e) for e in kind.values]
             return f"{{ {', '.join(values)} }}"
+        elif isinstance(kind, ast.UnionLiteral):
+            # TODO: select field?
+            field = kind.field
+            value = self.gen_expr(kind.value)
+            return f"{{ .{field}={value} }}"
+        elif isinstance(kind, ast.EnumLiteral):
+            raise ValueError("C++ backend does not handle enum literals")
         elif isinstance(kind, ast.ObjRef):
             if isinstance(kind.obj, ast.Variable):
                 return f"{kind.obj.name}"
@@ -182,15 +215,10 @@ class Generator:
                 return f"{kind.obj.name}"
             else:
                 raise NotImplementedError(str(kind.obj))
-
-        elif isinstance(expr, ast.Parameter):
-            return f"{expr.name}"
-        elif isinstance(expr, ast.FunctionDef):
-            return f"{expr.name}"
-        elif isinstance(expr, ast.NameRef):
-            return f"{expr.name}"
+        elif isinstance(kind, ast.NameRef):
+            raise ValueError("Names must be resolved")
         else:
-            return str(expr)
+            raise NotImplementedError(str(expr))
 
     def indent(self):
         self.level += 1

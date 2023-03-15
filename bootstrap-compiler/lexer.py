@@ -91,6 +91,7 @@ def tokenize(code: str):
         'pass': 'KW_PASS',
         'return': 'KW_RETURN',
         'struct': 'KW_STRUCT',
+        'switch': 'KW_SWITCH',
         'var': 'KW_VAR',
         'while': 'KW_WHILE'
     }
