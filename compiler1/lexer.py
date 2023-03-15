@@ -50,9 +50,13 @@ def detect_indentations(code: str, tokens: Iterable[Token]):
                 level_stack.append(new_indentation)
             yield token
 
+    end_loc = Location(0xffffffff, 1)
+    if not bol:
+        yield Token('NEWLINE', 'NEWLINE', end_loc)
+
     while len(level_stack) > 1:
         level_stack.pop()
-        yield Token('DEDENT', '', Location(0, 0))
+        yield Token('DEDENT', '', end_loc)
 
 
 def tokenize(code: str):

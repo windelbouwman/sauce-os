@@ -12,15 +12,20 @@ from . import ast, types
 logger = logging.getLogger('transforms')
 
 
-def transform(module: ast.Module):
-    LoopRewriter().transform(module)
-    EnumRewriter().transform(module)
+def transform(modules: list[ast.Module]):
+    """ Transform a slew of modules (in-place)
+
+    Some real compilation being done here.
+    """
+    LoopRewriter().transform(modules)
+    EnumRewriter().transform(modules)
 
 
 class BaseTransformer(ast.AstVisitor):
-    def transform(self, module: ast.Module):
+    def transform(self, modules: list[ast.Module]):
         logger.info(f"Transforming")
-        self.visit_module(module)
+        for module in modules:
+            self.visit_module(module)
 
 
 class LoopRewriter(BaseTransformer):

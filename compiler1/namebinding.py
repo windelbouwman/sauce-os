@@ -14,45 +14,47 @@ def base_scope() -> Scope:
     top_scope.define('str', types.str_type)
     top_scope.define('int', types.int_type)
     top_scope.define('float', types.float_type)
+    top_scope.define('bool', types.bool_type)
     return top_scope
 
 
 class ScopeFiller(BasePass):
-    def __init__(self, modules: dict):
+    def __init__(self, modules: dict[str, ast.Module]):
         super().__init__()
         self._scopes: list[Scope] = []
         self._modules = modules
 
     def fill_module(self, module: ast.Module):
-        self.begin(module.filename, "Filling scopes")
+        self.begin(module.filename,
+                   f"Filling scopes in module '{module.name}'")
+        self.define_module(module)
         self.enter_scope()
         for imp in module.imports:
-            if isinstance(imp, ast.Import):
-                mod = self.load_module(imp.location, imp.name)
-                if mod:
-                    self.define_symbol(imp.name, mod)
-            elif isinstance(imp, ast.ImportFrom):
-                mod = self.load_module(imp.location, imp.modname)
-                if mod:
+            if imp.modname in self._modules:
+                mod = self._modules[imp.modname]
+                if isinstance(imp, ast.Import):
+                    self.define_symbol(imp.modname, mod)
+                elif isinstance(imp, ast.ImportFrom):
                     for name in imp.names:
-                        if name in mod.symbols:
-                            self.define_symbol(name, mod.symbols[name])
+                        if mod.has_field(name):
+                            self.define_symbol(name, mod.get_field(name))
                         else:
                             self.error(imp.location,
                                        f'No such field: {name}')
-
+                else:
+                    raise NotImplementedError(str(imp))
             else:
-                raise NotImplementedError(str(imp))
+                self.error(imp.location, f"Module {imp.modname} not found")
 
         self.visit_module(module)
         module.scope = self.leave_scope()
         self.finish("Scopes filled")
 
-    def load_module(self, location: Location, modname: str):
-        if modname in self._modules:
-            return self._modules[modname]
+    def define_module(self, module: ast.Module):
+        if module.name in self._modules:
+            self.error(module.location, f"Cannot redefine {module.name}")
         else:
-            self.error(location, f"Module {modname} not found")
+            self._modules[module.name] = module
 
     def visit_definition(self, definition: ast.Definition):
         has_scope = False
@@ -134,7 +136,7 @@ class NameBinder(BasePass):
         self._scopes = [base_scope()]
 
     def resolve_symbols(self, module: ast.Module):
-        self.begin(module.filename, "Resolving symbols")
+        self.begin(module.filename, f"Resolving symbols in '{module.name}'")
         self.enter_scope(module.scope)
 
         self.visit_module(module)
@@ -202,9 +204,9 @@ class NameBinder(BasePass):
             # Resolve obj_ref . field at this point, we can do this here.
             if isinstance(kind.base.kind, ast.ObjRef):
                 obj = kind.base.kind.obj
-                if isinstance(obj, ast.BuiltinModule):
-                    if kind.field in obj.symbols:
-                        expression.kind = ast.ObjRef(obj.symbols[kind.field])
+                if isinstance(obj, (ast.BuiltinModule, ast.Module)):
+                    if obj.has_field(kind.field):
+                        expression.kind = ast.ObjRef(obj.get_field(kind.field))
                     else:
                         self.error(expression.location,
                                    f'No such field: {kind.field}')

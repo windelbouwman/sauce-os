@@ -18,7 +18,7 @@ class TypeChecker(BasePass):
         super().__init__()
 
     def check_module(self, module: ast.Module):
-        self.begin(module.filename, f"Type checking {module}")
+        self.begin(module.filename, f"Type checking module '{module.name}'")
         for definition in module.definitions:
             if isinstance(definition, (ast.StructDef, ast.EnumDef)):
                 pass

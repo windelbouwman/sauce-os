@@ -40,30 +40,43 @@ class Expression(Node):
 
 
 class Module(Node):
-    def __init__(self, name: str, imports, definitions: list['Definition']):
+    def __init__(self, name: str, imports: list['BaseImport'], definitions: list['Definition']):
+        super().__init__(Location(1, 1))
         assert isinstance(name, str)
         self.name = name
         self.filename = ''
         self.imports = list(imports)
         self.definitions = list(definitions)
         self.types = []
-        self.scope = None
+        self.scope: Scope = None
 
     def __repr__(self):
         return f"Module({self.name})"
 
+    def get_deps(self) -> list[str]:
+        return [imp.modname for imp in self.imports]
 
-class Import(Node):
-    def __init__(self, name: str, location: Location):
-        super().__init__(location)
-        assert isinstance(name, str)
-        self.name = name
+    def has_field(self, name: str) -> bool:
+        return self.scope.is_defined(name)
+
+    def get_field(self, name: str):
+        return self.scope.lookup(name)
 
 
-class ImportFrom(Node):
-    def __init__(self, modname: str, names: list[str], location: Location):
+class BaseImport(Node):
+    def __init__(self, modname: str, location: Location):
         super().__init__(location)
         assert isinstance(modname, str)
+        self.modname = modname
+
+
+class Import(BaseImport):
+    pass
+
+
+class ImportFrom(BaseImport):
+    def __init__(self, modname: str, names: list[str], location: Location):
+        super().__init__(modname, location)
         assert isinstance(names, list)
         self.modname = modname
         self.names = names
@@ -187,7 +200,7 @@ class EnumDef(Definition):
         self.variants = variants
         self.scope = None
 
-    def get_type(self):
+    def get_type(self) -> types.MyType:
         return types.enum_type(self)
 
 
@@ -717,6 +730,12 @@ class BuiltinModule:
         self.name = name
         self.ty = types.ModuleType()
         self.symbols = symbols
+
+    def has_field(self, name: str) -> bool:
+        return name in self.symbols
+
+    def get_field(self, name: str):
+        return self.symbols[name]
 
 
 class BuiltinFunction:

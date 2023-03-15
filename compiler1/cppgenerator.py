@@ -8,9 +8,14 @@ Idea2: Use python code as bootstrapping target?
 from . import ast, types
 
 
-def gencode(module: ast.Module, f=None):
+def gencode(modules: list[ast.Module], f=None):
     g = Generator(f)
-    g.gen_module(module)
+    g.gen_prelude()
+    g.gen_type_decls(modules)
+    g.gen_func_decls(modules)
+
+    for module in modules:
+        g.gen_module(module)
 
 
 class Generator:
@@ -19,6 +24,11 @@ class Generator:
         self.f = f
 
     def gen_module(self, module: ast.Module):
+        for definition in module.definitions:
+            if isinstance(definition, ast.FunctionDef):
+                self.gen_func_def(definition)
+
+    def gen_prelude(self):
         self.print("")
         self.print("// Auto-generated C++ code!")
         self.print("")
@@ -29,22 +39,20 @@ class Generator:
         self.print("std::string std_float_to_str(double value);")
         self.print("")
 
-        for definition in module.definitions:
-            if isinstance(definition, ast.StructDef):
-                self.gen_struct_def(definition)
-
+    def gen_type_decls(self, modules: list[ast.Module]):
+        for module in modules:
+            for definition in module.definitions:
+                if isinstance(definition, ast.StructDef):
+                    self.gen_struct_def(definition)
         self.print("")
 
-        # Do some forward declarations
-        for definition in module.definitions:
-            if isinstance(definition, ast.FunctionDef):
-                self.gen_func_decl(definition)
-
+    def gen_func_decls(self, modules: list[ast.Module]):
+        """ Do some forward declarations """
+        for module in modules:
+            for definition in module.definitions:
+                if isinstance(definition, ast.FunctionDef):
+                    self.gen_func_decl(definition)
         self.print("")
-
-        for definition in module.definitions:
-            if isinstance(definition, ast.FunctionDef):
-                self.gen_func_def(definition)
 
     def gen_func_decl(self, func_def: ast.FunctionDef):
         decl = self.func_proto(func_def)

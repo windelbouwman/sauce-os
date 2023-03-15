@@ -86,13 +86,12 @@ class CustomTransformer(LarkTransformer):
         return x
 
     def import1(self, x):
-        return ast.Import(x[1], get_loc(x[0]))
+        modname = x[1].value
+        return ast.Import(modname, get_loc(x[0]))
 
     def import2(self, x):
-        # print('import 2', x)
         modname = x[1].value
         names = x[3]
-        assert isinstance(names, list)
         return ast.ImportFrom(modname, names, get_loc(x[0]))
 
     def definitions(self, x):
