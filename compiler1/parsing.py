@@ -2,6 +2,7 @@
 """
 
 import logging
+import os
 
 # try lark as parser
 from lark import Lark, Transformer as LarkTransformer
@@ -15,18 +16,28 @@ from .errors import ParseError, print_error
 logger = logging.getLogger('parser')
 
 
-def parse(code: str) -> ast.Module:
+def parse_file(filename: str) -> ast.Module:
+    logger.info(f"Parsing {filename}")
+    modname = os.path.splitext(os.path.basename(filename))[0]
+    with open(filename, 'r') as f:
+        code = f.read()
+    return parse(code, modname, filename)
+
+
+def parse(code: str, modname: str, filename: str) -> ast.Module:
     logger.info("Starting parse")
     # parser = Parser(code)
     # new_ast = parser.parse_module()
     try:
         tree = lark_parser.parse(code)
     except UnexpectedInput as ex:
-        print_error(code, Location(ex.line, ex.column), 'Parsing choked')
-        raise ParseError()
+        raise ParseError(
+            [(filename, Location(ex.line, ex.column), 'Parsing choked')])
+    module: ast.Module = CustomTransformer().transform(tree)
+    module.name = modname
+    module.filename = filename
     logger.info("Parse complete!")
-    new_ast = CustomTransformer().transform(tree)
-    return new_ast
+    return module
 
 
 class CustomLarkLexer(LarkLexer):
@@ -67,13 +78,14 @@ def get_loc(tok: LarkToken):
 
 class CustomTransformer(LarkTransformer):
     def start(self, x):
-        return ast.Module(x[0], x[1])
+        name = '?'
+        imports, definitions = x
+        return ast.Module(name, imports, definitions)
 
     def imports(self, x):
         return x
 
     def import1(self, x):
-        print('import 1', x)
         return ast.Import(x[1], get_loc(x[0]))
 
     def import2(self, x):

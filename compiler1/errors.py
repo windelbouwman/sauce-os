@@ -20,8 +20,21 @@ def print_error(code, location: Location, message: str):
             break
 
 
+def read_source(filename):
+    with open(filename, 'r') as f:
+        return f.read()
+
+
+def print_errors(errors):
+    for filename, location, message in errors:
+        code = read_source(filename)
+        print_error(code, location, message)
+
+
 class CompilationError(RuntimeError):
-    pass
+    def __init__(self, errors):
+        super().__init__()
+        self.errors = errors
 
 
 class ParseError(CompilationError):

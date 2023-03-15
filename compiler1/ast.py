@@ -40,16 +40,23 @@ class Expression(Node):
 
 
 class Module(Node):
-    def __init__(self, imports=(), definitions: list['Definition'] = ()):
+    def __init__(self, name: str, imports, definitions: list['Definition']):
+        assert isinstance(name, str)
+        self.name = name
+        self.filename = ''
         self.imports = list(imports)
         self.definitions = list(definitions)
         self.types = []
         self.scope = None
 
+    def __repr__(self):
+        return f"Module({self.name})"
+
 
 class Import(Node):
     def __init__(self, name: str, location: Location):
         super().__init__(location)
+        assert isinstance(name, str)
         self.name = name
 
 

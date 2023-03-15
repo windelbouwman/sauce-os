@@ -31,6 +31,12 @@ class MyType:
     def is_float(self) -> bool:
         return isinstance(self.kind, BaseType) and self.kind.name == 'float'
 
+    def has_field(self, name: str) -> bool:
+        if isinstance(self.kind, StructType):
+            return self.kind.has_field(name)
+        else:
+            return False
+
     def get_field_name(self, i: int | str) -> str:
         """ Retrieve name of field. i can be index or name """
         if isinstance(self.kind, StructType):

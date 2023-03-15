@@ -8,15 +8,17 @@ from . import ast, types
 from .basepass import BasePass
 from .location import Location
 from .types import bool_type, void_type
+from .errors import CompilationError
 
 logger = logging.getLogger('typechecker')
 
 
 class TypeChecker(BasePass):
-    def __init__(self, code: str):
-        super().__init__(code)
+    def __init__(self):
+        super().__init__()
 
     def check_module(self, module: ast.Module):
+        self.begin(module.filename, f"Type checking {module}")
         for definition in module.definitions:
             if isinstance(definition, (ast.StructDef, ast.EnumDef)):
                 pass
@@ -25,6 +27,8 @@ class TypeChecker(BasePass):
                 self.check_function(definition)
             else:
                 raise NotImplementedError(str(definition))
+
+        self.finish("Type check OK.")
 
     def check_function(self, func: ast.FunctionDef):
         self._function = func
@@ -140,8 +144,9 @@ class TypeChecker(BasePass):
 
         elif isinstance(kind, ast.DotOperator):
             if isinstance(kind.base.ty.kind, types.StructType):
-                if kind.base.ty.kind.has_field(kind.field):
-                    expression.ty = kind.base.ty.kind.get_field(kind.field)
+                if kind.base.ty.has_field(kind.field):
+                    expression.ty = kind.base.ty.get_field_type(
+                        kind.field)
                 else:
                     self.error(expression.location,
                                f'Struct has no field: {kind.field}')

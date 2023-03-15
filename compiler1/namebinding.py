@@ -3,7 +3,6 @@
 import logging
 from . import ast, types
 from .location import Location
-
 from .symboltable import Scope
 from .basepass import BasePass
 
@@ -19,13 +18,13 @@ def base_scope() -> Scope:
 
 
 class ScopeFiller(BasePass):
-    def __init__(self, code: str, modules: dict):
-        super().__init__(code)
+    def __init__(self, modules: dict):
+        super().__init__()
         self._scopes: list[Scope] = []
         self._modules = modules
 
     def fill_module(self, module: ast.Module):
-        logger.info("Filling scopes")
+        self.begin(module.filename, "Filling scopes")
         self.enter_scope()
         for imp in module.imports:
             if isinstance(imp, ast.Import):
@@ -47,6 +46,7 @@ class ScopeFiller(BasePass):
 
         self.visit_module(module)
         module.scope = self.leave_scope()
+        self.finish("Scopes filled")
 
     def load_module(self, location: Location, modname: str):
         if modname in self._modules:
@@ -129,16 +129,17 @@ class NameBinder(BasePass):
     """ Use filled scopes to bind symbols.
     """
 
-    def __init__(self, code: str):
-        super().__init__(code)
+    def __init__(self):
+        super().__init__()
         self._scopes = [base_scope()]
 
     def resolve_symbols(self, module: ast.Module):
-        logger.info("Resolving symbols")
+        self.begin(module.filename, "Resolving symbols")
         self.enter_scope(module.scope)
 
         self.visit_module(module)
         self.leave_scope()
+        self.finish("Symbols resolved")
 
     def visit_definition(self, definition: ast.Definition):
         if isinstance(definition, ast.FunctionDef):
