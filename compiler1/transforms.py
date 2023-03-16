@@ -57,12 +57,12 @@ class LoopRewriter(BaseTransformer):
 
             assert isinstance(kind.values.ty.kind, types.ArrayType)
             # x = arr
-            x_var = ast.Variable('x', kind.values.ty)
+            x_var = ast.Variable('x', kind.values.ty, statement.location)
             let_x = ast.let_statement(
                 x_var, None, kind.values, statement.location)
 
             # i = 0
-            i_var = ast.Variable('i', types.int_type)
+            i_var = ast.Variable('i', types.int_type, statement.location)
             zero = ast.numeric_constant(0, statement.location)
             let_i0 = ast.let_statement(
                 i_var, None, zero, statement.location)
@@ -117,7 +117,7 @@ class EnumRewriter(BaseTransformer):
                             builder3.add_field(f'f_{nr}', p, variant.location)
                         s_def3 = builder3.finish()
                         new_defs.append(s_def3)
-                        t3 = s_def3.get_type()
+                        t3 = s_def3.get_type([])
 
                     builder2.add_field(
                         f"{variant.name}", t3, variant.location)
@@ -127,11 +127,11 @@ class EnumRewriter(BaseTransformer):
                     f'{definition.name}', False, definition.location)
                 builder1.add_field('tag', types.int_type, definition.location)
                 builder1.add_field(
-                    'data', union_def.get_type(), definition.location)
+                    'data', union_def.get_type([]), definition.location)
                 tagged_union_def = builder1.finish()
                 new_defs.append(tagged_union_def)
                 self._tagged_unions[id(definition)
-                                    ] = tagged_union_def.get_type()
+                                    ] = tagged_union_def.get_type([])
 
         module.definitions += new_defs
         super().visit_module(module)
@@ -154,7 +154,7 @@ class EnumRewriter(BaseTransformer):
 
         if isinstance(kind, ast.CaseStatement):
             # x = value
-            x_var = ast.Variable('_x1337', kind.value.ty)
+            x_var = ast.Variable('_x1337', kind.value.ty, statement.location)
             let_x = ast.let_statement(
                 x_var, None, kind.value, statement.location)
 

@@ -20,11 +20,16 @@ class TypeChecker(BasePass):
     def check_module(self, module: ast.Module):
         self.begin(module.filename, f"Type checking module '{module.name}'")
         for definition in module.definitions:
-            if isinstance(definition, (ast.StructDef, ast.EnumDef)):
+            if isinstance(definition, (ast.StructDef, ast.EnumDef, ast.TypeDef)):
                 pass
             elif isinstance(definition, ast.FunctionDef):
                 logger.debug(f"Checking function '{definition.name}'")
                 self.check_function(definition)
+            elif isinstance(definition, ast.ClassDef):
+                logger.debug(f"Checking function '{definition.name}'")
+                for inner_def in definition.members:
+                    if isinstance(inner_def, ast.FunctionDef):
+                        self.check_function(inner_def)
             else:
                 raise NotImplementedError(str(definition))
 
@@ -65,7 +70,7 @@ class TypeChecker(BasePass):
             if kind.value:
                 if not kind.value.ty.equals(self._function.return_ty):
                     self.error(
-                        statement.location, f"Returning wrong type {kind.value.ty} (should be {self._function.ty.return_type})")
+                        statement.location, f"Returning wrong type {kind.value.ty} (should be {self._function.return_ty})")
 
         elif isinstance(kind, ast.LetStatement):
             if kind.ty:
@@ -115,7 +120,7 @@ class TypeChecker(BasePass):
     def check_expression(self, expression: ast.Expression):
         """ Perform type checking on expression! """
         kind = expression.kind
-        if isinstance(kind, (ast.NumericConstant, ast.StringConstant)):
+        if isinstance(kind, (ast.NumericConstant, ast.StringConstant, ast.BoolLiteral)):
             pass
         elif isinstance(kind, ast.ArrayLiteral):
             assert len(kind.values) > 0
@@ -143,17 +148,13 @@ class TypeChecker(BasePass):
                 expression.ty = ty
 
         elif isinstance(kind, ast.DotOperator):
-            if isinstance(kind.base.ty.kind, types.StructType):
-                if kind.base.ty.has_field(kind.field):
-                    expression.ty = kind.base.ty.get_field_type(
-                        kind.field)
-                else:
-                    self.error(expression.location,
-                               f'Struct has no field: {kind.field}')
-                    expression.ty = void_type
+            if kind.base.ty.has_field(kind.field):
+                expression.ty = kind.base.ty.get_field_type(
+                    kind.field)
             else:
                 self.error(expression.location,
-                           f'Cannot access: {kind.base.ty}')
+                           f'{kind.base.ty} has no field: {kind.field}')
+                expression.ty = void_type
 
         elif isinstance(kind, ast.ArrayIndex):
             if isinstance(kind.base.ty.kind, types.ArrayType):
@@ -167,6 +168,11 @@ class TypeChecker(BasePass):
                 self.check_arguments(
                     kind.target.ty.kind.parameter_types, kind.args, expression.location)
                 expression.ty = kind.target.ty.kind.return_type
+            elif isinstance(kind.target.ty.kind, types.ClassType):
+                # Assume constructor is called without arguments for now
+                # TODO: allow constructors!
+                self.check_arguments([], kind.args, expression.location)
+                expression.ty = kind.target.ty
             else:
                 self.error(expression.location,
                            f'Trying to call non-function type: {kind.target.ty}')
@@ -183,7 +189,9 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.EnumLiteral):
             self.check_arguments(kind.variant.payload,
                                  kind.values, expression.location)
-            expression.ty = kind.enum_def.get_type()
+            # TODO: is this correct?
+            type_arguments = []
+            expression.ty = kind.enum_def.get_type(type_arguments)
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
             if isinstance(obj, ast.Variable):
@@ -194,6 +202,8 @@ class TypeChecker(BasePass):
                 expression.ty = obj.get_type()
             elif isinstance(obj, ast.Parameter):
                 expression.ty = obj.ty
+            elif isinstance(obj, ast.ClassDef):
+                expression.ty = obj.get_type([])
             else:
                 raise NotImplementedError(str(kind))
         else:

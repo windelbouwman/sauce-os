@@ -32,7 +32,7 @@ class MyType:
         return isinstance(self.kind, BaseType) and self.kind.name == 'float'
 
     def has_field(self, name: str) -> bool:
-        if isinstance(self.kind, StructType):
+        if isinstance(self.kind, (StructType, ClassType)):
             return self.kind.has_field(name)
         else:
             return False
@@ -46,20 +46,26 @@ class MyType:
 
     def get_field_type(self, i: int | str) -> 'MyType':
         """ Retrieve type of field. i can be index or name """
-        if isinstance(self.kind, StructType):
+        if isinstance(self.kind, (StructType, ClassType)):
             return self.kind.get_field_type(i)
         else:
-            raise ValueError("Can only get field from struct/union")
+            raise ValueError("Can only get field from struct/union/class")
 
     def equals(self, other: 'MyType'):
+        assert isinstance(other, MyType)
         if self is other:
             return True
         elif isinstance(self.kind, BaseType) and isinstance(other.kind, BaseType):
             return self.kind.name == other.kind.name
         elif isinstance(self.kind, StructType) and isinstance(other.kind, StructType):
-            return self.kind.struct_def is other.kind.struct_def
+            # TODO: check for equal type_arguments
+            return (self.kind.struct_def is other.kind.struct_def)
         elif isinstance(self.kind, EnumType) and isinstance(other.kind, EnumType):
             return self.kind.enum_def is other.kind.enum_def
+        elif isinstance(self.kind, FunctionType) and isinstance(other.kind, FunctionType):
+            return self.kind.equals(other.kind)
+        elif isinstance(self.kind, ClassType) and isinstance(other.kind, ClassType):
+            return self.kind.class_def is other.kind.class_def
         else:
             return False
 
@@ -108,14 +114,22 @@ class FunctionType(TypeKind):
         self.parameter_types = parameter_types
         self.return_type = return_type
 
+    def equals(self, other: 'FunctionType') -> bool:
+        if not self.return_type.equals(other.return_type):
+            return False
+        if len(self.parameter_types) != len(other.parameter_types):
+            return False
+        return all(a.equals(b) for a, b in zip(self.parameter_types, other.parameter_types))
 
-def struct_type(struct_def):
-    return MyType(StructType(struct_def))
+
+def struct_type(struct_def, type_arguments: list[MyType]):
+    return MyType(StructType(struct_def, type_arguments))
 
 
 class StructType(TypeKind):
-    def __init__(self, struct_def):
+    def __init__(self, struct_def, type_arguments: list[MyType]):
         self.struct_def = struct_def
+        self.type_arguments = type_arguments
 
     def __repr__(self):
         t = 'union' if self.struct_def.is_union else 'struct'
@@ -135,6 +149,7 @@ class StructType(TypeKind):
 
     def get_field_type(self, i: int | str) -> MyType:
         field = self.struct_def.get_field(i)
+        # TODO: use type_arguments
         return field.ty
 
     def get_field_name(self, i: int | str) -> str:
@@ -146,16 +161,36 @@ class StructType(TypeKind):
         return names.index(name)
 
 
-def enum_type(enum_def) -> MyType:
-    return MyType(EnumType(enum_def))
+def enum_type(enum_def, type_arguments: list[MyType]) -> MyType:
+    return MyType(EnumType(enum_def, type_arguments))
 
 
 class EnumType(TypeKind):
-    def __init__(self, enum_def):
+    def __init__(self, enum_def, type_arguments: list[MyType]):
         self.enum_def = enum_def
+        self.type_arguments = type_arguments
 
     def __repr__(self):
         return f"enum-{self.enum_def.name}"
+
+
+def class_type(class_def, type_arguments: list[MyType]) -> MyType:
+    return MyType(ClassType(class_def, type_arguments))
+
+
+class ClassType(TypeKind):
+    def __init__(self, class_def, type_arguments: list[MyType]):
+        self.class_def = class_def
+        self.type_arguments = type_arguments
+
+    def __repr__(self):
+        return f"class-{self.class_def.name}"
+
+    def has_field(self, name: str) -> bool:
+        return self.class_def.has_field(name)
+
+    def get_field_type(self, i: int | str) -> MyType:
+        return self.class_def.get_field_type(i)
 
 
 def array_type(size: int, element_type: MyType) -> MyType:
@@ -164,12 +199,23 @@ def array_type(size: int, element_type: MyType) -> MyType:
 
 class ArrayType(TypeKind):
     def __init__(self, size: int, element_type: MyType):
+        super().__init__()
         self.size = size
         self.element_type = element_type
 
 
 class ModuleType(TypeKind):
     pass
+
+
+def type_var_ref(type_variable) -> MyType:
+    return MyType(TypeVarKind(type_variable))
+
+
+class TypeVarKind(TypeKind):
+    def __init__(self, type_variable):
+        super().__init__()
+        self.type_variable = type_variable
 
 
 str_type = base_type("str")

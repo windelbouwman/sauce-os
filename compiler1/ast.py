@@ -1,8 +1,22 @@
 
 from lark.load_grammar import Definition
 from .location import Location
-from .symboltable import Scope
 from . import types
+
+
+class Scope:
+    def __init__(self):
+        self.symbols: dict[str, 'Definition'] = {}
+
+    def is_defined(self, name: str) -> bool:
+        return name in self.symbols
+
+    def lookup(self, name: str) -> 'Definition':
+        if name in self.symbols:
+            return self.symbols[name]
+
+    def define(self, name: str, symbol: 'Definition'):
+        self.symbols[name] = symbol
 
 
 class Node:
@@ -48,7 +62,7 @@ class Module(Node):
         self.imports = list(imports)
         self.definitions = list(definitions)
         self.types = []
-        self.scope: Scope = None
+        self.scope: Scope = Scope()
 
     def __repr__(self):
         return f"Module({self.name})"
@@ -59,7 +73,7 @@ class Module(Node):
     def has_field(self, name: str) -> bool:
         return self.scope.is_defined(name)
 
-    def get_field(self, name: str):
+    def get_field(self, name: str) -> 'Definition':
         return self.scope.lookup(name)
 
 
@@ -75,7 +89,7 @@ class Import(BaseImport):
 
 
 class ImportFrom(BaseImport):
-    def __init__(self, modname: str, names: list[str], location: Location):
+    def __init__(self, modname: str, names: list[tuple[str, Location]], location: Location):
         super().__init__(modname, location)
         assert isinstance(names, list)
         self.modname = modname
@@ -83,18 +97,67 @@ class ImportFrom(BaseImport):
 
 
 class Definition(Node):
-    pass
+    def __init__(self, name: str, location: Location):
+        super().__init__(location)
+        assert isinstance(name, str)
+        self.name = name
+        self.scope = Scope()
 
 
-def class_def(name: str, members, location: Location):
+def type_var(name: str, location: Location):
+    return TypeVar(name, location)
+
+
+class TypeVar(Definition):
+    """ Type variable, used when dealing with generics.
+    """
+
+    def __init__(self, name: str, location: Location):
+        super().__init__(name, location)
+
+    def __repr__(self):
+        return f'type-var({self.name})'
+
+
+def type_def(name: str, ty: types.MyType, location: Location):
+    return TypeDef(name, ty, location)
+
+
+class TypeDef(Definition):
+    def __init__(self, name: str, ty: types.MyType, location: Location):
+        super().__init__(name, location)
+        assert isinstance(ty, types.MyType)
+        self.ty = ty
+
+
+def class_def(name: str, members: list['Definition'], location: Location):
     return ClassDef(name, members, location)
 
 
 class ClassDef(Definition):
-    def __init__(self, name: str, members, location: Location):
-        super().__init__(location)
-        self.name = name
+    def __init__(self, name: str, members: list['Definition'], location: Location):
+        super().__init__(name, location)
         self.members = members
+
+    def get_type(self, type_arguments: list[types.MyType]):
+        return types.class_type(self, type_arguments)
+
+    def has_field(self, name: str) -> bool:
+        return self.scope.is_defined(name)
+
+    def get_field(self, name: str | int) -> 'Definition':
+        if isinstance(name, int):
+            raise NotImplementedError('Get field by int')
+        else:
+            return self.scope.lookup(name)
+
+    def get_field_type(self, i: int | str) -> types.MyType:
+        field = self.get_field(i)
+        if isinstance(field, FunctionDef):
+            return field.get_type()
+        else:
+            assert isinstance(field, VarDef)
+            return field.ty
 
 
 def var_def(name: str, ty: types.MyType, value: Expression, location: Location):
@@ -104,21 +167,20 @@ def var_def(name: str, ty: types.MyType, value: Expression, location: Location):
 
 class VarDef(Definition):
     def __init__(self, name: str, ty: types.MyType, value: Expression, location: Location):
-        super().__init__(location)
-        self.name = name
+        super().__init__(name, location)
         self.ty = ty
         self.value = value
 
 
-def function_def(name: str, parameters: list['Parameter'], return_ty: types.MyType, statements: 'Statement', location: Location):
-    return FunctionDef(name, parameters, return_ty, statements, location)
+def function_def(name: str, type_parameters: list[TypeVar], parameters: list['Parameter'], return_ty: types.MyType, statements: 'Statement', location: Location):
+    return FunctionDef(name, type_parameters, parameters, return_ty, statements, location)
 
 
 class FunctionDef(Definition):
-    def __init__(self, name: str, parameters: list['Parameter'], return_ty: types.MyType, statements: 'Statement', location: Location):
-        super().__init__(location)
-        assert isinstance(name, str)
+    def __init__(self, name: str, type_parameters: list[TypeVar], parameters: list['Parameter'], return_ty: types.MyType, statements: 'Statement', location: Location):
+        super().__init__(name, location)
         self.name = name
+        self.type_parameters = type_parameters
         self.parameters: list[Parameter] = parameters
         self.return_ty = return_ty
         self.statements = statements
@@ -127,11 +189,9 @@ class FunctionDef(Definition):
         return types.function_type([p.ty for p in self.parameters], self.return_ty)
 
 
-class Parameter(Node):
+class Parameter(Definition):
     def __init__(self, name: str, ty: types.MyType, location: Location):
-        super().__init__(location)
-        assert isinstance(name, str)
-        self.name = name
+        super().__init__(name, location)
         assert isinstance(ty, types.MyType), str(ty)
         self.ty = ty
 
@@ -140,32 +200,29 @@ class Parameter(Node):
 
 
 class StructDef(Definition):
-    def __init__(self, name: str, is_union: bool, fields: list['StructFieldDef'], location: Location):
-        super().__init__(location)
+    def __init__(self, name: str, type_parameters: list[TypeVar], is_union: bool, fields: list['StructFieldDef'], location: Location):
+        super().__init__(name, location)
         assert isinstance(name, str)
+        self.type_parameters = type_parameters
         self.is_union = is_union
-        self.name = name
         self.fields = fields
-        self.scope: Scope = None
 
-    def get_type(self):
-        return types.struct_type(self)
+    def get_type(self, type_arguments: list[types.MyType]):
+        return types.struct_type(self, type_arguments)
 
     def has_field(self, name: str) -> bool:
         return self.scope.is_defined(name)
 
-    def get_field(self, name: str | int) -> 'StructFieldDef':
+    def get_field(self, name: str | int) -> 'Definition':
         if isinstance(name, int):
             return self.fields[name]
         else:
             return self.scope.lookup(name)
 
 
-class StructFieldDef(Node):
+class StructFieldDef(Definition):
     def __init__(self, name: str, ty: types.MyType, location: Location):
-        super().__init__(location)
-        assert isinstance(name, str)
-        self.name = name
+        super().__init__(name, location)
         assert isinstance(ty, types.MyType)
         self.ty = ty
 
@@ -176,6 +233,7 @@ class StructBuilder:
 
     def __init__(self, name: str, is_union: bool, location: Location):
         self.name = name
+        self.type_parameters = []
         self.is_union = is_union
         self.fields = []
         self.location = location
@@ -184,13 +242,12 @@ class StructBuilder:
         self.fields.append(StructFieldDef(name, ty, location))
 
     def finish(self) -> StructDef:
-        return StructDef(self.name, self.is_union, self.fields, self.location)
+        return StructDef(self.name, self.type_parameters, self.is_union, self.fields, self.location)
 
 
 class EnumDef(Definition):
-    def __init__(self, name: str, type_parameters, variants: list['EnumVariant'], location: Location):
-        super().__init__(location)
-        self.name = name
+    def __init__(self, name: str, type_parameters: list[TypeVar], variants: list['EnumVariant'], location: Location):
+        super().__init__(name, location)
         self.type_parameters = type_parameters
 
         # Assign index to variants:
@@ -198,10 +255,9 @@ class EnumDef(Definition):
             variant.index = idx
 
         self.variants = variants
-        self.scope = None
 
-    def get_type(self) -> types.MyType:
-        return types.enum_type(self)
+    def get_type(self, type_arguments: list[types.MyType]) -> types.MyType:
+        return types.enum_type(self, type_arguments)
 
 
 class EnumVariant(Node):
@@ -347,7 +403,7 @@ class CaseArm(Node):
         self.variables = variables
         assert isinstance(body, Statement)
         self.body = body
-        self.scope = None
+        self.scope = Scope()
 
 
 def switch_statement(value: Expression, arms: list['SwitchArm'], default_body: Statement, location: Location) -> Statement:
@@ -531,6 +587,7 @@ class TypeCast(ExpressionKind):
 class StringConstant(ExpressionKind):
     def __init__(self, text: str):
         super().__init__()
+        assert isinstance(text, str)
         self.text = text
 
     def __repr__(self):
@@ -565,6 +622,7 @@ def bool_constant(value: bool, location: Location):
 class BoolLiteral(ExpressionKind):
     def __init__(self, value: bool):
         super().__init__()
+        assert isinstance(value, bool)
         self.value = value
 
     def __repr__(self):
@@ -707,12 +765,10 @@ class ArrayIndex(ExpressionKind):
         return f"ArrayIndex"
 
 
-class Variable:
-    def __init__(self, name: str, ty: types.MyType):
-        super().__init__()
-        assert isinstance(name, str)
+class Variable(Definition):
+    def __init__(self, name: str, ty: types.MyType, location: Location):
+        super().__init__(name, location)
         assert isinstance(ty, types.MyType)
-        self.name = name
         self.ty = ty
 
     def __repr__(self):
@@ -720,8 +776,7 @@ class Variable:
 
     def ref_expr(self, location: Location) -> Expression:
         """ Retrieve an expression referring to this variable! """
-        kind = ObjRef(self)
-        return Expression(kind, self.ty, location)
+        return Expression(ObjRef(self), self.ty, location)
 
 
 class BuiltinModule:
@@ -774,6 +829,8 @@ class AstVisitor:
         elif isinstance(definition, VarDef):
             self.visit_type(definition.ty)
             self.visit_expression(definition.value)
+        elif isinstance(definition, TypeDef):
+            self.visit_type(definition.ty)
 
     def visit_node(self, node: Node):
         if isinstance(node, CaseArm):
@@ -919,12 +976,21 @@ class AstPrinter(AstVisitor):
         elif isinstance(definition, VarDef):
             self.emit(f'- var {definition.name}')
             self.indent()
+        elif isinstance(definition, TypeDef):
+            self.emit(f'- type-def {definition.name}')
+            self.indent()
         else:
             self.emit(f'- ? {definition}')
             self.indent()
 
         super().visit_definition(definition)
         self.dedent()
+
+    # def visit_type(self, ty: types.MyType):
+    #     self.emit(f"ty > {ty}")
+    #     self.indent()
+    #     super().visit_type(ty)
+    #     self.dedent()
 
     def visit_statement(self, statement: Statement):
         self.emit(f'{statement.kind}')

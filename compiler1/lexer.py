@@ -96,6 +96,7 @@ def tokenize(code: str):
         'return': 'KW_RETURN',
         'struct': 'KW_STRUCT',
         'switch': 'KW_SWITCH',
+        'type': 'KW_TYPE',
         'var': 'KW_VAR',
         'while': 'KW_WHILE'
     }
@@ -114,6 +115,12 @@ def tokenize(code: str):
         elif kind == 'ID':
             if value in keywords:
                 kind = keywords[value]
+            elif value == 'True':
+                kind = 'BOOL'
+                value = True
+            elif value == 'False':
+                kind = 'BOOL'
+                value = False
             tok = Token(kind, value, loc)
         elif kind == 'STRING':
             tok = Token(kind, value, loc)

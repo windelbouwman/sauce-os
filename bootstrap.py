@@ -15,9 +15,11 @@ sources = [
     'compiler/lexer.slang',
     'compiler/parsing.slang',
     'compiler/location.slang',
+    'compiler/transforms.slang',
 ]
 
 try:
+    # 'bootstrapped.cpp'
     compiler.do_compile(sources, None, options)
 except errors.CompilationError as ex:
     print('ERRORS')

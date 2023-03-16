@@ -1,6 +1,6 @@
 
-from token import Token, TokenKind
-from location import Location
+from token import Token, TokenKind, new_token
+from location import Location, new_location
 
 struct Lexer:
     indent_level: int
@@ -8,11 +8,23 @@ struct Lexer:
     # backlog: List<Token>
     # backlog: list[Token]
     # backlog: list[Token]
+    at_bol: bool
+    spaces: int
 
 fn lexer_new() -> Lexer:
-    let x = Lexer:
+    let lexer = Lexer:
         indent_level: 0
-    return x
+        at_bol: True
+        spaces: 0
+    return lexer
+
+
+fn next_token(lexer: Lexer) -> Token:
+    # let kind = TokenKind::NewLine()
+    let kind = TokenKind::String("foobar")
+
+    let location = new_location(1, 1)
+    return new_token(kind, location)
 
 fn detect_indentations(lexer: Lexer) -> Token:
     let tok = next_token(lexer)
@@ -23,17 +35,3 @@ fn detect_indentations(lexer: Lexer) -> Token:
         pass
     return tok
 
-
-fn next_token(lexer: Lexer) -> Token:
-    # let kind = TokenKind::NewLine()
-    let kind = TokenKind::String("foobar")
-    let location = Location:
-        row: 1
-        column: 1
-
-    # value: 
-    let t = Token:
-        kind: kind
-        location: location
-
-    return t

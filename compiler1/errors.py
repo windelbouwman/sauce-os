@@ -4,6 +4,7 @@ from .location import Location
 
 
 def print_error(code, location: Location, message: str):
+    print('***********************')
     context_amount = 5
     was_printed = False
     for row_nr, text in enumerate(code.splitlines(), start=1):

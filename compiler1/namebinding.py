@@ -3,14 +3,13 @@
 import logging
 from . import ast, types
 from .location import Location
-from .symboltable import Scope
 from .basepass import BasePass
 
 logger = logging.getLogger('namebinding')
 
 
-def base_scope() -> Scope:
-    top_scope = Scope()
+def base_scope() -> ast.Scope:
+    top_scope = ast.Scope()
     top_scope.define('str', types.str_type)
     top_scope.define('int', types.int_type)
     top_scope.define('float', types.float_type)
@@ -21,25 +20,25 @@ def base_scope() -> Scope:
 class ScopeFiller(BasePass):
     def __init__(self, modules: dict[str, ast.Module]):
         super().__init__()
-        self._scopes: list[Scope] = []
+        self._scopes: list[ast.Scope] = []
         self._modules = modules
 
     def fill_module(self, module: ast.Module):
         self.begin(module.filename,
                    f"Filling scopes in module '{module.name}'")
         self.define_module(module)
-        self.enter_scope()
+        self.enter_scope(module.scope)
         for imp in module.imports:
             if imp.modname in self._modules:
                 mod = self._modules[imp.modname]
                 if isinstance(imp, ast.Import):
                     self.define_symbol(imp.modname, mod)
                 elif isinstance(imp, ast.ImportFrom):
-                    for name in imp.names:
+                    for name, location in imp.names:
                         if mod.has_field(name):
                             self.define_symbol(name, mod.get_field(name))
                         else:
-                            self.error(imp.location,
+                            self.error(location,
                                        f'No such field: {name}')
                 else:
                     raise NotImplementedError(str(imp))
@@ -47,7 +46,7 @@ class ScopeFiller(BasePass):
                 self.error(imp.location, f"Module {imp.modname} not found")
 
         self.visit_module(module)
-        module.scope = self.leave_scope()
+        self.leave_scope()
         self.finish("Scopes filled")
 
     def define_module(self, module: ast.Module):
@@ -57,42 +56,48 @@ class ScopeFiller(BasePass):
             self._modules[module.name] = module
 
     def visit_definition(self, definition: ast.Definition):
-        has_scope = False
         if isinstance(definition, ast.StructDef):
             self.define_symbol(definition.name, definition)
-            self.enter_scope()
-            has_scope = True
+            self.enter_scope(definition.scope)
+            for type_parameter in definition.type_parameters:
+                self.define_symbol(type_parameter.name, type_parameter)
             for field in definition.fields:
                 self.define_symbol(field.name, field)
         elif isinstance(definition, ast.EnumDef):
             self.define_symbol(definition.name, definition)
-            self.enter_scope()
-            has_scope = True
+            self.enter_scope(definition.scope)
+            for type_parameter in definition.type_parameters:
+                self.define_symbol(type_parameter.name, type_parameter)
             for variant in definition.variants:
                 self.define_symbol(variant.name, variant)
         elif isinstance(definition, ast.FunctionDef):
             self.define_symbol(definition.name, definition)
-            self.enter_scope()
-            has_scope = True
+            self.enter_scope(definition.scope)
+            for type_parameter in definition.type_parameters:
+                self.define_symbol(type_parameter.name, type_parameter)
             for parameter in definition.parameters:
                 self.define_symbol(parameter.name, parameter)
         elif isinstance(definition, ast.ClassDef):
             self.define_symbol(definition.name, definition)
-            self.enter_scope()
-            has_scope = True
-        elif isinstance(definition, ast.VarDef):
+            self.enter_scope(definition.scope)
+            type_arguments = []
+            this_var = ast.Variable(
+                'this',
+                types.class_type(definition, type_arguments),
+                definition.location)
+            self.define_symbol('this', this_var)
+        elif isinstance(definition, (ast.VarDef, ast.TypeDef)):
             self.define_symbol(definition.name, definition)
-            has_scope = False
+            self.enter_scope(definition.scope)
         else:
             raise NotImplementedError(str(definition))
 
         super().visit_definition(definition)
-        if has_scope:
-            definition.scope = self.leave_scope()
+        self.leave_scope()
 
     def visit_node(self, node: ast.Node):
         if isinstance(node, ast.CaseArm):
-            self.enter_scope()
+            self.enter_scope(node.scope)
             has_scope = True
             for variable in node.variables:
                 self.define_symbol(variable.name, variable)
@@ -100,7 +105,7 @@ class ScopeFiller(BasePass):
             has_scope = False
         super().visit_node(node)
         if has_scope:
-            node.scope = self.leave_scope()
+            self.leave_scope()
 
     def visit_statement(self, statement: ast.Statement):
         super().visit_statement(statement)
@@ -110,14 +115,13 @@ class ScopeFiller(BasePass):
         elif isinstance(kind, ast.ForStatement):
             self.define_symbol(kind.variable.name, kind.variable)
 
-    def enter_scope(self):
-        scope = Scope()
+    def enter_scope(self, scope: ast.Scope):
         self._scopes.append(scope)
 
-    def leave_scope(self) -> Scope:
-        return self._scopes.pop()
+    def leave_scope(self):
+        self._scopes.pop()
 
-    def define_symbol(self, name: str, symbol):
+    def define_symbol(self, name: str, symbol: ast.Definition):
         assert isinstance(name, str)
         logger.debug(f"Define name '{name}'")
         scope = self._scopes[-1]
@@ -144,16 +148,9 @@ class NameBinder(BasePass):
         self.finish("Symbols resolved")
 
     def visit_definition(self, definition: ast.Definition):
-        if isinstance(definition, ast.FunctionDef):
-            scope: Scope = definition.scope
-        else:
-            scope = None
-
-        if scope:
-            self.enter_scope(scope)
+        self.enter_scope(definition.scope)
         super().visit_definition(definition)
-        if scope:
-            self.leave_scope()
+        self.leave_scope()
 
     def visit_node(self, node: ast.Node):
         if isinstance(node, ast.CaseArm):
@@ -179,20 +176,40 @@ class NameBinder(BasePass):
             if isinstance(obj, types.MyType):
                 return obj
             elif isinstance(obj, ast.StructDef):
-                return types.struct_type(obj)
+                return types.struct_type(obj, [])
             elif isinstance(obj, ast.EnumDef):
-                return types.enum_type(obj)
+                return types.enum_type(obj, [])
+            elif isinstance(obj, ast.ClassDef):
+                return types.class_type(obj, [])
+            elif isinstance(obj, ast.TypeDef):
+                raise NotImplementedError("TODO: type-def")
+                # return obj.ty
+            elif isinstance(obj, ast.TypeVar):
+                return types.type_var_ref(obj)
             else:
                 self.error(expression.location,
                            f'No type object: {obj}')
                 return types.void_type
         elif isinstance(expression.kind, ast.ArrayIndex):
-            # TODO: apply generic parameters!
-            return expression.kind.base
+            type_arguments = [
+                self.eval_type_expr(a) for a in [expression.kind.index]]
+            generic = self.eval_generic_expr(expression.kind.base)
+            if generic:
+                return generic.get_type(type_arguments)
+            else:
+                return types.void_type
         else:
             self.error(expression.location,
                        f'Invalid type expression: {expression.kind}')
             return types.void_type
+
+    def eval_generic_expr(self, expression: ast.Expression):
+        """ Evaluate expression when used as generic """
+        if isinstance(expression.kind, ast.ObjRef):
+            obj = expression.kind.obj
+            if isinstance(obj, (ast.StructDef, ast.EnumDef, ast.ClassDef)):
+                return obj
+        self.error(expression.location, f'Invalid generic')
 
     def visit_expression(self, expression: ast.Expression):
         super().visit_expression(expression)
@@ -222,6 +239,10 @@ class NameBinder(BasePass):
             if isinstance(kind.target.kind, ast.SemiEnumLiteral):
                 expression.kind = ast.EnumLiteral(
                     kind.target.kind.enum_def, kind.target.kind.variant, kind.args)
+            elif isinstance(kind.target.kind, ast.ObjRef):
+                obj = kind.target.kind.obj
+                # if isinstance(obj, ast.ClassDef)
+
         elif isinstance(kind, ast.NewOp):
             # Fixup new-op operation
 
@@ -253,7 +274,7 @@ class NameBinder(BasePass):
                 self.error(
                     expression.location, f'Can only contrap struct type, not {kind.new_ty}')
 
-    def enter_scope(self, scope: Scope):
+    def enter_scope(self, scope: ast.Scope):
         self._scopes.append(scope)
 
     def leave_scope(self):

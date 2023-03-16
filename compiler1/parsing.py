@@ -114,20 +114,30 @@ class CustomTransformer(LarkTransformer):
         return ast.var_def(name, ty, value, get_loc(x[0]))
 
     def func_def(self, x):
-        # func_def: KW_FN ID LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? COLON NEWLINE block
+        # KW_FN ID type_parameters? function_signature COLON NEWLINE block
         name = x[1].value
-        if isinstance(x[3], LarkToken) and x[3].type == 'RIGHT_BRACE':
+        if isinstance(x[4], LarkToken) and x[4].type == 'COLON':
+            type_parameters = x[2]
+        else:
+            assert isinstance(x[3], LarkToken) and x[3].type == 'COLON'
+            type_parameters = []
+        parameters, return_type = x[-4]
+        body = x[-1]
+        return ast.function_def(name, type_parameters, parameters, return_type, body, get_loc(x[0]))
+
+    def function_signature(self, x):
+        # LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
+        if isinstance(x[1], LarkToken) and x[1].type == 'RIGHT_BRACE':
             parameters = []
         else:
-            assert isinstance(x[3], list)
-            parameters = x[3]
+            assert isinstance(x[1], list)
+            parameters = x[1]
 
-        if isinstance(x[-5], LarkToken) and x[-5].type == 'ARROW':
-            return_type = x[-4]
+        if isinstance(x[-2], LarkToken) and x[-2].type == 'ARROW':
+            return_type = x[-1]
         else:
             return_type = types.void_type
-        body = x[-1]
-        return ast.FunctionDef(name, parameters, return_type, body, get_loc(x[0]))
+        return parameters, return_type
 
     def parameters(self, x):
         if len(x) == 1:
@@ -136,10 +146,18 @@ class CustomTransformer(LarkTransformer):
             return x[0] + [x[2]]
 
     def struct_def(self, x):
-        name = x[1].value
-        fields = x[5:-1]
+        # KW_STRUCT type_parameters? ID COLON NEWLINE INDENT struct_field+ DEDENT
+        if isinstance(x[3], LarkToken) and x[3].type == 'COLON':
+            type_parameters = x[1]
+            name = x[2].value
+            fields = x[6:-1]
+        else:
+            assert isinstance(x[2], LarkToken) and x[2].type == 'COLON'
+            type_parameters = []
+            name = x[1].value
+            fields = x[5:-1]
         is_union = False
-        return ast.StructDef(name, is_union, fields, get_loc(x[0]))
+        return ast.StructDef(name, type_parameters, is_union, fields, get_loc(x[0]))
 
     def struct_field(self, x):
         return ast.StructFieldDef(x[0], x[2], get_loc(x[0]))
@@ -166,9 +184,22 @@ class CustomTransformer(LarkTransformer):
             payload = x[2]
         return ast.EnumVariant(name, payload, get_loc(x[0]))
 
+    def type_def(self, x):
+        name, typ = x[1].value, x[3]
+        return ast.type_def(name, typ, get_loc(x[0]))
+
+    def type_parameters(self, x):
+        # type_parameters: LESS_THAN ids GREATER_THAN
+        return [ast.type_var(name, location) for name, location in x[1]]
+
     def typ(self, x):
-        return types.type_expression(x[0])
-        # return types.type_expression(ast.name_ref(x[0], get_loc(x[0])))
+        if isinstance(x[0], LarkToken) and x[0].type == 'KW_FN':
+            # raise NotImplementedError('?')
+            parameters, return_type = x[1]
+            return types.function_type(parameters, return_type)
+        else:
+            assert isinstance(x[0], ast.Expression)
+            return types.type_expression(x[0])
 
     def types(self, x):
         if len(x) == 1:
@@ -205,6 +236,7 @@ class CustomTransformer(LarkTransformer):
         return ast.expression_statement(x[0], x[0].location)
 
     def if_statement(self, x):
+        # KW_IF test COLON NEWLINE block else_clause?
         condition = x[1]
         true_statement = x[4]
         if len(x) > 5:
@@ -214,15 +246,23 @@ class CustomTransformer(LarkTransformer):
         return ast.if_statement(condition, true_statement, false_statement, get_loc(x[0]))
 
     def case_statement(self, x):
+        # case_statement: KW_CASE expression COLON NEWLINE INDENT case_arm+ DEDENT else_clause?
         value = x[1]
-        arms = x[5: -1]
+        if isinstance(x[-1], LarkToken) and x[-1].type == 'DEDENT':
+            arms = x[5:-1]
+        else:
+            assert x[-2].type == 'DEDENT'
+            print("TODO: else clause in case statement")
+            else_clause = x[-1]
+            arms = x[5:-2]
         return ast.case_statement(value, arms, get_loc(x[0]))
 
     def case_arm(self, x):
         # case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? COLON NEWLINE block
         name = x[0].value
         if isinstance(x[1], LarkToken) and x[1].type == 'LEFT_BRACE':
-            variables = [ast.Variable(name, types.void_type) for name in x[2]]
+            variables = [ast.Variable(name, types.void_type, location)
+                         for name, location in x[2]]
         else:
             variables = []
         body = x[-1]
@@ -242,7 +282,7 @@ class CustomTransformer(LarkTransformer):
 
     def let_statement(self, x):
         """ KW_LET ID (COLON typ)? EQUALS expression NEWLINE """
-        variable = ast.Variable(x[1], types.void_type)
+        variable = ast.Variable(x[1].value, types.void_type, get_loc(x[1]))
         if isinstance(x[2], LarkToken) and x[2].type == 'COLON':
             assert isinstance(x[4], LarkToken) and x[4].type == 'EQUALS'
             ty, value = x[3], x[5]
@@ -260,7 +300,8 @@ class CustomTransformer(LarkTransformer):
         return ast.loop_statement(inner, get_loc(x[0]))
 
     def for_statement(self, x):
-        variable = ast.Variable(x[1].value, types.void_type)
+        # KW_FOR ID KW_IN expression COLON NEWLINE block
+        variable = ast.Variable(x[1].value, types.void_type, get_loc(x[1]))
         values, inner = x[3], x[6]
         return ast.for_statement(variable, values, inner, get_loc(x[0]))
 
@@ -358,9 +399,9 @@ class CustomTransformer(LarkTransformer):
 
     def ids(self, x):
         if len(x) == 1:
-            return [x[0].value]
+            return [(x[0].value, get_loc(x[0]))]
         else:
-            return x[0] + [x[2].value]
+            return x[0] + [(x[2].value, get_loc(x[2]))]
 
     def literal(self, x):
         if x[0].type == 'NUMBER':
@@ -369,6 +410,8 @@ class CustomTransformer(LarkTransformer):
             return ast.string_constant(x[0].value, get_loc(x[0]))
         elif x[0].type == 'FNUMBER':
             return ast.numeric_constant(x[0].value, get_loc(x[0]))
+        elif x[0].type == 'BOOL':
+            return ast.bool_constant(x[0].value, get_loc(x[0]))
         else:
             print('Literal!', x)
 
@@ -404,23 +447,26 @@ definition: func_def
           | struct_def
           | enum_def
           | class_def
+          | type_def
 
 class_def: KW_CLASS ID COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
 var_def: KW_VAR ID COLON typ EQUALS expression NEWLINE
-func_def: KW_FN ID LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? COLON NEWLINE block
+func_def: KW_FN ID type_parameters? function_signature COLON NEWLINE block
+function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
 parameters: parameter
           | parameters COMMA parameter
 parameter: ID COLON typ
-struct_def: KW_STRUCT ID COLON NEWLINE INDENT struct_field+ DEDENT
+struct_def: KW_STRUCT type_parameters? ID COLON NEWLINE INDENT struct_field+ DEDENT
 struct_field: ID COLON typ NEWLINE
 enum_def: KW_ENUM type_parameters? ID COLON NEWLINE INDENT enum_variant+ DEDENT
 enum_variant: ID NEWLINE
             | ID LEFT_BRACE types RIGHT_BRACE NEWLINE
-
+type_def: KW_TYPE ID EQUALS typ NEWLINE
 type_parameters: LESS_THAN ids GREATER_THAN
 types: typ
      | types COMMA typ
 typ: expression
+   | KW_FN function_signature
 ids: ID
    | ids COMMA ID
 
@@ -448,7 +494,7 @@ let_statement: KW_LET ID (COLON typ)? EQUALS expression NEWLINE
 while_statement: KW_WHILE test COLON NEWLINE block
 loop_statement: KW_LOOP COLON NEWLINE block
 for_statement: KW_FOR ID KW_IN expression COLON NEWLINE block
-case_statement: KW_CASE expression COLON NEWLINE INDENT case_arm+ DEDENT
+case_statement: KW_CASE expression COLON NEWLINE INDENT case_arm+ DEDENT else_clause?
 case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? COLON NEWLINE block
 switch_statement: KW_SWITCH expression COLON NEWLINE INDENT switch_arm+ DEDENT KW_ELSE COLON NEWLINE block
 switch_arm: expression COLON NEWLINE block
@@ -483,7 +529,7 @@ atom: obj_ref
 arguments: expression
          | arguments COMMA expression
 
-literal: STRING | NUMBER | FNUMBER
+literal: STRING | NUMBER | FNUMBER | BOOL
 array_literal: LEFT_BRACKET arguments RIGHT_BRACKET
 obj_ref: ID
        | obj_ref DOUBLE_COLON ID
@@ -495,7 +541,7 @@ field_init: ID COLON expression NEWLINE
 %declare KW_ELSE KW_ENUM
 %declare KW_FN KW_FOR KW_FROM KW_IF KW_IMPORT KW_IN
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
-%declare KW_RETURN KW_STRUCT KW_SWITCH KW_VAR KW_WHILE
+%declare KW_RETURN KW_STRUCT KW_SWITCH KW_TYPE KW_VAR KW_WHILE
 
 %declare LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON DOUBLE_COLON COMMA DOT ARROW
@@ -503,7 +549,7 @@ field_init: ID COLON expression NEWLINE
 %declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS EQUALS
 
 %declare INDENT DEDENT NEWLINE
-%declare NUMBER STRING FNUMBER ID
+%declare NUMBER STRING FNUMBER BOOL ID
 
 """
 lark_parser = Lark(grammar, parser='lalr', lexer=CustomLarkLexer)

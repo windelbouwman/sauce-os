@@ -1,7 +1,7 @@
 
 from std import print
 
-fn main():
+fn main() -> int:
     # Becomes: store  void()* @bla, void()** %x_1
 
     let x: fn() = bla
@@ -19,7 +19,7 @@ fn main():
 
     complexor(z)
 
-    return
+    return 0
 
 struct A:
     func1: fn()

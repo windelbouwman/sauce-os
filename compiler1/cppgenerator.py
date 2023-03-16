@@ -96,6 +96,11 @@ class Generator:
             assert name
             t = 'union' if kind.struct_def.is_union else 'struct'
             return f"{t} {kind.struct_def.name} {name}"
+        elif isinstance(kind, types.FunctionType):
+            return_type = self.gen_type(kind.return_type, '')
+            params = ','.join(self.gen_type(p, '')
+                              for p in kind.parameter_types)
+            return f"{return_type}(*{name})({params})"
         elif isinstance(kind, types.EnumType):
             raise ValueError("C++ backend does not support enum types.")
         else:
@@ -221,6 +226,9 @@ class Generator:
                 return f"{kind.obj.name}"
             elif isinstance(kind.obj, ast.Parameter):
                 return f"{kind.obj.name}"
+            elif isinstance(kind.obj, ast.ClassDef):
+                print('Should not happen')
+                return 'class'
             else:
                 raise NotImplementedError(str(kind.obj))
         elif isinstance(kind, ast.NameRef):
