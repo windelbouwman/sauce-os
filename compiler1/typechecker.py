@@ -4,10 +4,10 @@
 
 import logging
 
-from . import ast, types
+from . import ast
 from .basepass import BasePass
 from .location import Location
-from .types import bool_type, void_type
+from .ast import bool_type, void_type
 from .errors import CompilationError
 
 logger = logging.getLogger('typechecker')
@@ -57,7 +57,7 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.CaseStatement):
             pass  # handled in mid-statement hook
         elif isinstance(kind, ast.SwitchStatement):
-            self.assert_type(kind.value, types.int_type)
+            self.assert_type(kind.value, ast.int_type)
         elif isinstance(kind, ast.ExpressionStatement):
             # Check void type: Good idea?
             self.assert_type(kind.value, void_type)
@@ -107,7 +107,7 @@ class TypeChecker(BasePass):
                 self.error(kind.value.location,
                            f'Expected enum, not {kind.value.ty}')
         elif isinstance(kind, ast.ForStatement):
-            if isinstance(kind.values.ty.kind, types.ArrayType):
+            if isinstance(kind.values.ty.kind, ast.ArrayType):
                 kind.variable.ty = kind.values.ty.kind.element_type
             else:
                 self.error(kind.values.location,
@@ -124,12 +124,12 @@ class TypeChecker(BasePass):
             pass
         elif isinstance(kind, ast.ArrayLiteral):
             assert len(kind.values) > 0
-            expression.ty = types.array_type(
+            expression.ty = ast.array_type(
                 len(kind.values), kind.values[0].ty)
         elif isinstance(kind, ast.Binop):
             # Introduce some heuristics...
             if kind.op == '/':
-                ty = types.float_type
+                ty = ast.float_type
             elif kind.lhs.ty.is_int() and kind.rhs.ty.is_float():
                 ty = kind.rhs.ty
             else:
@@ -157,18 +157,18 @@ class TypeChecker(BasePass):
                 expression.ty = void_type
 
         elif isinstance(kind, ast.ArrayIndex):
-            if isinstance(kind.base.ty.kind, types.ArrayType):
+            if isinstance(kind.base.ty.kind, ast.ArrayType):
                 expression.ty = kind.base.ty.kind.element_type
             else:
                 self.error(expression.location,
                            f"Indexing requires array type, not {kind.base.ty}")
 
         elif isinstance(kind, ast.FunctionCall):
-            if isinstance(kind.target.ty.kind, types.FunctionType):
+            if isinstance(kind.target.ty.kind, ast.FunctionType):
                 self.check_arguments(
                     kind.target.ty.kind.parameter_types, kind.args, expression.location)
                 expression.ty = kind.target.ty.kind.return_type
-            elif isinstance(kind.target.ty.kind, types.ClassType):
+            elif isinstance(kind.target.ty.kind, ast.ClassType):
                 # Assume constructor is called without arguments for now
                 # TODO: allow constructors!
                 self.check_arguments([], kind.args, expression.location)
@@ -209,7 +209,7 @@ class TypeChecker(BasePass):
         else:
             raise NotImplementedError(str(expression.kind))
 
-    def check_arguments(self, types: list[types.MyType], values: list[ast.Expression], location: Location):
+    def check_arguments(self, types: list[ast.MyType], values: list[ast.Expression], location: Location):
         """ Check amount and types a list of values """
         if len(values) == len(types):
             for arg, expected_ty in zip(values, types):
@@ -218,7 +218,7 @@ class TypeChecker(BasePass):
             self.error(
                 location, f'Got {len(values)} arguments, expected {len(types)}')
 
-    def assert_type(self, expression: ast.Expression, ty: types.MyType):
+    def assert_type(self, expression: ast.Expression, ty: ast.MyType):
         """ Check if expression is of given type, raise error otherwise.
         """
         # Try to auto-convert before check

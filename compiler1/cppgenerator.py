@@ -5,7 +5,7 @@ Idea2: Use python code as bootstrapping target?
 
 """
 
-from . import ast, types
+from . import ast
 
 
 def gencode(modules: list[ast.Module], f=None):
@@ -80,29 +80,29 @@ class Generator:
         self.print(f"}};")
         self.print(f"")
 
-    def gen_type(self, ty: types.MyType, name: str) -> str:
+    def gen_type(self, ty: ast.MyType, name: str) -> str:
         kind = ty.kind
-        if isinstance(kind, types.BaseType):
+        if isinstance(kind, ast.BaseType):
             ctypes = {
                 'str': 'std::string',
                 'float': 'double',
             }
             cty = ctypes.get(kind.name, kind.name)
             return f"{cty} {name}" if name else cty
-        elif isinstance(kind, types.ArrayType):
+        elif isinstance(kind, ast.ArrayType):
             assert name
             return f"{self.gen_type(kind.element_type, name)}[{kind.size}]"
-        elif isinstance(kind, types.StructType):
+        elif isinstance(kind, ast.StructType):
             assert name
             t = 'union' if kind.struct_def.is_union else 'struct'
             return f"{t} {kind.struct_def.name} {name}"
-        elif isinstance(kind, types.FunctionType):
+        elif isinstance(kind, ast.FunctionType):
             return_type = self.gen_type(kind.return_type, '')
             params = ','.join(self.gen_type(p, '')
                               for p in kind.parameter_types)
             return f"{return_type}(*{name})({params})"
-        elif isinstance(kind, types.EnumType):
-            raise ValueError("C++ backend does not support enum types.")
+        elif isinstance(kind, ast.EnumType):
+            raise ValueError("C++ backend does not support enum ast.")
         else:
             return f"{ty} {name}" if name else str(ty)
 

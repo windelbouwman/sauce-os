@@ -1,7 +1,6 @@
 
 from lark.load_grammar import Definition
 from .location import Location
-from . import types
 
 
 class Scope:
@@ -19,6 +18,243 @@ class Scope:
         self.symbols[name] = symbol
 
 
+class TypeKind:
+    pass
+
+
+class MyType:
+    def __init__(self, kind: TypeKind):
+        # Use a member, to allow passing by 'reference'
+        # AKA be able to mutate a type by passing the type object
+        # and modifying is.
+        self.kind = kind
+
+    def is_reftype(self):
+        return False
+
+    def is_void(self):
+        return isinstance(self.kind, VoidType)
+
+    def is_struct(self):
+        return isinstance(self.kind, StructType) and self.kind.is_struct()
+
+    def is_union(self):
+        return isinstance(self.kind, StructType) and self.kind.is_union()
+
+    def is_enum(self):
+        return isinstance(self.kind, EnumType)
+
+    def is_int(self) -> bool:
+        return isinstance(self.kind, BaseType) and self.kind.name == 'int'
+
+    def is_float(self) -> bool:
+        return isinstance(self.kind, BaseType) and self.kind.name == 'float'
+
+    def has_field(self, name: str) -> bool:
+        if isinstance(self.kind, (StructType, ClassType)):
+            return self.kind.has_field(name)
+        else:
+            return False
+
+    def get_field_name(self, i: int | str) -> str:
+        """ Retrieve name of field. i can be index or name """
+        if isinstance(self.kind, StructType):
+            return self.kind.get_field_name(i)
+        else:
+            raise ValueError("Can only get field from struct/union")
+
+    def get_field_names(self) -> list[str]:
+        """ Retrieve names of all fields """
+        if isinstance(self.kind, StructType):
+            return self.kind.get_field_names()
+        else:
+            raise ValueError("Can only get field names from struct/union")
+
+    def get_field_type(self, i: int | str) -> 'MyType':
+        """ Retrieve type of field. i can be index or name """
+        if isinstance(self.kind, (StructType, ClassType)):
+            return self.kind.get_field_type(i)
+        else:
+            raise ValueError("Can only get field from struct/union/class")
+
+    def equals(self, other: 'MyType'):
+        assert isinstance(other, MyType)
+        if self is other:
+            return True
+        elif isinstance(self.kind, BaseType) and isinstance(other.kind, BaseType):
+            return self.kind.name == other.kind.name
+        elif isinstance(self.kind, StructType) and isinstance(other.kind, StructType):
+            # TODO: check for equal type_arguments
+            return (self.kind.struct_def is other.kind.struct_def)
+        elif isinstance(self.kind, EnumType) and isinstance(other.kind, EnumType):
+            return self.kind.enum_def is other.kind.enum_def
+        elif isinstance(self.kind, FunctionType) and isinstance(other.kind, FunctionType):
+            return self.kind.equals(other.kind)
+        elif isinstance(self.kind, ClassType) and isinstance(other.kind, ClassType):
+            return self.kind.class_def is other.kind.class_def
+        else:
+            return False
+
+    def __repr__(self):
+        return f"{self.kind}"
+
+
+def base_type(name: str):
+    return MyType(BaseType(name))
+
+
+class BaseType(TypeKind):
+    def __init__(self, name: str):
+        super().__init__()
+        self.name = name
+
+    def __repr__(self):
+        return f'base-type<{self.name}>'
+
+
+def type_expression(expr: 'Expression'):
+    return MyType(TypeExpression(expr))
+
+
+class TypeExpression(TypeKind):
+    def __init__(self, expr: 'Expression'):
+        super().__init__()
+        self.expr = expr
+
+    def __repr__(self):
+        return f'type-expr<{self.expr}>'
+
+
+class VoidType(TypeKind):
+    def __repr__(self):
+        return 'void'
+
+
+def function_type(parameter_types: list[MyType], return_type: MyType) -> MyType:
+    return MyType(FunctionType(parameter_types, return_type))
+
+
+class FunctionType(TypeKind):
+    def __init__(self, parameter_types: list[MyType], return_type: MyType):
+        super().__init__()
+        self.parameter_types = parameter_types
+        self.return_type = return_type
+
+    def equals(self, other: 'FunctionType') -> bool:
+        if not self.return_type.equals(other.return_type):
+            return False
+        if len(self.parameter_types) != len(other.parameter_types):
+            return False
+        return all(a.equals(b) for a, b in zip(self.parameter_types, other.parameter_types))
+
+
+def struct_type(struct_def: 'StructDef', type_arguments: list[MyType]):
+    return MyType(StructType(struct_def, type_arguments))
+
+
+class StructType(TypeKind):
+    def __init__(self, struct_def: 'StructDef', type_arguments: list[MyType]):
+        self.struct_def = struct_def
+        self.type_arguments = type_arguments
+
+    def __repr__(self):
+        t = 'union' if self.struct_def.is_union else 'struct'
+        return f"{t}-{self.struct_def.name}"
+
+    def is_struct(self) -> bool:
+        return not self.is_union()
+
+    def is_union(self) -> bool:
+        return self.struct_def.is_union
+
+    def is_reftype(self):
+        return True
+
+    def has_field(self, name: str) -> bool:
+        return self.struct_def.has_field(name)
+
+    def get_field_type(self, i: int | str) -> MyType:
+        field = self.struct_def.get_field(i)
+        # TODO: use type_arguments
+        return field.ty
+
+    def get_field_name(self, i: int | str) -> str:
+        field = self.struct_def.get_field(i)
+        return field.name
+
+    def get_field_names(self) -> list[str]:
+        names = [field.name for field in self.struct_def.fields]
+        return names
+
+    def index_of(self, name):
+        names = [name for name, _ in self.fields]
+        return names.index(name)
+
+
+def enum_type(enum_def: 'EnumDef', type_arguments: list[MyType]) -> MyType:
+    return MyType(EnumType(enum_def, type_arguments))
+
+
+class EnumType(TypeKind):
+    def __init__(self, enum_def: 'EnumDef', type_arguments: list[MyType]):
+        self.enum_def = enum_def
+        self.type_arguments = type_arguments
+
+    def __repr__(self):
+        return f"enum-{self.enum_def.name}"
+
+
+def class_type(class_def: 'ClassDef', type_arguments: list[MyType]) -> MyType:
+    return MyType(ClassType(class_def, type_arguments))
+
+
+class ClassType(TypeKind):
+    def __init__(self, class_def: 'ClassDef', type_arguments: list[MyType]):
+        self.class_def = class_def
+        self.type_arguments = type_arguments
+
+    def __repr__(self):
+        return f"class-{self.class_def.name}"
+
+    def has_field(self, name: str) -> bool:
+        return self.class_def.has_field(name)
+
+    def get_field_type(self, i: int | str) -> MyType:
+        return self.class_def.get_field_type(i)
+
+
+def array_type(size: int, element_type: MyType) -> MyType:
+    return MyType(ArrayType(size, element_type))
+
+
+class ArrayType(TypeKind):
+    def __init__(self, size: int, element_type: MyType):
+        super().__init__()
+        self.size = size
+        self.element_type = element_type
+
+
+class ModuleType(TypeKind):
+    pass
+
+
+def type_var_ref(type_variable: 'TypeVar') -> MyType:
+    return MyType(TypeVarKind(type_variable))
+
+
+class TypeVarKind(TypeKind):
+    def __init__(self, type_variable: 'TypeVar'):
+        super().__init__()
+        self.type_variable = type_variable
+
+
+str_type = base_type("str")
+int_type = base_type("int")
+float_type = base_type("float")
+bool_type = base_type('bool')
+void_type = MyType(VoidType())
+
+
 class Node:
     def __init__(self, location: Location):
         self.location = location
@@ -26,10 +262,10 @@ class Node:
 
 
 class Expression(Node):
-    def __init__(self, kind: 'ExpressionKind', ty: types.MyType, location: Location):
+    def __init__(self, kind: 'ExpressionKind', ty: MyType, location: Location):
         super().__init__(location)
         self.kind = kind
-        assert isinstance(ty, types.MyType)
+        assert isinstance(ty, MyType)
         self.ty = ty
 
     def __repr__(self):
@@ -42,13 +278,13 @@ class Expression(Node):
         return binop(self, op, rhs, self.location)
 
     def get_attr(self, field: str | int) -> 'Expression':
-        assert isinstance(self.ty.kind, types.StructType)
+        assert isinstance(self.ty.kind, StructType)
         ty = self.ty.get_field_type(field)
         field = self.ty.get_field_name(field)
         return dot_operator(self, field, ty, self.location)
 
     def array_index(self, value: 'Expression') -> 'Expression':
-        assert isinstance(self.ty.kind, types.ArrayType)
+        assert isinstance(self.ty.kind, ArrayType)
         ty = self.ty.kind.element_type
         return array_index(self, value, ty, self.location)
 
@@ -124,14 +360,14 @@ class TypeVar(Definition):
         return f'type-var({self.name})'
 
 
-def type_def(name: str, ty: types.MyType, location: Location):
+def type_def(name: str, ty: MyType, location: Location):
     return TypeDef(name, ty, location)
 
 
 class TypeDef(Definition):
-    def __init__(self, name: str, ty: types.MyType, location: Location):
+    def __init__(self, name: str, ty: MyType, location: Location):
         super().__init__(name, location)
-        assert isinstance(ty, types.MyType)
+        assert isinstance(ty, MyType)
         self.ty = ty
 
 
@@ -144,8 +380,8 @@ class ClassDef(Definition):
         super().__init__(name, location)
         self.members = members
 
-    def get_type(self, type_arguments: list[types.MyType]):
-        return types.class_type(self, type_arguments)
+    def get_type(self, type_arguments: list[MyType]):
+        return class_type(self, type_arguments)
 
     def has_field(self, name: str) -> bool:
         return self.scope.is_defined(name)
@@ -156,7 +392,7 @@ class ClassDef(Definition):
         else:
             return self.scope.lookup(name)
 
-    def get_field_type(self, i: int | str) -> types.MyType:
+    def get_field_type(self, i: int | str) -> MyType:
         field = self.get_field(i)
         if isinstance(field, FunctionDef):
             return field.get_type()
@@ -165,24 +401,24 @@ class ClassDef(Definition):
             return field.ty
 
 
-def var_def(name: str, ty: types.MyType, value: Expression, location: Location):
+def var_def(name: str, ty: MyType, value: Expression, location: Location):
     assert isinstance(value, Expression)
     return VarDef(name, ty, value, location)
 
 
 class VarDef(Definition):
-    def __init__(self, name: str, ty: types.MyType, value: Expression, location: Location):
+    def __init__(self, name: str, ty: MyType, value: Expression, location: Location):
         super().__init__(name, location)
         self.ty = ty
         self.value = value
 
 
-def function_def(name: str, type_parameters: list[TypeVar], parameters: list['Parameter'], return_ty: types.MyType, statements: 'Statement', location: Location):
+def function_def(name: str, type_parameters: list[TypeVar], parameters: list['Parameter'], return_ty: MyType, statements: 'Statement', location: Location):
     return FunctionDef(name, type_parameters, parameters, return_ty, statements, location)
 
 
 class FunctionDef(Definition):
-    def __init__(self, name: str, type_parameters: list[TypeVar], parameters: list['Parameter'], return_ty: types.MyType, statements: 'Statement', location: Location):
+    def __init__(self, name: str, type_parameters: list[TypeVar], parameters: list['Parameter'], return_ty: MyType, statements: 'Statement', location: Location):
         super().__init__(name, location)
         self.name = name
         self.type_parameters = type_parameters
@@ -191,13 +427,13 @@ class FunctionDef(Definition):
         self.statements = statements
 
     def get_type(self):
-        return types.function_type([p.ty for p in self.parameters], self.return_ty)
+        return function_type([p.ty for p in self.parameters], self.return_ty)
 
 
 class Parameter(Definition):
-    def __init__(self, name: str, ty: types.MyType, location: Location):
+    def __init__(self, name: str, ty: MyType, location: Location):
         super().__init__(name, location)
-        assert isinstance(ty, types.MyType), str(ty)
+        assert isinstance(ty, MyType), str(ty)
         self.ty = ty
 
     def __repr__(self):
@@ -212,8 +448,8 @@ class StructDef(Definition):
         self.is_union = is_union
         self.fields = fields
 
-    def get_type(self, type_arguments: list[types.MyType]):
-        return types.struct_type(self, type_arguments)
+    def get_type(self, type_arguments: list[MyType]):
+        return struct_type(self, type_arguments)
 
     def has_field(self, name: str) -> bool:
         return self.scope.is_defined(name)
@@ -226,9 +462,9 @@ class StructDef(Definition):
 
 
 class StructFieldDef(Definition):
-    def __init__(self, name: str, ty: types.MyType, location: Location):
+    def __init__(self, name: str, ty: MyType, location: Location):
         super().__init__(name, location)
-        assert isinstance(ty, types.MyType)
+        assert isinstance(ty, MyType)
         self.ty = ty
 
 
@@ -243,7 +479,7 @@ class StructBuilder:
         self.fields = []
         self.location = location
 
-    def add_field(self, name: str, ty: types.MyType, location: Location):
+    def add_field(self, name: str, ty: MyType, location: Location):
         self.fields.append(StructFieldDef(name, ty, location))
 
     def finish(self) -> StructDef:
@@ -261,12 +497,12 @@ class EnumDef(Definition):
 
         self.variants = variants
 
-    def get_type(self, type_arguments: list[types.MyType]) -> types.MyType:
-        return types.enum_type(self, type_arguments)
+    def get_type(self, type_arguments: list[MyType]) -> MyType:
+        return enum_type(self, type_arguments)
 
 
 class EnumVariant(Definition):
-    def __init__(self, name: str, payload: list[types.MyType], location: Location):
+    def __init__(self, name: str, payload: list[MyType], location: Location):
         super().__init__(name, location)
         self.payload = payload
         self.index = 0
@@ -275,7 +511,7 @@ class EnumVariant(Definition):
         return f'EnumVariant({self.name})'
 
     # def get_type(self):
-    #     return types.StructType(self)
+    #     return StructType(self)
 
 
 class Statement(Node):
@@ -322,13 +558,13 @@ class ExpressionStatement(StatementKind):
         return f"ExpressionStatement"
 
 
-def let_statement(variable: 'Variable', ty: types.MyType | None, value: Expression, location: Location) -> Statement:
+def let_statement(variable: 'Variable', ty: MyType | None, value: Expression, location: Location) -> Statement:
     kind = LetStatement(variable, ty, value)
     return Statement(kind, location)
 
 
 class LetStatement(StatementKind):
-    def __init__(self, variable: 'Variable', ty: types.MyType | None, value: Expression):
+    def __init__(self, variable: 'Variable', ty: MyType | None, value: Expression):
         super().__init__()
         assert isinstance(variable, Variable)
         self.ty = ty
@@ -513,14 +749,14 @@ class ExpressionKind:
     pass
 
 
-def new_op(ty: types.MyType, fields: list['NewOpField'], location: Location):
+def new_op(ty: MyType, fields: list['NewOpField'], location: Location):
     kind = NewOp(ty, fields)
-    ty = types.void_type
+    ty = void_type
     return Expression(kind, ty, location)
 
 
 class NewOp(ExpressionKind):
-    def __init__(self, ty: types.MyType, fields: list['NewOpField']):
+    def __init__(self, ty: MyType, fields: list['NewOpField']):
         super().__init__()
         self.new_ty = ty
         self.fields = fields
@@ -541,7 +777,7 @@ class NewOpField(Node):
 
 def function_call(target: Expression, args: list['Expression'], location: Location):
     kind = FunctionCall(target, args)
-    ty = types.void_type
+    ty = void_type
     return Expression(kind, ty, location)
 
 
@@ -557,7 +793,7 @@ class FunctionCall(ExpressionKind):
 
 def binop(lhs: Expression, op: str, rhs: Expression, location: Location):
     kind = Binop(lhs, op, rhs)
-    ty = types.void_type
+    ty = void_type
     return Expression(kind, ty, location)
 
 
@@ -574,12 +810,12 @@ class Binop(ExpressionKind):
 
 def string_constant(text: str, location: Location):
     kind = StringConstant(text)
-    ty = types.str_type
+    ty = str_type
     return Expression(kind, ty, location)
 
 
 class TypeCast(ExpressionKind):
-    def __init__(self, ty: types.MyType, value: Expression):
+    def __init__(self, ty: MyType, value: Expression):
         super().__init__()
         self.ty = ty
         self.value = value
@@ -601,10 +837,10 @@ class StringConstant(ExpressionKind):
 def numeric_constant(value: int | float, location: Location):
     kind = NumericConstant(value)
     if isinstance(value, int):
-        ty = types.int_type
+        ty = int_type
     else:
         assert isinstance(value, float)
-        ty = types.float_type
+        ty = float_type
     return Expression(kind, ty, location)
 
 
@@ -620,7 +856,7 @@ class NumericConstant(ExpressionKind):
 
 
 def bool_constant(value: bool, location: Location):
-    return Expression(BoolLiteral(value), types.bool_type, location)
+    return Expression(BoolLiteral(value), bool_type, location)
 
 
 class BoolLiteral(ExpressionKind):
@@ -635,7 +871,7 @@ class BoolLiteral(ExpressionKind):
 
 def array_literal(values: list[Expression], location: Location):
     kind = ArrayLiteral(values)
-    ty = types.void_type
+    ty = void_type
     return Expression(kind, ty, location)
 
 
@@ -648,20 +884,20 @@ class ArrayLiteral(ExpressionKind):
         return f'ArrayLiteral({len(self.values)})'
 
 
-def struct_literal(ty: types.MyType, values: list[Expression], location: Location) -> Expression:
+def struct_literal(ty: MyType, values: list[Expression], location: Location) -> Expression:
     assert ty.is_struct()
     kind = StructLiteral(ty, values)
     return Expression(kind, ty, location)
 
 
 class StructLiteral(ExpressionKind):
-    def __init__(self, ty: types.MyType, values: list[Expression]):
+    def __init__(self, ty: MyType, values: list[Expression]):
         super().__init__()
         self.ty = ty
         self.values = values
 
 
-def union_literal(ty: types.MyType, field: str | int, value: Expression, location: Location) -> Expression:
+def union_literal(ty: MyType, field: str | int, value: Expression, location: Location) -> Expression:
     assert ty.is_union()
     if isinstance(field, int):
         field = ty.get_field_name(field)
@@ -670,7 +906,7 @@ def union_literal(ty: types.MyType, field: str | int, value: Expression, locatio
 
 
 class UnionLiteral(ExpressionKind):
-    def __init__(self, ty: types.MyType, field: str | int, value: Expression):
+    def __init__(self, ty: MyType, field: str | int, value: Expression):
         super().__init__()
         self.ty = ty
         self.field = field
@@ -709,7 +945,7 @@ class EnumLiteral(ExpressionKind):
 
 def name_ref(name: str, location: Location):
     kind = NameRef(name)
-    ty = types.void_type
+    ty = void_type
     return Expression(kind, ty, location)
 
 
@@ -731,7 +967,7 @@ class ObjRef(ExpressionKind):
         return f'obj-ref({self.obj})'
 
 
-def dot_operator(base: Expression, field: str, ty: types.MyType, location: Location):
+def dot_operator(base: Expression, field: str, ty: MyType, location: Location):
     kind = DotOperator(base, field)
     return Expression(kind, ty, location)
 
@@ -749,7 +985,7 @@ class DotOperator(ExpressionKind):
         return f"dot-operator({self.field})"
 
 
-def array_index(base: Expression, index: Expression, ty: types.MyType, location: Location):
+def array_index(base: Expression, index: Expression, ty: MyType, location: Location):
     kind = ArrayIndex(base, index)
     return Expression(kind, ty, location)
 
@@ -770,9 +1006,9 @@ class ArrayIndex(ExpressionKind):
 
 
 class Variable(Definition):
-    def __init__(self, name: str, ty: types.MyType, location: Location):
+    def __init__(self, name: str, ty: MyType, location: Location):
         super().__init__(name, location)
-        assert isinstance(ty, types.MyType)
+        assert isinstance(ty, MyType)
         self.ty = ty
 
     def __repr__(self):
@@ -784,14 +1020,14 @@ class Variable(Definition):
 
 
 class BuiltinFunction(Definition):
-    def __init__(self, name: str, parameter_types: list[types.MyType], return_type: types.MyType):
+    def __init__(self, name: str, parameter_types: list[MyType], return_type: MyType):
         super().__init__(name, Location(1, 1))
-        self.ty = types.function_type(parameter_types, return_type)
+        self.ty = function_type(parameter_types, return_type)
 
 
 class Undefined:
     def __init__(self):
-        self.ty = types.void_type
+        self.ty = void_type
 
 
 class AstVisitor:
@@ -831,8 +1067,8 @@ class AstVisitor:
         else:
             raise NotImplementedError(str(node))
 
-    def visit_type(self, ty: types.MyType):
-        if isinstance(ty.kind, types.TypeExpression):
+    def visit_type(self, ty: MyType):
+        if isinstance(ty.kind, TypeExpression):
             self.visit_expression(ty.kind.expr)
 
     def visit_statement(self, statement: Statement):
@@ -976,7 +1212,7 @@ class AstPrinter(AstVisitor):
         super().visit_definition(definition)
         self.dedent()
 
-    # def visit_type(self, ty: types.MyType):
+    # def visit_type(self, ty: MyType):
     #     self.emit(f"ty > {ty}")
     #     self.indent()
     #     super().visit_type(ty)

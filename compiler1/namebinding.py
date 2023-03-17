@@ -2,7 +2,7 @@
 """
 
 import logging
-from . import ast, types
+from . import ast
 from .location import Location
 from .basepass import BasePass
 
@@ -11,10 +11,10 @@ logger = logging.getLogger('namebinding')
 
 def base_scope() -> ast.Scope:
     top_scope = ast.Scope()
-    top_scope.define('str', types.str_type)
-    top_scope.define('int', types.int_type)
-    top_scope.define('float', types.float_type)
-    top_scope.define('bool', types.bool_type)
+    top_scope.define('str', ast.str_type)
+    top_scope.define('int', ast.int_type)
+    top_scope.define('float', ast.float_type)
+    top_scope.define('bool', ast.bool_type)
     return top_scope
 
 
@@ -78,7 +78,7 @@ class ScopeFiller(BasePass):
             type_arguments = []
             this_var = ast.Variable(
                 'this',
-                types.class_type(definition, type_arguments),
+                ast.class_type(definition, type_arguments),
                 definition.location)
             self.define_symbol('this', this_var)
             # members are visited during visitor

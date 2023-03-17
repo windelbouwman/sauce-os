@@ -8,7 +8,7 @@ Example transformations:
 import logging
 
 
-from . import ast, types
+from . import ast
 logger = logging.getLogger('transforms')
 
 
@@ -55,14 +55,14 @@ class LoopRewriter(BaseTransformer):
             #   ...
             #   i = i + 1
 
-            assert isinstance(kind.values.ty.kind, types.ArrayType)
+            assert isinstance(kind.values.ty.kind, ast.ArrayType)
             # x = arr
             x_var = ast.Variable('x', kind.values.ty, statement.location)
             let_x = ast.let_statement(
                 x_var, None, kind.values, statement.location)
 
             # i = 0
-            i_var = ast.Variable('i', types.int_type, statement.location)
+            i_var = ast.Variable('i', ast.int_type, statement.location)
             zero = ast.numeric_constant(0, statement.location)
             let_i0 = ast.let_statement(
                 i_var, None, zero, statement.location)
@@ -106,7 +106,7 @@ class EnumRewriter(BaseTransformer):
                     f'{definition.name}Data', True, definition.location)
                 for variant in definition.variants:
                     if len(variant.payload) == 0:
-                        t3 = types.int_type
+                        t3 = ast.int_type
                     elif len(variant.payload) == 1:
                         t3 = variant.payload[0]
                     else:
@@ -125,7 +125,7 @@ class EnumRewriter(BaseTransformer):
                 new_defs.append(union_def)
                 builder1 = ast.StructBuilder(
                     f'{definition.name}', False, definition.location)
-                builder1.add_field('tag', types.int_type, definition.location)
+                builder1.add_field('tag', ast.int_type, definition.location)
                 builder1.add_field(
                     'data', union_def.get_type([]), definition.location)
                 tagged_union_def = builder1.finish()
@@ -136,7 +136,7 @@ class EnumRewriter(BaseTransformer):
         module.definitions += new_defs
         super().visit_module(module)
 
-    def visit_type(self, ty: types.MyType):
+    def visit_type(self, ty: ast.MyType):
         super().visit_type(ty)
         kind = ty.kind
         if ty.is_enum():
@@ -201,7 +201,7 @@ class EnumRewriter(BaseTransformer):
 
             tag_value = ast.numeric_constant(
                 kind.variant.index, expression.location)
-            tagged_union_ty: types.MyType = self._tagged_unions[id(
+            tagged_union_ty: ast.MyType = self._tagged_unions[id(
                 kind.enum_def)]
             union_ty = tagged_union_ty.get_field_type(1)
 

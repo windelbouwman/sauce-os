@@ -7,7 +7,7 @@ import logging
 
 import networkx as nx
 
-from . import ast, types
+from . import ast
 from .parsing import parse_file
 from .namebinding import ScopeFiller, NameBinder
 from .pass3 import NewOpPass, TypeEvaluation
@@ -27,16 +27,16 @@ def std_module():
     mod = ast.Module('std', [], [])
     mod.add_definition(
         'print',
-        ast.BuiltinFunction('std_print', [types.str_type], types.void_type))
+        ast.BuiltinFunction('std_print', [ast.str_type], ast.void_type))
     mod.add_definition(
         'int_to_str',
-        ast.BuiltinFunction('std_int_to_str', [types.int_type], types.str_type))
+        ast.BuiltinFunction('std_int_to_str', [ast.int_type], ast.str_type))
     mod.add_definition(
         'read_file',
-        ast.BuiltinFunction('std_read_file', [types.str_type], types.str_type))
+        ast.BuiltinFunction('std_read_file', [ast.str_type], ast.str_type))
     mod.add_definition(
         'float_to_str',
-        ast.BuiltinFunction('std_float_to_str', [types.float_type], types.str_type))
+        ast.BuiltinFunction('std_float_to_str', [ast.float_type], ast.str_type))
 
     return mod
 

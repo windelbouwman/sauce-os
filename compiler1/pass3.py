@@ -4,7 +4,7 @@ TODO: figure out better name.
 """
 
 import logging
-from . import ast, types
+from . import ast
 from .basepass import BasePass
 
 logger = logging.getLogger('pass3')
@@ -19,32 +19,32 @@ class TypeEvaluation(BasePass):
         self.visit_module(module)
         self.finish("Types evaluated")
 
-    def visit_type(self, ty: types.MyType):
+    def visit_type(self, ty: ast.MyType):
         super().visit_type(ty)
-        if isinstance(ty.kind, types.TypeExpression):
+        if isinstance(ty.kind, ast.TypeExpression):
             ty.kind = self.eval_type_expr(ty.kind.expr).kind
 
-    def eval_type_expr(self, expression: ast.Expression) -> types.MyType:
+    def eval_type_expr(self, expression: ast.Expression) -> ast.MyType:
         # TBD: combine this with name binding?
         if isinstance(expression.kind, ast.ObjRef):
             obj = expression.kind.obj
-            if isinstance(obj, types.MyType):
+            if isinstance(obj, ast.MyType):
                 return obj
             elif isinstance(obj, ast.StructDef):
-                return types.struct_type(obj, [])
+                return ast.struct_type(obj, [])
             elif isinstance(obj, ast.EnumDef):
-                return types.enum_type(obj, [])
+                return ast.enum_type(obj, [])
             elif isinstance(obj, ast.ClassDef):
-                return types.class_type(obj, [])
+                return ast.class_type(obj, [])
             elif isinstance(obj, ast.TypeDef):
                 raise NotImplementedError("TODO: type-def")
                 # return obj.ty
             elif isinstance(obj, ast.TypeVar):
-                return types.type_var_ref(obj)
+                return ast.type_var_ref(obj)
             else:
                 self.error(expression.location,
                            f'No type object: {obj}')
-                return types.void_type
+                return ast.void_type
         elif isinstance(expression.kind, ast.ArrayIndex):
             type_arguments = [
                 self.eval_type_expr(a) for a in [expression.kind.index]]
@@ -52,11 +52,11 @@ class TypeEvaluation(BasePass):
             if generic:
                 return generic.get_type(type_arguments)
             else:
-                return types.void_type
+                return ast.void_type
         else:
             self.error(expression.location,
                        f'Invalid type expression: {expression.kind}')
-            return types.void_type
+            return ast.void_type
 
     def eval_generic_expr(self, expression: ast.Expression):
         """ Evaluate expression when used as generic """

@@ -9,9 +9,9 @@ from lark import Lark, Transformer as LarkTransformer
 from lark.lexer import Lexer as LarkLexer, Token as LarkToken
 from lark.exceptions import UnexpectedInput
 
-from . import ast, types
+from . import ast
 from .lexer import detect_indentations, tokenize, Location
-from .errors import ParseError, print_error
+from .errors import ParseError
 
 logger = logging.getLogger('parser')
 
@@ -136,7 +136,7 @@ class CustomTransformer(LarkTransformer):
         if isinstance(x[-2], LarkToken) and x[-2].type == 'ARROW':
             return_type = x[-1]
         else:
-            return_type = types.void_type
+            return_type = ast.void_type
         return parameters, return_type
 
     def parameters(self, x):
@@ -196,10 +196,10 @@ class CustomTransformer(LarkTransformer):
         if isinstance(x[0], LarkToken) and x[0].type == 'KW_FN':
             # raise NotImplementedError('?')
             parameters, return_type = x[1]
-            return types.function_type(parameters, return_type)
+            return ast.function_type(parameters, return_type)
         else:
             assert isinstance(x[0], ast.Expression)
-            return types.type_expression(x[0])
+            return ast.type_expression(x[0])
 
     def types(self, x):
         if len(x) == 1:
@@ -261,7 +261,7 @@ class CustomTransformer(LarkTransformer):
         # case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? COLON NEWLINE block
         name = x[0].value
         if isinstance(x[1], LarkToken) and x[1].type == 'LEFT_BRACE':
-            variables = [ast.Variable(name, types.void_type, location)
+            variables = [ast.Variable(name, ast.void_type, location)
                          for name, location in x[2]]
         else:
             variables = []
@@ -282,7 +282,7 @@ class CustomTransformer(LarkTransformer):
 
     def let_statement(self, x):
         """ KW_LET ID (COLON typ)? EQUALS expression NEWLINE """
-        variable = ast.Variable(x[1].value, types.void_type, get_loc(x[1]))
+        variable = ast.Variable(x[1].value, ast.void_type, get_loc(x[1]))
         if isinstance(x[2], LarkToken) and x[2].type == 'COLON':
             assert isinstance(x[4], LarkToken) and x[4].type == 'EQUALS'
             ty, value = x[3], x[5]
@@ -301,7 +301,7 @@ class CustomTransformer(LarkTransformer):
 
     def for_statement(self, x):
         # KW_FOR ID KW_IN expression COLON NEWLINE block
-        variable = ast.Variable(x[1].value, types.void_type, get_loc(x[1]))
+        variable = ast.Variable(x[1].value, ast.void_type, get_loc(x[1]))
         values, inner = x[3], x[6]
         return ast.for_statement(variable, values, inner, get_loc(x[0]))
 
@@ -382,11 +382,11 @@ class CustomTransformer(LarkTransformer):
             return x[1]
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == 'LEFT_BRACKET':
             base, index = x[0], x[2]
-            ty = types.void_type
+            ty = ast.void_type
             return ast.array_index(base, index, ty, get_loc(x[1]))
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == 'DOT':
             base, field = x[0], x[2]
-            ty = types.void_type
+            ty = ast.void_type
             return ast.dot_operator(base, field, ty, get_loc(x[1]))
         else:
             raise NotImplementedError(str(x))
@@ -431,7 +431,7 @@ class CustomTransformer(LarkTransformer):
         if len(x) == 1:
             return ast.name_ref(x[0].value, get_loc(x[0]))
         else:
-            ty = types.void_type
+            ty = ast.void_type
             return ast.dot_operator(x[0], x[2].value, ty, get_loc(x[1]))
 
 
