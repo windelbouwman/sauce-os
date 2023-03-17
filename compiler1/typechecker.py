@@ -178,7 +178,7 @@ class TypeChecker(BasePass):
                            f'Trying to call non-function type: {kind.target.ty}')
 
         elif isinstance(kind, ast.NewOp):
-            raise ValueError("Must be rewritten before!")
+            raise ValueError("new-op must be rewritten before!")
         elif isinstance(kind, ast.NameRef):
             raise ValueError(f"Must be resolved: {kind}")
         elif isinstance(kind, ast.StructLiteral):
@@ -231,5 +231,5 @@ class TypeChecker(BasePass):
         if not expression.ty.equals(ty):
             self.error(
                 expression.location,
-                f"Got {expression.ty}, expected {ty}"
+                f"Expected {ty}, got {expression.ty}"
             )

@@ -115,10 +115,10 @@ def tokenize(code: str):
         elif kind == 'ID':
             if value in keywords:
                 kind = keywords[value]
-            elif value == 'True':
+            elif value == 'true':
                 kind = 'BOOL'
                 value = True
-            elif value == 'False':
+            elif value == 'false':
                 kind = 'BOOL'
                 value = False
             tok = Token(kind, value, loc)

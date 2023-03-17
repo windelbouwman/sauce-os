@@ -44,6 +44,13 @@ class MyType:
         else:
             raise ValueError("Can only get field from struct/union")
 
+    def get_field_names(self) -> list[str]:
+        """ Retrieve names of all fields """
+        if isinstance(self.kind, StructType):
+            return self.kind.get_field_names()
+        else:
+            raise ValueError("Can only get field names from struct/union")
+
     def get_field_type(self, i: int | str) -> 'MyType':
         """ Retrieve type of field. i can be index or name """
         if isinstance(self.kind, (StructType, ClassType)):
@@ -155,6 +162,10 @@ class StructType(TypeKind):
     def get_field_name(self, i: int | str) -> str:
         field = self.struct_def.get_field(i)
         return field.name
+
+    def get_field_names(self) -> list[str]:
+        names = [field.name for field in self.struct_def.fields]
+        return names
 
     def index_of(self, name):
         names = [name for name, _ in self.fields]

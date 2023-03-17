@@ -14,7 +14,7 @@ struct Lexer:
 fn lexer_new() -> Lexer:
     let lexer = Lexer:
         indent_level: 0
-        at_bol: True
+        at_bol: true
         spaces: 0
     return lexer
 

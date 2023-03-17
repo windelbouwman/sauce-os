@@ -9,7 +9,9 @@ import networkx as nx
 
 from . import ast, types
 from .parsing import parse_file
-from .analyze import analyze_ast
+from .namebinding import ScopeFiller, NameBinder
+from .pass3 import NewOpPass, TypeEvaluation
+from .typechecker import TypeChecker
 from .transforms import transform
 from .cppgenerator import gencode
 
@@ -22,13 +24,21 @@ class CompilationOptions:
 
 
 def std_module():
-    return ast.BuiltinModule(
-        'std', {
-            'print': ast.BuiltinFunction('std_print', [types.str_type], types.void_type),
-            'read_file': ast.BuiltinFunction('std_read_file', [types.str_type], types.str_type),
-            'int_to_str': ast.BuiltinFunction('std_int_to_str', [types.int_type], types.str_type),
-            'float_to_str': ast.BuiltinFunction('std_float_to_str', [types.float_type], types.str_type),
-        })
+    mod = ast.Module('std', [], [])
+    mod.add_definition(
+        'print',
+        ast.BuiltinFunction('std_print', [types.str_type], types.void_type))
+    mod.add_definition(
+        'int_to_str',
+        ast.BuiltinFunction('std_int_to_str', [types.int_type], types.str_type))
+    mod.add_definition(
+        'read_file',
+        ast.BuiltinFunction('std_read_file', [types.str_type], types.str_type))
+    mod.add_definition(
+        'float_to_str',
+        ast.BuiltinFunction('std_float_to_str', [types.float_type], types.str_type))
+
+    return mod
 
 
 def do_compile(filenames: list[str], output: str | None, options: CompilationOptions):
@@ -83,3 +93,16 @@ def topo_sort(modules: list[ast.Module]):
         if name in m:
             modules.append(m.pop(name))
     assert not m
+
+
+def analyze_ast(module: ast.Module, known_modules: dict[str, ast.Module], options: CompilationOptions):
+    """ Fill scopes, resolve symbols, evaluate type expressions."""
+    ScopeFiller(known_modules).fill_module(module)
+    NameBinder().resolve_symbols(module)
+    TypeEvaluation().run(module)
+    NewOpPass().run(module)
+
+    if options.dump_ast:
+        ast.print_ast(module)
+
+    TypeChecker().check_module(module)

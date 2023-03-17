@@ -1,4 +1,5 @@
-
+""" Fill scopes with symbols and resolve names using these filled scopes.
+"""
 
 import logging
 from . import ast, types
@@ -26,7 +27,12 @@ class ScopeFiller(BasePass):
     def fill_module(self, module: ast.Module):
         self.begin(module.filename,
                    f"Filling scopes in module '{module.name}'")
-        self.define_module(module)
+
+        if module.name in self._modules:
+            self.error(module.location, f"Cannot redefine {module.name}")
+        else:
+            self._modules[module.name] = module
+
         self.enter_scope(module.scope)
         for imp in module.imports:
             if imp.modname in self._modules:
@@ -49,46 +55,37 @@ class ScopeFiller(BasePass):
         self.leave_scope()
         self.finish("Scopes filled")
 
-    def define_module(self, module: ast.Module):
-        if module.name in self._modules:
-            self.error(module.location, f"Cannot redefine {module.name}")
-        else:
-            self._modules[module.name] = module
-
     def visit_definition(self, definition: ast.Definition):
+        self.define_symbol(definition.name, definition)
+        self.enter_scope(definition.scope)
         if isinstance(definition, ast.StructDef):
-            self.define_symbol(definition.name, definition)
-            self.enter_scope(definition.scope)
             for type_parameter in definition.type_parameters:
                 self.define_symbol(type_parameter.name, type_parameter)
             for field in definition.fields:
                 self.define_symbol(field.name, field)
         elif isinstance(definition, ast.EnumDef):
-            self.define_symbol(definition.name, definition)
-            self.enter_scope(definition.scope)
             for type_parameter in definition.type_parameters:
                 self.define_symbol(type_parameter.name, type_parameter)
             for variant in definition.variants:
                 self.define_symbol(variant.name, variant)
         elif isinstance(definition, ast.FunctionDef):
-            self.define_symbol(definition.name, definition)
-            self.enter_scope(definition.scope)
             for type_parameter in definition.type_parameters:
                 self.define_symbol(type_parameter.name, type_parameter)
             for parameter in definition.parameters:
                 self.define_symbol(parameter.name, parameter)
         elif isinstance(definition, ast.ClassDef):
-            self.define_symbol(definition.name, definition)
-            self.enter_scope(definition.scope)
+            # TODO!
             type_arguments = []
             this_var = ast.Variable(
                 'this',
                 types.class_type(definition, type_arguments),
                 definition.location)
             self.define_symbol('this', this_var)
+            # members are visited during visitor
+            # for member in definition.members:
+            #    self.define_symbol(member.name, member)
         elif isinstance(definition, (ast.VarDef, ast.TypeDef)):
-            self.define_symbol(definition.name, definition)
-            self.enter_scope(definition.scope)
+            pass
         else:
             raise NotImplementedError(str(definition))
 
@@ -164,53 +161,6 @@ class NameBinder(BasePass):
         if scope:
             self.leave_scope()
 
-    def visit_type(self, ty: types.MyType):
-        super().visit_type(ty)
-        if isinstance(ty.kind, types.TypeExpression):
-            ty.kind = self.eval_type_expr(ty.kind.expr).kind
-
-    def eval_type_expr(self, expression: ast.Expression) -> types.MyType:
-        # TBD: combine this with name binding?
-        if isinstance(expression.kind, ast.ObjRef):
-            obj = expression.kind.obj
-            if isinstance(obj, types.MyType):
-                return obj
-            elif isinstance(obj, ast.StructDef):
-                return types.struct_type(obj, [])
-            elif isinstance(obj, ast.EnumDef):
-                return types.enum_type(obj, [])
-            elif isinstance(obj, ast.ClassDef):
-                return types.class_type(obj, [])
-            elif isinstance(obj, ast.TypeDef):
-                raise NotImplementedError("TODO: type-def")
-                # return obj.ty
-            elif isinstance(obj, ast.TypeVar):
-                return types.type_var_ref(obj)
-            else:
-                self.error(expression.location,
-                           f'No type object: {obj}')
-                return types.void_type
-        elif isinstance(expression.kind, ast.ArrayIndex):
-            type_arguments = [
-                self.eval_type_expr(a) for a in [expression.kind.index]]
-            generic = self.eval_generic_expr(expression.kind.base)
-            if generic:
-                return generic.get_type(type_arguments)
-            else:
-                return types.void_type
-        else:
-            self.error(expression.location,
-                       f'Invalid type expression: {expression.kind}')
-            return types.void_type
-
-    def eval_generic_expr(self, expression: ast.Expression):
-        """ Evaluate expression when used as generic """
-        if isinstance(expression.kind, ast.ObjRef):
-            obj = expression.kind.obj
-            if isinstance(obj, (ast.StructDef, ast.EnumDef, ast.ClassDef)):
-                return obj
-        self.error(expression.location, f'Invalid generic')
-
     def visit_expression(self, expression: ast.Expression):
         super().visit_expression(expression)
         kind = expression.kind
@@ -221,7 +171,7 @@ class NameBinder(BasePass):
             # Resolve obj_ref . field at this point, we can do this here.
             if isinstance(kind.base.kind, ast.ObjRef):
                 obj = kind.base.kind.obj
-                if isinstance(obj, (ast.BuiltinModule, ast.Module)):
+                if isinstance(obj, ast.Module):
                     if obj.has_field(kind.field):
                         expression.kind = ast.ObjRef(obj.get_field(kind.field))
                     else:
@@ -242,37 +192,6 @@ class NameBinder(BasePass):
             elif isinstance(kind.target.kind, ast.ObjRef):
                 obj = kind.target.kind.obj
                 # if isinstance(obj, ast.ClassDef)
-
-        elif isinstance(kind, ast.NewOp):
-            # Fixup new-op operation
-
-            named_values = {}
-            for label_value in kind.fields:
-                if label_value.name in named_values:
-                    self.error(label_value.location,
-                               f"Duplicate field: {label_value.name}")
-                else:
-                    named_values[label_value.name] = label_value
-
-            expression.ty = kind.new_ty
-            if kind.new_ty.is_struct():
-                values = []
-                for field in kind.new_ty.kind.struct_def.fields:
-                    if field.name in named_values:
-                        values.append(named_values.pop(field.name).value)
-                    else:
-                        self.error(expression.location,
-                                   f"Missing field {field.name}")
-
-                for left in named_values.values():
-                    self.error(left.location,
-                               f"Superfluous field: {left.name}")
-                expression.kind = ast.StructLiteral(kind.new_ty, values)
-                expression.ty = kind.new_ty
-
-            else:
-                self.error(
-                    expression.location, f'Can only contrap struct type, not {kind.new_ty}')
 
     def enter_scope(self, scope: ast.Scope):
         self._scopes.append(scope)

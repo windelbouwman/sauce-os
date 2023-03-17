@@ -76,6 +76,11 @@ class Module(Node):
     def get_field(self, name: str) -> 'Definition':
         return self.scope.lookup(name)
 
+    def add_definition(self, name: str, definition: 'Definition'):
+        assert not self.scope.is_defined(name)
+        self.scope.define(name, definition)
+        self.definitions.append(definition)
+
 
 class BaseImport(Node):
     def __init__(self, modname: str, location: Location):
@@ -260,10 +265,9 @@ class EnumDef(Definition):
         return types.enum_type(self, type_arguments)
 
 
-class EnumVariant(Node):
+class EnumVariant(Definition):
     def __init__(self, name: str, payload: list[types.MyType], location: Location):
-        super().__init__(location)
-        self.name = name
+        super().__init__(name, location)
         self.payload = payload
         self.index = 0
 
@@ -779,23 +783,9 @@ class Variable(Definition):
         return Expression(ObjRef(self), self.ty, location)
 
 
-class BuiltinModule:
-    def __init__(self, name: str, symbols):
-        super().__init__()
-        self.name = name
-        self.ty = types.ModuleType()
-        self.symbols = symbols
-
-    def has_field(self, name: str) -> bool:
-        return name in self.symbols
-
-    def get_field(self, name: str):
-        return self.symbols[name]
-
-
-class BuiltinFunction:
+class BuiltinFunction(Definition):
     def __init__(self, name: str, parameter_types: list[types.MyType], return_type: types.MyType):
-        self.name = name
+        super().__init__(name, Location(1, 1))
         self.ty = types.function_type(parameter_types, return_type)
 
 
