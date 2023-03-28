@@ -88,23 +88,35 @@ class Generator:
                 'float': 'double',
             }
             cty = ctypes.get(kind.name, kind.name)
-            return f"{cty} {name}" if name else cty
         elif isinstance(kind, ast.ArrayType):
             assert name
             return f"{self.gen_type(kind.element_type, name)}[{kind.size}]"
-        elif isinstance(kind, ast.StructType):
-            assert name
-            t = 'union' if kind.struct_def.is_union else 'struct'
-            return f"{t} {kind.struct_def.name} {name}"
+        elif isinstance(kind, ast.App):
+            if isinstance(kind.tycon, ast.StructDef):
+                ct = 'union' if kind.tycon.is_union else 'struct'
+                ct = f"{ct} {kind.tycon.name}"
+
+            elif isinstance(kind.tycon, ast.EnumDef):
+                raise ValueError("C++ backend does not support enum ast.")
+            else:
+                raise NotImplementedError(str(kind.tycon))
+
+            # Add template arguments:
+            if kind.type_args:
+                type_args = ','.join(
+                    self.gen_type(ta, '') for ta in kind.type_args)
+                cty = f"{ct}<{type_args}>"
+            else:
+                cty = ct
+
         elif isinstance(kind, ast.FunctionType):
             return_type = self.gen_type(kind.return_type, '')
             params = ','.join(self.gen_type(p, '')
                               for p in kind.parameter_types)
             return f"{return_type}(*{name})({params})"
-        elif isinstance(kind, ast.EnumType):
-            raise ValueError("C++ backend does not support enum ast.")
         else:
-            return f"{ty} {name}" if name else str(ty)
+            cty = str(ty)
+        return f"{cty} {name}" if name else cty
 
     def gen_block(self, block: ast.Statement):
         self.indent()
@@ -200,7 +212,7 @@ class Generator:
         elif isinstance(kind, ast.NumericConstant):
             return f"{kind.value}"
         elif isinstance(kind, ast.StringConstant):
-            return f"{kind.text}"
+            return f'"{kind.text}"'
         elif isinstance(kind, ast.BoolLiteral):
             txt = {True: 'true', False: 'false'}
             return txt[kind.value]

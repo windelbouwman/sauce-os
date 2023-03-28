@@ -4,14 +4,14 @@ from .location import Location
 
 
 def print_error(code, location: Location, message: str):
-    print('***********************')
+    print('***********************', location)
     context_amount = 5
     was_printed = False
     for row_nr, text in enumerate(code.splitlines(), start=1):
         if row_nr < location.row - context_amount:
             continue
 
-        print(f'[italic]{row_nr:05}[/italic]: {text}')
+        print(f'[italic]{row_nr:5}[/italic]: {text}')
         if row_nr == location.row:
             indent = ' ' * (location.column + 6)
             pointer = indent + '^'
@@ -45,9 +45,8 @@ class CompilationError(RuntimeError):
         self.errors = errors
 
 
-class ParseError(CompilationError):
-    pass
-
-
-class LexError(CompilationError):
-    pass
+class ParseError(RuntimeError):
+    def __init__(self, location: Location, message: str):
+        super().__init__()
+        self.location = location
+        self.message = message

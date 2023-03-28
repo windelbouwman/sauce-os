@@ -22,13 +22,17 @@ def transform(modules: list[ast.Module]):
 
 
 class BaseTransformer(ast.AstVisitor):
+    name = '?'
+
     def transform(self, modules: list[ast.Module]):
-        logger.info(f"Transforming")
+        logger.info(f"Transforming {self.name}")
         for module in modules:
             self.visit_module(module)
 
 
 class LoopRewriter(BaseTransformer):
+    name = 'loop-rewrite'
+
     def __init__(self):
         super().__init__()
 
@@ -92,55 +96,73 @@ class LoopRewriter(BaseTransformer):
 
 
 class EnumRewriter(BaseTransformer):
+    name = 'enum-rewrite'
+
     def __init__(self):
         super().__init__()
         self._tagged_unions = {}
 
     def visit_module(self, module: ast.Module):
-        new_defs = []
+        self.new_defs = []
         for definition in module.definitions:
             if isinstance(definition, ast.EnumDef):
-                # Create tagged union types / definitions
+                self.rewrite_enum_def(definition)
 
-                builder2 = ast.StructBuilder(
-                    f'{definition.name}Data', True, definition.location)
-                for variant in definition.variants:
-                    if len(variant.payload) == 0:
-                        t3 = ast.int_type
-                    elif len(variant.payload) == 1:
-                        t3 = variant.payload[0]
-                    else:
-                        assert len(variant.payload) > 1
-                        builder3 = ast.StructBuilder(
-                            f'{definition.name}{variant.name}Data', False, variant.location)
-                        for nr, p in enumerate(variant.payload):
-                            builder3.add_field(f'f_{nr}', p, variant.location)
-                        s_def3 = builder3.finish()
-                        new_defs.append(s_def3)
-                        t3 = s_def3.get_type([])
-
-                    builder2.add_field(
-                        f"{variant.name}", t3, variant.location)
-                union_def = builder2.finish()
-                new_defs.append(union_def)
-                builder1 = ast.StructBuilder(
-                    f'{definition.name}', False, definition.location)
-                builder1.add_field('tag', ast.int_type, definition.location)
-                builder1.add_field(
-                    'data', union_def.get_type([]), definition.location)
-                tagged_union_def = builder1.finish()
-                new_defs.append(tagged_union_def)
-                self._tagged_unions[id(definition)
-                                    ] = tagged_union_def.get_type([])
-
-        module.definitions += new_defs
+        module.definitions += self.new_defs
         super().visit_module(module)
+
+    def rewrite_enum_def(self, definition: ast.EnumDef):
+        """ Create tagged union types / definitions """
+
+        builder2 = ast.StructBuilder(
+            f'{definition.name}Data', True, definition.location)
+        type_vars2 = [
+            builder2.add_type_parameter(tp.name, tp.location)
+            for tp in definition.type_parameters]
+        m2 = dict(zip(definition.type_parameters, type_vars2))
+
+        for variant in definition.variants:
+            if len(variant.payload) == 0:
+                t3 = ast.int_type
+            elif len(variant.payload) == 1:
+                # TODO: replace type-vars!
+                t3 = ast.subst(variant.payload[0], m2)
+            else:
+                assert len(variant.payload) > 1
+                builder3 = ast.StructBuilder(
+                    f'{definition.name}{variant.name}Data', False, variant.location)
+                type_vars3 = [
+                    builder3.add_type_parameter(tp.name, tp.location)
+                    for tp in definition.type_parameters]
+
+                m3 = dict(zip(definition.type_parameters, type_vars3))
+                for nr, p in enumerate(variant.payload):
+                    builder3.add_field(
+                        f'f_{nr}', ast.subst(p, m3), variant.location)
+                s_def3 = builder3.finish()
+                self.new_defs.append(s_def3)
+                t3 = s_def3.get_type(type_vars2)
+
+            builder2.add_field(
+                f"{variant.name}", t3, variant.location)
+        union_def = builder2.finish()
+        self.new_defs.append(union_def)
+        builder1 = ast.StructBuilder(
+            f'{definition.name}', False, definition.location)
+        type_vars1 = [
+            builder1.add_type_parameter(tp.name, tp.location)
+            for tp in definition.type_parameters]
+        builder1.add_field('tag', ast.int_type, definition.location)
+        builder1.add_field(
+            'data', union_def.get_type(type_vars1), definition.location)
+        tagged_union_def = builder1.finish()
+        self.new_defs.append(tagged_union_def)
+        self._tagged_unions[id(definition)] = tagged_union_def
 
     def visit_type(self, ty: ast.MyType):
         super().visit_type(ty)
-        kind = ty.kind
         if ty.is_enum():
-            ty.kind = self._tagged_unions[id(kind.enum_def)].kind
+            ty.kind.tycon = self._tagged_unions[id(ty.kind.tycon)]
 
     def visit_statement(self, statement: ast.Statement):
         """
@@ -198,11 +220,13 @@ class EnumRewriter(BaseTransformer):
         super().visit_expression(expression)
         kind = expression.kind
         if isinstance(kind, ast.EnumLiteral):
+            assert expression.ty.is_enum()
 
             tag_value = ast.numeric_constant(
                 kind.variant.index, expression.location)
+
             tagged_union_ty: ast.MyType = self._tagged_unions[id(
-                kind.enum_def)]
+                kind.enum_def)].get_type(expression.ty.kind.type_args)
             union_ty = tagged_union_ty.get_field_type(1)
 
             if len(kind.values) == 0:
@@ -219,3 +243,4 @@ class EnumRewriter(BaseTransformer):
 
             expression.kind = ast.StructLiteral(
                 tagged_union_ty, [tag_value, union_value])
+            expression.ty = tagged_union_ty

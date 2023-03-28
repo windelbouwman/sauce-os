@@ -13,6 +13,7 @@ from .namebinding import ScopeFiller, NameBinder
 from .pass3 import NewOpPass, TypeEvaluation
 from .typechecker import TypeChecker
 from .transforms import transform
+from .flowcheck import flow_check
 from .cppgenerator import gencode
 
 logger = logging.getLogger('compiler')
@@ -62,6 +63,13 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
             ast.print_ast(module)
 
     transform(modules)
+
+    for module in modules:
+        if options.dump_ast:
+            logger.info('Dumping AST')
+            ast.print_ast(module)
+
+    flow_check(modules)
 
     # Generate output
     if output:

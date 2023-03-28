@@ -28,6 +28,7 @@ fn main() -> int:
         msg: "BOOM2"
         b: 55
     bar(k3, messages)
+    return 0
 
 fn foo(messages: Holder):
     std::print(messages.msg1)

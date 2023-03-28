@@ -6,6 +6,7 @@ TODO: figure out better name.
 import logging
 from . import ast
 from .basepass import BasePass
+from .typechecker import expand
 
 logger = logging.getLogger('pass3')
 
@@ -13,11 +14,7 @@ logger = logging.getLogger('pass3')
 class TypeEvaluation(BasePass):
     """ Evaluate type expressions.
     """
-
-    def run(self, module: ast.Module):
-        self.begin(module.filename, f"Evaluating types in '{module.name}'")
-        self.visit_module(module)
-        self.finish("Types evaluated")
+    name = 'type-evaluator'
 
     def visit_type(self, ty: ast.MyType):
         super().visit_type(ty)
@@ -25,7 +22,8 @@ class TypeEvaluation(BasePass):
             ty.kind = self.eval_type_expr(ty.kind.expr).kind
 
     def eval_type_expr(self, expression: ast.Expression) -> ast.MyType:
-        # TBD: combine this with name binding?
+        """ Evaluate a type expression.
+        """
         if isinstance(expression.kind, ast.ObjRef):
             obj = expression.kind.obj
             if isinstance(obj, ast.MyType):
@@ -50,7 +48,8 @@ class TypeEvaluation(BasePass):
                 self.eval_type_expr(a) for a in [expression.kind.index]]
             generic = self.eval_generic_expr(expression.kind.base)
             if generic:
-                return generic.get_type(type_arguments)
+                return ast.tycon_apply(generic, type_arguments)
+                # return generic.get_type(type_arguments)
             else:
                 return ast.void_type
         else:
@@ -58,11 +57,15 @@ class TypeEvaluation(BasePass):
                        f'Invalid type expression: {expression.kind}')
             return ast.void_type
 
-    def eval_generic_expr(self, expression: ast.Expression):
+    def eval_generic_expr(self, expression: ast.Expression) -> ast.TypeConstructor:
         """ Evaluate expression when used as generic """
         if isinstance(expression.kind, ast.ObjRef):
             obj = expression.kind.obj
-            if isinstance(obj, (ast.StructDef, ast.EnumDef, ast.ClassDef)):
+            if isinstance(obj, ast.StructDef):
+                return obj
+            elif isinstance(obj, ast.EnumDef):
+                return obj
+            elif isinstance(obj, ast.ClassDef):
                 return obj
         self.error(expression.location, f'Invalid generic')
 
@@ -70,10 +73,7 @@ class TypeEvaluation(BasePass):
 class NewOpPass(BasePass):
     """ Translate object initializers to struct literals."""
 
-    def run(self, module: ast.Module):
-        self.begin(module.filename, f"Resolving new-ops '{module.name}'")
-        self.visit_module(module)
-        self.finish("New-ops resolved")
+    name = 'new-op'
 
     def visit_expression(self, expression: ast.Expression):
         super().visit_expression(expression)
@@ -91,9 +91,10 @@ class NewOpPass(BasePass):
                     named_values[label_value.name] = label_value
 
             expression.ty = kind.new_ty
-            if kind.new_ty.is_struct():
+            ty = expand(kind.new_ty)
+            if ty.is_struct():
                 values = []
-                for name in kind.new_ty.get_field_names():
+                for name in ty.get_field_names():
                     if name in named_values:
                         values.append(named_values.pop(name).value)
                     else:
@@ -103,8 +104,8 @@ class NewOpPass(BasePass):
                 for left in named_values.values():
                     self.error(left.location,
                                f"Superfluous field: {left.name}")
-                expression.kind = ast.StructLiteral(kind.new_ty, values)
-                expression.ty = kind.new_ty
+                expression.kind = ast.StructLiteral(ty, values)
+                expression.ty = ty
 
             else:
                 self.error(

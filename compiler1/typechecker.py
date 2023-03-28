@@ -8,7 +8,6 @@ from . import ast
 from .basepass import BasePass
 from .location import Location
 from .ast import bool_type, void_type
-from .errors import CompilationError
 
 logger = logging.getLogger('typechecker')
 
@@ -16,6 +15,7 @@ logger = logging.getLogger('typechecker')
 class TypeChecker(BasePass):
     def __init__(self):
         super().__init__()
+        self._function = None
 
     def check_module(self, module: ast.Module):
         self.begin(module.filename, f"Type checking module '{module.name}'")
@@ -36,15 +36,13 @@ class TypeChecker(BasePass):
         self.finish("Type check OK.")
 
     def check_function(self, func: ast.FunctionDef):
+        assert not self._function
         self._function = func
         self.visit_statement(func.statements)
         self._function = None
 
     def visit_statement(self, statement: ast.Statement):
         super().visit_statement(statement)
-        self.check_statement(statement)
-
-    def check_statement(self, statement: ast.Statement):
         kind = statement.kind
         if isinstance(kind, ast.LoopStatement):
             pass
@@ -68,7 +66,7 @@ class TypeChecker(BasePass):
             pass
         elif isinstance(kind, ast.ReturnStatement):
             if kind.value:
-                if not kind.value.ty.equals(self._function.return_ty):
+                if not self.unify(kind.value.ty, self._function.return_ty):
                     self.error(
                         statement.location, f"Returning wrong type {kind.value.ty} (should be {self._function.return_ty})")
 
@@ -87,11 +85,9 @@ class TypeChecker(BasePass):
         kind = statement.kind
         if isinstance(kind, ast.CaseStatement):
             if kind.value.ty.is_enum():
-                enum_def: ast.EnumDef = kind.value.ty.kind.enum_def
                 for arm in kind.arms:
-                    if enum_def.scope.is_defined(arm.name):
-                        variant: ast.EnumVariant = enum_def.scope.lookup(
-                            arm.name)
+                    if kind.value.ty.has_variant(arm.name):
+                        variant = kind.value.ty.get_variant(arm.name)
 
                         # HACK to pass variant to transform pass:
                         arm.variant = variant
@@ -114,11 +110,8 @@ class TypeChecker(BasePass):
                            f'Expected array, not {kind.values.ty}')
 
     def visit_expression(self, expression: ast.Expression):
-        super().visit_expression(expression)
-        self.check_expression(expression)
-
-    def check_expression(self, expression: ast.Expression):
         """ Perform type checking on expression! """
+        super().visit_expression(expression)
         kind = expression.kind
         if isinstance(kind, (ast.NumericConstant, ast.StringConstant, ast.BoolLiteral)):
             pass
@@ -165,10 +158,12 @@ class TypeChecker(BasePass):
 
         elif isinstance(kind, ast.FunctionCall):
             if isinstance(kind.target.ty.kind, ast.FunctionType):
+                arg_types = kind.target.ty.kind.parameter_types
+                return_type = kind.target.ty.kind.return_type
                 self.check_arguments(
-                    kind.target.ty.kind.parameter_types, kind.args, expression.location)
-                expression.ty = kind.target.ty.kind.return_type
-            elif isinstance(kind.target.ty.kind, ast.ClassType):
+                    arg_types, kind.args, expression.location)
+                expression.ty = return_type
+            elif kind.target.ty.is_class():
                 # Assume constructor is called without arguments for now
                 # TODO: allow constructors!
                 self.check_arguments([], kind.args, expression.location)
@@ -182,9 +177,10 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.NameRef):
             raise ValueError(f"Must be resolved: {kind}")
         elif isinstance(kind, ast.StructLiteral):
-            assert len(kind.ty.kind.struct_def.fields) == len(kind.values)
-            for field, value in zip(kind.ty.kind.struct_def.fields, kind.values):
-                self.assert_type(value, field.ty)
+            field_types = kind.ty.get_field_types()
+            assert len(field_types) == len(kind.values)
+            for field_type, value in zip(field_types, kind.values):
+                self.assert_type(value, field_type)
             expression.ty = kind.ty
         elif isinstance(kind, ast.EnumLiteral):
             self.check_arguments(kind.variant.payload,
@@ -221,15 +217,52 @@ class TypeChecker(BasePass):
     def assert_type(self, expression: ast.Expression, ty: ast.MyType):
         """ Check if expression is of given type, raise error otherwise.
         """
-        # Try to auto-convert before check
+
+        # Try to auto-convert before check:
         if expression.ty.is_int() and ty.is_float():
             # Auto-conv int to floats
             old_expr = expression.clone()
             expression.kind = ast.TypeCast(ty, old_expr)
             expression.ty = ty
 
-        if not expression.ty.equals(ty):
-            self.error(
-                expression.location,
-                f"Expected {ty}, got {expression.ty}"
-            )
+        if not self.unify(expression.ty, ty):
+            self.error(expression.location,
+                       f'Expected {ty}, got {expression.ty}')
+
+    def unify(self, a: ast.MyType, b: ast.MyType) -> bool:
+        """ Unify types a and b.
+        """
+        if isinstance(a.kind, ast.App) and isinstance(b.kind, ast.App):
+            # Check equal tycon:
+            if not a.kind.tycon.equals(b.kind.tycon):
+                return False
+
+            # Check equal type_args:
+            if len(a.kind.type_args) == len(b.kind.type_args):
+                return all(self.unify(u, v) for u, v in zip(a.kind.type_args, b.kind.type_args))
+            else:
+                return False
+        elif isinstance(a.kind, ast.BaseType) and isinstance(b.kind, ast.BaseType):
+            return a.kind.equals(b.kind)
+        elif isinstance(a.kind, ast.VoidType) and isinstance(b.kind, ast.VoidType):
+            return True
+        elif isinstance(a.kind, ast.FunctionType) and isinstance(b.kind, ast.FunctionType):
+            if not self.unify(a.kind.return_type, b.kind.return_type):
+                return False
+            if len(a.kind.parameter_types) != len(b.kind.parameter_types):
+                return False
+            return all(self.unify(u, v) for u, v in zip(a.kind.parameter_types, b.kind.parameter_types))
+        else:
+            # location = Location(1, 1)
+            # self.error(location, f'Cannot unify types {a} and {b}')
+            print('Full nack', a, b)
+            return False
+
+
+def expand(t: ast.MyType) -> ast.MyType:
+    if isinstance(t.kind, ast.App) and isinstance(t.kind.tycon, ast.TypeFunc):
+        assert len(t.kind.tycon.type_parameters) == len(t.kind.type_args)
+        m = dict(zip(t.kind.tycon.type_parameters, t.kind.type_args))
+        return expand(subst(t.kind.tycon.ty, m))
+    else:
+        return t

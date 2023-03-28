@@ -9,9 +9,17 @@ logger = logging.getLogger('basepass')
 
 
 class BasePass(ast.AstVisitor):
+    name = 'base-pass'
+
     def __init__(self):
         self._errors = []
         self._filename = '?'
+
+    def run(self, module: ast.Module):
+        self.begin(module.filename,
+                   f"Running {self.name} pass on '{module.name}'")
+        self.visit_module(module)
+        self.finish(f"Pass {self.name} completed")
 
     def begin(self, filename: str, msg: str):
         logger.info(msg)

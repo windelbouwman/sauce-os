@@ -2,7 +2,7 @@
 """
 
 from typing import Iterable
-from .errors import print_error, LexError
+from .errors import ParseError
 from .location import Location
 import logging
 import re
@@ -20,7 +20,7 @@ class Token:
         return f'TOK(ty={self.ty}, val={self.value},loc={self.location})'
 
 
-def detect_indentations(code: str, tokens: Iterable[Token]):
+def detect_indentations(tokens: Iterable[Token]):
     """ Funky function to inject indentation tokens.
     """
     bol = True  # beginning of line
@@ -44,7 +44,7 @@ def detect_indentations(code: str, tokens: Iterable[Token]):
                     old_indentation = level_stack.pop()
                 if new_indentation != level_stack[-1]:
                     lex_error(
-                        code, loc, f"Indendation error: {new_indentation} spaces, but expected {level_stack[-1]} spaces")
+                        loc, f"Indendation error: {new_indentation} spaces, but expected {level_stack[-1]} spaces")
             elif new_indentation > level_stack[-1]:
                 yield Token('INDENT', '', loc)
                 level_stack.append(new_indentation)
@@ -59,7 +59,7 @@ def detect_indentations(code: str, tokens: Iterable[Token]):
         yield Token('DEDENT', '', end_loc)
 
 
-def tokenize(code: str):
+def tokenize(code: str | tuple[Location, str]):
     token_spec = [
         ("OP2", r"(->)|(::)|(==)|(<=)|(!=)|(>=)"),
         ("OP", r"[\(\):+\-\*/\.,<>={}\[\]]"),
@@ -102,13 +102,20 @@ def tokenize(code: str):
     }
 
     regex = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in token_spec)
-    row, col = 1, 1
+    if isinstance(code, tuple):
+        start_row, start_col = code[0].row, code[0].column
+        code = code[1]
+    else:
+        assert isinstance(code, str)
+        start_row = start_col = 1
+    row, col = start_row, start_col
     col_start = 0
+
     for mo in re.finditer(regex, code, re.MULTILINE | re.DOTALL):
         # print(mo)
         kind: str = mo.lastgroup
         value = mo.group()
-        col = mo.start() - col_start + 1
+        col = mo.start() - col_start + start_col
         loc = Location(row, col)
         if kind == 'OP' or kind == 'OP2':
             tok = Token(value, value, loc)
@@ -123,7 +130,7 @@ def tokenize(code: str):
                 value = False
             tok = Token(kind, value, loc)
         elif kind == 'STRING':
-            tok = Token(kind, value, loc)
+            tok = Token(kind, value[1:-1], loc)
         elif kind == 'NUMBER':
             value = int(value)
             tok = Token(kind, value, loc)
@@ -142,7 +149,7 @@ def tokenize(code: str):
             col_start = mo.end()
             row += 1
         elif kind == 'OTHER':
-            lex_error(code, loc, f'Lexing exception at {loc}: {value}')
+            lex_error(loc, f'Lexing exception at {loc}: {value}')
         else:
             raise NotImplementedError(kind)
 
@@ -150,6 +157,5 @@ def tokenize(code: str):
         yield tok
 
 
-def lex_error(code: str, location: Location, message: str):
-    print_error(code, location, message)
-    raise LexError(message)
+def lex_error(location: Location, message: str):
+    raise ParseError(location, message)

@@ -5,7 +5,7 @@ fn main() -> int:
     # Becomes: store  void()* @bla, void()** %x_1
 
     let x: fn() = bla
-    let y = 2
+    # let y = 2
     x()
     call_f(x)
     call_f(baz)

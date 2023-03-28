@@ -20,12 +20,12 @@ fn main():
     let x = [1,7,11,2,550,232,12,2]
     # let x = [1, 7]
 
-    std::print("x[2] = " + std::int_to_str(x[2]))
+    std::print("x[2] = {x[2]}")
     std::print("x[1] = " + std::int_to_str(x[1]))
 
     # For loop with array:
     for a in x:
-        std::print("BOOM a=" +         std::int_to_str(a) + " a*a="+ std::int_to_str(a*a))
+        std::print("BOOM a={a} a*a={a*a}")
 
     # While loop with array:
     let i = 2
@@ -36,7 +36,8 @@ fn main():
     # This works as well:
     # let opt = [Option::None, Option::Some("W00t!"), Option::None, Option::None]
 
-    let y = [3.4, 2.2, 2.2]
+    # TODO: use y
+    # let y = [3.4, 2.2, 2.2]
 
     # Array of structs!
     let z1 = Holder:

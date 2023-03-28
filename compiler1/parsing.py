@@ -3,15 +3,16 @@
 
 import logging
 import os
+import re
 
 # try lark as parser
 from lark import Lark, Transformer as LarkTransformer
 from lark.lexer import Lexer as LarkLexer, Token as LarkToken
-from lark.exceptions import UnexpectedInput
+from lark.exceptions import UnexpectedInput, VisitError
 
 from . import ast
 from .lexer import detect_indentations, tokenize, Location
-from .errors import ParseError
+from .errors import ParseError, CompilationError
 
 logger = logging.getLogger('parser')
 
@@ -25,19 +26,80 @@ def parse_file(filename: str) -> ast.Module:
 
 
 def parse(code: str, modname: str, filename: str) -> ast.Module:
+    """ Parse the given code. """
     logger.info("Starting parse")
-    # parser = Parser(code)
-    # new_ast = parser.parse_module()
     try:
-        tree = lark_parser.parse(code)
-    except UnexpectedInput as ex:
-        raise ParseError(
-            [(filename, Location(ex.line, ex.column), 'Parsing choked')])
-    module: ast.Module = CustomTransformer().transform(tree)
+        module: ast.Module = lark_it(code, 'module')
+    except ParseError as ex:
+        raise CompilationError([(filename, ex.location, ex.message)])
+
+    assert isinstance(module, ast.Module)
+
     module.name = modname
     module.filename = filename
     logger.info("Parse complete!")
     return module
+
+
+def parse_expr(expr: str, start_loc: Location) -> ast.Expression:
+    """ Parse a single expression. Useful in f-strings. """
+
+    node: ast.Expression = lark_it((start_loc, expr), start='eval_expr')
+    assert isinstance(node, ast.Expression)
+    # print(n)
+    return node
+
+
+def lark_it(code, start):
+    """ Invoke the lark parsing."""
+    try:
+        tree = lark_parser.parse(code, start=start)
+    except UnexpectedInput as ex:
+        raise ParseError(Location(ex.line, ex.column), 'Parsing choked')
+
+    try:
+        return CustomTransformer().transform(tree)
+    except VisitError as ex:
+        if isinstance(ex.orig_exc, ParseError):
+            raise ex.orig_exc
+        else:
+            raise
+
+
+def process_fstrings(literal: str, location: Location) -> ast.Expression:
+    """ Check if we have a string with f-strings in it. """
+
+    # Check empty string:
+    if not literal:
+        return ast.string_constant(literal, location)
+
+    # Split on braced expressions:
+    parts = list(filter(None, re.split(r'({[^}]+})', literal)))
+    # print('parts', parts, location)
+    assert ''.join(parts) == literal
+
+    # Maybe this is a simple string (no f-strings):
+    if len(parts) == 1:
+        return ast.string_constant(parts[0], location)
+
+    exprs = []
+    col = 1
+    for part in parts:
+        part_loc = Location(location.row, location.column + col + 1)
+        if part.startswith(r'{') and part.endswith('}'):
+            value = parse_expr(part[1:-1], part_loc)
+            expr = ast.name_ref('std', part_loc).get_attr(
+                'int_to_str').call([value])
+        else:
+            expr = ast.string_constant(part, part_loc)
+        col += len(part)
+        exprs.append(expr)
+
+    # Concatenate all parts:
+    x = exprs.pop(0)
+    while exprs:
+        x = x.binop('+', exprs.pop(0))
+    return x
 
 
 class CustomLarkLexer(LarkLexer):
@@ -66,7 +128,7 @@ class CustomLarkLexer(LarkLexer):
             '.': 'DOT',
             '->': 'ARROW',
         }
-        for token in detect_indentations(data, tokenize(data)):
+        for token in detect_indentations(tokenize(data)):
             # print('token', token)
             ty2 = type_map.get(token.ty, token.ty)
             yield LarkToken(ty2, token.value, line=token.location.row, column=token.location.column)
@@ -77,10 +139,13 @@ def get_loc(tok: LarkToken):
 
 
 class CustomTransformer(LarkTransformer):
-    def start(self, x):
+    def module(self, x):
         name = '?'
         imports, definitions = x
         return ast.Module(name, imports, definitions)
+
+    def eval_expr(self, x):
+        return x[0]
 
     def imports(self, x):
         return x
@@ -103,9 +168,12 @@ class CustomTransformer(LarkTransformer):
     def class_def(self, x):
         # class_def: KW_CLASS ID COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
         name = x[1].value
+        type_parameters = []  # TODO!
+        assert x[4].type == 'INDENT'
+        assert x[-1].type == 'DEDENT'
         members = x[5:-1]
         # print(members)
-        return ast.class_def(name, members, get_loc(x[0]))
+        return ast.class_def(name, type_parameters, members, get_loc(x[0]))
 
     def var_def(self, x):
         # var_def: KW_VAR ID COLON typ EQUALS expression NEWLINE
@@ -242,7 +310,7 @@ class CustomTransformer(LarkTransformer):
         if len(x) > 5:
             false_statement = x[5]
         else:
-            false_statement = None
+            false_statement = ast.pass_statement(get_loc(x[0]))
         return ast.if_statement(condition, true_statement, false_statement, get_loc(x[0]))
 
     def case_statement(self, x):
@@ -407,7 +475,8 @@ class CustomTransformer(LarkTransformer):
         if x[0].type == 'NUMBER':
             return ast.numeric_constant(x[0].value, get_loc(x[0]))
         elif x[0].type == 'STRING':
-            return ast.string_constant(x[0].value, get_loc(x[0]))
+            text = x[0].value
+            return process_fstrings(text, get_loc(x[0]))
         elif x[0].type == 'FNUMBER':
             return ast.numeric_constant(x[0].value, get_loc(x[0]))
         elif x[0].type == 'BOOL':
@@ -436,7 +505,8 @@ class CustomTransformer(LarkTransformer):
 
 
 grammar = r"""
-start: imports definitions
+module: imports definitions
+eval_expr: expression NEWLINE
 
 imports: (import1|import2)*
 import1: KW_IMPORT ID NEWLINE
@@ -552,4 +622,8 @@ field_init: ID COLON expression NEWLINE
 %declare NUMBER STRING FNUMBER BOOL ID
 
 """
-lark_parser = Lark(grammar, parser='lalr', lexer=CustomLarkLexer)
+lark_parser = Lark(
+    grammar, parser='lalr',
+    lexer=CustomLarkLexer,
+    start=['module', 'eval_expr']
+)
