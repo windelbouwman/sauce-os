@@ -56,23 +56,23 @@ class ScopeFiller(BasePass):
         self.finish("Scopes filled")
 
     def visit_definition(self, definition: ast.Definition):
-        self.define_symbol(definition.name, definition)
+        self.define(definition)
         self.enter_scope(definition.scope)
         if isinstance(definition, ast.StructDef):
             for type_parameter in definition.type_parameters:
-                self.define_symbol(type_parameter.name, type_parameter)
+                self.define(type_parameter)
             for field in definition.fields:
-                self.define_symbol(field.name, field)
+                self.define(field)
         elif isinstance(definition, ast.EnumDef):
             for type_parameter in definition.type_parameters:
-                self.define_symbol(type_parameter.name, type_parameter)
+                self.define(type_parameter)
             for variant in definition.variants:
-                self.define_symbol(variant.name, variant)
+                self.define(variant)
         elif isinstance(definition, ast.FunctionDef):
             for type_parameter in definition.type_parameters:
-                self.define_symbol(type_parameter.name, type_parameter)
+                self.define(type_parameter)
             for parameter in definition.parameters:
-                self.define_symbol(parameter.name, parameter)
+                self.define(parameter)
         elif isinstance(definition, ast.ClassDef):
             # TODO!
             type_arguments = []
@@ -80,7 +80,7 @@ class ScopeFiller(BasePass):
                 'this',
                 ast.class_type(definition, type_arguments),
                 definition.location)
-            self.define_symbol('this', this_var)
+            self.define(this_var)
             # members are visited during visitor
             # for member in definition.members:
             #    self.define_symbol(member.name, member)
@@ -97,7 +97,7 @@ class ScopeFiller(BasePass):
             self.enter_scope(node.scope)
             has_scope = True
             for variable in node.variables:
-                self.define_symbol(variable.name, variable)
+                self.define(variable)
         else:
             has_scope = False
         super().visit_node(node)
@@ -108,15 +108,18 @@ class ScopeFiller(BasePass):
         super().visit_statement(statement)
         kind = statement.kind
         if isinstance(kind, ast.LetStatement):
-            self.define_symbol(kind.variable.name, kind.variable)
+            self.define(kind.variable)
         elif isinstance(kind, ast.ForStatement):
-            self.define_symbol(kind.variable.name, kind.variable)
+            self.define(kind.variable)
 
     def enter_scope(self, scope: ast.Scope):
         self._scopes.append(scope)
 
     def leave_scope(self):
         self._scopes.pop()
+
+    def define(self, definition: ast.Definition):
+        self.define_symbol(definition.name, definition)
 
     def define_symbol(self, name: str, symbol: ast.Definition):
         assert isinstance(name, str)
@@ -177,21 +180,6 @@ class NameBinder(BasePass):
                     else:
                         self.error(expression.location,
                                    f'No such field: {kind.field}')
-                elif isinstance(obj, ast.EnumDef):
-                    if obj.scope.is_defined(kind.field):
-                        variant = obj.scope.lookup(kind.field)
-                        expression.kind = ast.SemiEnumLiteral(obj, variant)
-                    else:
-                        self.error(expression.location,
-                                   f"No such enum variant: {kind.field}")
-
-        elif isinstance(kind, ast.FunctionCall):
-            if isinstance(kind.target.kind, ast.SemiEnumLiteral):
-                expression.kind = ast.EnumLiteral(
-                    kind.target.kind.enum_def, kind.target.kind.variant, kind.args)
-            elif isinstance(kind.target.kind, ast.ObjRef):
-                obj = kind.target.kind.obj
-                # if isinstance(obj, ast.ClassDef)
 
     def enter_scope(self, scope: ast.Scope):
         self._scopes.append(scope)

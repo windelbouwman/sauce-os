@@ -100,7 +100,7 @@ class EnumRewriter(BaseTransformer):
 
     def __init__(self):
         super().__init__()
-        self._tagged_unions = {}
+        self._tagged_unions: dict[int, ast.StructDef] = {}
 
     def visit_module(self, module: ast.Module):
         self.new_defs = []
@@ -113,6 +113,8 @@ class EnumRewriter(BaseTransformer):
 
     def rewrite_enum_def(self, definition: ast.EnumDef):
         """ Create tagged union types / definitions """
+
+        logger.debug(f"Creating tagged union for {definition.name}")
 
         builder2 = ast.StructBuilder(
             f'{definition.name}Data', True, definition.location)
@@ -141,7 +143,7 @@ class EnumRewriter(BaseTransformer):
                         f'f_{nr}', ast.subst(p, m3), variant.location)
                 s_def3 = builder3.finish()
                 self.new_defs.append(s_def3)
-                t3 = s_def3.get_type(type_vars2)
+                t3 = s_def3.apply(type_vars2)
 
             builder2.add_field(
                 f"{variant.name}", t3, variant.location)
@@ -154,7 +156,7 @@ class EnumRewriter(BaseTransformer):
             for tp in definition.type_parameters]
         builder1.add_field('tag', ast.int_type, definition.location)
         builder1.add_field(
-            'data', union_def.get_type(type_vars1), definition.location)
+            'data', union_def.apply(type_vars1), definition.location)
         tagged_union_def = builder1.finish()
         self.new_defs.append(tagged_union_def)
         self._tagged_unions[id(definition)] = tagged_union_def
@@ -162,7 +164,9 @@ class EnumRewriter(BaseTransformer):
     def visit_type(self, ty: ast.MyType):
         super().visit_type(ty)
         if ty.is_enum():
-            ty.kind.tycon = self._tagged_unions[id(ty.kind.tycon)]
+            # Change type into tagged untion type
+            ty.kind = self._tagged_unions[id(
+                ty.kind.tycon)].apply(ty.kind.type_args).kind
 
     def visit_statement(self, statement: ast.Statement):
         """
@@ -226,7 +230,7 @@ class EnumRewriter(BaseTransformer):
                 kind.variant.index, expression.location)
 
             tagged_union_ty: ast.MyType = self._tagged_unions[id(
-                kind.enum_def)].get_type(expression.ty.kind.type_args)
+                kind.enum_ty.kind.tycon)].apply(expression.ty.kind.type_args)
             union_ty = tagged_union_ty.get_field_type(1)
 
             if len(kind.values) == 0:

@@ -30,7 +30,7 @@ fn list_append<T>(this: List[T], value: T):
         None:
             this.head_element = Option[ListElement[T]].Some(new_tail_element)
         Some(element):
-            let mabye_element = element.next
+            # let mabye_element = element.next
             loop:
                 case element.next:
                     None:
@@ -40,13 +40,13 @@ fn list_append<T>(this: List[T], value: T):
             element.next = Option[ListElement[T]].Some(new_tail_element)
 
 fn list_iter_new<T>(this: List[T]) -> ListIter[T]:
-    " Create an iterator looping over a list "
+    # " Create an iterator looping over a list "
     let i = ListIter[T]:
         next: this.head_element
     return i
 
 fn list_iter_next<T>(this: ListIter[T]) -> Option[T]:
-    " Retrieve next item "
+    # " Retrieve next item "
     let x = this.next
     case x:
         None:
@@ -65,26 +65,28 @@ fn list_walk(x: List[Integer]):
             None:
                 break
             Some(element):
-                std::print("Item[" + std::int_to_str(i) + "]=" + std::int_to_str(element.data.value))
+                std::print("Item[{i}]=" + std::int_to_str(element.data.value))
                 mabye_element = element.next
         i = i + 1
 
 fn main():
-    let x = list_new[Integer]()
+    let x: List[Integer] = list_new()
+    # TODO: the below could work?
+    # let x = list_new()
 
-    list_append[Integer](x, new_integer(13))
-    list_append[Integer](x, new_integer(12))
+    list_append(x, new_integer(13))
+    list_append(x, new_integer(12))
     #list_append(x, new_integer(2001))
 
     std::print("Walk 1")
     list_walk(x)
 
-    list_append[Integer](x, new_integer(88))
-    list_append[Integer](x, new_integer(1337))
+    list_append(x, new_integer(88))
+    list_append(x, new_integer(1337))
     std::print("Iter integers")
-    let x_iter = list_iter_new[Integer](x)
+    let x_iter = list_iter_new(x)
     loop:
-        let maybe_value2 = list_iter_next[Integer](x_iter)
+        let maybe_value2 = list_iter_next(x_iter)
         case maybe_value2:
             None:
                 break
@@ -94,14 +96,14 @@ fn main():
     # Nicer syntax would be:
     # let y = List[String]()
     # y.append(new_string("Bla"))
-    let y = list_new[String]()
-    list_append[String](y, new_string("Bla"))
-    list_append[String](y, new_string("Fu"))
-    list_append[String](y, new_string("Baz"))
+    let y: List[String] = list_new()
+    list_append(y, new_string("Bla"))
+    list_append(y, new_string("Fu"))
+    list_append(y, new_string("Baz"))
     std::print("Walk strings")
-    let y_iter = list_iter_new[String](y)
+    let y_iter = list_iter_new(y)
     loop:
-        let maybe_value = list_iter_next[String](y_iter)
+        let maybe_value = list_iter_next(y_iter)
         case maybe_value:
             None:
                 break

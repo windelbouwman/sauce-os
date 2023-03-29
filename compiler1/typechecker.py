@@ -15,6 +15,7 @@ logger = logging.getLogger('typechecker')
 class TypeChecker(BasePass):
     def __init__(self):
         super().__init__()
+        self._counter = 0
         self._function = None
 
     def check_module(self, module: ast.Module):
@@ -42,18 +43,51 @@ class TypeChecker(BasePass):
         self._function = None
 
     def visit_statement(self, statement: ast.Statement):
-        super().visit_statement(statement)
         kind = statement.kind
+
+        # Handle special cases:
+        if isinstance(kind, ast.CaseStatement):
+            self.visit_expression(kind.value)
+            if kind.value.ty.is_enum():
+                for arm in kind.arms:
+                    if kind.value.ty.has_variant(arm.name):
+                        variant = kind.value.ty.get_variant(arm.name)
+                        payload_types = kind.value.ty.get_variant_types(
+                            arm.name)
+
+                        # HACK to pass variant to transform pass:
+                        arm.variant = variant
+
+                        assert len(payload_types) == len(arm.variables)
+                        for v, t in zip(arm.variables, payload_types):
+                            v.ty = t
+                        # TODO: check missing fields
+                    else:
+                        self.error(arm.location,
+                                   f'No enum variant {arm.name}')
+            else:
+                self.error(kind.value.location,
+                           f'Expected enum, not {kind.value.ty}')
+
+            for arm in kind.arms:
+                self.visit_node(arm)
+        elif isinstance(kind, ast.ForStatement):
+            self.visit_expression(kind.values)
+            if isinstance(kind.values.ty.kind, ast.ArrayType):
+                kind.variable.ty = kind.values.ty.kind.element_type
+            else:
+                self.error(kind.values.location,
+                           f'Expected array, not {kind.values.ty}')
+            self.visit_statement(kind.inner)
+        else:
+            super().visit_statement(statement)
+
         if isinstance(kind, ast.LoopStatement):
             pass
         elif isinstance(kind, ast.WhileStatement):
             self.assert_type(kind.condition, bool_type)
-        elif isinstance(kind, ast.ForStatement):
-            pass
         elif isinstance(kind, ast.IfStatement):
             self.assert_type(kind.condition, bool_type)
-        elif isinstance(kind, ast.CaseStatement):
-            pass  # handled in mid-statement hook
         elif isinstance(kind, ast.SwitchStatement):
             self.assert_type(kind.value, ast.int_type)
         elif isinstance(kind, ast.ExpressionStatement):
@@ -75,39 +109,13 @@ class TypeChecker(BasePass):
                 self.assert_type(kind.value, kind.ty)
                 kind.variable.ty = kind.ty
             else:
-                kind.variable.ty = kind.value.ty
+                kind.variable.ty = kind.value.ty.clone()
         elif isinstance(kind, ast.AssignmentStatement):
             self.assert_type(kind.value, kind.target.ty)
+        elif isinstance(kind, (ast.ForStatement, ast.CaseStatement)):
+            pass  # handled above
         else:
             raise NotImplementedError(str(statement))
-
-    def mid_statement(self, statement: ast.Statement):
-        kind = statement.kind
-        if isinstance(kind, ast.CaseStatement):
-            if kind.value.ty.is_enum():
-                for arm in kind.arms:
-                    if kind.value.ty.has_variant(arm.name):
-                        variant = kind.value.ty.get_variant(arm.name)
-
-                        # HACK to pass variant to transform pass:
-                        arm.variant = variant
-
-                        assert len(variant.payload) == len(arm.variables)
-                        for v, t in zip(arm.variables, variant.payload):
-                            v.ty = t
-                        # TODO: check missing fields
-                    else:
-                        self.error(arm.location,
-                                   f'No enum variant {arm.name}')
-            else:
-                self.error(kind.value.location,
-                           f'Expected enum, not {kind.value.ty}')
-        elif isinstance(kind, ast.ForStatement):
-            if isinstance(kind.values.ty.kind, ast.ArrayType):
-                kind.variable.ty = kind.values.ty.kind.element_type
-            else:
-                self.error(kind.values.location,
-                           f'Expected array, not {kind.values.ty}')
 
     def visit_expression(self, expression: ast.Expression):
         """ Perform type checking on expression! """
@@ -183,11 +191,14 @@ class TypeChecker(BasePass):
                 self.assert_type(value, field_type)
             expression.ty = kind.ty
         elif isinstance(kind, ast.EnumLiteral):
-            self.check_arguments(kind.variant.payload,
+            payload_types = kind.enum_ty.get_variant_types(kind.variant.name)
+            self.check_arguments(payload_types,
                                  kind.values, expression.location)
-            # TODO: is this correct?
-            type_arguments = []
-            expression.ty = kind.enum_def.get_type(type_arguments)
+            expression.ty = kind.enum_ty
+        elif isinstance(kind, ast.TypeLiteral):
+            self.error(expression.location, 'Unexpected type')
+        elif isinstance(kind, ast.GenericLiteral):
+            self.error(expression.location, 'Unexpected generic')
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
             if isinstance(obj, ast.Variable):
@@ -195,10 +206,21 @@ class TypeChecker(BasePass):
             elif isinstance(obj, ast.BuiltinFunction):
                 expression.ty = obj.ty
             elif isinstance(obj, ast.FunctionDef):
-                expression.ty = obj.get_type()
+                # Interesting!
+                # Construct polymorphic type
+                new_free = []
+                for tp in obj.type_parameters:
+                    new_free.append(ast.meta_type(
+                        f"{self.new_id()}_{tp.name}"))
+                m2 = dict(zip(obj.type_parameters, new_free))
+                expression.ty = ast.function_type(
+                    [ast.subst(p.ty, m2)for p in obj.parameters],
+                    ast.subst(obj.return_ty, m2))
+                # expression.ty = obj.get_type()
             elif isinstance(obj, ast.Parameter):
                 expression.ty = obj.ty
             elif isinstance(obj, ast.ClassDef):
+                # Arg, type arguments?
                 expression.ty = obj.get_type([])
             else:
                 raise NotImplementedError(str(kind))
@@ -246,17 +268,46 @@ class TypeChecker(BasePass):
             return a.kind.equals(b.kind)
         elif isinstance(a.kind, ast.VoidType) and isinstance(b.kind, ast.VoidType):
             return True
+        elif isinstance(a.kind, ast.TypeVarKind) and isinstance(b.kind, ast.TypeVarKind):
+            return a.kind.type_variable is b.kind.type_variable
         elif isinstance(a.kind, ast.FunctionType) and isinstance(b.kind, ast.FunctionType):
             if not self.unify(a.kind.return_type, b.kind.return_type):
                 return False
             if len(a.kind.parameter_types) != len(b.kind.parameter_types):
                 return False
             return all(self.unify(u, v) for u, v in zip(a.kind.parameter_types, b.kind.parameter_types))
+        elif isinstance(a.kind, ast.Meta):
+            if a.kind.assigned:
+                assigned = a.kind.assigned
+                if self.unify(assigned, b):
+                    # Patch type:
+                    a.kind = assigned.kind
+                    return True
+                else:
+                    return False
+            elif b.is_struct():
+                # TODO: check if b contains meta-var
+                # Assign type to meta-var:
+                a.kind.assigned = b
+                # Patch type:
+                a.kind = b.kind
+                return True
+            else:
+                raise NotImplementedError(str(a) + str(b))
+                # if isinstance(b.kind, )
+                return True
+        elif isinstance(b.kind, ast.Meta):
+            # Simply swap comparison
+            return self.unify(b, a)
         else:
             # location = Location(1, 1)
             # self.error(location, f'Cannot unify types {a} and {b}')
             print('Full nack', a, b)
             return False
+
+    def new_id(self) -> int:
+        self._counter += 1
+        return self._counter
 
 
 def expand(t: ast.MyType) -> ast.MyType:

@@ -24,50 +24,59 @@ class TypeEvaluation(BasePass):
     def eval_type_expr(self, expression: ast.Expression) -> ast.MyType:
         """ Evaluate a type expression.
         """
-        if isinstance(expression.kind, ast.ObjRef):
-            obj = expression.kind.obj
-            if isinstance(obj, ast.MyType):
-                return obj
-            elif isinstance(obj, ast.StructDef):
-                return ast.struct_type(obj, [])
-            elif isinstance(obj, ast.EnumDef):
-                return ast.enum_type(obj, [])
-            elif isinstance(obj, ast.ClassDef):
-                return ast.class_type(obj, [])
-            elif isinstance(obj, ast.TypeDef):
-                raise NotImplementedError("TODO: type-def")
-                # return obj.ty
-            elif isinstance(obj, ast.TypeVar):
-                return ast.type_var_ref(obj)
-            else:
-                self.error(expression.location,
-                           f'No type object: {obj}')
-                return ast.void_type
-        elif isinstance(expression.kind, ast.ArrayIndex):
-            type_arguments = [
-                self.eval_type_expr(a) for a in [expression.kind.index]]
-            generic = self.eval_generic_expr(expression.kind.base)
-            if generic:
-                return ast.tycon_apply(generic, type_arguments)
-                # return generic.get_type(type_arguments)
-            else:
-                return ast.void_type
+        if isinstance(expression.kind, ast.TypeLiteral):
+            return expression.kind.ty
+        elif isinstance(expression.kind, ast.GenericLiteral):
+            # TODO: assume zero arg generics for now.
+            # TBD: create maybe a unknown type-var now?
+            return expression.kind.tycon.apply([])
         else:
             self.error(expression.location,
                        f'Invalid type expression: {expression.kind}')
             return ast.void_type
 
-    def eval_generic_expr(self, expression: ast.Expression) -> ast.TypeConstructor:
-        """ Evaluate expression when used as generic """
-        if isinstance(expression.kind, ast.ObjRef):
-            obj = expression.kind.obj
-            if isinstance(obj, ast.StructDef):
-                return obj
-            elif isinstance(obj, ast.EnumDef):
-                return obj
-            elif isinstance(obj, ast.ClassDef):
-                return obj
-        self.error(expression.location, f'Invalid generic')
+    def visit_expression(self, expression: ast.Expression):
+        super().visit_expression(expression)
+        kind = expression.kind
+
+        if isinstance(kind, ast.DotOperator):
+            # Resolve obj_ref . field at this point, we can do this here.
+            if isinstance(kind.base.kind, ast.TypeLiteral):
+                ty = kind.base.kind.ty
+            elif isinstance(kind.base.kind, ast.GenericLiteral):
+                # Try to instantiate with empty list of arguments
+                # Option 2: create unknown type variables
+                ty = kind.base.kind.tycon.apply([])
+            else:
+                ty = None
+
+            if ty and ty.is_enum():
+                if ty.has_variant(kind.field):
+                    variant = ty.get_variant(kind.field)
+                    expression.kind = ast.SemiEnumLiteral(ty, variant)
+                else:
+                    self.error(expression.location,
+                               f"No such enum variant: {kind.field}")
+
+        elif isinstance(kind, ast.FunctionCall):
+            if isinstance(kind.target.kind, ast.SemiEnumLiteral):
+                expression.kind = ast.EnumLiteral(
+                    kind.target.kind.enum_ty, kind.target.kind.variant, kind.args)
+        elif isinstance(kind, ast.ObjRef):
+            obj = kind.obj
+            if isinstance(obj, ast.TypeConstructor):
+                expression.kind = ast.GenericLiteral(obj)
+            elif isinstance(obj, ast.MyType):
+                expression.kind = ast.TypeLiteral(obj)
+            elif isinstance(obj, ast.TypeVar):
+                expression.kind = ast.TypeLiteral(ast.type_var_ref(obj))
+
+        elif isinstance(kind, ast.ArrayIndex):
+            if isinstance(kind.base.kind, ast.GenericLiteral):
+                tycon = kind.base.kind.tycon
+                type_arguments = [self.eval_type_expr(kind.index)]
+                ty = tycon.apply(type_arguments)
+                expression.kind = ast.TypeLiteral(ty)
 
 
 class NewOpPass(BasePass):

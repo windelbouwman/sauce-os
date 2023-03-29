@@ -40,7 +40,6 @@ fn list_append(this: List, val: int):
         None:
             this.head_element = Option.Some(new_tail_element)
         Some(element):
-            let mabye_element = element.next
             loop:
                 case element.next:
                     None:

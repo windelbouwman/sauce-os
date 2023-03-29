@@ -78,10 +78,6 @@ def process_fstrings(literal: str, location: Location) -> ast.Expression:
     # print('parts', parts, location)
     assert ''.join(parts) == literal
 
-    # Maybe this is a simple string (no f-strings):
-    if len(parts) == 1:
-        return ast.string_constant(parts[0], location)
-
     exprs = []
     col = 1
     for part in parts:
@@ -166,14 +162,13 @@ class CustomTransformer(LarkTransformer):
         return x[0]
 
     def class_def(self, x):
-        # class_def: KW_CLASS ID COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
-        name = x[1].value
-        type_parameters = []  # TODO!
+        # class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
+        assert x[2].type == 'COLON'
+        location, name, type_parameters = x[1]
         assert x[4].type == 'INDENT'
         assert x[-1].type == 'DEDENT'
         members = x[5:-1]
-        # print(members)
-        return ast.class_def(name, type_parameters, members, get_loc(x[0]))
+        return ast.class_def(name, type_parameters, members, location)
 
     def var_def(self, x):
         # var_def: KW_VAR ID COLON typ EQUALS expression NEWLINE
@@ -214,34 +209,22 @@ class CustomTransformer(LarkTransformer):
             return x[0] + [x[2]]
 
     def struct_def(self, x):
-        # KW_STRUCT type_parameters? ID COLON NEWLINE INDENT struct_field+ DEDENT
-        if isinstance(x[3], LarkToken) and x[3].type == 'COLON':
-            type_parameters = x[1]
-            name = x[2].value
-            fields = x[6:-1]
-        else:
-            assert isinstance(x[2], LarkToken) and x[2].type == 'COLON'
-            type_parameters = []
-            name = x[1].value
-            fields = x[5:-1]
+        # struct_def: KW_STRUCT id_and_type_parameters COLON NEWLINE INDENT struct_field+ DEDENT
+        assert isinstance(x[2], LarkToken) and x[2].type == 'COLON'
+        location, name, type_parameters = x[1]
+        fields = x[5:-1]
         is_union = False
-        return ast.StructDef(name, type_parameters, is_union, fields, get_loc(x[0]))
+        return ast.StructDef(name, type_parameters, is_union, fields, location)
 
     def struct_field(self, x):
         return ast.StructFieldDef(x[0], x[2], get_loc(x[0]))
 
     def enum_def(self, x):
-        # KW_ENUM type_parameters? ID COLON NEWLINE INDENT enum_variant+ DEDENT
-        if isinstance(x[3], LarkToken) and x[3].type == 'COLON':
-            type_parameters = x[1]
-            name = x[2].value
-            variants = x[6:-1]
-        else:
-            assert isinstance(x[2], LarkToken) and x[2].type == 'COLON'
-            type_parameters = []
-            name = x[1].value
-            variants = x[5:-1]
-        return ast.EnumDef(name, type_parameters, variants, get_loc(x[0]))
+        # enum_def: KW_ENUM id_and_type_parameters COLON NEWLINE INDENT enum_variant+ DEDENT
+        assert isinstance(x[2], LarkToken) and x[2].type == 'COLON'
+        location, name, type_parameters = x[1]
+        variants = x[5:-1]
+        return ast.EnumDef(name, type_parameters, variants, location)
 
     def enum_variant(self, x):
         name = x[0].value
@@ -255,6 +238,18 @@ class CustomTransformer(LarkTransformer):
     def type_def(self, x):
         name, typ = x[1].value, x[3]
         return ast.type_def(name, typ, get_loc(x[0]))
+
+    def id_and_type_parameters(self, x):
+        # id_and_type_parameters: type_parameters? ID
+        if len(x) == 1:
+            name = x[0].value
+            location = get_loc(x[0])
+            type_parameters = []
+        else:
+            name = x[1].value
+            location = get_loc(x[1])
+            type_parameters = x[0]
+        return (location, name, type_parameters)
 
     def type_parameters(self, x):
         # type_parameters: LESS_THAN ids GREATER_THAN
@@ -519,19 +514,20 @@ definition: func_def
           | class_def
           | type_def
 
-class_def: KW_CLASS ID COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
+class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
 var_def: KW_VAR ID COLON typ EQUALS expression NEWLINE
 func_def: KW_FN ID type_parameters? function_signature COLON NEWLINE block
 function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
 parameters: parameter
           | parameters COMMA parameter
 parameter: ID COLON typ
-struct_def: KW_STRUCT type_parameters? ID COLON NEWLINE INDENT struct_field+ DEDENT
+struct_def: KW_STRUCT id_and_type_parameters COLON NEWLINE INDENT struct_field+ DEDENT
 struct_field: ID COLON typ NEWLINE
-enum_def: KW_ENUM type_parameters? ID COLON NEWLINE INDENT enum_variant+ DEDENT
+enum_def: KW_ENUM id_and_type_parameters COLON NEWLINE INDENT enum_variant+ DEDENT
 enum_variant: ID NEWLINE
             | ID LEFT_BRACE types RIGHT_BRACE NEWLINE
 type_def: KW_TYPE ID EQUALS typ NEWLINE
+id_and_type_parameters: type_parameters? ID
 type_parameters: LESS_THAN ids GREATER_THAN
 types: typ
      | types COMMA typ

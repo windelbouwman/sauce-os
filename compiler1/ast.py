@@ -49,6 +49,9 @@ class MyType:
         # and modifying is.
         self.kind = kind
 
+    def clone(self) -> 'MyType':
+        return MyType(self.kind)
+
     def is_reftype(self):
         return False
 
@@ -134,6 +137,13 @@ class MyType:
         else:
             raise ValueError(f'No variant enum type')
 
+    def get_variant_types(self, name: str) -> list['MyType']:
+        if isinstance(self.kind, App) and isinstance(self.kind.tycon, EnumDef):
+            variant: EnumVariant = self.kind.tycon.scope.lookup(name)
+            return [subst(p, self.kind.m) for p in variant.payload]
+        else:
+            raise ValueError(f'No variant enum type')
+
     # def equals(self, other: 'MyType'):
     #     assert isinstance(other, MyType)
     #     if self is other:
@@ -188,10 +198,10 @@ class TypeConstructor(Definition):
         super().__init__(name, location)
         self.type_parameters = type_parameters
 
-    def apply(self, type_arguments):
+    def apply(self, type_arguments: list['MyType']):
         return tycon_apply(self, type_arguments)
 
-    def equals(self, other: 'TypeConstructor'):
+    def equals(self, other: 'TypeConstructor') -> bool:
         raise NotImplementedError()
 
 
@@ -212,7 +222,7 @@ class App(TypeKind):
         if self.type_args:
             return f"App({self.tycon},{self.type_args})"
         else:
-            return str(self.tycon)
+            return f"A({self.tycon})"
 
 
 class TypeFunc(TypeConstructor):
@@ -295,6 +305,9 @@ class FunctionType(TypeKind):
         self.parameter_types = parameter_types
         self.return_type = return_type
 
+    def __repr__(self):
+        return f'Function({self.parameter_types}, {self.return_type})'
+
     # def equals(self, other: 'FunctionType') -> bool:
     #     if not self.return_type.equals(other.return_type):
     #         return False
@@ -331,6 +344,22 @@ def tycon_apply(tycon: TypeConstructor, type_args: list[MyType]) -> MyType:
     if isinstance(tycon, TypeFunc):
         pass
     return MyType(App(tycon, type_args))
+
+
+def meta_type(name: str) -> MyType:
+    return MyType(Meta(name))
+
+
+class Meta(TypeKind):
+    """ An unknown, to be inferred type. """
+
+    def __init__(self, name: str):
+        super().__init__()
+        self.name = name
+        self.assigned: MyType = None
+
+    def __repr__(self):
+        return f"Meta({self.name})"
 
 
 def type_var_ref(type_variable: 'TypeVar') -> MyType:
@@ -532,9 +561,6 @@ class FunctionDef(Definition):
     def __repr__(self):
         return f"func-def-{self.name}"
 
-    def get_type(self):
-        return function_type([p.ty for p in self.parameters], self.return_ty)
-
 
 class Parameter(Definition):
     def __init__(self, name: str, ty: MyType, location: Location):
@@ -558,9 +584,6 @@ class StructDef(TypeConstructor):
     def __repr__(self):
         t = 'union' if self.is_union else 'struct'
         return f"{t}-{self.name}"
-
-    def get_type(self, type_arguments: list[MyType]):
-        return struct_type(self, type_arguments)
 
     def has_field(self, name: str) -> bool:
         return self.scope.is_defined(name)
@@ -1047,6 +1070,24 @@ class UnionLiteral(ExpressionKind):
         return f'UnionLiteral({self.field})'
 
 
+class GenericLiteral(ExpressionKind):
+    def __init__(self, tycon: TypeConstructor):
+        super().__init__()
+        self.tycon = tycon
+
+    def __repr__(self):
+        return f"generic-literal({self.tycon})"
+
+
+class TypeLiteral(ExpressionKind):
+    def __init__(self, ty: MyType):
+        super().__init__()
+        self.ty = ty
+
+    def __repr__(self):
+        return f"type-literal({self.ty})"
+
+
 class SemiEnumLiteral(ExpressionKind):
     """ Variant, selected from enum, but not called yet.
 
@@ -1057,16 +1098,16 @@ class SemiEnumLiteral(ExpressionKind):
     >>> Option.Some(1337)
     """
 
-    def __init__(self, enum_def: EnumDef, variant: EnumVariant):
+    def __init__(self, enum_ty: MyType, variant: EnumVariant):
         super().__init__()
-        self.enum_def = enum_def
+        self.enum_ty = enum_ty
         self.variant = variant
 
 
 class EnumLiteral(ExpressionKind):
-    def __init__(self, enum_def: EnumDef, variant: EnumVariant, values: list[Expression]):
+    def __init__(self, enum_ty: MyType, variant: EnumVariant, values: list[Expression]):
         super().__init__()
-        self.enum_def = enum_def
+        self.enum_ty = enum_ty
         self.variant = variant
         self.values = values
 
@@ -1155,6 +1196,9 @@ class BuiltinFunction(Definition):
         super().__init__(name, Location(1, 1))
         self.ty = function_type(parameter_types, return_type)
 
+    def __repr__(self):
+        return f'builtin({self.name})'
+
 
 class Undefined:
     def __init__(self):
@@ -1211,7 +1255,6 @@ class AstVisitor:
                 self.visit_statement(kind.false_statement)
         elif isinstance(kind, CaseStatement):
             self.visit_expression(kind.value)
-            self.mid_statement(statement)
             for arm in kind.arms:
                 self.visit_node(arm)
         elif isinstance(kind, SwitchStatement):
@@ -1236,7 +1279,6 @@ class AstVisitor:
             self.visit_statement(kind.inner)
         elif isinstance(kind, ForStatement):
             self.visit_expression(kind.values)
-            self.mid_statement(statement)
             self.visit_statement(kind.inner)
         elif isinstance(kind, AssignmentStatement):
             self.visit_expression(kind.target)
@@ -1248,10 +1290,6 @@ class AstVisitor:
             pass
         else:
             raise NotImplementedError(str(kind))
-
-    def mid_statement(self, statement: Statement):
-        """ Extra hook to allow mid-statement handlers """
-        pass
 
     def visit_expression(self, expression: Expression):
         kind = expression.kind
@@ -1327,6 +1365,8 @@ class AstPrinter(AstVisitor):
         elif isinstance(definition, EnumDef):
             self.emit(f'- enum {definition.name}')
             self.indent()
+            for variant in definition.variants:
+                self.emit(f"- {variant.name} : {variant.payload}")
         elif isinstance(definition, ClassDef):
             self.emit(f'- class {definition.name}')
             self.indent()
