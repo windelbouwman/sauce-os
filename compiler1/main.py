@@ -2,6 +2,7 @@
 
 from rich.traceback import install
 from rich.logging import RichHandler
+from rich.progress import Progress
 from . import compiler, errors
 import argparse
 import logging
@@ -16,8 +17,6 @@ def main():
     parser.add_argument('--output', help='File to write output to')
     parser.add_argument('--dump-ast', action='store_true')
     args = parser.parse_args()
-    logformat = '%(asctime)s | %(levelname)8s | %(name)10.10s | %(message)s'
-    # logging.basicConfig(level=logging.DEBUG, format=logformat)
     logging.basicConfig(
         level="NOTSET", format="%(message)s",
         datefmt="[%X]",
@@ -28,7 +27,10 @@ def main():
     options = compiler.CompilationOptions(dump_ast=args.dump_ast)
 
     try:
-        compiler.do_compile(args.source, args.output, options)
+        with Progress() as progress:
+            task = progress.add_task(':hammer:Compiling')
+            compiler.do_compile(args.source, args.output,
+                                options, progress, task)
     except errors.CompilationError as ex:
         logger.error("Errors occurred during compilation!")
         errors.print_errors(ex.errors)

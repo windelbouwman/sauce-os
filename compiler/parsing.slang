@@ -13,7 +13,7 @@ fn parse_source(filename: str) -> ast::Module:
 
     let lex = lexer::lexer_new()
     let tok = lexer::detect_indentations(lex)
-    # std::print(tok.ty)
+    std::print("tok at {tok.location.row}")
 
     let program = ast::Module:
         name: "FUU"

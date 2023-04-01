@@ -42,11 +42,12 @@ def std_module():
     return mod
 
 
-def do_compile(filenames: list[str], output: str | None, options: CompilationOptions):
+def do_compile(filenames: list[str], output: str | None, options: CompilationOptions, progress, task):
     """ Compile a list of module.
     """
     known_modules = {'std': std_module()}
 
+    progress.advance(task, 10)
     modules = []
     for filename in filenames:
         module = parse_file(filename)
@@ -55,6 +56,7 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
             logger.info('Dumping AST')
             ast.print_ast(module)
     topo_sort(modules)
+    progress.advance(task, 20)
 
     for module in modules:
         analyze_ast(module, known_modules, options)
@@ -62,7 +64,9 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
             logger.info('Dumping AST')
             ast.print_ast(module)
 
+    progress.advance(task, 30)
     transform(modules)
+    progress.advance(task, 10)
 
     for module in modules:
         if options.dump_ast:
@@ -70,6 +74,7 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
             ast.print_ast(module)
 
     flow_check(modules)
+    progress.advance(task, 20)
 
     # Generate output
     if output:
@@ -77,8 +82,9 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
             gencode(modules, f=f)
     else:
         gencode(modules)
+    progress.advance(task, 10)
 
-    logger.info('DONE&DONE')
+    logger.info(':party_popper:DONE&DONE', extra={'markup': True})
 
 
 def topo_sort(modules: list[ast.Module]):

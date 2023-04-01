@@ -40,28 +40,28 @@ struct Statement:
     kind: StatementKind
 
 enum StatementKind:
-    If(If)
-    While(While)
-    Loop(Loop)
+    If(IfStatement)
+    While(WhileStatement)
+    Loop(LoopStatement)
 
 fn if_statement(condition: Expression, body: Statement, location: Location) -> Statement:
-    let i = If:
+    let i = IfStatement:
         condition: condition
         body: body
 
     let kind = StatementKind::If(i)
     return statement(kind, location)
 
-struct If:
+struct IfStatement:
     condition: Expression
     body: Statement
 
-struct While:
+struct WhileStatement:
     condition: Expression
     body: Statement
 
 fn while_statement(condition: Expression, body: Statement, location: Location) -> Statement:
-    let w = While:
+    let w = WhileStatement:
         condition: condition
         body: body
 
@@ -69,13 +69,13 @@ fn while_statement(condition: Expression, body: Statement, location: Location) -
     return statement(kind, location)
 
 fn loop_statement(body: Statement, location: Location) -> Statement:
-    let i = Loop:
+    let i = LoopStatement:
         body: body
 
     let kind = StatementKind::Loop(i)
     return statement(kind, location)
 
-struct Loop:
+struct LoopStatement:
     body: Statement
 
 struct Expression:
@@ -91,32 +91,32 @@ fn expression(kind: ExpressionKind, ty: MyType, location: Location) -> Expressio
     return expression
 
 enum ExpressionKind:
-    Call(Call)
-    Binop(Binop)
+    Call(FunctionCall)
+    Binop(BinopExpression)
     IntLiteral(int)
     # FloatLiteral(float)
     # StringLiteral(str)
     BoolLiteral(bool)
 
 fn call(callee: Expression, ty: MyType, location: Location) -> Expression:
-    let c = Call:
+    let c = FunctionCall:
         callee: callee
         # TODO: arguments
     let kind = ExpressionKind::Call(c)
     return expression(kind, ty, location)
 
-struct Call:
+struct FunctionCall:
     callee: Expression
     # TODO:
     # arguments: list<Expression>
 
-struct Binop:
+struct BinopExpression:
     lhs: Expression
     op: str
     rhs: Expression
 
 fn binop(lhs: Expression, op: str, rhs: Expression, ty: MyType, location: Location) -> Expression:
-    let b = Binop:
+    let b = BinopExpression:
         lhs: lhs
         op: op
         rhs: rhs

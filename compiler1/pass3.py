@@ -27,9 +27,7 @@ class TypeEvaluation(BasePass):
         if isinstance(expression.kind, ast.TypeLiteral):
             return expression.kind.ty
         elif isinstance(expression.kind, ast.GenericLiteral):
-            # TODO: assume zero arg generics for now.
-            # TBD: create maybe a unknown type-var now?
-            return expression.kind.tycon.apply([])
+            return expression.kind.tycon.apply2()
         else:
             self.error(expression.location,
                        f'Invalid type expression: {expression.kind}')
@@ -44,9 +42,7 @@ class TypeEvaluation(BasePass):
             if isinstance(kind.base.kind, ast.TypeLiteral):
                 ty = kind.base.kind.ty
             elif isinstance(kind.base.kind, ast.GenericLiteral):
-                # Try to instantiate with empty list of arguments
-                # Option 2: create unknown type variables
-                ty = kind.base.kind.tycon.apply([])
+                ty = kind.base.kind.tycon.apply2()
             else:
                 ty = None
 
@@ -62,6 +58,11 @@ class TypeEvaluation(BasePass):
             if isinstance(kind.target.kind, ast.SemiEnumLiteral):
                 expression.kind = ast.EnumLiteral(
                     kind.target.kind.enum_ty, kind.target.kind.variant, kind.args)
+            elif isinstance(kind.target.kind, ast.GenericLiteral):
+                ty = kind.target.kind.tycon.apply2()
+                if ty.is_class():
+                    expression.kind = ast.ClassLiteral(ty)
+
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
             if isinstance(obj, ast.TypeConstructor):

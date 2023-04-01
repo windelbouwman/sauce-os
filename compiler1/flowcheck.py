@@ -168,7 +168,7 @@ class FlowCheck(BasePass):
     def execute(self, inst):
         """ Add operation in execution graph
         """
-        logger.debug(f'EXE> {inst}')
+        # logger.debug(f'EXE> {inst}')
         self._g.add_edge(self._pc, inst)
         self._pc = inst
 
@@ -177,7 +177,7 @@ class FlowCheck(BasePass):
 
         Do not actually jump, but indicate we might go here.
         """
-        logger.debug(f'JMP TO {targets}')
+        # logger.debug(f'JMP TO {targets}')
         for target in targets:
             self._g.add_edge(self._pc, target)
 
@@ -185,7 +185,7 @@ class FlowCheck(BasePass):
         return self.new_id()
 
     def set_label(self, target: int):
-        logger.debug(f'Label {target}')
+        # logger.debug(f'Label {target}')
         self._pc = target
 
     def new_id(self) -> int:

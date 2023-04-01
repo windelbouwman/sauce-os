@@ -15,32 +15,29 @@ logger = logging.getLogger('typechecker')
 class TypeChecker(BasePass):
     def __init__(self):
         super().__init__()
-        self._counter = 0
         self._function = None
 
     def check_module(self, module: ast.Module):
         self.begin(module.filename, f"Type checking module '{module.name}'")
-        for definition in module.definitions:
-            if isinstance(definition, (ast.StructDef, ast.EnumDef, ast.TypeDef)):
-                pass
-            elif isinstance(definition, ast.FunctionDef):
-                logger.debug(f"Checking function '{definition.name}'")
-                self.check_function(definition)
-            elif isinstance(definition, ast.ClassDef):
-                logger.debug(f"Checking function '{definition.name}'")
-                for inner_def in definition.members:
-                    if isinstance(inner_def, ast.FunctionDef):
-                        self.check_function(inner_def)
-            else:
-                raise NotImplementedError(str(definition))
-
+        self.visit_module(module)
         self.finish("Type check OK.")
 
-    def check_function(self, func: ast.FunctionDef):
-        assert not self._function
-        self._function = func
-        self.visit_statement(func.statements)
-        self._function = None
+    def visit_definition(self, definition: ast.Definition):
+        if isinstance(definition, ast.FunctionDef):
+            logger.debug(f"Checking function '{definition.name}'")
+            assert not self._function
+            self._function = definition
+
+        super().visit_definition(definition)
+
+        if isinstance(definition, (ast.StructDef, ast.EnumDef, ast.TypeDef)):
+            pass
+        elif isinstance(definition, ast.FunctionDef):
+            self._function = None
+        elif isinstance(definition, (ast.ClassDef, ast.VarDef)):
+            pass
+        else:
+            raise NotImplementedError(str(definition))
 
     def visit_statement(self, statement: ast.Statement):
         kind = statement.kind
@@ -195,6 +192,8 @@ class TypeChecker(BasePass):
             self.check_arguments(payload_types,
                                  kind.values, expression.location)
             expression.ty = kind.enum_ty
+        elif isinstance(kind, ast.ClassLiteral):
+            expression.ty = kind.class_ty
         elif isinstance(kind, ast.TypeLiteral):
             self.error(expression.location, 'Unexpected type')
         elif isinstance(kind, ast.GenericLiteral):
@@ -206,17 +205,7 @@ class TypeChecker(BasePass):
             elif isinstance(obj, ast.BuiltinFunction):
                 expression.ty = obj.ty
             elif isinstance(obj, ast.FunctionDef):
-                # Interesting!
-                # Construct polymorphic type
-                new_free = []
-                for tp in obj.type_parameters:
-                    new_free.append(ast.meta_type(
-                        f"{self.new_id()}_{tp.name}"))
-                m2 = dict(zip(obj.type_parameters, new_free))
-                expression.ty = ast.function_type(
-                    [ast.subst(p.ty, m2)for p in obj.parameters],
-                    ast.subst(obj.return_ty, m2))
-                # expression.ty = obj.get_type()
+                expression.ty = obj.get_type()
             elif isinstance(obj, ast.Parameter):
                 expression.ty = obj.ty
             elif isinstance(obj, ast.ClassDef):
@@ -304,10 +293,6 @@ class TypeChecker(BasePass):
             # self.error(location, f'Cannot unify types {a} and {b}')
             print('Full nack', a, b)
             return False
-
-    def new_id(self) -> int:
-        self._counter += 1
-        return self._counter
 
 
 def expand(t: ast.MyType) -> ast.MyType:

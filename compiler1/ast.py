@@ -1,4 +1,8 @@
-
+""" AST (abstract syntax tree) nodes to represent code.
+"""
+import rich
+import rich.tree
+import rich.markup
 from lark.load_grammar import Definition
 from .location import Location
 
@@ -198,8 +202,13 @@ class TypeConstructor(Definition):
         super().__init__(name, location)
         self.type_parameters = type_parameters
 
-    def apply(self, type_arguments: list['MyType']):
+    def apply(self, type_arguments: list['MyType']) -> MyType:
         return tycon_apply(self, type_arguments)
+
+    def apply2(self) -> MyType:
+        type_args = [meta_type(f"{i}_{tp.name}") for i,
+                     tp in enumerate(self.type_parameters)]
+        return self.apply(type_args)
 
     def equals(self, other: 'TypeConstructor') -> bool:
         raise NotImplementedError()
@@ -213,6 +222,7 @@ class App(TypeKind):
 
     def __init__(self, tycon: TypeConstructor, type_args: list['MyType']):
         assert isinstance(tycon, TypeConstructor)
+        assert isinstance(type_args, list)
         assert len(tycon.type_parameters) == len(type_args)
         self.m = dict(zip(tycon.type_parameters, type_args))
         self.tycon = tycon
@@ -248,7 +258,8 @@ class BaseType(TypeKind):
         self.name = name
 
     def __repr__(self):
-        return f'base-type<{self.name}>'
+        # return f'base-type<{self.name}>'
+        return f'{self.name}'
 
     def equals(self, other: 'TypeKind'):
         if isinstance(other, BaseType):
@@ -337,6 +348,9 @@ class ArrayType(TypeKind):
         super().__init__()
         self.size = size
         self.element_type = element_type
+
+    def __repr__(self):
+        return f'Array({self.size} x {self.element_type})'
 
 
 def tycon_apply(tycon: TypeConstructor, type_args: list[MyType]) -> MyType:
@@ -560,6 +574,17 @@ class FunctionDef(Definition):
 
     def __repr__(self):
         return f"func-def-{self.name}"
+
+    def get_type(self):
+        # Interesting!
+        # Construct polymorphic type
+        new_free = []
+        for i, tp in enumerate(self.type_parameters):
+            new_free.append(meta_type(f"{i}_{tp.name}"))
+        m2 = dict(zip(self.type_parameters, new_free))
+        return function_type(
+            [subst(p.ty, m2) for p in self.parameters],
+            subst(self.return_ty, m2))
 
 
 class Parameter(Definition):
@@ -1088,6 +1113,14 @@ class TypeLiteral(ExpressionKind):
         return f"type-literal({self.ty})"
 
 
+class ClassLiteral(ExpressionKind):
+    def __init__(self, class_ty: MyType):
+        self.class_ty = class_ty
+
+    def __repr__(self):
+        return f"class-constructor({self.class_ty})"
+
+
 class SemiEnumLiteral(ExpressionKind):
     """ Variant, selected from enum, but not called yet.
 
@@ -1328,7 +1361,7 @@ class AstVisitor:
 
 
 def print_ast(mod: Module):
-    AstPrinter().print_module(mod)
+    RichAstPrinter().print_module(mod)
 
 
 class AstPrinter(AstVisitor):
@@ -1397,6 +1430,79 @@ class AstPrinter(AstVisitor):
 
     def visit_expression(self, expression: Expression):
         self.emit(f'{expression}')
+        self.indent()
+        super().visit_expression(expression)
+        self.dedent()
+
+
+class RichAstPrinter(AstVisitor):
+    def __init__(self):
+        self._nodes = []
+
+    def indent(self):
+        self._nodes.append(self._node)
+
+    def dedent(self):
+        self._node = self._nodes.pop()
+
+    def emit(self, txt: str):
+        self._node = self._nodes[-1].add(txt)
+
+    def print_module(self, module: Module):
+        x = rich.tree.Tree(f":package:{module.name}")
+        self._node = x
+        self.indent()
+        self.emit(':books:imports')
+        self.indent()
+        for imp in module.imports:
+            self.emit(f'- {imp}')
+        self.dedent()
+        self.visit_module(module)
+        self.dedent()
+        rich.print(x)
+
+    def visit_definition(self, definition: Definition):
+        if isinstance(definition, FunctionDef):
+            self.emit(f':zap:[b green]fn {definition.name}')
+            self.indent()
+        elif isinstance(definition, StructDef):
+            t = 'union' if definition.is_union else 'struct'
+            self.emit(f':hammer:[b green]{t} {definition.name}')
+            self.indent()
+            for field in definition.fields:
+                self.emit(f':star:[b magenta]{field.name} : {field.ty}')
+        elif isinstance(definition, EnumDef):
+            self.emit(f':hammer:[b green]enum {definition.name}')
+            self.indent()
+            for variant in definition.variants:
+                self.emit(
+                    f":star:[b magenta]{variant.name} : {variant.payload}")
+        elif isinstance(definition, ClassDef):
+            self.emit(f':rocket:[b green]class {definition.name}')
+            self.indent()
+        elif isinstance(definition, VarDef):
+            self.emit(f':star:[b green]var {definition.name}')
+            self.indent()
+        elif isinstance(definition, TypeDef):
+            self.emit(f'type-def {definition.name}')
+            self.indent()
+        else:
+            self.emit(f'- ? {definition}')
+            self.indent()
+
+        super().visit_definition(definition)
+        self.dedent()
+
+    def visit_statement(self, statement: Statement):
+        self.emit(
+            f':rainbow:[b yellow]{rich.markup.escape(str(statement.kind))}')
+        self.indent()
+        super().visit_statement(statement)
+        self.dedent()
+
+    def visit_expression(self, expression: Expression):
+        self.emit(
+            f':zany_face:[b purple]{rich.markup.escape(str(expression.kind))} :garlic:[b gold1]{rich.markup.escape(str(expression.ty))}')
         self.indent()
         super().visit_expression(expression)
         self.dedent()

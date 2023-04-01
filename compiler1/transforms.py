@@ -224,7 +224,7 @@ class EnumRewriter(BaseTransformer):
         super().visit_expression(expression)
         kind = expression.kind
         if isinstance(kind, ast.EnumLiteral):
-            assert expression.ty.is_enum()
+            assert expression.ty.is_enum(), str(expression)
 
             tag_value = ast.numeric_constant(
                 kind.variant.index, expression.location)

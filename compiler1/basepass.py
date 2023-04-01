@@ -19,7 +19,7 @@ class BasePass(ast.AstVisitor):
         self.begin(module.filename,
                    f"Running {self.name} pass on '{module.name}'")
         self.visit_module(module)
-        self.finish(f"Pass {self.name} completed")
+        self.finish(f"Pass {self.name} completed:party_popper:")
 
     def begin(self, filename: str, msg: str):
         logger.info(msg)
@@ -33,4 +33,4 @@ class BasePass(ast.AstVisitor):
         if self._errors:
             raise CompilationError(self._errors)
         else:
-            logger.info(msg)
+            logger.info(msg, extra={'markup': True})
