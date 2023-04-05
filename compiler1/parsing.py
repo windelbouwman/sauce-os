@@ -340,7 +340,6 @@ class CustomTransformer(LarkTransformer):
 
     def switch_arm(self, x):
         # switch_arm: expression COLON NEWLINE block
-        print(x)
         return ast.SwitchArm(x[0], x[3], get_loc(x[1]))
 
     def let_statement(self, x):

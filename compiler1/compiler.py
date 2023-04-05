@@ -12,9 +12,10 @@ from .parsing import parse_file
 from .namebinding import ScopeFiller, NameBinder
 from .pass3 import NewOpPass, TypeEvaluation
 from .typechecker import TypeChecker
-from .transforms import transform
+from .transforms import LoopRewriter, EnumRewriter, ClassRewriter
 from .flowcheck import flow_check
 from .cppgenerator import gencode
+from .pygenerator import gencode as gen_pycode
 
 logger = logging.getLogger('compiler')
 
@@ -22,6 +23,7 @@ logger = logging.getLogger('compiler')
 @dataclass
 class CompilationOptions:
     dump_ast: bool = False
+    run_code: bool = False
 
 
 def std_module():
@@ -42,47 +44,43 @@ def std_module():
     return mod
 
 
-def do_compile(filenames: list[str], output: str | None, options: CompilationOptions, progress, task):
+def do_compile(filenames: list[str], output: str | None, options: CompilationOptions):
     """ Compile a list of module.
     """
     known_modules = {'std': std_module()}
 
-    progress.advance(task, 10)
     modules = []
     for filename in filenames:
         module = parse_file(filename)
         modules.append(module)
         if options.dump_ast:
-            logger.info('Dumping AST')
             ast.print_ast(module)
     topo_sort(modules)
-    progress.advance(task, 20)
 
     for module in modules:
         analyze_ast(module, known_modules, options)
         if options.dump_ast:
-            logger.info('Dumping AST')
             ast.print_ast(module)
 
-    progress.advance(task, 30)
     transform(modules)
-    progress.advance(task, 10)
 
-    for module in modules:
-        if options.dump_ast:
-            logger.info('Dumping AST')
-            ast.print_ast(module)
+    if options.dump_ast:
+        print_modules(modules)
 
     flow_check(modules)
-    progress.advance(task, 20)
 
     # Generate output
-    if output:
-        with open(output, 'w') as f:
-            gencode(modules, f=f)
+    if 1:
+        code = gen_pycode(modules)
+        if options.run_code:
+            logger.info("Invoking python code")
+            exec(code, {})
     else:
-        gencode(modules)
-    progress.advance(task, 10)
+        if output:
+            with open(output, 'w') as f:
+                gencode(modules, f=f)
+        else:
+            gencode(modules)
 
     logger.info(':party_popper:DONE&DONE', extra={'markup': True})
 
@@ -120,3 +118,31 @@ def analyze_ast(module: ast.Module, known_modules: dict[str, ast.Module], option
         ast.print_ast(module)
 
     TypeChecker().check_module(module)
+
+
+def check_modules(modules: list[ast.Module]):
+    for module in modules:
+        TypeChecker().check_module(module)
+
+
+def print_modules(modules: list[ast.Module]):
+    for module in modules:
+        ast.print_ast(module)
+
+
+def transform(modules: list[ast.Module]):
+    """ Transform a slew of modules (in-place)
+
+    Some real compilation being done here.
+    """
+    # Rewrite and type-check for each transformation.
+    LoopRewriter().transform(modules)
+    check_modules(modules)
+
+    EnumRewriter().transform(modules)
+    # print_modules(modules)
+    check_modules(modules)
+
+    ClassRewriter().transform(modules)
+    # print_modules(modules)
+    check_modules(modules)

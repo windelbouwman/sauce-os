@@ -2,6 +2,7 @@
 # Demo of a generic enum type.
 ######
 
+import std
 from std import print, int_to_str
 
 fn main():
@@ -16,7 +17,7 @@ fn main():
 fn display(value: Option[Integer]):
     case value:
         Some(x):
-            print("Got some: " + int_to_str(x.value))
+            print("Got some: {x.value}")
         None:
             print("Got none!")
 

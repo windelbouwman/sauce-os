@@ -74,13 +74,9 @@ class ScopeFiller(BasePass):
             for parameter in definition.parameters:
                 self.define(parameter)
         elif isinstance(definition, ast.ClassDef):
-            # TODO!
-            type_arguments = []
-            this_var = ast.Variable(
-                'this',
-                ast.class_type(definition, type_arguments),
-                definition.location)
-            self.define(this_var)
+            for type_parameter in definition.type_parameters:
+                self.define(type_parameter)
+            self.define(definition.this_var)
             # members are visited during visitor
             # for member in definition.members:
             #    self.define_symbol(member.name, member)

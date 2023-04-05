@@ -12,15 +12,6 @@ from . import ast
 logger = logging.getLogger('transforms')
 
 
-def transform(modules: list[ast.Module]):
-    """ Transform a slew of modules (in-place)
-
-    Some real compilation being done here.
-    """
-    LoopRewriter().transform(modules)
-    EnumRewriter().transform(modules)
-
-
 class BaseTransformer(ast.AstVisitor):
     name = '?'
 
@@ -61,12 +52,14 @@ class LoopRewriter(BaseTransformer):
 
             assert isinstance(kind.values.ty.kind, ast.ArrayType)
             # x = arr
-            x_var = ast.Variable('x', kind.values.ty, statement.location)
+            # TODO: create unique names!
+            x_var = ast.Variable('x9999', kind.values.ty, statement.location)
             let_x = ast.let_statement(
                 x_var, None, kind.values, statement.location)
 
             # i = 0
-            i_var = ast.Variable('i', ast.int_type, statement.location)
+            # TODO: create unique names!
+            i_var = ast.Variable('i9999', ast.int_type, statement.location)
             zero = ast.numeric_constant(0, statement.location)
             let_i0 = ast.let_statement(
                 i_var, None, zero, statement.location)
@@ -107,8 +100,10 @@ class EnumRewriter(BaseTransformer):
         for definition in module.definitions:
             if isinstance(definition, ast.EnumDef):
                 self.rewrite_enum_def(definition)
+            else:
+                self.new_defs.append(definition)
 
-        module.definitions += self.new_defs
+        module.definitions = self.new_defs
         super().visit_module(module)
 
     def rewrite_enum_def(self, definition: ast.EnumDef):
@@ -161,12 +156,16 @@ class EnumRewriter(BaseTransformer):
         self.new_defs.append(tagged_union_def)
         self._tagged_unions[id(definition)] = tagged_union_def
 
+    def change_enum_type(self, ty: ast.MyType):
+        # Change type into tagged union type
+        assert ty.is_enum()
+        struct_def = self._tagged_unions[id(ty.kind.tycon)]
+        ty.change_to(struct_def.apply(ty.kind.type_args))
+
     def visit_type(self, ty: ast.MyType):
         super().visit_type(ty)
         if ty.is_enum():
-            # Change type into tagged untion type
-            ty.kind = self._tagged_unions[id(
-                ty.kind.tycon)].apply(ty.kind.type_args).kind
+            self.change_enum_type(ty)
 
     def visit_statement(self, statement: ast.Statement):
         """
@@ -179,6 +178,8 @@ class EnumRewriter(BaseTransformer):
         kind = statement.kind
 
         if isinstance(kind, ast.CaseStatement):
+            self.change_enum_type(kind.value.ty)
+
             # x = value
             x_var = ast.Variable('_x1337', kind.value.ty, statement.location)
             let_x = ast.let_statement(
@@ -248,3 +249,148 @@ class EnumRewriter(BaseTransformer):
             expression.kind = ast.StructLiteral(
                 tagged_union_ty, [tag_value, union_value])
             expression.ty = tagged_union_ty
+
+
+class ClassRewriter(BaseTransformer):
+    name = 'class-rewrite'
+
+    def __init__(self):
+        super().__init__()
+        self._struct_defs = {}
+
+    def visit_module(self, module: ast.Module):
+        self.new_defs = []
+        for definition in module.definitions:
+            if isinstance(definition, ast.ClassDef):
+                self.rewrite_class_def(definition)
+            else:
+                self.new_defs.append(definition)
+
+        module.definitions = self.new_defs
+        super().visit_module(module)
+
+    def rewrite_class_def(self, class_def: ast.ClassDef):
+        # Create a struct instead of a class:
+        init_values = []
+        methods = []
+        type_args = []
+        builder = ast.StructBuilder(class_def.name, False, class_def.location)
+        for type_parameter in class_def.type_parameters:
+            type_arg = builder.add_type_parameter(
+                f"{type_parameter.name}8", type_parameter.location)
+            type_args.append(type_arg)
+        m = dict(zip(class_def.type_parameters, type_args))
+        for member in class_def.members:
+            if isinstance(member, ast.VarDef):
+                builder.add_field(member.name, ast.subst(
+                    member.ty, m), member.location)
+                init_values.append(member.value)
+            elif isinstance(member, ast.FunctionDef):
+                methods.append(member)
+            else:
+                raise NotImplementedError(str(member))
+
+        struct_def = builder.finish()
+        self.new_defs.append(struct_def)
+
+        # Patch methods, add this parameter
+        for method in methods:
+            logger.info(f'lifting "{method.name}" to toplevel')
+            method.name = f"{class_def.name}_{method.name}"
+
+            type_args = []
+            for tp in class_def.type_parameters:
+                tp = ast.TypeVar(f"{tp.name}7", tp.location)
+                # Hmm, append type arguments to already existing ones?
+                # TBD: what happens with type annotations?
+                method.type_parameters.append(tp)
+                type_args.append(tp.get_ref())
+
+            struct_type = struct_def.apply(type_args)
+            this_param = ast.Parameter(
+                "this2", struct_type, class_def.location)
+            method.parameters.insert(0, this_param)
+
+            m7 = dict(zip(class_def.type_parameters, type_args))
+            m9 = {class_def.this_var: this_param}
+            replace_goo(method, m7, m9)
+            self.new_defs.append(method)
+
+        # Create constructor function
+        type_parameters = []  # TODO!
+        type_args = []
+        for tp in class_def.type_parameters:
+            tp = ast.TypeVar(f"{tp.name}73", tp.location)
+            type_parameters.append(tp)
+            type_args.append(tp.get_ref())
+        struct_type = struct_def.apply(type_args)
+        init_literal = ast.struct_literal(
+            struct_type, init_values, class_def.location)
+        ctor_code = ast.return_statement(init_literal, class_def.location)
+        ctor_func = ast.function_def(
+            f"{class_def.name}_ctor", type_parameters, [], struct_type, ctor_code, class_def.location)
+        m7 = dict(zip(class_def.type_parameters, type_args))
+
+        replace_goo(ctor_func, m7, {})
+        self.new_defs.append(ctor_func)
+
+        self._struct_defs[id(class_def)] = (struct_def, ctor_func)
+
+    def visit_type(self, ty: ast.MyType):
+        super().visit_type(ty)
+        if ty.is_class():
+            # Change class type into tagged untion type
+            struct_def = self._struct_defs[id(ty.kind.tycon)][0]
+            ty.change_to(struct_def.apply(ty.kind.type_args))
+
+    def visit_expression(self, expression: ast.Expression):
+        """ Rewrite enum literal into tagged union
+        """
+        super().visit_expression(expression)
+        kind = expression.kind
+        if isinstance(kind, ast.ClassLiteral):
+            ctor_func = self._struct_defs[id(kind.class_ty.kind.tycon)][1]
+            ctor_call = ast.obj_ref(
+                ctor_func, ast.void_type, expression.location).call([])
+            expression.kind = ctor_call.kind
+        elif isinstance(kind, ast.FunctionCall):
+            if isinstance(kind.target.kind, ast.DotOperator):
+                if kind.target.kind.base.ty.is_class():
+                    # method call!
+                    obj = kind.target.kind.base
+                    method_func = kind.target.kind.base.ty.get_method(
+                        kind.target.kind.field)
+
+                    # Insert
+                    kind.args.insert(0, obj)
+                    kind.target = ast.obj_ref(
+                        method_func, ast.void_type, kind.target.location)
+
+
+def replace_goo(func_def: ast.FunctionDef, type_mapping, var_mapping):
+    """ Replace occurences of certain type variables and certain variables.
+    """
+    r = TypeReplacer(type_mapping, var_mapping)
+    r.visit_definition(func_def)
+
+
+class TypeReplacer(ast.AstVisitor):
+    def __init__(self, type_mapping, var_mapping):
+        super().__init__()
+        self.type_mapping = type_mapping
+        self.var_mapping = var_mapping
+
+    def visit_expression(self, expression: ast.Expression):
+        super().visit_expression(expression)
+        kind = expression.kind
+        if isinstance(kind, ast.ObjRef):
+            obj = kind.obj
+            if obj in self.var_mapping:
+                kind.obj = self.var_mapping[obj]
+
+    def visit_type(self, ty: ast.MyType):
+        super().visit_type(ty)
+        if ty.is_type_var_ref():
+            if ty.kind.type_variable in self.type_mapping:
+                t2 = self.type_mapping[ty.kind.type_variable]
+                ty.change_to(t2)

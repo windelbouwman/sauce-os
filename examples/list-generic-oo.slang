@@ -13,10 +13,10 @@ fn new_integer(value: int) -> Integer:
         value: value
     return i
 
-class List:
-    var head_element: Option[ListElement[Integer]] = Option.None()
+class<T> List:
+    var head_element: Option[ListElement[T]] = Option.None()
 
-    fn append(val: Integer):
+    fn append(val: T):
         let new_tail_element = ListElement:
             next: Option.None()
             data: val
@@ -47,10 +47,10 @@ struct<T> ListElement:
     next: Option[ListElement[T]]
     data: T
 
-class ListIter:
-    var next_element: Option[ListElement[Integer]] = Option.None()
+class<T> ListIter:
+    var next_element: Option[ListElement[T]] = Option.None()
 
-    fn next() -> Option[Integer]:
+    fn next() -> Option[T]:
         let opt = this.next_element
         case opt:
             None:
@@ -62,7 +62,9 @@ class ListIter:
         # return Option.None()
 
 fn main():
-    let x = List()
+    let x: List[Integer] = List()
+    # Hmm, below does not infer that well..
+    # let x = List()
 
     x.append(new_integer(13))
     x.append(new_integer(12))

@@ -1,10 +1,13 @@
 """ AST (abstract syntax tree) nodes to represent code.
 """
+import logging
 import rich
 import rich.tree
 import rich.markup
 from lark.load_grammar import Definition
 from .location import Location
+
+logger = logging.getLogger('ast')
 
 
 class Node:
@@ -56,6 +59,10 @@ class MyType:
     def clone(self) -> 'MyType':
         return MyType(self.kind)
 
+    def change_to(self, other: 'MyType'):
+        """ Change this type into the given other type. """
+        self.kind = other.kind
+
     def is_reftype(self):
         return False
 
@@ -79,6 +86,9 @@ class MyType:
 
     def is_float(self) -> bool:
         return isinstance(self.kind, BaseType) and self.kind.is_float()
+
+    def is_type_var_ref(self) -> bool:
+        return isinstance(self.kind, TypeVarKind)
 
     def has_field(self, name: str) -> bool:
         if isinstance(self.kind, App):
@@ -147,6 +157,12 @@ class MyType:
             return [subst(p, self.kind.m) for p in variant.payload]
         else:
             raise ValueError(f'No variant enum type')
+
+    def get_method(self, name: str):
+        if isinstance(self.kind, App) and isinstance(self.kind.tycon, ClassDef):
+            return self.kind.tycon.get_field(name)
+        else:
+            raise ValueError(f'No class type')
 
     # def equals(self, other: 'MyType'):
     #     assert isinstance(other, MyType)
@@ -230,7 +246,7 @@ class App(TypeKind):
 
     def __repr__(self):
         if self.type_args:
-            return f"App({self.tycon},{self.type_args})"
+            return f"{self.tycon}{self.type_args}"
         else:
             return f"A({self.tycon})"
 
@@ -373,7 +389,10 @@ class Meta(TypeKind):
         self.assigned: MyType = None
 
     def __repr__(self):
-        return f"Meta({self.name})"
+        if self.assigned:
+            return f"Meta({self.name}->{self.assigned})"
+        else:
+            return f"Meta({self.name})"
 
 
 def type_var_ref(type_variable: 'TypeVar') -> MyType:
@@ -417,11 +436,12 @@ class Expression(Node):
         return binop(self, op, rhs, self.location)
 
     def get_attr(self, field: str | int) -> 'Expression':
-        if self.ty.is_struct():
+        if self.ty.is_struct() or self.ty.is_union():
             ty = self.ty.get_field_type(field)
             field = self.ty.get_field_name(field)
         else:
             ty = void_type
+            assert isinstance(field, str), str(self.ty)
         return dot_operator(self, field, ty, self.location)
 
     def array_index(self, value: 'Expression') -> 'Expression':
@@ -499,6 +519,10 @@ class TypeVar(Definition):
     def __repr__(self):
         return f'type-var({self.name})'
 
+    def get_ref(self) -> MyType:
+        """ Get a type referring to this type parameter."""
+        return type_var_ref(self)
+
 
 def type_def(name: str, ty: MyType, location: Location):
     return TypeDef(name, ty, location)
@@ -519,6 +543,12 @@ class ClassDef(TypeConstructor):
     def __init__(self, name: str, type_parameters: list[TypeVar], members: list['Definition'], location: Location):
         super().__init__(name, location, type_parameters)
         self.members = members
+
+        # Create 'this' variable
+        # TODO: this might be a type-ish loop? Dunno..
+        type_args = [t.get_ref() for t in type_parameters]
+        this_ty = class_type(self, type_args)
+        self.this_var = Variable("this", this_ty, location)
 
     def __repr__(self):
         return f"class-{self.name}"
@@ -611,7 +641,10 @@ class StructDef(TypeConstructor):
         return f"{t}-{self.name}"
 
     def has_field(self, name: str) -> bool:
-        return self.scope.is_defined(name)
+        if isinstance(name, int):
+            return name < len(self.fields)
+        else:
+            return self.scope.is_defined(name)
 
     def get_field(self, name: str | int) -> 'StructFieldDef':
         if isinstance(name, int):
@@ -657,7 +690,12 @@ class StructBuilder:
         self.fields.append(StructFieldDef(name, ty, location))
 
     def finish(self) -> StructDef:
-        return StructDef(self.name, self.type_parameters, self.is_union, self.fields, self.location)
+        struct_def = StructDef(
+            self.name, self.type_parameters, self.is_union, self.fields, self.location)
+        for definition in struct_def.fields:
+            assert not struct_def.scope.is_defined(definition.name)
+            struct_def.scope.define(definition.name, definition)
+        return struct_def
 
 
 class EnumDef(TypeConstructor):
@@ -748,7 +786,10 @@ class LetStatement(StatementKind):
         self.value = value
 
     def __repr__(self):
-        return f"Let({self.variable})"
+        if self.ty:
+            return f"Let({self.variable}) : {str_ty(self.ty)}"
+        else:
+            return f"Let({self.variable})"
 
 
 def loop_statement(inner: Statement, location: Location) -> Statement:
@@ -1163,9 +1204,15 @@ class NameRef(ExpressionKind):
         return f'name-ref({self.name})'
 
 
+def obj_ref(obj, ty: MyType, location: Location) -> Expression:
+    kind = ObjRef(obj)
+    return Expression(kind, ty, location)
+
+
 class ObjRef(ExpressionKind):
     def __init__(self, obj):
         super().__init__()
+        # assert isinstance(obj, Definition)
         self.obj = obj
 
     def __repr__(self):
@@ -1184,6 +1231,7 @@ class DotOperator(ExpressionKind):
     def __init__(self, base: Expression, field: str):
         super().__init__()
         self.base = base
+        assert isinstance(field, str)
         self.field = field
 
     def __repr__(self):
@@ -1221,7 +1269,7 @@ class Variable(Definition):
 
     def ref_expr(self, location: Location) -> Expression:
         """ Retrieve an expression referring to this variable! """
-        return Expression(ObjRef(self), self.ty, location)
+        return obj_ref(self, self.ty, location)
 
 
 class BuiltinFunction(Definition):
@@ -1278,6 +1326,11 @@ class AstVisitor:
     def visit_type(self, ty: MyType):
         if isinstance(ty.kind, TypeExpression):
             self.visit_expression(ty.kind.expr)
+        elif isinstance(ty.kind, App):
+            for type_arg in ty.kind.type_args:
+                self.visit_type(type_arg)
+        elif isinstance(ty.kind, ArrayType):
+            self.visit_type(ty.kind.element_type)
 
     def visit_statement(self, statement: Statement):
         kind = statement.kind
@@ -1361,6 +1414,7 @@ class AstVisitor:
 
 
 def print_ast(mod: Module):
+    logger.info('Dumping AST')
     RichAstPrinter().print_module(mod)
 
 
@@ -1389,6 +1443,9 @@ class AstPrinter(AstVisitor):
         if isinstance(definition, FunctionDef):
             self.emit(f'- fn {definition.name}')
             self.indent()
+            for parameter in definition.parameters:
+                pass
+
         elif isinstance(definition, StructDef):
             t = 'union' if definition.is_union else 'struct'
             self.emit(f'- {t} {definition.name}')
@@ -1435,6 +1492,10 @@ class AstPrinter(AstVisitor):
         self.dedent()
 
 
+def str_ty(ty: MyType):
+    return f":garlic:[b gold1]{rich.markup.escape(str(ty))}[/]"
+
+
 class RichAstPrinter(AstVisitor):
     def __init__(self):
         self._nodes = []
@@ -1449,7 +1510,7 @@ class RichAstPrinter(AstVisitor):
         self._node = self._nodes[-1].add(txt)
 
     def print_module(self, module: Module):
-        x = rich.tree.Tree(f":package:{module.name}")
+        x = rich.tree.Tree(f":package:[b red]{module.name}")
         self._node = x
         self.indent()
         self.emit(':books:imports')
@@ -1465,12 +1526,24 @@ class RichAstPrinter(AstVisitor):
         if isinstance(definition, FunctionDef):
             self.emit(f':zap:[b green]fn {definition.name}')
             self.indent()
+            for type_parameter in definition.type_parameters:
+                self.emit(f':scream:[b hot_pink]{type_parameter.name}')
+            for parameter in definition.parameters:
+                self.emit(
+                    f':gem:[b cyan]{parameter.name} : {str_ty(parameter.ty)}')
+            if definition.return_ty:
+                self.emit(f":pick:[b red]{str_ty(definition.return_ty)}[/]")
+                # :dragon: or :dollar:
+
         elif isinstance(definition, StructDef):
             t = 'union' if definition.is_union else 'struct'
             self.emit(f':hammer:[b green]{t} {definition.name}')
             self.indent()
+            for type_parameter in definition.type_parameters:
+                self.emit(f':scream:[b hot_pink]{type_parameter.name}')
             for field in definition.fields:
-                self.emit(f':star:[b magenta]{field.name} : {field.ty}')
+                self.emit(
+                    f':star:[b magenta]{field.name} : {str_ty(field.ty)}')
         elif isinstance(definition, EnumDef):
             self.emit(f':hammer:[b green]enum {definition.name}')
             self.indent()
@@ -1480,6 +1553,8 @@ class RichAstPrinter(AstVisitor):
         elif isinstance(definition, ClassDef):
             self.emit(f':rocket:[b green]class {definition.name}')
             self.indent()
+            for type_parameter in definition.type_parameters:
+                self.emit(f':scream:[b hot_pink]{type_parameter.name}')
         elif isinstance(definition, VarDef):
             self.emit(f':star:[b green]var {definition.name}')
             self.indent()
@@ -1502,7 +1577,7 @@ class RichAstPrinter(AstVisitor):
 
     def visit_expression(self, expression: Expression):
         self.emit(
-            f':zany_face:[b purple]{rich.markup.escape(str(expression.kind))} :garlic:[b gold1]{rich.markup.escape(str(expression.ty))}')
+            f':zany_face:[b purple]{rich.markup.escape(str(expression.kind))} {str_ty(expression.ty)}')
         self.indent()
         super().visit_expression(expression)
         self.dedent()

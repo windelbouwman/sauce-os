@@ -26,7 +26,8 @@ class BasePass(ast.AstVisitor):
         self._filename = filename
 
     def error(self, location: Location, msg: str):
-        logger.error(f"{self._filename}:{location}: {msg}")
+        logger.error(f"{self._filename}:{location}: {msg}",
+                     extra={'markup': True})
         self._errors.append((self._filename, location, msg))
 
     def finish(self, msg: str):

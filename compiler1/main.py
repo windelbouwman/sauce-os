@@ -15,7 +15,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('source', nargs='+', help='Source files')
     parser.add_argument('--output', help='File to write output to')
-    parser.add_argument('--dump-ast', action='store_true')
+    parser.add_argument('--dump-ast', '-d', action='store_true')
+    parser.add_argument('--run-code', '-r', action='store_true')
     args = parser.parse_args()
     logging.basicConfig(
         level="NOTSET", format="%(message)s",
@@ -24,13 +25,11 @@ def main():
     )
     logger = logging.getLogger('main')
 
-    options = compiler.CompilationOptions(dump_ast=args.dump_ast)
+    options = compiler.CompilationOptions(
+        dump_ast=args.dump_ast, run_code=args.run_code)
 
     try:
-        with Progress() as progress:
-            task = progress.add_task(':hammer:Compiling')
-            compiler.do_compile(args.source, args.output,
-                                options, progress, task)
+        compiler.do_compile(args.source, args.output, options)
     except errors.CompilationError as ex:
         logger.error("Errors occurred during compilation!")
         errors.print_errors(ex.errors)

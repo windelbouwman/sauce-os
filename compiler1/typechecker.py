@@ -34,8 +34,10 @@ class TypeChecker(BasePass):
             pass
         elif isinstance(definition, ast.FunctionDef):
             self._function = None
-        elif isinstance(definition, (ast.ClassDef, ast.VarDef)):
+        elif isinstance(definition, ast.ClassDef):
             pass
+        elif isinstance(definition, ast.VarDef):
+            self.assert_type(definition.value, definition.ty)
         else:
             raise NotImplementedError(str(definition))
 
@@ -187,6 +189,10 @@ class TypeChecker(BasePass):
             for field_type, value in zip(field_types, kind.values):
                 self.assert_type(value, field_type)
             expression.ty = kind.ty
+        elif isinstance(kind, ast.UnionLiteral):
+            field_type = kind.ty.get_field_type(kind.field)
+            self.assert_type(kind.value, field_type)
+            expression.ty = kind.ty
         elif isinstance(kind, ast.EnumLiteral):
             payload_types = kind.enum_ty.get_variant_types(kind.variant.name)
             self.check_arguments(payload_types,
@@ -201,18 +207,20 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
             if isinstance(obj, ast.Variable):
-                expression.ty = obj.ty
+                expression.ty = obj.ty.clone()
             elif isinstance(obj, ast.BuiltinFunction):
                 expression.ty = obj.ty
             elif isinstance(obj, ast.FunctionDef):
                 expression.ty = obj.get_type()
             elif isinstance(obj, ast.Parameter):
-                expression.ty = obj.ty
+                expression.ty = obj.ty.clone()
             elif isinstance(obj, ast.ClassDef):
                 # Arg, type arguments?
                 expression.ty = obj.get_type([])
             else:
                 raise NotImplementedError(str(kind))
+        elif isinstance(kind, ast.TypeCast):
+            expression.ty = kind.ty
         else:
             raise NotImplementedError(str(expression.kind))
 
@@ -238,7 +246,7 @@ class TypeChecker(BasePass):
 
         if not self.unify(expression.ty, ty):
             self.error(expression.location,
-                       f'Expected {ty}, got {expression.ty}')
+                       f'Expected {ast.str_ty(ty)}, got {ast.str_ty(expression.ty)}')
 
     def unify(self, a: ast.MyType, b: ast.MyType) -> bool:
         """ Unify types a and b.
@@ -274,7 +282,12 @@ class TypeChecker(BasePass):
                     return True
                 else:
                     return False
-            elif b.is_struct():
+            elif isinstance(b.kind, ast.Meta):
+                if a.kind is b.kind:
+                    return True
+                else:
+                    return False
+            elif b.is_struct() or b.is_class() or b.is_type_var_ref() or b.is_void():
                 # TODO: check if b contains meta-var
                 # Assign type to meta-var:
                 a.kind.assigned = b

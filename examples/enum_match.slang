@@ -11,13 +11,15 @@ enum Option:
 fn main():
     let val: Option = Option::Some("TXT")
     foo(val)
-    let val2: Option = Option::None
+    let val2: Option = Option::None()
     foo(val2)
 
 
 fn foo(val: Option):
-    match val:
-        Option::None:
+    # TODO: implement match
+    #match val:
+    case val:
+        None:
             std::print("Nothing here")
-        Option::Some(x):
+        Some(x):
             std::print(x)

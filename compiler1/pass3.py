@@ -19,7 +19,7 @@ class TypeEvaluation(BasePass):
     def visit_type(self, ty: ast.MyType):
         super().visit_type(ty)
         if isinstance(ty.kind, ast.TypeExpression):
-            ty.kind = self.eval_type_expr(ty.kind.expr).kind
+            ty.change_to(self.eval_type_expr(ty.kind.expr))
 
     def eval_type_expr(self, expression: ast.Expression) -> ast.MyType:
         """ Evaluate a type expression.
