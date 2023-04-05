@@ -287,7 +287,7 @@ class TypeChecker(BasePass):
                     return True
                 else:
                     return False
-            elif b.is_struct() or b.is_class() or b.is_type_var_ref() or b.is_void():
+            elif b.is_struct() or b.is_class() or b.is_type_var_ref() or b.is_void() or b.is_enum():
                 # TODO: check if b contains meta-var
                 # Assign type to meta-var:
                 a.kind.assigned = b

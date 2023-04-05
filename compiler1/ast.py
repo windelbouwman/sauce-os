@@ -111,6 +111,12 @@ class MyType:
 
         raise ValueError("Can only get field from struct/union")
 
+    def get_field_index(self, name: str) -> int:
+        if isinstance(self.kind, App) and isinstance(self.kind.tycon, StructDef):
+            return self.kind.tycon.get_field(name).index
+        else:
+            raise ValueError('Can only get field from struct/union')
+
     def get_field_names(self) -> list[str]:
         """ Retrieve names of all fields """
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, StructDef):

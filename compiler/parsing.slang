@@ -2,6 +2,7 @@
 import ast
 import std
 import lexer
+from datatypes import List
 
 fn parse_source(filename: str) -> ast::Module:
     let source = std::read_file(filename)
@@ -15,7 +16,9 @@ fn parse_source(filename: str) -> ast::Module:
     let tok = lexer::detect_indentations(lex)
     std::print("tok at {tok.location.row}")
 
+    let definitions = List()
     let program = ast::Module:
         name: "FUU"
+        definitions: definitions
     
     return program

@@ -1,8 +1,6 @@
 """
 Idea: Use C++ as intermediate code for bootstrapping.
 
-Idea2: Use python code as bootstrapping target?
-
 """
 
 from . import ast

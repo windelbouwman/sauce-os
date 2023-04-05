@@ -10,6 +10,7 @@ from compiler1 import compiler, errors
 options = compiler.CompilationOptions()
 sources = [
     'compiler/ast.slang',
+    'compiler/datatypes.slang',
     'compiler/token.slang',
     'compiler/main.slang',
     'compiler/lexer.slang',

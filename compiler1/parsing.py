@@ -447,7 +447,7 @@ class CustomTransformer(LarkTransformer):
             ty = ast.void_type
             return ast.array_index(base, index, ty, get_loc(x[1]))
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == 'DOT':
-            base, field = x[0], x[2]
+            base, field = x[0], x[2].value
             ty = ast.void_type
             return ast.dot_operator(base, field, ty, get_loc(x[1]))
         else:

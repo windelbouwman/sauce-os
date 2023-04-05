@@ -3,8 +3,8 @@ from functools import lru_cache
 from .location import Location
 
 
-def print_error(code, location: Location, message: str):
-    print('***********************', location)
+def print_error(code: str, filename: str, location: Location, message: str):
+    print('***********************', filename, location)
     context_amount = 5
     was_printed = False
     for row_nr, text in enumerate(code.splitlines(), start=1):
@@ -36,7 +36,7 @@ def read_source(filename: str) -> str:
 def print_errors(errors):
     for filename, location, message in errors:
         code = read_source(filename)
-        print_error(code, location, message)
+        print_error(code, filename, location, message)
 
 
 class CompilationError(RuntimeError):

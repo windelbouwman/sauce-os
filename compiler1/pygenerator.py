@@ -1,4 +1,7 @@
 """ Generate python code
+
+Idea: Use python code as bootstrapping target!
+
 """
 
 import io

@@ -1,6 +1,7 @@
 
 import std
 from location import Location
+from datatypes import List
 
 # TODO: implement type-defs!
 # type MyType = int
@@ -19,15 +20,17 @@ fn int_type() -> MyType:
 
 struct Module:
     name: str
-    # TODO: support list:
-    # functions: list<Function>
+    definitions: List[Definition]
+
+enum Definition:
+    Function(FunctionDef)
 
 struct FunctionDef:
     name: str
     is_pub: bool
     # TODO:
     # parameters: list<int>
-    # body: list<Statement>
+    body: Statement
 
 fn statement(kind: StatementKind, location: Location) -> Statement:
     let statement = Statement:
@@ -98,17 +101,16 @@ enum ExpressionKind:
     # StringLiteral(str)
     BoolLiteral(bool)
 
-fn call(callee: Expression, ty: MyType, location: Location) -> Expression:
+fn call(callee: Expression, arguments: List[Expression], ty: MyType, location: Location) -> Expression:
     let c = FunctionCall:
         callee: callee
-        # TODO: arguments
+        arguments: arguments
     let kind = ExpressionKind::Call(c)
     return expression(kind, ty, location)
 
 struct FunctionCall:
     callee: Expression
-    # TODO:
-    # arguments: list<Expression>
+    arguments: List[Expression]
 
 struct BinopExpression:
     lhs: Expression

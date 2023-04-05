@@ -16,6 +16,7 @@ from .transforms import LoopRewriter, EnumRewriter, ClassRewriter
 from .flowcheck import flow_check
 from .cppgenerator import gencode
 from .pygenerator import gencode as gen_pycode
+from .bc_gen import gen_bc
 
 logger = logging.getLogger('compiler')
 
@@ -71,6 +72,8 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
 
     # Generate output
     if 1:
+        gen_bc(modules)
+    elif 0:
         code = gen_pycode(modules)
         if options.run_code:
             logger.info("Invoking python code")
