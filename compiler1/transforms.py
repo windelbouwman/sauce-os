@@ -24,9 +24,6 @@ class BaseTransformer(ast.AstVisitor):
 class LoopRewriter(BaseTransformer):
     name = 'loop-rewrite'
 
-    def __init__(self):
-        super().__init__()
-
     def visit_statement(self, statement: ast.Statement):
         super().visit_statement(statement)
         kind = statement.kind
@@ -394,3 +391,28 @@ class TypeReplacer(ast.AstVisitor):
             if ty.kind.type_variable in self.type_mapping:
                 t2 = self.type_mapping[ty.kind.type_variable]
                 ty.change_to(t2)
+
+
+class SwitchRewriter(BaseTransformer):
+    name = 'switch-rewrite'
+
+    def visit_statement(self, statement: ast.Statement):
+        super().visit_statement(statement)
+        kind = statement.kind
+
+        if isinstance(kind, ast.SwitchStatement):
+            logger.debug('rewrite switch into chain of if-then-else')
+            # Step 1: capture switch value in variable:
+
+            x_var = ast.Variable('x1234', kind.value.ty, statement.location)
+            let_x = ast.let_statement(
+                x_var, None, kind.value, statement.location)
+
+            # Create if-then tree
+            else_clause = kind.default_body
+            for arm in kind.arms:
+                condition = x_var.ref_expr(arm.location).binop('==', arm.value)
+                else_clause = ast.if_statement(
+                    condition, arm.body, else_clause, arm.location)
+
+            statement.kind = ast.CompoundStatement([let_x, else_clause])

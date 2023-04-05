@@ -12,11 +12,12 @@ from .parsing import parse_file
 from .namebinding import ScopeFiller, NameBinder
 from .pass3 import NewOpPass, TypeEvaluation
 from .typechecker import TypeChecker
-from .transforms import LoopRewriter, EnumRewriter, ClassRewriter
+from .transforms import LoopRewriter, EnumRewriter, ClassRewriter, SwitchRewriter
 from .flowcheck import flow_check
 from .cppgenerator import gencode
 from .pygenerator import gencode as gen_pycode
 from .bc_gen import gen_bc
+from .vm import run_bytecode
 
 logger = logging.getLogger('compiler')
 
@@ -25,6 +26,7 @@ logger = logging.getLogger('compiler')
 class CompilationOptions:
     dump_ast: bool = False
     run_code: bool = False
+    backend: str = 'vm'
 
 
 def std_module():
@@ -71,19 +73,23 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
     flow_check(modules)
 
     # Generate output
-    if 1:
-        gen_bc(modules)
-    elif 0:
+    if options.backend == 'vm':
+        prog = gen_bc(modules)
+        if options.run_code:
+            run_bytecode(prog)
+    elif options.backend == 'py':
         code = gen_pycode(modules)
         if options.run_code:
             logger.info("Invoking python code")
             exec(code, {})
-    else:
+    elif options.backend == 'cpp':
         if output:
             with open(output, 'w') as f:
                 gencode(modules, f=f)
         else:
             gencode(modules)
+    else:
+        logger.error(f'Unknown backend: {options.backend}')
 
     logger.info(':party_popper:DONE&DONE', extra={'markup': True})
 
@@ -147,5 +153,10 @@ def transform(modules: list[ast.Module]):
     check_modules(modules)
 
     ClassRewriter().transform(modules)
+    # print_modules(modules)
+    check_modules(modules)
+
+    # TODO: this can be optional, depending on what the backend supports!
+    SwitchRewriter().transform(modules)
     # print_modules(modules)
     check_modules(modules)

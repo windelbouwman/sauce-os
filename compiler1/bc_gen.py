@@ -9,15 +9,13 @@ from . import vm
 logger = logging.getLogger('bytecode-gen')
 
 
-def gen_bc(modules: list[ast.Module]):
+def gen_bc(modules: list[ast.Module]) -> vm.Program:
     logger.info('generating bytecode')
     g = ByteCodeGenerator()
     for module in modules:
         g.gen_module(module)
 
-    prog = vm.Program(g._functions)
-
-    run_bytecode(prog)
+    return vm.Program(g._functions)
 
 
 class ByteCodeGenerator:
@@ -46,7 +44,7 @@ class ByteCodeGenerator:
         for parameter in func_def.parameters:
             self._locals.append(parameter)
         self.gen_statement(func_def.statements)
-        self.emit('RETURN')
+        self.emit('RETURN', 0)
 
         # Fix labels:
         code = []
@@ -170,7 +168,8 @@ class ByteCodeGenerator:
             self.emit('GET_INDEX')
         elif isinstance(kind, ast.UnionLiteral):
             self.gen_expression(kind.value)
-            self.emit('UNION_LIT', kind.field)
+            index = kind.ty.get_field_index(kind.field)
+            self.emit('UNION_LIT', index)
         elif isinstance(kind, ast.Binop):
             # TBD: implement short circuit logic operations?
             # For example: 'false and expensive_function()'

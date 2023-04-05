@@ -101,6 +101,7 @@ class VirtualMachine:
                 'std_print': print,
                 'str_to_int': int,
                 'std_int_to_str': str,
+                'std_float_to_str': str,
             }
             self.push_value(builtins[args[0]])
         elif opcode == 'CALL':
@@ -109,7 +110,7 @@ class VirtualMachine:
 
             # ATTENTION: major hackerij:
             if isinstance(callee, Function):
-                self._frames.append(Frame(callee, arguments))
+                self.push_frame(Frame(callee, arguments))
             else:
                 # Might be a python function!
                 r = callee(*arguments)
@@ -117,9 +118,12 @@ class VirtualMachine:
                 if r is not None:
                     self.push_value(r)
         elif opcode == 'RETURN':
-            # TODO: return value?
-            # Return from frame.
-            self._frames.pop()
+            if args[0] == 1:
+                value = self.pop_value()
+                self.pop_frame()
+                self.push_value(value)
+            else:
+                self.pop_frame()
         elif opcode in binary_op_funcs:
             rhs = self.pop_value()
             lhs = self.pop_value()
@@ -141,6 +145,9 @@ class VirtualMachine:
             # Treat struct as list of values? Might work!
             arguments = self.pop_n(args[0])
             self.push_value(arguments)
+        elif opcode == 'UNION_LIT':
+            value = self.pop_value()
+            self.push_value([None] * args[0] + [value])
         elif opcode == 'GET_INDEX':
             index = self.pop_value()
             base = self.pop_value()
@@ -160,8 +167,17 @@ class VirtualMachine:
         else:
             raise NotImplementedError(str(opcode))
 
+    def push_frame(self, frame: Frame):
+        self._frames.append(frame)
+
+    def pop_frame(self):
+        self._frames.pop()
+
     def push_value(self, value):
-        self._frames[-1].push(value)
+        if self._frames:
+            self._frames[-1].push(value)
+        else:
+            logger.info(f"Push value: {value}")
 
     def pop_value(self):
         return self._frames[-1].pop()
@@ -183,7 +199,7 @@ class VirtualMachine:
     def invoke(self, name: str):
         # Invoke function
         func = self.functions_by_name[name]
-        self._frames.append(Frame(func, []))
+        self.push_frame(Frame(func, []))
         self.run()
 
 
