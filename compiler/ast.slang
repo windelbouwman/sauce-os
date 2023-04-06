@@ -32,6 +32,16 @@ struct FunctionDef:
     # parameters: list<int>
     body: Statement
 
+fn variable(name: str, ty: MyType) -> Variable:
+    let v = Variable:
+        name: name
+        ty: ty
+    return v
+
+struct Variable:
+    name: str
+    ty: MyType
+
 fn statement(kind: StatementKind, location: Location) -> Statement:
     let statement = Statement:
         kind: kind
@@ -46,18 +56,22 @@ enum StatementKind:
     If(IfStatement)
     While(WhileStatement)
     Loop(LoopStatement)
+    Switch(SwitchStatement)
+    Let(LetStatement)
 
-fn if_statement(condition: Expression, body: Statement, location: Location) -> Statement:
+fn if_statement(condition: Expression, body: Statement, false_body: Statement, location: Location) -> Statement:
     let i = IfStatement:
         condition: condition
-        body: body
+        true_body: body
+        false_body: false_body
 
     let kind = StatementKind::If(i)
     return statement(kind, location)
 
 struct IfStatement:
     condition: Expression
-    body: Statement
+    true_body: Statement
+    false_body: Statement
 
 struct WhileStatement:
     condition: Expression
@@ -81,6 +95,27 @@ fn loop_statement(body: Statement, location: Location) -> Statement:
 struct LoopStatement:
     body: Statement
 
+struct SwitchStatement:
+    value: Expression
+    arms: List[SwitchArm]
+    default_body: Statement
+
+struct SwitchArm:
+    location: Location
+    value: Expression
+    body: Statement
+
+fn let_statement(variable: Variable, value: Expression, location: Location) -> Statement:
+    let let2 = LetStatement:
+        variable: variable
+        value: value
+    let kind = StatementKind::Let(let2)
+    return statement(kind, location)
+
+struct LetStatement:
+    variable: Variable
+    value: Expression
+
 struct Expression:
     location: Location
     ty: MyType
@@ -96,6 +131,7 @@ fn expression(kind: ExpressionKind, ty: MyType, location: Location) -> Expressio
 enum ExpressionKind:
     Call(FunctionCall)
     Binop(BinopExpression)
+    VarRef(Variable)
     IntLiteral(int)
     # FloatLiteral(float)
     # StringLiteral(str)
@@ -111,6 +147,11 @@ fn call(callee: Expression, arguments: List[Expression], ty: MyType, location: L
 struct FunctionCall:
     callee: Expression
     arguments: List[Expression]
+
+# Reference a variable:
+fn var_ref(v: Variable, location: Location) -> Expression:
+    let kind = ExpressionKind::VarRef(v)
+    return expression(kind, v.ty, location)
 
 struct BinopExpression:
     lhs: Expression

@@ -23,3 +23,5 @@ fn foo(val: Option):
             std::print("Nothing here")
         Some(x):
             std::print(x)
+    else:
+        pass

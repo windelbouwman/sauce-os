@@ -33,56 +33,102 @@ class LoopRewriter(BaseTransformer):
             yes_value = ast.bool_constant(True, statement.location)
             statement.kind = ast.WhileStatement(yes_value, kind.inner)
         elif isinstance(kind, ast.ForStatement):
-            # Turn for loop into while loop.
-            #
-            # Turn this:
-            # for v in arr:
-            #   ...
-            #
-            # Into this:
-            # i = 0
-            # x = arr
-            # while i < len(arr):
-            #   v = x[i]
-            #   ...
-            #   i = i + 1
 
-            assert isinstance(kind.values.ty.kind, ast.ArrayType)
-            # x = arr
-            # TODO: create unique names!
-            x_var = ast.Variable('x9999', kind.values.ty, statement.location)
-            let_x = ast.let_statement(
-                x_var, None, kind.values, statement.location)
+            if kind.values.ty.is_array():
+                # Turn for loop into while loop.
+                #
+                # Turn this:
+                # for v in arr:
+                #   ...
+                #
+                # Into this:
+                # i = 0
+                # x = arr
+                # while i < len(arr):
+                #   v = x[i]
+                #   ...
+                #   i = i + 1
 
-            # i = 0
-            # TODO: create unique names!
-            i_var = ast.Variable('i9999', ast.int_type, statement.location)
-            zero = ast.numeric_constant(0, statement.location)
-            let_i0 = ast.let_statement(
-                i_var, None, zero, statement.location)
+                # x = arr
+                # TODO: create unique names!
+                x_var = ast.Variable(
+                    'x9999', kind.values.ty, statement.location)
+                let_x = ast.let_statement(
+                    x_var, None, kind.values, statement.location)
 
-            # i < len(arr)
-            array_size = ast.numeric_constant(
-                kind.values.ty.kind.size, statement.location)
-            loop_condition = i_var.ref_expr(
-                statement.location).binop('<', array_size)
+                # i = 0
+                # TODO: create unique names!
+                i_var = ast.Variable('i9999', ast.int_type, statement.location)
+                zero = ast.numeric_constant(0, statement.location)
+                let_i0 = ast.let_statement(
+                    i_var, None, zero, statement.location)
 
-            # v = x[i]
-            v_var: ast.Variable = kind.variable
-            let_v = ast.let_statement(v_var, None, x_var.ref_expr(
-                statement.location).array_index(i_var.ref_expr(statement.location)), statement.location)
+                # i < len(arr)
+                array_size = ast.numeric_constant(
+                    kind.values.ty.kind.size, statement.location)
+                loop_condition = i_var.ref_expr(
+                    statement.location).binop('<', array_size)
 
-            # i++
-            one = ast.numeric_constant(1, statement.location)
-            inc_i = ast.assignment_statement(i_var.ref_expr(
-                statement.location), i_var.ref_expr(statement.location).binop('+', one), statement.location)
+                # v = x[i]
+                v_var: ast.Variable = kind.variable
+                let_v = ast.let_statement(v_var, None, x_var.ref_expr(
+                    statement.location).array_index(i_var.ref_expr(statement.location)), statement.location)
 
-            loop_body = ast.compound_statement(
-                [let_v, kind.inner, inc_i], kind.inner.location)
-            while_loop = ast.while_statement(
-                loop_condition, loop_body, statement.location)
-            statements = [let_x, let_i0, while_loop]
-            statement.kind = ast.CompoundStatement(statements)
+                # i++
+                one = ast.numeric_constant(1, statement.location)
+                inc_i = ast.assignment_statement(i_var.ref_expr(
+                    statement.location), i_var.ref_expr(statement.location).binop('+', one), statement.location)
+
+                loop_body = ast.compound_statement(
+                    [let_v, kind.inner, inc_i], kind.inner.location)
+                while_loop = ast.while_statement(
+                    loop_condition, loop_body, statement.location)
+                statements = [let_x, let_i0, while_loop]
+                statement.kind = ast.CompoundStatement(statements)
+            elif kind.values.ty.has_field('iter'):
+                # Try to rewrite using iterator.
+
+                # Turn this:
+                # for e in x:
+                #     print("Item[{n}]= {e.value}")
+                #     n = n + 1
+
+                # Into this:
+                # let it = x.iter()
+                # loop:
+                #     let opt = it.next()
+                #     case opt:
+                #         None:
+                #             break
+                #         Some(element):
+                #             print("Item[{n}]=" + std::int_to_str(element.value))
+
+                iter_ty: ast.MyType = kind.values.ty.get_field_type(
+                    'iter').kind.return_type
+                opt_ty: ast.MyType = iter_ty.get_field_type(
+                    'next').kind.return_type
+                location = statement.location
+
+                it_var = ast.Variable("it", iter_ty, location)
+                opt_var = ast.Variable("opt", opt_ty, location)
+                let_it_var = ast.let_statement(
+                    it_var, None, kind.values.call_method('iter', []), location)
+                let_opt_var = ast.let_statement(
+                    opt_var, None, it_var.ref_expr(location).call_method('next', []), location)
+                none_arm = ast.CaseArm(
+                    'None', [], ast.break_statement(location), location)
+                some_arm = ast.CaseArm(
+                    'Some', [kind.variable], kind.inner, location)
+                arms = [none_arm, some_arm]
+                case_statement = ast.case_statement(opt_var.ref_expr(
+                    location), arms, None, location)
+                yes_value = ast.bool_constant(True, location)
+                loop_body = ast.compound_statement(
+                    [let_opt_var, case_statement], location)
+                loop_statement = ast.while_statement(
+                    yes_value, loop_body, location)
+                statement.kind = ast.CompoundStatement(
+                    [let_it_var, loop_statement])
 
 
 class EnumRewriter(BaseTransformer):

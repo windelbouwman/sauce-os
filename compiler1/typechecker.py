@@ -48,8 +48,10 @@ class TypeChecker(BasePass):
         if isinstance(kind, ast.CaseStatement):
             self.visit_expression(kind.value)
             if kind.value.ty.is_enum():
+                variant_names = kind.value.ty.get_variant_names()
                 for arm in kind.arms:
                     if kind.value.ty.has_variant(arm.name):
+                        variant_names.remove(arm.name)
                         variant = kind.value.ty.get_variant(arm.name)
                         payload_types = kind.value.ty.get_variant_types(
                             arm.name)
@@ -57,13 +59,19 @@ class TypeChecker(BasePass):
                         # HACK to pass variant to transform pass:
                         arm.variant = variant
 
-                        assert len(payload_types) == len(arm.variables)
-                        for v, t in zip(arm.variables, payload_types):
-                            v.ty = t
+                        if len(payload_types) == len(arm.variables):
+                            for v, t in zip(arm.variables, payload_types):
+                                v.ty = t
+                        else:
+                            self.error(
+                                arm.location, f"Expected {len(payload_types)} variables, got {len(arm.variables)}")
                         # TODO: check missing fields
                     else:
                         self.error(arm.location,
                                    f'No enum variant {arm.name}')
+                if variant_names and not kind.else_clause:
+                    self.error(statement.location,
+                               f'Cases {variant_names} not covered')
             else:
                 self.error(kind.value.location,
                            f'Expected enum, not {kind.value.ty}')
@@ -72,11 +80,19 @@ class TypeChecker(BasePass):
                 self.visit_node(arm)
         elif isinstance(kind, ast.ForStatement):
             self.visit_expression(kind.values)
-            if isinstance(kind.values.ty.kind, ast.ArrayType):
+            if kind.values.ty.is_array():
                 kind.variable.ty = kind.values.ty.kind.element_type
+            elif kind.values.ty.has_field('iter'):
+                # If it quacks lite an iterator... it must be an iterator!
+                iter_ty: ast.MyType = kind.values.ty.get_field_type(
+                    'iter').kind.return_type
+                opt_ty: ast.MyType = iter_ty.get_field_type(
+                    'next').kind.return_type
+                val_ty = opt_ty.get_variant_types('Some')[0]
+                kind.variable.ty = val_ty
             else:
                 self.error(kind.values.location,
-                           f'Expected array, not {kind.values.ty}')
+                           f'Expected array or iterable, not {kind.values.ty}')
             self.visit_statement(kind.inner)
         else:
             super().visit_statement(statement)

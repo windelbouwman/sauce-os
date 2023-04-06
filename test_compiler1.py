@@ -11,7 +11,7 @@ from compiler1 import compiler
 
 
 def test_compiles(filename: str):
-    options = compiler.CompilationOptions(dump_ast=True)
+    options = compiler.CompilationOptions(dump_ast=False)
     compiler.do_compile([filename], None, options)
 
 

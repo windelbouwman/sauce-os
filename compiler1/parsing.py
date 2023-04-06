@@ -313,12 +313,12 @@ class CustomTransformer(LarkTransformer):
         value = x[1]
         if isinstance(x[-1], LarkToken) and x[-1].type == 'DEDENT':
             arms = x[5:-1]
+            else_clause = None
         else:
             assert x[-2].type == 'DEDENT'
-            print("TODO: else clause in case statement")
             else_clause = x[-1]
             arms = x[5:-2]
-        return ast.case_statement(value, arms, get_loc(x[0]))
+        return ast.case_statement(value, arms, else_clause, get_loc(x[0]))
 
     def case_arm(self, x):
         # case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? COLON NEWLINE block

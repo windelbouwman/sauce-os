@@ -1,0 +1,5 @@
+
+lark>=1
+networkx>=2
+pytest>=7
+rich>=13

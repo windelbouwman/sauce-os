@@ -75,6 +75,9 @@ class MyType:
     def is_union(self):
         return isinstance(self.kind, App) and isinstance(self.kind.tycon, StructDef) and self.kind.tycon.is_union
 
+    def is_array(self):
+        return isinstance(self.kind, ArrayType)
+
     def is_enum(self):
         return isinstance(self.kind, App) and isinstance(self.kind.tycon, EnumDef)
 
@@ -161,6 +164,12 @@ class MyType:
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, EnumDef):
             variant: EnumVariant = self.kind.tycon.scope.lookup(name)
             return [subst(p, self.kind.m) for p in variant.payload]
+        else:
+            raise ValueError(f'No variant enum type')
+
+    def get_variant_names(self) -> list[str]:
+        if isinstance(self.kind, App) and isinstance(self.kind.tycon, EnumDef):
+            return [v.name for v in self.kind.tycon.variants]
         else:
             raise ValueError(f'No variant enum type')
 
@@ -457,6 +466,9 @@ class Expression(Node):
 
     def call(self, arguments: list['Expression']) -> 'Expression':
         return function_call(self, arguments, self.location)
+
+    def call_method(self, field: str, args: list['Expression']) -> 'Expression':
+        return self.get_attr(field).call(args)
 
 
 class Module(Node):
@@ -843,16 +855,17 @@ class IfStatement(StatementKind):
         return "IfStatement"
 
 
-def case_statement(value: Expression, arms: list['CaseArm'], location: Location) -> Statement:
-    kind = CaseStatement(value, arms)
+def case_statement(value: Expression, arms: list['CaseArm'], else_clause: Statement, location: Location) -> Statement:
+    kind = CaseStatement(value, arms, else_clause)
     return Statement(kind, location)
 
 
 class CaseStatement(StatementKind):
-    def __init__(self, value: Expression, arms: list['CaseArm']):
+    def __init__(self, value: Expression, arms: list['CaseArm'], else_clause: Statement):
         assert isinstance(value, Expression)
         self.value = value
         self.arms = arms
+        self.else_clause = else_clause
 
     def __repr__(self):
         return f"CaseStatement"
@@ -1349,6 +1362,8 @@ class AstVisitor:
             self.visit_expression(kind.value)
             for arm in kind.arms:
                 self.visit_node(arm)
+            if kind.else_clause:
+                self.visit_statement(kind.else_clause)
         elif isinstance(kind, SwitchStatement):
             self.visit_expression(kind.value)
             for arm in kind.arms:

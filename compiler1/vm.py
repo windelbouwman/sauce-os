@@ -66,6 +66,16 @@ class VirtualMachine:
         # Call stack:
         self._frames = []
 
+        def std_read_file(filename):
+            return 'bla bla'
+
+        self._builtins = {
+            'std_print': print,
+            'std_read_file': std_read_file,
+            'std_int_to_str': str,
+            'std_float_to_str': str,
+        }
+
     def load(self, prog: Program):
         self.prog = prog
         self.functions_by_name = {f.name: f for f in prog.functions}
@@ -97,13 +107,7 @@ class VirtualMachine:
             func = self.functions_by_name[args[0]]
             self.push_value(func)
         elif opcode == 'BUILTIN':
-            builtins = {
-                'std_print': print,
-                'str_to_int': int,
-                'std_int_to_str': str,
-                'std_float_to_str': str,
-            }
-            self.push_value(builtins[args[0]])
+            self.push_value(self._builtins[args[0]])
         elif opcode == 'CALL':
             callee = self.pop_value()
             arguments = self.pop_n(args[0])

@@ -82,3 +82,8 @@ fn main():
             Some(element):
                 print("Item[{n}]=" + std::int_to_str(element.value))
         n = n + 1
+
+    # This works when x has an 'iter' method:
+    for e in x:
+        print("Item[{n}]= {e.value}")
+        n = n + 1

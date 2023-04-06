@@ -50,6 +50,10 @@ def std_module():
 def do_compile(filenames: list[str], output: str | None, options: CompilationOptions):
     """ Compile a list of module.
     """
+    if not filenames:
+        logger.error('No existing source files provided')
+        return
+
     known_modules = {'std': std_module()}
 
     modules = []

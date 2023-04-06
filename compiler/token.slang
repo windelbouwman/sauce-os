@@ -40,4 +40,6 @@ fn to_string(tok: Token) -> str:
             txt = "STRING(" + a + ")"
         Colon:
             txt = "COLON"
+    else:
+        txt = "???"
     return "row=" + int_to_str(tok.location.row) + txt
