@@ -1,4 +1,3 @@
-
 """ Compiler driver.
 """
 
@@ -19,42 +18,43 @@ from .pygenerator import gencode as gen_pycode
 from .bc_gen import gen_bc
 from .vm import run_bytecode
 
-logger = logging.getLogger('compiler')
+logger = logging.getLogger("compiler")
 
 
 @dataclass
 class CompilationOptions:
     dump_ast: bool = False
     run_code: bool = False
-    backend: str = 'vm'
+    backend: str = "vm"
 
 
 def std_module():
-    mod = ast.Module('std', [], [])
+    mod = ast.Module("std", [], [])
     mod.add_definition(
-        'print',
-        ast.BuiltinFunction('std_print', [ast.str_type], ast.void_type))
+        "print", ast.BuiltinFunction("std_print", [ast.str_type], ast.void_type)
+    )
     mod.add_definition(
-        'int_to_str',
-        ast.BuiltinFunction('std_int_to_str', [ast.int_type], ast.str_type))
+        "int_to_str",
+        ast.BuiltinFunction("std_int_to_str", [ast.int_type], ast.str_type),
+    )
     mod.add_definition(
-        'read_file',
-        ast.BuiltinFunction('std_read_file', [ast.str_type], ast.str_type))
+        "read_file", ast.BuiltinFunction("std_read_file", [ast.str_type], ast.str_type)
+    )
     mod.add_definition(
-        'float_to_str',
-        ast.BuiltinFunction('std_float_to_str', [ast.float_type], ast.str_type))
+        "float_to_str",
+        ast.BuiltinFunction("std_float_to_str", [ast.float_type], ast.str_type),
+    )
 
     return mod
 
 
 def do_compile(filenames: list[str], output: str | None, options: CompilationOptions):
-    """ Compile a list of module.
-    """
+    """Compile a list of module."""
     if not filenames:
-        logger.error('No existing source files provided')
+        logger.error("No existing source files provided")
         return
 
-    known_modules = {'std': std_module()}
+    known_modules = {"std": std_module()}
 
     modules = []
     for filename in filenames:
@@ -77,29 +77,29 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
     flow_check(modules)
 
     # Generate output
-    if options.backend == 'vm':
+    if options.backend == "vm":
         prog = gen_bc(modules)
         if options.run_code:
             run_bytecode(prog)
-    elif options.backend == 'py':
+    elif options.backend == "py":
         code = gen_pycode(modules)
         if options.run_code:
             logger.info("Invoking python code")
             exec(code, {})
-    elif options.backend == 'cpp':
+    elif options.backend == "cpp":
         if output:
-            with open(output, 'w') as f:
+            with open(output, "w") as f:
                 gencode(modules, f=f)
         else:
             gencode(modules)
     else:
-        logger.error(f'Unknown backend: {options.backend}')
+        logger.error(f"Unknown backend: {options.backend}")
 
-    logger.info(':party_popper:DONE&DONE', extra={'markup': True})
+    logger.info(":party_popper:DONE&DONE", extra={"markup": True})
 
 
 def topo_sort(modules: list[ast.Module]):
-    """ Sort modules in dependency order (in-place).
+    """Sort modules in dependency order (in-place).
 
     Check each module used other modules, and
     topologically sort the dependency graph.
@@ -120,8 +120,12 @@ def topo_sort(modules: list[ast.Module]):
     assert not m
 
 
-def analyze_ast(module: ast.Module, known_modules: dict[str, ast.Module], options: CompilationOptions):
-    """ Fill scopes, resolve symbols, evaluate type expressions."""
+def analyze_ast(
+    module: ast.Module,
+    known_modules: dict[str, ast.Module],
+    options: CompilationOptions,
+):
+    """Fill scopes, resolve symbols, evaluate type expressions."""
     ScopeFiller(known_modules).fill_module(module)
     NameBinder().resolve_symbols(module)
     TypeEvaluation().run(module)
@@ -144,7 +148,7 @@ def print_modules(modules: list[ast.Module]):
 
 
 def transform(modules: list[ast.Module]):
-    """ Transform a slew of modules (in-place)
+    """Transform a slew of modules (in-place)
 
     Some real compilation being done here.
     """

@@ -6,15 +6,15 @@ from . import ast
 from .location import Location
 from .basepass import BasePass
 
-logger = logging.getLogger('namebinding')
+logger = logging.getLogger("namebinding")
 
 
 def base_scope() -> ast.Scope:
     top_scope = ast.Scope()
-    top_scope.define('str', ast.str_type)
-    top_scope.define('int', ast.int_type)
-    top_scope.define('float', ast.float_type)
-    top_scope.define('bool', ast.bool_type)
+    top_scope.define("str", ast.str_type)
+    top_scope.define("int", ast.int_type)
+    top_scope.define("float", ast.float_type)
+    top_scope.define("bool", ast.bool_type)
     return top_scope
 
 
@@ -25,8 +25,7 @@ class ScopeFiller(BasePass):
         self._modules = modules
 
     def fill_module(self, module: ast.Module):
-        self.begin(module.filename,
-                   f"Filling scopes in module '{module.name}'")
+        self.begin(module.filename, f"Filling scopes in module '{module.name}'")
 
         if module.name in self._modules:
             self.error(module.location, f"Cannot redefine {module.name}")
@@ -44,8 +43,7 @@ class ScopeFiller(BasePass):
                         if mod.has_field(name):
                             self.define_symbol(name, mod.get_field(name))
                         else:
-                            self.error(location,
-                                       f'No such field: {name}')
+                            self.error(location, f"No such field: {name}")
                 else:
                     raise NotImplementedError(str(imp))
             else:
@@ -122,14 +120,13 @@ class ScopeFiller(BasePass):
         logger.debug(f"Define name '{name}'")
         scope = self._scopes[-1]
         if scope.is_defined(name):
-            self.error(symbol.location, f'{name} is already defined')
+            self.error(symbol.location, f"{name} is already defined")
         else:
             scope.define(name, symbol)
 
 
 class NameBinder(BasePass):
-    """ Use filled scopes to bind symbols.
-    """
+    """Use filled scopes to bind symbols."""
 
     def __init__(self):
         super().__init__()
@@ -174,8 +171,7 @@ class NameBinder(BasePass):
                     if obj.has_field(kind.field):
                         expression.kind = ast.ObjRef(obj.get_field(kind.field))
                     else:
-                        self.error(expression.location,
-                                   f'No such field: {kind.field}')
+                        self.error(expression.location, f"No such field: {kind.field}")
 
     def enter_scope(self, scope: ast.Scope):
         self._scopes.append(scope)
@@ -192,5 +188,5 @@ class NameBinder(BasePass):
                 assert obj
                 return obj
 
-        self.error(location, f'Undefined symbol: {name}')
+        self.error(location, f"Undefined symbol: {name}")
         return ast.Undefined()

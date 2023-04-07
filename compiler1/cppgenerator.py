@@ -45,7 +45,7 @@ class Generator:
         self.print("")
 
     def gen_func_decls(self, modules: list[ast.Module]):
-        """ Do some forward declarations """
+        """Do some forward declarations"""
         for module in modules:
             for definition in module.definitions:
                 if isinstance(definition, ast.FunctionDef):
@@ -64,12 +64,13 @@ class Generator:
         self.print(f"")
 
     def func_proto(self, func_def: ast.FunctionDef):
-        parameters = ', '.join(
-            f'{self.gen_type(p.ty, p.name)}' for p in func_def.parameters)
+        parameters = ", ".join(
+            f"{self.gen_type(p.ty, p.name)}" for p in func_def.parameters
+        )
         return f"{self.gen_type(func_def.return_ty, func_def.name)}({parameters})"
 
     def gen_struct_def(self, struct_def: ast.StructDef):
-        t = 'union' if struct_def.is_union else 'struct'
+        t = "union" if struct_def.is_union else "struct"
         self.print(f"{t} {struct_def.name} {{")
         self.indent()
         for field in struct_def.fields:
@@ -82,8 +83,8 @@ class Generator:
         kind = ty.kind
         if isinstance(kind, ast.BaseType):
             ctypes = {
-                'str': 'std::string',
-                'float': 'double',
+                "str": "std::string",
+                "float": "double",
             }
             cty = ctypes.get(kind.name, kind.name)
         elif isinstance(kind, ast.ArrayType):
@@ -91,7 +92,7 @@ class Generator:
             return f"{self.gen_type(kind.element_type, name)}[{kind.size}]"
         elif isinstance(kind, ast.App):
             if isinstance(kind.tycon, ast.StructDef):
-                ct = 'union' if kind.tycon.is_union else 'struct'
+                ct = "union" if kind.tycon.is_union else "struct"
                 ct = f"{ct} {kind.tycon.name}"
 
             elif isinstance(kind.tycon, ast.EnumDef):
@@ -101,16 +102,14 @@ class Generator:
 
             # Add template arguments:
             if kind.type_args:
-                type_args = ','.join(
-                    self.gen_type(ta, '') for ta in kind.type_args)
+                type_args = ",".join(self.gen_type(ta, "") for ta in kind.type_args)
                 cty = f"{ct}<{type_args}>"
             else:
                 cty = ct
 
         elif isinstance(kind, ast.FunctionType):
-            return_type = self.gen_type(kind.return_type, '')
-            params = ','.join(self.gen_type(p, '')
-                              for p in kind.parameter_types)
+            return_type = self.gen_type(kind.return_type, "")
+            params = ",".join(self.gen_type(p, "") for p in kind.parameter_types)
             return f"{return_type}(*{name})({params})"
         else:
             cty = str(ty)
@@ -129,14 +128,13 @@ class Generator:
             # ty = 'int'  # TODO
             dst = self.gen_type(kind.variable.ty, kind.variable.name)
             value = self.gen_expr(kind.value, parens=False)
-            self.print(
-                f"{dst} = {value};")
+            self.print(f"{dst} = {value};")
         elif isinstance(kind, ast.AssignmentStatement):
             self.print(
-                f"{self.gen_expr(kind.target)} = {self.gen_expr(kind.value, parens=False)};")
+                f"{self.gen_expr(kind.target)} = {self.gen_expr(kind.value, parens=False)};"
+            )
         elif isinstance(kind, ast.IfStatement):
-            self.print(
-                f"if ({self.gen_expr(kind.condition, parens=False)}) {{")
+            self.print(f"if ({self.gen_expr(kind.condition, parens=False)}) {{")
             self.gen_block(kind.true_statement)
             if kind.false_statement:
                 self.print(f"}} else {{")
@@ -145,8 +143,7 @@ class Generator:
         elif isinstance(kind, ast.CaseStatement):
             raise ValueError("C++ backend does not support case statements.")
         elif isinstance(kind, ast.SwitchStatement):
-            self.print(
-                f"switch ({self.gen_expr(kind.value, parens=False)}) {{")
+            self.print(f"switch ({self.gen_expr(kind.value, parens=False)}) {{")
             self.indent()
             for arm in kind.arms:
                 self.print(f"case {self.gen_expr(arm.value)}: {{")
@@ -165,8 +162,7 @@ class Generator:
             self.dedent()
             self.print(f"}}")
         elif isinstance(kind, ast.WhileStatement):
-            self.print(
-                f"while ({self.gen_expr(kind.condition, parens=False)}) {{")
+            self.print(f"while ({self.gen_expr(kind.condition, parens=False)}) {{")
             self.gen_block(kind.inner)
             self.print(f"}}")
         elif isinstance(kind, ast.ForStatement):
@@ -193,15 +189,14 @@ class Generator:
     def gen_expr(self, expr: ast.Expression, parens: bool = True):
         kind = expr.kind
         if isinstance(kind, ast.FunctionCall):
-            args = ", ".join([self.gen_expr(arg, parens=False)
-                             for arg in kind.args])
+            args = ", ".join([self.gen_expr(arg, parens=False) for arg in kind.args])
             return f"{self.gen_expr(kind.target)}({args})"
         elif isinstance(kind, ast.ArrayIndex):
             return f"{self.gen_expr(kind.base)}[{self.gen_expr(kind.index)}]"
         elif isinstance(kind, ast.DotOperator):
             return f"{self.gen_expr(kind.base)}.{kind.field}"
         elif isinstance(kind, ast.Binop):
-            ops = {'and': '&&', 'or': '||'}
+            ops = {"and": "&&", "or": "||"}
             op: str = ops.get(kind.op, kind.op)
             x = f"{self.gen_expr(kind.lhs)} {op} {self.gen_expr(kind.rhs)}"
             return f"({x})" if parens else x
@@ -212,7 +207,7 @@ class Generator:
         elif isinstance(kind, ast.StringConstant):
             return f'"{kind.text}"'
         elif isinstance(kind, ast.BoolLiteral):
-            txt = {True: 'true', False: 'false'}
+            txt = {True: "true", False: "false"}
             return txt[kind.value]
         elif isinstance(kind, ast.ArrayLiteral):
             values = [self.gen_expr(e) for e in kind.values]
@@ -237,8 +232,8 @@ class Generator:
             elif isinstance(kind.obj, ast.Parameter):
                 return f"{kind.obj.name}"
             elif isinstance(kind.obj, ast.ClassDef):
-                print('Should not happen')
-                return 'class'
+                print("Should not happen")
+                return "class"
             else:
                 raise NotImplementedError(str(kind.obj))
         elif isinstance(kind, ast.NameRef):

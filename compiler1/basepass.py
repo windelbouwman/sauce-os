@@ -1,23 +1,21 @@
-
 import logging
 
 from .errors import CompilationError
 from .location import Location
 from . import ast
 
-logger = logging.getLogger('basepass')
+logger = logging.getLogger("basepass")
 
 
 class BasePass(ast.AstVisitor):
-    name = 'base-pass'
+    name = "base-pass"
 
     def __init__(self):
         self._errors = []
-        self._filename = '?'
+        self._filename = "?"
 
     def run(self, module: ast.Module):
-        self.begin(module.filename,
-                   f"Running {self.name} pass on '{module.name}'")
+        self.begin(module.filename, f"Running {self.name} pass on '{module.name}'")
         self.visit_module(module)
         self.finish(f"Pass {self.name} completed:party_popper:")
 
@@ -26,12 +24,11 @@ class BasePass(ast.AstVisitor):
         self._filename = filename
 
     def error(self, location: Location, msg: str):
-        logger.error(f"{self._filename}:{location}: {msg}",
-                     extra={'markup': True})
+        logger.error(f"{self._filename}:{location}: {msg}", extra={"markup": True})
         self._errors.append((self._filename, location, msg))
 
     def finish(self, msg: str):
         if self._errors:
             raise CompilationError(self._errors)
         else:
-            logger.info(msg, extra={'markup': True})
+            logger.info(msg, extra={"markup": True})

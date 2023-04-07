@@ -20,7 +20,7 @@ def flow_check(modules: list[ast.Module]):
 
 
 class FlowCheck(BasePass):
-    name = 'flow-check'
+    name = "flow-check"
     write_to_dot_file = False
 
     def __init__(self):
@@ -47,8 +47,7 @@ class FlowCheck(BasePass):
             self.set_label(func_exit)
 
             if self.write_to_dot_file:
-                nx.drawing.nx_pydot.write_dot(
-                    self._g, f'blabla_{definition.name}.dot')
+                nx.drawing.nx_pydot.write_dot(self._g, f"blabla_{definition.name}.dot")
             logger.debug(f"Flow graph {self._g}")
 
             dom = nx.algorithms.immediate_dominators(self._g, func_entry)
@@ -56,14 +55,15 @@ class FlowCheck(BasePass):
 
             # Check that each var use is dominated by a definition
             for variable in self._variables:
-                if hasattr(variable, 'use_points'):
+                if hasattr(variable, "use_points"):
                     for use_point, use_location in variable.use_points:
                         if not is_dominated(dom, use_point, variable.def_point):
                             self.error(
-                                use_location, f"Variable {variable.name} not always defined")
+                                use_location,
+                                f"Variable {variable.name} not always defined",
+                            )
                 else:
-                    self.error(variable.location,
-                               f"'{variable.name}' was never used")
+                    self.error(variable.location, f"'{variable.name}' was never used")
         else:
             super().visit_definition(definition)
 
@@ -108,9 +108,9 @@ class FlowCheck(BasePass):
 
             self.set_label(final_target)
         elif isinstance(kind, ast.LoopStatement):
-            raise NotImplementedError('loop-statement')
+            raise NotImplementedError("loop-statement")
         elif isinstance(kind, ast.ForStatement):
-            raise NotImplementedError('for-statement')
+            raise NotImplementedError("for-statement")
         elif isinstance(kind, ast.BreakStatement):
             self.jump_to([self._loops[-1][1]])
             unreachable_target = self.new_label()
@@ -151,7 +151,7 @@ class FlowCheck(BasePass):
     def var_use(self, variable: ast.Variable, location: Location):
         # print(f'use: {variable.name}')
         # Hack-in an additional field, use points:
-        if not hasattr(variable, 'use_points'):
+        if not hasattr(variable, "use_points"):
             variable.use_points = []
         x = f"use{self.new_id()} {variable.name}"
         variable.use_points.append((x, location))
@@ -161,19 +161,18 @@ class FlowCheck(BasePass):
         # print(f'def: {variable.name}')
         self._variables.append(variable)
         x = f"def{self.new_id()} {variable.name}"
-        assert not hasattr(variable, 'def_point')
+        assert not hasattr(variable, "def_point")
         variable.def_point = x
         self.execute(x)
 
     def execute(self, inst):
-        """ Add operation in execution graph
-        """
+        """Add operation in execution graph"""
         # logger.debug(f'EXE> {inst}')
         self._g.add_edge(self._pc, inst)
         self._pc = inst
 
     def jump_to(self, targets: list[int]):
-        """ Jump to many targets.
+        """Jump to many targets.
 
         Do not actually jump, but indicate we might go here.
         """
@@ -194,7 +193,7 @@ class FlowCheck(BasePass):
 
 
 def is_dominated(dom, a, b) -> bool:
-    """ Test if a is dominated by b """
+    """Test if a is dominated by b"""
     while a != dom[a]:
         a = dom[a]
         if a == b:

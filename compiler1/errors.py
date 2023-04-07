@@ -4,20 +4,20 @@ from .location import Location
 
 
 def print_error(code: str, filename: str, location: Location, message: str):
-    print('***********************', filename, location)
+    print("***********************", filename, location)
     context_amount = 5
     was_printed = False
     for row_nr, text in enumerate(code.splitlines(), start=1):
         if row_nr < location.row - context_amount:
             continue
 
-        print(f'[italic]{row_nr:5}[/italic]: {text}')
+        print(f"[italic]{row_nr:5}[/italic]: {text}")
         if row_nr == location.row:
-            indent = ' ' * (location.column + 6)
-            pointer = indent + '^'
+            indent = " " * (location.column + 6)
+            pointer = indent + "^"
             print(pointer)
-            print(indent + '|')
-            print(indent + f'+----< [bold]{message}[/bold]')
+            print(indent + "|")
+            print(indent + f"+----< [bold]{message}[/bold]")
             was_printed = True
 
         if row_nr > location.row + context_amount:
@@ -29,7 +29,7 @@ def print_error(code: str, filename: str, location: Location, message: str):
 
 @lru_cache(maxsize=50)
 def read_source(filename: str) -> str:
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         return f.read()
 
 

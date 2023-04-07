@@ -7,13 +7,13 @@ a compiler.
 
 import logging
 
-logger = logging.getLogger('vm')
+logger = logging.getLogger("vm")
 
 
 class Program:
-    """ A bytecode program """
+    """A bytecode program"""
 
-    def __init__(self, functions: list['Function']):
+    def __init__(self, functions: list["Function"]):
         self.functions = functions
 
 
@@ -25,16 +25,15 @@ class Function:
 
 
 def run_bytecode(prog: Program):
-    """ Take bytecode and invoke 'main' function.
-    """
-    logger.info('Running byte-code!')
+    """Take bytecode and invoke 'main' function."""
+    logger.info("Running byte-code!")
     m = VirtualMachine()
     m.load(prog)
-    m.invoke('main')
+    m.invoke("main")
 
 
 class Frame:
-    """ Call frame. """
+    """Call frame."""
 
     def __init__(self, function: Function, arguments):
         # value stack:
@@ -67,13 +66,13 @@ class VirtualMachine:
         self._frames = []
 
         def std_read_file(filename):
-            return 'bla bla'
+            return "bla bla"
 
         self._builtins = {
-            'std_print': print,
-            'std_read_file': std_read_file,
-            'std_int_to_str': str,
-            'std_float_to_str': str,
+            "std_print": print,
+            "std_read_file": std_read_file,
+            "std_int_to_str": str,
+            "std_float_to_str": str,
         }
 
     def load(self, prog: Program):
@@ -85,30 +84,31 @@ class VirtualMachine:
             self.dispatch()
 
     def dispatch(self):
-        """ Single tick"""
+        """Single tick"""
         opcode, args = self._frames[-1].fetch()
 
         verbose = True
         verbose = False
         if verbose:
-            print('dispatch', self._frames[-1]._pc,
-                  self._frames[-1]._stack, opcode, args)
+            print(
+                "dispatch", self._frames[-1]._pc, self._frames[-1]._stack, opcode, args
+            )
         self._frames[-1]._pc += 1
 
-        if opcode == 'CONST':
+        if opcode == "CONST":
             self.push_value(args[0])
-        elif opcode == 'LOCAL_GET':
+        elif opcode == "LOCAL_GET":
             value = self.get_local(args[0])
             self.push_value(value)
-        elif opcode == 'LOCAL_SET':
+        elif opcode == "LOCAL_SET":
             value = self.pop_value()
             self.set_local(args[0], value)
-        elif opcode == 'LOADFUNC':
+        elif opcode == "LOADFUNC":
             func = self.functions_by_name[args[0]]
             self.push_value(func)
-        elif opcode == 'BUILTIN':
+        elif opcode == "BUILTIN":
             self.push_value(self._builtins[args[0]])
-        elif opcode == 'CALL':
+        elif opcode == "CALL":
             callee = self.pop_value()
             arguments = self.pop_n(args[0])
 
@@ -121,7 +121,7 @@ class VirtualMachine:
                 # print('res', r)
                 if r is not None:
                     self.push_value(r)
-        elif opcode == 'RETURN':
+        elif opcode == "RETURN":
             if args[0] == 1:
                 value = self.pop_value()
                 self.pop_frame()
@@ -133,38 +133,38 @@ class VirtualMachine:
             lhs = self.pop_value()
             res = binary_op_funcs[opcode](lhs, rhs)
             self.push_value(res)
-        elif opcode == 'JUMP-IF':
+        elif opcode == "JUMP-IF":
             v = self.pop_value()
             if v:
                 self.jump(args[0])
             else:
                 self.jump(args[1])
-        elif opcode == 'JUMP':
+        elif opcode == "JUMP":
             self.jump(args[0])
-        elif opcode == 'ARRAY_LIT':
+        elif opcode == "ARRAY_LIT":
             # Contrapt a list of values:
             arguments = self.pop_n(args[0])
             self.push_value(arguments)
-        elif opcode == 'STRUC_LIT':
+        elif opcode == "STRUC_LIT":
             # Treat struct as list of values? Might work!
             arguments = self.pop_n(args[0])
             self.push_value(arguments)
-        elif opcode == 'UNION_LIT':
+        elif opcode == "UNION_LIT":
             value = self.pop_value()
             self.push_value([None] * args[0] + [value])
-        elif opcode == 'GET_INDEX':
+        elif opcode == "GET_INDEX":
             index = self.pop_value()
             base = self.pop_value()
             self.push_value(base[index])
-        elif opcode == 'SET_INDEX':
+        elif opcode == "SET_INDEX":
             index = self.pop_value()
             base = self.pop_value()
             value = self.pop_value()
             base[index] = value
-        elif opcode == 'GET_ATTR':
+        elif opcode == "GET_ATTR":
             base = self.pop_value()
             self.push_value(base[args[0]])
-        elif opcode == 'SET_ATTR':
+        elif opcode == "SET_ATTR":
             base = self.pop_value()
             value = self.pop_value()
             base[args[0]] = value
@@ -208,15 +208,15 @@ class VirtualMachine:
 
 
 binary_op_funcs = {
-    'DIV': lambda a, b: a / b,
-    'MUL': lambda a, b: a * b,
-    'ADD': lambda a, b: a + b,
-    'SUB': lambda a, b: a - b,
-    'EQ': lambda a, b: a == b,
-    'LT': lambda a, b: a < b,
-    'GT': lambda a, b: a > b,
-    'LTE': lambda a, b: a <= b,
-    'GTE': lambda a, b: a >= b,
-    'AND': lambda a, b: a and b,
-    'OR': lambda a, b: a or b,
+    "DIV": lambda a, b: a / b,
+    "MUL": lambda a, b: a * b,
+    "ADD": lambda a, b: a + b,
+    "SUB": lambda a, b: a - b,
+    "EQ": lambda a, b: a == b,
+    "LT": lambda a, b: a < b,
+    "GT": lambda a, b: a > b,
+    "LTE": lambda a, b: a <= b,
+    "GTE": lambda a, b: a >= b,
+    "AND": lambda a, b: a and b,
+    "OR": lambda a, b: a or b,
 }

@@ -9,11 +9,12 @@ import logging
 
 
 from . import ast
-logger = logging.getLogger('transforms')
+
+logger = logging.getLogger("transforms")
 
 
 class BaseTransformer(ast.AstVisitor):
-    name = '?'
+    name = "?"
 
     def transform(self, modules: list[ast.Module]):
         logger.info(f"Transforming {self.name}")
@@ -22,7 +23,7 @@ class BaseTransformer(ast.AstVisitor):
 
 
 class LoopRewriter(BaseTransformer):
-    name = 'loop-rewrite'
+    name = "loop-rewrite"
 
     def visit_statement(self, statement: ast.Statement):
         super().visit_statement(statement)
@@ -33,7 +34,6 @@ class LoopRewriter(BaseTransformer):
             yes_value = ast.bool_constant(True, statement.location)
             statement.kind = ast.WhileStatement(yes_value, kind.inner)
         elif isinstance(kind, ast.ForStatement):
-
             if kind.values.ty.is_array():
                 # Turn for loop into while loop.
                 #
@@ -51,41 +51,51 @@ class LoopRewriter(BaseTransformer):
 
                 # x = arr
                 # TODO: create unique names!
-                x_var = ast.Variable(
-                    'x9999', kind.values.ty, statement.location)
-                let_x = ast.let_statement(
-                    x_var, None, kind.values, statement.location)
+                x_var = ast.Variable("x9999", kind.values.ty, statement.location)
+                let_x = ast.let_statement(x_var, None, kind.values, statement.location)
 
                 # i = 0
                 # TODO: create unique names!
-                i_var = ast.Variable('i9999', ast.int_type, statement.location)
+                i_var = ast.Variable("i9999", ast.int_type, statement.location)
                 zero = ast.numeric_constant(0, statement.location)
-                let_i0 = ast.let_statement(
-                    i_var, None, zero, statement.location)
+                let_i0 = ast.let_statement(i_var, None, zero, statement.location)
 
                 # i < len(arr)
                 array_size = ast.numeric_constant(
-                    kind.values.ty.kind.size, statement.location)
-                loop_condition = i_var.ref_expr(
-                    statement.location).binop('<', array_size)
+                    kind.values.ty.kind.size, statement.location
+                )
+                loop_condition = i_var.ref_expr(statement.location).binop(
+                    "<", array_size
+                )
 
                 # v = x[i]
                 v_var: ast.Variable = kind.variable
-                let_v = ast.let_statement(v_var, None, x_var.ref_expr(
-                    statement.location).array_index(i_var.ref_expr(statement.location)), statement.location)
+                let_v = ast.let_statement(
+                    v_var,
+                    None,
+                    x_var.ref_expr(statement.location).array_index(
+                        i_var.ref_expr(statement.location)
+                    ),
+                    statement.location,
+                )
 
                 # i++
                 one = ast.numeric_constant(1, statement.location)
-                inc_i = ast.assignment_statement(i_var.ref_expr(
-                    statement.location), i_var.ref_expr(statement.location).binop('+', one), statement.location)
+                inc_i = ast.assignment_statement(
+                    i_var.ref_expr(statement.location),
+                    i_var.ref_expr(statement.location).binop("+", one),
+                    statement.location,
+                )
 
                 loop_body = ast.compound_statement(
-                    [let_v, kind.inner, inc_i], kind.inner.location)
+                    [let_v, kind.inner, inc_i], kind.inner.location
+                )
                 while_loop = ast.while_statement(
-                    loop_condition, loop_body, statement.location)
+                    loop_condition, loop_body, statement.location
+                )
                 statements = [let_x, let_i0, while_loop]
                 statement.kind = ast.CompoundStatement(statements)
-            elif kind.values.ty.has_field('iter'):
+            elif kind.values.ty.has_field("iter"):
                 # Try to rewrite using iterator.
 
                 # Turn this:
@@ -104,35 +114,40 @@ class LoopRewriter(BaseTransformer):
                 #             print("Item[{n}]=" + std::int_to_str(element.value))
 
                 iter_ty: ast.MyType = kind.values.ty.get_field_type(
-                    'iter').kind.return_type
-                opt_ty: ast.MyType = iter_ty.get_field_type(
-                    'next').kind.return_type
+                    "iter"
+                ).kind.return_type
+                opt_ty: ast.MyType = iter_ty.get_field_type("next").kind.return_type
                 location = statement.location
 
                 it_var = ast.Variable("it", iter_ty, location)
                 opt_var = ast.Variable("opt", opt_ty, location)
                 let_it_var = ast.let_statement(
-                    it_var, None, kind.values.call_method('iter', []), location)
+                    it_var, None, kind.values.call_method("iter", []), location
+                )
                 let_opt_var = ast.let_statement(
-                    opt_var, None, it_var.ref_expr(location).call_method('next', []), location)
+                    opt_var,
+                    None,
+                    it_var.ref_expr(location).call_method("next", []),
+                    location,
+                )
                 none_arm = ast.CaseArm(
-                    'None', [], ast.break_statement(location), location)
-                some_arm = ast.CaseArm(
-                    'Some', [kind.variable], kind.inner, location)
+                    "None", [], ast.break_statement(location), location
+                )
+                some_arm = ast.CaseArm("Some", [kind.variable], kind.inner, location)
                 arms = [none_arm, some_arm]
-                case_statement = ast.case_statement(opt_var.ref_expr(
-                    location), arms, None, location)
+                case_statement = ast.case_statement(
+                    opt_var.ref_expr(location), arms, None, location
+                )
                 yes_value = ast.bool_constant(True, location)
                 loop_body = ast.compound_statement(
-                    [let_opt_var, case_statement], location)
-                loop_statement = ast.while_statement(
-                    yes_value, loop_body, location)
-                statement.kind = ast.CompoundStatement(
-                    [let_it_var, loop_statement])
+                    [let_opt_var, case_statement], location
+                )
+                loop_statement = ast.while_statement(yes_value, loop_body, location)
+                statement.kind = ast.CompoundStatement([let_it_var, loop_statement])
 
 
 class EnumRewriter(BaseTransformer):
-    name = 'enum-rewrite'
+    name = "enum-rewrite"
 
     def __init__(self):
         super().__init__()
@@ -150,15 +165,17 @@ class EnumRewriter(BaseTransformer):
         super().visit_module(module)
 
     def rewrite_enum_def(self, definition: ast.EnumDef):
-        """ Create tagged union types / definitions """
+        """Create tagged union types / definitions"""
 
         logger.debug(f"Creating tagged union for {definition.name}")
 
         builder2 = ast.StructBuilder(
-            f'{definition.name}Data', True, definition.location)
+            f"{definition.name}Data", True, definition.location
+        )
         type_vars2 = [
             builder2.add_type_parameter(tp.name, tp.location)
-            for tp in definition.type_parameters]
+            for tp in definition.type_parameters
+        ]
         m2 = dict(zip(definition.type_parameters, type_vars2))
 
         for variant in definition.variants:
@@ -170,31 +187,30 @@ class EnumRewriter(BaseTransformer):
             else:
                 assert len(variant.payload) > 1
                 builder3 = ast.StructBuilder(
-                    f'{definition.name}{variant.name}Data', False, variant.location)
+                    f"{definition.name}{variant.name}Data", False, variant.location
+                )
                 type_vars3 = [
                     builder3.add_type_parameter(tp.name, tp.location)
-                    for tp in definition.type_parameters]
+                    for tp in definition.type_parameters
+                ]
 
                 m3 = dict(zip(definition.type_parameters, type_vars3))
                 for nr, p in enumerate(variant.payload):
-                    builder3.add_field(
-                        f'f_{nr}', ast.subst(p, m3), variant.location)
+                    builder3.add_field(f"f_{nr}", ast.subst(p, m3), variant.location)
                 s_def3 = builder3.finish()
                 self.new_defs.append(s_def3)
                 t3 = s_def3.apply(type_vars2)
 
-            builder2.add_field(
-                f"{variant.name}", t3, variant.location)
+            builder2.add_field(f"{variant.name}", t3, variant.location)
         union_def = builder2.finish()
         self.new_defs.append(union_def)
-        builder1 = ast.StructBuilder(
-            f'{definition.name}', False, definition.location)
+        builder1 = ast.StructBuilder(f"{definition.name}", False, definition.location)
         type_vars1 = [
             builder1.add_type_parameter(tp.name, tp.location)
-            for tp in definition.type_parameters]
-        builder1.add_field('tag', ast.int_type, definition.location)
-        builder1.add_field(
-            'data', union_def.apply(type_vars1), definition.location)
+            for tp in definition.type_parameters
+        ]
+        builder1.add_field("tag", ast.int_type, definition.location)
+        builder1.add_field("data", union_def.apply(type_vars1), definition.location)
         tagged_union_def = builder1.finish()
         self.new_defs.append(tagged_union_def)
         self._tagged_unions[id(definition)] = tagged_union_def
@@ -224,9 +240,8 @@ class EnumRewriter(BaseTransformer):
             self.change_enum_type(kind.value.ty)
 
             # x = value
-            x_var = ast.Variable('_x1337', kind.value.ty, statement.location)
-            let_x = ast.let_statement(
-                x_var, None, kind.value, statement.location)
+            x_var = ast.Variable("_x1337", kind.value.ty, statement.location)
+            let_x = ast.let_statement(x_var, None, kind.value, statement.location)
 
             arms = []
             for arm in kind.arms:
@@ -237,19 +252,22 @@ class EnumRewriter(BaseTransformer):
                 if len(arm.variables) == 0:
                     pass
                 elif len(arm.variables) == 1:
-                    union_val = x_var.ref_expr(
-                        arm.location).get_attr(1).get_attr(variant_idx)
+                    union_val = (
+                        x_var.ref_expr(arm.location).get_attr(1).get_attr(variant_idx)
+                    )
                     let_v = ast.let_statement(
-                        arm.variables[0], None, union_val, arm.location)
+                        arm.variables[0], None, union_val, arm.location
+                    )
                     body.append(let_v)
                 else:
-
                     for var_idx, var in enumerate(arm.variables):
-                        union_val = x_var.ref_expr(
-                            arm.location).get_attr(1).get_attr(variant_idx)
+                        union_val = (
+                            x_var.ref_expr(arm.location)
+                            .get_attr(1)
+                            .get_attr(variant_idx)
+                        )
                         val2 = union_val.get_attr(var_idx)
-                        let_v = ast.let_statement(
-                            var, None, val2, arm.location)
+                        let_v = ast.let_statement(var, None, val2, arm.location)
                         body.append(let_v)
                 body.append(arm.body)
                 body = ast.compound_statement(body, arm.location)
@@ -259,22 +277,25 @@ class EnumRewriter(BaseTransformer):
 
             # switch x.tag
             switch_1 = ast.switch_statement(
-                x_var.ref_expr(statement.location).get_attr(0), arms, default_body, statement.location)
+                x_var.ref_expr(statement.location).get_attr(0),
+                arms,
+                default_body,
+                statement.location,
+            )
             statement.kind = ast.CompoundStatement([let_x, switch_1])
 
     def visit_expression(self, expression: ast.Expression):
-        """ Rewrite enum literal into tagged union
-        """
+        """Rewrite enum literal into tagged union"""
         super().visit_expression(expression)
         kind = expression.kind
         if isinstance(kind, ast.EnumLiteral):
             assert expression.ty.is_enum(), str(expression)
 
-            tag_value = ast.numeric_constant(
-                kind.variant.index, expression.location)
+            tag_value = ast.numeric_constant(kind.variant.index, expression.location)
 
-            tagged_union_ty: ast.MyType = self._tagged_unions[id(
-                kind.enum_ty.kind.tycon)].apply(expression.ty.kind.type_args)
+            tagged_union_ty: ast.MyType = self._tagged_unions[
+                id(kind.enum_ty.kind.tycon)
+            ].apply(expression.ty.kind.type_args)
             union_ty = tagged_union_ty.get_field_type(1)
 
             if len(kind.values) == 0:
@@ -287,15 +308,17 @@ class EnumRewriter(BaseTransformer):
                 t = union_ty.get_field_type(kind.variant.index)
                 v = ast.struct_literal(t, kind.values, expression.location)
             union_value = ast.union_literal(
-                union_ty, kind.variant.index, v, expression.location)
+                union_ty, kind.variant.index, v, expression.location
+            )
 
             expression.kind = ast.StructLiteral(
-                tagged_union_ty, [tag_value, union_value])
+                tagged_union_ty, [tag_value, union_value]
+            )
             expression.ty = tagged_union_ty
 
 
 class ClassRewriter(BaseTransformer):
-    name = 'class-rewrite'
+    name = "class-rewrite"
 
     def __init__(self):
         super().__init__()
@@ -320,13 +343,13 @@ class ClassRewriter(BaseTransformer):
         builder = ast.StructBuilder(class_def.name, False, class_def.location)
         for type_parameter in class_def.type_parameters:
             type_arg = builder.add_type_parameter(
-                f"{type_parameter.name}8", type_parameter.location)
+                f"{type_parameter.name}8", type_parameter.location
+            )
             type_args.append(type_arg)
         m = dict(zip(class_def.type_parameters, type_args))
         for member in class_def.members:
             if isinstance(member, ast.VarDef):
-                builder.add_field(member.name, ast.subst(
-                    member.ty, m), member.location)
+                builder.add_field(member.name, ast.subst(member.ty, m), member.location)
                 init_values.append(member.value)
             elif isinstance(member, ast.FunctionDef):
                 methods.append(member)
@@ -350,8 +373,7 @@ class ClassRewriter(BaseTransformer):
                 type_args.append(tp.get_ref())
 
             struct_type = struct_def.apply(type_args)
-            this_param = ast.Parameter(
-                "this2", struct_type, class_def.location)
+            this_param = ast.Parameter("this2", struct_type, class_def.location)
             method.parameters.insert(0, this_param)
 
             m7 = dict(zip(class_def.type_parameters, type_args))
@@ -367,11 +389,16 @@ class ClassRewriter(BaseTransformer):
             type_parameters.append(tp)
             type_args.append(tp.get_ref())
         struct_type = struct_def.apply(type_args)
-        init_literal = ast.struct_literal(
-            struct_type, init_values, class_def.location)
+        init_literal = ast.struct_literal(struct_type, init_values, class_def.location)
         ctor_code = ast.return_statement(init_literal, class_def.location)
         ctor_func = ast.function_def(
-            f"{class_def.name}_ctor", type_parameters, [], struct_type, ctor_code, class_def.location)
+            f"{class_def.name}_ctor",
+            type_parameters,
+            [],
+            struct_type,
+            ctor_code,
+            class_def.location,
+        )
         m7 = dict(zip(class_def.type_parameters, type_args))
 
         replace_goo(ctor_func, m7, {})
@@ -387,14 +414,14 @@ class ClassRewriter(BaseTransformer):
             ty.change_to(struct_def.apply(ty.kind.type_args))
 
     def visit_expression(self, expression: ast.Expression):
-        """ Rewrite enum literal into tagged union
-        """
+        """Rewrite enum literal into tagged union"""
         super().visit_expression(expression)
         kind = expression.kind
         if isinstance(kind, ast.ClassLiteral):
             ctor_func = self._struct_defs[id(kind.class_ty.kind.tycon)][1]
-            ctor_call = ast.obj_ref(
-                ctor_func, ast.void_type, expression.location).call([])
+            ctor_call = ast.obj_ref(ctor_func, ast.void_type, expression.location).call(
+                []
+            )
             expression.kind = ctor_call.kind
         elif isinstance(kind, ast.FunctionCall):
             if isinstance(kind.target.kind, ast.DotOperator):
@@ -402,17 +429,18 @@ class ClassRewriter(BaseTransformer):
                     # method call!
                     obj = kind.target.kind.base
                     method_func = kind.target.kind.base.ty.get_method(
-                        kind.target.kind.field)
+                        kind.target.kind.field
+                    )
 
                     # Insert
                     kind.args.insert(0, obj)
                     kind.target = ast.obj_ref(
-                        method_func, ast.void_type, kind.target.location)
+                        method_func, ast.void_type, kind.target.location
+                    )
 
 
 def replace_goo(func_def: ast.FunctionDef, type_mapping, var_mapping):
-    """ Replace occurences of certain type variables and certain variables.
-    """
+    """Replace occurences of certain type variables and certain variables."""
     r = TypeReplacer(type_mapping, var_mapping)
     r.visit_definition(func_def)
 
@@ -440,25 +468,25 @@ class TypeReplacer(ast.AstVisitor):
 
 
 class SwitchRewriter(BaseTransformer):
-    name = 'switch-rewrite'
+    name = "switch-rewrite"
 
     def visit_statement(self, statement: ast.Statement):
         super().visit_statement(statement)
         kind = statement.kind
 
         if isinstance(kind, ast.SwitchStatement):
-            logger.debug('rewrite switch into chain of if-then-else')
+            logger.debug("rewrite switch into chain of if-then-else")
             # Step 1: capture switch value in variable:
 
-            x_var = ast.Variable('x1234', kind.value.ty, statement.location)
-            let_x = ast.let_statement(
-                x_var, None, kind.value, statement.location)
+            x_var = ast.Variable("x1234", kind.value.ty, statement.location)
+            let_x = ast.let_statement(x_var, None, kind.value, statement.location)
 
             # Create if-then tree
             else_clause = kind.default_body
             for arm in kind.arms:
-                condition = x_var.ref_expr(arm.location).binop('==', arm.value)
+                condition = x_var.ref_expr(arm.location).binop("==", arm.value)
                 else_clause = ast.if_statement(
-                    condition, arm.body, else_clause, arm.location)
+                    condition, arm.body, else_clause, arm.location
+                )
 
             statement.kind = ast.CompoundStatement([let_x, else_clause])

@@ -10,15 +10,21 @@ import glob
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('source', nargs='+', help='Source files')
-    parser.add_argument('--output', help='File to write output to')
-    parser.add_argument('--verbose', '-v', action='count',
-                        default=0, help='Logging verbosity')
-    parser.add_argument('--dump-ast', '-d', action='store_true', help='')
-    parser.add_argument('--run-code', '-r', action='store_true',
-                        help='Run program after compilation')
+    parser.add_argument("source", nargs="+", help="Source files")
+    parser.add_argument("--output", help="File to write output to")
     parser.add_argument(
-        '--backend', choices=['cpp', 'py', 'vm'], default='vm', help='Which backend to use.')
+        "--verbose", "-v", action="count", default=0, help="Logging verbosity"
+    )
+    parser.add_argument("--dump-ast", "-d", action="store_true", help="")
+    parser.add_argument(
+        "--run-code", "-r", action="store_true", help="Run program after compilation"
+    )
+    parser.add_argument(
+        "--backend",
+        choices=["cpp", "py", "vm"],
+        default="vm",
+        help="Which backend to use.",
+    )
     args = parser.parse_args()
     if args.verbose > 1:
         loglevel = logging.DEBUG
@@ -28,14 +34,13 @@ def main():
         loglevel = logging.WARNING
 
     logging.basicConfig(
-        level=loglevel, format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler()]
+        level=loglevel, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
     )
-    logger = logging.getLogger('main')
+    logger = logging.getLogger("main")
 
     options = compiler.CompilationOptions(
-        dump_ast=args.dump_ast, run_code=args.run_code, backend=args.backend)
+        dump_ast=args.dump_ast, run_code=args.run_code, backend=args.backend
+    )
 
     sources = []
     for source in args.source:
@@ -49,5 +54,5 @@ def main():
         errors.print_errors(ex.errors)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
