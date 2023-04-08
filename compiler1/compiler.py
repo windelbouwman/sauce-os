@@ -38,11 +38,37 @@ def std_module():
         ast.BuiltinFunction("std_int_to_str", [ast.int_type], ast.str_type),
     )
     mod.add_definition(
+        "str_to_int",
+        ast.BuiltinFunction("std_str_to_int", [ast.str_type], ast.int_type),
+    )
+    mod.add_definition(
         "read_file", ast.BuiltinFunction("std_read_file", [ast.str_type], ast.str_type)
     )
     mod.add_definition(
         "float_to_str",
         ast.BuiltinFunction("std_float_to_str", [ast.float_type], ast.str_type),
+    )
+
+    mod.add_definition(
+        "str_len",
+        ast.BuiltinFunction("std_str_len", [ast.str_type], ast.int_type),
+    )
+
+    mod.add_definition(
+        "str_get",
+        ast.BuiltinFunction("std_str_get", [ast.str_type, ast.int_type], ast.str_type),
+    )
+
+    mod.add_definition(
+        "str_slice",
+        ast.BuiltinFunction(
+            "std_str_slice", [ast.str_type, ast.int_type, ast.int_type], ast.str_type
+        ),
+    )
+
+    mod.add_definition(
+        "ord",
+        ast.BuiltinFunction("std_ord", [ast.str_type], ast.int_type),
     )
 
     return mod

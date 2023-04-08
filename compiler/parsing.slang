@@ -2,6 +2,7 @@
 import ast
 import std
 import lexer
+from token import to_string
 from datatypes import List
 
 fn parse_source(filename: str) -> ast.Module:
@@ -12,9 +13,14 @@ fn parse_source(filename: str) -> ast.Module:
     std.print(source)
     std::print("===============")
 
-    let lex = lexer::lexer_new()
-    let tok = lexer::detect_indentations(lex)
-    std::print("tok at {tok.location.row}")
+    let lex = lexer::Lexer()
+    lex.init(source)
+    loop:
+        case lex.next_token():
+            None:
+                break
+            Some(tok):
+                std::print(to_string(tok))
 
     let definitions = List()
     let program = ast::Module:

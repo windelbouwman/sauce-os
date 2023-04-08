@@ -65,14 +65,22 @@ class VirtualMachine:
         # Call stack:
         self._frames = []
 
-        def std_read_file(filename):
-            return "bla bla"
+        def std_read_file(filename: str) -> str:
+            with open(filename, "r") as f:
+                return f.read()
+
+            # return "bla   bla 1237 ]"
 
         self._builtins = {
             "std_print": print,
             "std_read_file": std_read_file,
             "std_int_to_str": str,
+            "std_str_to_int": int,
             "std_float_to_str": str,
+            "std_str_len": len,
+            "std_str_get": lambda s, i: s[i],
+            "std_str_slice": lambda s, b, e: s[b:e],
+            "std_ord": ord,
         }
 
     def load(self, prog: Program):
