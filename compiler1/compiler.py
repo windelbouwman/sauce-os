@@ -2,7 +2,7 @@
 """
 
 from dataclasses import dataclass
-import logging
+import logging, io
 
 import networkx as nx
 
@@ -13,10 +13,11 @@ from .pass3 import NewOpPass, TypeEvaluation
 from .typechecker import TypeChecker
 from .transforms import LoopRewriter, EnumRewriter, ClassRewriter, SwitchRewriter
 from .flowcheck import flow_check
-from .cppgenerator import gencode
-from .pygenerator import gencode as gen_pycode
+from .cppgenerator import gen_cppcode
+from .pygenerator import gen_pycode
 from .bc_gen import gen_bc
-from .vm import run_bytecode
+from .vm import run_bytecode, print_bytecode
+from .builtins import std_module, get_builtins
 
 logger = logging.getLogger("compiler")
 
@@ -26,52 +27,6 @@ class CompilationOptions:
     dump_ast: bool = False
     run_code: bool = False
     backend: str = "vm"
-
-
-def std_module():
-    mod = ast.Module("std", [], [])
-    mod.add_definition(
-        "print", ast.BuiltinFunction("std_print", [ast.str_type], ast.void_type)
-    )
-    mod.add_definition(
-        "int_to_str",
-        ast.BuiltinFunction("std_int_to_str", [ast.int_type], ast.str_type),
-    )
-    mod.add_definition(
-        "str_to_int",
-        ast.BuiltinFunction("std_str_to_int", [ast.str_type], ast.int_type),
-    )
-    mod.add_definition(
-        "read_file", ast.BuiltinFunction("std_read_file", [ast.str_type], ast.str_type)
-    )
-    mod.add_definition(
-        "float_to_str",
-        ast.BuiltinFunction("std_float_to_str", [ast.float_type], ast.str_type),
-    )
-
-    mod.add_definition(
-        "str_len",
-        ast.BuiltinFunction("std_str_len", [ast.str_type], ast.int_type),
-    )
-
-    mod.add_definition(
-        "str_get",
-        ast.BuiltinFunction("std_str_get", [ast.str_type, ast.int_type], ast.str_type),
-    )
-
-    mod.add_definition(
-        "str_slice",
-        ast.BuiltinFunction(
-            "std_str_slice", [ast.str_type, ast.int_type, ast.int_type], ast.str_type
-        ),
-    )
-
-    mod.add_definition(
-        "ord",
-        ast.BuiltinFunction("std_ord", [ast.str_type], ast.int_type),
-    )
-
-    return mod
 
 
 def do_compile(filenames: list[str], output: str | None, options: CompilationOptions):
@@ -106,20 +61,24 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
     if options.backend == "vm":
         prog = gen_bc(modules)
         if options.run_code:
-            run_bytecode(prog)
-    elif options.backend == "py":
-        code = gen_pycode(modules)
-        if options.run_code:
-            logger.info("Invoking python code")
-            exec(code, {})
-    elif options.backend == "cpp":
-        if output:
-            with open(output, "w") as f:
-                gencode(modules, f=f)
+            run_bytecode(prog, output)
         else:
-            gencode(modules)
+            print_bytecode(prog, output)
+    elif options.backend == "py":
+        if options.run_code:
+            f = io.StringIO()
+            gen_pycode(modules, f)
+            code = f.getvalue()
+            logger.info("Invoking python code")
+            exec(code, get_builtins(output))
+        else:
+            gen_pycode(modules, output)
+    elif options.backend == "cpp":
+        if options.run_code:
+            raise NotImplementedError("Direct running for C++ code")
+        gen_cppcode(modules, f=output)
     else:
-        logger.error(f"Unknown backend: {options.backend}")
+        raise ValueError(f"Unknown backend: {options.backend}")
 
     logger.info(":party_popper:DONE&DONE", extra={"markup": True})
 
@@ -134,8 +93,11 @@ def topo_sort(modules: list[ast.Module]):
     m = {}
     for module in modules:
         m[module.name] = module
+        g.add_node(module.name)
         for dep in module.get_deps():
             g.add_edge(module.name, dep)
+
+    logger.debug(f"module dependency graph: {g}")
 
     order = list(reversed(list(nx.topological_sort(g))))
     logger.info(f"Compilation order: {order}")

@@ -57,7 +57,12 @@ class MyType:
         self.kind = kind
 
     def clone(self) -> "MyType":
-        return MyType(self.kind)
+        if isinstance(self.kind, App):
+            return MyType(
+                App(self.kind.tycon, [t.clone() for t in self.kind.type_args])
+            )
+        else:
+            return MyType(self.kind)
 
     def change_to(self, other: "MyType"):
         """Change this type into the given other type."""
@@ -1036,20 +1041,21 @@ class PassStatement(StatementKind):
 
 
 def assignment_statement(
-    target: Expression, value: Expression, location: Location
+    target: Expression, op: str, value: Expression, location: Location
 ) -> Statement:
-    kind = AssignmentStatement(target, value)
+    kind = AssignmentStatement(target, op, value)
     return Statement(kind, location)
 
 
 class AssignmentStatement(StatementKind):
-    def __init__(self, target: Expression, value: Expression):
+    def __init__(self, target: Expression, op: str, value: Expression):
         super().__init__()
         self.target = target
+        self.op = op
         self.value = value
 
     def __repr__(self):
-        return "Assignment"
+        return f"Assignment({self.op})"
 
 
 def return_statement(value: Expression | None, location: Location):
@@ -1437,6 +1443,9 @@ class AstVisitor:
                 self.visit_type(type_arg)
         elif isinstance(ty.kind, ArrayType):
             self.visit_type(ty.kind.element_type)
+        elif isinstance(ty.kind, Meta):
+            if ty.kind.assigned:
+                self.visit_type(ty.kind.assigned)
 
     def visit_statement(self, statement: Statement):
         kind = statement.kind
@@ -1581,11 +1590,11 @@ class AstPrinter(AstVisitor):
         super().visit_definition(definition)
         self.dedent()
 
-    # def visit_type(self, ty: MyType):
-    #     self.emit(f"ty > {ty}")
-    #     self.indent()
-    #     super().visit_type(ty)
-    #     self.dedent()
+    def visit_type(self, ty: MyType):
+        self.indent()
+        self.emit(f"ty > {str_ty(ty)}")
+        super().visit_type(ty)
+        self.dedent()
 
     def visit_statement(self, statement: Statement):
         self.emit(f"{statement.kind}")
@@ -1639,7 +1648,7 @@ class RichAstPrinter(AstVisitor):
             for parameter in definition.parameters:
                 self.emit(f":gem:[b cyan]{parameter.name} : {str_ty(parameter.ty)}")
             if definition.return_ty:
-                self.emit(f":pick:[b red]{str_ty(definition.return_ty)}[/]")
+                self.emit(f":dollar:[b red]{str_ty(definition.return_ty)}[/]")
                 # :dragon: or :dollar:
 
         elif isinstance(definition, StructDef):
@@ -1672,6 +1681,15 @@ class RichAstPrinter(AstVisitor):
 
         super().visit_definition(definition)
         self.dedent()
+
+    def visit_type(self, ty: MyType):
+        dump_types = True
+        if dump_types:
+            self.indent()
+            self.emit(str_ty(ty))
+        super().visit_type(ty)
+        if dump_types:
+            self.dedent()
 
     def visit_statement(self, statement: Statement):
         self.emit(f":rainbow:[b yellow]{rich.markup.escape(str(statement.kind))}")

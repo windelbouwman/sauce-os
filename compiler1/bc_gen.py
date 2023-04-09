@@ -27,6 +27,20 @@ class ByteCodeGenerator:
         self._locals = []
         self._label_map = {}
 
+        self._binop_map = {
+            "+": "ADD",
+            "-": "SUB",
+            "*": "MUL",
+            "/": "DIV",
+            "<": "LT",
+            ">": "GT",
+            "<=": "LTE",
+            ">=": "GTE",
+            "==": "EQ",
+            "and": "AND",
+            "or": "OR",
+        }
+
     def gen_module(self, module: ast.Module):
         for definition in module.definitions:
             if isinstance(definition, ast.FunctionDef):
@@ -117,20 +131,36 @@ class ByteCodeGenerator:
         elif isinstance(kind, ast.SwitchStatement):
             raise NotImplementedError("switch")
         elif isinstance(kind, ast.AssignmentStatement):
-            self.gen_expression(kind.value)
             if isinstance(kind.target.kind, ast.ObjRef):
                 obj = kind.target.kind.obj
                 if isinstance(obj, ast.Variable):
-                    self.emit("LOCAL_SET", self._locals.index(obj))
+                    local_index = self._locals.index(obj)
+                    if kind.op == "=":
+                        self.gen_expression(kind.value)
+                    else:
+                        self.emit("LOCAL_GET", local_index)
+                        self.gen_expression(kind.value)
+                        self.emit(self._binop_map[kind.op[:-1]])
+                    self.emit("LOCAL_SET", local_index)
                 else:
                     raise ValueError(f"Cannot assign obj: {obj}")
             elif isinstance(kind.target.kind, ast.DotOperator):
                 self.gen_expression(kind.target.kind.base)
                 index = kind.target.kind.base.ty.get_field_index(kind.target.kind.field)
+                if kind.op == "=":
+                    self.gen_expression(kind.value)
+                else:
+                    # Implement += and -= and friends
+                    self.emit("DUP")
+                    self.emit("GET_ATTR", index)
+                    self.gen_expression(kind.value)
+                    self.emit(self._binop_map[kind.op[:-1]])
                 self.emit("SET_ATTR", index)
             elif isinstance(kind.target.kind, ast.ArrayIndex):
+                assert kind.op == "="
                 self.gen_expression(kind.target.kind.base)
                 self.gen_expression(kind.target.kind.index)
+                self.gen_expression(kind.value)
                 self.emit("SET_INDEX")
             else:
                 raise ValueError(f"Cannot assign: {kind.target}")
@@ -174,21 +204,9 @@ class ByteCodeGenerator:
             # should not call expensive_function
             self.gen_expression(kind.lhs)
             self.gen_expression(kind.rhs)
-            m = {
-                "+": "ADD",
-                "-": "SUB",
-                "*": "MUL",
-                "/": "DIV",
-                "<": "LT",
-                ">": "GT",
-                "<=": "LTE",
-                ">=": "GTE",
-                "==": "EQ",
-                "and": "AND",
-                "or": "OR",
-            }
-            if kind.op in m:
-                self.emit(m[kind.op])
+
+            if kind.op in self._binop_map:
+                self.emit(self._binop_map[kind.op])
             else:
                 raise NotImplementedError(str(kind.op))
         elif isinstance(kind, ast.TypeCast):

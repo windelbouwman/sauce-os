@@ -11,7 +11,7 @@ import glob
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", nargs="+", help="Source files")
-    parser.add_argument("--output", help="File to write output to")
+    parser.add_argument("--output", "-o", help="File to write output to")
     parser.add_argument(
         "--verbose", "-v", action="count", default=0, help="Logging verbosity"
     )
@@ -47,11 +47,20 @@ def main():
         sources.extend(glob.glob(source))
     sources = list(sorted(set(sources)))
 
+    if args.output:
+        logger.info(f"Writing output to: {args.output}")
+        f = open(args.output, "w")
+    else:
+        f = None
+
     try:
-        compiler.do_compile(sources, args.output, options)
+        compiler.do_compile(sources, f, options)
     except errors.CompilationError as ex:
         logger.error("Errors occurred during compilation!")
         errors.print_errors(ex.errors)
+    finally:
+        if f:
+            f.close()
 
 
 if __name__ == "__main__":

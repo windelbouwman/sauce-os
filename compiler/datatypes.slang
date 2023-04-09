@@ -5,6 +5,8 @@ enum<D> Option:
 
 
 class<T> List:
+    # Linked list based on a linked list of elements with next pointers.
+
     var head_element: Option[ListElement[T]] = Option.None()
 
     fn append(val: T):
@@ -24,6 +26,38 @@ class<T> List:
                             element = nxt_element
                 element.next = Option.Some(new_tail_element)
 
+    fn is_empty() -> bool:
+        case this.head_element:
+            None:
+                return true
+        else:
+            return false
+
+    fn len() -> int:
+        # Retrieve length of the list
+        case this.head_element:
+            None:
+                return 0
+            Some(element):
+                let n = 1
+                loop:
+                    case element.next:
+                        None:
+                            break
+                        Some(nxt_element2):
+                            element = nxt_element2
+                            n += 1
+                return n
+
+    fn pop_front() -> T:
+        case this.head_element:
+            None:
+                pass
+                # Panic!
+            Some(element):
+                this.head_element = element.next
+                return element.data
+
     fn iter() -> ListIter:
         let it = ListIter()
         it.next_element = this.head_element
@@ -34,10 +68,36 @@ class<T> List:
         # TODO!
         pass
 
+    fn pop_last() -> T:
+        # Pop last element of the list
+        # TODO!
+        case this.head_element:
+            None:
+                # TODO: ERROR: empty list!
+                pass
+            Some(element):
+                case element.next:
+                    None:
+                        # single item in list!
+                        this.head_element = Option.None()
+                        return element.data
+                    Some(next_element):
+                        # More than 1 item in the list
+
+                        loop:
+                            case next_element.next:
+                                None:
+                                    # This is the last item!
+                                    element.next = Option.None()
+                                    return next_element.data
+                                Some(next_next_element):
+                                    # Slide to next item
+                                    element = next_element
+                                    next_element = next_next_element
+
     fn last() -> T:
         # Retrieve last element
         # TODO!
-        # let element = this.head_element
         case this.head_element:
             None:
                 # TODO: raise massive error?

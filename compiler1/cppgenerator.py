@@ -6,7 +6,7 @@ Idea: Use C++ as intermediate code for bootstrapping.
 from . import ast
 
 
-def gencode(modules: list[ast.Module], f=None):
+def gen_cppcode(modules: list[ast.Module], f=None):
     g = Generator(f)
     g.gen_prelude()
     g.gen_type_decls(modules)

@@ -76,6 +76,10 @@ class TypeChecker(BasePass):
 
             for arm in kind.arms:
                 self.visit_node(arm)
+
+            if kind.else_clause:
+                self.visit_statement(kind.else_clause)
+
         elif isinstance(kind, ast.ForStatement):
             self.visit_expression(kind.values)
             if kind.values.ty.is_array():
@@ -97,42 +101,40 @@ class TypeChecker(BasePass):
         else:
             super().visit_statement(statement)
 
-        if isinstance(kind, ast.LoopStatement):
-            pass
-        elif isinstance(kind, ast.WhileStatement):
-            self.assert_type(kind.condition, bool_type)
-        elif isinstance(kind, ast.IfStatement):
-            self.assert_type(kind.condition, bool_type)
-        elif isinstance(kind, ast.SwitchStatement):
-            self.assert_type(kind.value, ast.int_type)
-        elif isinstance(kind, ast.ExpressionStatement):
-            # Check void type: Good idea?
-            self.assert_type(kind.value, void_type)
-        elif isinstance(kind, (ast.BreakStatement, ast.ContinueStatement)):
-            # TODO!
-            pass
-        elif isinstance(kind, (ast.PassStatement, ast.CompoundStatement)):
-            pass
-        elif isinstance(kind, ast.ReturnStatement):
-            if kind.value:
-                if not self.unify(kind.value.ty, self._function.return_ty):
-                    self.error(
-                        statement.location,
-                        f"Returning wrong type {kind.value.ty} (should be {self._function.return_ty})",
-                    )
+            if isinstance(kind, ast.LoopStatement):
+                pass
+            elif isinstance(kind, ast.WhileStatement):
+                self.assert_type(kind.condition, bool_type)
+            elif isinstance(kind, ast.IfStatement):
+                self.assert_type(kind.condition, bool_type)
+            elif isinstance(kind, ast.SwitchStatement):
+                self.assert_type(kind.value, ast.int_type)
+            elif isinstance(kind, ast.ExpressionStatement):
+                # Check void type: Good idea?
+                self.assert_type(kind.value, void_type)
+            elif isinstance(kind, (ast.BreakStatement, ast.ContinueStatement)):
+                # TODO!
+                pass
+            elif isinstance(kind, (ast.PassStatement, ast.CompoundStatement)):
+                pass
+            elif isinstance(kind, ast.ReturnStatement):
+                if kind.value:
+                    if not self.unify(kind.value.ty, self._function.return_ty):
+                        self.error(
+                            statement.location,
+                            f"Returning wrong type {kind.value.ty} (should be {self._function.return_ty})",
+                        )
 
-        elif isinstance(kind, ast.LetStatement):
-            if kind.ty:
-                self.assert_type(kind.value, kind.ty)
-                kind.variable.ty = kind.ty
+            elif isinstance(kind, ast.LetStatement):
+                if kind.ty:
+                    self.assert_type(kind.value, kind.ty)
+                    kind.variable.ty = kind.ty
+                else:
+                    kind.variable.ty = kind.value.ty.clone()
+            elif isinstance(kind, ast.AssignmentStatement):
+                self.assert_type(kind.value, kind.target.ty)
             else:
-                kind.variable.ty = kind.value.ty.clone()
-        elif isinstance(kind, ast.AssignmentStatement):
-            self.assert_type(kind.value, kind.target.ty)
-        elif isinstance(kind, (ast.ForStatement, ast.CaseStatement)):
-            pass  # handled above
-        else:
-            raise NotImplementedError(str(statement))
+                raise NotImplementedError(str(statement))
 
     def visit_expression(self, expression: ast.Expression):
         """Perform type checking on expression!"""
@@ -304,18 +306,11 @@ class TypeChecker(BasePass):
             )
         elif isinstance(a.kind, ast.Meta):
             if a.kind.assigned:
-                assigned = a.kind.assigned
-                if self.unify(assigned, b):
-                    # Patch type:
-                    a.kind = assigned.kind
-                    return True
-                else:
-                    return False
+                # Patch and recurse:
+                a.change_to(a.kind.assigned)
+                return self.unify(a, b)
             elif isinstance(b.kind, ast.Meta):
-                if a.kind is b.kind:
-                    return True
-                else:
-                    return False
+                return a.kind is b.kind
             elif (
                 b.is_struct()
                 or b.is_class()

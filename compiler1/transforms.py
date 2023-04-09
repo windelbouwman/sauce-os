@@ -83,7 +83,8 @@ class LoopRewriter(BaseTransformer):
                 one = ast.numeric_constant(1, statement.location)
                 inc_i = ast.assignment_statement(
                     i_var.ref_expr(statement.location),
-                    i_var.ref_expr(statement.location).binop("+", one),
+                    "+=",
+                    one,
                     statement.location,
                 )
 
@@ -240,7 +241,7 @@ class EnumRewriter(BaseTransformer):
             self.change_enum_type(kind.value.ty)
 
             # x = value
-            x_var = ast.Variable("_x1337", kind.value.ty, statement.location)
+            x_var = ast.Variable("x1337", kind.value.ty, statement.location)
             let_x = ast.let_statement(x_var, None, kind.value, statement.location)
 
             arms = []
@@ -273,7 +274,12 @@ class EnumRewriter(BaseTransformer):
                 body = ast.compound_statement(body, arm.location)
                 tag_val = ast.numeric_constant(variant_idx, arm.location)
                 arms.append(ast.SwitchArm(tag_val, body, arm.location))
-            default_body = ast.pass_statement(statement.location)
+
+            if kind.else_clause:
+                default_body = kind.else_clause
+            else:
+                # Maybe insert panic instruction?
+                default_body = ast.pass_statement(statement.location)
 
             # switch x.tag
             switch_1 = ast.switch_statement(
@@ -336,6 +342,9 @@ class ClassRewriter(BaseTransformer):
         super().visit_module(module)
 
     def rewrite_class_def(self, class_def: ast.ClassDef):
+        # Add some uniqueness to new parameter names:
+        counter = 1
+
         # Create a struct instead of a class:
         init_values = []
         methods = []
@@ -343,8 +352,9 @@ class ClassRewriter(BaseTransformer):
         builder = ast.StructBuilder(class_def.name, False, class_def.location)
         for type_parameter in class_def.type_parameters:
             type_arg = builder.add_type_parameter(
-                f"{type_parameter.name}8", type_parameter.location
+                f"{type_parameter.name}{counter}", type_parameter.location
             )
+            counter += 1
             type_args.append(type_arg)
         m = dict(zip(class_def.type_parameters, type_args))
         for member in class_def.members:
@@ -366,7 +376,8 @@ class ClassRewriter(BaseTransformer):
 
             type_args = []
             for tp in class_def.type_parameters:
-                tp = ast.TypeVar(f"{tp.name}7", tp.location)
+                tp = ast.TypeVar(f"{tp.name}{counter}", tp.location)
+                counter += 1
                 # Hmm, append type arguments to already existing ones?
                 # TBD: what happens with type annotations?
                 method.type_parameters.append(tp)
@@ -385,7 +396,8 @@ class ClassRewriter(BaseTransformer):
         type_parameters = []  # TODO!
         type_args = []
         for tp in class_def.type_parameters:
-            tp = ast.TypeVar(f"{tp.name}73", tp.location)
+            tp = ast.TypeVar(f"{tp.name}{counter}", tp.location)
+            counter += 1
             type_parameters.append(tp)
             type_args.append(tp.get_ref())
         struct_type = struct_def.apply(type_args)

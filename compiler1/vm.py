@@ -6,6 +6,7 @@ a compiler.
 """
 
 import logging
+from .builtins import get_builtins
 
 logger = logging.getLogger("vm")
 
@@ -24,10 +25,18 @@ class Function:
         self.n_locals = n_locals  # locals + parameters!
 
 
-def run_bytecode(prog: Program):
+def print_bytecode(prog: Program, f=None):
+    for function in prog.functions:
+        print(f"func {function.name} n_locals={function.n_locals}", file=f)
+        for pc, inst in enumerate(function.code):
+            opcode, operands = inst
+            print(f"  {pc}: {opcode} {operands}", file=f)
+
+
+def run_bytecode(prog: Program, f):
     """Take bytecode and invoke 'main' function."""
     logger.info("Running byte-code!")
-    m = VirtualMachine()
+    m = VirtualMachine(f)
     m.load(prog)
     m.invoke("main")
 
@@ -61,27 +70,10 @@ class Frame:
 
 
 class VirtualMachine:
-    def __init__(self):
+    def __init__(self, stdout):
         # Call stack:
         self._frames = []
-
-        def std_read_file(filename: str) -> str:
-            with open(filename, "r") as f:
-                return f.read()
-
-            # return "bla   bla 1237 ]"
-
-        self._builtins = {
-            "std_print": print,
-            "std_read_file": std_read_file,
-            "std_int_to_str": str,
-            "std_str_to_int": int,
-            "std_float_to_str": str,
-            "std_str_len": len,
-            "std_str_get": lambda s, i: s[i],
-            "std_str_slice": lambda s, b, e: s[b:e],
-            "std_ord": ord,
-        }
+        self._builtins = get_builtins(stdout)
 
     def load(self, prog: Program):
         self.prog = prog
@@ -165,17 +157,21 @@ class VirtualMachine:
             base = self.pop_value()
             self.push_value(base[index])
         elif opcode == "SET_INDEX":
+            value = self.pop_value()
             index = self.pop_value()
             base = self.pop_value()
-            value = self.pop_value()
             base[index] = value
         elif opcode == "GET_ATTR":
             base = self.pop_value()
             self.push_value(base[args[0]])
         elif opcode == "SET_ATTR":
-            base = self.pop_value()
             value = self.pop_value()
+            base = self.pop_value()
             base[args[0]] = value
+        elif opcode == "DUP":
+            value = self.pop_value()
+            self.push_value(value)
+            self.push_value(value)
         else:
             raise NotImplementedError(str(opcode))
 

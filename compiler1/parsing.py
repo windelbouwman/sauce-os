@@ -113,6 +113,8 @@ class CustomLarkLexer(LarkLexer):
             "<=": "LESS_EQUALS",
             "=": "EQUALS",
             "==": "EQUALS_EQUALS",
+            "+=": "PLUS_EQUALS",
+            "-=": "MINUS_EQUALS",
             "-": "MINUS",
             "+": "PLUS",
             "*": "ASTERIX",
@@ -287,19 +289,30 @@ class CustomTransformer(LarkTransformer):
         return x[0]
 
     def simple_statement(self, x):
-        if len(x) == 3:
-            return ast.assignment_statement(x[0], x[2], get_loc(x[1]))
-        elif isinstance(x[0], LarkToken) and x[0].type == "KW_RETURN":
-            value = x[1] if len(x) > 1 else None
-            return ast.return_statement(value, get_loc(x[0]))
-        elif isinstance(x[0], LarkToken) and x[0].type == "KW_BREAK":
-            return ast.break_statement(get_loc(x[0]))
-        elif isinstance(x[0], LarkToken) and x[0].type == "KW_CONTINUE":
-            return ast.continue_statement(get_loc(x[0]))
-        elif isinstance(x[0], LarkToken) and x[0].type == "KW_PASS":
-            return ast.pass_statement(get_loc(x[0]))
-        assert isinstance(x[0], ast.Expression)
-        return ast.expression_statement(x[0], x[0].location)
+        if isinstance(x[0], ast.Expression):
+            return ast.expression_statement(x[0], x[0].location)
+        else:
+            assert isinstance(x[0], ast.Statement)
+            return x[0]
+
+    def pass_statement(self, x):
+        return ast.pass_statement(get_loc(x[0]))
+
+    def continue_statement(self, x):
+        return ast.continue_statement(get_loc(x[0]))
+
+    def break_statement(self, x):
+        return ast.break_statement(get_loc(x[0]))
+
+    def return_statement(self, x):
+        # return_statement: KW_RETURN expression?
+        value = x[1] if len(x) > 1 else None
+        return ast.return_statement(value, get_loc(x[0]))
+
+    def assignment_statement(self, x):
+        # assignment_statement: expression EQUALS expression
+        op = x[1].value
+        return ast.assignment_statement(x[0], op, x[2], get_loc(x[1]))
 
     def if_statement(self, x):
         # KW_IF test COLON NEWLINE block else_clause?
@@ -553,11 +566,17 @@ statement: simple_statement NEWLINE
          | switch_statement
 
 simple_statement: expression
-                | KW_BREAK
-                | KW_CONTINUE
-                | KW_PASS
-                | expression EQUALS expression
-                | KW_RETURN expression?
+                | break_statement
+                | continue_statement
+                | pass_statement
+                | assignment_statement
+                | return_statement
+break_statement: KW_BREAK
+continue_statement: KW_CONTINUE
+pass_statement: KW_PASS
+return_statement: KW_RETURN expression?
+assignment_statement: expression (EQUALS | PLUS_EQUALS | MINUS_EQUALS) expression
+
 if_statement: KW_IF test COLON NEWLINE block else_clause?
 else_clause: KW_ELSE COLON NEWLINE block
 let_statement: KW_LET ID (COLON typ)? EQUALS expression NEWLINE
@@ -617,7 +636,8 @@ field_init: ID COLON expression NEWLINE
 %declare LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON DOUBLE_COLON COMMA DOT ARROW
 %declare MINUS PLUS ASTERIX SLASH
-%declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS EQUALS
+%declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS
+%declare EQUALS PLUS_EQUALS MINUS_EQUALS
 
 %declare INDENT DEDENT NEWLINE
 %declare NUMBER STRING FNUMBER BOOL ID

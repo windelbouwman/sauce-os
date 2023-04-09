@@ -26,10 +26,16 @@ enum TokenKind:
     Colon
     Comma
     Dot
+    Arrow
 
     # White-space:
     Space(int)
     NewLine
+    Comment(str)
+    Indent
+    Dedent
+
+    Error
 
 fn to_string(tok: Token) -> str:
     # """ Convert token to txt """
@@ -43,8 +49,18 @@ fn to_string(tok: Token) -> str:
             txt = "INT({v})"
         Space(v):
             txt = "SPACE({v})"
+        Comment(a):
+            txt = "COMMENT(" + a + ")"
+        NewLine:
+            txt = "NEWLINE"
+        Indent:
+            txt = "INDENT"
+        Dedent:
+            txt = "DEDENT"
         Colon:
             txt = "COLON"
+        Error:
+            txt = "ERROR"
     else:
         txt = "???"
     return "row={tok.location.row}:{tok.location.column} " + txt
