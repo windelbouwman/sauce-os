@@ -131,7 +131,7 @@ class Generator:
             self.print(f"{dst} = {value};")
         elif isinstance(kind, ast.AssignmentStatement):
             self.print(
-                f"{self.gen_expr(kind.target)} = {self.gen_expr(kind.value, parens=False)};"
+                f"{self.gen_expr(kind.target)} {kind.op} {self.gen_expr(kind.value, parens=False)};"
             )
         elif isinstance(kind, ast.IfStatement):
             self.print(f"if ({self.gen_expr(kind.condition, parens=False)}) {{")

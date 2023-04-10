@@ -11,6 +11,9 @@ def std_module() -> ast.Module:
         "print", ast.BuiltinFunction("std_print", [ast.str_type], ast.void_type)
     )
     mod.add_definition(
+        "exit", ast.BuiltinFunction("std_exit", [ast.int_type], ast.void_type)
+    )
+    mod.add_definition(
         "int_to_str",
         ast.BuiltinFunction("std_int_to_str", [ast.int_type], ast.str_type),
     )
@@ -68,8 +71,12 @@ def get_builtins(stdout=None):
         def std_print(txt: str):
             print(txt)
 
+    def std_exit(code: int):
+        raise RuntimeError(f"EXIT with code: {code}")
+
     return {
         "std_print": std_print,
+        "std_exit": std_exit,
         "std_read_file": std_read_file,
         "std_int_to_str": str,
         "std_str_to_int": int,

@@ -140,7 +140,7 @@ class PyCodeGenerator:
     def gen_expression(self, expression: ast.Expression, parens: bool = True) -> str:
         kind = expression.kind
         if isinstance(kind, ast.StringConstant):
-            return f"'{kind.text}'"
+            return f'"{kind.text}"'
         elif isinstance(kind, ast.NumericConstant):
             return f"{kind.value}"
         elif isinstance(kind, ast.BoolLiteral):

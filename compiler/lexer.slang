@@ -38,6 +38,9 @@ class Lexer:
         else:
             return Option.Some(this.pending.pop_front())
     
+    fn pushback_token(token: Token):
+        this.pending.prepend(token)
+
     fn work_some():
         let tok2 = this.next_token2()
         case tok2:
@@ -127,13 +130,20 @@ class Lexer:
 
                 let kind = TokenKind::Error()
                 if this.automaton.accepts == "id":
+                    # TODO: we need elif....
                     if txt == "import":
                         kind = TokenKind::KwImport()
                     else:
                         if txt == "fn":
                             kind = TokenKind::KwFn()
                         else:
-                            kind = TokenKind::Identifier(txt)
+                            if txt == "return":
+                                kind = TokenKind::KwReturn()
+                            else:
+                                if txt == "if":
+                                    kind = TokenKind::KwIf()
+                                else:
+                                    kind = TokenKind::Identifier(txt)
                 # TODO: elif!
                 if this.automaton.accepts == "number":
                     kind = TokenKind::Integer(std.str_to_int(txt))
@@ -148,6 +158,8 @@ class Lexer:
                     kind = TokenKind::BraceClose()
                 if this.automaton.accepts == "colon":
                     kind = TokenKind::Colon()
+                if this.automaton.accepts == "arrow":
+                    kind = TokenKind::Arrow()
                 if this.automaton.accepts == "coloncolon":
                     kind = TokenKind::Dot()
                 if this.automaton.accepts == "comment":

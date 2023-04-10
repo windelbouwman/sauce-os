@@ -103,7 +103,8 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
             cmd = [exe_filename]
             logger.info(f"Running native executable {exe_filename}")
             logger.debug(f"Invoking command: {cmd}")
-            subprocess.run(cmd, check=True)
+            res = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            output.write(res.stdout)
         else:
             gen_cppcode(modules, f=output)
     else:

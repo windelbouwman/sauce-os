@@ -1,7 +1,7 @@
 
 import std
 
-fn main():
+fn main() -> int:
     # let x = 2
     for x in [1,2,3,4,5,6,7,8,9, 11, 13]:
         switch x:
@@ -21,4 +21,4 @@ fn main():
                 std::print("Muchos!")
         else:
             std::print("Defaulty!")
-
+    return 0

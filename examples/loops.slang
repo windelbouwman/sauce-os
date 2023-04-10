@@ -2,7 +2,7 @@
 
 import std
 
-fn main():
+fn main() -> int:
     let x = 0
 
     loop:
@@ -20,3 +20,5 @@ fn main():
         x = x + 1
         std::print("x = " + std::int_to_str(x))
         continue
+
+    return 0

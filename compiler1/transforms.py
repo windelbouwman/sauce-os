@@ -443,7 +443,7 @@ class ClassRewriter(BaseTransformer):
     def visit_type(self, ty: ast.MyType):
         super().visit_type(ty)
         if ty.is_class():
-            # Change class type into tagged untion type
+            # Change class type into tagged union type
             struct_def = self._struct_defs[id(ty.kind.tycon)][0]
             ty.change_to(struct_def.apply(ty.kind.type_args))
 
@@ -452,7 +452,9 @@ class ClassRewriter(BaseTransformer):
         super().visit_expression(expression)
         kind = expression.kind
         if isinstance(kind, ast.ClassLiteral):
-            ctor_func = self._struct_defs[id(kind.class_ty.kind.tycon)][1]
+            assert expression.ty.is_class(), str(expression.ty)
+            tycon = expression.ty.kind.tycon
+            ctor_func = self._struct_defs[id(tycon)][1]
             ctor_call = ast.obj_ref(ctor_func, ast.void_type, expression.location).call(
                 []
             )

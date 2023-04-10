@@ -2,7 +2,7 @@
 
 import std
 
-fn main():
+fn main() -> int:
     std::print("Hello world")
     if 2 < 5:
         std::print("Compiling some stuff!")
@@ -15,3 +15,4 @@ fn main():
     if 10 < 5:
         std::print("ten is less than five")
 
+    return 0

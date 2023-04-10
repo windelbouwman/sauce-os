@@ -233,9 +233,9 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.EnumLiteral):
             payload_types = kind.enum_ty.get_variant_types(kind.variant.name)
             self.check_arguments(payload_types, kind.values, expression.location)
-            expression.ty = kind.enum_ty
+            expression.ty = kind.enum_ty.clone()
         elif isinstance(kind, ast.ClassLiteral):
-            expression.ty = kind.class_ty
+            expression.ty = kind.class_ty.clone()
         elif isinstance(kind, ast.TypeLiteral):
             self.error(expression.location, "Unexpected type")
         elif isinstance(kind, ast.GenericLiteral):

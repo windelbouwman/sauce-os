@@ -27,6 +27,10 @@ enum TokenKind:
     KwElse
     KwLoop
     KwWhile
+    KwReturn
+    KwStruct
+    KwEnum
+    KwLet
 
     # Literals:
     Float(float)
@@ -76,6 +80,8 @@ fn to_string(tok: Token) -> str:
             txt = "DEDENT"
         Colon:
             txt = "COLON"
+        Arrow:
+            txt = "ARROW"
         Comma:
             txt = "COMMA"
         Dot:
@@ -85,7 +91,7 @@ fn to_string(tok: Token) -> str:
         BraceClose:
             txt = "BRACE_CLOSE"
         Error:
-            txt = "ERROR"
+            txt = "ERROR2"
     else:
         txt = "???"
     return "row={tok.location.row}:{tok.location.column} {txt}"

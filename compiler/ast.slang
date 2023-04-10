@@ -1,7 +1,7 @@
 
 import std
-from location import Location
-from datatypes import List
+from location import Location, new_location
+from datatypes import List, Option
 
 # TODO: implement type-defs!
 # type MyType = int
@@ -19,6 +19,10 @@ fn int_type() -> MyType:
     return bool_type()
 
 fn str_type() -> MyType:
+    # TODO
+    return bool_type()
+
+fn undefined_type() -> MyType:
     # TODO
     return bool_type()
 
@@ -70,6 +74,8 @@ enum StatementKind:
     Switch(SwitchStatement)
     Let(LetStatement)
     Compound(List[Statement])
+    Expr(Expression)
+    Return(Option[Expression])
     Pass
     Break
     Continue
@@ -135,6 +141,16 @@ fn compound(inner: List[Statement], location: Location) -> Statement:
     let kind = StatementKind::Compound(inner)
     return statement(kind, location)
 
+fn expression_statement(expr: Expression) -> Statement:
+    let kind = StatementKind::Expr(expr)
+    return statement(kind, expr.location)
+
+fn return_statement(value: Option[Expression], location: Location) -> Statement:
+    return statement(StatementKind::Return(value), location)
+
+fn pass_statement(location: Location) -> Statement:
+    return statement(StatementKind::Pass(), location)
+
 struct Expression:
     location: Location
     ty: MyType
@@ -149,18 +165,25 @@ fn expression(kind: ExpressionKind, ty: MyType, location: Location) -> Expressio
 
 enum ExpressionKind:
     Call(FunctionCall)
+    GetAttr(Expression,str)
     Binop(BinopExpression)
+    NameRef(str)
     VarRef(Variable)
     IntLiteral(int)
     # FloatLiteral(float)
     StringLiteral(str)
     BoolLiteral(bool)
+    Undefined
 
 fn call(callee: Expression, arguments: List[Expression], ty: MyType, location: Location) -> Expression:
     let c = FunctionCall:
         callee: callee
         arguments: arguments
     let kind = ExpressionKind::Call(c)
+    return expression(kind, ty, location)
+
+fn get_attr(base: Expression, field: str, ty: MyType, location: Location) -> Expression:
+    let kind = ExpressionKind::GetAttr(base, field)
     return expression(kind, ty, location)
 
 struct FunctionCall:
@@ -171,6 +194,12 @@ struct FunctionCall:
 fn var_ref(v: Variable, location: Location) -> Expression:
     let kind = ExpressionKind::VarRef(v)
     return expression(kind, v.ty, location)
+
+# Reference a symbol:
+fn name_ref(name: str, location: Location) -> Expression:
+    let kind = ExpressionKind::NameRef(name)
+    let ty = undefined_type()
+    return expression(kind, ty, location)
 
 struct BinopExpression:
     lhs: Expression
@@ -199,6 +228,9 @@ fn string_literal(value: str, location: Location) -> Expression:
     let kind = ExpressionKind::StringLiteral(value)
     let ty = str_type()
     return expression(kind, ty, location)
+
+fn undefined_value() -> Expression:
+    return expression(ExpressionKind::Undefined(), undefined_type(), new_location(1, 1))
 
 fn print_ast(mod: Module):
     std::print("Module: " + mod.name)

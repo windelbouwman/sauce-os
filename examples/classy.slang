@@ -14,7 +14,7 @@ class Bar:
         std::print("Bar instance {x + this.val1}")
 
 
-fn main():
+fn main() -> int:
     let bar = Bar()
     bar.val3 = "Woei!"
     bar.info()
@@ -22,4 +22,4 @@ fn main():
     let baz = Bar()
     baz.val3 = "Hello world"
     baz.info()
-
+    return 0

@@ -1,9 +1,10 @@
 
 import std
 
-fn main():
+fn main() -> int:
     foo(2, 5, "Fiir")
     foo(9, 5, "No sir")
+    return 0
 
 fn foo(a: int, b: int, message: str):
     if a < b:

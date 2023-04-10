@@ -47,6 +47,13 @@ class<T> List:
                             element = nxt_element
                 element.next = Option.Some(new_tail_element)
 
+    fn prepend(val: T):
+        # Prepend value in front of list
+        let new_head_element = ListElement:
+            next: this.head_element
+            data: val
+        this.head_element = Option.Some(new_head_element)
+
     fn is_empty() -> bool:
         case this.head_element:
             None:

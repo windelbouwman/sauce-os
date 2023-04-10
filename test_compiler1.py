@@ -8,11 +8,16 @@ Usage:
 import glob
 import os.path
 import io
+import pytest
 from compiler1 import compiler
 
 
-def test_compiles(filename: str):
-    options = compiler.CompilationOptions(dump_ast=False, run_code=True, backend="vm")
+@pytest.mark.parametrize("backend", ["vm", "py"])
+def test_compiles(filename: str, backend: str):
+    # backend "cpp"
+    options = compiler.CompilationOptions(
+        dump_ast=False, run_code=True, backend=backend
+    )
     f = io.StringIO()
     compiler.do_compile([filename], f, options)
     stdout = f.getvalue()
