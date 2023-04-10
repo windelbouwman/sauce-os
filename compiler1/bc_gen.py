@@ -41,6 +41,10 @@ class ByteCodeGenerator:
             "or": "OR",
         }
 
+        self._unop_map = {
+            "not": "NOT",
+        }
+
     def gen_module(self, module: ast.Module):
         for definition in module.definitions:
             if isinstance(definition, ast.FunctionDef):
@@ -159,7 +163,8 @@ class ByteCodeGenerator:
             elif isinstance(kind.target.kind, ast.ArrayIndex):
                 assert kind.op == "="
                 self.gen_expression(kind.target.kind.base)
-                self.gen_expression(kind.target.kind.index)
+                assert len(kind.target.kind.indici) == 1
+                self.gen_expression(kind.target.kind.indici[0])
                 self.gen_expression(kind.value)
                 self.emit("SET_INDEX")
             else:
@@ -192,7 +197,8 @@ class ByteCodeGenerator:
             self.emit("ARRAY_LIT", len(kind.values))
         elif isinstance(kind, ast.ArrayIndex):
             self.gen_expression(kind.base)
-            self.gen_expression(kind.index)
+            assert len(kind.indici) == 1
+            self.gen_expression(kind.indici[0])
             self.emit("GET_INDEX")
         elif isinstance(kind, ast.UnionLiteral):
             self.gen_expression(kind.value)
@@ -207,6 +213,13 @@ class ByteCodeGenerator:
 
             if kind.op in self._binop_map:
                 self.emit(self._binop_map[kind.op])
+            else:
+                raise NotImplementedError(str(kind.op))
+        elif isinstance(kind, ast.Unop):
+            self.gen_expression(kind.rhs)
+
+            if kind.op in self._unop_map:
+                self.emit(self._unop_map[kind.op])
             else:
                 raise NotImplementedError(str(kind.op))
         elif isinstance(kind, ast.TypeCast):

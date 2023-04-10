@@ -6,8 +6,8 @@ struct Location:
 
 fn new_location(row: int, column: int) -> Location:
     let location = Location:
-        row: 1
-        column: 1
+        row: row
+        column: column
     
     return location
 

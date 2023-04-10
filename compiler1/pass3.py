@@ -77,7 +77,7 @@ class TypeEvaluation(BasePass):
         elif isinstance(kind, ast.ArrayIndex):
             if isinstance(kind.base.kind, ast.GenericLiteral):
                 tycon = kind.base.kind.tycon
-                type_arguments = [self.eval_type_expr(kind.index)]
+                type_arguments = [self.eval_type_expr(index) for index in kind.indici]
                 ty = tycon.apply(type_arguments)
                 expression.kind = ast.TypeLiteral(ty)
 

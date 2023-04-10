@@ -25,6 +25,10 @@ class BaseTransformer(ast.AstVisitor):
 class LoopRewriter(BaseTransformer):
     name = "loop-rewrite"
 
+    def __init__(self, std_module: ast.Module):
+        super().__init__()
+        self._std_module = std_module
+
     def visit_statement(self, statement: ast.Statement):
         super().visit_statement(statement)
         kind = statement.kind
@@ -145,6 +149,24 @@ class LoopRewriter(BaseTransformer):
                 )
                 loop_statement = ast.while_statement(yes_value, loop_body, location)
                 statement.kind = ast.CompoundStatement([let_it_var, loop_statement])
+
+    def visit_expression(self, expression: ast.Expression):
+        """Rewrite To-String operator"""
+        super().visit_expression(expression)
+        kind = expression.kind
+        if isinstance(kind, ast.ToString):
+            if kind.expr.ty.is_str():
+                # Simple, we are done!
+                expression.kind = kind.expr.kind
+            elif kind.expr.ty.is_int():
+                # call built-in int_to_str
+                int_to_str = self._std_module.get_field("int_to_str")
+                callee = ast.obj_ref(int_to_str, ast.void_type, expression.location)
+                expression.kind = ast.FunctionCall(callee, [kind.expr])
+            else:
+                raise ValueError(
+                    f"Cannot resolve to-string for {ast.str_ty(kind.expr.ty)}"
+                )
 
 
 class EnumRewriter(BaseTransformer):
@@ -502,3 +524,62 @@ class SwitchRewriter(BaseTransformer):
                 )
 
             statement.kind = ast.CompoundStatement([let_x, else_clause])
+
+
+class ConstantFolder(BaseTransformer):
+    """Optimize constant expressions"""
+
+    name = "constant-folder"
+
+    def visit_statement(self, statement: ast.Statement):
+        super().visit_statement(statement)
+        kind = statement.kind
+
+        if isinstance(kind, ast.IfStatement):
+            if isinstance(kind.condition.kind, ast.BoolLiteral):
+                # Deal with if-true or if-false
+                if kind.condition.kind.value:
+                    statement.kind = kind.true_statement.kind
+                else:
+                    statement.kind = kind.false_statement.kind
+
+    def visit_expression(self, expression: ast.Expression):
+        super().visit_expression(expression)
+        kind = expression.kind
+        if isinstance(kind, ast.Binop):
+            if (
+                isinstance(kind.lhs.kind, ast.NumericConstant)
+                and isinstance(kind.rhs.kind, ast.NumericConstant)
+                and kind.op in binops
+            ):
+                if expression.ty.is_int():
+                    lhs = expr_eval_int(kind.lhs)
+                    rhs = expr_eval_int(kind.rhs)
+                    val = binops[kind.op](lhs, rhs)
+                    expression.kind = ast.NumericConstant(val)
+                elif expression.ty.is_bool():
+                    lhs = expr_eval_int(kind.lhs)
+                    rhs = expr_eval_int(kind.rhs)
+                    val = binops[kind.op](lhs, rhs)
+                    assert isinstance(val, bool)
+                    expression.kind = ast.BoolLiteral(val)
+
+
+def expr_eval_int(expr: ast.Expression):
+    kind = expr.kind
+    if isinstance(kind, ast.NumericConstant):
+        if isinstance(kind.value, int):
+            return kind.value
+    else:
+        raise ValueError("No constant!")
+
+
+binops = {
+    "+": lambda x, y: x + y,
+    "-": lambda x, y: x - y,
+    "<": lambda x, y: x < y,
+    ">": lambda x, y: x > y,
+    "<=": lambda x, y: x <= y,
+    ">=": lambda x, y: x >= y,
+    "==": lambda x, y: x == y,
+}

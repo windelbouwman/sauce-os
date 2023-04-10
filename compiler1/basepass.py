@@ -27,6 +27,9 @@ class BasePass(ast.AstVisitor):
         logger.error(f"{self._filename}:{location}: {msg}", extra={"markup": True})
         self._errors.append((self._filename, location, msg))
 
+    def warning(self, location: Location, msg: str):
+        logger.warning(f"{self._filename}:{location}: {msg}", extra={"markup": True})
+
     def finish(self, msg: str):
         if self._errors:
             raise CompilationError(self._errors)

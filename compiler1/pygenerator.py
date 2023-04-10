@@ -81,7 +81,7 @@ class PyCodeGenerator:
             for statement in kind.statements:
                 self.gen_statement(statement)
         elif isinstance(kind, ast.IfStatement):
-            val = self.gen_expression(kind.condition)
+            val = self.gen_expression(kind.condition, parens=False)
             self.emit(f"if {val}:")
             self.indent()
             self.gen_statement(kind.true_statement)
@@ -111,7 +111,7 @@ class PyCodeGenerator:
             self.dedent()
 
         elif isinstance(kind, ast.WhileStatement):
-            val = self.gen_expression(kind.condition)
+            val = self.gen_expression(kind.condition, parens=False)
             self.emit(f"while {val}:")
             self.indent()
             self.gen_statement(kind.inner)
@@ -131,13 +131,13 @@ class PyCodeGenerator:
             self.emit(self.gen_expression(kind.value))
         elif isinstance(kind, ast.ReturnStatement):
             if kind.value:
-                self.emit(f"return {self.gen_expression(kind.value)}")
+                self.emit(f"return {self.gen_expression(kind.value, parens=False)}")
             else:
                 self.emit(f"return")
         else:
             raise NotImplementedError(str(kind))
 
-    def gen_expression(self, expression: ast.Expression) -> str:
+    def gen_expression(self, expression: ast.Expression, parens: bool = True) -> str:
         kind = expression.kind
         if isinstance(kind, ast.StringConstant):
             return f"'{kind.text}'"
@@ -149,14 +149,17 @@ class PyCodeGenerator:
             values = ", ".join([self.gen_expression(e) for e in kind.values])
             return f"[{values}]"
         elif isinstance(kind, ast.ArrayIndex):
+            assert len(kind.indici) == 1
             base = self.gen_expression(kind.base)
-            index = self.gen_expression(kind.index)
+            index = self.gen_expression(kind.indici[0])
             return f"{base}[{index}]"
         elif isinstance(kind, ast.DotOperator):
             base = self.gen_expression(kind.base)
             return f"{base}.f_{kind.field}"
         elif isinstance(kind, ast.StructLiteral):
-            values = ", ".join([self.gen_expression(e) for e in kind.values])
+            values = ", ".join(
+                [self.gen_expression(e, parens=False) for e in kind.values]
+            )
             return f"{kind.ty.kind.tycon.name}({values})"
         elif isinstance(kind, ast.UnionLiteral):
             name: str = kind.ty.kind.tycon.name
@@ -165,7 +168,12 @@ class PyCodeGenerator:
         elif isinstance(kind, ast.Binop):
             lhs = self.gen_expression(kind.lhs)
             rhs = self.gen_expression(kind.rhs)
-            return f"({lhs} {kind.op} {rhs})"
+            res = f"{lhs} {kind.op} {rhs}"
+            return f"({res})" if parens else res
+        elif isinstance(kind, ast.Unop):
+            rhs = self.gen_expression(kind.rhs)
+            res = f"{kind.op} {rhs}"
+            return f"({res})" if parens else res
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
             if isinstance(obj, (ast.Variable, ast.FunctionDef)):
@@ -181,7 +189,7 @@ class PyCodeGenerator:
             return self.gen_expression(kind.value)
         elif isinstance(kind, ast.FunctionCall):
             callee = self.gen_expression(kind.target)
-            args = ", ".join([self.gen_expression(a) for a in kind.args])
+            args = ", ".join([self.gen_expression(a, parens=False) for a in kind.args])
             return f"{callee}({args})"
         else:
             raise NotImplementedError(str(kind))

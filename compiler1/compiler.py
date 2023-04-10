@@ -2,7 +2,7 @@
 """
 
 from dataclasses import dataclass
-import logging, io
+import logging, io, tempfile, subprocess
 
 import networkx as nx
 
@@ -11,7 +11,13 @@ from .parsing import parse_file
 from .namebinding import ScopeFiller, NameBinder
 from .pass3 import NewOpPass, TypeEvaluation
 from .typechecker import TypeChecker
-from .transforms import LoopRewriter, EnumRewriter, ClassRewriter, SwitchRewriter
+from .transforms import (
+    LoopRewriter,
+    EnumRewriter,
+    ClassRewriter,
+    SwitchRewriter,
+    ConstantFolder,
+)
 from .flowcheck import flow_check
 from .cppgenerator import gen_cppcode
 from .pygenerator import gen_pycode
@@ -50,7 +56,7 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
         if options.dump_ast:
             ast.print_ast(module)
 
-    transform(modules)
+    transform(modules, known_modules["std"])
 
     if options.dump_ast:
         print_modules(modules)
@@ -75,8 +81,31 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
             gen_pycode(modules, output)
     elif options.backend == "cpp":
         if options.run_code:
-            raise NotImplementedError("Direct running for C++ code")
-        gen_cppcode(modules, f=output)
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                prefix="slang_compiler_tmp",
+                suffix=".cpp",
+                delete=False,
+            ) as f:
+                filename = f.name
+                logger.info(f"Generating C++ code to temporary file: {filename}")
+                gen_cppcode(modules, f=f)
+
+            runtime_filename = "runtime/runtime.cpp"
+            cpp_sources = [filename, runtime_filename]
+            logger.info(f"Invoking the g++ C++ compiler on {cpp_sources}")
+            cmd = ["g++"] + cpp_sources
+            logger.debug(f"Invoking command: {cmd}")
+            subprocess.run(cmd, check=True)
+
+            # Now we compiled our C++, run our exe:
+            exe_filename = "./a.out"
+            cmd = [exe_filename]
+            logger.info(f"Running native executable {exe_filename}")
+            logger.debug(f"Invoking command: {cmd}")
+            subprocess.run(cmd, check=True)
+        else:
+            gen_cppcode(modules, f=output)
     else:
         raise ValueError(f"Unknown backend: {options.backend}")
 
@@ -135,13 +164,13 @@ def print_modules(modules: list[ast.Module]):
         ast.print_ast(module)
 
 
-def transform(modules: list[ast.Module]):
+def transform(modules: list[ast.Module], std_module: ast.Module):
     """Transform a slew of modules (in-place)
 
     Some real compilation being done here.
     """
     # Rewrite and type-check for each transformation.
-    LoopRewriter().transform(modules)
+    LoopRewriter(std_module).transform(modules)
     check_modules(modules)
 
     EnumRewriter().transform(modules)
@@ -155,4 +184,7 @@ def transform(modules: list[ast.Module]):
     # TODO: this can be optional, depending on what the backend supports!
     SwitchRewriter().transform(modules)
     # print_modules(modules)
+    check_modules(modules)
+
+    ConstantFolder().transform(modules)
     check_modules(modules)

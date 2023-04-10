@@ -1,4 +1,5 @@
 from rich import print
+import rich.markup
 from functools import lru_cache
 from .location import Location
 
@@ -11,7 +12,7 @@ def print_error(code: str, filename: str, location: Location, message: str):
         if row_nr < location.row - context_amount:
             continue
 
-        print(f"[italic]{row_nr:5}[/italic]: {text}")
+        print(f"[italic]{row_nr:5}[/italic]: {rich.markup.escape(text)}")
         if row_nr == location.row:
             indent = " " * (location.column + 6)
             pointer = indent + "^"

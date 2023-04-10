@@ -18,12 +18,23 @@ fn int_type() -> MyType:
     # TODO
     return bool_type()
 
+fn str_type() -> MyType:
+    # TODO
+    return bool_type()
+
 struct Module:
     name: str
     definitions: List[Definition]
 
 enum Definition:
     Function(FunctionDef)
+
+fn function_def(name: str, body: Statement, location: Location) -> FunctionDef:
+    let f = FunctionDef:
+        name: name
+        is_pub: true
+        body: body
+    return f
 
 struct FunctionDef:
     name: str
@@ -58,6 +69,10 @@ enum StatementKind:
     Loop(LoopStatement)
     Switch(SwitchStatement)
     Let(LetStatement)
+    Compound(List[Statement])
+    Pass
+    Break
+    Continue
 
 fn if_statement(condition: Expression, body: Statement, false_body: Statement, location: Location) -> Statement:
     let i = IfStatement:
@@ -116,6 +131,10 @@ struct LetStatement:
     variable: Variable
     value: Expression
 
+fn compound(inner: List[Statement], location: Location) -> Statement:
+    let kind = StatementKind::Compound(inner)
+    return statement(kind, location)
+
 struct Expression:
     location: Location
     ty: MyType
@@ -134,7 +153,7 @@ enum ExpressionKind:
     VarRef(Variable)
     IntLiteral(int)
     # FloatLiteral(float)
-    # StringLiteral(str)
+    StringLiteral(str)
     BoolLiteral(bool)
 
 fn call(callee: Expression, arguments: List[Expression], ty: MyType, location: Location) -> Expression:
@@ -176,8 +195,22 @@ fn integer_literal(value: int, location: Location) -> Expression:
     let ty = int_type()
     return expression(kind, ty, location)
 
+fn string_literal(value: str, location: Location) -> Expression:
+    let kind = ExpressionKind::StringLiteral(value)
+    let ty = str_type()
+    return expression(kind, ty, location)
+
 fn print_ast(mod: Module):
     std::print("Module: " + mod.name)
     #for func in mod.functions:
     #    std.print(func.name)
 
+fn print_expr(expr: Expression):
+    let txt = "?"
+    case expr.kind:
+        StringLiteral(val):
+            txt = "String={val}"
+    else:
+        txt = "??"
+    
+    std.print("EXPR {txt}")

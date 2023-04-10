@@ -103,6 +103,12 @@ class MyType:
     def is_float(self) -> bool:
         return isinstance(self.kind, BaseType) and self.kind.is_float()
 
+    def is_str(self) -> bool:
+        return isinstance(self.kind, BaseType) and self.kind.is_str()
+
+    def is_bool(self) -> bool:
+        return isinstance(self.kind, BaseType) and self.kind.is_bool()
+
     def is_type_var_ref(self) -> bool:
         return isinstance(self.kind, TypeVarKind)
 
@@ -317,6 +323,12 @@ class BaseType(TypeKind):
     def is_float(self) -> bool:
         return self.name == "float"
 
+    def is_str(self) -> bool:
+        return self.name == "str"
+
+    def is_bool(self) -> bool:
+        return self.name == "bool"
+
 
 def type_expression(expr: "Expression"):
     return MyType(TypeExpression(expr))
@@ -475,13 +487,16 @@ class Expression(Node):
     def array_index(self, value: "Expression") -> "Expression":
         assert isinstance(self.ty.kind, ArrayType)
         ty = self.ty.kind.element_type
-        return array_index(self, value, ty, self.location)
+        return array_index(self, [value], ty, self.location)
 
     def call(self, arguments: list["Expression"]) -> "Expression":
         return function_call(self, arguments, self.location)
 
     def call_method(self, field: str, args: list["Expression"]) -> "Expression":
         return self.get_attr(field).call(args)
+
+    def to_string(self) -> "Expression":
+        return to_string(self)
 
 
 class Module(Node):
@@ -1135,6 +1150,22 @@ class Binop(ExpressionKind):
         return f"Binop({self.op})"
 
 
+def unop(op: str, value: Expression, location: Location) -> Expression:
+    kind = Unop(op, value)
+    ty = void_type
+    return Expression(kind, ty, location)
+
+
+class Unop(ExpressionKind):
+    def __init__(self, op: str, rhs: Expression):
+        super().__init__()
+        self.op = op
+        self.rhs = rhs
+
+    def __repr__(self):
+        return f"Unop({self.op})"
+
+
 def string_constant(text: str, location: Location):
     kind = StringConstant(text)
     ty = str_type
@@ -1250,6 +1281,21 @@ class UnionLiteral(ExpressionKind):
         return f"UnionLiteral({self.field})"
 
 
+def to_string(expr: Expression):
+    """Convert given expression to string type."""
+    kind = ToString(expr)
+    return Expression(kind, str_type, expr.location)
+
+
+class ToString(ExpressionKind):
+    def __init__(self, expr: Expression):
+        super().__init__()
+        self.expr = expr
+
+    def __repr__(self):
+        return f"ToString"
+
+
 class GenericLiteral(ExpressionKind):
     def __init__(self, tycon: TypeConstructor):
         super().__init__()
@@ -1351,20 +1397,23 @@ class DotOperator(ExpressionKind):
         return f"dot-operator({self.field})"
 
 
-def array_index(base: Expression, index: Expression, ty: MyType, location: Location):
-    kind = ArrayIndex(base, index)
+def array_index(
+    base: Expression, indici: list["Expression"], ty: MyType, location: Location
+):
+    kind = ArrayIndex(base, indici)
     return Expression(kind, ty, location)
 
 
 class ArrayIndex(ExpressionKind):
     """variable[index] operation."""
 
-    def __init__(self, base: Expression, index: Expression):
+    def __init__(self, base: Expression, indici: list[Expression]):
         super().__init__()
         assert isinstance(base, Expression)
-        assert isinstance(index, Expression)
+        assert isinstance(indici, list)
+        # assert isinstance(index, Expression)
         self.base = base
-        self.index = index
+        self.indici = indici
 
     def __repr__(self):
         return f"ArrayIndex"
@@ -1499,6 +1548,8 @@ class AstVisitor:
         if isinstance(kind, Binop):
             self.visit_expression(kind.lhs)
             self.visit_expression(kind.rhs)
+        elif isinstance(kind, Unop):
+            self.visit_expression(kind.rhs)
         elif isinstance(kind, FunctionCall):
             self.visit_expression(kind.target)
             for arg in kind.args:
@@ -1524,10 +1575,13 @@ class AstVisitor:
                 self.visit_expression(field.value)
         elif isinstance(kind, ArrayIndex):
             self.visit_expression(kind.base)
-            self.visit_expression(kind.index)
+            for index in kind.indici:
+                self.visit_expression(index)
         elif isinstance(kind, TypeCast):
             self.visit_type(kind.ty)
             self.visit_expression(kind.value)
+        elif isinstance(kind, ToString):
+            self.visit_expression(kind.expr)
 
 
 def print_ast(mod: Module):

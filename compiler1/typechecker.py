@@ -166,6 +166,13 @@ class TypeChecker(BasePass):
             else:
                 expression.ty = ty
 
+        elif isinstance(kind, ast.Unop):
+            if kind.op == "not":
+                self.assert_type(kind.rhs, bool_type)
+                expression.ty = bool_type
+            else:
+                raise NotImplementedError(kind.op)
+
         elif isinstance(kind, ast.DotOperator):
             if kind.base.ty.has_field(kind.field):
                 expression.ty = kind.base.ty.get_field_type(kind.field)
@@ -182,6 +189,14 @@ class TypeChecker(BasePass):
                 self.error(
                     expression.location,
                     f"Indexing requires array type, not {kind.base.ty}",
+                )
+
+            if len(kind.indici) == 1:
+                self.assert_type(kind.indici[0], ast.int_type)
+            else:
+                self.error(
+                    expression.location,
+                    "Array indexing only work with 1 integer index.",
                 )
 
         elif isinstance(kind, ast.FunctionCall):
@@ -242,6 +257,12 @@ class TypeChecker(BasePass):
                 raise NotImplementedError(str(kind))
         elif isinstance(kind, ast.TypeCast):
             expression.ty = kind.ty
+        elif isinstance(kind, ast.ToString):
+            if kind.expr.ty.is_int():
+                pass
+            else:
+                self.assert_type(kind.expr, ast.str_type)
+            expression.ty = ast.str_type
         else:
             raise NotImplementedError(str(expression.kind))
 

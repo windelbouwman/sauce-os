@@ -1,23 +1,17 @@
+# Turn source text into a sequence of tokens
 
 import std
 from std import print
 from token import Token, TokenKind, new_token, to_string
 from location import Location, new_location
-from datatypes import List, Option
+from datatypes import List, Option, Integer, new_integer
 
-struct IndentLevel:
-    level: int
-
-fn new_indent_level(level: int) -> IndentLevel:
-    let i = IndentLevel:
-        level: level
-    return i
 
 class Lexer:
     var indent_level: int = 0
     var pending: List[Token] = List()
-    var indent_stack: List[IndentLevel] = List()  # TODO: list of integers! (can only make list of non-basic types..)
-    var at_bol: bool = true
+    var indent_stack: List[Integer] = List()  # TODO: list of integers! (can only make list of non-basic types..)
+    var at_bol: bool = true  # at begin-of-line (bol)
     var at_end: bool = false
     var spaces: int = 0
     var source: str = ""
@@ -25,24 +19,21 @@ class Lexer:
     var tok_begin: int = 0
     var offset: int = 0
     var row: int = 1
+    var col_start: int = 0
     var automaton: Automaton = Automaton()
 
     fn init(source: str):
         this.source = source
-        this.indent_stack.append(new_indent_level(0))
+        this.at_end = false
+        this.at_bol = true
+        this.indent_stack.append(new_integer(0))
         this.automaton.init_table()
 
     fn next_token() -> Option[Token]:
-        # TODO: detect indentations!
-        # let tok = lexer::detect_indentations(lex)
-        # return this.next_token2()
-        while this.pending.is_empty() == true:
-            if this.at_end == false:
-                this.work_some()
-            else:
-                break
+        while this.pending.is_empty() and not this.at_end:
+            this.work_some()
         
-        if this.pending.is_empty() == true:
+        if this.pending.is_empty():
             return Option.None()
         else:
             return Option.Some(this.pending.pop_front())
@@ -52,25 +43,23 @@ class Lexer:
         case tok2:
             None:
                 this.at_end = true
-                # Dedent to top level!
 
+                if not this.at_bol:
+                    this.emit(new_token(TokenKind::NewLine(), new_location(this.row, 1)))
+
+                # Dedent to top level!
                 while this.indent_stack.len() > 1:
                     let tmp = this.indent_stack.pop_front()
                     # Arg, drop use: ...
-                    if tmp.level == 0:
+                    if tmp.value == 0:
                         pass
-                    let location = Location:
-                        row: 999
-                        column: 999
-                    this.emit(new_token(TokenKind::Dedent(), location))
+                    this.emit(new_token(TokenKind::Dedent(), new_location(this.row, 1)))
 
             Some(tok):
                 case tok.kind:
                     Space(x):
-                        if this.at_bol == true:
+                        if this.at_bol:
                             this.spaces += x
-                        else:
-                            pass
                     NewLine:
                         this.on_newline(tok)
                     Comment(x):
@@ -80,28 +69,29 @@ class Lexer:
                         tok.kind = TokenKind::NewLine()
                         this.on_newline(tok)
                 else:
-                    if this.at_bol == true:
+                    if this.at_bol:
                         this.at_bol = false
-                        if this.spaces > this.indent_stack.last().level:
+                        if this.spaces > this.indent_stack.last().value:
                             # 1x indent!
-                            this.indent_stack.append(new_indent_level(this.spaces))
+                            this.indent_stack.append(new_integer(this.spaces))
 
                             this.emit(new_token(TokenKind::Indent(), tok.location))
-                        while this.spaces < this.indent_stack.last().level:
-                            # n times dedent!
-                            let tmp = this.indent_stack.pop_last().level
-                            if tmp < this.spaces:
-                                print("Indentation error")
-                                pass
-                            this.emit(new_token(TokenKind::Dedent(), tok.location))
-                            # pass
+                        else:
+                            while this.spaces < this.indent_stack.last().value:
+                                # n times dedent!
+                                let tmp = this.indent_stack.pop_last().value
+                                if tmp < this.spaces:
+                                    print("Indentation error")
+                                    pass
+                                this.emit(new_token(TokenKind::Dedent(), tok.location))
+                                # pass
 
                     # print("ehhh -> " + to_string(tok))
                     this.emit(tok)
                 
 
     fn on_newline(tok: Token):
-        if this.at_bol == false:
+        if not this.at_bol:
             this.emit(tok)
         this.at_bol = true
         this.spaces = 0
@@ -117,6 +107,7 @@ class Lexer:
             this.tok_begin = this.offset
             while this.offset < n:
                 let c = std.ord(std.str_get(this.source, this.offset))
+                # print("char {c}")
                 this.automaton.next(c)
                 
                 # Check for error state:
@@ -126,14 +117,23 @@ class Lexer:
                     this.offset += 1
 
             if this.automaton.accepts == "":
-                print("error!")
+                print("error! {this.tok_begin}-{this.offset} < {n}")
                 return Option.None()
             else:
                 let tok_end = this.tok_begin + this.automaton.length
+                let column = this.tok_begin - this.col_start + 1
+                let location = new_location(this.row, column)
                 let txt = std.str_slice(this.source, this.tok_begin, tok_end)
+
                 let kind = TokenKind::Error()
                 if this.automaton.accepts == "id":
-                    kind = TokenKind::Identifier(txt)
+                    if txt == "import":
+                        kind = TokenKind::KwImport()
+                    else:
+                        if txt == "fn":
+                            kind = TokenKind::KwFn()
+                        else:
+                            kind = TokenKind::Identifier(txt)
                 # TODO: elif!
                 if this.automaton.accepts == "number":
                     kind = TokenKind::Integer(std.str_to_int(txt))
@@ -141,18 +141,24 @@ class Lexer:
                     kind = TokenKind::Space(std.str_len(txt))
                 if this.automaton.accepts == "newline":
                     kind = TokenKind::NewLine()
+                    this.col_start = tok_end
+                if this.automaton.accepts == "brace_open":
+                    kind = TokenKind::BraceOpen()
+                if this.automaton.accepts == "brace_close":
+                    kind = TokenKind::BraceClose()
+                if this.automaton.accepts == "colon":
+                    kind = TokenKind::Colon()
+                if this.automaton.accepts == "coloncolon":
+                    kind = TokenKind::Dot()
                 if this.automaton.accepts == "comment":
                     kind = TokenKind::Comment(txt)
+                    this.col_start = tok_end
                 if this.automaton.accepts == "string":
                     kind = TokenKind::String(txt)
                 #else:
                 #    print("TOKEN (len={this.offset})->" + this.automaton.accepts)
-
-                let loc = Location:
-                    row: this.row
-                    column: this.tok_begin
-
-                let tok = new_token(kind, loc)
+                
+                let tok = new_token(kind, location)
                 return Option.Some(tok)
         else:
             return Option.None()
@@ -182,42 +188,44 @@ class Automaton:
 
         let state0 = State()
         state0.add_range_goto(0, 9, 12)
-        state0.add_range_goto(10, 10, 10)
+        state0.add_range_goto(10, 10, 14)
         state0.add_range_goto(11, 31, 12)
-        state0.add_range_goto(32, 32, 2)
+        state0.add_range_goto(32, 32, 1)
         state0.add_range_goto(33, 33, 12)
-        state0.add_range_goto(34, 34, 13)
-        state0.add_range_goto(35, 35, 14)
+        state0.add_range_goto(34, 34, 16)
+        state0.add_range_goto(35, 35, 17)
         state0.add_range_goto(36, 39, 12)
         state0.add_range_goto(40, 40, 4)
         state0.add_range_goto(41, 41, 3)
         state0.add_range_goto(42, 42, 12)
-        state0.add_range_goto(43, 43, 7)
-        state0.add_range_goto(44, 44, 12)
-        state0.add_range_goto(45, 45, 9)
-        state0.add_range_goto(46, 46, 1)
+        state0.add_range_goto(43, 43, 8)
+        state0.add_range_goto(44, 44, 9)
+        state0.add_range_goto(45, 45, 11)
+        state0.add_range_goto(46, 46, 2)
         state0.add_range_goto(47, 47, 12)
-        state0.add_range_goto(48, 57, 6)
-        state0.add_range_goto(58, 58, 11)
-        state0.add_range_goto(59, 60, 12)
-        state0.add_range_goto(61, 61, 5)
-        state0.add_range_goto(62, 64, 12)
-        state0.add_range_goto(65, 90, 8)
+        state0.add_range_goto(48, 57, 7)
+        state0.add_range_goto(58, 58, 15)
+        state0.add_range_goto(59, 59, 12)
+        state0.add_range_goto(60, 60, 5)
+        state0.add_range_goto(61, 61, 6)
+        state0.add_range_goto(62, 62, 13)
+        state0.add_range_goto(63, 64, 12)
+        state0.add_range_goto(65, 90, 10)
         state0.add_range_goto(91, 96, 12)
-        state0.add_range_goto(97, 122, 8)
+        state0.add_range_goto(97, 122, 10)
         state0.add_range_goto(123, 1114111, 12)
         this.states.append(state0)
 
         let state1 = State()
-        state1.add_range_goto(0, 1114111, 12)
-        state1.accept = "dot"
+        state1.add_range_goto(0, 31, 12)
+        state1.add_range_goto(32, 32, 1)
+        state1.add_range_goto(33, 1114111, 12)
+        state1.accept = "space"
         this.states.append(state1)
 
         let state2 = State()
-        state2.add_range_goto(0, 31, 12)
-        state2.add_range_goto(32, 32, 2)
-        state2.add_range_goto(33, 1114111, 12)
-        state2.accept = "space"
+        state2.add_range_goto(0, 1114111, 12)
+        state2.accept = "dot"
         this.states.append(state2)
 
         let state3 = State()
@@ -231,52 +239,52 @@ class Automaton:
         this.states.append(state4)
 
         let state5 = State()
-        state5.add_range_goto(0, 1114111, 12)
-        state5.accept = "equals"
+        state5.add_range_goto(0, 60, 12)
+        state5.add_range_goto(61, 61, 23)
+        state5.add_range_goto(62, 1114111, 12)
+        state5.accept = "less"
         this.states.append(state5)
 
         let state6 = State()
-        state6.add_range_goto(0, 47, 12)
-        state6.add_range_goto(48, 57, 6)
-        state6.add_range_goto(58, 1114111, 12)
-        state6.accept = "number"
+        state6.add_range_goto(0, 1114111, 12)
+        state6.accept = "equals"
         this.states.append(state6)
 
         let state7 = State()
-        state7.add_range_goto(0, 1114111, 12)
-        state7.accept = "plus"
+        state7.add_range_goto(0, 47, 12)
+        state7.add_range_goto(48, 57, 7)
+        state7.add_range_goto(58, 1114111, 12)
+        state7.accept = "number"
         this.states.append(state7)
 
         let state8 = State()
-        state8.add_range_goto(0, 47, 12)
-        state8.add_range_goto(48, 57, 8)
-        state8.add_range_goto(58, 64, 12)
-        state8.add_range_goto(65, 90, 8)
-        state8.add_range_goto(91, 94, 12)
-        state8.add_range_goto(95, 95, 8)
-        state8.add_range_goto(96, 96, 12)
-        state8.add_range_goto(97, 122, 8)
-        state8.add_range_goto(123, 1114111, 12)
-        state8.accept = "id"
+        state8.add_range_goto(0, 1114111, 12)
+        state8.accept = "plus"
         this.states.append(state8)
 
         let state9 = State()
-        state9.add_range_goto(0, 61, 12)
-        state9.add_range_goto(62, 62, 18)
-        state9.add_range_goto(63, 1114111, 12)
-        state9.accept = "minus"
+        state9.add_range_goto(0, 1114111, 12)
+        state9.accept = "comma"
         this.states.append(state9)
 
         let state10 = State()
-        state10.add_range_goto(0, 1114111, 12)
-        state10.accept = "newline"
+        state10.add_range_goto(0, 47, 12)
+        state10.add_range_goto(48, 57, 10)
+        state10.add_range_goto(58, 64, 12)
+        state10.add_range_goto(65, 90, 10)
+        state10.add_range_goto(91, 94, 12)
+        state10.add_range_goto(95, 95, 10)
+        state10.add_range_goto(96, 96, 12)
+        state10.add_range_goto(97, 122, 10)
+        state10.add_range_goto(123, 1114111, 12)
+        state10.accept = "id"
         this.states.append(state10)
 
         let state11 = State()
-        state11.add_range_goto(0, 57, 12)
-        state11.add_range_goto(58, 58, 17)
-        state11.add_range_goto(59, 1114111, 12)
-        state11.accept = "colon"
+        state11.add_range_goto(0, 61, 12)
+        state11.add_range_goto(62, 62, 22)
+        state11.add_range_goto(63, 1114111, 12)
+        state11.accept = "minus"
         this.states.append(state11)
 
         let state12 = State()
@@ -284,44 +292,73 @@ class Automaton:
         this.states.append(state12)
 
         let state13 = State()
-        state13.add_range_goto(0, 9, 13)
-        state13.add_range_goto(10, 10, 12)
-        state13.add_range_goto(11, 33, 13)
-        state13.add_range_goto(34, 34, 16)
-        state13.add_range_goto(35, 1114111, 13)
+        state13.add_range_goto(0, 60, 12)
+        state13.add_range_goto(61, 61, 21)
+        state13.add_range_goto(62, 1114111, 12)
+        state13.accept = "greater"
         this.states.append(state13)
 
         let state14 = State()
-        state14.add_range_goto(0, 9, 14)
-        state14.add_range_goto(10, 10, 15)
-        state14.add_range_goto(11, 1114111, 14)
+        state14.add_range_goto(0, 1114111, 12)
+        state14.accept = "newline"
         this.states.append(state14)
 
         let state15 = State()
-        state15.add_range_goto(0, 1114111, 12)
-        state15.accept = "comment"
+        state15.add_range_goto(0, 57, 12)
+        state15.add_range_goto(58, 58, 20)
+        state15.add_range_goto(59, 1114111, 12)
+        state15.accept = "colon"
         this.states.append(state15)
 
         let state16 = State()
-        state16.add_range_goto(0, 1114111, 12)
-        state16.accept = "string"
+        state16.add_range_goto(0, 9, 16)
+        state16.add_range_goto(10, 10, 12)
+        state16.add_range_goto(11, 33, 16)
+        state16.add_range_goto(34, 34, 19)
+        state16.add_range_goto(35, 1114111, 16)
         this.states.append(state16)
 
         let state17 = State()
-        state17.add_range_goto(0, 1114111, 12)
-        state17.accept = "coloncolon"
+        state17.add_range_goto(0, 9, 17)
+        state17.add_range_goto(10, 10, 18)
+        state17.add_range_goto(11, 1114111, 17)
         this.states.append(state17)
 
         let state18 = State()
         state18.add_range_goto(0, 1114111, 12)
-        state18.accept = "arrow"
+        state18.accept = "comment"
         this.states.append(state18)
+
+        let state19 = State()
+        state19.add_range_goto(0, 1114111, 12)
+        state19.accept = "string"
+        this.states.append(state19)
+
+        let state20 = State()
+        state20.add_range_goto(0, 1114111, 12)
+        state20.accept = "coloncolon"
+        this.states.append(state20)
+
+        let state21 = State()
+        state21.add_range_goto(0, 1114111, 12)
+        state21.accept = "greater_equals"
+        this.states.append(state21)
+
+        let state22 = State()
+        state22.add_range_goto(0, 1114111, 12)
+        state22.accept = "arrow"
+        this.states.append(state22)
+
+        let state23 = State()
+        state23.add_range_goto(0, 1114111, 12)
+        state23.accept = "less_equals"
+        this.states.append(state23)
 
 
 
 
         # Display table:
-        if false == true:
+        if false:
             for state in this.states:
                 print("State")
                 for y in state.transitions:
@@ -335,13 +372,7 @@ class Automaton:
 
     fn next(atom: int):
         # Go to next state, depending on current state, and atom.
-
         let state = this.states.get(this.state)
-        if state.accept == "":
-            pass
-        else:
-            this.accepts = state.accept
-            this.length = this.offset
 
         # Transition:
         for g in state.transitions:
@@ -351,6 +382,16 @@ class Automaton:
                 # print("new state {atom} ==> {this.state}")
 
         this.offset += 1
+
+        # Check what we accept at this point:
+        state = this.states.get(this.state)
+        if state.accept == "":
+            pass
+        else:
+            this.accepts = state.accept
+            this.length = this.offset
+
+
 
 class State:
     var transitions: List[RangeGoto] = List()

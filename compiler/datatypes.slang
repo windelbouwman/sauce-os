@@ -3,6 +3,27 @@ enum<D> Option:
     Some(D)
     None
 
+enum<O,E> Result:
+    Ok(O)
+    Error(E)
+
+# Boxed versions of int and str..
+# TODO: figure out nicer way to store int and str in List
+struct Integer:
+    value: int
+
+fn new_integer(value: int) -> Integer:
+    let i = Integer:
+        value: value
+    return i
+
+struct String:
+    value: str
+
+fn new_string(value: str) -> String:
+    let i = String:
+        value: value
+    return i
 
 class<T> List:
     # Linked list based on a linked list of elements with next pointers.

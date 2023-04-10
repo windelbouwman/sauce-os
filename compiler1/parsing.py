@@ -84,7 +84,7 @@ def process_fstrings(literal: str, location: Location) -> ast.Expression:
         part_loc = Location(location.row, location.column + col + 1)
         if part.startswith(r"{") and part.endswith("}"):
             value = parse_expr(part[1:-1], part_loc)
-            expr = ast.name_ref("std", part_loc).get_attr("int_to_str").call([value])
+            expr = value.to_string()
         else:
             expr = ast.string_constant(part, part_loc)
         col += len(part)
@@ -414,11 +414,14 @@ class CustomTransformer(LarkTransformer):
         else:
             assert len(x) == 2
             op, rhs = x
-            return ast.Unop(op, rhs, get_loc(x[0]))
+            return ast.unop(op.value, rhs, get_loc(x[0]))
 
     def comparison(self, x):
-        lhs, op, rhs = x
-        return ast.binop(lhs, op, rhs, get_loc(x[1]))
+        if len(x) == 1:
+            return x[0]
+        else:
+            lhs, op, rhs = x
+            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
 
     def cmpop(self, x):
         return x[0]
@@ -428,14 +431,14 @@ class CustomTransformer(LarkTransformer):
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op, rhs, get_loc(x[1]))
+            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
 
     def sum(self, x):
         if len(x) == 1:
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op, rhs, get_loc(x[1]))
+            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
 
     def addop(self, x):
         return x[0]
@@ -445,7 +448,7 @@ class CustomTransformer(LarkTransformer):
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op, rhs, get_loc(x[1]))
+            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
 
     def mulop(self, x):
         return x[0]
@@ -578,6 +581,7 @@ return_statement: KW_RETURN expression?
 assignment_statement: expression (EQUALS | PLUS_EQUALS | MINUS_EQUALS) expression
 
 if_statement: KW_IF test COLON NEWLINE block else_clause?
+elif_clause: KW_ELIF test COLON NEWLINE block
 else_clause: KW_ELSE COLON NEWLINE block
 let_statement: KW_LET ID (COLON typ)? EQUALS expression NEWLINE
              | KW_LET ID (COLON typ)? EQUALS obj_init
@@ -597,6 +601,7 @@ conjunction: conjunction KW_AND inversion
 inversion: KW_NOT inversion
          | comparison
 comparison: expression cmpop expression
+          | expression
 cmpop: LESS_THAN | GREATER_THAN | EQUALS_EQUALS | LESS_EQUALS | GREATER_EQUALS
 
 expression: sum
@@ -613,7 +618,7 @@ atom: obj_ref
     | array_literal
     | atom LEFT_BRACE arguments? RIGHT_BRACE
     | LEFT_BRACE expression RIGHT_BRACE
-    | atom LEFT_BRACKET expression RIGHT_BRACKET
+    | atom LEFT_BRACKET arguments RIGHT_BRACKET
     | atom DOT ID
 
 arguments: expression
@@ -628,7 +633,7 @@ obj_init: typ COLON NEWLINE INDENT field_init+ DEDENT
 field_init: ID COLON expression NEWLINE
 
 %declare KW_AND KW_BREAK KW_CASE KW_CLASS KW_CONTINUE
-%declare KW_ELSE KW_ENUM
+%declare KW_ELIF KW_ELSE KW_ENUM
 %declare KW_FN KW_FOR KW_FROM KW_IF KW_IMPORT KW_IN
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
 %declare KW_RETURN KW_STRUCT KW_SWITCH KW_TYPE KW_VAR KW_WHILE

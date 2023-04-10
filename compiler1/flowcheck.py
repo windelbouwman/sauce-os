@@ -63,7 +63,10 @@ class FlowCheck(BasePass):
                                 f"Variable {variable.name} not always defined",
                             )
                 else:
-                    self.error(variable.location, f"'{variable.name}' was never used")
+                    # TBD: this check may be too annoying:
+                    # self.error(variable.location, f"'{variable.name}' was never used")
+                    self.warning(variable.location, f"'{variable.name}' was never used")
+
         else:
             super().visit_definition(definition)
 

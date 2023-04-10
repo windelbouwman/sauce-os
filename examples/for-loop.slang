@@ -14,7 +14,7 @@ struct Holder:
     a: int
     b: float
 
-fn main():
+fn main() -> int:
     # let x: list<float> = [1,7,11,2]
     # let x: float = [1,7,11,2]
     let x = [1,7,11,2,550,232,12,2]
@@ -48,3 +48,5 @@ fn main():
         b: 9.2
     let z = [z1, z2]
     std::print("z[1].a = " + std::int_to_str(z[1].a))
+    return 0
+    

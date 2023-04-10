@@ -17,6 +17,17 @@ struct Token:
 enum TokenKind:
     Identifier(str)
 
+    # Keywords:
+    KwImport
+    KwFn
+    KwPass
+    KwBreak
+    KwContinue
+    KwIf
+    KwElse
+    KwLoop
+    KwWhile
+
     # Literals:
     Float(float)
     Integer(int)
@@ -27,6 +38,8 @@ enum TokenKind:
     Comma
     Dot
     Arrow
+    BraceOpen
+    BraceClose
 
     # White-space:
     Space(int)
@@ -41,16 +54,20 @@ fn to_string(tok: Token) -> str:
     # """ Convert token to txt """
     let txt = "?"
     case tok.kind:
+        KwImport:
+            txt = "IMPORT"
+        KwFn:
+            txt = "FN"
         Identifier(x):
-            txt = "ID(" + x + ")"
+            txt = "ID({x})"
         String(a):
-            txt = "STRING(" + a + ")"
+            txt = "STRING({a})"
         Integer(v):
             txt = "INT({v})"
         Space(v):
             txt = "SPACE({v})"
         Comment(a):
-            txt = "COMMENT(" + a + ")"
+            txt = "COMMENT({a})"
         NewLine:
             txt = "NEWLINE"
         Indent:
@@ -59,8 +76,16 @@ fn to_string(tok: Token) -> str:
             txt = "DEDENT"
         Colon:
             txt = "COLON"
+        Comma:
+            txt = "COMMA"
+        Dot:
+            txt = "DOT"
+        BraceOpen:
+            txt = "BRACE_OPEN"
+        BraceClose:
+            txt = "BRACE_CLOSE"
         Error:
             txt = "ERROR"
     else:
         txt = "???"
-    return "row={tok.location.row}:{tok.location.column} " + txt
+    return "row={tok.location.row}:{tok.location.column} {txt}"

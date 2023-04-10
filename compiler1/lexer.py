@@ -92,6 +92,7 @@ def tokenize(code: str | tuple[Location, str]):
         "let": "KW_LET",
         "loop": "KW_LOOP",
         "mut": "KW_MUT",
+        "not": "KW_NOT",
         "or": "KW_OR",
         "pass": "KW_PASS",
         "return": "KW_RETURN",

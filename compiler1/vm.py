@@ -80,8 +80,14 @@ class VirtualMachine:
         self.functions_by_name = {f.name: f for f in prog.functions}
 
     def run(self):
-        while self._frames:
-            self.dispatch()
+        try:
+            while self._frames:
+                self.dispatch()
+        except IndexError:
+            print("traceback:")
+            for frame in self._frames:
+                print("in ", frame._function.name)
+            raise
 
     def dispatch(self):
         """Single tick"""
@@ -132,6 +138,10 @@ class VirtualMachine:
             rhs = self.pop_value()
             lhs = self.pop_value()
             res = binary_op_funcs[opcode](lhs, rhs)
+            self.push_value(res)
+        elif opcode in unary_op_funcs:
+            rhs = self.pop_value()
+            res = unary_op_funcs[opcode](rhs)
             self.push_value(res)
         elif opcode == "JUMP-IF":
             v = self.pop_value()
@@ -224,3 +234,5 @@ binary_op_funcs = {
     "AND": lambda a, b: a and b,
     "OR": lambda a, b: a or b,
 }
+
+unary_op_funcs = {"NOT": lambda a: not a}

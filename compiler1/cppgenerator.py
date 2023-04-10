@@ -192,13 +192,19 @@ class Generator:
             args = ", ".join([self.gen_expr(arg, parens=False) for arg in kind.args])
             return f"{self.gen_expr(kind.target)}({args})"
         elif isinstance(kind, ast.ArrayIndex):
-            return f"{self.gen_expr(kind.base)}[{self.gen_expr(kind.index)}]"
+            assert len(kind.indici) == 1
+            return f"{self.gen_expr(kind.base)}[{self.gen_expr(kind.indici[0])}]"
         elif isinstance(kind, ast.DotOperator):
             return f"{self.gen_expr(kind.base)}.{kind.field}"
         elif isinstance(kind, ast.Binop):
             ops = {"and": "&&", "or": "||"}
             op: str = ops.get(kind.op, kind.op)
             x = f"{self.gen_expr(kind.lhs)} {op} {self.gen_expr(kind.rhs)}"
+            return f"({x})" if parens else x
+        elif isinstance(kind, ast.Unop):
+            ops = {"not": "!"}
+            op: str = ops.get(kind.op, kind.op)
+            x = f"{op} {self.gen_expr(kind.rhs)}"
             return f"({x})" if parens else x
         elif isinstance(kind, ast.TypeCast):
             return f"static_cast<{self.gen_type(kind.ty, '')}>({self.gen_expr(kind.value)})"
