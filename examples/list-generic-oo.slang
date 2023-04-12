@@ -13,7 +13,7 @@ fn new_integer(value: int) -> Integer:
         value: value
     return i
 
-class<T> List:
+class List[T]:
     var head_element: Option[ListElement[T]] = Option.None()
 
     fn append(val: T):
@@ -39,15 +39,15 @@ class<T> List:
         return it
 
 # TODO: replace by Option<ListElement>
-enum<D> Option:
+enum Option[D]:
     Some(D)
     None
 
-struct<T> ListElement:
+struct ListElement[T]:
     next: Option[ListElement[T]]
     data: T
 
-class<T> ListIter:
+class ListIter[T]:
     var next_element: Option[ListElement[T]] = Option.None()
 
     fn next() -> Option[T]:

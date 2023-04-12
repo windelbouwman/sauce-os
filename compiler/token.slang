@@ -52,9 +52,10 @@ enum TokenKind:
     Indent
     Dedent
 
+    Eof
     Error
 
-fn to_string(tok: Token) -> str:
+fn token_to_string(tok: Token) -> str:
     # """ Convert token to txt """
     let txt = "?"
     case tok.kind:
@@ -91,7 +92,7 @@ fn to_string(tok: Token) -> str:
         BraceClose:
             txt = "BRACE_CLOSE"
         Error:
-            txt = "ERROR2"
+            txt = "LEX-ERROR"
     else:
         txt = "???"
     return "row={tok.location.row}:{tok.location.column} {txt}"

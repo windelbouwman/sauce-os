@@ -2,6 +2,7 @@
 from std import print
 import ast
 from parsing import parse_source
+from namebinding import bind_names
 from ir_gen import gen_bytecode
 from datatypes import List, String, new_string
 
@@ -34,9 +35,14 @@ fn main() -> int:
     
     # TODO: topo-sort modules!
 
-    print("generating bytecode")
     for module in modules:
-        gen_bytecode(module)
+        bind_names(module)
+
+    print("generating bytecode")
+    # return 1
+    # TODO:
+    for module2 in modules:
+        gen_bytecode(module2)
     
     print("DONE & DONE")
     return 0

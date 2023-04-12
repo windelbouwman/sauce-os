@@ -2,26 +2,26 @@
 # Idea: implement a list type as a linked list.
 import std
 
-struct<T> List:
+struct List[T]:
     head_element: Option[ListElement[T]]
 
-enum<T> Option:
+enum Option[T]:
     Some(T)
     None
 
-struct<T> ListElement:
+struct ListElement[T]:
     next: Option[ListElement[T]]
     data: T
 
-struct<T> ListIter:
+struct ListIter[T]:
     next: Option[ListElement[T]]
 
-fn list_new<T>() -> List[T]:
+fn list_new[T]() -> List[T]:
     let x = List[T]:
         head_element: Option[ListElement[T]].None()
     return x
 
-fn list_append<T>(this: List[T], value: T):
+fn list_append[T](this: List[T], value: T):
     let new_tail_element = ListElement[T]:
         next: Option[ListElement[T]].None()
         data: value
@@ -39,13 +39,13 @@ fn list_append<T>(this: List[T], value: T):
                         element = nxt_element
             element.next = Option[ListElement[T]].Some(new_tail_element)
 
-fn list_iter_new<T>(this: List[T]) -> ListIter[T]:
+fn list_iter_new[T](this: List[T]) -> ListIter[T]:
     # " Create an iterator looping over a list "
     let i = ListIter[T]:
         next: this.head_element
     return i
 
-fn list_iter_next<T>(this: ListIter[T]) -> Option[T]:
+fn list_iter_next[T](this: ListIter[T]) -> Option[T]:
     # " Retrieve next item "
     let x = this.next
     case x:

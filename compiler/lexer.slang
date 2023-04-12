@@ -2,7 +2,7 @@
 
 import std
 from std import print
-from token import Token, TokenKind, new_token, to_string
+from token import Token, TokenKind, new_token, token_to_string
 from location import Location, new_location
 from datatypes import List, Option, Integer, new_integer
 
@@ -29,22 +29,22 @@ class Lexer:
         this.indent_stack.append(new_integer(0))
         this.automaton.init_table()
 
-    fn next_token() -> Option[Token]:
+    fn next_token() -> Token:
         while this.pending.is_empty() and not this.at_end:
             this.work_some()
         
         if this.pending.is_empty():
-            return Option.None()
+            return new_token(TokenKind::Eof(), new_location(this.row, 1))
         else:
-            return Option.Some(this.pending.pop_front())
+            return this.pending.pop_front()
     
     fn pushback_token(token: Token):
         this.pending.prepend(token)
 
     fn work_some():
-        let tok2 = this.next_token2()
-        case tok2:
-            None:
+        let tok = this.next_token2()
+        case tok.kind:
+            Eof:
                 this.at_end = true
 
                 if not this.at_bol:
@@ -58,40 +58,37 @@ class Lexer:
                         pass
                     this.emit(new_token(TokenKind::Dedent(), new_location(this.row, 1)))
 
-            Some(tok):
-                case tok.kind:
-                    Space(x):
-                        if this.at_bol:
-                            this.spaces += x
-                    NewLine:
-                        this.on_newline(tok)
-                    Comment(x):
-                        # TODO: only use x, since we must ??
-                        if x == x:
-                            pass
-                        tok.kind = TokenKind::NewLine()
-                        this.on_newline(tok)
+            Space(x):
+                if this.at_bol:
+                    this.spaces += x
+            NewLine:
+                this.on_newline(tok)
+            Comment(x):
+                # TODO: only use x, since we must ??
+                if x == x:
+                    pass
+                tok.kind = TokenKind::NewLine()
+                this.on_newline(tok)
+        else:
+            if this.at_bol:
+                this.at_bol = false
+                if this.spaces > this.indent_stack.last().value:
+                    # 1x indent!
+                    this.indent_stack.append(new_integer(this.spaces))
+
+                    this.emit(new_token(TokenKind::Indent(), tok.location))
                 else:
-                    if this.at_bol:
-                        this.at_bol = false
-                        if this.spaces > this.indent_stack.last().value:
-                            # 1x indent!
-                            this.indent_stack.append(new_integer(this.spaces))
+                    while this.spaces < this.indent_stack.last().value:
+                        # n times dedent!
+                        let tmp = this.indent_stack.pop_last().value
+                        if tmp < this.spaces:
+                            print("Indentation error")
+                            pass
+                        this.emit(new_token(TokenKind::Dedent(), tok.location))
+                        # pass
 
-                            this.emit(new_token(TokenKind::Indent(), tok.location))
-                        else:
-                            while this.spaces < this.indent_stack.last().value:
-                                # n times dedent!
-                                let tmp = this.indent_stack.pop_last().value
-                                if tmp < this.spaces:
-                                    print("Indentation error")
-                                    pass
-                                this.emit(new_token(TokenKind::Dedent(), tok.location))
-                                # pass
-
-                    # print("ehhh -> " + to_string(tok))
-                    this.emit(tok)
-                
+            # print("ehhh -> " + token_to_string(tok))
+            this.emit(tok)
 
     fn on_newline(tok: Token):
         if not this.at_bol:
@@ -103,7 +100,7 @@ class Lexer:
     fn emit(tok: Token):
         this.pending.append(tok)
 
-    fn next_token2() -> Option[Token]:
+    fn next_token2() -> Token:
         let n = std.str_len(this.source)
         if this.offset < n:
             this.automaton.reset()
@@ -119,16 +116,17 @@ class Lexer:
                 else:
                     this.offset += 1
 
+            let kind = TokenKind::Error()
+            let column = this.tok_begin - this.col_start + 1
+            let location = new_location(this.row, column)
+
             if this.automaton.accepts == "":
                 print("error! {this.tok_begin}-{this.offset} < {n}")
-                return Option.None()
+                # return Option.None()
             else:
                 let tok_end = this.tok_begin + this.automaton.length
-                let column = this.tok_begin - this.col_start + 1
-                let location = new_location(this.row, column)
                 let txt = std.str_slice(this.source, this.tok_begin, tok_end)
 
-                let kind = TokenKind::Error()
                 if this.automaton.accepts == "id":
                     # TODO: we need elif....
                     if txt == "import":
@@ -170,10 +168,9 @@ class Lexer:
                 #else:
                 #    print("TOKEN (len={this.offset})->" + this.automaton.accepts)
                 
-                let tok = new_token(kind, location)
-                return Option.Some(tok)
+            return new_token(kind, location)
         else:
-            return Option.None()
+            return new_token(TokenKind::Eof(), new_location(this.row, 1))
 
 
 class Automaton:

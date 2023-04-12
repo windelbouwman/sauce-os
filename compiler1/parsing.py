@@ -180,14 +180,9 @@ class CustomTransformer(LarkTransformer):
         return ast.var_def(name, ty, value, get_loc(x[0]))
 
     def func_def(self, x):
-        # KW_FN ID type_parameters? function_signature COLON NEWLINE block
-        name = x[1].value
-        if isinstance(x[4], LarkToken) and x[4].type == "COLON":
-            type_parameters = x[2]
-        else:
-            assert isinstance(x[3], LarkToken) and x[3].type == "COLON"
-            type_parameters = []
-        parameters, return_type = x[-4]
+        # KW_FN id_and_type_parameters function_signature COLON NEWLINE block
+        location, name, type_parameters = x[1]
+        parameters, return_type = x[2]
         body = x[-1]
         return ast.function_def(
             name, type_parameters, parameters, return_type, body, get_loc(x[0])
@@ -245,15 +240,13 @@ class CustomTransformer(LarkTransformer):
         return ast.type_def(name, typ, get_loc(x[0]))
 
     def id_and_type_parameters(self, x):
-        # id_and_type_parameters: type_parameters? ID
+        # id_and_type_parameters: ID type_parameters?
+        name = x[0].value
+        location = get_loc(x[0])
         if len(x) == 1:
-            name = x[0].value
-            location = get_loc(x[0])
             type_parameters = []
         else:
-            name = x[1].value
-            location = get_loc(x[1])
-            type_parameters = x[0]
+            type_parameters = x[1]
         return (location, name, type_parameters)
 
     def type_parameters(self, x):
@@ -264,7 +257,8 @@ class CustomTransformer(LarkTransformer):
         if isinstance(x[0], LarkToken) and x[0].type == "KW_FN":
             # raise NotImplementedError('?')
             parameters, return_type = x[1]
-            return ast.function_type(parameters, return_type)
+            parameter_types = [p.ty for p in parameters]
+            return ast.function_type(parameter_types, return_type)
         else:
             assert isinstance(x[0], ast.Expression)
             return ast.type_expression(x[0])
@@ -537,7 +531,7 @@ definition: func_def
 
 class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
 var_def: KW_VAR ID COLON typ EQUALS expression NEWLINE
-func_def: KW_FN ID type_parameters? function_signature COLON NEWLINE block
+func_def: KW_FN id_and_type_parameters function_signature COLON NEWLINE block
 function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
 parameters: parameter
           | parameters COMMA parameter
@@ -548,8 +542,8 @@ enum_def: KW_ENUM id_and_type_parameters COLON NEWLINE INDENT enum_variant+ DEDE
 enum_variant: ID NEWLINE
             | ID LEFT_BRACE types RIGHT_BRACE NEWLINE
 type_def: KW_TYPE ID EQUALS typ NEWLINE
-id_and_type_parameters: type_parameters? ID
-type_parameters: LESS_THAN ids GREATER_THAN
+id_and_type_parameters: ID type_parameters?
+type_parameters: LEFT_BRACKET ids RIGHT_BRACKET
 types: typ
      | types COMMA typ
 typ: expression

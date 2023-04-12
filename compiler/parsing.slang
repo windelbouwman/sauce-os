@@ -3,7 +3,7 @@ import ast
 import std
 from std import print
 from lexer import Lexer
-from token import to_string, Token
+from token import token_to_string, Token
 from location import Location, new_location
 from datatypes import List, Result, Option
 from utils import panic
@@ -13,10 +13,10 @@ struct CompilationError:
     location: Location
     message: str
 
-fn new_error(location: Location, message: str) -> CompilationError:
+fn new_error(tok: Token, message: str) -> CompilationError:
     let e = CompilationError:
-        location: location
-        message: message
+        location: tok.location
+        message: "{message}, got {token_to_string(tok)}"
     return e
 
 fn parse_source(filename: str) -> Result[ast.Module,CompilationError]:
@@ -46,26 +46,21 @@ class Parser:
         # let imports = List()
 
         loop:
-            case this.lex.next_token():
-                None:
+            let tok = this.lex.next_token()
+            case tok.kind:
+                Eof:
                     # We are done!
                     break
-                Some(tok):
-                    case tok.kind:
-                        KwImport:
-                            this.parse_import(tok.location)
-                        KwFn:
-                            case this.parse_func_def(tok.location):
-                                Ok(func_def):
-                                    definitions.append(ast.Definition.Function(func_def))
-                                Error(error):
-                                    return Result.Error(error)
-                        String(txt):
-                            let n = ast.string_literal(txt, tok.location)
-                            ast.print_expr(n)
-                    else:
-                        return Result.Error(new_error(tok.location, "Unexpected token: {to_string(tok)}"))
-                        # std::print(to_string(tok))
+                KwImport:
+                    this.parse_import(tok.location)
+                KwFn:
+                    case this.parse_func_def(tok.location):
+                        Ok(func_def):
+                            definitions.append(ast.Definition.Function(func_def))
+                        Error(error):
+                            return Result.Error(error)
+            else:
+                return Result.Error(new_error(tok, "Unexpected token"))
 
         let program = ast::Module:
             name: "FUU"
@@ -82,53 +77,42 @@ class Parser:
         
         # ID:
         let name = "?"
-        case this.get_token():
-            Ok(tok):
-                case tok.kind:
-                    Identifier(txt):
-                        name = txt
-                else:
-                    return Result::Error(new_error(tok.location, "Expected name"))
-            Error(error):
-                return Result::Error(error)
+        let tok = this.get_token()
+        case tok.kind:
+            Identifier(txt):
+                name = txt
+        else:
+            return Result::Error(new_error(tok, "Expected name"))
+
         print("Parsing function: {name}")
 
         # parameters!
         # '('
-        case this.get_token():
-            Ok(tok):
-                case tok.kind:
-                    BraceOpen:
-                        pass
-                else:
-                    return Result::Error(new_error(tok.location, "Expected '('"))
-            Error(error):
-                return Result::Error(error)
+        tok = this.get_token()
+        case tok.kind:
+            BraceOpen:
+                pass
+        else:
+            return Result::Error(new_error(tok, "Expected '('"))
 
         # ')'
-        case this.get_token():
-            Ok(tok):
-                case tok.kind:
-                    BraceClose:
-                        pass
-                else:
-                    return Result::Error(new_error(tok.location, "Expected ')'"))
-            Error(error):
-                return Result::Error(error)
+        tok = this.get_token()
+        case tok.kind:
+            BraceClose:
+                pass
+        else:
+            return Result::Error(new_error(tok, "Expected ')'"))
 
         # Optional arrow + type
-        case this.get_token():
-            Ok(tok):
-                case tok.kind:
-                    Arrow:
-                        # 'int' parse expression!
-                        let t = this.parse_expression()
-                    Colon:
-                        this.unget_token(tok)
-                else:
-                    return Result::Error(new_error(tok.location, "Expected '->'"))
-            Error(error):
-                return Result::Error(error)
+        tok = this.get_token()
+        case tok.kind:
+            Arrow:
+                # 'int' parse expression!
+                let t = this.parse_expression()
+            Colon:
+                this.unget_token(tok)
+        else:
+            return Result::Error(new_error(tok, "Expected '->' or ':'"))
 
         # Body
         case this.parse_block():
@@ -144,37 +128,28 @@ class Parser:
         let location = new_location(1, 1)
 
         # Colon
-        case this.get_token():
-            Ok(tok):
-                case tok.kind:
-                    Colon:
-                        pass
-                else:
-                    return Result::Error(new_error(tok.location, "Expected colon"))
-            Error(error):
-                return Result::Error(error)
+        let tok = this.get_token()
+        case tok.kind:
+            Colon:
+                pass
+        else:
+            return Result::Error(new_error(tok, "Expected ':'"))
 
         # Newline
-        case this.get_token():
-            Ok(tok):
-                case tok.kind:
-                    NewLine:
-                        pass
-                else:
-                    return Result::Error(new_error(tok.location, "Expected newline"))
-            Error(error):
-                return Result::Error(error)
+        tok = this.get_token()
+        case tok.kind:
+            NewLine:
+                pass
+        else:
+            return Result::Error(new_error(tok, "Expected newline"))
 
         # indent:
-        case this.get_token():
-            Ok(tok):
-                case tok.kind:
-                    Indent:
-                        location = tok.location
-                else:
-                    return Result::Error(new_error(tok.location, "Expected indent"))
-            Error(error):
-                return Result::Error(error)
+        tok = this.get_token()
+        case tok.kind:
+            Indent:
+                location = tok.location
+        else:
+            return Result::Error(new_error(tok, "Expected indent"))
 
         let inner: List[ast.Statement] = List()
 
@@ -186,122 +161,107 @@ class Parser:
                     return Result.Error(error)
             
             # expect dedent (eventually)
-            case this.get_token():
-                Ok(tok):
-                    case tok.kind:
-                        Dedent:
-                            break
-                    else:
-                        this.unget_token(tok)
-                Error(error):
-                    return Result::Error(error)
+            tok = this.get_token()
+            case tok.kind:
+                Dedent:
+                    break
+            else:
+                this.unget_token(tok)
 
         return Result.Ok(ast.compound(inner, location))
     
     fn parse_statement() -> Result[ast.Statement, CompilationError]:
         # print("parsing statement")
-        case this.get_token():
-            Ok(tok):
-                case tok.kind:
-                    KwPass:
-                        return Result.Ok(ast.pass_statement(tok.location))
-                    KwBreak:
-                        return Result.Ok(ast.statement(ast::StatementKind::Break(), tok.location))
-                    KwContinue:
-                        return Result.Ok(ast.statement(ast::StatementKind::Continue(), tok.location))
-                    KwIf:
-                        # panic("TODO: IF")
-                        # condition:
-                        let condition = ast.undefined_value()
-                        case this.parse_expression():
-                            Ok(expr):
-                                condition = expr
-                            Error(error):
-                                return Result.Error(error)
+        let tok = this.get_token()
+        case tok.kind:
+            KwPass:
+                return Result.Ok(ast.pass_statement(tok.location))
+            KwBreak:
+                return Result.Ok(ast.statement(ast::StatementKind::Break(), tok.location))
+            KwContinue:
+                return Result.Ok(ast.statement(ast::StatementKind::Continue(), tok.location))
+            KwIf:
+                # panic("TODO: IF")
+                # condition:
+                let condition = ast.undefined_value()
+                case this.parse_expression():
+                    Ok(expr):
+                        condition = expr
+                    Error(error):
+                        return Result.Error(error)
 
-                        # true-block:
-                        let true_block = ast.pass_statement(tok.location)
-                        case this.parse_block():
-                            Ok(statement):
-                                true_block = statement
-                            Error(error):
-                                return Result.Error(error)
-                        
-                        # else-block:
-                        let false_block = ast.pass_statement(tok.location)
-                        
-                        return Result.Ok(ast.if_statement(condition, true_block, false_block, tok.location))
-                    KwLoop:
-                        case this.parse_block():
-                            Ok(statement):
-                                return Result.Ok(ast.loop_statement(statement, tok.location))
-                            Error(error):
-                                return Result.Error(error)
-                    KwWhile:
-                        let condition = ast.undefined_value()
-                        case this.parse_expression():
-                            Ok(expr):
-                                condition = expr
-                            Error(error):
-                                return Result.Error(error)
+                # true-block:
+                let true_block = ast.pass_statement(tok.location)
+                case this.parse_block():
+                    Ok(statement):
+                        true_block = statement
+                    Error(error):
+                        return Result.Error(error)
+                
+                # else-block:
+                let false_block = ast.pass_statement(tok.location)
+                
+                return Result.Ok(ast.if_statement(condition, true_block, false_block, tok.location))
+            KwLoop:
+                case this.parse_block():
+                    Ok(statement):
+                        return Result.Ok(ast.loop_statement(statement, tok.location))
+                    Error(error):
+                        return Result.Error(error)
+            KwWhile:
+                let condition = ast.undefined_value()
+                case this.parse_expression():
+                    Ok(expr):
+                        condition = expr
+                    Error(error):
+                        return Result.Error(error)
 
-                        case this.parse_block():
-                            Ok(statement):
-                                return Result.Ok(ast.while_statement(condition, statement, tok.location))
-                            Error(error):
-                                return Result.Error(error)
-                    KwReturn:
-                        # optionally parse expression (or newline)!
-                        let res_value: Option[ast.Expression] = Option.None()
-                        case this.get_token():
-                            Ok(tok2):
-                                case tok2.kind:
-                                    NewLine:
-                                        pass
-                                else:
-                                    this.unget_token(tok2)
-                                    case this.parse_expression():
-                                        Ok(ret_val):
-                                            res_value = Option.Some(ret_val)
-
-                                            # Final newline:
-                                            case this.get_token():
-                                                Ok(tok3):
-                                                    case tok3.kind:
-                                                        NewLine:
-                                                            pass
-                                                    else:
-                                                        return Result::Error(new_error(tok3.location, "Expected newline"))
-                                                Error(error):
-                                                    return Result.Error(error)
-
-                                        Error(error):
-                                            return Result.Error(error)
-
-                            Error(error):
-                                return Result.Error(error)
-                        return Result.Ok(ast.return_statement(res_value, tok.location))
+                case this.parse_block():
+                    Ok(statement):
+                        return Result.Ok(ast.while_statement(condition, statement, tok.location))
+                    Error(error):
+                        return Result.Error(error)
+            KwReturn:
+                # optionally parse expression (or newline)!
+                let res_value: Option[ast.Expression] = Option.None()
+                let tok2 = this.get_token()
+                case tok2.kind:
+                    NewLine:
+                        pass
                 else:
-                    # Try to parse an expression!
-                    # return Result::Error(new_error(tok.location, "Unexpected token: {to_string(tok)}"))
-                    this.unget_token(tok)
+                    this.unget_token(tok2)
                     case this.parse_expression():
-                        Ok(expr):
-                            # Now consume final newline!
-                            case this.get_token():
-                                Ok(tok2):
-                                    case tok2.kind:
-                                        NewLine:
-                                            pass
-                                    else:
-                                        return Result::Error(new_error(tok.location, "Expected newline"))
-                                Error(error):
-                                    return Result.Error(error)
-                            return Result.Ok(ast.expression_statement(expr))
+                        Ok(ret_val):
+                            res_value = Option.Some(ret_val)
+
+                            # Final newline:
+
+                            let tok3 = this.get_token()
+                            case tok3.kind:
+                                NewLine:
+                                    pass
+                            else:
+                                return Result::Error(new_error(tok3, "Expected newline"))
+
                         Error(error):
                             return Result.Error(error)
-            Error(error):
-                return Result::Error(error)
+
+                return Result.Ok(ast.return_statement(res_value, tok.location))
+        else:
+            # Try to parse an expression!
+            this.unget_token(tok)
+            case this.parse_expression():
+                Ok(expr):
+                    # Now consume final newline!
+                    let tok2 = this.get_token()
+                    case tok2.kind:
+                        NewLine:
+                            pass
+                    else:
+                        return Result::Error(new_error(tok2, "Expected newline"))
+                    return Result.Ok(ast.expression_statement(expr))
+                Error(error):
+                    return Result.Error(error)
     
     fn parse_expression() -> Result[ast.Expression, CompilationError]:
         # print("Parsing expression")
@@ -315,92 +275,71 @@ class Parser:
 
         # Attempt suffixes
         loop:
-            case this.get_token():
-                Ok(tok):
-                    case tok.kind:
-                        Dot:
-                            # handle '.attribute' suffix
-                            case this.get_token():
-                                Ok(tok2):
-                                    case tok2.kind:
-                                        Identifier(attr):
-                                            expr = ast.get_attr(expr, attr, ast.undefined_type(), tok2.location)
-                                    else:
-                                        return Result::Error(new_error(tok2.location, "Expected dedent"))
-                                Error(error):
-                                    return Result.Error(error)
-                        BraceOpen:
-                            # print("CALL")
-                            # Handle '(arg1,arg2)' suffix
-                            # Or '()' or '(arg1)'
-                            let arguments: List[ast.Expression] = List()
-                            case this.get_token():
-                                Ok(tok2):
-                                    case tok2.kind:
-                                        BraceClose:
-                                            # no args call
-                                            pass
-                                    else:
-                                        this.unget_token(tok2)
-                                        # call with parameters
-
-                                        loop:
-                                            case this.parse_expression():
-                                                Ok(arg):
-                                                    arguments.append(arg)
-                                                Error(error):
-                                                    return Result.Error(error)
-                                            # TODO: support multiple arguments
-                                            break
-                                        
-                                        # Capture closing brace
-                                        case this.get_token():
-                                            Ok(tok3):
-                                                case tok3.kind:
-                                                    BraceClose:
-                                                        pass
-                                                else:
-                                                    return Result::Error(new_error(tok2.location, "Expected ')'"))
-
-                                            Error(error):
-                                                return Result.Error(error)
-
-                                Error(error):
-                                    return Result.Error(error)
-                            expr = ast.call(expr, arguments, ast.undefined_type(), tok.location)
-
+            let tok = this.get_token()
+            case tok.kind:
+                Dot:
+                    # handle '.attribute' suffix
+                    let tok2 = this.get_token()
+                    case tok2.kind:
+                        Identifier(attr):
+                            expr = ast.get_attr(expr, attr, ast.undefined_type(), tok2.location)
                     else:
-                        this.unget_token(tok)
-                        break
-                Error(error):
-                    return Result.Error(error)
+                        return Result::Error(new_error(tok2, "Expected dedent"))
+                BraceOpen:
+                    # print("CALL")
+                    # Handle '(arg1,arg2)' suffix
+                    # Or '()' or '(arg1)'
+                    let arguments: List[ast.Expression] = List()
+                    let tok2 = this.get_token()
+                    case tok2.kind:
+                        BraceClose:
+                            # no args call
+                            pass
+                    else:
+                        this.unget_token(tok2)
+                        # call with parameters
+
+                        loop:
+                            case this.parse_expression():
+                                Ok(arg):
+                                    arguments.append(arg)
+                                Error(error):
+                                    return Result.Error(error)
+                            # TODO: support multiple arguments
+                            break
+                        
+                        # Capture closing brace
+                        let tok3 = this.get_token()
+                        case tok3.kind:
+                            BraceClose:
+                                pass
+                        else:
+                            return Result::Error(new_error(tok2, "Expected ')'"))
+
+                    expr = ast.call(expr, arguments, ast.undefined_type(), tok.location)
+
+            else:
+                this.unget_token(tok)
+                break
         return Result.Ok(expr)
 
     fn parse_atom() -> Result[ast.Expression, CompilationError]:
-        case this.get_token():
-            Ok(tok):
-                case tok.kind:
-                    Integer(v):
-                        return Result.Ok(ast.integer_literal(v, tok.location))
-                    String(v):
-                        return Result.Ok(ast.string_literal(v, tok.location))
-                    Identifier(v):
-                        return Result.Ok(ast.name_ref(v, tok.location))
-                    BraceOpen:
-                        panic("TODO: braced expressions!")
-                else:
-                    return Result.Error(new_error(tok.location, "Unexpected token: {to_string(tok)}"))
-            Error(error):
-                return Result.Error(error)
+        let tok = this.get_token()
+        case tok.kind:
+            Integer(v):
+                return Result.Ok(ast.integer_literal(v, tok.location))
+            String(v):
+                return Result.Ok(ast.string_literal(v, tok.location))
+            Identifier(v):
+                return Result.Ok(ast.name_ref(v, tok.location))
+            BraceOpen:
+                panic("TODO: braced expressions!")
+        else:
+            return Result.Error(new_error(tok, "Unexpected token"))
 
-    fn get_token() -> Result[Token, CompilationError]:
-        let tok = this.lex.next_token()
-        case tok:
-            Some(t):
-                # print("TOK {to_string(t)}")
-                return Result.Ok(t)
-            None:
-                return Result::Error(new_error(new_location(9999, 1), "Unexpected end of file"))
+    fn get_token() -> Token:
+        # Get token (EOF in case of end of file)
+        return this.lex.next_token()
 
     fn unget_token(token: Token):
         this.lex.pushback_token(token)

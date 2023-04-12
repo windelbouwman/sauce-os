@@ -1,11 +1,11 @@
 
 import std
 
-struct<T> Bla:
+struct Bla[T]:
     message: str
     value: T
 
-struct<A> Fuu:
+struct Fuu[A]:
     x: A
     bla: Bla[Bla[A]]
 

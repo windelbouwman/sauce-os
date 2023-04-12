@@ -2,7 +2,7 @@
 
 import std
 
-class<V> Bar:
+class Bar[V]:
     var val1: int = 2
     var val3: str = "bla"
 

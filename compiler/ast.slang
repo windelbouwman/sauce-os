@@ -1,5 +1,5 @@
 
-import std
+from std import print
 from location import Location, new_location
 from datatypes import List, Option
 
@@ -138,8 +138,11 @@ struct LetStatement:
     value: Expression
 
 fn compound(inner: List[Statement], location: Location) -> Statement:
-    let kind = StatementKind::Compound(inner)
-    return statement(kind, location)
+    if inner.len() == 1:
+        return inner.get(0)
+    else:
+        let kind = StatementKind::Compound(inner)
+        return statement(kind, location)
 
 fn expression_statement(expr: Expression) -> Statement:
     let kind = StatementKind::Expr(expr)
@@ -233,16 +236,165 @@ fn undefined_value() -> Expression:
     return expression(ExpressionKind::Undefined(), undefined_type(), new_location(1, 1))
 
 fn print_ast(mod: Module):
-    std::print("Module: " + mod.name)
-    #for func in mod.functions:
-    #    std.print(func.name)
-
-fn print_expr(expr: Expression):
-    let txt = "?"
-    case expr.kind:
-        StringLiteral(val):
-            txt = "String={val}"
-    else:
-        txt = "??"
+    print("Module: " + mod.name)
+    let printer = AstPrinter()
+    let vis = Visitor:
+        data: printer
+        on_definition: print_ast_definition
+        on_statement: print_ast_statement
+        on_expression: print_ast_expression
     
-    std.print("EXPR {txt}")
+    visit_module(vis, mod)
+
+class AstPrinter:
+    var indent_level: int = 0
+
+    fn indent():
+        this.indent_level += 3
+
+    fn dedent():
+        this.indent_level -= 3
+    
+    fn get_prefix() -> str:
+        let space = ""
+        let i = 0
+        while i < this.indent_level:
+            i += 1
+            space = space + " "
+        return space
+    
+    fn print2(txt: str):
+        let prefix = this.get_prefix()
+        print(prefix + txt)
+
+fn print_ast_definition(printer: AstPrinter, definition: Definition, is_pre: bool):
+    if is_pre:
+        case definition:
+            Function(func):
+                print("Func: {func.name}")
+        printer.indent()
+    else:
+        printer.dedent()
+
+fn print_ast_statement(printer: AstPrinter, statement: Statement, is_pre: bool):
+    if is_pre:
+        let txt = "?"
+        case statement.kind:
+            Expr(x):
+                txt = "EXPR"
+            If(x):
+                txt = "IF"
+            Return(x):
+                txt = "RETURN"
+            Compound(x):
+                txt = "COMPOUND"
+            Pass:
+                txt = "PASS"
+        else:
+            txt = "?"
+        printer.print2("STMT {txt}")
+        printer.indent()
+    else:
+        printer.dedent()
+
+fn print_ast_expression(printer: AstPrinter, expr: Expression, is_pre: bool):
+    if is_pre:
+        let txt = "?"
+        case expr.kind:
+            StringLiteral(val):
+                txt = "String={val}"
+            IntLiteral(val):
+                txt = "Integer={val}"
+            Call(c):
+                txt = "CALL"
+            NameRef(name):
+                txt = "REF({name})"
+            GetAttr(base, attr):
+                txt = "GET-ATTR({attr})"
+        else:
+            txt = "??"
+        
+        printer.print2("EXPR {txt}")
+        printer.indent()
+    else:
+        printer.dedent()
+
+struct Visitor[D]:
+    data: D
+    on_definition: fn(data: D, definition: Definition, is_pre: bool)
+    on_statement: fn(data: D, statement: Statement, is_pre: bool)
+    on_expression: fn(data: D, expression: Expression, is_pre: bool)
+
+fn visit_module[T](visitor: Visitor[T], mod: Module):
+    for definition in mod.definitions:
+        visitor.on_definition(visitor.data, definition, true)
+        case definition:
+            Function(func):
+                # print("VISIT {func.name}")
+                visit_statement(visitor, func.body)
+        visitor.on_definition(visitor.data, definition, false)
+
+fn visit_statement[T](visitor: Visitor[T], statement: Statement):
+    visitor.on_statement(visitor.data, statement, true)
+    case statement.kind:
+        Pass:
+            pass
+        Let(letty):
+            visit_expression(visitor, letty.value)
+        If(iffy):
+            visit_expression(visitor, iffy.condition)
+            visit_statement(visitor, iffy.true_body)
+            visit_statement(visitor, iffy.false_body)
+        While(whilly):
+            visit_expression(visitor, whilly.condition)
+            visit_statement(visitor, whilly.body)
+        Loop(loopy):
+            visit_statement(visitor, loopy.body)
+        Switch(switchy):
+            visit_expression(visitor, switchy.value)
+            # TODO: visit arms!
+        Compound(inner):
+            for s in inner:
+                visit_statement(visitor, s)
+        Expr(expr):
+            visit_expression(visitor, expr)
+        Return(opt_val):
+            case opt_val:
+                Some(expr):
+                    visit_expression(visitor, expr)
+                None:
+                    pass
+        Break:
+            pass
+        Continue:
+            pass
+    visitor.on_statement(visitor.data, statement, false)
+
+fn visit_expression[T](visitor: Visitor[T], expression: Expression):
+    visitor.on_expression(visitor.data, expression, true)
+
+    case expression.kind:
+        BoolLiteral(v):
+            pass
+        IntLiteral(v):
+            pass
+        StringLiteral(v):
+            pass
+        Undefined:
+            pass
+        NameRef(v):
+            # print("name-ref -> {v}")
+            pass
+        Call(v):
+            visit_expression(visitor, v.callee)
+            for arg in v.arguments:
+                visit_expression(visitor, arg)
+        GetAttr(base, index):
+            visit_expression(visitor, base)
+        Binop(v):
+            visit_expression(visitor, v.lhs)
+            visit_expression(visitor, v.rhs)
+        VarRef(v):
+            pass
+
+    visitor.on_expression(visitor.data, expression, false)

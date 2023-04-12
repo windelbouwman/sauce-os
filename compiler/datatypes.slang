@@ -1,9 +1,9 @@
 
-enum<D> Option:
+enum Option[D]:
     Some(D)
     None
 
-enum<O,E> Result:
+enum Result[O,E]:
     Ok(O)
     Error(E)
 
@@ -25,7 +25,7 @@ fn new_string(value: str) -> String:
         value: value
     return i
 
-class<T> List:
+class List[T]:
     # Linked list based on a linked list of elements with next pointers.
 
     var head_element: Option[ListElement[T]] = Option.None()
@@ -161,11 +161,11 @@ class<T> List:
                 # TODO: raise massive error
 
 
-struct<T> ListElement:
+struct ListElement[T]:
     next: Option[ListElement[T]]
     data: T
 
-class<T> ListIter:
+class ListIter[T]:
     var next_element: Option[ListElement[T]] = Option.None()
 
     fn next() -> Option[T]:

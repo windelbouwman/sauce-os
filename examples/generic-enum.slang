@@ -21,7 +21,7 @@ fn display(value: Option[Integer]):
         None:
             print("Got none!")
 
-enum<D> Option:
+enum Option[D]:
     Some(D)
     None
 

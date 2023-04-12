@@ -1,7 +1,7 @@
 from std import print
 import std
 
-struct<T> Bla:
+struct Bla[T]:
     value: T
     x: int
 
@@ -35,7 +35,7 @@ fn main():
     print(bla_s.value.s)
     # print(bla_s2.value.s)
 
-fn new_bla<T>(v2: T, x2: int) -> Bla[T]:
+fn new_bla[T](v2: T, x2: int) -> Bla[T]:
     let b2 = Bla[T]:
         value: v2
         x: x2

@@ -369,6 +369,8 @@ def function_type(parameter_types: list[MyType], return_type: MyType) -> MyType:
 class FunctionType(TypeKind):
     def __init__(self, parameter_types: list[MyType], return_type: MyType):
         super().__init__()
+        assert isinstance(parameter_types, list)
+        assert all(isinstance(t, MyType) for t in parameter_types)
         self.parameter_types = parameter_types
         self.return_type = return_type
 
@@ -1495,6 +1497,10 @@ class AstVisitor:
         elif isinstance(ty.kind, Meta):
             if ty.kind.assigned:
                 self.visit_type(ty.kind.assigned)
+        elif isinstance(ty.kind, FunctionType):
+            for pt in ty.kind.parameter_types:
+                self.visit_type(pt)
+            self.visit_type(ty.kind.return_type)
 
     def visit_statement(self, statement: Statement):
         kind = statement.kind
