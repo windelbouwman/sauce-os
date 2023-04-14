@@ -7,24 +7,35 @@ from datatypes import List, Option
 # type MyType = int
 struct MyType:
     stub: int
+    kind: TypeKind
 
-fn bool_type() -> MyType:
-    # TODO
+fn new_type(kind: TypeKind) -> MyType:
     let t = MyType:
         stub: 0
+        kind: kind
     return t
 
+enum TypeKind:
+    Undefined
+    Bool
+    Int
+    Str
+    Float
+
+fn bool_type() -> MyType:
+    return new_type(TypeKind::Bool())
+
 fn int_type() -> MyType:
-    # TODO
-    return bool_type()
+    return new_type(TypeKind::Int())
+
+fn float_type() -> MyType:
+    return new_type(TypeKind::Float())
 
 fn str_type() -> MyType:
-    # TODO
-    return bool_type()
+    return new_type(TypeKind::Str())
 
 fn undefined_type() -> MyType:
-    # TODO
-    return bool_type()
+    return new_type(TypeKind::Undefined())
 
 struct Module:
     name: str
@@ -75,6 +86,7 @@ enum StatementKind:
     Let(LetStatement)
     Compound(List[Statement])
     Expr(Expression)
+    Assignment(Expression, Expression)
     Return(Option[Expression])
     Pass
     Break
@@ -145,8 +157,12 @@ fn compound(inner: List[Statement], location: Location) -> Statement:
         return statement(kind, location)
 
 fn expression_statement(expr: Expression) -> Statement:
-    let kind = StatementKind::Expr(expr)
+    let kind = StatementKind.Expr(expr)
     return statement(kind, expr.location)
+
+fn assignment_statement(target: Expression, value: Expression, location: Location) -> Statement:
+    let kind = StatementKind.Assignment(target, value)
+    return statement(kind, location)
 
 fn return_statement(value: Option[Expression], location: Location) -> Statement:
     return statement(StatementKind::Return(value), location)
@@ -173,7 +189,7 @@ enum ExpressionKind:
     NameRef(str)
     VarRef(Variable)
     IntLiteral(int)
-    # FloatLiteral(float)
+    FloatLiteral(float)
     StringLiteral(str)
     BoolLiteral(bool)
     Undefined
@@ -206,10 +222,23 @@ fn name_ref(name: str, location: Location) -> Expression:
 
 struct BinopExpression:
     lhs: Expression
-    op: str
+    op: BinaryOperator
     rhs: Expression
 
-fn binop(lhs: Expression, op: str, rhs: Expression, ty: MyType, location: Location) -> Expression:
+enum BinaryOperator:
+    And
+    Or
+    Less
+    LessEquals
+    Greater
+    GreaterEquals
+    Equals
+    Add
+    Sub
+    Mul
+    Div
+
+fn binop(lhs: Expression, op: BinaryOperator, rhs: Expression, ty: MyType, location: Location) -> Expression:
     let b = BinopExpression:
         lhs: lhs
         op: op
@@ -225,6 +254,11 @@ fn bool_literal(value: bool, location: Location) -> Expression:
 fn integer_literal(value: int, location: Location) -> Expression:
     let kind = ExpressionKind::IntLiteral(value)
     let ty = int_type()
+    return expression(kind, ty, location)
+
+fn float_literal(value: float, location: Location) -> Expression:
+    let kind = ExpressionKind::FloatLiteral(value)
+    let ty = float_type()
     return expression(kind, ty, location)
 
 fn string_literal(value: str, location: Location) -> Expression:
@@ -282,6 +316,8 @@ fn print_ast_statement(printer: AstPrinter, statement: Statement, is_pre: bool):
         case statement.kind:
             Expr(x):
                 txt = "EXPR"
+            Assignment(target, expr):
+                txt = "ASSIGN"
             If(x):
                 txt = "IF"
             Return(x):
@@ -290,8 +326,19 @@ fn print_ast_statement(printer: AstPrinter, statement: Statement, is_pre: bool):
                 txt = "COMPOUND"
             Pass:
                 txt = "PASS"
-        else:
-            txt = "?"
+            Break:
+                txt = "BREAK"
+            Continue:
+                txt = "CONTINUE"
+            Loop(loopy):
+                txt = "LOOP"
+            While(whilly):
+                txt = "WHILE"
+            Let(letty):
+                txt = "LET"
+            Switch(switchy):
+                txt = "SWITCH"
+
         printer.print2("STMT {txt}")
         printer.indent()
     else:
@@ -305,19 +352,60 @@ fn print_ast_expression(printer: AstPrinter, expr: Expression, is_pre: bool):
                 txt = "String={val}"
             IntLiteral(val):
                 txt = "Integer={val}"
+            FloatLiteral(val):
+                # TODO: float to str
+                txt = "Float=..."
+            BoolLiteral(val):
+                if val:
+                    txt = "Bool(true)"
+                else:
+                    txt = "Bool(false)"
             Call(c):
                 txt = "CALL"
             NameRef(name):
                 txt = "REF({name})"
             GetAttr(base, attr):
                 txt = "GET-ATTR({attr})"
-        else:
-            txt = "??"
+            Undefined:
+                txt = "UNDEFINED"
+            Binop(op):
+                let op_txt = binary_op_to_str(op.op)
+                txt = "BINOP({op_txt})"
+            VarRef(v):
+                txt = "VAR-REF({v.name})"
+
         
         printer.print2("EXPR {txt}")
         printer.indent()
     else:
         printer.dedent()
+
+fn binary_op_to_str(op: BinaryOperator) -> str:
+    let op_txt = "?"
+    case op:
+        And:
+            op_txt = "and"
+        Or:
+            op_txt = "or"
+        Greater:
+            op_txt = ">"
+        GreaterEquals:
+            op_txt = ">="
+        Less:
+            op_txt = "<"
+        LessEquals:
+            op_txt = "<="
+        Equals:
+            op_txt = "="
+        Add:
+            op_txt = "+"
+        Sub:
+            op_txt = "-"
+        Mul:
+            op_txt = "*"
+        Div:
+            op_txt = "/"
+    return op_txt
 
 struct Visitor[D]:
     data: D
@@ -358,6 +446,9 @@ fn visit_statement[T](visitor: Visitor[T], statement: Statement):
                 visit_statement(visitor, s)
         Expr(expr):
             visit_expression(visitor, expr)
+        Assignment(target, expr):
+            visit_expression(visitor, target)
+            visit_expression(visitor, expr)
         Return(opt_val):
             case opt_val:
                 Some(expr):
@@ -377,6 +468,8 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         BoolLiteral(v):
             pass
         IntLiteral(v):
+            pass
+        FloatLiteral(val):
             pass
         StringLiteral(v):
             pass

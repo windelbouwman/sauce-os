@@ -27,7 +27,8 @@ fn transform_switch(statement: ast.Statement):
             let else_clause = s.default_body
             for arm in s.arms:
                 let x_ref = ast.var_ref(x_var, statement.location)
-                let condition = ast.binop(x_ref, "==", arm.value, ty, statement.location)
+                let eq_op = ast.BinaryOperator.Equals()
+                let condition = ast.binop(x_ref, eq_op, arm.value, ty, statement.location)
 
                 else_clause = ast.if_statement(condition, arm.body, else_clause, arm.location)
             

@@ -559,7 +559,7 @@ class ConstantFolder(BaseTransformer):
                     rhs = expr_eval_int(kind.rhs)
                     val = binops[kind.op](lhs, rhs)
                     expression.kind = ast.NumericConstant(val)
-                elif expression.ty.is_bool():
+                elif expression.ty.is_bool() and kind.lhs.ty.is_int():
                     lhs = expr_eval_int(kind.lhs)
                     rhs = expr_eval_int(kind.rhs)
                     val = binops[kind.op](lhs, rhs)
@@ -572,6 +572,8 @@ def expr_eval_int(expr: ast.Expression):
     if isinstance(kind, ast.NumericConstant):
         if isinstance(kind.value, int):
             return kind.value
+        else:
+            raise ValueError("No integer constant!")
     else:
         raise ValueError("No constant!")
 

@@ -10,11 +10,15 @@ from datatypes import List, String, new_string
 fn main() -> int:
     # let filename = "dummy.slang"
     let filenames: List[String] = List()
-    # filenames.append(new_string("compiler/main.slang"))
-    # filenames.append(new_string("compiler/lexer.slang"))
-    # filenames.append(new_string("compiler/parsing.slang"))
-    # filenames.append(new_string("compiler/ast.slang"))
-    filenames.append(new_string("examples/hello-world.slang"))
+    #filenames.append(new_string("compiler/main.slang"))
+    #filenames.append(new_string("compiler/lexer.slang"))
+    #filenames.append(new_string("compiler/parsing.slang"))
+    #filenames.append(new_string("compiler/ast.slang"))
+    # filenames.append(new_string("examples/hello-world.slang"))
+    filenames.append(new_string("examples/callings.slang"))
+    # filenames.append(new_string("examples/expressions.slang"))
+    # filenames.append(new_string("examples/mandel.slang"))
+    # filenames.append(new_string("examples/loops.slang"))
     # compile(filenames)
     
 

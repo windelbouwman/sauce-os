@@ -309,13 +309,23 @@ class CustomTransformer(LarkTransformer):
         return ast.assignment_statement(x[0], op, x[2], get_loc(x[1]))
 
     def if_statement(self, x):
-        # KW_IF test COLON NEWLINE block else_clause?
+        # KW_IF test COLON NEWLINE block elif_clause* else_clause?
         condition = x[1]
         true_statement = x[4]
-        if len(x) > 5:
-            false_statement = x[5]
-        else:
-            false_statement = ast.pass_statement(get_loc(x[0]))
+        elif_tail = x[5:]
+
+        # Assume no else clause:
+        false_statement = ast.pass_statement(get_loc(x[0]))
+
+        for tail in reversed(elif_tail):
+            if isinstance(tail, ast.Statement):
+                false_statement = tail
+            else:
+                test, body = tail
+                false_statement = ast.if_statement(
+                    test, body, false_statement, body.location
+                )
+
         return ast.if_statement(
             condition, true_statement, false_statement, get_loc(x[0])
         )
@@ -379,6 +389,10 @@ class CustomTransformer(LarkTransformer):
         variable = ast.Variable(x[1].value, ast.void_type, get_loc(x[1]))
         values, inner = x[3], x[6]
         return ast.for_statement(variable, values, inner, get_loc(x[0]))
+
+    def elif_clause(self, x):
+        # : KW_ELIF test COLON NEWLINE block
+        return (x[1], x[4])
 
     def else_clause(self, x):
         return x[-1]
@@ -571,10 +585,10 @@ simple_statement: expression
 break_statement: KW_BREAK
 continue_statement: KW_CONTINUE
 pass_statement: KW_PASS
-return_statement: KW_RETURN expression?
+return_statement: KW_RETURN test?
 assignment_statement: expression (EQUALS | PLUS_EQUALS | MINUS_EQUALS) expression
 
-if_statement: KW_IF test COLON NEWLINE block else_clause?
+if_statement: KW_IF test COLON NEWLINE block elif_clause* else_clause?
 elif_clause: KW_ELIF test COLON NEWLINE block
 else_clause: KW_ELSE COLON NEWLINE block
 let_statement: KW_LET ID (COLON typ)? EQUALS expression NEWLINE
@@ -611,7 +625,7 @@ atom: obj_ref
     | literal
     | array_literal
     | atom LEFT_BRACE arguments? RIGHT_BRACE
-    | LEFT_BRACE expression RIGHT_BRACE
+    | LEFT_BRACE test RIGHT_BRACE
     | atom LEFT_BRACKET arguments RIGHT_BRACKET
     | atom DOT ID
 

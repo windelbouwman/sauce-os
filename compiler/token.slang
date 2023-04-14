@@ -18,19 +18,28 @@ enum TokenKind:
     Identifier(str)
 
     # Keywords:
-    KwImport
-    KwFn
-    KwPass
+    KwAnd
     KwBreak
+    KwCase
     KwContinue
-    KwIf
     KwElse
+    KwElif
+    KwEnum
+    KwFn
+    KwFor
+    KwFrom
+    KwIf
+    KwImport
+    KwIn
+    KwLet
     KwLoop
-    KwWhile
+    KwOr
+    KwPass
     KwReturn
     KwStruct
-    KwEnum
-    KwLet
+    KwSwitch
+    KwVar
+    KwWhile
 
     # Literals:
     Float(float)
@@ -44,6 +53,19 @@ enum TokenKind:
     Arrow
     BraceOpen
     BraceClose
+
+    Plus
+    Minus
+    Slash
+    Asterix
+    Less
+    Greater
+    LessEquals
+    GreaterEquals
+    Equals
+    EqualsEquals
+    PlusEquals
+    MinusEquals
 
     # White-space:
     Space(int)
@@ -59,16 +81,58 @@ fn token_to_string(tok: Token) -> str:
     # """ Convert token to txt """
     let txt = "?"
     case tok.kind:
-        KwImport:
-            txt = "IMPORT"
+        KwAnd:
+            txt = "AND"
+        KwBreak:
+            txt = "BREAK"
+        KwCase:
+            txt = "CASE"
+        KwContinue:
+            txt = "CONTINUE"
+        KwElse:
+            txt = "ELSE"
+        KwElif:
+            txt = "ELIF"
+        KwEnum:
+            txt = "ENUM"
         KwFn:
             txt = "FN"
+        KwFor:
+            txt = "FOR"
+        KwFrom:
+            txt = "FROM"
+        KwIf:
+            txt = "IF"
+        KwImport:
+            txt = "IMPORT"
+        KwIn:
+            txt = "IN"
+        KwLet:
+            txt = "LET"
+        KwLoop:
+            txt = "LOOP"
+        KwOr:
+            txt = "OR"
+        KwPass:
+            txt = "PASS"
+        KwReturn:
+            txt = "RETURN"
+        KwStruct:
+            txt = "STRUCT"
+        KwSwitch:
+            txt = "SWITCH"
+        KwVar:
+            txt = "VAR"
+        KwWhile:
+            txt = "WHILE"
         Identifier(x):
             txt = "ID({x})"
         String(a):
             txt = "STRING({a})"
         Integer(v):
             txt = "INT({v})"
+        Float(v):
+            txt = "FLOAT(...)"
         Space(v):
             txt = "SPACE({v})"
         Comment(a):
@@ -87,12 +151,37 @@ fn token_to_string(tok: Token) -> str:
             txt = "COMMA"
         Dot:
             txt = "DOT"
+        Plus:
+            txt = "+"
+        Minus:
+            txt = "-"
+        Slash:
+            txt = "/"
+        Asterix:
+            txt = "*"
+        Equals:
+            txt = "="
+        EqualsEquals:
+            txt = "=="
+        PlusEquals:
+            txt = "+="
+        MinusEquals:
+            txt = "-="
+        Less:
+            txt = "<"
+        LessEquals:
+            txt = "<="
+        Greater:
+            txt = ">"
+        GreaterEquals:
+            txt = ">="
         BraceOpen:
             txt = "BRACE_OPEN"
         BraceClose:
             txt = "BRACE_CLOSE"
         Error:
             txt = "LEX-ERROR"
-    else:
-        txt = "???"
+        Eof:
+            txt = "EOF"
+
     return "row={tok.location.row}:{tok.location.column} {txt}"

@@ -31,11 +31,11 @@ fn main() -> int:
                 line = line + " "
                 # std.putc(' ')
 
-            x = x + 1
+            x += 1
 
         # std.putc('\n')
         std::print(line)
-        y = y + 1
+        y += 1
     
     # TODO: fix implicit return somehow.
     return  0  

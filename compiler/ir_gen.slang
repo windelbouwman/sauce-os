@@ -131,6 +131,8 @@ class Generator:
                 this.jump(1)
             Expr(expr):
                 this.gen_expression(expr)
+            Assignment(target, value):
+                this.gen_expression(value)
             While(whilly):
                 let test_label = this.new_label()
                 let body_label = this.new_label()
@@ -200,6 +202,9 @@ class Generator:
 
             IntLiteral(value):
                 this.emit(Instruction::Int(value))
+            FloatLiteral(value):
+                panic("TODO")
+                # this.emit(Instruction::Int(value))
             StringLiteral(value):
                 this.emit(Instruction::Str(value))
             BoolLiteral(value):
