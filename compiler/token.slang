@@ -21,6 +21,7 @@ enum TokenKind:
     KwAnd
     KwBreak
     KwCase
+    KwClass
     KwContinue
     KwElse
     KwElif
@@ -53,6 +54,8 @@ enum TokenKind:
     Arrow
     BraceOpen
     BraceClose
+    BracketOpen
+    BracketClose
 
     Plus
     Minus
@@ -87,6 +90,8 @@ fn token_to_string(tok: Token) -> str:
             txt = "BREAK"
         KwCase:
             txt = "CASE"
+        KwClass:
+            txt = "CLASS"
         KwContinue:
             txt = "CONTINUE"
         KwElse:
@@ -179,6 +184,10 @@ fn token_to_string(tok: Token) -> str:
             txt = "BRACE_OPEN"
         BraceClose:
             txt = "BRACE_CLOSE"
+        BracketOpen:
+            txt = "["
+        BracketClose:
+            txt = "]"
         Error:
             txt = "LEX-ERROR"
         Eof:

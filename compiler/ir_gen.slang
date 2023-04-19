@@ -10,6 +10,7 @@ enum Instruction:
     Dup  # Duplicate stack top
     Int(int)
     Str(str)
+    Float(float)
     Bool(bool)
     Jump(int)  # Unconditional jump
     JumpIf(int, int)
@@ -27,6 +28,8 @@ fn instruction_to_string(instruction: Instruction) -> str:
             return "dup"
         Int(v):
             return "int({v})"
+        Float(v):
+            return "float(....)"
         Str(v):
             return "str({v})"
         Bool(v):
@@ -52,6 +55,7 @@ fn instruction_to_string(instruction: Instruction) -> str:
 enum Value:
     Int(int)
     Str(str)
+    Float(float)
     Bool(bool)
 
 
@@ -71,11 +75,13 @@ class VM:
                 this.push(val)
                 this.push(val)
             Int(val):
-                this.push(Value::Int(val))
+                this.push(Value.Int(val))
             Str(val):
-                this.push(Value::Str(val))
+                this.push(Value.Str(val))
             Bool(val):
-                this.push(Value::Bool(val))
+                this.push(Value.Bool(val))
+            Float(val):
+                this.push(Value.Float(val))
             LocalGet(index):
                 let val = this.frames.last().locals.get(index)
                 this.push(val)
@@ -111,12 +117,21 @@ fn gen_bytecode(module: ast.Module):
 
 class Generator:
     var id_counter: int = 1
+    var code: List[Instruction] = List()
 
     fn gen_prog(prog: ast.Module):
         for definition in prog.definitions:
             case definition:
                 Function(function_def):
                     this.gen_func(function_def)
+                Enum(e):
+                    pass
+                Struct(s):
+                    pass
+                Class(c):
+                    panic("Classes are not supported, please rewrite into structs with functions.")
+                Var(v):
+                    panic("VAR def not impl.")
 
     fn gen_func(func: ast.FunctionDef):
         this.gen_statement(func.body)
@@ -166,12 +181,16 @@ class Generator:
                 this.set_label(final_label)
             Loop(loopy):
                 panic("Loop not implemented")
+            For(f):
+                panic("For-statement not supported")
+            Case(c):
+                panic("Case-statement not supported")
             Let(letty):
                 this.gen_expression(letty.value)
                 # TODO: var index!
                 let var_index = 0
                 this.emit(Instruction::LocalSet(var_index))
-                panic("Let not implemented")
+                # panic("Let not implemented")
             Compound(inner):
                 for s in inner:
                     this.gen_statement(s)
@@ -196,6 +215,10 @@ class Generator:
                 # TODO: determine index!
                 let index = 0
                 this.emit(Instruction.GetAttr(index))
+            GetIndex(base, indici):
+                this.gen_expression(base)
+                panic("TODO: get-index")
+
             Binop(binop):
                 this.gen_expression(binop.lhs)
                 this.gen_expression(binop.rhs)
@@ -203,8 +226,7 @@ class Generator:
             IntLiteral(value):
                 this.emit(Instruction::Int(value))
             FloatLiteral(value):
-                panic("TODO")
-                # this.emit(Instruction::Int(value))
+                this.emit(Instruction::Float(value))
             StringLiteral(value):
                 this.emit(Instruction::Str(value))
             BoolLiteral(value):
@@ -213,10 +235,14 @@ class Generator:
                 # TODO: var index!
                 let var_index = 0
                 this.emit(Instruction::LocalGet(var_index))
+            LoadSymbol(symbol):
+                pass
             NameRef(name):
                 panic("Names must be resolved: {name}")
             Undefined:
                 panic("Undefined value!")
+            ObjInit(ty,fields):
+                panic("obj init must be rewritten")
 
 
     fn new_label() -> int:

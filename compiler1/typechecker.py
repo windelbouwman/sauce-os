@@ -337,6 +337,8 @@ class TypeChecker(BasePass):
                 or b.is_class()
                 or b.is_type_var_ref()
                 or b.is_void()
+                or b.is_int()
+                or b.is_str()
                 or b.is_enum()
             ):
                 # TODO: check if b contains meta-var

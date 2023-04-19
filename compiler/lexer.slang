@@ -109,6 +109,10 @@ class Lexer:
                 kind = TokenKind::BraceOpen()
             elif c == ")":
                 kind = TokenKind::BraceClose()
+            elif c == "[":
+                kind = TokenKind::BracketOpen()
+            elif c == "]":
+                kind = TokenKind::BracketClose()
             elif c == ",":
                 kind = TokenKind::Comma()
             elif c == ".":
@@ -169,7 +173,7 @@ class Lexer:
                 else:
                     kind = TokenKind::Integer(std.str_to_int(this.get_lexeme()))
             elif is_id(c):
-                while is_id(this.peek()):
+                while is_id_or_digit(this.peek()):
                     this.offset += 1
 
                 # Check for keywords:
@@ -237,6 +241,9 @@ fn is_id(c: str) -> bool:
     else:
         return false
 
+fn is_id_or_digit(c: str) -> bool:
+    return is_id(c) or is_digit(c)
+
 fn check_keyword(txt: str) -> TokenKind:
     let kind = TokenKind::Identifier(txt)
     if txt == "and":
@@ -245,6 +252,8 @@ fn check_keyword(txt: str) -> TokenKind:
         kind = TokenKind::KwBreak()
     elif txt == "case":
         kind = TokenKind::KwCase()
+    elif txt == "class":
+        kind = TokenKind::KwClass()
     elif txt == "continue":
         kind = TokenKind::KwContinue()
     elif txt == "else":
@@ -257,6 +266,8 @@ fn check_keyword(txt: str) -> TokenKind:
         kind = TokenKind::KwFn()
     elif txt == "for":
         kind = TokenKind::KwFor()
+    elif txt == "from":
+        kind = TokenKind::KwFrom()
     elif txt == "if":
         kind = TokenKind::KwIf()
     elif txt == "import":

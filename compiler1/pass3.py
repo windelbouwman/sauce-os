@@ -111,7 +111,7 @@ class NewOpPass(BasePass):
                     if name in named_values:
                         values.append(named_values.pop(name).value)
                     else:
-                        self.error(expression.location, f"Missing field {name}")
+                        self.error(expression.location, f"Missing field '{name}'")
 
                 for left in named_values.values():
                     self.error(left.location, f"Superfluous field: {left.name}")

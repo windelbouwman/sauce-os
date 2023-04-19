@@ -317,13 +317,9 @@ class EnumRewriter(BaseTransformer):
         super().visit_expression(expression)
         kind = expression.kind
         if isinstance(kind, ast.EnumLiteral):
-            assert expression.ty.is_enum(), str(expression)
-
             tag_value = ast.numeric_constant(kind.variant.index, expression.location)
 
-            tagged_union_ty: ast.MyType = self._tagged_unions[
-                id(kind.enum_ty.kind.tycon)
-            ].apply(expression.ty.kind.type_args)
+            tagged_union_ty: ast.MyType = kind.enum_ty
             union_ty = tagged_union_ty.get_field_type(1)
 
             if len(kind.values) == 0:

@@ -21,6 +21,7 @@ from .transforms import (
 from .flowcheck import flow_check
 from .cppgenerator import gen_cppcode
 from .pygenerator import gen_pycode
+from .c_gen import gen_c_code
 from .bc_gen import gen_bc
 from .vm import run_bytecode, print_bytecode
 from .builtins import std_module, get_builtins
@@ -79,6 +80,9 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
             exec(code, get_builtins(output))
         else:
             gen_pycode(modules, output)
+    elif options.backend == "c":
+        prog = gen_bc(modules)
+        gen_c_code(prog)
     elif options.backend == "cpp":
         if options.run_code:
             with tempfile.NamedTemporaryFile(

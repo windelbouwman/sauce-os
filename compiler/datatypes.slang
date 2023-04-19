@@ -1,4 +1,6 @@
 
+from utils import panic
+
 enum Option[D]:
     Some(D)
     None
@@ -80,8 +82,7 @@ class List[T]:
     fn pop_front() -> T:
         case this.head_element:
             None:
-                pass
-                # Panic!
+                panic("List.pop_front from empty list!")
             Some(element):
                 this.head_element = element.next
                 return element.data
@@ -93,16 +94,13 @@ class List[T]:
 
     fn first() -> T:
         # Retrieve last element
-        # TODO!
-        pass
+        panic("TODO List.first!")
 
     fn pop_last() -> T:
         # Pop last element of the list
-        # TODO!
         case this.head_element:
             None:
-                # TODO: ERROR: empty list!
-                pass
+                panic("List.pop_last from empty list!")
             Some(element):
                 case element.next:
                     None:
@@ -125,11 +123,9 @@ class List[T]:
 
     fn last() -> T:
         # Retrieve last element
-        # TODO!
         case this.head_element:
             None:
-                # TODO: raise massive error?
-                pass
+                panic("List.last on empty list!")
             Some(element):
                 loop:
                     case element.next:
@@ -178,3 +174,27 @@ class ListIter[T]:
                 this.next_element = nxt_element.next
                 return x
         # return Option.None()
+
+
+class Dictionary[T]:
+    var items: List[DictionaryItem[T]] = List()
+
+    fn get(key: str) -> Option[T]:
+        for item in this.items:
+            if item.key == key:
+                return Option.Some(item.value)
+        return Option.None()
+    
+    fn insert(key: str, value: T):
+        for item in this.items:
+            if item.key == key:
+                item.value = value
+                return
+        let new_item = DictionaryItem[T]:
+            key: key
+            value: value
+        this.items.append(new_item)
+
+struct DictionaryItem[T]:
+    key: str
+    value: T

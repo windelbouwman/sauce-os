@@ -21,7 +21,7 @@ def main():
     )
     parser.add_argument(
         "--backend",
-        choices=["cpp", "py", "vm"],
+        choices=["cpp", "py", "c", "vm"],
         default="vm",
         help="Which backend to use.",
     )

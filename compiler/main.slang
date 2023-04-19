@@ -10,14 +10,16 @@ from datatypes import List, String, new_string
 fn main() -> int:
     # let filename = "dummy.slang"
     let filenames: List[String] = List()
-    #filenames.append(new_string("compiler/main.slang"))
-    #filenames.append(new_string("compiler/lexer.slang"))
-    #filenames.append(new_string("compiler/parsing.slang"))
+    filenames.append(new_string("compiler/main.slang"))
+    # filenames.append(new_string("compiler/lexer.slang"))
+    filenames.append(new_string("compiler/parsing.slang"))
+    # filenames.append(new_string("compiler/datatypes.slang"))
     #filenames.append(new_string("compiler/ast.slang"))
     # filenames.append(new_string("examples/hello-world.slang"))
-    filenames.append(new_string("examples/callings.slang"))
+    # filenames.append(new_string("examples/callings.slang"))
     # filenames.append(new_string("examples/expressions.slang"))
     # filenames.append(new_string("examples/mandel.slang"))
+    # filenames.append(new_string("examples/structs-passing.slang"))
     # filenames.append(new_string("examples/loops.slang"))
     # compile(filenames)
     
@@ -35,7 +37,7 @@ fn main() -> int:
                 modules.append(program)
             Error(error):
                 print("Compilation failed: {error.location.row}:{error.location.column} -> {error.message}")
-                return 1
+                # return 1
     
     # TODO: topo-sort modules!
 

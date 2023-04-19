@@ -1573,6 +1573,7 @@ class AstVisitor:
             self.visit_type(kind.ty)
             self.visit_expression(kind.value)
         elif isinstance(kind, EnumLiteral):
+            self.visit_type(kind.enum_ty)
             for value in kind.values:
                 self.visit_expression(value)
         elif isinstance(kind, ClassLiteral):

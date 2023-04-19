@@ -1,7 +1,7 @@
 
 from std import print
 from location import Location, new_location
-from datatypes import List, Option
+from datatypes import List, Option, Dictionary
 
 # TODO: implement type-defs!
 # type MyType = int
@@ -21,6 +21,7 @@ enum TypeKind:
     Int
     Str
     Float
+    TypeExpression(Expression)
 
 fn bool_type() -> MyType:
     return new_type(TypeKind::Bool())
@@ -39,24 +40,165 @@ fn undefined_type() -> MyType:
 
 struct Module:
     name: str
+    imports: List[Import]
     definitions: List[Definition]
+    scope: Scope
+
+fn new_module(name: str, imports: List[Import], definitions: List[Definition]) -> Module:
+    let m = Module:
+        name: name
+        imports: imports
+        definitions: definitions
+        scope: Scope()
+    return m
+
+fn module_define_symbol(module: Module, definition: Definition):
+    module.definitions.append(definition)
+    case definition:
+        Var(variable):
+            module.scope.define(variable.variable.name, Symbol.Var(variable.variable))
+        Function(func):
+            module.scope.define(func.name, Symbol.Function(func))
+        Enum(e):
+            module.scope.define(e.name, Symbol.Enum(e))
+        Struct(s):
+            module.scope.define(s.name, Symbol.Struct(s))
+        Class(c):
+            module.scope.define(c.name, Symbol.Class(c))
+
+struct Import:
+    modname: str
+    location: Location
+
+struct FromImport:
+    modname: str
+    location: Location
+    names: List[str]
+
+class Scope:
+    var symbols: Dictionary[Symbol] = Dictionary()
+
+    fn define(name: str, symbol: Symbol):
+        this.symbols.insert(name, symbol)
+    
+    fn is_defined(name: str) -> bool:
+        # Check if given name is defined.
+        case this.lookup(name):
+            Some(s):
+                return true
+            None:
+                return false
+
+    fn lookup(name: str) -> Option[Symbol]:
+        return this.symbols.get(name)
+
+enum Symbol:
+    Mod(Module)
+    Function(FunctionDef)
+    Parameter(ParameterDef)
+    Var(Variable)
+    Struct(StructDef)
+    Enum(EnumDef)
+    Class(ClassDef)
 
 enum Definition:
     Function(FunctionDef)
+    Enum(EnumDef)
+    Struct(StructDef)
+    Class(ClassDef)
+    Var(VarDef)
 
-fn function_def(name: str, body: Statement, location: Location) -> FunctionDef:
+struct VarDef:
+    variable: Variable
+    
+fn type_parameter(name: str, location: Location) -> TypeParameter:
+    let tp = TypeParameter:
+        name: name
+        location: location
+    return tp
+
+struct TypeParameter:
+    name: str
+    location: Location
+
+fn struct_def(name: str, fields: List[StructField], location: Location) -> StructDef:
+    let s = StructDef:
+        name: name
+        fields: fields
+        location: location
+        scope: Scope()
+    return s
+
+struct StructDef:
+    name: str
+    fields: List[StructField]
+    location: Location
+    scope: Scope
+
+fn new_struct_field(name: str, ty: MyType, location: Location) -> StructField:
+    let f = StructField:
+        name: name
+        ty: ty
+        location: location
+    return f
+
+struct StructField:
+    name: str
+    ty: MyType
+    location: Location
+
+fn enum_def(name: str, location: Location, variants: List[EnumVariant]) -> EnumDef:
+    let e = EnumDef:
+        name: name
+        location: location
+        variants: variants
+        scope: Scope()
+    return e
+
+struct EnumDef:
+    name: str
+    location: Location
+    variants: List[EnumVariant]
+    scope: Scope
+
+struct EnumVariant:
+    name: str
+    location: Location
+
+struct ClassDef:
+    name: str
+    location: Location
+    scope: Scope
+
+fn function_def(name: str, parameters: List[ParameterDef], body: Statement, location: Location) -> FunctionDef:
     let f = FunctionDef:
         name: name
         is_pub: true
+        parameters: parameters
+        location: location
+        scope: Scope()
         body: body
     return f
 
 struct FunctionDef:
     name: str
     is_pub: bool
-    # TODO:
-    # parameters: list<int>
+    parameters: List[ParameterDef]
+    scope: Scope
     body: Statement
+    location: Location
+
+fn parameter_def(name: str, ty: MyType, location: Location) -> ParameterDef:
+    let p = ParameterDef:
+        name: name
+        ty: ty
+        location: location
+    return p
+
+struct ParameterDef:
+    name: str
+    ty: MyType
+    location: Location
 
 fn variable(name: str, ty: MyType) -> Variable:
     let v = Variable:
@@ -82,6 +224,8 @@ enum StatementKind:
     If(IfStatement)
     While(WhileStatement)
     Loop(LoopStatement)
+    For(ForStatement)
+    Case(CaseStatement)
     Switch(SwitchStatement)
     Let(LetStatement)
     Compound(List[Statement])
@@ -126,6 +270,29 @@ fn loop_statement(body: Statement, location: Location) -> Statement:
     return statement(kind, location)
 
 struct LoopStatement:
+    body: Statement
+
+fn for_statement(iter_var: str, iter_value: Expression, body: Statement, location: Location) -> Statement:
+    let v = Variable:
+        name: iter_var
+        ty: undefined_type()
+    let f = ForStatement:
+        iter_var: v
+        iter_value: iter_value
+        body: body
+    return statement(StatementKind::For(f), location)
+
+struct ForStatement:
+    iter_var: Variable
+    iter_value: Expression
+    body: Statement
+
+struct CaseStatement:
+    value: Expression
+    arms: List[CaseArm]
+    else_clause: Option[Statement]
+
+struct CaseArm:
     body: Statement
 
 struct SwitchStatement:
@@ -185,14 +352,22 @@ fn expression(kind: ExpressionKind, ty: MyType, location: Location) -> Expressio
 enum ExpressionKind:
     Call(FunctionCall)
     GetAttr(Expression,str)
+    GetIndex(Expression,List[Expression])
     Binop(BinopExpression)
     NameRef(str)
     VarRef(Variable)
+    LoadSymbol(Symbol)
     IntLiteral(int)
     FloatLiteral(float)
     StringLiteral(str)
     BoolLiteral(bool)
+    ObjInit(MyType,List[FieldInit])
     Undefined
+
+struct FieldInit:
+    location: Location
+    name: str
+    value: Expression
 
 fn call(callee: Expression, arguments: List[Expression], ty: MyType, location: Location) -> Expression:
     let c = FunctionCall:
@@ -208,6 +383,10 @@ fn get_attr(base: Expression, field: str, ty: MyType, location: Location) -> Exp
 struct FunctionCall:
     callee: Expression
     arguments: List[Expression]
+
+fn subscript(base: Expression, indici: List[Expression], ty: MyType, location: Location) -> Expression:
+    let kind = ExpressionKind::GetIndex(base, indici)
+    return expression(kind, ty, location)
 
 # Reference a variable:
 fn var_ref(v: Variable, location: Location) -> Expression:
@@ -306,6 +485,14 @@ fn print_ast_definition(printer: AstPrinter, definition: Definition, is_pre: boo
         case definition:
             Function(func):
                 print("Func: {func.name}")
+            Struct(s):
+                print("Struct: {s.name}")
+            Enum(e):
+                print("Enum: {e.name}")
+            Class(c):
+                print("Class: {c.name}")
+            Var(v):
+                print("Var: {v.variable.name}")
         printer.indent()
     else:
         printer.dedent()
@@ -334,6 +521,10 @@ fn print_ast_statement(printer: AstPrinter, statement: Statement, is_pre: bool):
                 txt = "LOOP"
             While(whilly):
                 txt = "WHILE"
+            For(f):
+                txt = "FOR"
+            Case(f):
+                txt = "CASE"
             Let(letty):
                 txt = "LET"
             Switch(switchy):
@@ -364,8 +555,12 @@ fn print_ast_expression(printer: AstPrinter, expr: Expression, is_pre: bool):
                 txt = "CALL"
             NameRef(name):
                 txt = "REF({name})"
+            LoadSymbol(s):
+                txt = "LOAD_SYM"
             GetAttr(base, attr):
                 txt = "GET-ATTR({attr})"
+            GetIndex(base, indici):
+                txt = "GET-INDEX"
             Undefined:
                 txt = "UNDEFINED"
             Binop(op):
@@ -373,7 +568,8 @@ fn print_ast_expression(printer: AstPrinter, expr: Expression, is_pre: bool):
                 txt = "BINOP({op_txt})"
             VarRef(v):
                 txt = "VAR-REF({v.name})"
-
+            ObjInit(ty, fields):
+                txt = "OBJ-INIT"
         
         printer.print2("EXPR {txt}")
         printer.indent()
@@ -420,6 +616,14 @@ fn visit_module[T](visitor: Visitor[T], mod: Module):
             Function(func):
                 # print("VISIT {func.name}")
                 visit_statement(visitor, func.body)
+            Enum(e):
+                pass
+            Struct(s):
+                pass
+            Class(c):
+                pass
+            Var(v):
+                pass
         visitor.on_definition(visitor.data, definition, false)
 
 fn visit_statement[T](visitor: Visitor[T], statement: Statement):
@@ -441,6 +645,13 @@ fn visit_statement[T](visitor: Visitor[T], statement: Statement):
         Switch(switchy):
             visit_expression(visitor, switchy.value)
             # TODO: visit arms!
+        For(f):
+            visit_expression(visitor, f.iter_value)
+            visit_statement(visitor, f.body)
+        Case(c):
+            visit_expression(visitor, c.value)
+            for arm in c.arms:
+                visit_statement(visitor, arm.body)
         Compound(inner):
             for s in inner:
                 visit_statement(visitor, s)
@@ -478,16 +689,25 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         NameRef(v):
             # print("name-ref -> {v}")
             pass
+        LoadSymbol(s):
+            pass
         Call(v):
             visit_expression(visitor, v.callee)
             for arg in v.arguments:
                 visit_expression(visitor, arg)
         GetAttr(base, index):
             visit_expression(visitor, base)
+        GetIndex(base, indici):
+            visit_expression(visitor, base)
+            for arg in indici:
+                visit_expression(visitor, arg)
         Binop(v):
             visit_expression(visitor, v.lhs)
             visit_expression(visitor, v.rhs)
         VarRef(v):
             pass
+        ObjInit(ty, fields):
+            for field in fields:
+                visit_expression(visitor, field.value)
 
     visitor.on_expression(visitor.data, expression, false)
