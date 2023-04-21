@@ -5,13 +5,10 @@ from std import print
 from lexer import Lexer
 from token import token_to_string, Token
 from location import Location, new_location
-from datatypes import List, Result, Option
+from datatypes import List, Result, Option, String, split_string
 from utils import panic
+from errors import CompilationError
 
-
-struct CompilationError:
-    location: Location
-    message: str
 
 fn new_error(tok: Token, message: str) -> CompilationError:
     let e = CompilationError:
@@ -19,12 +16,19 @@ fn new_error(tok: Token, message: str) -> CompilationError:
         message: "{message}, got {token_to_string(tok)}"
     return e
 
-fn parse_source(filename: str) -> Result[ast.Module,CompilationError]:
-    let source = std::read_file(filename)
+fn basename(path: String) -> String:
+    # retrieve 'bla' from 'for/bar/bla.txt'
+    let base = split_string(path, "/").last()
+    return split_string(base, ".").first()
+
+fn parse_source(filename: String) -> Result[ast.Module,CompilationError]:
+    let source = std.read_file(filename.value)
+    let modname = basename(filename).value
+
     let parser = Parser()
     parser.feed(source)
 
-    return parser.parse_module()
+    return parser.parse_module(modname)
     
 
 class Parser:
@@ -34,7 +38,7 @@ class Parser:
     fn feed(source: str):
         this.lex.init(source)
     
-    fn parse_module() -> Result[ast.Module,CompilationError]:
+    fn parse_module(modname: str) -> Result[ast.Module,CompilationError]:
         let definitions: List[ast.Definition] = List()
         let imports: List[ast.Import] = List()
 
@@ -47,13 +51,13 @@ class Parser:
                 KwImport:
                     case this.parse_import(tok.location):
                         Ok(i):
-                            pass
+                            imports.append(i)
                         Error(error):
                             return Result.Error(error)
                 KwFrom:
                     case this.parse_from_import(tok.location):
                         Ok(i):
-                            pass
+                            imports.append(i)
                         Error(error):
                             return Result.Error(error)
                 KwFn:
@@ -83,8 +87,8 @@ class Parser:
             else:
                 return Result.Error(new_error(tok, "Unexpected token"))
 
-        let program = ast.new_module("FUU", imports, definitions)
-        return Result::Ok(program)
+        let program = ast.new_module(modname, imports, definitions)
+        return Result.Ok(program)
 
     fn parse_import(location: Location) -> Result[ast.Import,CompilationError]:
         let modname = "?"
@@ -103,13 +107,9 @@ class Parser:
         else:
             return Result.Error(new_error(tok, "Expected newline"))
         
-        let i = ast.Import:
-            modname: modname
-            location: location
-        
-        return Result.Ok(i)
+        return Result.Ok(ast.import_self(modname, location))
 
-    fn parse_from_import(location: Location) -> Result[ast.FromImport, CompilationError]:
+    fn parse_from_import(location: Location) -> Result[ast.Import, CompilationError]:
         let modname = "?"
         let tok = this.get_token()
         case tok.kind:
@@ -148,12 +148,7 @@ class Parser:
             else:
                 return Result.Error(new_error(tok2, "Expected ',' or newline"))
 
-        let i = ast.FromImport:
-            modname: modname
-            location: location
-            names: names
-
-        return Result.Ok(i)
+        return Result.Ok(ast.import_names(modname, location, names))
 
     fn parse_enum_def(location: Location) -> Result[ast.EnumDef, CompilationError]:
         let name = "?"
@@ -385,7 +380,7 @@ class Parser:
         else:
             return Result.Error(new_error(tok, "Expected indent"))
 
-        # let inner_defs = List()
+        let inner_defs: List[ast.Definition] = List()
         loop:
             # expect var/fn def or dedent (eventually)
             tok = this.get_token()
@@ -399,7 +394,7 @@ class Parser:
                 KwFn:
                     case this.parse_func_def(tok.location):
                         Ok(func_def):
-                            pass
+                            inner_defs.append(ast.Definition.Function(func_def))
                         Error(error):
                             return Result.Error(error)
                 Dedent:
@@ -410,6 +405,7 @@ class Parser:
         let c = ast.ClassDef:
             name: name
             location: tok.location
+            definitions: inner_defs
             scope: ast.Scope()
         return Result.Ok(c)
 
@@ -425,6 +421,13 @@ class Parser:
             return Result::Error(new_error(tok, "Expected name"))
 
         print("Parsing function: {name}")
+
+        case this.parse_type_parameters():
+            Ok(type_parameters):
+                # TODO: use type params
+                pass
+            Error(error):
+                return Result.Error(error)
 
         # '('
         tok = this.get_token()
@@ -479,21 +482,23 @@ class Parser:
                 else:
                     return Result::Error(new_error(tok4, "Expected ')' or ','"))
 
-        # Optional arrow + type
+        # Optional return type
         tok = this.get_token()
+        let return_type: Option[ast.MyType] = Option.None()
         case tok.kind:
             Arrow:
-                # 'int' parse expression!
-                let t = this.parse_expression()
-            Colon:
-                this.unget_token(tok)
+                case this.parse_type():
+                    Ok(ty):
+                        return_type = Option.Some(ty)
+                    Error(error):
+                        return Result.Error(error)
         else:
-            return Result::Error(new_error(tok, "Expected '->' or ':'"))
+            this.unget_token(tok)
 
         # Body
         case this.parse_block():
             Ok(body):
-                return Result.Ok(ast.function_def(name, parameters, body, location))
+                return Result.Ok(ast.function_def(name, parameters, return_type, body, location))
             Error(error):
                 return Result.Error(error)
     
@@ -554,13 +559,66 @@ class Parser:
         return Result.Ok(var_def)
 
     fn parse_type() -> Result[ast.MyType, CompilationError]:
-        case this.parse_expression():
-            Ok(e):
-                # TODO: type expression!
-                let t = ast.undefined_type()
-                return Result.Ok(t)
-            Error(error):
-                return Result.Error(error)
+        let tok0 = this.get_token()
+        case tok0.kind:
+            KwFn:
+                # Parse function signature.
+
+                # '('
+                let tok2 = this.get_token()
+                case tok2.kind:
+                    BraceOpen:
+                        pass
+                else:
+                    return Result.Error(new_error(tok2, "Expected '('"))
+
+                let parameter_types: List[ast.MyType] = List()
+                # ')' or parameters and ')'
+                tok2 = this.get_token()
+                case tok2.kind:
+                    BraceClose:
+                        pass
+                else:
+                    this.unget_token(tok2)
+                    loop:
+                        let param_type = ast.undefined_type()
+                        case this.parse_type():
+                            Ok(param_type):
+                                parameter_types.append(param_type)
+                            Error(error):
+                                return Result.Error(error)
+
+                        let tok4 = this.get_token()
+                        case tok4.kind:
+                            BraceClose:
+                                break
+                            Comma:
+                                continue
+                        else:
+                            return Result.Error(new_error(tok4, "Expected ')' or ','"))
+
+                # Optional return type
+                tok2 = this.get_token()
+                let return_type: Option[ast.MyType] = Option.None()
+                case tok2.kind:
+                    Arrow:
+                        case this.parse_type():
+                            Ok(ty):
+                                return_type = Option.Some(ty)
+                            Error(error):
+                                return Result.Error(error)
+                else:
+                    this.unget_token(tok2)
+                
+                return Result.Ok(ast.function_type(parameter_types, return_type))
+        else:
+            this.unget_token(tok0)
+
+            case this.parse_expression():
+                Ok(expr):
+                    return Result.Ok(ast.type_expression(expr))
+                Error(error):
+                    return Result.Error(error)
 
     fn parse_block() -> Result[ast.Statement, CompilationError]:
         # parse block of statements.
@@ -964,27 +1022,31 @@ class Parser:
                     let s = ast.expression_statement(expr)
 
                     # Maybe we have an assignment
+                    let is_assign = false
+                    let assign_op = Option.None()
                     let tok2 = this.get_token()
                     case tok2.kind:
                         Equals:
-                            # Assignment!
-                            case this.parse_expression():
-                                Ok(value):
-                                    s = ast.assignment_statement(expr, value, tok2.location)
-                                Error(error):
-                                    return Result.Error(error)
-                        PlusEquals:
-                            # Assignment! '+='
-                            print("ATTENTION: += badly parsed")
-                            # TODO!
-                            case this.parse_expression():
-                                Ok(value):
-                                    s = ast.assignment_statement(expr, value, tok2.location)
-                                Error(error):
-                                    return Result.Error(error)
+                            is_assign = true
+                        PlusEquals:  # Assignment '+='
+                            assign_op = Option.Some(ast.BinaryOperator.Add())
+                            is_assign = true
+                        MinusEquals:
+                            assign_op = Option.Some(ast.BinaryOperator.Sub())
+                            is_assign = true
                     else:
                         this.unget_token(tok2)
                     
+                    if is_assign:
+                        # Assignment!
+                        case this.parse_expression():
+                            Ok(value):
+                                s = ast.assignment_statement(expr, assign_op, value, tok2.location)
+                            Error(error):
+                                return Result.Error(error)
+                    else:
+                        s = ast.expression_statement(expr)
+
                     # Now consume final newline!
                     tok2 = this.get_token()
                     case tok2.kind:

@@ -1,5 +1,6 @@
 
 from utils import panic
+from std import str_len, str_slice, str_get
 
 enum Option[D]:
     Some(D)
@@ -26,6 +27,23 @@ fn new_string(value: str) -> String:
     let i = String:
         value: value
     return i
+
+fn split_string(value: String, sep: str) -> List[String]:
+    let size = str_len(value.value)
+    let start = 0
+    let cur = 0
+    let parts: List[String] = List()
+    while cur < size:
+        let c = str_get(value.value, cur)
+        if c == sep:
+            parts.append(new_string(str_slice(value.value, start, cur)))
+            cur += 1
+            start = cur
+        else:
+            cur += 1
+    parts.append(new_string(str_slice(value.value, start, cur)))
+    return parts
+
 
 class List[T]:
     # Linked list based on a linked list of elements with next pointers.
@@ -94,7 +112,11 @@ class List[T]:
 
     fn first() -> T:
         # Retrieve last element
-        panic("TODO List.first!")
+        case this.head_element:
+            None:
+                panic("List.first on empty list!")
+            Some(element):
+                return element.data
 
     fn pop_last() -> T:
         # Pop last element of the list
@@ -184,6 +206,13 @@ class Dictionary[T]:
             if item.key == key:
                 return Option.Some(item.value)
         return Option.None()
+    
+    fn contains(key: str) -> bool:
+        case this.get(key):
+            Some(x):
+                return true
+            None:
+                return false
     
     fn insert(key: str, value: T):
         for item in this.items:

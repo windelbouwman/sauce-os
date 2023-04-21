@@ -180,7 +180,7 @@ class CustomTransformer(LarkTransformer):
         return ast.var_def(name, ty, value, get_loc(x[0]))
 
     def func_def(self, x):
-        # KW_FN id_and_type_parameters function_signature COLON NEWLINE block
+        # KW_FN id_and_type_parameters function_signature block
         location, name, type_parameters = x[1]
         parameters, return_type = x[2]
         body = x[-1]
@@ -255,9 +255,18 @@ class CustomTransformer(LarkTransformer):
 
     def typ(self, x):
         if isinstance(x[0], LarkToken) and x[0].type == "KW_FN":
-            # raise NotImplementedError('?')
-            parameters, return_type = x[1]
-            parameter_types = [p.ty for p in parameters]
+            # KW_FN LEFT_BRACE types? RIGHT_BRACE (ARROW typ)?
+            if isinstance(x[2], LarkToken) and x[2].type == "RIGHT_BRACE":
+                parameter_types = []
+            else:
+                assert isinstance(x[2], list)
+                parameter_types = x[2]
+
+            if isinstance(x[-2], LarkToken) and x[-2].type == "ARROW":
+                return_type = x[-1]
+            else:
+                return_type = ast.void_type
+
             return ast.function_type(parameter_types, return_type)
         else:
             assert isinstance(x[0], ast.Expression)
@@ -273,11 +282,12 @@ class CustomTransformer(LarkTransformer):
         return ast.Parameter(x[0].value, x[2], get_loc(x[0]))
 
     def block(self, x):
-        statements = x[1:-1]
+        # COLON NEWLINE INDENT statement+ DEDENT
+        statements = x[3:-1]
         if len(statements) == 1:
             return statements[0]
         else:
-            return ast.compound_statement(statements, get_loc(x[0]))
+            return ast.compound_statement(statements, get_loc(x[2]))
 
     def statement(self, x):
         return x[0]
@@ -309,10 +319,10 @@ class CustomTransformer(LarkTransformer):
         return ast.assignment_statement(x[0], op, x[2], get_loc(x[1]))
 
     def if_statement(self, x):
-        # KW_IF test COLON NEWLINE block elif_clause* else_clause?
+        # KW_IF test block elif_clause* else_clause?
         condition = x[1]
-        true_statement = x[4]
-        elif_tail = x[5:]
+        true_statement = x[2]
+        elif_tail = x[3:]
 
         # Assume no else clause:
         false_statement = ast.pass_statement(get_loc(x[0]))
@@ -343,7 +353,7 @@ class CustomTransformer(LarkTransformer):
         return ast.case_statement(value, arms, else_clause, get_loc(x[0]))
 
     def case_arm(self, x):
-        # case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? COLON NEWLINE block
+        # case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? block
         name = x[0].value
         if isinstance(x[1], LarkToken) and x[1].type == "LEFT_BRACE":
             variables = [
@@ -355,15 +365,15 @@ class CustomTransformer(LarkTransformer):
         return ast.CaseArm(name, variables, body, get_loc(x[0]))
 
     def switch_statement(self, x):
-        # switch_statement: KW_SWITCH expression COLON NEWLINE INDENT switch_arm+ DEDENT KW_ELSE COLON NEWLINE block
+        # switch_statement: KW_SWITCH expression COLON NEWLINE INDENT switch_arm+ DEDENT else_clause
         value = x[1]
-        arms = x[5:-5]
+        arms = x[5:-2]
         default_body = x[-1]
         return ast.switch_statement(value, arms, default_body, get_loc(x[0]))
 
     def switch_arm(self, x):
-        # switch_arm: expression COLON NEWLINE block
-        return ast.SwitchArm(x[0], x[3], get_loc(x[1]))
+        # switch_arm: expression block
+        return ast.SwitchArm(x[0], x[1], x[0].location)
 
     def let_statement(self, x):
         """KW_LET ID (COLON typ)? EQUALS expression NEWLINE"""
@@ -377,22 +387,24 @@ class CustomTransformer(LarkTransformer):
         return ast.let_statement(variable, ty, value, get_loc(x[0]))
 
     def while_statement(self, x):
-        condition, inner = x[1], x[4]
+        # KW_WHILE test block
+        condition, inner = x[1], x[2]
         return ast.while_statement(condition, inner, get_loc(x[0]))
 
     def loop_statement(self, x):
-        inner = x[3]
+        # KW_LOOP block
+        inner = x[1]
         return ast.loop_statement(inner, get_loc(x[0]))
 
     def for_statement(self, x):
-        # KW_FOR ID KW_IN expression COLON NEWLINE block
+        # KW_FOR ID KW_IN expression block
         variable = ast.Variable(x[1].value, ast.void_type, get_loc(x[1]))
-        values, inner = x[3], x[6]
+        values, inner = x[3], x[4]
         return ast.for_statement(variable, values, inner, get_loc(x[0]))
 
     def elif_clause(self, x):
-        # : KW_ELIF test COLON NEWLINE block
-        return (x[1], x[4])
+        # : KW_ELIF test block
+        return (x[1], x[2])
 
     def else_clause(self, x):
         return x[-1]
@@ -545,7 +557,7 @@ definition: func_def
 
 class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
 var_def: KW_VAR ID COLON typ EQUALS expression NEWLINE
-func_def: KW_FN id_and_type_parameters function_signature COLON NEWLINE block
+func_def: KW_FN id_and_type_parameters function_signature block
 function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
 parameters: parameter
           | parameters COMMA parameter
@@ -561,11 +573,11 @@ type_parameters: LEFT_BRACKET ids RIGHT_BRACKET
 types: typ
      | types COMMA typ
 typ: expression
-   | KW_FN function_signature
+   | KW_FN LEFT_BRACE types? RIGHT_BRACE (ARROW typ)?
 ids: ID
    | ids COMMA ID
 
-block: INDENT statement+ DEDENT
+block: COLON NEWLINE INDENT statement+ DEDENT
 
 statement: simple_statement NEWLINE
          | if_statement
@@ -588,18 +600,18 @@ pass_statement: KW_PASS
 return_statement: KW_RETURN test?
 assignment_statement: expression (EQUALS | PLUS_EQUALS | MINUS_EQUALS) expression
 
-if_statement: KW_IF test COLON NEWLINE block elif_clause* else_clause?
-elif_clause: KW_ELIF test COLON NEWLINE block
-else_clause: KW_ELSE COLON NEWLINE block
+if_statement: KW_IF test block elif_clause* else_clause?
+elif_clause: KW_ELIF test block
+else_clause: KW_ELSE block
 let_statement: KW_LET ID (COLON typ)? EQUALS expression NEWLINE
              | KW_LET ID (COLON typ)? EQUALS obj_init
-while_statement: KW_WHILE test COLON NEWLINE block
-loop_statement: KW_LOOP COLON NEWLINE block
-for_statement: KW_FOR ID KW_IN expression COLON NEWLINE block
+while_statement: KW_WHILE test block
+loop_statement: KW_LOOP block
+for_statement: KW_FOR ID KW_IN expression block
 case_statement: KW_CASE expression COLON NEWLINE INDENT case_arm+ DEDENT else_clause?
-case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? COLON NEWLINE block
-switch_statement: KW_SWITCH expression COLON NEWLINE INDENT switch_arm+ DEDENT KW_ELSE COLON NEWLINE block
-switch_arm: expression COLON NEWLINE block
+case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? block
+switch_statement: KW_SWITCH expression COLON NEWLINE INDENT switch_arm+ DEDENT else_clause
+switch_arm: expression block
 
 test: disjunction
 disjunction: disjunction KW_OR conjunction

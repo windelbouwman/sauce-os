@@ -7,22 +7,9 @@ a compiler.
 
 import logging
 from .builtins import get_builtins
+from .bc import Program, Function, OpCode
 
 logger = logging.getLogger("vm")
-
-
-class Program:
-    """A bytecode program"""
-
-    def __init__(self, functions: list["Function"]):
-        self.functions = functions
-
-
-class Function:
-    def __init__(self, name: str, code, n_locals: int):
-        self.name = name
-        self.code = code
-        self.n_locals = n_locals  # locals + parameters!
 
 
 def print_bytecode(prog: Program, f=None):
@@ -83,7 +70,7 @@ class VirtualMachine:
         try:
             while self._frames:
                 self.dispatch()
-        except IndexError:
+        except (IndexError, RuntimeError):
             print("traceback:")
             for frame in self._frames:
                 print("in ", frame._function.name)
@@ -101,20 +88,20 @@ class VirtualMachine:
             )
         self._frames[-1]._pc += 1
 
-        if opcode == "CONST":
+        if opcode == OpCode.CONST:
             self.push_value(args[0])
-        elif opcode == "LOCAL_GET":
+        elif opcode == OpCode.LOCAL_GET:
             value = self.get_local(args[0])
             self.push_value(value)
-        elif opcode == "LOCAL_SET":
+        elif opcode == OpCode.LOCAL_SET:
             value = self.pop_value()
             self.set_local(args[0], value)
-        elif opcode == "LOADFUNC":
+        elif opcode == OpCode.LOADFUNC:
             func = self.functions_by_name[args[0]]
             self.push_value(func)
-        elif opcode == "BUILTIN":
+        elif opcode == OpCode.BUILTIN:
             self.push_value(self._builtins[args[0]])
-        elif opcode == "CALL":
+        elif opcode == OpCode.CALL:
             callee = self.pop_value()
             arguments = self.pop_n(args[0])
 
@@ -127,7 +114,7 @@ class VirtualMachine:
                 # print('res', r)
                 if r is not None:
                     self.push_value(r)
-        elif opcode == "RETURN":
+        elif opcode == OpCode.RETURN:
             if args[0] == 1:
                 value = self.pop_value()
                 self.pop_frame()
@@ -143,13 +130,13 @@ class VirtualMachine:
             rhs = self.pop_value()
             res = unary_op_funcs[opcode](rhs)
             self.push_value(res)
-        elif opcode == "JUMP-IF":
+        elif opcode == OpCode.JUMP_IF:
             v = self.pop_value()
             if v:
                 self.jump(args[0])
             else:
                 self.jump(args[1])
-        elif opcode == "JUMP":
+        elif opcode == OpCode.JUMP:
             self.jump(args[0])
         elif opcode == "ARRAY_LIT":
             # Contrapt a list of values:
@@ -162,23 +149,23 @@ class VirtualMachine:
         elif opcode == "UNION_LIT":
             value = self.pop_value()
             self.push_value([None] * args[0] + [value])
-        elif opcode == "GET_INDEX":
+        elif opcode == OpCode.GET_INDEX:
             index = self.pop_value()
             base = self.pop_value()
             self.push_value(base[index])
-        elif opcode == "SET_INDEX":
+        elif opcode == OpCode.SET_INDEX:
             value = self.pop_value()
             index = self.pop_value()
             base = self.pop_value()
             base[index] = value
-        elif opcode == "GET_ATTR":
+        elif opcode == OpCode.GET_ATTR:
             base = self.pop_value()
             self.push_value(base[args[0]])
-        elif opcode == "SET_ATTR":
+        elif opcode == OpCode.SET_ATTR:
             value = self.pop_value()
             base = self.pop_value()
             base[args[0]] = value
-        elif opcode == "DUP":
+        elif opcode == OpCode.DUP:
             value = self.pop_value()
             self.push_value(value)
             self.push_value(value)
@@ -222,17 +209,17 @@ class VirtualMachine:
 
 
 binary_op_funcs = {
-    "DIV": lambda a, b: a / b,
-    "MUL": lambda a, b: a * b,
-    "ADD": lambda a, b: a + b,
-    "SUB": lambda a, b: a - b,
-    "EQ": lambda a, b: a == b,
-    "LT": lambda a, b: a < b,
-    "GT": lambda a, b: a > b,
-    "LTE": lambda a, b: a <= b,
-    "GTE": lambda a, b: a >= b,
-    "AND": lambda a, b: a and b,
-    "OR": lambda a, b: a or b,
+    OpCode.DIV: lambda a, b: a / b,
+    OpCode.MUL: lambda a, b: a * b,
+    OpCode.ADD: lambda a, b: a + b,
+    OpCode.SUB: lambda a, b: a - b,
+    OpCode.EQ: lambda a, b: a == b,
+    OpCode.LT: lambda a, b: a < b,
+    OpCode.GT: lambda a, b: a > b,
+    OpCode.LTE: lambda a, b: a <= b,
+    OpCode.GTE: lambda a, b: a >= b,
+    OpCode.AND: lambda a, b: a and b,
+    OpCode.OR: lambda a, b: a or b,
 }
 
-unary_op_funcs = {"NOT": lambda a: not a}
+unary_op_funcs = {OpCode.NOT: lambda a: not a}

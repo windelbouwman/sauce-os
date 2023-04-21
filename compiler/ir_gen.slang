@@ -4,110 +4,7 @@ import ast
 from std import print
 from datatypes import List
 from utils import panic
-
-enum Instruction:
-    Nop
-    Dup  # Duplicate stack top
-    Int(int)
-    Str(str)
-    Float(float)
-    Bool(bool)
-    Jump(int)  # Unconditional jump
-    JumpIf(int, int)
-    Return(int)
-    LocalGet(int)
-    LocalSet(int)
-    GetAttr(int)
-    SetAttr(int)
-
-fn instruction_to_string(instruction: Instruction) -> str:
-    case instruction:
-        Nop:
-            return "nop"
-        Dup:
-            return "dup"
-        Int(v):
-            return "int({v})"
-        Float(v):
-            return "float(....)"
-        Str(v):
-            return "str({v})"
-        Bool(v):
-            if v:
-                return "bool(true)"
-            else:
-                return "bool(false)"
-        Jump(v):
-            return "jump({v})"
-        JumpIf(v1, v2):
-            return "jump-if({v1}, {v2})"
-        Return(v):
-            return "return({v})"
-        LocalGet(v):
-            return "local-get({v})"
-        LocalSet(v):
-            return "local-set({v})"
-        GetAttr(v):
-            return "get-attr({v})"
-        SetAttr(v):
-            return "set-attr({v})"
-
-enum Value:
-    Int(int)
-    Str(str)
-    Float(float)
-    Bool(bool)
-
-
-class Frame:
-    var locals: List[Value] = List()
-    var stack: List[Value] = List()
-
-class VM:
-    var frames: List[Frame] = List()
-
-    fn tick(instruction: Instruction):
-        case instruction:
-            Nop:
-                pass
-            Dup:
-                let val = this.pop()
-                this.push(val)
-                this.push(val)
-            Int(val):
-                this.push(Value.Int(val))
-            Str(val):
-                this.push(Value.Str(val))
-            Bool(val):
-                this.push(Value.Bool(val))
-            Float(val):
-                this.push(Value.Float(val))
-            LocalGet(index):
-                let val = this.frames.last().locals.get(index)
-                this.push(val)
-            LocalSet(index):
-                panic("TODO")
-            GetAttr(index):
-                let base = this.pop()
-                panic("TODO")
-            SetAttr(index):
-                let value = this.pop()
-                let base = this.pop()
-                panic("TODO")
-            Jump(target):
-                panic("TODO")
-            JumpIf(target, target2):
-                panic("TODO")
-            Return(amount):
-                if amount == 1:
-                    let val = this.pop()
-                panic("Return not impl")
-    
-    fn push(value: Value):
-        this.frames.last().stack.append(value)
-    
-    fn pop() -> Value:
-        return this.frames.last().stack.pop_last()
+from bc import Instruction, instruction_to_string
 
 
 fn gen_bytecode(module: ast.Module):
@@ -124,6 +21,8 @@ class Generator:
             case definition:
                 Function(function_def):
                     this.gen_func(function_def)
+                ExternFunction(e):
+                    pass
                 Enum(e):
                     pass
                 Struct(s):
@@ -134,6 +33,7 @@ class Generator:
                     panic("VAR def not impl.")
 
     fn gen_func(func: ast.FunctionDef):
+        print("FUNC {func.name}:")
         this.gen_statement(func.body)
 
     fn gen_statement(statement: ast.Statement):
@@ -146,7 +46,8 @@ class Generator:
                 this.jump(1)
             Expr(expr):
                 this.gen_expression(expr)
-            Assignment(target, value):
+            Assignment(target, op, value):
+                # TODO: handle optional operator, like += and -=
                 this.gen_expression(value)
             While(whilly):
                 let test_label = this.new_label()
@@ -210,6 +111,7 @@ class Generator:
                 this.gen_expression(call.callee)
                 for argument in call.arguments:
                     this.gen_expression(argument)
+                this.emit(Instruction.Call(call.arguments.len()))
             GetAttr(base,attr):
                 this.gen_expression(base)
                 # TODO: determine index!
@@ -236,14 +138,28 @@ class Generator:
                 let var_index = 0
                 this.emit(Instruction::LocalGet(var_index))
             LoadSymbol(symbol):
-                pass
+                case symbol:
+                    #Var(v):
+                        # panic("TODO: load var")
+                        # this.emit(Instruction::Local(e.name))
+                    ExternFunction(e):
+                        this.emit(Instruction::LoadFunc(e.name))
+                else:
+                    panic("TODO: load symbol")
             NameRef(name):
                 panic("Names must be resolved: {name}")
             Undefined:
                 panic("Undefined value!")
             ObjInit(ty,fields):
                 panic("obj init must be rewritten")
-
+            StructLiteral(ty,values):
+                for value in values:
+                    this.gen_expression(value)
+                print("TODO: struct literal")
+            Type(ty):
+                panic("Invalid expression: TYPE")
+            TypeConstructor(ty):
+                panic("Invalid expression: TYPE-CONSTRUCTOR")
 
     fn new_label() -> int:
         return this.gen_id()

@@ -3,19 +3,19 @@
 
 import logging
 from . import ast
-from .vm import run_bytecode
-from . import vm
+from . import bc
+from .bc import OpCode
 
 logger = logging.getLogger("bytecode-gen")
 
 
-def gen_bc(modules: list[ast.Module]) -> vm.Program:
+def gen_bc(modules: list[ast.Module]) -> bc.Program:
     logger.info("generating bytecode")
     g = ByteCodeGenerator()
     for module in modules:
         g.gen_module(module)
 
-    return vm.Program(g._functions)
+    return bc.Program(g._functions)
 
 
 class ByteCodeGenerator:
@@ -28,21 +28,21 @@ class ByteCodeGenerator:
         self._label_map = {}
 
         self._binop_map = {
-            "+": "ADD",
-            "-": "SUB",
-            "*": "MUL",
-            "/": "DIV",
-            "<": "LT",
-            ">": "GT",
-            "<=": "LTE",
-            ">=": "GTE",
-            "==": "EQ",
-            "and": "AND",
-            "or": "OR",
+            "+": OpCode.ADD,
+            "-": OpCode.SUB,
+            "*": OpCode.MUL,
+            "/": OpCode.DIV,
+            "<": OpCode.LT,
+            ">": OpCode.GT,
+            "<=": OpCode.LTE,
+            ">=": OpCode.GTE,
+            "==": OpCode.EQ,
+            "and": OpCode.AND,
+            "or": OpCode.OR,
         }
 
         self._unop_map = {
-            "not": "NOT",
+            "not": OpCode.NOT,
         }
 
     def gen_module(self, module: ast.Module):
@@ -62,34 +62,34 @@ class ByteCodeGenerator:
         for parameter in func_def.parameters:
             self._locals.append(parameter)
         self.gen_statement(func_def.statements)
-        self.emit("RETURN", 0)
+        self.emit(OpCode.RETURN, 0)
 
         # Fix labels:
         code = []
         for opcode, operands in self._code:
-            if opcode == "JUMP":
+            if opcode == OpCode.JUMP:
                 operands = (self._label_map[operands[0]],)
-            elif opcode == "JUMP-IF":
+            elif opcode == OpCode.JUMP_IF:
                 operands = (self._label_map[operands[0]], self._label_map[operands[1]])
             # print(f'  {len(code)} OP2', opcode, operands)
             code.append((opcode, operands))
 
         n_locals = len(self._locals)
-        self._functions.append(vm.Function(func_def.name, code, n_locals))
+        self._functions.append(bc.Function(func_def.name, code, n_locals))
 
     def gen_statement(self, statement: ast.Statement):
         kind = statement.kind
         if isinstance(kind, ast.LetStatement):
             self.gen_expression(kind.value)
             self._locals.append(kind.variable)
-            self.emit("LOCAL_SET", self._locals.index(kind.variable))
+            self.emit(OpCode.LOCAL_SET, self._locals.index(kind.variable))
         elif isinstance(kind, ast.CompoundStatement):
             for s in kind.statements:
                 self.gen_statement(s)
         elif isinstance(kind, ast.BreakStatement):
-            self.emit("JUMP", self._loops[-1][1])
+            self.emit(OpCode.JUMP, self._loops[-1][1])
         elif isinstance(kind, ast.ContinueStatement):
-            self.emit("JUMP", self._loops[-1][0])
+            self.emit(OpCode.JUMP, self._loops[-1][0])
         elif isinstance(kind, ast.PassStatement):
             pass
         elif isinstance(kind, ast.WhileStatement):
@@ -97,17 +97,17 @@ class ByteCodeGenerator:
             body_label = self.new_label()
             final_label = self.new_label()
 
-            self.emit("JUMP", start_label)
+            self.emit(OpCode.JUMP, start_label)
 
             self._loops.append((start_label, final_label))
 
             self.set_label(start_label)
             self.gen_expression(kind.condition)
-            self.emit("JUMP-IF", body_label, final_label)
+            self.emit(OpCode.JUMP_IF, body_label, final_label)
 
             self.set_label(body_label)
             self.gen_statement(kind.inner)
-            self.emit("JUMP", start_label)
+            self.emit(OpCode.JUMP, start_label)
 
             self._loops.pop()
 
@@ -117,15 +117,15 @@ class ByteCodeGenerator:
             false_label = self.new_label()
             final_label = self.new_label()
             self.gen_expression(kind.condition)
-            self.emit("JUMP-IF", true_label, false_label)
+            self.emit(OpCode.JUMP_IF, true_label, false_label)
 
             self.set_label(true_label)
             self.gen_statement(kind.true_statement)
-            self.emit("JUMP", final_label)
+            self.emit(OpCode.JUMP, final_label)
 
             self.set_label(false_label)
             self.gen_statement(kind.false_statement)
-            self.emit("JUMP", final_label)
+            self.emit(OpCode.JUMP, final_label)
 
             self.set_label(final_label)
 
@@ -142,10 +142,10 @@ class ByteCodeGenerator:
                     if kind.op == "=":
                         self.gen_expression(kind.value)
                     else:
-                        self.emit("LOCAL_GET", local_index)
+                        self.emit(OpCode.LOCAL_GET, local_index)
                         self.gen_expression(kind.value)
                         self.emit(self._binop_map[kind.op[:-1]])
-                    self.emit("LOCAL_SET", local_index)
+                    self.emit(OpCode.LOCAL_SET, local_index)
                 else:
                     raise ValueError(f"Cannot assign obj: {obj}")
             elif isinstance(kind.target.kind, ast.DotOperator):
@@ -155,26 +155,26 @@ class ByteCodeGenerator:
                     self.gen_expression(kind.value)
                 else:
                     # Implement += and -= and friends
-                    self.emit("DUP")
-                    self.emit("GET_ATTR", index)
+                    self.emit(OpCode.DUP)
+                    self.emit(OpCode.GET_ATTR, index)
                     self.gen_expression(kind.value)
                     self.emit(self._binop_map[kind.op[:-1]])
-                self.emit("SET_ATTR", index)
+                self.emit(OpCode.SET_ATTR, index)
             elif isinstance(kind.target.kind, ast.ArrayIndex):
                 assert kind.op == "="
                 self.gen_expression(kind.target.kind.base)
                 assert len(kind.target.kind.indici) == 1
                 self.gen_expression(kind.target.kind.indici[0])
                 self.gen_expression(kind.value)
-                self.emit("SET_INDEX")
+                self.emit(OpCode.SET_INDEX)
             else:
                 raise ValueError(f"Cannot assign: {kind.target}")
         elif isinstance(kind, ast.ReturnStatement):
             if kind.value:
                 self.gen_expression(kind.value)
-                self.emit("RETURN", 1)
+                self.emit(OpCode.RETURN, 1)
             else:
-                self.emit("RETURN", 0)
+                self.emit(OpCode.RETURN, 0)
         else:
             raise NotImplementedError(str(kind))
 
@@ -182,11 +182,11 @@ class ByteCodeGenerator:
         kind = expression.kind
 
         if isinstance(kind, ast.NumericConstant):
-            self.emit("CONST", kind.value)
+            self.emit(OpCode.CONST, kind.value)
         elif isinstance(kind, ast.StringConstant):
-            self.emit("CONST", kind.text)
+            self.emit(OpCode.CONST, kind.text)
         elif isinstance(kind, ast.BoolLiteral):
-            self.emit("CONST", kind.value)
+            self.emit(OpCode.CONST, kind.value)
         elif isinstance(kind, ast.StructLiteral):
             for value in kind.values:
                 self.gen_expression(value)
@@ -199,7 +199,7 @@ class ByteCodeGenerator:
             self.gen_expression(kind.base)
             assert len(kind.indici) == 1
             self.gen_expression(kind.indici[0])
-            self.emit("GET_INDEX")
+            self.emit(OpCode.GET_INDEX)
         elif isinstance(kind, ast.UnionLiteral):
             self.gen_expression(kind.value)
             index = kind.ty.get_field_index(kind.field)
@@ -230,27 +230,27 @@ class ByteCodeGenerator:
             for arg in kind.args:
                 self.gen_expression(arg)
             self.gen_expression(kind.target)
-            self.emit("CALL", len(kind.args))
+            self.emit(OpCode.CALL, len(kind.args))
         elif isinstance(kind, ast.DotOperator):
             self.gen_expression(kind.base)
             index = kind.base.ty.get_field_index(kind.field)
-            self.emit("GET_ATTR", index)
+            self.emit(OpCode.GET_ATTR, index)
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
             if isinstance(obj, (ast.Variable, ast.Parameter)):
                 # TODO: use integer index!?
                 idx = self._locals.index(obj)
-                self.emit("LOCAL_GET", idx)
+                self.emit(OpCode.LOCAL_GET, idx)
             elif isinstance(obj, ast.FunctionDef):
-                self.emit("LOADFUNC", obj.name)
+                self.emit(OpCode.LOADFUNC, obj.name)
             elif isinstance(obj, ast.BuiltinFunction):
-                self.emit("BUILTIN", obj.name)
+                self.emit(OpCode.BUILTIN, obj.name)
             else:
                 raise NotImplementedError(str(obj))
         else:
             raise NotImplementedError(str(kind))
 
-    def emit(self, opcode, *args):
+    def emit(self, opcode: bc.OpCode, *args):
         # print(f'    {len(self._code)} Op', opcode, args)
         self._code.append((opcode, args))
 
