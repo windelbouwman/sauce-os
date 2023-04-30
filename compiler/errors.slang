@@ -6,8 +6,7 @@ struct CompilationError:
     location: Location
     message: str
 
-# Ugh, TODO: conflicts with new_error in parsing.slang (due to names being used globally....)
-fn new_error2(loc: Location, message: str) -> CompilationError:
+fn new_error(loc: Location, message: str) -> CompilationError:
     let e = CompilationError:
         location: loc
         message: message

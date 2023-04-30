@@ -25,6 +25,12 @@ void std_panic(const char *message)
     std_exit(1);
 }
 
+int std_str_to_int(const char *x)
+{
+    // TODO!
+    return 1337;
+}
+
 char *std_int_to_str(int x)
 {
     char buffer[50];
@@ -41,6 +47,34 @@ char *std_float_to_str(double x)
     char *text = malloc(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;
+}
+
+int std_str_len(const char *txt)
+{
+    return strlen(txt);
+}
+
+int std_ord(const char *txt)
+{
+    return txt[0];
+}
+
+char *std_str_slice(const char *txt, int begin, int end)
+{
+    const int size = end - begin;
+    char *buffer = malloc(size + 1);
+    memcpy(buffer, &txt[begin], size);
+    buffer[size] = 0;
+    return buffer;
+}
+
+// TBD: special case of slice?
+char *std_str_get(const char *txt, int pos)
+{
+    char *buffer = malloc(2);
+    buffer[0] = txt[pos];
+    buffer[1] = 0;
+    return buffer;
 }
 
 char *std_read_file(const char *filename)
@@ -72,7 +106,7 @@ char *rt_str_concat(const char *a, const char *b)
     return buffer;
 }
 
-unsigned char rt_str_compare(const char *a, const char *b)
+int rt_str_compare(const char *a, const char *b)
 {
     if (strcmp(a, b) == 0)
     {
@@ -82,4 +116,18 @@ unsigned char rt_str_compare(const char *a, const char *b)
     {
         return 0;
     }
+}
+
+void *rt_malloc(int size)
+{
+    return malloc(size);
+}
+
+// IDEA: use reference counting to free values.
+void rt_incref(void *ptr)
+{
+}
+
+void rt_decref(void *ptr)
+{
 }

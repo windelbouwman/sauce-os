@@ -8,15 +8,71 @@ from enum import Enum
 class Program:
     """A bytecode program"""
 
-    def __init__(self, functions: list["Function"]):
+    def __init__(self, types: list["StructTyp"], functions: list["Function"]):
+        self.types = types
         self.functions = functions
 
 
+class SimpleTyp(Enum):
+    VOID = 1
+    INT = 3
+    FLOAT = 4
+    STR = 5
+    BOOL = 7
+    PTR = 10
+
+
+class Typ:
+    def __init__(self, kind):
+        self.kind = kind
+
+
+class BaseTyp(Typ):
+    def __init__(self, type_id: SimpleTyp):
+        self.type_id = type_id
+
+    def __repr__(self):
+        return f"{self.type_id}"
+
+
+class ArrayTyp(Typ):
+    def __init__(self, element_typ: Typ, size: int):
+        self.element_typ = element_typ
+        self.size = size
+
+
+class FunctionType(Typ):
+    def __init__(self, parameter_types: list[Typ], return_type: Typ):
+        self.parameter_types = parameter_types
+        self.return_type = return_type
+
+
+class StructTyp(Typ):
+    def __init__(self, index: int):
+        self.index = index
+
+
+class StructTypDef:
+    def __init__(self, name: str, is_union: bool, fields):
+        self.name = name
+        self.is_union = is_union
+        self.fields = fields
+
+
 class Function:
-    def __init__(self, name: str, code, n_locals: int):
+    def __init__(
+        self,
+        name: str,
+        code,
+        params: list["Typ"],
+        local_vars: list["Typ"],
+        return_ty: Typ,
+    ):
         self.name = name
         self.code = code
-        self.n_locals = n_locals  # locals + parameters!
+        self.params = params
+        self.local_vars = local_vars
+        self.return_ty = return_ty
 
 
 class OpCode(Enum):
@@ -34,6 +90,7 @@ class OpCode(Enum):
     SET_INDEX = 19
     BUILTIN = 20
     LOADFUNC = 21
+    CAST = 22
 
     ADD = 40
     SUB = 41
@@ -49,3 +106,20 @@ class OpCode(Enum):
     AND = 55
     OR = 56
     NOT = 57
+
+    STRUCT_LITERAL = 70
+    UNION_LITERAL = 71
+    ARRAY_LITERAL = 72
+
+
+def print_bytecode(program: Program, f=None):
+    for ty in program.types:
+        print(f"type: {ty}")
+    for function in program.functions:
+        print(
+            f"func {function.name} params={function.params} locals={function.local_vars} ret={function.return_ty}",
+            file=f,
+        )
+        for pc, inst in enumerate(function.code):
+            opcode, operands = inst
+            print(f"  {pc}: {opcode} {operands}", file=f)

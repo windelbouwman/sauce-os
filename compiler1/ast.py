@@ -88,6 +88,9 @@ class MyType:
             and self.kind.tycon.is_union
         )
 
+    def is_function(self) -> bool:
+        return isinstance(self.kind, FunctionType)
+
     def is_array(self):
         return isinstance(self.kind, ArrayType)
 

@@ -7,17 +7,10 @@ a compiler.
 
 import logging
 from .builtins import get_builtins
-from .bc import Program, Function, OpCode
+from .bc import Program, Function, OpCode, Typ
+from . import bc
 
 logger = logging.getLogger("vm")
-
-
-def print_bytecode(prog: Program, f=None):
-    for function in prog.functions:
-        print(f"func {function.name} n_locals={function.n_locals}", file=f)
-        for pc, inst in enumerate(function.code):
-            opcode, operands = inst
-            print(f"  {pc}: {opcode} {operands}", file=f)
 
 
 def run_bytecode(prog: Program, f):
@@ -28,13 +21,45 @@ def run_bytecode(prog: Program, f):
     m.invoke("main")
 
 
+def check_value_type(value, ty: Typ):
+    """Assert that the given value is of the given type."""
+    if isinstance(ty, bc.BaseTyp):
+        if ty.type_id == bc.SimpleTyp.FLOAT:
+            assert isinstance(value, float)
+        elif ty.type_id == bc.SimpleTyp.INT:
+            assert isinstance(value, int)
+        elif ty.type_id == bc.SimpleTyp.BOOL:
+            assert isinstance(value, bool)
+        elif ty.type_id == bc.SimpleTyp.STR:
+            assert isinstance(value, str)
+        elif ty.type_id == bc.SimpleTyp.PTR:
+            # Assumptions...
+            pass
+        else:
+            raise NotImplementedError(str(ty.type_id))
+    elif isinstance(ty, bc.StructTyp):
+        assert isinstance(value, list)
+    elif isinstance(ty, bc.FunctionType):
+        # Assume fine!
+        pass
+    else:
+        raise NotImplementedError(ty)
+
+
 class Frame:
     """Call frame."""
 
     def __init__(self, function: Function, arguments):
         # value stack:
         self._stack = []
-        n_vars = function.n_locals - len(arguments)
+
+        assert len(arguments) == len(function.params)
+        # We could type enforce here, in theory, we checked, but just an extra runtime check.
+        for arg, p_ty in zip(arguments, function.params):
+            # assert types match
+            check_value_type(arg, p_ty)
+
+        n_vars = len(function.local_vars)
         self._locals = arguments + [0] * n_vars
 
         self._pc = 0
@@ -50,6 +75,8 @@ class Frame:
         return self._stack.pop()
 
     def set_local(self, index, value):
+        # TBD: enforce strict type checking?
+        # check_value_type
         self._locals[index] = value
 
     def get_local(self, index):
@@ -64,7 +91,12 @@ class VirtualMachine:
 
     def load(self, prog: Program):
         self.prog = prog
-        self.functions_by_name = {f.name: f for f in prog.functions}
+        self.functions_by_name = {}
+        for f in prog.functions:
+            if f.name in self.functions_by_name:
+                raise ValueError(f"Duplicate function name: {f.name}")
+            else:
+                self.functions_by_name[f.name] = f
 
     def run(self):
         try:
@@ -130,6 +162,17 @@ class VirtualMachine:
             rhs = self.pop_value()
             res = unary_op_funcs[opcode](rhs)
             self.push_value(res)
+        elif opcode == OpCode.CAST:
+            val = self.pop_value()
+            to_ty = args[0]
+            if isinstance(to_ty, bc.BaseTyp):
+                if to_ty.type_id == bc.SimpleTyp.FLOAT:
+                    cast_val = float(val)
+                else:
+                    raise NotImplementedError(str(to_ty.type_id))
+            else:
+                raise NotImplementedError(str(to_ty))
+            self.push_value(cast_val)
         elif opcode == OpCode.JUMP_IF:
             v = self.pop_value()
             if v:
@@ -138,15 +181,15 @@ class VirtualMachine:
                 self.jump(args[1])
         elif opcode == OpCode.JUMP:
             self.jump(args[0])
-        elif opcode == "ARRAY_LIT":
+        elif opcode == OpCode.ARRAY_LITERAL:
             # Contrapt a list of values:
             arguments = self.pop_n(args[0])
             self.push_value(arguments)
-        elif opcode == "STRUC_LIT":
+        elif opcode == OpCode.STRUCT_LITERAL:
             # Treat struct as list of values? Might work!
             arguments = self.pop_n(args[0])
             self.push_value(arguments)
-        elif opcode == "UNION_LIT":
+        elif opcode == OpCode.UNION_LITERAL:
             value = self.pop_value()
             self.push_value([None] * args[0] + [value])
         elif opcode == OpCode.GET_INDEX:

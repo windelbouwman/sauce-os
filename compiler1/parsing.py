@@ -20,6 +20,8 @@ logger = logging.getLogger("parser")
 def parse_file(filename: str) -> ast.Module:
     logger.info(f"Parsing {filename}")
     modname = os.path.splitext(os.path.basename(filename))[0]
+    # TODO: clean modname of more special characters
+    modname = modname.replace("-", "_")
     with open(filename, "r") as f:
         code = f.read()
     return parse(code, modname, filename)

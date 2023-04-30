@@ -2,7 +2,7 @@
 from std import print
 from datatypes import List, Option, Dictionary
 import ast
-from errors import CompilationError, new_error2, display_error
+from errors import CompilationError, new_error, display_error
 
 
 fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]):
@@ -155,7 +155,7 @@ fn binder_on_expression(binder: NameBinder, expression: ast.Expression, is_pre: 
                         else:
                             expression.kind = ast.ExpressionKind.LoadSymbol(symbol)
                     None:
-                        let err = new_error2(expression.location, "'{name}' not defined!")
+                        let err = new_error(expression.location, "'{name}' not defined!")
                         display_error(err)
         else:
             pass

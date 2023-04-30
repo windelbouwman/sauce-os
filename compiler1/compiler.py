@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass
 import logging, io, tempfile, subprocess
+from typing import TextIO
 
 import networkx as nx
 
@@ -23,7 +24,8 @@ from .cppgenerator import gen_cppcode
 from .pygenerator import gen_pycode
 from .c_gen import gen_c_code
 from .bc_gen import gen_bc
-from .vm import run_bytecode, print_bytecode
+from .vm import run_bytecode
+from .bc import print_bytecode
 from .builtins import std_module, get_builtins
 
 logger = logging.getLogger("compiler")
@@ -36,7 +38,7 @@ class CompilationOptions:
     backend: str = "vm"
 
 
-def do_compile(filenames: list[str], output: str | None, options: CompilationOptions):
+def do_compile(filenames: list[str], output: TextIO, options: CompilationOptions):
     """Compile a list of module."""
     if not filenames:
         logger.error("No existing source files provided")
@@ -57,6 +59,7 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
         if options.dump_ast:
             ast.print_ast(module)
 
+    modules = [merge_modules(modules)]
     transform(modules, known_modules["std"])
 
     if options.dump_ast:
@@ -82,7 +85,34 @@ def do_compile(filenames: list[str], output: str | None, options: CompilationOpt
             gen_pycode(modules, output)
     elif options.backend == "c":
         prog = gen_bc(modules)
-        gen_c_code(prog)
+        if options.run_code:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                prefix="slang_compiler_tmp",
+                suffix=".c",
+                delete=False,
+            ) as f:
+                filename = f.name
+                logger.info(f"Generating C code to temporary file: {filename}")
+                gen_c_code(prog, f)
+
+            # Compile generated C code
+            runtime_filename = "runtime/runtime.c"
+            c_sources = [filename, runtime_filename]
+            logger.info(f"Invoking the C compiler on {c_sources}")
+            cmd = ["gcc"] + c_sources
+            logger.debug(f"Invoking command: {cmd}")
+            subprocess.run(cmd, check=True)
+
+            # Now we compiled the C program, run the executable:
+            exe_filename = "./a.out"
+            cmd = [exe_filename]
+            logger.info(f"Running native executable {exe_filename}")
+            logger.debug(f"Invoking command: {cmd}")
+            res = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            print(res.stdout, end="", file=output)
+        else:
+            gen_c_code(prog, output)
     elif options.backend == "cpp":
         if options.run_code:
             with tempfile.NamedTemporaryFile(
@@ -167,6 +197,27 @@ def check_modules(modules: list[ast.Module]):
 def print_modules(modules: list[ast.Module]):
     for module in modules:
         ast.print_ast(module)
+
+
+def merge_modules(modules: list[ast.Module]) -> ast.Module:
+    """Merge a set of modules into a merged module."""
+    if not modules:
+        raise ValueError("To merge modules, we need at least 1 module.")
+    elif len(modules) == 1:
+        return modules[0]
+
+    logger.info(f"Merging {len(modules)} modules into one.")
+    new_definitions = []
+    for module in modules:
+        for definition in module.definitions:
+            # Perform name mangling:
+            if definition.name == "main":
+                pass
+            else:
+                definition.name = f"{module.name}_{definition.name}"
+            new_definitions.append(definition)
+
+    return ast.Module("merged", [], new_definitions)
 
 
 def transform(modules: list[ast.Module], std_module: ast.Module):

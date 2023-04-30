@@ -15,7 +15,7 @@ def gen_bc(modules: list[ast.Module]) -> bc.Program:
     for module in modules:
         g.gen_module(module)
 
-    return bc.Program(g._functions)
+    return bc.Program(g._types, g._functions)
 
 
 class ByteCodeGenerator:
@@ -23,9 +23,11 @@ class ByteCodeGenerator:
         self._counter = 0
         self._loops = []
         self._functions = []
+        self._types = []
         self._code = []
         self._locals = []
         self._label_map = {}
+        self._type_map = {}
 
         self._binop_map = {
             "+": OpCode.ADD,
@@ -46,23 +48,70 @@ class ByteCodeGenerator:
         }
 
     def gen_module(self, module: ast.Module):
+        # Forward declare types:
+        cnt = 0
+        for definition in module.definitions:
+            if isinstance(definition, ast.StructDef):
+                self._type_map[id(definition)] = cnt
+                cnt += 1
+
         for definition in module.definitions:
             if isinstance(definition, ast.FunctionDef):
                 self.gen_function(definition)
+            elif isinstance(definition, ast.StructDef):
+                self.gen_struct(definition)
             else:
-                # raise NotImplementedError(str(definition))
-                pass
+                raise NotImplementedError(str(definition))
+
+    def get_bc_ty(self, ty: ast.MyType) -> bc.Typ:
+        if ty.is_int():
+            return bc.BaseTyp(bc.SimpleTyp.INT)
+        elif ty.is_str():
+            return bc.BaseTyp(bc.SimpleTyp.STR)
+        elif ty.is_float():
+            return bc.BaseTyp(bc.SimpleTyp.FLOAT)
+        elif ty.is_bool():
+            return bc.BaseTyp(bc.SimpleTyp.BOOL)
+        elif ty.is_struct() or ty.is_union():
+            return bc.StructTyp(self._type_map[id(ty.kind.tycon)])
+        elif ty.is_function():
+            param_types = [self.get_bc_ty(t) for t in ty.kind.parameter_types]
+            return_type = self.get_bc_ty(ty.kind.return_type)
+            return bc.FunctionType(param_types, return_type)
+        elif ty.is_void():
+            return bc.BaseTyp(bc.SimpleTyp.VOID)
+        elif ty.is_type_var_ref():
+            return bc.BaseTyp(bc.SimpleTyp.PTR)
+        elif ty.is_array():
+            ety = self.get_bc_ty(ty.kind.element_type)
+            return bc.ArrayTyp(ety, ty.kind.size)
+        else:
+            raise NotImplementedError(str(ty))
+
+    def gen_struct(self, struct_def: ast.StructDef):
+        logger.debug(f"generating bytecode type for struct {struct_def.name}")
+        ts = []
+        for field in struct_def.fields:
+            t = self.get_bc_ty(field.ty)
+            ts.append(t)
+        self._types.append((struct_def.name, struct_def.is_union, ts))
 
     def gen_function(self, func_def: ast.FunctionDef):
-        logger.debug(f"generating bytecode for {func_def.name}")
-        # print(f'fn {func_def.name}')
+        logger.debug(f"generating bytecode for function {func_def.name}")
         self._code = []
         self._locals = []  # parameters and local variables
+        self._local_typs = []
+        params = []
         self._label_map = {}
         for parameter in func_def.parameters:
             self._locals.append(parameter)
+            params.append(self.get_bc_ty(parameter.ty))
         self.gen_statement(func_def.statements)
-        self.emit(OpCode.RETURN, 0)
+        ret_ty = self.get_bc_ty(func_def.return_ty)
+
+        if len(self._code) == 0 or self._code[-1][0] != OpCode.RETURN:
+            # TODO: emit implicit return?
+            self.emit(OpCode.RETURN, 0)
 
         # Fix labels:
         code = []
@@ -74,14 +123,16 @@ class ByteCodeGenerator:
             # print(f'  {len(code)} OP2', opcode, operands)
             code.append((opcode, operands))
 
-        n_locals = len(self._locals)
-        self._functions.append(bc.Function(func_def.name, code, n_locals))
+        self._functions.append(
+            bc.Function(func_def.name, code, params, self._local_typs, ret_ty)
+        )
 
     def gen_statement(self, statement: ast.Statement):
         kind = statement.kind
         if isinstance(kind, ast.LetStatement):
             self.gen_expression(kind.value)
             self._locals.append(kind.variable)
+            self._local_typs.append(self.get_bc_ty(kind.variable.ty))
             self.emit(OpCode.LOCAL_SET, self._locals.index(kind.variable))
         elif isinstance(kind, ast.CompoundStatement):
             for s in kind.statements:
@@ -144,7 +195,8 @@ class ByteCodeGenerator:
                     else:
                         self.emit(OpCode.LOCAL_GET, local_index)
                         self.gen_expression(kind.value)
-                        self.emit(self._binop_map[kind.op[:-1]])
+                        ty = self.get_bc_ty(kind.value.ty)
+                        self.emit(self._binop_map[kind.op[:-1]], ty)
                     self.emit(OpCode.LOCAL_SET, local_index)
                 else:
                     raise ValueError(f"Cannot assign obj: {obj}")
@@ -156,9 +208,10 @@ class ByteCodeGenerator:
                 else:
                     # Implement += and -= and friends
                     self.emit(OpCode.DUP)
-                    self.emit(OpCode.GET_ATTR, index)
+                    ty = self.get_bc_ty(kind.value.ty)
+                    self.emit(OpCode.GET_ATTR, index, ty)
                     self.gen_expression(kind.value)
-                    self.emit(self._binop_map[kind.op[:-1]])
+                    self.emit(self._binop_map[kind.op[:-1]], ty)
                 self.emit(OpCode.SET_ATTR, index)
             elif isinstance(kind.target.kind, ast.ArrayIndex):
                 assert kind.op == "="
@@ -190,11 +243,16 @@ class ByteCodeGenerator:
         elif isinstance(kind, ast.StructLiteral):
             for value in kind.values:
                 self.gen_expression(value)
-            self.emit("STRUC_LIT", len(kind.values))
+            ty = bc.StructTyp(self._type_map[id(kind.ty.kind.tycon)])
+            self.emit(
+                OpCode.STRUCT_LITERAL,
+                len(kind.values),
+                ty,
+            )
         elif isinstance(kind, ast.ArrayLiteral):
             for value in kind.values:
                 self.gen_expression(value)
-            self.emit("ARRAY_LIT", len(kind.values))
+            self.emit(OpCode.ARRAY_LITERAL, len(kind.values))
         elif isinstance(kind, ast.ArrayIndex):
             self.gen_expression(kind.base)
             assert len(kind.indici) == 1
@@ -203,7 +261,8 @@ class ByteCodeGenerator:
         elif isinstance(kind, ast.UnionLiteral):
             self.gen_expression(kind.value)
             index = kind.ty.get_field_index(kind.field)
-            self.emit("UNION_LIT", index)
+            ty = bc.StructTyp(self._type_map[id(kind.ty.kind.tycon)])
+            self.emit(OpCode.UNION_LITERAL, index, ty)
         elif isinstance(kind, ast.Binop):
             # TBD: implement short circuit logic operations?
             # For example: 'false and expensive_function()'
@@ -212,7 +271,8 @@ class ByteCodeGenerator:
             self.gen_expression(kind.rhs)
 
             if kind.op in self._binop_map:
-                self.emit(self._binop_map[kind.op])
+                ty = self.get_bc_ty(kind.lhs.ty)
+                self.emit(self._binop_map[kind.op], ty)
             else:
                 raise NotImplementedError(str(kind.op))
         elif isinstance(kind, ast.Unop):
@@ -223,18 +283,21 @@ class ByteCodeGenerator:
             else:
                 raise NotImplementedError(str(kind.op))
         elif isinstance(kind, ast.TypeCast):
-            # TODO!
             self.gen_expression(kind.value)
-            pass
+            to_ty = self.get_bc_ty(kind.ty)
+            self.emit(OpCode.CAST, to_ty)
         elif isinstance(kind, ast.FunctionCall):
             for arg in kind.args:
                 self.gen_expression(arg)
             self.gen_expression(kind.target)
-            self.emit(OpCode.CALL, len(kind.args))
+            ret_ty = self.get_bc_ty(expression.ty)
+            self.emit(OpCode.CALL, len(kind.args), ret_ty)
         elif isinstance(kind, ast.DotOperator):
             self.gen_expression(kind.base)
             index = kind.base.ty.get_field_index(kind.field)
-            self.emit(OpCode.GET_ATTR, index)
+            ty = kind.base.ty.get_field_type(kind.field)
+            ty = self.get_bc_ty(ty)
+            self.emit(OpCode.GET_ATTR, index, ty)
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
             if isinstance(obj, (ast.Variable, ast.Parameter)):
