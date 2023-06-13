@@ -5,18 +5,19 @@ from std import print
 from datatypes import List
 from utils import panic
 from bc import Instruction, instruction_to_string
+import bc
 
 
-fn gen_bytecode(module: ast.Module):
+fn gen_bytecode(module: ast.Module) -> bc.Program:
     print("Generating bytecode for {module.name}")
     let g = Generator()
-    g.gen_prog(module)
+    return g.gen_prog(module)
 
 class Generator:
     var id_counter: int = 1
     var code: List[Instruction] = List()
 
-    fn gen_prog(prog: ast.Module):
+    fn gen_prog(prog: ast.Module) -> bc.Program:
         for definition in prog.definitions:
             case definition:
                 Function(function_def):
@@ -124,15 +125,17 @@ class Generator:
             Binop(binop):
                 this.gen_expression(binop.lhs)
                 this.gen_expression(binop.rhs)
-
+            Unop(op, value):
+                this.gen_expression(value)
+                this.emit(Instruction.Not())
             IntLiteral(value):
-                this.emit(Instruction::Int(value))
+                this.emit(Instruction.Int(value))
             FloatLiteral(value):
-                this.emit(Instruction::Float(value))
+                this.emit(Instruction.Float(value))
             StringLiteral(value):
-                this.emit(Instruction::Str(value))
+                this.emit(Instruction.Str(value))
             BoolLiteral(value):
-                this.emit(Instruction::Bool(value))
+                this.emit(Instruction.Bool(value))
             VarRef(v):
                 # TODO: var index!
                 let var_index = 0

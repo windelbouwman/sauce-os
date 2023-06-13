@@ -1,37 +1,53 @@
 
 from std import print
 import ast
+import bc
+from errors import display_error, CompilationError
 from parsing import parse_source
 from namebinding import bind_names
 from pass3 import resolve_newops
+from utils import log_info, log_error
 from ir_gen import gen_bytecode
 from builtins import get_std_module
-from datatypes import List, String, new_string, Dictionary
+from datatypes import List, String, new_string, Dictionary, Result
 
 
 fn main() -> int:
     # let filename = "dummy.slang"
     let filenames: List[String] = List()
-    # filenames.append(new_string("compiler/main.slang"))
-    # filenames.append(new_string("compiler/lexer.slang"))
-    # filenames.append(new_string("compiler/parsing.slang"))
-    # filenames.append(new_string("compiler/datatypes.slang"))
-    # filenames.append(new_string("compiler/ast.slang"))
-    filenames.append(new_string("compiler/utils.slang"))
+
+    # Manually sorted list of compiler sources:
     filenames.append(new_string("compiler/location.slang"))
+    filenames.append(new_string("compiler/utils.slang"))
+    filenames.append(new_string("compiler/token.slang"))
+    filenames.append(new_string("compiler/datatypes.slang"))
+    filenames.append(new_string("compiler/bc.slang"))
     filenames.append(new_string("compiler/errors.slang"))
-    # filenames.append(new_string("compiler/namebinding.slang"))
+    filenames.append(new_string("compiler/lexer.slang"))
+    filenames.append(new_string("compiler/ast.slang"))
+    filenames.append(new_string("compiler/parsing.slang"))
+    filenames.append(new_string("compiler/namebinding.slang"))
+    filenames.append(new_string("compiler/builtins.slang"))
+    filenames.append(new_string("compiler/pass3.slang"))
+    filenames.append(new_string("compiler/ir_gen.slang"))
+    filenames.append(new_string("compiler/main.slang"))
+
     # filenames.append(new_string("examples/hello-world.slang"))
     # filenames.append(new_string("examples/callings.slang"))
     # filenames.append(new_string("examples/expressions.slang"))
     # filenames.append(new_string("examples/mandel.slang"))
     # filenames.append(new_string("examples/structs-passing.slang"))
     # filenames.append(new_string("examples/loops.slang"))
-    # compile(filenames)
-    
+    case compile(filenames):
+        Ok(prog):
+            log_info("OK")
+            return 0
+        Error(err):
+            log_error("HORROR")
+            display_error(err)
+            return 1
 
-
-# fn compile(filenames: List[String]):
+fn compile(filenames: List[String]) -> Result[bc.Program, CompilationError]:
     # TODO: sort filenames!
 
     let module_map: Dictionary[ast.Module] = Dictionary()
@@ -40,29 +56,34 @@ fn main() -> int:
 
     let modules: List[ast.Module] = List()
     for filename in filenames:
-        print("Compiling: {filename.value}")
+        log_info("Compiling: {filename.value}")
 
         case parse_source(filename):
             Ok(program):
-                print("Parsed module: {program.name}")
+                log_info("Parsed module: {program.name}")
                 # ast.print_ast(program)
                 modules.append(program)
                 module_map.insert(program.name, program)
             Error(error):
-                print("Compilation failed: {error.location.row}:{error.location.column} -> {error.message}")
-                # return 1
+                return Result.Error(error)
     
     # TODO: topo-sort modules!
 
     for module in modules:
-        bind_names(module, module_map)
-        resolve_newops(module)
+        case bind_names(module, module_map):
+            None:
+                pass
+            Some(error):
+                return Result.Error(error)
 
-    print("generating bytecode")
-    # return 1
-    # TODO:
+        case resolve_newops(module):
+            None:
+                pass
+            Some(error):
+                return Result.Error(error)
+
+    log_info("generating bytecode")
+
     for module2 in modules:
-        gen_bytecode(module2)
-    
-    print("DONE & DONE")
-    return 0
+        let prog = gen_bytecode(module2)
+        return Result.Ok(prog)

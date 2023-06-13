@@ -81,15 +81,7 @@ class PyCodeGenerator:
             for statement in kind.statements:
                 self.gen_statement(statement)
         elif isinstance(kind, ast.IfStatement):
-            val = self.gen_expression(kind.condition, parens=False)
-            self.emit(f"if {val}:")
-            self.indent()
-            self.gen_statement(kind.true_statement)
-            self.dedent()
-            self.emit("else:")
-            self.indent()
-            self.gen_statement(kind.false_statement)
-            self.dedent()
+            self.gen_if_statement(kind)
         elif isinstance(kind, ast.SwitchStatement):
             value = self.gen_expression(kind.value)
             # TODO: unique name:
@@ -136,6 +128,21 @@ class PyCodeGenerator:
                 self.emit(f"return")
         else:
             raise NotImplementedError(str(kind))
+
+    def gen_if_statement(self, if_statement: ast.IfStatement, kw: str = "if"):
+        val = self.gen_expression(if_statement.condition, parens=False)
+        self.emit(f"{kw} {val}:")
+        self.indent()
+        self.gen_statement(if_statement.true_statement)
+        self.dedent()
+        if isinstance(if_statement.false_statement.kind, ast.IfStatement):
+            # We got el-if!
+            self.gen_if_statement(if_statement.false_statement.kind, kw="elif")
+        else:
+            self.emit("else:")
+            self.indent()
+            self.gen_statement(if_statement.false_statement)
+            self.dedent()
 
     def gen_expression(self, expression: ast.Expression, parens: bool = True) -> str:
         kind = expression.kind

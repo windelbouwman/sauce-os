@@ -31,8 +31,14 @@ fn type_to_string(ty: MyType) -> str:
             return "FUNC-TYPE"
         Undefined:
             return "UNDEFINED"
+        TypeParam(p):
+            return "TYPE-PARAM"
         App(tycon, type_arguments):
             return "APP"
+
+fn change_type_to(ty: MyType, ty2: MyType):
+    # Adjust ty to ty2
+    ty.kind = ty2.kind
 
 
 enum TypeKind:
@@ -43,6 +49,7 @@ enum TypeKind:
     Float
     TypeExpression(Expression)
     Function(List[MyType], Option[MyType])
+    TypeParam(TypeParameter)
     
     # Application of a type-constructor:
     App(TyCon,List[MyType])
@@ -72,6 +79,9 @@ fn type_expression(expr: Expression) -> MyType:
 
 fn function_type(parameter_types: List[MyType], return_type: Option[MyType]) -> MyType:
     return new_type(TypeKind.Function(parameter_types, return_type))
+
+fn type_var_ref(type_param: TypeParameter) -> MyType:
+    return new_type(TypeKind.TypeParam(type_param))
 
 struct Module:
     name: str
@@ -178,9 +188,10 @@ struct TypeParameter:
     name: str
     location: Location
 
-fn struct_def(name: str, fields: List[StructField], location: Location) -> StructDef:
+fn struct_def(name: str, type_parameters: List[TypeParameter], fields: List[StructField], location: Location) -> StructDef:
     let s = StructDef:
         name: name
+        type_parameters: type_parameters
         fields: fields
         location: location
         scope: Scope()
@@ -188,6 +199,7 @@ fn struct_def(name: str, fields: List[StructField], location: Location) -> Struc
 
 struct StructDef:
     name: str
+    type_parameters: List[TypeParameter]
     fields: List[StructField]
     location: Location
     scope: Scope
@@ -204,10 +216,11 @@ struct StructField:
     ty: MyType
     location: Location
 
-fn enum_def(name: str, location: Location, variants: List[EnumVariant]) -> EnumDef:
+fn enum_def(name: str, location: Location, type_parameters: List[TypeParameter], variants: List[EnumVariant]) -> EnumDef:
     let e = EnumDef:
         name: name
         location: location
+        type_parameters: type_parameters
         variants: variants
         scope: Scope()
     return e
@@ -215,23 +228,28 @@ fn enum_def(name: str, location: Location, variants: List[EnumVariant]) -> EnumD
 struct EnumDef:
     name: str
     location: Location
+    type_parameters: List[TypeParameter]
     variants: List[EnumVariant]
     scope: Scope
 
 struct EnumVariant:
     name: str
     location: Location
+    payload: List[MyType]
 
 struct ClassDef:
     name: str
     location: Location
+    type_parameters: List[TypeParameter]
+    this_var: Variable
     definitions: List[Definition]
     scope: Scope
 
-fn function_def(name: str, parameters: List[ParameterDef], return_type: Option[MyType], body: Statement, location: Location) -> FunctionDef:
+fn function_def(name: str, type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Option[MyType], body: Statement, location: Location) -> FunctionDef:
     let f = FunctionDef:
         name: name
         is_pub: true
+        type_parameters: type_parameters
         parameters: parameters
         return_type: return_type
         location: location
@@ -242,6 +260,7 @@ fn function_def(name: str, parameters: List[ParameterDef], return_type: Option[M
 struct FunctionDef:
     name: str
     is_pub: bool
+    type_parameters: List[TypeParameter]
     parameters: List[ParameterDef]
     return_type: Option[MyType]
     scope: Scope
@@ -333,9 +352,7 @@ struct LoopStatement:
     body: Statement
 
 fn for_statement(iter_var: str, iter_value: Expression, body: Statement, location: Location) -> Statement:
-    let v = Variable:
-        name: iter_var
-        ty: undefined_type()
+    let v = variable(iter_var, undefined_type())
     let f = ForStatement:
         iter_var: v
         iter_value: iter_value
@@ -353,6 +370,10 @@ struct CaseStatement:
     else_clause: Option[Statement]
 
 struct CaseArm:
+    location: Location
+    name: str
+    variables: List[Variable]
+    scope: Scope
     body: Statement
 
 struct SwitchStatement:
@@ -414,6 +435,7 @@ enum ExpressionKind:
     GetAttr(Expression,str)
     GetIndex(Expression,List[Expression])
     Binop(BinopExpression)
+    Unop(UnaryOperator, Expression)
     NameRef(str)
     VarRef(Variable)
     LoadSymbol(Symbol)
@@ -488,6 +510,14 @@ fn binop(lhs: Expression, op: BinaryOperator, rhs: Expression, ty: MyType, locat
     let kind = ExpressionKind::Binop(b)
     return expression(kind, ty, location)
 
+enum UnaryOperator:
+    Not
+    Minus
+
+fn unop(op: UnaryOperator, value: Expression, ty: MyType, location: Location) -> Expression:
+    let kind = ExpressionKind::Unop(op, value)
+    return expression(kind, ty, location)
+
 fn bool_literal(value: bool, location: Location) -> Expression:
     let kind = ExpressionKind::BoolLiteral(value)
     let ty = bool_type()
@@ -514,14 +544,23 @@ fn undefined_value() -> Expression:
 fn print_ast(mod: Module):
     print("Module: " + mod.name)
     let printer = AstPrinter()
+    printer.indent()
+    for imp in mod.imports:
+        case imp.kind:
+            Self:
+                printer.print2("import {imp.modname}")
+            Names(names):
+                printer.print2("from {imp.modname} import ..")
     let vis = Visitor:
         data: printer
         on_definition: print_ast_definition
         on_type: print_ast_type
         on_statement: print_ast_statement
         on_expression: print_ast_expression
-    
+        on_node: print_ast_node
+        
     visit_module(vis, mod)
+    printer.dedent()
 
 class AstPrinter:
     var indent_level: int = 0
@@ -644,6 +683,9 @@ fn expression_to_string(expr: Expression) -> str:
         Binop(op):
             let op_txt = binary_op_to_str(op.op)
             txt = "BINOP({op_txt})"
+        Unop(op, value):
+            let op_txt = unary_op_to_str(op)
+            txt = "UNOP({op_txt})"
         VarRef(v):
             txt = "VAR-REF({v.name})"
         ObjInit(ty, fields):
@@ -662,6 +704,9 @@ fn print_ast_expression(printer: AstPrinter, expr: Expression, is_pre: bool):
         printer.indent()
     else:
         printer.dedent()
+
+fn print_ast_node(printer: AstPrinter, node: VisitNode, is_pre: bool):
+    pass
 
 fn binary_op_to_str(op: BinaryOperator) -> str:
     let op_txt = "?"
@@ -690,12 +735,25 @@ fn binary_op_to_str(op: BinaryOperator) -> str:
             op_txt = "/"
     return op_txt
 
+fn unary_op_to_str(op: UnaryOperator) -> str:
+    let op_txt = "?"
+    case op:
+        Not:
+            op_txt = "not"
+        Minus:
+            op_txt = "-"
+    return op_txt
+
 struct Visitor[D]:
     data: D
     on_definition: fn(D, Definition, bool)
     on_type: fn(D, MyType, bool)
     on_statement: fn(D, Statement, bool)
     on_expression: fn(D, Expression, bool)
+    on_node: fn(D, VisitNode, bool)
+
+enum VisitNode:
+    Arm(CaseArm)
 
 fn visit_module[T](visitor: Visitor[T], mod: Module):
     for definition in mod.definitions:
@@ -717,9 +775,12 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
         ExternFunction(e):
             pass
         Enum(e):
-            pass
+            for variant in e.variants:
+                for p in variant.payload:
+                    visit_type(visitor, p)
         Struct(s):
-            pass
+            for field in s.fields:
+                visit_type(visitor, field.ty)
         Class(c):
             for d2 in c.definitions:
                 visit_definition(visitor, d2)
@@ -773,7 +834,10 @@ fn visit_statement[T](visitor: Visitor[T], statement: Statement):
         Case(c):
             visit_expression(visitor, c.value)
             for arm in c.arms:
+                let arm_node = VisitNode.Arm(arm)
+                visitor.on_node(visitor.data, arm_node, true)
                 visit_statement(visitor, arm.body)
+                visitor.on_node(visitor.data, arm_node, false)
         Compound(inner):
             for s in inner:
                 visit_statement(visitor, s)
@@ -826,6 +890,8 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         Binop(v):
             visit_expression(visitor, v.lhs)
             visit_expression(visitor, v.rhs)
+        Unop(op,value):
+            visit_expression(visitor, value)
         VarRef(v):
             pass
         ObjInit(ty, fields):

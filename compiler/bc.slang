@@ -1,4 +1,11 @@
 
+from datatypes import List
+
+struct Program:
+    functions: List[Function]
+
+struct Function:
+    instructions: List[Instruction]
 
 enum Instruction:
     Nop
@@ -6,6 +13,7 @@ enum Instruction:
     Int(int)
     Str(str)
     Float(float)
+    Not
     Bool(bool)
     Jump(int)  # Unconditional jump
     JumpIf(int, int)
@@ -39,6 +47,8 @@ fn instruction_to_string(instruction: Instruction) -> str:
             return "jump({v})"
         JumpIf(v1, v2):
             return "jump-if({v1}, {v2})"
+        Not:
+            return "not"
         Call(n):
             return "call({n})"
         Return(v):

@@ -3,9 +3,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-void std_print(const char *message)
+// Config:
+// #define DEBUG_REFCOUNTING
+
+void *rt_malloc(int size);
+void rt_incref(void *ptr);
+void rt_decref(void *ptr);
+
+void std_print(char *message)
 {
     puts(message);
+    rt_decref(message);
 }
 
 void std_putc(const char *ch)
@@ -25,17 +33,18 @@ void std_panic(const char *message)
     std_exit(1);
 }
 
-int std_str_to_int(const char *x)
+int std_str_to_int(char *x)
 {
     // TODO!
     return 1337;
+    rt_decref(x);
 }
 
 char *std_int_to_str(int x)
 {
     char buffer[50];
     snprintf(buffer, 50, "%d", x);
-    char *text = malloc(strlen(buffer) + 1);
+    char *text = rt_malloc(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;
 }
@@ -44,40 +53,46 @@ char *std_float_to_str(double x)
 {
     char buffer[50];
     snprintf(buffer, 50, "%f", x);
-    char *text = malloc(strlen(buffer) + 1);
+    char *text = rt_malloc(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;
 }
 
-int std_str_len(const char *txt)
+int std_str_len(char *txt)
 {
-    return strlen(txt);
+    const int len = strlen(txt);
+    rt_decref(txt);
+    return len;
 }
 
-int std_ord(const char *txt)
+int std_ord(char *txt)
 {
-    return txt[0];
+    int c = txt[0];
+    rt_decref(txt);
+    return c;
 }
 
-char *std_str_slice(const char *txt, int begin, int end)
+char *std_str_slice(char *txt, int begin, int end)
 {
     const int size = end - begin;
-    char *buffer = malloc(size + 1);
+    char *buffer = rt_malloc(size + 1);
     memcpy(buffer, &txt[begin], size);
+    rt_decref(txt);
     buffer[size] = 0;
     return buffer;
 }
 
 // TBD: special case of slice?
-char *std_str_get(const char *txt, int pos)
+char *std_str_get(char *txt, int pos)
 {
     char *buffer = malloc(2);
     buffer[0] = txt[pos];
     buffer[1] = 0;
+    rt_decref(txt);
     return buffer;
 }
 
-char *std_read_file(const char *filename)
+char *std_read_file(char *filename)
 {
     char *buffer = 0;
     FILE *f = fopen(filename, "r");
@@ -85,7 +100,7 @@ char *std_read_file(const char *filename)
     {
         fseek(f, 0, SEEK_END);
         int length = ftell(f);
-        buffer = malloc(length + 1);
+        buffer = rt_malloc(length + 1);
         fseek(f, 0, SEEK_SET);
         fread(buffer, 1, length, f);
         buffer[length] = 0;
@@ -95,39 +110,74 @@ char *std_read_file(const char *filename)
     {
         std_panic("File not found!");
     }
+    rt_decref(filename);
     return buffer;
 }
 
-char *rt_str_concat(const char *a, const char *b)
+char *rt_str_concat(char *a, char *b)
 {
-    char *buffer = malloc(strlen(a) + strlen(b) + 2);
+    char *buffer = rt_malloc(strlen(a) + strlen(b) + 2);
     strcpy(buffer, a);
     strcat(buffer, b);
+    rt_decref(a);
+    rt_decref(b);
     return buffer;
 }
 
-int rt_str_compare(const char *a, const char *b)
+int rt_str_compare(char *a, char *b)
 {
-    if (strcmp(a, b) == 0)
-    {
-        return 1;
-    }
-    else
-    {
-        return 0;
-    }
+    int res = (strcmp(a, b) == 0) ? 1 : 0;
+    rt_decref(a);
+    rt_decref(b);
+    return res;
 }
+
+typedef struct rt_ref_mem_tag
+{
+    int count;
+    int dummy;
+} rt_ref_mem_t;
 
 void *rt_malloc(int size)
 {
-    return malloc(size);
+    rt_ref_mem_t *ptr = malloc(size + sizeof(rt_ref_mem_t));
+    ptr->count = 1;
+    void *p = (ptr + 1);
+    return p;
 }
 
 // IDEA: use reference counting to free values.
 void rt_incref(void *ptr)
 {
+    if (ptr == NULL)
+    {
+        return;
+    }
+
+    rt_ref_mem_t *p = ptr;
+    p -= 1;
+    p->count += 1;
+#ifdef DEBUG_REFCOUNTING
+    printf("INCREF New ref count: %d\n", p->count);
+#endif
 }
 
 void rt_decref(void *ptr)
 {
+    if (ptr == NULL)
+    {
+        return;
+    }
+
+    rt_ref_mem_t *p = ptr;
+    p -= 1;
+    p->count -= 1;
+#ifdef DEBUG_REFCOUNTING
+    printf("DECREF New ref count: %d\n", p->count);
+#endif
+    if (p->count == 0)
+    {
+        // comment out below, to have malloc only!
+        free(p);
+    }
 }

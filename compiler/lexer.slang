@@ -278,6 +278,8 @@ fn check_keyword(txt: str) -> TokenKind:
         kind = TokenKind::KwLet()
     elif txt == "loop":
         kind = TokenKind::KwLoop()
+    elif txt == "not":
+        kind = TokenKind::KwNot()
     elif txt == "or":
         kind = TokenKind::KwOr()
     elif txt == "pass":
@@ -292,5 +294,9 @@ fn check_keyword(txt: str) -> TokenKind:
         kind = TokenKind::KwVar()
     elif txt == "while":
         kind = TokenKind::KwWhile()
+    elif txt == "true":
+        kind = TokenKind::Bool(true)
+    elif txt == "false":
+        kind = TokenKind::Bool(false)
 
     return kind

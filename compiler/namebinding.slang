@@ -1,12 +1,13 @@
 
-from std import print
+from utils import log_info, log_trace
+from location import Location
 from datatypes import List, Option, Dictionary
 import ast
-from errors import CompilationError, new_error, display_error
+from errors import CompilationError, new_error, new_errors
 
 
-fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]):
-    print("Filling scopes for {module.name}")
+fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) -> Option[CompilationError]:
+    log_info("Filling scopes for {module.name}")
     let filler = ScopeFiller()
     let fil_vis = ast.Visitor:
         data: filler
@@ -14,28 +15,18 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]):
         on_type: filler_on_type
         on_statement: filler_on_statement
         on_expression: filler_on_expression
+        on_node: filler_on_node
     filler.enter_scope(module.scope)
 
     for imp in module.imports:
-        case module_map.get(imp.modname):
-            Some(m):
-                case imp.kind:
-                    Self:
-                        filler.define(m.name, ast.Symbol.Mod(m))
-                    Names(names):
-                        for name in names:
-                            case m.scope.lookup(name):
-                                Some(sym):
-                                    filler.define(name, sym)
-                                None:
-                                    print("Error, module {m.name} has no symbol: {name}")
-            None:
-                print("Error, no mod: {imp.modname}")
+        import_mod(imp, module_map, filler)
 
     ast.visit_module(fil_vis, module)
     filler.leave_scope()
+    if not filler.errors.is_empty():
+        return Option.Some(new_errors(filler.errors))
 
-    print("Binding names for {module.name}")
+    log_info("Binding names for {module.name}")
     let binder = NameBinder()
     let bind_visitor = ast.Visitor:
         data: binder
@@ -43,11 +34,51 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]):
         on_type: binder_on_type
         on_statement: binder_on_statement
         on_expression: binder_on_expression
+        on_node: binder_on_node
     binder.enter_scope(base_scope())
     binder.enter_scope(module.scope)
     ast.visit_module(bind_visitor, module)
     binder.leave_scope()
     binder.leave_scope()
+
+    if not binder.errors.is_empty():
+        return Option.Some(new_errors(binder.errors))
+
+    return Option.None()
+
+fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: ScopeFiller):
+    log_trace("Import {imp.modname}")
+    case module_map.get(imp.modname):
+        Some(m):
+            case imp.kind:
+                Self:
+                    filler.define(m.name, ast.Symbol.Mod(m))
+                Names(names):
+                    for name in names:
+                        log_trace("Importing {name} from {imp.modname}")
+                        case m.scope.lookup(name):
+                            Some(sym):
+                                filler.define(name, sym)
+                            None:
+                                filler.add_error(imp.location, "Error, module {m.name} has no symbol: {name}")
+        None:
+            filler.add_error(imp.location, "Error, no mod: {imp.modname}")
+
+fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
+    # try to retrieve a scope, if we have one
+    case definition:
+        Function(func):
+            return Option.Some(func.scope)
+        ExternFunction(efunc):
+            return Option.None()
+        Enum(e):
+            return Option.Some(e.scope)
+        Struct(s):
+            return Option.Some(s.scope)
+        Class(c):
+            return Option.Some(c.scope)
+        Var(v):
+            return Option.None()
 
 fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, is_pre: bool):
     if is_pre:
@@ -55,6 +86,8 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, is_pre:
             Function(func):
                 filler.define(func.name, ast.Symbol.Function(func))
                 filler.enter_scope(func.scope)
+                for type_parameter in func.type_parameters:
+                    filler.define(type_parameter.name, ast.Symbol.Type(ast.type_var_ref(type_parameter)))
                 for param_def in func.parameters:
                     filler.define(param_def.name, ast.Symbol.Parameter(param_def))
             ExternFunction(efunc):
@@ -62,19 +95,24 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, is_pre:
             Enum(e):
                 filler.define(e.name, ast.Symbol.TypeConstructor(ast.TyCon.Enum(e)))
                 filler.enter_scope(e.scope)
+                for type_parameter in e.type_parameters:
+                    filler.define(type_parameter.name, ast.Symbol.Type(ast.type_var_ref(type_parameter)))
             Struct(s):
                 filler.define(s.name, ast.Symbol.TypeConstructor(ast.TyCon.Struct(s)))
                 filler.enter_scope(s.scope)
+                for type_parameter in s.type_parameters:
+                    filler.define(type_parameter.name, ast.Symbol.Type(ast.type_var_ref(type_parameter)))
             Class(c):
                 filler.define(c.name, ast.Symbol.TypeConstructor(ast.TyCon.Class(c)))
                 filler.enter_scope(c.scope)
+                for type_parameter in c.type_parameters:
+                    filler.define(type_parameter.name, ast.Symbol.Type(ast.type_var_ref(type_parameter)))
+                filler.define(c.this_var.name, ast.Symbol.Var(c.this_var))
             Var(v):
                 filler.define(v.variable.name, ast.Symbol.Var(v.variable))
     else:
-        case definition:
-            Var(v):
-                pass
-            ExternFunction(efunc):
+        case get_scope(definition):
+            None:
                 pass
         else:
             filler.leave_scope()
@@ -87,6 +125,8 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, is_pre: bo
         case statement.kind:
             Let(letty):
                 filler.define(letty.variable.name, ast.Symbol.Var(letty.variable))
+            For(for_statement):
+                filler.define(for_statement.iter_var.name, ast.Symbol.Var(for_statement.iter_var))
         else:
             pass
     else:
@@ -95,11 +135,25 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, is_pre: bo
 fn filler_on_expression(filler: ScopeFiller, expression: ast.Expression, is_pre: bool):
     pass
 
+fn filler_on_node(filler: ScopeFiller, node: ast.VisitNode, is_pre: bool):
+    if is_pre:
+        case node:
+            Arm(arm):
+                filler.enter_scope(arm.scope)
+                for v in arm.variables:
+                    filler.define(v.name, ast.Symbol.Var(v))
+    else:
+        case node:
+            Arm(arm):
+                filler.leave_scope()
+
+
 class ScopeFiller:
     var scopes: List[ast.Scope] = List()
+    var errors: List[CompilationError] = List()
 
     fn define(name: str, symbol: ast.Symbol):
-        # print("DEFINE {name}")
+        # log_trace("DEFINE {name}")
         this.scopes.last().define(name, symbol)
     
     fn enter_scope(scope: ast.Scope):
@@ -108,26 +162,20 @@ class ScopeFiller:
     fn leave_scope():
         let unused = this.scopes.pop_last()
 
+    fn add_error(location: Location, message: str):
+        let err = new_error(location, message)
+        this.errors.append(err)
+
 fn binder_on_definition(binder: NameBinder, definition: ast.Definition, is_pre: bool):
     if is_pre:
-        case definition:
-            Function(func):
-                binder.enter_scope(func.scope)
-            ExternFunction(efunc):
+        case get_scope(definition):
+            None:
                 pass
-            Enum(e):
-                binder.enter_scope(e.scope)
-            Struct(s):
-                binder.enter_scope(s.scope)
-            Class(c):
-                binder.enter_scope(c.scope)
-            Var(v):
-                pass
+            Some(s):
+                binder.enter_scope(s)
     else:
-        case definition:
-            Var(v):
-                pass
-            ExternFunction(efunc):
+        case get_scope(definition):
+            None:
                 pass
         else:
             binder.leave_scope()
@@ -139,35 +187,66 @@ fn binder_on_type(binder: NameBinder, ty: ast.MyType, is_pre: bool):
 fn binder_on_statement(binder: NameBinder, statement: ast.Statement, is_pre: bool):
     pass
 
+fn symbol_to_kind(symbol: ast.Symbol) -> ast.ExpressionKind:
+    case symbol:
+        Type(ty):
+            return ast.ExpressionKind.Type(ty)
+        TypeConstructor(tycon):
+            return ast.ExpressionKind.TypeConstructor(tycon)
+        Var(v):
+            return ast.ExpressionKind.VarRef(v)
+    else:
+        return ast.ExpressionKind.LoadSymbol(symbol)
+
 fn binder_on_expression(binder: NameBinder, expression: ast.Expression, is_pre: bool):
     if is_pre:
+        pass
+    else:
         case expression.kind:
             NameRef(name):
                 case binder.lookup(name):
                     Some(symbol):
-                        case symbol:
-                            Type(ty):
-                                expression.kind = ast.ExpressionKind.Type(ty)
-                            TypeConstructor(tycon):
-                                expression.kind = ast.ExpressionKind.TypeConstructor(tycon)
-                            Var(v):
-                                expression.kind = ast.ExpressionKind.VarRef(v)
-                        else:
-                            expression.kind = ast.ExpressionKind.LoadSymbol(symbol)
+                        expression.kind = symbol_to_kind(symbol)
                     None:
-                        let err = new_error(expression.location, "'{name}' not defined!")
-                        display_error(err)
+                        binder.add_error(expression.location, "'{name}' not defined!")
+            GetAttr(base, attr):
+                case base.kind:
+                    LoadSymbol(sym):
+                        case sym:
+                            Mod(m):
+                                case m.scope.lookup(attr):
+                                    Some(symbol):
+                                        expression.kind = symbol_to_kind(symbol)
+                                    None:
+                                        binder.add_error(expression.location, "module '{m.name}' has no symbol: '{attr}'")
+                        else:
+                            pass
+                else:
+                    pass
         else:
             pass
+
+fn binder_on_node(binder: NameBinder, node: ast.VisitNode, is_pre: bool):
+    if is_pre:
+        case node:
+            Arm(arm):
+                binder.enter_scope(arm.scope)
+    else:
+        case node:
+            Arm(arm):
+                binder.leave_scope()
 
 fn base_scope() -> ast.Scope:
     let s = ast.Scope()
     s.define("int", ast.Symbol.Type(ast.int_type()))
     s.define("str", ast.Symbol.Type(ast.str_type()))
+    s.define("bool", ast.Symbol.Type(ast.bool_type()))
+    s.define("float", ast.Symbol.Type(ast.float_type()))
     return s
 
 class NameBinder:
     var scopes: List[ast.Scope] = List()
+    var errors: List[CompilationError] = List()
 
     fn lookup(name: str) -> Option[ast.Symbol]:
         # print("Lookup: {name}")
@@ -184,3 +263,7 @@ class NameBinder:
     
     fn leave_scope():
         let unused = this.scopes.pop_front()
+    
+    fn add_error(location: Location, message: str):
+        let err = new_error(location, message)
+        this.errors.append(err)

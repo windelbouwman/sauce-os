@@ -34,6 +34,7 @@ enum TokenKind:
     KwIn
     KwLet
     KwLoop
+    KwNot
     KwOr
     KwPass
     KwReturn
@@ -46,6 +47,7 @@ enum TokenKind:
     Float(float)
     Integer(int)
     String(str)
+    Bool(bool)
 
     # Punctuation:
     Colon
@@ -116,6 +118,8 @@ fn token_to_string(tok: Token) -> str:
             txt = "LET"
         KwLoop:
             txt = "LOOP"
+        KwNot:
+            txt = "NOT"
         KwOr:
             txt = "OR"
         KwPass:
@@ -138,6 +142,11 @@ fn token_to_string(tok: Token) -> str:
             txt = "INT({v})"
         Float(v):
             txt = "FLOAT(...)"
+        Bool(v):
+            if v:
+                txt = "BOOL(yes)"
+            else:
+                txt = "BOOL(no)"
         Space(v):
             txt = "SPACE({v})"
         Comment(a):

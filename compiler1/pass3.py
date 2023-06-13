@@ -5,6 +5,7 @@ TODO: figure out better name.
 
 import logging
 from . import ast
+from .location import Location
 from .basepass import BasePass
 from .typechecker import expand
 
@@ -30,6 +31,21 @@ class TypeEvaluation(BasePass):
         else:
             self.error(
                 expression.location, f"Invalid type expression: {expression.kind}"
+            )
+            return ast.void_type
+
+    def tycon_apply(
+        self,
+        location: Location,
+        tycon: ast.TypeConstructor,
+        type_arguments: list[ast.MyType],
+    ) -> ast.MyType:
+        if len(tycon.type_parameters) == len(type_arguments):
+            return tycon.apply(type_arguments)
+        else:
+            self.error(
+                location,
+                f"Expected {len(tycon.type_parameters)} type arguments, got {len(type_arguments)}",
             )
             return ast.void_type
 
@@ -78,7 +94,7 @@ class TypeEvaluation(BasePass):
             if isinstance(kind.base.kind, ast.GenericLiteral):
                 tycon = kind.base.kind.tycon
                 type_arguments = [self.eval_type_expr(index) for index in kind.indici]
-                ty = tycon.apply(type_arguments)
+                ty = self.tycon_apply(expression.location, tycon, type_arguments)
                 expression.kind = ast.TypeLiteral(ty)
 
 

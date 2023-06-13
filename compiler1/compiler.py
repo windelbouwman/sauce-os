@@ -26,7 +26,7 @@ from .c_gen import gen_c_code
 from .bc_gen import gen_bc
 from .vm import run_bytecode
 from .bc import print_bytecode
-from .builtins import std_module, get_builtins
+from .builtins import std_module, get_builtins, BUILTINS_PY_IMPL
 
 logger = logging.getLogger("compiler")
 
@@ -82,6 +82,7 @@ def do_compile(filenames: list[str], output: TextIO, options: CompilationOptions
             logger.info("Invoking python code")
             exec(code, get_builtins(output))
         else:
+            print(BUILTINS_PY_IMPL, file=output)
             gen_pycode(modules, output)
     elif options.backend == "c":
         prog = gen_bc(modules)

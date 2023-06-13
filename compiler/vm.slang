@@ -45,6 +45,10 @@ class VM:
                 let value = this.pop()
                 let base = this.pop()
                 panic("TODO")
+            Not:
+                let value = this.pop()
+                # TODO!
+                this.push(value)
             Jump(target):
                 panic("TODO")
             JumpIf(target, target2):

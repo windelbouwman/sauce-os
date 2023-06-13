@@ -34,7 +34,7 @@ fn main() -> int:
             x += 1
 
         # std.putc('\n')
-        std::print(line)
+        std.print(line)
         y += 1
     
     # TODO: fix implicit return somehow.

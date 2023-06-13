@@ -86,3 +86,27 @@ def get_builtins(stdout=None):
         "std_str_slice": lambda s, b, e: s[b:e],
         "std_ord": ord,
     }
+
+
+BUILTINS_PY_IMPL = """
+def std_read_file(filename: str) -> str:
+    with open(filename, "r") as f:
+        return f.read()
+
+def std_exit(code: int):
+    raise RuntimeError(f"EXIT with code: {code}")
+
+std_print = print
+std_int_to_str = str
+std_str_to_int = int
+std_float_to_str = str
+std_str_len = len
+std_ord = ord
+
+def std_str_get(s, i):
+    return s[i]
+
+def std_str_slice(s,b,e):
+    return s[b:e]
+
+"""
