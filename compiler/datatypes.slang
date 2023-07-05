@@ -6,6 +6,20 @@ enum Option[D]:
     Some(D)
     None
 
+fn option_unwrap[T](opt: Option[T]) -> T:
+    case opt:
+        Some(v):
+            return v
+        None:
+            panic("Cannot unwrap None")
+
+fn option_is_some[T](opt: Option[T]) -> bool:
+    case opt:
+        Some(v):
+            return true
+        None:
+            return false
+
 enum Result[O,E]:
     Ok(O)
     Error(E)
@@ -44,6 +58,23 @@ fn split_string(value: String, sep: str) -> List[String]:
     parts.append(new_string(str_slice(value.value, start, cur)))
     return parts
 
+fn vec1[T](v1: T) -> List[T]:
+    let vec: List[T] = List()
+    vec.append(v1)
+    return vec
+
+fn vec2[T](v1: T, v2: T) -> List[T]:
+    let vec: List[T] = List()
+    vec.append(v1)
+    vec.append(v2)
+    return vec
+
+fn vec3[T](v1: T, v2: T, v3: T) -> List[T]:
+    let vec: List[T] = List()
+    vec.append(v1)
+    vec.append(v2)
+    vec.append(v3)
+    return vec
 
 class List[T]:
     # Linked list based on a linked list of elements with next pointers.
@@ -51,7 +82,7 @@ class List[T]:
     var head_element: Option[ListElement[T]] = Option.None()
 
     fn append(val: T):
-        let new_tail_element = ListElement:
+        let new_tail_element = ListElement[T]:
             next: Option.None()
             data: val
 
@@ -69,7 +100,7 @@ class List[T]:
 
     fn prepend(val: T):
         # Prepend value in front of list
-        let new_head_element = ListElement:
+        let new_head_element = ListElement[T]:
             next: this.head_element
             data: val
         this.head_element = Option.Some(new_head_element)
@@ -105,7 +136,7 @@ class List[T]:
                 this.head_element = element.next
                 return element.data
 
-    fn iter() -> ListIter:
+    fn iter() -> ListIter[T]:
         let it = ListIter()
         it.next_element = this.head_element
         return it
@@ -159,13 +190,11 @@ class List[T]:
     
     fn get(index: int) -> T:
         # Retrieve value at index
-        let n = 0
-
         case this.head_element:
             None:
-                # TODO: raise massive error?
-                pass
+                panic("List.get on empty list!")
             Some(element):
+                let n = 0
                 loop:
                     if n == index:
                         return element.data
@@ -176,7 +205,33 @@ class List[T]:
                         Some(nxt_element2):
                             element = nxt_element2
                     n = n + 1
-                # TODO: raise massive error
+                panic("List.get index out of range!")
+
+    fn delete_at(index: int):
+        # remove item at index from list
+        case this.head_element:
+            None:
+                panic("List.delete_at on empty list!")
+            Some(element):
+                let n = 0
+                let prev_element: Option[ListElement[T]] = Option.None()
+                loop:
+                    if n == index:
+                        case prev_element:
+                            Some(pe):
+                                pe.next = element.next
+                            None:
+                                this.head_element = element.next
+                        return
+
+                    case element.next:
+                        None:
+                            panic("List.delete_at index out of range!")
+                            break
+                        Some(nxt_element2):
+                            prev_element = Option.Some(element)
+                            element = nxt_element2
+                    n += 1
 
 
 struct ListElement[T]:
@@ -195,7 +250,6 @@ class ListIter[T]:
                 let x = Option.Some(nxt_element.data)
                 this.next_element = nxt_element.next
                 return x
-        # return Option.None()
 
 
 class Dictionary[T]:
@@ -223,7 +277,34 @@ class Dictionary[T]:
             key: key
             value: value
         this.items.append(new_item)
+    
+    fn pop(key: str) -> Option[T]:
+        # remove an item from this dictionary
+        let idx = 0
+        for item in this.items:
+            if item.key == key:
+                # patch list:
+                this.items.delete_at(idx)
+                return Option.Some(item.value)
+            idx += 1
+
+        panic("KeyError: {key}")
+
+    fn iter() -> DictionaryIter:
+        let it = DictionaryIter()
+        it.it2 = this.items.iter()
+        return it
 
 struct DictionaryItem[T]:
     key: str
     value: T
+
+class DictionaryIter[T]:
+    var it2: ListIter[DictionaryItem[T]] = ListIter()
+
+    fn next() -> Option[str]:
+        case this.it2.next():
+            None:
+                return Option.None()
+            Some(i):
+                return Option.Some(i.key)

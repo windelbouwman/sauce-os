@@ -57,7 +57,7 @@ def lark_it(code, start):
     try:
         tree = lark_parser.parse(code, start=start)
     except UnexpectedInput as ex:
-        raise ParseError(Location(ex.line, ex.column), "Parsing choked")
+        raise ParseError(Location(ex.line, ex.column), f"Parsing choked: {ex}")
 
     try:
         return CustomTransformer().transform(tree)
@@ -115,6 +115,7 @@ class CustomLarkLexer(LarkLexer):
             "<=": "LESS_EQUALS",
             "=": "EQUALS",
             "==": "EQUALS_EQUALS",
+            "!=": "NOT_EQUALS",
             "+=": "PLUS_EQUALS",
             "-=": "MINUS_EQUALS",
             "-": "MINUS",
@@ -624,7 +625,7 @@ inversion: KW_NOT inversion
          | comparison
 comparison: expression cmpop expression
           | expression
-cmpop: LESS_THAN | GREATER_THAN | EQUALS_EQUALS | LESS_EQUALS | GREATER_EQUALS
+cmpop: LESS_THAN | GREATER_THAN | EQUALS_EQUALS | LESS_EQUALS | GREATER_EQUALS | NOT_EQUALS
 
 expression: sum
 sum: sum addop term
@@ -643,8 +644,8 @@ atom: obj_ref
     | atom LEFT_BRACKET arguments RIGHT_BRACKET
     | atom DOT ID
 
-arguments: expression
-         | arguments COMMA expression
+arguments: test
+         | arguments COMMA test
 
 literal: STRING | NUMBER | FNUMBER | BOOL
 array_literal: LEFT_BRACKET arguments RIGHT_BRACKET
@@ -663,7 +664,7 @@ field_init: ID COLON expression NEWLINE
 %declare LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON DOUBLE_COLON COMMA DOT ARROW
 %declare MINUS PLUS ASTERIX SLASH
-%declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS
+%declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS NOT_EQUALS
 %declare EQUALS PLUS_EQUALS MINUS_EQUALS
 
 %declare INDENT DEDENT NEWLINE

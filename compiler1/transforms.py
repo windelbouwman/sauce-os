@@ -27,6 +27,7 @@ class LoopRewriter(BaseTransformer):
 
     def __init__(self, std_module: ast.Module):
         super().__init__()
+        self._counter = 5
         self._std_module = std_module
 
     def visit_statement(self, statement: ast.Statement):
@@ -54,13 +55,15 @@ class LoopRewriter(BaseTransformer):
                 #   i = i + 1
 
                 # x = arr
-                # TODO: create unique names!
-                x_var = ast.Variable("x9999", kind.values.ty, statement.location)
+                x_var = ast.Variable(
+                    self.new_var_name("x"), kind.values.ty, statement.location
+                )
                 let_x = ast.let_statement(x_var, None, kind.values, statement.location)
 
                 # i = 0
-                # TODO: create unique names!
-                i_var = ast.Variable("i9999", ast.int_type, statement.location)
+                i_var = ast.Variable(
+                    self.new_var_name("i"), ast.int_type, statement.location
+                )
                 zero = ast.numeric_constant(0, statement.location)
                 let_i0 = ast.let_statement(i_var, None, zero, statement.location)
 
@@ -124,8 +127,8 @@ class LoopRewriter(BaseTransformer):
                 opt_ty: ast.MyType = iter_ty.get_field_type("next").kind.return_type
                 location = statement.location
 
-                it_var = ast.Variable("it", iter_ty, location)
-                opt_var = ast.Variable("opt", opt_ty, location)
+                it_var = ast.Variable(self.new_var_name("it"), iter_ty, location)
+                opt_var = ast.Variable(self.new_var_name("opt"), opt_ty, location)
                 let_it_var = ast.let_statement(
                     it_var, None, kind.values.call_method("iter", []), location
                 )
@@ -167,6 +170,11 @@ class LoopRewriter(BaseTransformer):
                 raise ValueError(
                     f"Cannot resolve to-string for {ast.str_ty(kind.expr.ty)}"
                 )
+
+    def new_var_name(self, hint: str) -> str:
+        # TODO: create globally unique names! Also, do not clash with names in source-code
+        self._counter += 1
+        return f"FV{self._counter}_{hint}"
 
 
 class EnumRewriter(BaseTransformer):

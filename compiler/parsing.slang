@@ -31,6 +31,7 @@ fn parse_source(filename: String) -> Result[ast.Module,CompilationError]:
 class Parser:
     # An attempt at a recursive descent parser.
     var lex: Lexer = Lexer()
+    var next_id: int = 1
 
     fn feed(source: str):
         this.lex.init(source)
@@ -245,8 +246,8 @@ class Parser:
                 loop:
                     let tok2 = this.get_token()
                     case tok2.kind:
-                        Identifier(i):
-                            type_parameters.append(ast.type_parameter(i, tok2.location))
+                        Identifier(name):
+                            type_parameters.append(ast.type_parameter(name, this.new_id(), tok2.location))
                     else:
                         return Result.Error(new_error(tok2, "Expected ID"))
 
@@ -338,7 +339,7 @@ class Parser:
             else:
                 return Result.Error(new_error(tok, "Expected field or dedent"))
 
-        let s = ast.struct_def(name, type_parameters, fields, location)
+        let s = ast.struct_def(name, this.new_id(), type_parameters, fields, location)
         return Result.Ok(s)
 
     fn parse_class_def(location: Location) -> Result[ast.ClassDef, CompilationError]:
@@ -389,7 +390,7 @@ class Parser:
                 KwVar:
                     case this.parse_var_def(tok.location):
                         Ok(var_def):
-                            pass
+                            inner_defs.append(ast.Definition.Var(var_def))
                         Error(error):
                             return Result.Error(error)
                 KwFn:
@@ -405,12 +406,18 @@ class Parser:
 
         let this_var = ast.variable("this", ast.undefined_type())
         let c = ast.ClassDef:
-            name: name
+            node_id: ast.new_node_id(name, this.new_id())
             location: tok.location
             type_parameters: type_parameters
             this_var: this_var
             definitions: inner_defs
             scope: ast.Scope()
+        
+        # Prepare 'this' variable:
+        let type_args: List[ast.MyType] = List()
+        for tp in type_parameters:
+            type_args.append(ast.type_parameter_ref(tp))
+        c.this_var.ty = ast.apply_tycon(ast.TyCon.Class(c), type_args)
         return Result.Ok(c)
 
     fn parse_func_def(location: Location) -> Result[ast.FunctionDef, CompilationError]:
@@ -489,12 +496,12 @@ class Parser:
         # Optional return type
         tok = this.get_token()
         # TODO: instead of optional type, we might introduce a void type?
-        let return_type: Option[ast.MyType] = Option.None()
+        let return_type: ast.MyType = ast.void_type()
         case tok.kind:
             Arrow:
                 case this.parse_type():
                     Ok(ty):
-                        return_type = Option.Some(ty)
+                        return_type = ty
                     Error(error):
                         return Result.Error(error)
         else:
@@ -604,12 +611,12 @@ class Parser:
 
                 # Optional return type
                 tok2 = this.get_token()
-                let return_type: Option[ast.MyType] = Option.None()
+                let return_type: ast.MyType = ast.void_type()
                 case tok2.kind:
                     Arrow:
                         case this.parse_type():
                             Ok(ty):
-                                return_type = Option.Some(ty)
+                                return_type = ty
                             Error(error):
                                 return Result.Error(error)
                 else:
@@ -783,7 +790,7 @@ class Parser:
         let var_type = ast.undefined_type()
         let target_var = ast.variable(var_name, var_type)
         
-        let type_hint = ast.undefined_type()
+        let type_hint: Option[ast.MyType] = Option.None()
 
         tok2 = this.get_token()
         case tok2.kind:
@@ -791,7 +798,7 @@ class Parser:
                 # Type hint!
                 case this.parse_type():
                     Ok(t):
-                        type_hint = t
+                        type_hint = Option.Some(t)
                     Error(error):
                         return Result.Error(error)
         else:
@@ -878,7 +885,7 @@ class Parser:
         else:
             return Result.Error(new_error(tok2, "Expected newline or ':'"))
         
-        return Result.Ok(ast.let_statement(target_var, value, location))
+        return Result.Ok(ast.let_statement(target_var, type_hint, value, location))
 
     fn parse_if_statement(location: Location) -> Result[ast.Statement, CompilationError]:
         # Parse if-statement (if or elif keyword already parsed)
@@ -1129,6 +1136,9 @@ class Parser:
                 EqualsEquals:
                     op = ast.BinaryOperator.Equals()
                     prec = 30
+                NotEquals:
+                    op = ast.BinaryOperator.NotEquals()
+                    prec = 30
                 Plus:
                     op = ast.BinaryOperator.Add()
                     prec = 60
@@ -1280,3 +1290,8 @@ class Parser:
 
     fn unget_token(token: Token):
         this.lex.pushback_token(token)
+
+    fn new_id() -> int:
+        let x = this.next_id
+        this.next_id += 1
+        return x

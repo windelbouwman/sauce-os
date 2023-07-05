@@ -4,6 +4,11 @@ from datatypes import List
 struct Program:
     functions: List[Function]
 
+fn new_program() -> Program:
+    let p = Program:
+        functions: List()
+    return p
+
 struct Function:
     instructions: List[Instruction]
 

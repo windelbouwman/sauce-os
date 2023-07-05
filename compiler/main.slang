@@ -6,6 +6,7 @@ from errors import display_error, CompilationError
 from parsing import parse_source
 from namebinding import bind_names
 from pass3 import resolve_newops
+from typechecking import type_check
 from utils import log_info, log_error
 from ir_gen import gen_bytecode
 from builtins import get_std_module
@@ -29,6 +30,7 @@ fn main() -> int:
     filenames.append(new_string("compiler/namebinding.slang"))
     filenames.append(new_string("compiler/builtins.slang"))
     filenames.append(new_string("compiler/pass3.slang"))
+    filenames.append(new_string("compiler/typechecking.slang"))
     filenames.append(new_string("compiler/ir_gen.slang"))
     filenames.append(new_string("compiler/main.slang"))
 
@@ -81,9 +83,18 @@ fn compile(filenames: List[String]) -> Result[bc.Program, CompilationError]:
                 pass
             Some(error):
                 return Result.Error(error)
+    
+    for module3 in modules:
+        # ast.print_ast(module3)
+        case type_check(module3):
+            None:
+                pass
+            Some(error):
+                return Result.Error(error)
 
     log_info("generating bytecode")
 
     for module2 in modules:
-        let prog = gen_bytecode(module2)
+        # let prog = gen_bytecode(module2)
+        let prog = bc.new_program()
         return Result.Ok(prog)

@@ -96,7 +96,7 @@ class Lexer:
         if this.offset < n:
             # Start of new token:
             this.tok_begin = this.offset
-            let kind = TokenKind::Error()
+            let kind = TokenKind.Error()
             let column = this.tok_begin - this.col_start + 1
             let location = new_location(this.row, column)
 
@@ -193,6 +193,9 @@ class Lexer:
                     kind = TokenKind::EqualsEquals()
                 else:
                     kind = TokenKind::Equals()
+            elif c == "!":
+                if this.match("="):
+                    kind = TokenKind.NotEquals()
 
             return new_token(kind, location)
         else:

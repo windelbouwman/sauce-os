@@ -69,6 +69,7 @@ enum TokenKind:
     GreaterEquals
     Equals
     EqualsEquals
+    NotEquals
     PlusEquals
     MinusEquals
 
@@ -177,6 +178,8 @@ fn token_to_string(tok: Token) -> str:
             txt = "="
         EqualsEquals:
             txt = "=="
+        NotEquals:
+            txt = "!="
         PlusEquals:
             txt = "+="
         MinusEquals:

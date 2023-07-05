@@ -5,6 +5,12 @@ fn panic(message: str):
     print("PANIC: {message}")
     exit(1)
 
+fn assert(condition: bool, message: str):
+    if condition:
+        pass
+    else:
+        panic(message)
+
 fn log_error(message: str):
     print("ERROR: {message}")
 

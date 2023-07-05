@@ -1,5 +1,6 @@
 
 from ast import Statement
+from datatypes import Option
 import ast
 
 fn transform_statement(statement: Statement):
@@ -22,7 +23,7 @@ fn transform_switch(statement: ast.Statement):
             let ty = ast.bool_type()
 
             let x_var = ast.variable("x", ty)
-            let let_x = ast.let_statement(x_var, s.value, statement.location)
+            let let_x = ast.let_statement(x_var, Option.None(), s.value, statement.location)
 
             let else_clause = s.default_body
             for arm in s.arms:

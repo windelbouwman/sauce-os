@@ -50,45 +50,45 @@ class Generator:
             Assignment(target, op, value):
                 # TODO: handle optional operator, like += and -=
                 this.gen_expression(value)
-            While(whilly):
+            While(while_statement):
                 let test_label = this.new_label()
                 let body_label = this.new_label()
                 let final_label = this.new_label()
 
                 this.set_label(test_label)
-                this.gen_expression(whilly.condition)
+                this.gen_expression(while_statement.condition)
                 this.jump_if(body_label, final_label)
 
                 this.set_label(body_label)
-                this.gen_statement(whilly.body)
+                this.gen_statement(while_statement.body)
                 this.jump(test_label)
 
                 this.set_label(final_label)
-            If(iffy):
+            If(if_statement):
                 let true_label = this.new_label()
                 let false_label = this.new_label()
                 let final_label = this.new_label()
 
-                this.gen_expression(iffy.condition)
+                this.gen_expression(if_statement.condition)
                 this.jump_if(true_label, false_label)
                 
                 this.set_label(true_label)
-                this.gen_statement(iffy.true_body)
+                this.gen_statement(if_statement.true_body)
                 this.jump(final_label)
 
                 this.set_label(false_label)
-                this.gen_statement(iffy.false_body)
+                this.gen_statement(if_statement.false_body)
                 this.jump(final_label)
 
                 this.set_label(final_label)
-            Loop(loopy):
+            Loop(loop_statement):
                 panic("Loop not implemented")
-            For(f):
+            For(for_statement):
                 panic("For-statement not supported")
-            Case(c):
+            Case(case_statement):
                 panic("Case-statement not supported")
-            Let(letty):
-                this.gen_expression(letty.value)
+            Let(let_statement):
+                this.gen_expression(let_statement.value)
                 # TODO: var index!
                 let var_index = 0
                 this.emit(Instruction::LocalSet(var_index))
@@ -96,7 +96,7 @@ class Generator:
             Compound(inner):
                 for s in inner:
                     this.gen_statement(s)
-            Switch(switchy):
+            Switch(switch_statement):
                 panic("Switch not implemented")
             Return(opt_val):
                 case opt_val:
@@ -159,10 +159,16 @@ class Generator:
                 for value in values:
                     this.gen_expression(value)
                 print("TODO: struct literal")
+            ClassLiteral(ty):
+                print("Not supported: class literal")
             Type(ty):
                 panic("Invalid expression: TYPE")
             TypeConstructor(ty):
                 panic("Invalid expression: TYPE-CONSTRUCTOR")
+            Variant(ty, v):
+                panic("Invalid expression: Variant")
+            EnumLiteral(ty, v, values):
+                panic("Invalid expression: EnumLiteral")
 
     fn new_label() -> int:
         return this.gen_id()
