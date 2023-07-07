@@ -68,9 +68,17 @@ class PyCodeGenerator:
             params = ""
         self.emit(f"def {func_def.name}({params}):")
         self.indent()
-        self.gen_statement(func_def.statements)
+        if func_def.statements:
+            self.gen_statement(func_def.statements)
+        else:
+            self.emit("pass")
         self.dedent()
         self.emit("")
+
+    def gen_block(self, statement: ast.Statement):
+        self.indent()
+        self.gen_statement(statement)
+        self.dedent()
 
     def gen_statement(self, statement: ast.Statement):
         kind = statement.kind
@@ -94,19 +102,22 @@ class PyCodeGenerator:
             for arm in kind.arms:
                 v2 = self.gen_expression(arm.value)
                 self.emit(f"elif {tmp_var} == {v2}:")
-                self.indent()
-                self.gen_statement(arm.body)
-                self.dedent()
+                self.gen_block(arm.body)
             self.emit("else:")
-            self.indent()
-            self.gen_statement(kind.default_body)
-            self.dedent()
+            self.gen_block(kind.default_body)
 
         elif isinstance(kind, ast.WhileStatement):
             val = self.gen_expression(kind.condition, parens=False)
             self.emit(f"while {val}:")
+            self.gen_block(kind.inner)
+        elif isinstance(kind, ast.TryStatement):
+            self.emit(f"try:")
+            self.gen_block(kind.try_code)
+            ex_name = f"ex_{kind.parameter.name}"
+            self.emit(f"except ValueError as {ex_name}:")
             self.indent()
-            self.gen_statement(kind.inner)
+            self.emit(f"{kind.parameter.name} = {ex_name}.args[0]")
+            self.gen_statement(kind.except_code)
             self.dedent()
         elif isinstance(kind, ast.BreakStatement):
             self.emit("break")
@@ -121,6 +132,10 @@ class PyCodeGenerator:
             self.emit(f"{target} {op} {val}")
         elif isinstance(kind, ast.ExpressionStatement):
             self.emit(self.gen_expression(kind.value))
+        elif isinstance(kind, ast.RaiseStatement):
+            self.emit(
+                f"raise ValueError({self.gen_expression(kind.value, parens=False)})"
+            )
         elif isinstance(kind, ast.ReturnStatement):
             if kind.value:
                 self.emit(f"return {self.gen_expression(kind.value, parens=False)}")

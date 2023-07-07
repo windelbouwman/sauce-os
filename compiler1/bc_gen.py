@@ -120,6 +120,8 @@ class ByteCodeGenerator:
                 operands = (self._label_map[operands[0]],)
             elif opcode == OpCode.JUMP_IF:
                 operands = (self._label_map[operands[0]], self._label_map[operands[1]])
+            elif opcode == OpCode.SETUP_EXCEPT:
+                operands = (self._label_map[operands[0]],)
             # print(f'  {len(code)} OP2', opcode, operands)
             code.append((opcode, operands))
 
@@ -228,6 +230,29 @@ class ByteCodeGenerator:
                 self.emit(OpCode.RETURN, 1)
             else:
                 self.emit(OpCode.RETURN, 0)
+        elif isinstance(kind, ast.RaiseStatement):
+            self.gen_expression(kind.value)
+            self.emit(OpCode.RAISE)
+        elif isinstance(kind, ast.TryStatement):
+            self._locals.append(kind.parameter)
+            self._local_typs.append(self.get_bc_ty(kind.parameter.ty))
+
+            final_label = self.new_label()
+            except_label = self.new_label()
+
+            self.emit(OpCode.SETUP_EXCEPT, except_label)
+            self.gen_statement(kind.try_code)
+            self.emit(OpCode.POP_EXCEPT)
+            self.emit(OpCode.JUMP, final_label)
+
+            self.set_label(except_label)
+            local_index = self._locals.index(kind.parameter)
+            self.emit(OpCode.LOCAL_SET, local_index)
+
+            self.gen_statement(kind.except_code)
+            self.emit(OpCode.JUMP, final_label)
+
+            self.set_label(final_label)
         else:
             raise NotImplementedError(str(kind))
 

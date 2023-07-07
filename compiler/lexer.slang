@@ -32,7 +32,7 @@ class Lexer:
             this.work_some()
         
         if this.pending.is_empty():
-            return new_token(TokenKind::Eof(), new_location(this.row, 1))
+            return new_token(TokenKind.Eof(), new_location(this.row, 1))
         else:
             return this.pending.pop_front()
     
@@ -47,12 +47,12 @@ class Lexer:
                 this.at_end = true
 
                 if not this.at_bol:
-                    this.emit(new_token(TokenKind::NewLine(), new_location(this.row, 1)))
+                    this.emit(new_token(TokenKind.NewLine(), new_location(this.row, 1)))
 
                 # Dedent to top level!
                 while this.indent_stack.len() > 1:
                     let tmp = this.indent_stack.pop_front()
-                    this.emit(new_token(TokenKind::Dedent(), new_location(this.row, 1)))
+                    this.emit(new_token(TokenKind.Dedent(), new_location(this.row, 1)))
 
             Space(x):
                 if this.at_bol:
@@ -60,7 +60,7 @@ class Lexer:
             NewLine:
                 this.on_newline(tok)
             Comment(x):
-                tok.kind = TokenKind::NewLine()
+                tok.kind = TokenKind.NewLine()
                 this.on_newline(tok)
         else:
             if this.at_bol:
@@ -69,14 +69,14 @@ class Lexer:
                     # 1x indent!
                     this.indent_stack.append(new_integer(this.spaces))
 
-                    this.emit(new_token(TokenKind::Indent(), tok.location))
+                    this.emit(new_token(TokenKind.Indent(), tok.location))
                 else:
                     while this.spaces < this.indent_stack.last().value:
                         # n times dedent!
                         let tmp = this.indent_stack.pop_last().value
                         if tmp < this.spaces:
                             print("Indentation error")
-                        this.emit(new_token(TokenKind::Dedent(), tok.location))
+                        this.emit(new_token(TokenKind.Dedent(), tok.location))
 
             # print("ehhh -> " + token_to_string(tok))
             this.emit(tok)
@@ -106,57 +106,57 @@ class Lexer:
 
             # Decide what to do based on char:
             if c == "(":
-                kind = TokenKind::BraceOpen()
+                kind = TokenKind.BraceOpen()
             elif c == ")":
-                kind = TokenKind::BraceClose()
+                kind = TokenKind.BraceClose()
             elif c == "[":
-                kind = TokenKind::BracketOpen()
+                kind = TokenKind.BracketOpen()
             elif c == "]":
-                kind = TokenKind::BracketClose()
+                kind = TokenKind.BracketClose()
             elif c == ",":
-                kind = TokenKind::Comma()
+                kind = TokenKind.Comma()
             elif c == ".":
-                kind = TokenKind::Dot()
+                kind = TokenKind.Dot()
             elif c == ":":
                 if this.match(":"):
-                    kind = TokenKind::Dot()
+                    kind = TokenKind.Dot()
                 else:
-                    kind = TokenKind::Colon()
+                    kind = TokenKind.Colon()
             elif c == " ":
                 while this.match(" "):
                     pass
-                kind = TokenKind::Space(std.str_len(this.get_lexeme()))
+                kind = TokenKind.Space(std.str_len(this.get_lexeme()))
             elif c == "#":
                 # Line comment
                 while not is_lf(this.peek()) and this.offset < n:
                     this.offset += 1
                 this.offset += 1
-                kind = TokenKind::Comment(this.get_lexeme())
+                kind = TokenKind.Comment(this.get_lexeme())
                 this.col_start = this.offset
             elif ord(c) == 34:
                 while not (ord(this.peek()) == 34) and this.offset < n:
                     this.offset += 1
                 this.offset += 1
                 # String
-                kind = TokenKind::String(this.get_lexeme())
+                kind = TokenKind.String(this.get_lexeme())
             elif c == "-":
                 if this.match(">"):
-                    kind = TokenKind::Arrow()
+                    kind = TokenKind.Arrow()
                 elif this.match("="):
-                    kind = TokenKind::MinusEquals()
+                    kind = TokenKind.MinusEquals()
                 else:
-                    kind = TokenKind::Minus()
+                    kind = TokenKind.Minus()
             elif c == "+":
                 if this.match("="):
-                    kind = TokenKind::PlusEquals()
+                    kind = TokenKind.PlusEquals()
                 else:
-                    kind = TokenKind::Plus()
+                    kind = TokenKind.Plus()
             elif c == "/":
-                kind = TokenKind::Slash()
+                kind = TokenKind.Slash()
             elif c == "*":
-                kind = TokenKind::Asterix()
+                kind = TokenKind.Asterix()
             elif is_lf(c):
-                kind = TokenKind::NewLine()
+                kind = TokenKind.NewLine()
                 this.col_start = this.offset
             elif is_digit(c):
                 while is_digit(this.peek()):
@@ -169,9 +169,9 @@ class Lexer:
                     # TODO: str to float
                     let val2 = this.get_lexeme()
                     let val: float = 3.14
-                    kind = TokenKind::Float(val)
+                    kind = TokenKind.Float(val)
                 else:
-                    kind = TokenKind::Integer(std.str_to_int(this.get_lexeme()))
+                    kind = TokenKind.Integer(std.str_to_int(this.get_lexeme()))
             elif is_id(c):
                 while is_id_or_digit(this.peek()):
                     this.offset += 1
@@ -180,26 +180,26 @@ class Lexer:
                 kind = check_keyword(this.get_lexeme())
             elif c == "<":
                 if this.match("="):
-                    kind = TokenKind::LessEquals()
+                    kind = TokenKind.LessEquals()
                 else:
-                    kind = TokenKind::Less()
+                    kind = TokenKind.Less()
             elif c == ">":
                 if this.match("="):
-                    kind = TokenKind::GreaterEquals()
+                    kind = TokenKind.GreaterEquals()
                 else:
-                    kind = TokenKind::Greater()
+                    kind = TokenKind.Greater()
             elif c == "=":
                 if this.match("="):
-                    kind = TokenKind::EqualsEquals()
+                    kind = TokenKind.EqualsEquals()
                 else:
-                    kind = TokenKind::Equals()
+                    kind = TokenKind.Equals()
             elif c == "!":
                 if this.match("="):
                     kind = TokenKind.NotEquals()
 
             return new_token(kind, location)
         else:
-            return new_token(TokenKind::Eof(), new_location(this.row, 1))
+            return new_token(TokenKind.Eof(), new_location(this.row, 1))
     
     fn peek() -> str:
         let n = std.str_len(this.source)
@@ -248,58 +248,64 @@ fn is_id_or_digit(c: str) -> bool:
     return is_id(c) or is_digit(c)
 
 fn check_keyword(txt: str) -> TokenKind:
-    let kind = TokenKind::Identifier(txt)
+    let kind = TokenKind.Identifier(txt)
     if txt == "and":
-        kind = TokenKind::KwAnd()
+        kind = TokenKind.KwAnd()
     elif txt == "break":
-        kind = TokenKind::KwBreak()
+        kind = TokenKind.KwBreak()
     elif txt == "case":
-        kind = TokenKind::KwCase()
+        kind = TokenKind.KwCase()
     elif txt == "class":
-        kind = TokenKind::KwClass()
+        kind = TokenKind.KwClass()
     elif txt == "continue":
-        kind = TokenKind::KwContinue()
+        kind = TokenKind.KwContinue()
     elif txt == "else":
-        kind = TokenKind::KwElse()
+        kind = TokenKind.KwElse()
     elif txt == "elif":
-        kind = TokenKind::KwElif()
+        kind = TokenKind.KwElif()
     elif txt == "enum":
-        kind = TokenKind::KwEnum()
+        kind = TokenKind.KwEnum()
+    elif txt == "except":
+        kind = TokenKind.KwExcept()
     elif txt == "fn":
-        kind = TokenKind::KwFn()
+        kind = TokenKind.KwFn()
     elif txt == "for":
-        kind = TokenKind::KwFor()
+        kind = TokenKind.KwFor()
     elif txt == "from":
-        kind = TokenKind::KwFrom()
+        kind = TokenKind.KwFrom()
     elif txt == "if":
-        kind = TokenKind::KwIf()
+        kind = TokenKind.KwIf()
     elif txt == "import":
-        kind = TokenKind::KwImport()
+        kind = TokenKind.KwImport()
     elif txt == "in":
-        kind = TokenKind::KwIn()
+        kind = TokenKind.KwIn()
     elif txt == "let":
-        kind = TokenKind::KwLet()
+        kind = TokenKind.KwLet()
     elif txt == "loop":
-        kind = TokenKind::KwLoop()
+        kind = TokenKind.KwLoop()
     elif txt == "not":
-        kind = TokenKind::KwNot()
+        kind = TokenKind.KwNot()
     elif txt == "or":
-        kind = TokenKind::KwOr()
+        kind = TokenKind.KwOr()
     elif txt == "pass":
-        kind = TokenKind::KwPass()
+        kind = TokenKind.KwPass()
+    elif txt == "raise":
+        kind = TokenKind.KwRaise()
     elif txt == "return":
-        kind = TokenKind::KwReturn()
+        kind = TokenKind.KwReturn()
     elif txt == "struct":
-        kind = TokenKind::KwStruct()
+        kind = TokenKind.KwStruct()
     elif txt == "switch":
-        kind = TokenKind::KwSwitch()
+        kind = TokenKind.KwSwitch()
+    elif txt == "try":
+        kind = TokenKind.KwTry()
     elif txt == "var":
-        kind = TokenKind::KwVar()
+        kind = TokenKind.KwVar()
     elif txt == "while":
-        kind = TokenKind::KwWhile()
+        kind = TokenKind.KwWhile()
     elif txt == "true":
-        kind = TokenKind::Bool(true)
+        kind = TokenKind.Bool(true)
     elif txt == "false":
-        kind = TokenKind::Bool(false)
+        kind = TokenKind.Bool(false)
 
     return kind

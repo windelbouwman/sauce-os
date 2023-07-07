@@ -105,6 +105,8 @@ class ScopeFiller(BasePass):
             self.define(kind.variable)
         elif isinstance(kind, ast.ForStatement):
             self.define(kind.variable)
+        elif isinstance(kind, ast.TryStatement):
+            self.define(kind.parameter)
 
     def enter_scope(self, scope: ast.Scope):
         self._scopes.append(scope)

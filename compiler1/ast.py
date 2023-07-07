@@ -236,8 +236,9 @@ def subst(t: MyType, m: dict["TypeVar", MyType]) -> MyType:
         return t
     elif isinstance(t.kind, FunctionType):
         new_args = [subst(a, m) for a in t.kind.parameter_types]
-        new_ret = subst(t.kind.return_type, m)
-        return function_type(new_args, new_ret)
+        return_type = subst(t.kind.return_type, m)
+        except_type = subst(t.kind.except_type, m)
+        return function_type(new_args, return_type, except_type)
     else:
         raise NotImplementedError(str(t))
 
@@ -357,28 +358,28 @@ class VoidType(TypeKind):
         return isinstance(other, VoidType)
 
 
-def function_type(parameter_types: list[MyType], return_type: MyType) -> MyType:
+def function_type(
+    parameter_types: list[MyType], return_type: MyType, except_type: MyType
+) -> MyType:
     """Create function type with no type parameters."""
-    return MyType(FunctionType(parameter_types, return_type))
-
-
-# class FunctionType(TypeConstructor):
-#     """ Function/Arrow operator. """
-
-#     def __repr__(self):
-#         return 'Arrow'
+    return MyType(FunctionType(parameter_types, return_type, except_type))
 
 
 class FunctionType(TypeKind):
-    def __init__(self, parameter_types: list[MyType], return_type: MyType):
+    def __init__(
+        self, parameter_types: list[MyType], return_type: MyType, except_type: MyType
+    ):
         super().__init__()
         assert isinstance(parameter_types, list)
         assert all(isinstance(t, MyType) for t in parameter_types)
+        assert isinstance(return_type, MyType)
+        assert isinstance(except_type, MyType)
         self.parameter_types = parameter_types
         self.return_type = return_type
+        self.except_type = except_type
 
     def __repr__(self):
-        return f"Function({self.parameter_types}, {self.return_type})"
+        return f"Function({self.parameter_types}, {self.return_type}, ex={self.except_type})"
 
     # def equals(self, other: 'FunctionType') -> bool:
     #     if not self.return_type.equals(other.return_type):
@@ -659,11 +660,12 @@ def function_def(
     type_parameters: list[TypeVar],
     parameters: list["Parameter"],
     return_ty: MyType,
+    except_type: MyType,
     statements: "Statement",
     location: Location,
 ):
     return FunctionDef(
-        name, type_parameters, parameters, return_ty, statements, location
+        name, type_parameters, parameters, return_ty, except_type, statements, location
     )
 
 
@@ -674,6 +676,7 @@ class FunctionDef(Definition):
         type_parameters: list[TypeVar],
         parameters: list["Parameter"],
         return_ty: MyType,
+        except_type: MyType,
         statements: "Statement",
         location: Location,
     ):
@@ -682,6 +685,7 @@ class FunctionDef(Definition):
         self.type_parameters = type_parameters
         self.parameters: list[Parameter] = parameters
         self.return_ty = return_ty
+        self.except_type = except_type
         self.statements = statements
 
     def __repr__(self):
@@ -695,7 +699,9 @@ class FunctionDef(Definition):
             new_free.append(meta_type(f"{i}_{tp.name}"))
         m2 = dict(zip(self.type_parameters, new_free))
         return function_type(
-            [subst(p.ty, m2) for p in self.parameters], subst(self.return_ty, m2)
+            [subst(p.ty, m2) for p in self.parameters],
+            subst(self.return_ty, m2),
+            subst(self.except_type, m2),
         )
 
 
@@ -1032,6 +1038,26 @@ class ForStatement(StatementKind):
         return f"ForStatement({self.variable})"
 
 
+def try_statement(
+    try_code: Statement,
+    parameter: Parameter,
+    except_code: Statement,
+    location: Location,
+) -> Statement:
+    kind = TryStatement(try_code, parameter, except_code)
+    return Statement(kind, location)
+
+
+class TryStatement(StatementKind):
+    def __init__(
+        self, try_code: Statement, parameter: Parameter, except_code: Statement
+    ):
+        super().__init__()
+        self.try_code = try_code
+        self.parameter = parameter
+        self.except_code = except_code
+
+
 def break_statement(location: Location) -> Statement:
     kind = BreakStatement()
     return Statement(kind, location)
@@ -1090,6 +1116,20 @@ class ReturnStatement(StatementKind):
 
     def __repr__(self):
         return "Return"
+
+
+def raise_statement(value: Expression, location: Location):
+    kind = RaiseStatement(value)
+    return Statement(kind, location)
+
+
+class RaiseStatement(StatementKind):
+    def __init__(self, value: Expression):
+        super().__init__()
+        self.value = value
+
+    def __repr__(self):
+        return "Raise"
 
 
 class ExpressionKind:
@@ -1441,7 +1481,7 @@ class Variable(Definition):
 class BuiltinFunction(Definition):
     def __init__(self, name: str, parameter_types: list[MyType], return_type: MyType):
         super().__init__(name, Location(1, 1))
-        self.ty = function_type(parameter_types, return_type)
+        self.ty = function_type(parameter_types, return_type, void_type)
 
     def __repr__(self):
         return f"builtin({self.name})"
@@ -1461,8 +1501,8 @@ class AstVisitor:
         if isinstance(definition, FunctionDef):
             for parameter in definition.parameters:
                 self.visit_type(parameter.ty)
-            if definition.return_ty:
-                self.visit_type(definition.return_ty)
+            self.visit_type(definition.return_ty)
+            self.visit_type(definition.except_type)
             self.visit_statement(definition.statements)
         elif isinstance(definition, StructDef):
             for field in definition.fields:
@@ -1541,6 +1581,12 @@ class AstVisitor:
         elif isinstance(kind, ForStatement):
             self.visit_expression(kind.values)
             self.visit_statement(kind.inner)
+        elif isinstance(kind, TryStatement):
+            self.visit_statement(kind.try_code)
+            self.visit_type(kind.parameter.ty)
+            self.visit_statement(kind.except_code)
+        elif isinstance(kind, RaiseStatement):
+            self.visit_expression(kind.value)
         elif isinstance(kind, AssignmentStatement):
             self.visit_expression(kind.target)
             self.visit_expression(kind.value)

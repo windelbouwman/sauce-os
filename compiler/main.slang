@@ -9,6 +9,7 @@ from pass3 import resolve_newops
 from typechecking import type_check
 from utils import log_info, log_error
 from ir_gen import gen_bytecode
+from pygenerator import gen_python
 from builtins import get_std_module
 from datatypes import List, String, new_string, Dictionary, Result
 
@@ -31,6 +32,7 @@ fn main() -> int:
     filenames.append(new_string("compiler/builtins.slang"))
     filenames.append(new_string("compiler/pass3.slang"))
     filenames.append(new_string("compiler/typechecking.slang"))
+    filenames.append(new_string("compiler/pygenerator.slang"))
     filenames.append(new_string("compiler/ir_gen.slang"))
     filenames.append(new_string("compiler/main.slang"))
 
@@ -92,9 +94,13 @@ fn compile(filenames: List[String]) -> Result[bc.Program, CompilationError]:
             Some(error):
                 return Result.Error(error)
 
-    log_info("generating bytecode")
+    
 
-    for module2 in modules:
+    # TODO!
+    #for module2 in modules:
         # let prog = gen_bytecode(module2)
-        let prog = bc.new_program()
-        return Result.Ok(prog)
+        #log_info("generating bytecode: {module2.name}")
+        #gen_python(module2)
+
+    let prog = bc.new_program()
+    return Result.Ok(prog)

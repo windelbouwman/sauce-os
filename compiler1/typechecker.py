@@ -16,6 +16,7 @@ class TypeChecker(BasePass):
     def __init__(self):
         super().__init__()
         self._function = None
+        self._except_handlers = []
 
     def check_module(self, module: ast.Module):
         self.begin(module.filename, f"Type checking module '{module.name}'")
@@ -27,19 +28,24 @@ class TypeChecker(BasePass):
             logger.debug(f"Checking function '{definition.name}'")
             assert not self._function
             self._function = definition
-
-        super().visit_definition(definition)
-
-        if isinstance(definition, (ast.StructDef, ast.EnumDef, ast.TypeDef)):
-            pass
-        elif isinstance(definition, ast.FunctionDef):
+            may_raise = not definition.except_type.is_void()
+            if may_raise:
+                self._except_handlers.append(definition.except_type)
+            super().visit_definition(definition)
+            if may_raise:
+                self._except_handlers.pop(-1)
             self._function = None
-        elif isinstance(definition, ast.ClassDef):
-            pass
-        elif isinstance(definition, ast.VarDef):
-            self.assert_type(definition.value, definition.ty)
         else:
-            raise NotImplementedError(str(definition))
+            super().visit_definition(definition)
+
+            if isinstance(definition, (ast.StructDef, ast.EnumDef, ast.TypeDef)):
+                pass
+            elif isinstance(definition, ast.ClassDef):
+                pass
+            elif isinstance(definition, ast.VarDef):
+                self.assert_type(definition.value, definition.ty)
+            else:
+                raise NotImplementedError(str(definition))
 
     def visit_statement(self, statement: ast.Statement):
         kind = statement.kind
@@ -98,6 +104,11 @@ class TypeChecker(BasePass):
                     f"Expected array or iterable, not {kind.values.ty}",
                 )
             self.visit_statement(kind.inner)
+        elif isinstance(kind, ast.TryStatement):
+            self._except_handlers.append(kind.parameter.ty)
+            super().visit_statement(kind.try_code)
+            self._except_handlers.pop()
+            super().visit_statement(kind.except_code)
         else:
             super().visit_statement(statement)
 
@@ -124,7 +135,8 @@ class TypeChecker(BasePass):
                             statement.location,
                             f"Returning wrong type {kind.value.ty} (should be {self._function.return_ty})",
                         )
-
+            elif isinstance(kind, ast.RaiseStatement):
+                self.check_may_raise(kind.value.ty, statement.location)
             elif isinstance(kind, ast.LetStatement):
                 if kind.ty:
                     self.assert_type(kind.value, kind.ty)
@@ -201,10 +213,15 @@ class TypeChecker(BasePass):
 
         elif isinstance(kind, ast.FunctionCall):
             if isinstance(kind.target.ty.kind, ast.FunctionType):
-                arg_types = kind.target.ty.kind.parameter_types
-                return_type = kind.target.ty.kind.return_type
+                ftyp = kind.target.ty.kind
+                arg_types = ftyp.parameter_types
+                return_type = ftyp.return_type
                 self.check_arguments(arg_types, kind.args, expression.location)
                 expression.ty = return_type
+
+                # Check if we may call error throwing function
+                if not ftyp.except_type.is_void():
+                    self.check_may_raise(ftyp.except_type, expression.location)
             elif kind.target.ty.is_class():
                 # Assume constructor is called without arguments for now
                 # TODO: allow constructors!
@@ -266,6 +283,18 @@ class TypeChecker(BasePass):
         else:
             raise NotImplementedError(str(expression.kind))
 
+    def check_may_raise(self, exc_type: ast.MyType, location: Location):
+        if self._except_handlers:
+            expected_exc_type = self._except_handlers[-1]
+            if not self.unify(exc_type, expected_exc_type):
+                self.error(
+                    location,
+                    f"Raises {ast.str_ty(exc_type)}, but can only raise {ast.str_ty(expected_exc_type)}",
+                )
+
+        else:
+            self.error(location, "Cannot raise exception here")
+
     def check_arguments(
         self, types: list[ast.MyType], values: list[ast.Expression], location: Location
     ):
@@ -286,10 +315,15 @@ class TypeChecker(BasePass):
             expression.kind = ast.TypeCast(ty, old_expr)
             expression.ty = ty
 
-        if not self.unify(expression.ty, ty):
+        self.check_type(expression.ty, ty, expression.location)
+
+    def check_type(
+        self, given_ty: ast.MyType, expected_ty: ast.MyType, location: Location
+    ):
+        if not self.unify(given_ty, expected_ty):
             self.error(
-                expression.location,
-                f"Expected {ast.str_ty(ty)}, got {ast.str_ty(expression.ty)}",
+                location,
+                f"Expected {ast.str_ty(expected_ty)}, got {ast.str_ty(given_ty)}",
             )
 
     def unify(self, a: ast.MyType, b: ast.MyType) -> bool:
@@ -300,12 +334,7 @@ class TypeChecker(BasePass):
                 return False
 
             # Check equal type_args:
-            if len(a.kind.type_args) == len(b.kind.type_args):
-                return all(
-                    self.unify(u, v) for u, v in zip(a.kind.type_args, b.kind.type_args)
-                )
-            else:
-                return False
+            return self.unify_many(a.kind.type_args, b.kind.type_args)
         elif isinstance(a.kind, ast.BaseType) and isinstance(b.kind, ast.BaseType):
             return a.kind.equals(b.kind)
         elif isinstance(a.kind, ast.VoidType) and isinstance(b.kind, ast.VoidType):
@@ -319,12 +348,7 @@ class TypeChecker(BasePass):
         ):
             if not self.unify(a.kind.return_type, b.kind.return_type):
                 return False
-            if len(a.kind.parameter_types) != len(b.kind.parameter_types):
-                return False
-            return all(
-                self.unify(u, v)
-                for u, v in zip(a.kind.parameter_types, b.kind.parameter_types)
-            )
+            return self.unify_many(a.kind.parameter_types, b.kind.parameter_types)
         elif isinstance(a.kind, ast.Meta):
             if a.kind.assigned:
                 # Patch and recurse:
@@ -358,6 +382,12 @@ class TypeChecker(BasePass):
             # location = Location(1, 1)
             # self.error(location, f'Cannot unify types {a} and {b}')
             print("Full nack", a, b)
+            return False
+
+    def unify_many(self, types1: list[ast.MyType], types2: list[ast.MyType]) -> bool:
+        if len(types1) == len(types2):
+            return all(self.unify(u, v) for u, v in zip(types1, types2))
+        else:
             return False
 
 

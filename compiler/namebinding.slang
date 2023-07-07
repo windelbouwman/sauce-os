@@ -143,6 +143,9 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast
                     filler.define(letty.variable.name, ast.Symbol.Var(letty.variable))
                 For(for_statement):
                     filler.define(for_statement.iter_var.name, ast.Symbol.Var(for_statement.iter_var))
+                Try(try_statement):
+                    # TODO: create new scope for except clause?
+                    filler.define(try_statement.except_param.name, ast.Symbol.Parameter(try_statement.except_param))
             else:
                 pass
     else:

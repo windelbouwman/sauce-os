@@ -26,6 +26,7 @@ enum TokenKind:
     KwElse
     KwElif
     KwEnum
+    KwExcept
     KwFn
     KwFor
     KwFrom
@@ -37,9 +38,11 @@ enum TokenKind:
     KwNot
     KwOr
     KwPass
+    KwRaise
     KwReturn
     KwStruct
     KwSwitch
+    KwTry
     KwVar
     KwWhile
 
@@ -103,6 +106,8 @@ fn token_to_string(tok: Token) -> str:
             txt = "ELIF"
         KwEnum:
             txt = "ENUM"
+        KwExcept:
+            txt = "EXCEPT"
         KwFn:
             txt = "FN"
         KwFor:
@@ -125,12 +130,16 @@ fn token_to_string(tok: Token) -> str:
             txt = "OR"
         KwPass:
             txt = "PASS"
+        KwRaise:
+            txt = "RAISE"
         KwReturn:
             txt = "RETURN"
         KwStruct:
             txt = "STRUCT"
         KwSwitch:
             txt = "SWITCH"
+        KwTry:
+            txt = "TRY"
         KwVar:
             txt = "VAR"
         KwWhile:

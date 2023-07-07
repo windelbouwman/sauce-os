@@ -429,11 +429,13 @@ class ClassRewriter(BaseTransformer):
         struct_type = struct_def.apply(type_args)
         init_literal = ast.struct_literal(struct_type, init_values, class_def.location)
         ctor_code = ast.return_statement(init_literal, class_def.location)
+        except_type = ast.void_type
         ctor_func = ast.function_def(
             f"{class_def.name}_ctor",
             type_parameters,
             [],
             struct_type,
+            except_type,
             ctor_code,
             class_def.location,
         )

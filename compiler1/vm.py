@@ -52,6 +52,7 @@ class Frame:
     def __init__(self, function: Function, arguments):
         # value stack:
         self._stack = []
+        self._except_handlers = []
 
         assert len(arguments) == len(function.params)
         # We could type enforce here, in theory, we checked, but just an extra runtime check.
@@ -153,6 +154,23 @@ class VirtualMachine:
                 self.push_value(value)
             else:
                 self.pop_frame()
+        elif opcode == OpCode.RAISE:
+            exc_value = self.pop_value()
+            # TODO: code below might not be 100% waterproof
+            # Let's unwind!
+            while True:
+                if self._frames[-1]._except_handlers:
+                    except_handler = self._frames[-1]._except_handlers.pop()
+                    break
+                else:
+                    self.pop_frame()
+            self.push_value(exc_value)
+            self.jump(except_handler)
+
+        elif opcode == OpCode.SETUP_EXCEPT:
+            self._frames[-1]._except_handlers.append(args[0])
+        elif opcode == OpCode.POP_EXCEPT:
+            self._frames[-1]._except_handlers.pop()
         elif opcode in binary_op_funcs:
             rhs = self.pop_value()
             lhs = self.pop_value()

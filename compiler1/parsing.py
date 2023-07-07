@@ -185,25 +185,45 @@ class CustomTransformer(LarkTransformer):
     def func_def(self, x):
         # KW_FN id_and_type_parameters function_signature block
         location, name, type_parameters = x[1]
-        parameters, return_type = x[2]
+        parameters, return_type, except_type = x[2]
         body = x[-1]
         return ast.function_def(
-            name, type_parameters, parameters, return_type, body, get_loc(x[0])
+            name,
+            type_parameters,
+            parameters,
+            return_type,
+            except_type,
+            body,
+            get_loc(x[0]),
         )
 
     def function_signature(self, x):
         # LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
         if isinstance(x[1], LarkToken) and x[1].type == "RIGHT_BRACE":
             parameters = []
+            idx = 2
         else:
             assert isinstance(x[1], list)
             parameters = x[1]
+            idx = 3
 
-        if isinstance(x[-2], LarkToken) and x[-2].type == "ARROW":
-            return_type = x[-1]
+        if idx < len(x) and isinstance(x[idx], LarkToken) and x[idx].type == "ARROW":
+            return_type = x[idx + 1]
+            idx += 2
         else:
             return_type = ast.void_type
-        return parameters, return_type
+
+        if (
+            idx < len(x)
+            and isinstance(x[idx], LarkToken)
+            and x[idx].type == "KW_EXCEPT"
+        ):
+            except_type = x[idx + 1]
+            idx += 2
+        else:
+            except_type = ast.void_type
+
+        return parameters, return_type, except_type
 
     def parameters(self, x):
         if len(x) == 1:
@@ -270,7 +290,9 @@ class CustomTransformer(LarkTransformer):
             else:
                 return_type = ast.void_type
 
-            return ast.function_type(parameter_types, return_type)
+            except_type = ast.void_type
+
+            return ast.function_type(parameter_types, return_type, except_type)
         else:
             assert isinstance(x[0], ast.Expression)
             return ast.type_expression(x[0])
@@ -320,6 +342,18 @@ class CustomTransformer(LarkTransformer):
         # assignment_statement: expression EQUALS expression
         op = x[1].value
         return ast.assignment_statement(x[0], op, x[2], get_loc(x[1]))
+
+    def raise_statement(self, x):
+        # raise_statement: KW_RAISE expression
+        value = x[1]
+        return ast.raise_statement(value, get_loc(x[0]))
+
+    def try_statement(self, x):
+        # try_statement: KW_TRY block KW_EXCEPT LEFT_BRACE parameter RIGHT_BRACE block
+        try_code = x[1]
+        parameter = x[4]
+        except_code = x[6]
+        return ast.try_statement(try_code, parameter, except_code, get_loc(x[0]))
 
     def if_statement(self, x):
         # KW_IF test block elif_clause* else_clause?
@@ -561,7 +595,7 @@ definition: func_def
 class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
 var_def: KW_VAR ID COLON typ EQUALS expression NEWLINE
 func_def: KW_FN id_and_type_parameters function_signature block
-function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
+function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? (KW_EXCEPT typ)?
 parameters: parameter
           | parameters COMMA parameter
 parameter: ID COLON typ
@@ -590,6 +624,7 @@ statement: simple_statement NEWLINE
          | for_statement
          | case_statement
          | switch_statement
+         | try_statement
 
 simple_statement: expression
                 | break_statement
@@ -597,12 +632,16 @@ simple_statement: expression
                 | pass_statement
                 | assignment_statement
                 | return_statement
+                | raise_statement
+
 break_statement: KW_BREAK
 continue_statement: KW_CONTINUE
 pass_statement: KW_PASS
 return_statement: KW_RETURN test?
 assignment_statement: expression (EQUALS | PLUS_EQUALS | MINUS_EQUALS) expression
 
+raise_statement: KW_RAISE expression
+try_statement: KW_TRY block KW_EXCEPT LEFT_BRACE parameter RIGHT_BRACE block
 if_statement: KW_IF test block elif_clause* else_clause?
 elif_clause: KW_ELIF test block
 else_clause: KW_ELSE block
@@ -660,6 +699,7 @@ field_init: ID COLON expression NEWLINE
 %declare KW_FN KW_FOR KW_FROM KW_IF KW_IMPORT KW_IN
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
 %declare KW_RETURN KW_STRUCT KW_SWITCH KW_TYPE KW_VAR KW_WHILE
+%declare KW_RAISE KW_TRY KW_EXCEPT
 
 %declare LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON DOUBLE_COLON COMMA DOT ARROW

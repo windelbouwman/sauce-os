@@ -619,13 +619,14 @@ struct ClassDef:
     definitions: List[Definition]
     scope: Scope
 
-fn function_def(name: str, type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: MyType, body: Statement, location: Location) -> FunctionDef:
+fn function_def(name: str, type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: MyType, except_type: MyType, body: Statement, location: Location) -> FunctionDef:
     let f = FunctionDef:
         name: name
         is_pub: true
         type_parameters: type_parameters
         parameters: parameters
         return_type: return_type
+        except_type: except_type
         location: location
         scope: Scope()
         body: body
@@ -637,6 +638,7 @@ struct FunctionDef:
     type_parameters: List[TypeParameter]
     parameters: List[ParameterDef]
     return_type: MyType
+    except_type: MyType
     scope: Scope
     body: Statement
     location: Location
@@ -693,10 +695,12 @@ enum StatementKind:
     Case(CaseStatement)
     Switch(SwitchStatement)
     Let(LetStatement)
+    Try(TryStatement)
     Compound(List[Statement])
     Expr(Expression)
     Assignment(Expression, Option[BinaryOperator], Expression)
     Return(Option[Expression])
+    Raise(Expression)
     Pass
     Break
     Continue
@@ -750,6 +754,18 @@ struct ForStatement:
     iter_value: Expression
     body: Statement
 
+fn try_statement(try_body: Statement, except_param: ParameterDef, except_body: Statement, location: Location) -> Statement:
+    let t = TryStatement:
+        try_body: try_body
+        except_param: except_param
+        except_body: except_body
+    return statement(StatementKind.Try(t), location)
+
+struct TryStatement:
+    try_body: Statement
+    except_param: ParameterDef
+    except_body: Statement
+
 struct CaseStatement:
     value: Expression
     arms: List[CaseArm]
@@ -801,7 +817,10 @@ fn assignment_statement(target: Expression, op: Option[BinaryOperator], value: E
     return statement(kind, location)
 
 fn return_statement(value: Option[Expression], location: Location) -> Statement:
-    return statement(StatementKind::Return(value), location)
+    return statement(StatementKind.Return(value), location)
+
+fn raise_statement(value: Expression, location: Location) -> Statement:
+    return statement(StatementKind.Raise(value), location)
 
 fn pass_statement(location: Location) -> Statement:
     return statement(StatementKind::Pass(), location)
@@ -1025,45 +1044,52 @@ fn print_ast_type(printer: AstPrinter, ty: MyType, phase: VisitPhase):
     else:
         pass
 
+fn statement_to_string(statement: Statement) -> str:
+    let txt = "?"
+    case statement.kind:
+        Expr(x):
+            txt = "EXPR"
+        Assignment(target, op, expr):
+            case op:
+                Some(op):
+                    let op_txt = binary_op_to_str(op)
+                    txt = "ASSIGN({op_txt})"
+                None:
+                    txt = "ASSIGN"
+        If(x):
+            txt = "IF"
+        Return(x):
+            txt = "RETURN"
+        Raise(x):
+            txt = "RAISE"
+        Compound(x):
+            txt = "COMPOUND"
+        Pass:
+            txt = "PASS"
+        Break:
+            txt = "BREAK"
+        Continue:
+            txt = "CONTINUE"
+        Loop(loopy):
+            txt = "LOOP"
+        While(whilly):
+            txt = "WHILE"
+        For(f):
+            txt = "FOR"
+        Try(t):
+            txt = "TRY"
+        Case(f):
+            txt = "CASE"
+        Let(letty):
+            txt = "LET"
+        Switch(switchy):
+            txt = "SWITCH"
+    return txt
+
 fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPhase):
     case phase:
         Pre:
-            let txt = "?"
-            case statement.kind:
-                Expr(x):
-                    txt = "EXPR"
-                Assignment(target, op, expr):
-                    case op:
-                        Some(op):
-                            let op_txt = binary_op_to_str(op)
-                            txt = "ASSIGN({op_txt})"
-                        None:
-                            txt = "ASSIGN"
-                If(x):
-                    txt = "IF"
-                Return(x):
-                    txt = "RETURN"
-                Compound(x):
-                    txt = "COMPOUND"
-                Pass:
-                    txt = "PASS"
-                Break:
-                    txt = "BREAK"
-                Continue:
-                    txt = "CONTINUE"
-                Loop(loopy):
-                    txt = "LOOP"
-                While(whilly):
-                    txt = "WHILE"
-                For(f):
-                    txt = "FOR"
-                Case(f):
-                    txt = "CASE"
-                Let(letty):
-                    txt = "LET"
-                Switch(switchy):
-                    txt = "SWITCH"
-
+            let txt = statement_to_string(statement)
             printer.print2("STMT {txt}")
             printer.indent()
         Post:
@@ -1266,6 +1292,10 @@ fn visit_statement[T](visitor: Visitor[T], statement: Statement):
             visit_expression(visitor, for_statement.iter_value)
             visitor.on_statement(visitor.data, statement, VisitPhase.Mid())
             visit_statement(visitor, for_statement.body)
+        Try(try_statement):
+            visit_statement(visitor, try_statement.try_body)
+            visit_type(visitor, try_statement.except_param.ty)
+            visit_statement(visitor, try_statement.except_body)
         Case(case_statement):
             visit_expression(visitor, case_statement.value)
             visitor.on_statement(visitor.data, statement, VisitPhase.Mid())
@@ -1288,6 +1318,8 @@ fn visit_statement[T](visitor: Visitor[T], statement: Statement):
                     visit_expression(visitor, expr)
                 None:
                     pass
+        Raise(exc_val):
+            visit_expression(visitor, exc_val)
         Break:
             pass
         Continue:

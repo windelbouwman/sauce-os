@@ -92,6 +92,10 @@ class OpCode(Enum):
     LOADFUNC = 21
     CAST = 22
 
+    RAISE = 26
+    SETUP_EXCEPT = 27
+    POP_EXCEPT = 28
+
     ADD = 40
     SUB = 41
     MUL = 42

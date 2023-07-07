@@ -85,6 +85,8 @@ class Generator:
                 panic("Loop not implemented")
             For(for_statement):
                 panic("For-statement not supported")
+            Try(try_statement):
+                panic("For-statement not supported")
             Case(case_statement):
                 panic("Case-statement not supported")
             Let(let_statement):
@@ -105,6 +107,8 @@ class Generator:
                         this.emit(Instruction.Return(1))
                     None:
                         this.emit(Instruction.Return(0))
+            Raise(val):
+                panic("Raise not implemented")
     
     fn gen_expression(expression: ast.Expression):
         case expression.kind:
