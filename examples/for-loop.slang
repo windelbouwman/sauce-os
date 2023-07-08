@@ -20,21 +20,21 @@ fn main() -> int:
     let x = [1,7,11,2,550,232,12,2]
     # let x = [1, 7]
 
-    std::print("x[2] = {x[2]}")
-    std::print("x[1] = " + std::int_to_str(x[1]))
+    std.print("x[2] = {x[2]}")
+    std.print("x[1] = " + std.int_to_str(x[1]))
 
     # For loop with array:
     for a in x:
-        std::print("BOOM a={a} a*a={a*a}")
+        std.print("BOOM a={a} a*a={a*a}")
 
     # While loop with array:
     let i = 2
     while i < 7:
-        std::print("WHILE BOOM x[" + std::int_to_str(i) + "]=" + std::int_to_str(x[i]))
+        std.print("WHILE BOOM x[" + std.int_to_str(i) + "]=" + std.int_to_str(x[i]))
         i = i + 1
 
     # This works as well:
-    # let opt = [Option::None, Option::Some("W00t!"), Option::None, Option::None]
+    # let opt = [Option.None, Option.Some("W00t!"), Option.None, Option.None]
 
     # TODO: use y
     # let y = [3.4, 2.2, 2.2]
@@ -47,6 +47,6 @@ fn main() -> int:
         a: 6
         b: 9.2
     let z = [z1, z2]
-    std::print("z[1].a = " + std::int_to_str(z[1].a))
+    std.print("z[1].a = " + std.int_to_str(z[1].a))
     return 0
     

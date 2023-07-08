@@ -33,8 +33,8 @@ fn main():
         message: "W00t"
         value: b_boxed
     
-    std::print(a.message)
-    std::print(b.message)
+    std.print(a.message)
+    std.print(b.message)
 
     let double_bla = Bla[Bla[Bool]]:
         message: "double-bla"
@@ -53,13 +53,13 @@ fn main():
         message: "triple-bla"
         value: double_bla
     
-    std::print(triple_b.message)
-    std::print(triple_b.value.message)
-    std::print(triple_b.value.value.message)
+    std.print(triple_b.message)
+    std.print(triple_b.value.message)
+    std.print(triple_b.value.value.message)
 
 
 fn display_fuu(fu_b: Fuu[Bool]):
-    std::print(fu_b.bla.message)
-    std::print(fu_b.bla.value.message)
+    std.print(fu_b.bla.message)
+    std.print(fu_b.bla.value.message)
 
 

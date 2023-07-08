@@ -1,3 +1,4 @@
+# Generate python code from AST.
 
 import ast
 from utils import panic
@@ -18,7 +19,11 @@ class PyGenerator:
     fn gen_definition(definition: ast.Definition):
         case definition:
             Function(function_def):
-                this.emit("def {function_def.name}():")
+                let parameter_names: List[str] = List()
+                for parameter in function_def.parameters:
+                    parameter_names.append(parameter.name)
+                let params = str_join(parameter_names, ", ")
+                this.emit("def {function_def.name}({params}):")
                 this.indent()
                 this.gen_statement(function_def.body)
                 this.dedent()
@@ -38,14 +43,7 @@ class PyGenerator:
             Let(let_statement):
                 this.emit("{let_statement.variable.name} = {this.gen_expression(let_statement.value)}")
             If(if_statement):
-                this.emit("if {this.gen_expression(if_statement.condition)}:")
-                this.indent()
-                this.gen_statement(if_statement.true_body)
-                this.dedent()
-                this.emit("else:")
-                this.indent()
-                this.gen_statement(if_statement.false_body)
-                this.dedent()
+                this.gen_if_statement(if_statement, "if")
             Pass:
                 this.emit("pass")
             Break:
@@ -76,6 +74,20 @@ class PyGenerator:
                     this.gen_statement(s)
             Expr(expr):
                 this.emit(this.gen_expression(expr))
+
+    fn gen_if_statement(if_statement: ast.IfStatement, kw: str):
+        this.emit("{kw} {this.gen_expression(if_statement.condition)}:")
+        this.indent()
+        this.gen_statement(if_statement.true_body)
+        this.dedent()
+        case if_statement.false_body.kind:
+            If(if2):
+                this.gen_if_statement(if2, "elif")
+        else:
+            this.emit("else:")
+            this.indent()
+            this.gen_statement(if_statement.false_body)
+            this.dedent()
 
     fn gen_expression(expression: ast.Expression) -> str:
         let txt = "?"
@@ -115,12 +127,30 @@ class PyGenerator:
                 panic("Type not supported")
             TypeConstructor(tycon):
                 panic("TypeConstructor not supported")
-            LoadSymbol(sym):
-                panic("LoadSymbol not supported")
+            LoadSymbol(symbol):
+                case symbol:
+                    Mod(m):
+                        panic("Load module not allowed")
+                    Function(function_def):
+                        txt = function_def.name
+                    ExternFunction(extern_function):
+                        txt = extern_function.name
+                    Parameter(parameter):
+                        txt = parameter.name
+                    Var(variable):
+                        txt = variable.name
+                    TypeConstructor(tycon):
+                        panic("Load type constructor not allowed")
+                    Type(ty):
+                        panic("Load type not allowed")
+                    Variant(variant):
+                        panic("Load variant not allowed")
+                    Field(field):
+                        panic("Load field not allowed")
             NameRef(name):
-                panic("NameRef not supported")
-            VarRef(v):
-                panic("VarRef not supported")
+                panic("unresolved 'NameRef' not allowed")
+            VarRef(variable):
+                txt = variable.name
             Call(call):
                 let arguments = this.gen_expression_list(call.arguments)
                 txt = "{this.gen_expression(call.callee)}({arguments})"
@@ -135,20 +165,16 @@ class PyGenerator:
         return txt
     
     fn gen_expression_list(expressions: List[ast.Expression]) -> str:
-        let x = ""
-        let counter = expressions.len()
+        let parts: List[str] = List()
         for expression in expressions:
-            x += this.gen_expression(expression)
-            if counter > 0:
-                x += ", "
-                counter -= 1
-        return x
+            parts.append(this.gen_expression(expression))
+        return str_join(parts, ", ")
 
     fn emit(txt: str):
         let space = ""
         let i = 0
-        while i < this.indent_level * 4:
-            space += " "
+        while i < this.indent_level:
+            space += "    "
             i += 1
         print(space + txt)
     
@@ -157,4 +183,13 @@ class PyGenerator:
     
     fn dedent():
         this.indent_level -= 1
-    
+
+fn str_join(parts: List[str], sep: str) -> str:
+    let x = ""
+    let counter = parts.len()
+    for part in parts:
+        x += part
+        if counter > 1:
+            x += sep
+            counter -= 1
+    return x

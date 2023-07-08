@@ -31,11 +31,11 @@ fn main() -> int:
     return 0
 
 fn foo(messages: Holder):
-    std::print(messages.msg1)
-    std::print(messages.msg2)
+    std.print(messages.msg1)
+    std.print(messages.msg2)
 
 fn bar(kung: Fu, messages: Holder):
     if kung.a < kung.b:
-        std::print(kung.msg)
+        std.print(kung.msg)
     else:
         foo(messages)

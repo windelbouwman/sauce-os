@@ -2,11 +2,13 @@
 import std
 
 fn main() -> int:
-    std::print("Hello cool world!!")
+    let msg = "Hello cool world!!"
+    std.print(msg)
+    # std.print(msg)
     foo()
     return 0
 
 fn foo():
     if 2 < 7 - 1:
-        std::print("Hello world2")
+        std.print("Hello world2")
 

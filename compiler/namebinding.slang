@@ -6,7 +6,7 @@ import ast
 from errors import CompilationError, new_error, new_errors
 
 
-fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) -> Option[CompilationError]:
+fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) except CompilationError:
     log_info("Filling scopes for {module.name}")
     let filler = ScopeFiller()
     let fil_vis = ast.Visitor:
@@ -24,7 +24,7 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) -> Option[
     ast.visit_module(fil_vis, module)
     filler.leave_scope()
     if not filler.errors.is_empty():
-        return Option.Some(new_errors(filler.errors))
+        raise new_errors(filler.errors)
 
     log_info("Binding names for {module.name}")
     let binder = NameBinder()
@@ -42,9 +42,9 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) -> Option[
     binder.leave_scope()
 
     if not binder.errors.is_empty():
-        return Option.Some(new_errors(binder.errors))
+        raise new_errors(binder.errors)
 
-    return Option.None()
+    return
 
 fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: ScopeFiller):
     log_trace("Import {imp.modname}")

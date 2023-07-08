@@ -93,7 +93,7 @@ class Generator:
                 this.gen_expression(let_statement.value)
                 # TODO: var index!
                 let var_index = 0
-                this.emit(Instruction::LocalSet(var_index))
+                this.emit(Instruction.LocalSet(var_index))
                 # panic("Let not implemented")
             Compound(inner):
                 for s in inner:
@@ -143,14 +143,14 @@ class Generator:
             VarRef(v):
                 # TODO: var index!
                 let var_index = 0
-                this.emit(Instruction::LocalGet(var_index))
+                this.emit(Instruction.LocalGet(var_index))
             LoadSymbol(symbol):
                 case symbol:
                     #Var(v):
                         # panic("TODO: load var")
-                        # this.emit(Instruction::Local(e.name))
+                        # this.emit(Instruction.Local(e.name))
                     ExternFunction(e):
-                        this.emit(Instruction::LoadFunc(e.name))
+                        this.emit(Instruction.LoadFunc(e.name))
                 else:
                     panic("TODO: load symbol")
             NameRef(name):
@@ -181,10 +181,10 @@ class Generator:
         pass
 
     fn jump(label: int):
-        this.emit(Instruction::Jump(label))
+        this.emit(Instruction.Jump(label))
 
     fn jump_if(label: int, label2: int):
-        this.emit(Instruction::JumpIf(label, label2))
+        this.emit(Instruction.JumpIf(label, label2))
 
     fn emit(instruction: Instruction):
         print("Inst: {instruction_to_string(instruction)}")

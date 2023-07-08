@@ -550,7 +550,9 @@ enum Definition:
     Var(VarDef)
 
 struct VarDef:
+    location: Location
     variable: Variable
+    value: Expression
     
 fn type_parameter(name: str, id: int, location: Location) -> TypeParameter:
     let tp = TypeParameter:
@@ -577,6 +579,29 @@ struct StructDef:
     fields: List[StructField]
     location: Location
     scope: Scope
+
+class StructBuilder:
+    var nodeId: NodeId = new_node_id("", 0)
+    var location: Location = new_location(1, 1)
+    var type_parameters: List[TypeParameter] = List()
+    var fields: List[StructField] = List()
+
+    fn add_type_parameter(name: str, id: int, location: Location) -> MyType:
+        let tp = type_parameter(name, id, location)
+        this.type_parameters.append(tp)
+        return type_parameter_ref(tp)
+
+    fn add_field(name: str, ty: MyType, location: Location):
+        this.fields.append(new_struct_field(name, ty, location))
+
+    fn finish() -> StructDef:
+        let s = StructDef:
+            node_id: this.nodeId
+            type_parameters: this.type_parameters
+            fields: this.fields
+            location: this.location
+            scope: Scope()
+        return s
 
 fn new_struct_field(name: str, ty: MyType, location: Location) -> StructField:
     let f = StructField:
@@ -711,7 +736,7 @@ fn if_statement(condition: Expression, body: Statement, false_body: Statement, l
         true_body: body
         false_body: false_body
 
-    let kind = StatementKind::If(i)
+    let kind = StatementKind.If(i)
     return statement(kind, location)
 
 struct IfStatement:
@@ -728,14 +753,14 @@ fn while_statement(condition: Expression, body: Statement, location: Location) -
         condition: condition
         body: body
 
-    let kind = StatementKind::While(w)
+    let kind = StatementKind.While(w)
     return statement(kind, location)
 
 fn loop_statement(body: Statement, location: Location) -> Statement:
     let i = LoopStatement:
         body: body
 
-    let kind = StatementKind::Loop(i)
+    let kind = StatementKind.Loop(i)
     return statement(kind, location)
 
 struct LoopStatement:
@@ -747,7 +772,7 @@ fn for_statement(iter_var: str, iter_value: Expression, body: Statement, locatio
         iter_var: v
         iter_value: iter_value
         body: body
-    return statement(StatementKind::For(f), location)
+    return statement(StatementKind.For(f), location)
 
 struct ForStatement:
     iter_var: Variable
@@ -778,6 +803,13 @@ struct CaseArm:
     scope: Scope
     body: Statement
 
+fn switch_statement(value: Expression, arms: List[SwitchArm], default_body: Statement, location: Location) -> Statement:
+    let s = SwitchStatement:
+        value: value
+        arms: arms
+        default_body: default_body
+    return statement(StatementKind.Switch(s), location)
+
 struct SwitchStatement:
     value: Expression
     arms: List[SwitchArm]
@@ -805,7 +837,7 @@ fn compound(inner: List[Statement], location: Location) -> Statement:
     if inner.len() == 1:
         return inner.get(0)
     else:
-        let kind = StatementKind::Compound(inner)
+        let kind = StatementKind.Compound(inner)
         return statement(kind, location)
 
 fn expression_statement(expr: Expression) -> Statement:
@@ -823,7 +855,7 @@ fn raise_statement(value: Expression, location: Location) -> Statement:
     return statement(StatementKind.Raise(value), location)
 
 fn pass_statement(location: Location) -> Statement:
-    return statement(StatementKind::Pass(), location)
+    return statement(StatementKind.Pass(), location)
 
 struct Expression:
     location: Location
@@ -864,15 +896,21 @@ struct FieldInit:
     name: str
     value: Expression
 
+fn struct_literal(ty: MyType, values: List[Expression], location: Location) -> Expression:
+    return expression(ExpressionKind.StructLiteral(ty, values), ty, location)
+
+fn load_symbol(symbol: Symbol, ty: MyType, location: Location) -> Expression:
+    return expression(ExpressionKind.LoadSymbol(symbol), ty, location)
+
 fn call(callee: Expression, arguments: List[Expression], ty: MyType, location: Location) -> Expression:
     let c = FunctionCall:
         callee: callee
         arguments: arguments
-    let kind = ExpressionKind::Call(c)
+    let kind = ExpressionKind.Call(c)
     return expression(kind, ty, location)
 
 fn get_attr(base: Expression, field: str, ty: MyType, location: Location) -> Expression:
-    let kind = ExpressionKind::GetAttr(base, field)
+    let kind = ExpressionKind.GetAttr(base, field)
     return expression(kind, ty, location)
 
 struct FunctionCall:
@@ -880,17 +918,17 @@ struct FunctionCall:
     arguments: List[Expression]
 
 fn subscript(base: Expression, indici: List[Expression], ty: MyType, location: Location) -> Expression:
-    let kind = ExpressionKind::GetIndex(base, indici)
+    let kind = ExpressionKind.GetIndex(base, indici)
     return expression(kind, ty, location)
 
 # Reference a variable:
 fn var_ref(v: Variable, location: Location) -> Expression:
-    let kind = ExpressionKind::VarRef(v)
+    let kind = ExpressionKind.VarRef(v)
     return expression(kind, v.ty, location)
 
 # Reference a symbol:
 fn name_ref(name: str, location: Location) -> Expression:
-    let kind = ExpressionKind::NameRef(name)
+    let kind = ExpressionKind.NameRef(name)
     let ty = undefined_type()
     return expression(kind, ty, location)
 
@@ -935,7 +973,7 @@ fn binop(lhs: Expression, op: BinaryOperator, rhs: Expression, ty: MyType, locat
         lhs: lhs
         op: op
         rhs: rhs
-    let kind = ExpressionKind::Binop(b)
+    let kind = ExpressionKind.Binop(b)
     return expression(kind, ty, location)
 
 enum UnaryOperator:
@@ -943,31 +981,31 @@ enum UnaryOperator:
     Minus
 
 fn unop(op: UnaryOperator, value: Expression, ty: MyType, location: Location) -> Expression:
-    let kind = ExpressionKind::Unop(op, value)
+    let kind = ExpressionKind.Unop(op, value)
     return expression(kind, ty, location)
 
 fn bool_literal(value: bool, location: Location) -> Expression:
-    let kind = ExpressionKind::BoolLiteral(value)
+    let kind = ExpressionKind.BoolLiteral(value)
     let ty = bool_type()
     return expression(kind, ty, location)
 
 fn integer_literal(value: int, location: Location) -> Expression:
-    let kind = ExpressionKind::IntLiteral(value)
+    let kind = ExpressionKind.IntLiteral(value)
     let ty = int_type()
     return expression(kind, ty, location)
 
 fn float_literal(value: float, location: Location) -> Expression:
-    let kind = ExpressionKind::FloatLiteral(value)
+    let kind = ExpressionKind.FloatLiteral(value)
     let ty = float_type()
     return expression(kind, ty, location)
 
 fn string_literal(value: str, location: Location) -> Expression:
-    let kind = ExpressionKind::StringLiteral(value)
+    let kind = ExpressionKind.StringLiteral(value)
     let ty = str_type()
     return expression(kind, ty, location)
 
 fn undefined_value() -> Expression:
-    return expression(ExpressionKind::Undefined(), undefined_type(), new_location(1, 1))
+    return expression(ExpressionKind.Undefined(), undefined_type(), new_location(1, 1))
 
 fn print_ast(mod: Module):
     print("Module: " + mod.name)
@@ -1245,6 +1283,7 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
                 visit_definition(visitor, d2)
         Var(v):
             visit_type(visitor, v.variable.ty)
+            visit_expression(visitor, v.value)
     visitor.on_definition(visitor.data, definition, VisitPhase.Post())
 
 fn visit_type[T](visitor: Visitor[T], ty: MyType):

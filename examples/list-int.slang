@@ -56,27 +56,27 @@ fn list_walk(x: List):
             None:
                 break
             Some(element):
-                std::print("Item[" + std::int_to_str(i) + "]=" + std::int_to_str(element.data))
+                std.print("Item[" + std.int_to_str(i) + "]=" + std.int_to_str(element.data))
                 mabye_element = element.next
         i = i + 1
 
 fn main():
     let x = list_new()
 
-    std::print("Walk 1")
+    std.print("Walk 1")
     list_walk(x)
 
     list_append(x, 13)
     list_append(x, 12)
     list_append(x, 2001)
-    std::print("Walk 2")
+    std.print("Walk 2")
     list_walk(x)
 
     list_append(x, 88)
-    std::print("Walk 3")
+    std.print("Walk 3")
     list_walk(x)
 
-    std::print("Iteration attempt")
+    std.print("Iteration attempt")
     let it = list_iter_new(x)
     let n = 0
     loop:
@@ -85,7 +85,7 @@ fn main():
             None:
                 break
             Some(element):
-                std::print("Item[" + std::int_to_str(n) + "]=" + std::int_to_str(element.data))
+                std.print("Item[" + std.int_to_str(n) + "]=" + std.int_to_str(element.data))
 
 
 fn list_new() -> List:

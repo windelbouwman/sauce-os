@@ -10,6 +10,7 @@ from typechecking import type_check
 from utils import log_info, log_error
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
+from transforms import transform
 from builtins import get_std_module
 from datatypes import List, String, new_string, Dictionary, Result
 
@@ -32,6 +33,7 @@ fn main() -> int:
     filenames.append(new_string("compiler/builtins.slang"))
     filenames.append(new_string("compiler/pass3.slang"))
     filenames.append(new_string("compiler/typechecking.slang"))
+    filenames.append(new_string("compiler/transforms.slang"))
     filenames.append(new_string("compiler/pygenerator.slang"))
     filenames.append(new_string("compiler/ir_gen.slang"))
     filenames.append(new_string("compiler/main.slang"))
@@ -42,16 +44,16 @@ fn main() -> int:
     # filenames.append(new_string("examples/mandel.slang"))
     # filenames.append(new_string("examples/structs-passing.slang"))
     # filenames.append(new_string("examples/loops.slang"))
-    case compile(filenames):
-        Ok(prog):
-            log_info("OK")
-            return 0
-        Error(err):
-            log_error("HORROR")
-            display_error(err)
-            return 1
+    try:
+        let prog = compile(filenames)
+        log_info("OK")
+        return 0
+    except (err: CompilationError):
+        log_error("HORROR")
+        display_error(err)
+        return 1
 
-fn compile(filenames: List[String]) -> Result[bc.Program, CompilationError]:
+fn compile(filenames: List[String]) -> bc.Program except CompilationError:
     # TODO: sort filenames!
 
     let module_map: Dictionary[ast.Module] = Dictionary()
@@ -62,45 +64,31 @@ fn compile(filenames: List[String]) -> Result[bc.Program, CompilationError]:
     for filename in filenames:
         log_info("Compiling: {filename.value}")
 
-        case parse_source(filename):
-            Ok(program):
-                log_info("Parsed module: {program.name}")
-                # ast.print_ast(program)
-                modules.append(program)
-                module_map.insert(program.name, program)
-            Error(error):
-                return Result.Error(error)
+        let program = parse_source(filename)
+        log_info("Parsed module: {program.name}")
+        # ast.print_ast(program)
+        modules.append(program)
+        module_map.insert(program.name, program)
     
     # TODO: topo-sort modules!
 
     for module in modules:
-        case bind_names(module, module_map):
-            None:
-                pass
-            Some(error):
-                return Result.Error(error)
-
-        case resolve_newops(module):
-            None:
-                pass
-            Some(error):
-                return Result.Error(error)
+        bind_names(module, module_map)
+        resolve_newops(module)
     
     for module3 in modules:
         # ast.print_ast(module3)
-        case type_check(module3):
-            None:
-                pass
-            Some(error):
-                return Result.Error(error)
-
+        type_check(module3)
     
+    for module4 in modules:
+        transform(module4)
 
     # TODO!
-    #for module2 in modules:
+    for module2 in modules:
         # let prog = gen_bytecode(module2)
         #log_info("generating bytecode: {module2.name}")
-        #gen_python(module2)
+        # gen_python(module2)
+        pass
 
     let prog = bc.new_program()
-    return Result.Ok(prog)
+    return prog

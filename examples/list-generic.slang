@@ -65,7 +65,7 @@ fn list_walk(x: List[Integer]):
             None:
                 break
             Some(element):
-                std::print("Item[{i}]=" + std::int_to_str(element.data.value))
+                std.print("Item[{i}]=" + std.int_to_str(element.data.value))
                 mabye_element = element.next
         i = i + 1
 
@@ -78,12 +78,12 @@ fn main():
     list_append(x, new_integer(12))
     #list_append(x, new_integer(2001))
 
-    std::print("Walk 1")
+    std.print("Walk 1")
     list_walk(x)
 
     list_append(x, new_integer(88))
     list_append(x, new_integer(1337))
-    std::print("Iter integers")
+    std.print("Iter integers")
     let x_iter = list_iter_new(x)
     loop:
         let maybe_value2 = list_iter_next(x_iter)
@@ -91,7 +91,7 @@ fn main():
             None:
                 break
             Some(value):
-                std::print("Iter value: " + std::int_to_str(value.value))
+                std.print("Iter value: " + std.int_to_str(value.value))
 
     # Nicer syntax would be:
     # let y = List[String]()
@@ -100,7 +100,7 @@ fn main():
     list_append(y, new_string("Bla"))
     list_append(y, new_string("Fu"))
     list_append(y, new_string("Baz"))
-    std::print("Walk strings")
+    std.print("Walk strings")
     let y_iter = list_iter_new(y)
     loop:
         let maybe_value = list_iter_next(y_iter)
@@ -108,7 +108,7 @@ fn main():
             None:
                 break
             Some(value):
-                std::print("Iter value: " + value.value)
+                std.print("Iter value: " + value.value)
 
 
 struct Integer:

@@ -32,7 +32,7 @@ class List:
                 None:
                     break
                 Some(element):
-                    std::print("Item[" + std::int_to_str(i) + "]=" + std::int_to_str(element.data))
+                    std.print("Item[" + std.int_to_str(i) + "]=" + std.int_to_str(element.data))
                     mabye_element = element.next
             i = i + 1
 
@@ -66,20 +66,20 @@ class ListIter:
 fn main():
     let x = List()
 
-    std::print("Walk 1")
+    std.print("Walk 1")
     x.walk()
 
     x.append(13)
     x.append(12)
     x.append(2001)
-    std::print("Walk 2")
+    std.print("Walk 2")
     x.walk()
 
     x.append(88)
-    std::print("Walk 3")
+    std.print("Walk 3")
     x.walk()
 
-    std::print("Iteration attempt")
+    std.print("Iteration attempt")
     let it = x.iter()
     let n = 0
     loop:
@@ -88,5 +88,5 @@ fn main():
             None:
                 break
             Some(element):
-                std::print("Item[" + std::int_to_str(n) + "]=" + std::int_to_str(element.data))
+                std.print("Item[" + std.int_to_str(n) + "]=" + std.int_to_str(element.data))
         n = n + 1

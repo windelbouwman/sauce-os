@@ -8,7 +8,7 @@ from location import Location
 from utils import log_info, panic
 from errors import CompilationError, new_errors, new_error, display_error
 
-fn type_check(module: ast.Module) -> Option[CompilationError]:
+fn type_check(module: ast.Module) except CompilationError:
     log_info("Checking module {module.name}")
 
     let checker = TypeChecker()
@@ -21,10 +21,8 @@ fn type_check(module: ast.Module) -> Option[CompilationError]:
         on_node: checker_on_node
 
     ast.visit_module(check_visitor, module)
-    if checker.errors.is_empty():
-        return Option.None()
-    else:
-        return Option.Some(new_errors(checker.errors))
+    if not checker.errors.is_empty():
+        raise new_errors(checker.errors)
 
 fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase: ast.VisitPhase):
     pass

@@ -15,9 +15,9 @@ enum Symbol:
 
 fn foo(a: int, b: int, message: str) -> Option[Symbol]:
     if a < b:
-        std::print("A smaller than B")
+        std.print("A smaller than B")
     else:
-        std::print(message)
+        std.print(message)
     
     return Option.Some(Symbol.B())
 

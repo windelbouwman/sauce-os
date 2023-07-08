@@ -7,7 +7,7 @@ from errors import new_error, new_errors, CompilationError
 from datatypes import Dictionary, List, Option
 
 
-fn resolve_newops(module: ast.Module) -> Option[CompilationError]:
+fn resolve_newops(module: ast.Module) except CompilationError:
     log_info("resolve new-ops for {module.name}")
     let newop = NewOp()
     let newop_visitor = ast.Visitor[NewOp]:
@@ -18,10 +18,8 @@ fn resolve_newops(module: ast.Module) -> Option[CompilationError]:
         on_expression: newop_on_expression
         on_node: newop_on_node
     ast.visit_module(newop_visitor, module)
-    if newop.errors.is_empty():
-        return Option.None()
-    else:
-        return Option.Some(new_errors(newop.errors))
+    if not newop.errors.is_empty():
+        raise new_errors(newop.errors)
 
 fn newop_on_definition(newop: NewOp, definition: ast.Definition, phase: ast.VisitPhase):
     pass

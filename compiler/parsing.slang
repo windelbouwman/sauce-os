@@ -18,17 +18,14 @@ fn basename(path: String) -> String:
     let base = split_string(path, "/").last()
     return split_string(base, ".").first()
 
-fn parse_source(filename: String) -> Result[ast.Module,CompilationError]:
+fn parse_source(filename: String) -> ast.Module except CompilationError:
     let source = std.read_file(filename.value)
     let modname = basename(filename).value
 
     let parser = Parser()
     parser.feed(source)
 
-    try:
-        return Result.Ok(parser.parse_module(modname))
-    except (err: CompilationError):
-        return Result.Error(err)
+    return parser.parse_module(modname)
     
 
 class Parser:
@@ -72,28 +69,15 @@ class Parser:
         return program
 
     fn parse_import(location: Location) -> ast.Import except CompilationError:
-        let modname = "?"
-        let tok = this.get_token()
-        case tok.kind:
-            Identifier(name):
-                modname = name
-        else:
-            raise new_error(tok, "Expected name")
-
+        let modname = this.parse_name().name
         this.parse_newline()
         return ast.import_self(modname, location)
 
     fn parse_from_import(location: Location) -> ast.Import except CompilationError:
-        let modname = "?"
-        let tok = this.get_token()
-        case tok.kind:
-            Identifier(name):
-                modname = name
-        else:
-            raise new_error(tok, "Expected name")
+        let modname = this.parse_name().name
 
         # 'import'
-        tok = this.get_token()
+        let tok = this.get_token()
         case tok.kind:
             KwImport:
                 pass
@@ -104,14 +88,8 @@ class Parser:
 
         # list of names until newline:
         loop:
+            names.append(this.parse_name().name)
             let tok2 = this.get_token()
-            case tok2.kind:
-                Identifier(name):
-                    names.append(name)
-            else:
-                raise new_error(tok2, "Expected name")
-
-            tok2 = this.get_token()
             case tok2.kind:
                 Comma:
                     continue
@@ -123,14 +101,7 @@ class Parser:
         return ast.import_names(modname, location, names)
 
     fn parse_enum_def(location: Location) -> ast.EnumDef except CompilationError:
-        let name = "?"
-        let tok = this.get_token()
-        case tok.kind:
-            Identifier(txt):
-                name = txt
-        else:
-            raise new_error(tok, "Expected name")
-
+        let name = this.parse_name().name
         let type_parameters: List[ast.TypeParameter] = this.parse_type_parameters()
 
         this.parse_colon()
@@ -140,7 +111,7 @@ class Parser:
         let variants: List[ast.EnumVariant] = List()
         loop:
             # expect id or dedent (eventually)
-            tok = this.get_token()
+            let tok = this.get_token()
             case tok.kind:
                 Identifier(v):
                     let payload_types: List[ast.MyType] = List()
@@ -182,14 +153,10 @@ class Parser:
             BracketOpen:
                 # take in type parameters
                 loop:
-                    let tok2 = this.get_token()
-                    case tok2.kind:
-                        Identifier(name):
-                            type_parameters.append(ast.type_parameter(name, this.new_id(), tok2.location))
-                    else:
-                        raise new_error(tok2, "Expected ID")
+                    let name_at = this.parse_name()
+                    type_parameters.append(ast.type_parameter(name_at.name, this.new_id(), name_at.location))
 
-                    tok2 = this.get_token()
+                    let tok2 = this.get_token()
                     case tok2.kind:
                         BracketClose:
                             break
@@ -202,16 +169,8 @@ class Parser:
         return type_parameters
 
     fn parse_struct_def(location: Location) -> ast.StructDef except CompilationError:
-        let name = "?"
-        let tok = this.get_token()
-        case tok.kind:
-            Identifier(txt):
-                name = txt
-        else:
-            raise new_error(tok, "Expected name")
-
+        let name = this.parse_name().name
         let type_parameters: List[ast.TypeParameter] = this.parse_type_parameters()
-
         this.parse_colon()
         this.parse_newline()
         this.parse_indent()
@@ -219,7 +178,7 @@ class Parser:
         let fields: List[ast.StructField] = List()
         loop:
             # expect id or dedent (eventually)
-            tok = this.get_token()
+            let tok = this.get_token()
             case tok.kind:
                 Identifier(field_name):
                     this.parse_colon()
@@ -234,16 +193,8 @@ class Parser:
         return ast.struct_def(name, this.new_id(), type_parameters, fields, location)
 
     fn parse_class_def(location: Location) -> ast.ClassDef except CompilationError:
-        let name = "?"
-        let tok = this.get_token()
-        case tok.kind:
-            Identifier(txt):
-                name = txt
-        else:
-            raise new_error(tok, "Expected name")
-
+        let name_at = this.parse_name()
         let type_parameters: List[ast.TypeParameter] = this.parse_type_parameters()
-
         this.parse_colon()
         this.parse_newline()
         this.parse_indent()
@@ -251,7 +202,7 @@ class Parser:
         let inner_defs: List[ast.Definition] = List()
         loop:
             # expect var/fn def or dedent (eventually)
-            tok = this.get_token()
+            let tok = this.get_token()
             case tok.kind:
                 KwVar:
                     let var_def = this.parse_var_def(tok.location)
@@ -266,8 +217,8 @@ class Parser:
 
         let this_var = ast.variable("this", ast.undefined_type())
         let class_def = ast.ClassDef:
-            node_id: ast.new_node_id(name, this.new_id())
-            location: tok.location
+            node_id: ast.new_node_id(name_at.name, this.new_id())
+            location: name_at.location
             type_parameters: type_parameters
             this_var: this_var
             definitions: inner_defs
@@ -281,31 +232,14 @@ class Parser:
         return class_def
 
     fn parse_func_def(location: Location) -> ast.FunctionDef except CompilationError:
-        
-        # ID:
-        let name = "?"
-        let tok = this.get_token()
-        case tok.kind:
-            Identifier(txt):
-                name = txt
-        else:
-            raise new_error(tok, "Expected name")
-
+        let name: str = this.parse_name().name
         log_debug("Parsing function: {name}")
-
         let type_parameters = this.parse_type_parameters()
-
-        # '('
-        tok = this.get_token()
-        case tok.kind:
-            BraceOpen:
-                pass
-        else:
-            raise new_error(tok, "Expected '('")
+        this.parse_brace_open()
 
         let parameters: List[ast.ParameterDef] = List()
         # ')' or parameters and ')'
-        tok = this.get_token()
+        let tok = this.get_token()
         case tok.kind:
             BraceClose:
                 pass
@@ -345,51 +279,25 @@ class Parser:
         return ast.function_def(name, type_parameters, parameters, return_type, except_type, body, location)
     
     fn parse_parameter_def() -> ast.ParameterDef except CompilationError:
-        # Parameter name
-        let param_name = "?"
-        let tok2 = this.get_token()
-        case tok2.kind:
-            Identifier(txt):
-                param_name = txt
-        else:
-            raise new_error(tok2, "Expected name")
-
+        let name_at = this.parse_name()
         this.parse_colon()
         let param_type = this.parse_type()
-        let param_def = ast.parameter_def(param_name, param_type, tok2.location)
+        let param_def = ast.parameter_def(name_at.name, param_type, name_at.location)
         return param_def
 
     fn parse_var_def(location: Location) -> ast.VarDef except CompilationError:
-        # ID:
-        let var_name = "?"
-        let tok = this.get_token()
-        case tok.kind:
-            Identifier(txt):
-                var_name = txt
-        else:
-            raise new_error(tok, "Expected name")
-
+        let name_at = this.parse_name()
+        let var_name = name_at.name
         this.parse_colon()
-
-        # Type        
         let var_type = this.parse_type()
-
-        # '='
-        tok = this.get_token()
-        case tok.kind:
-            Equals:
-                pass
-        else:
-            raise new_error(tok, "Expected '='")
-        
-        # value
+        this.parse_equals()
         let var_init = this.parse_expression()
         this.parse_newline()
-        
         let variable = ast.variable(var_name, var_type)
         let var_def = ast.VarDef:
+            location: location
             variable: variable
-        
+            value: var_init
         return var_def
 
     fn parse_type() -> ast.MyType except CompilationError:
@@ -399,16 +307,11 @@ class Parser:
                 # Parse function signature.
 
                 # '('
-                let tok2 = this.get_token()
-                case tok2.kind:
-                    BraceOpen:
-                        pass
-                else:
-                    raise new_error(tok2, "Expected '('")
+                this.parse_brace_open()
 
                 let parameter_types: List[ast.MyType] = List()
                 # ')' or parameters and ')'
-                tok2 = this.get_token()
+                let tok2 = this.get_token()
                 case tok2.kind:
                     BraceClose:
                         pass
@@ -533,20 +436,14 @@ class Parser:
             return s
     
     fn parse_let_statement(location: Location) -> ast.Statement except CompilationError:
-        let tok2 = this.get_token()
-        let var_name = "?"
-        case tok2.kind:
-            Identifier(name):
-                var_name = name
-        else:
-            raise new_error(tok2, "Expected name")
-        
+        let name_at = this.parse_name()
+        let var_name = name_at.name
         let var_type = ast.undefined_type()
         let target_var = ast.variable(var_name, var_type)
         
         let type_hint: Option[ast.MyType] = Option.None()
 
-        tok2 = this.get_token()
+        let tok2 = this.get_token()
         case tok2.kind:
             Colon:
                 # Type hint!
@@ -554,13 +451,7 @@ class Parser:
         else:
             this.unget_token(tok2)
 
-        tok2 = this.get_token()
-        case tok2.kind:
-            Equals:
-                pass
-        else:
-            raise new_error(tok2, "Expected '='")
-        
+        this.parse_equals()
         let value = this.parse_expression()
 
         tok2 = this.get_token()
@@ -568,47 +459,42 @@ class Parser:
             NewLine:
                 pass
             Colon:
-                # Obj initializer!
                 let obj_ty = ast.new_type(ast.TypeKind.TypeExpression(value))
-                let tok3 = this.get_token()
-                let obj_location = tok3.location
-                case tok3.kind:
-                    NewLine:
-                        pass
-                else:
-                    raise new_error(tok3, "Expected newline")
-                
-                this.parse_indent()
-                
-                let obj_fields: List[ast.FieldInit] = List()
-                loop:
-                    # ID
-                    let field_name = "?"
-                    tok3 = this.get_token()
-                    let field_loc = tok3.location
-                    case tok3.kind:
-                        Identifier(x):
-                            field_name = x
-                        Dedent:
-                            break
-                    else:
-                        raise new_error(tok3, "Expected dedent")
-
-                    this.parse_colon()
-                    let field_value = this.parse_expression()
-                    let field_init = ast.FieldInit:
-                        location: field_loc
-                        name: field_name
-                        value: field_value
-                    obj_fields.append(field_init)
-
-                    this.parse_newline()
-                value = ast.expression(ast.ExpressionKind.ObjInit(obj_ty, obj_fields), ast.undefined_type(), obj_location)
-
+                value = this.parse_obj_init(obj_ty, tok2.location)
         else:
             raise new_error(tok2, "Expected newline or ':'")
         
         return ast.let_statement(target_var, type_hint, value, location)
+    
+    fn parse_obj_init(obj_ty: ast.MyType, location: Location) -> ast.Expression except CompilationError:
+        # Obj initializer!
+        this.parse_newline()
+        this.parse_indent()
+        
+        let obj_fields: List[ast.FieldInit] = List()
+        loop:
+            # ID
+            let field_name = "?"
+            let tok3 = this.get_token()
+            let field_loc = tok3.location
+            case tok3.kind:
+                Identifier(x):
+                    field_name = x
+                Dedent:
+                    break
+            else:
+                raise new_error(tok3, "Expected dedent")
+
+            this.parse_colon()
+            let field_value = this.parse_expression()
+            let field_init = ast.FieldInit:
+                location: field_loc
+                name: field_name
+                value: field_value
+            obj_fields.append(field_init)
+
+            this.parse_newline()
+        return ast.expression(ast.ExpressionKind.ObjInit(obj_ty, obj_fields), ast.undefined_type(), location)
 
     fn parse_if_statement(location: Location) -> ast.Statement except CompilationError:
         # Parse if-statement (if or elif keyword already parsed)
@@ -635,16 +521,10 @@ class Parser:
         return ast.while_statement(condition, statement, location)
 
     fn parse_for_statement(location: Location) -> ast.Statement except CompilationError:
-        let iter_var = "?"
-        let tok2 = this.get_token()
-        case tok2.kind:
-            Identifier(name):
-                iter_var = name
-        else:
-            raise new_error(tok2, "Expected name")
+        let iter_var = this.parse_name().name
 
         # 'in'
-        tok2 = this.get_token()
+        let tok2 = this.get_token()
         case tok2.kind:
             KwIn:
                 pass
@@ -668,23 +548,9 @@ class Parser:
         else:
             raise new_error(tok, "Expected 'except'")
 
-        # '('
-        tok = this.get_token()
-        case tok.kind:
-            BraceOpen:
-                pass
-        else:
-            raise new_error(tok, "Expected '('")
-
+        this.parse_brace_open()
         let exc_param = this.parse_parameter_def()
-
-        # ')'
-        tok = this.get_token()
-        case tok.kind:
-            BraceClose:
-                pass
-        else:
-            raise new_error(tok, "Expected ')'")
+        this.parse_brace_close()
 
         let exc_code = this.parse_block()
         return ast.try_statement(try_code, exc_param, exc_code, location)
@@ -862,12 +728,7 @@ class Parser:
                 expr = ast.name_ref(v, tok.location)
             BraceOpen:
                 expr = this.parse_expression()
-                let tok2 = this.get_token()
-                case tok2.kind:
-                    BraceClose:
-                        pass
-                else:
-                    raise new_error(tok2, "Expected ')'")
+                this.parse_brace_close()
         else:
             raise new_error(tok, "Unexpected token")
 
@@ -877,12 +738,8 @@ class Parser:
             case tok.kind:
                 Dot:
                     # handle '.attribute' suffix
-                    let tok2 = this.get_token()
-                    case tok2.kind:
-                        Identifier(attr):
-                            expr = ast.get_attr(expr, attr, ast.undefined_type(), tok2.location)
-                    else:
-                        raise new_error(tok2, "Expected dedent")
+                    let attr_at = this.parse_name()
+                    expr = ast.get_attr(expr, attr_at.name, ast.undefined_type(), tok.location)
                 BraceOpen:
                     # print("CALL")
                     # Handle '(arg1,arg2)' suffix
@@ -898,8 +755,7 @@ class Parser:
                         # call with parameters
 
                         loop:
-                            let arg = this.parse_expression()
-                            arguments.append(arg)
+                            arguments.append(this.parse_expression())
                             let tok4 = this.get_token()
                             case tok4.kind:
                                 BraceClose:
@@ -930,6 +786,33 @@ class Parser:
                 break
         return expr
     
+    fn parse_name() -> NameAtLocation except CompilationError:
+        let tok = this.get_token()
+        case tok.kind:
+            Identifier(name):
+                let name_at = NameAtLocation:
+                    name: name
+                    location: tok.location
+                return name_at
+        else:
+            raise new_error(tok, "Expected name")
+
+    fn parse_brace_open() except CompilationError:
+        let tok = this.get_token()
+        case tok.kind:
+            BraceOpen:
+                pass
+        else:
+            raise new_error(tok, "Expected '('")
+
+    fn parse_brace_close() except CompilationError:
+        let tok = this.get_token()
+        case tok.kind:
+            BraceClose:
+                pass
+        else:
+            raise new_error(tok, "Expected ')'")
+
     fn parse_newline() except CompilationError:
         let tok = this.get_token()
         case tok.kind:
@@ -954,6 +837,14 @@ class Parser:
         else:
             raise new_error(tok, "Expected ':'")
 
+    fn parse_equals() except CompilationError:
+        let tok = this.get_token()
+        case tok.kind:
+            Equals:
+                pass
+        else:
+            raise new_error(tok, "Expected '='")
+
     fn get_token() -> Token:
         # Get token (EOF in case of end of file)
         return this.lex.next_token()
@@ -965,3 +856,7 @@ class Parser:
         let x = this.next_id
         this.next_id += 1
         return x
+
+struct NameAtLocation:
+    name: str
+    location: Location

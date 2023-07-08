@@ -19,8 +19,8 @@ fn main():
 fn foo(val: Option):
     case val:
         Some(x):
-            std::print("And the message is: " + x)
+            std.print("And the message is: " + x)
         None:
-            std::print("Nothing here")
+            std.print("Nothing here")
         Money(x,y):
-            std::print("Money!! x=" + std::int_to_str(x) + " y=" + std::float_to_str(y))
+            std.print("Money!! x=" + std.int_to_str(x) + " y=" + std.float_to_str(y))

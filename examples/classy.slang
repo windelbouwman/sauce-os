@@ -7,11 +7,11 @@ class Bar:
     var val3: str = "bla"
 
     fn info():
-        std::print("Bar instance: " + this.val3)
-        # std::print(self.val3 )
+        std.print("Bar instance: " + this.val3)
+        # std.print(self.val3 )
 
     fn info2(x: int):
-        std::print("Bar instance {x + this.val1}")
+        std.print("Bar instance {x + this.val1}")
 
 
 fn main() -> int:

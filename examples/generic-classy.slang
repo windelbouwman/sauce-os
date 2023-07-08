@@ -7,7 +7,7 @@ class Bar[V]:
     var val3: str = "bla"
 
     fn info(v: V) -> V:
-        std::print("Instance: {this.val1} " + this.val3)
+        std.print("Instance: {this.val1} " + this.val3)
         return v
 
 
@@ -16,12 +16,12 @@ fn main():
     bar.val3 = "Woei!"
     bar.val1 = 1337
     let x = bar.info(Integer())
-    std::print("integer: {x.v}")
+    std.print("integer: {x.v}")
 
     let baz: Bar[String] = Bar()
     baz.val3 = "Hello world"
     let y = baz.info(String())
-    std::print("String:" + y.v)
+    std.print("String:" + y.v)
 
 class Integer:
     var v: int = 0

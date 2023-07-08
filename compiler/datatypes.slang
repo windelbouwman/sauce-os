@@ -13,6 +13,13 @@ fn option_unwrap[T](opt: Option[T]) -> T:
         None:
             panic("Cannot unwrap None")
 
+fn option_unwrap_or[T](opt: Option[T], alt: T) -> T:
+    case opt:
+        Some(value):
+            return value
+        None:
+            return alt
+
 fn option_is_some[T](opt: Option[T]) -> bool:
     case opt:
         Some(v):

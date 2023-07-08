@@ -123,7 +123,6 @@ class CustomLarkLexer(LarkLexer):
             "*": "ASTERIX",
             "/": "SLASH",
             ":": "COLON",
-            "::": "DOUBLE_COLON",
             ",": "COMMA",
             ".": "DOT",
             "->": "ARROW",
@@ -570,11 +569,8 @@ class CustomTransformer(LarkTransformer):
         return ast.NewOpField(name, value, get_loc(x[1]))
 
     def obj_ref(self, x):
-        if len(x) == 1:
-            return ast.name_ref(x[0].value, get_loc(x[0]))
-        else:
-            ty = ast.void_type
-            return ast.dot_operator(x[0], x[2].value, ty, get_loc(x[1]))
+        assert len(x) == 1
+        return ast.name_ref(x[0].value, get_loc(x[0]))
 
 
 grammar = r"""
@@ -689,7 +685,6 @@ arguments: test
 literal: STRING | NUMBER | FNUMBER | BOOL
 array_literal: LEFT_BRACKET arguments RIGHT_BRACKET
 obj_ref: ID
-       | obj_ref DOUBLE_COLON ID
 
 obj_init: typ COLON NEWLINE INDENT field_init+ DEDENT
 field_init: ID COLON expression NEWLINE
@@ -702,7 +697,7 @@ field_init: ID COLON expression NEWLINE
 %declare KW_RAISE KW_TRY KW_EXCEPT
 
 %declare LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
-%declare COLON DOUBLE_COLON COMMA DOT ARROW
+%declare COLON COMMA DOT ARROW
 %declare MINUS PLUS ASTERIX SLASH
 %declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS NOT_EQUALS
 %declare EQUALS PLUS_EQUALS MINUS_EQUALS

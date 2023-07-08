@@ -118,10 +118,7 @@ class Lexer:
             elif c == ".":
                 kind = TokenKind.Dot()
             elif c == ":":
-                if this.match(":"):
-                    kind = TokenKind.Dot()
-                else:
-                    kind = TokenKind.Colon()
+                kind = TokenKind.Colon()
             elif c == " ":
                 while this.match(" "):
                     pass

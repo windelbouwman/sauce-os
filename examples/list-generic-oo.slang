@@ -38,7 +38,6 @@ class List[T]:
         it.next_element = this.head_element
         return it
 
-# TODO: replace by Option<ListElement>
 enum Option[D]:
     Some(D)
     None
@@ -80,7 +79,7 @@ fn main():
             None:
                 break
             Some(element):
-                print("Item[{n}]=" + std::int_to_str(element.value))
+                print("Item[{n}]=" + std.int_to_str(element.value))
         n = n + 1
 
     # This works when x has an 'iter' method:
