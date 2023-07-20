@@ -1,0 +1,51 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Slang-Lang",
+	"patterns": [
+		{
+			"name": "keyword.control",
+			"match": "\\b(if|while|for|return|loop|else|elif|case|break|continue|pass)\\b"
+		},
+		{
+			"name": "keyword.other",
+			"match": "\\b(var|let|fn|struct|class|enum|from|and|or|not|import)\\b"
+		},
+		{
+			"name": "keyword.operator",
+			"match": "\\b(and|or|not)\\b"
+		},
+		{
+			"name": "constant.numeric.slang",
+			"match": "\\b(\\d+)\\b"
+		},
+		{
+			"name": "constant.other",
+			"match": "\\b(true|false)\\b"
+		},
+		{
+			"name": "comment",
+			"match": "#.*"
+		},
+		{
+			"name": "entity.name",
+			"match": "\\b(\\w+)\\b"
+		},
+		{
+			"include": "#strings"
+		}
+	],
+	"repository": {
+		"strings": {
+			"name": "string.quoted.double.slang",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.slang",
+					"match": "\\\\."
+				}
+			]
+		}
+	},
+	"scopeName": "source.slang"
+}

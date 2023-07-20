@@ -1,0 +1,48 @@
+{
+  "name": "slang-lang",
+  "displayName": "slang-lang",
+  "description": "Slang lang syntax highlighter and language server",
+  "version": "0.0.1",
+  "publisher": "Windel Bouwman",
+  "engines": {
+    "vscode": "^1.77.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension",
+  "contributes": {
+    "languages": [
+      {
+        "id": "slang",
+        "aliases": [
+          "Slang-Lang",
+          "slang"
+        ],
+        "extensions": [
+          ".slang"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "slang",
+        "scopeName": "source.slang",
+        "path": "./syntaxes/slang.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -b",
+    "watch": "tsc -b -w"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.77.0"
+  }
+}
