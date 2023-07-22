@@ -1,4 +1,4 @@
-import std
+from std import print
 
 struct Holder:
     msg1: str
@@ -18,24 +18,24 @@ fn main() -> int:
         a: 2
         msg: "BOOM1"
         b: 5
-    bar(k, messages)
+    bar(kung: k, messages)
     let x = 31
     x = 10
     k.a = x
-    bar(k, messages)
-    let k3 = Fu:
+    bar(kung: k, messages)
+    let kung = Fu:
         a: 10
         msg: "BOOM2"
         b: 55
-    bar(k3, messages)
+    bar(kung, messages)
     return 0
 
 fn foo(messages: Holder):
-    std.print(messages.msg1)
-    std.print(messages.msg2)
+    print(messages.msg1)
+    print(messages.msg2)
 
 fn bar(kung: Fu, messages: Holder):
     if kung.a < kung.b:
-        std.print(kung.msg)
+        print(kung.msg)
     else:
         foo(messages)

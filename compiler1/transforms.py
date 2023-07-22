@@ -165,7 +165,8 @@ class LoopRewriter(BaseTransformer):
                 # call built-in int_to_str
                 int_to_str = self._std_module.get_field("int_to_str")
                 callee = ast.obj_ref(int_to_str, ast.void_type, expression.location)
-                expression.kind = ast.FunctionCall(callee, [kind.expr])
+                args = [ast.LabeledExpression("value", kind.expr, kind.expr.location)]
+                expression.kind = ast.FunctionCall(callee, args)
             else:
                 raise ValueError(
                     f"Cannot resolve to-string for {ast.str_ty(kind.expr.ty)}"
@@ -397,12 +398,12 @@ class ClassRewriter(BaseTransformer):
 
         # Patch methods, add this parameter
         for method in methods:
-            logger.info(f'lifting "{method.name}" to toplevel')
+            logger.debug(f'lifting "{method.name}" to toplevel')
             method.name = f"{class_def.name}_{method.name}"
 
             type_args = []
             for tp in class_def.type_parameters:
-                tp = ast.TypeVar(f"{tp.name}{counter}", tp.location)
+                tp = ast.TypeParameter(f"{tp.name}{counter}", tp.location)
                 counter += 1
                 # Hmm, append type arguments to already existing ones?
                 # TBD: what happens with type annotations?
@@ -410,7 +411,10 @@ class ClassRewriter(BaseTransformer):
                 type_args.append(tp.get_ref())
 
             struct_type = struct_def.apply(type_args)
-            this_param = ast.Parameter("this2", struct_type, class_def.location)
+            needs_label = False
+            this_param = ast.Parameter(
+                "this2", needs_label, struct_type, class_def.location
+            )
             method.parameters.insert(0, this_param)
 
             m7 = dict(zip(class_def.type_parameters, type_args))
@@ -422,7 +426,7 @@ class ClassRewriter(BaseTransformer):
         type_parameters = []  # TODO!
         type_args = []
         for tp in class_def.type_parameters:
-            tp = ast.TypeVar(f"{tp.name}{counter}", tp.location)
+            tp = ast.TypeParameter(f"{tp.name}{counter}", tp.location)
             counter += 1
             type_parameters.append(tp)
             type_args.append(tp.get_ref())
@@ -475,7 +479,8 @@ class ClassRewriter(BaseTransformer):
                     )
 
                     # Insert
-                    kind.args.insert(0, obj)
+                    this_arg = ast.LabeledExpression("this2", obj, obj.location)
+                    kind.args.insert(0, this_arg)
                     kind.target = ast.obj_ref(
                         method_func, ast.void_type, kind.target.location
                     )
@@ -503,9 +508,9 @@ class TypeReplacer(ast.AstVisitor):
 
     def visit_type(self, ty: ast.MyType):
         super().visit_type(ty)
-        if ty.is_type_var_ref():
-            if ty.kind.type_variable in self.type_mapping:
-                t2 = self.type_mapping[ty.kind.type_variable]
+        if ty.is_type_parameter_ref():
+            if ty.kind.type_parameter in self.type_mapping:
+                t2 = self.type_mapping[ty.kind.type_parameter]
                 ty.change_to(t2)
 
 

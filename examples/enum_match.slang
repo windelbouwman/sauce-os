@@ -4,15 +4,15 @@ import std
 
 enum Option:
     None
-    Some(str)
-    Money(int)
+    Some(value: str)
+    Money(amount: int)
 
 
 fn main():
     let val: Option = Option.Some("TXT")
-    foo(val)
+    foo(val: val)
     let val2: Option = Option.None()
-    foo(val2)
+    foo(val: val2)
 
 
 fn foo(val: Option):

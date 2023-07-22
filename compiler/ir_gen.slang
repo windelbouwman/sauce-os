@@ -17,8 +17,8 @@ class Generator:
     var id_counter: int = 1
     var code: List[Instruction] = List()
 
-    fn gen_prog(prog: ast.Module) -> bc.Program:
-        for definition in prog.definitions:
+    fn gen_prog(module: ast.Module) -> bc.Program:
+        for definition in module.definitions:
             case definition:
                 Function(function_def):
                     this.gen_func(function_def)
@@ -33,18 +33,18 @@ class Generator:
                 Var(v):
                     panic("VAR def not impl.")
 
-    fn gen_func(func: ast.FunctionDef):
-        print("FUNC {func.name}:")
-        this.gen_statement(func.body)
+    fn gen_func(function_def: ast.FunctionDef):
+        print("FUNC {function_def.name}:")
+        this.gen_statement(function_def.body)
 
-    fn gen_statement(statement: ast.Statement):
+    fn gen_statement(statement?: ast.Statement):
         case statement.kind:
             Pass:
                 pass
             Break:
-                this.jump(1)
+                this.jump(target: 1)
             Continue:
-                this.jump(1)
+                this.jump(target: 1)
             Expr(expr):
                 this.gen_expression(expr)
             Assignment(target, op, value):
@@ -57,7 +57,7 @@ class Generator:
 
                 this.set_label(test_label)
                 this.gen_expression(while_statement.condition)
-                this.jump_if(body_label, final_label)
+                this.jump_if(label: body_label, label2: final_label)
 
                 this.set_label(body_label)
                 this.gen_statement(while_statement.body)
@@ -70,7 +70,7 @@ class Generator:
                 let final_label = this.new_label()
 
                 this.gen_expression(if_statement.condition)
-                this.jump_if(true_label, false_label)
+                this.jump_if(label: true_label, label2: false_label)
                 
                 this.set_label(true_label)
                 this.gen_statement(if_statement.true_body)
@@ -104,19 +104,19 @@ class Generator:
                 case opt_val:
                     Some(val):
                         this.gen_expression(val)
-                        this.emit(Instruction.Return(1))
+                        this.emit(Instruction.Return(n_arg: 1))
                     None:
-                        this.emit(Instruction.Return(0))
+                        this.emit(Instruction.Return(n_args: 0))
             Raise(val):
                 panic("Raise not implemented")
     
-    fn gen_expression(expression: ast.Expression):
+    fn gen_expression(expression?: ast.Expression):
         case expression.kind:
             Call(call):
                 this.gen_expression(call.callee)
                 for argument in call.arguments:
-                    this.gen_expression(argument)
-                this.emit(Instruction.Call(call.arguments.len()))
+                    this.gen_expression(argument.value)
+                this.emit(Instruction.Call(n_args: call.arguments.len()))
             GetAttr(base,attr):
                 this.gen_expression(base)
                 # TODO: determine index!
@@ -125,7 +125,6 @@ class Generator:
             GetIndex(base, indici):
                 this.gen_expression(base)
                 panic("TODO: get-index")
-
             Binop(binop):
                 this.gen_expression(binop.lhs)
                 this.gen_expression(binop.rhs)
@@ -150,7 +149,7 @@ class Generator:
                         # panic("TODO: load var")
                         # this.emit(Instruction.Local(e.name))
                     ExternFunction(e):
-                        this.emit(Instruction.LoadFunc(e.name))
+                        this.emit(Instruction.LoadFunc(name: e.name))
                 else:
                     panic("TODO: load symbol")
             NameRef(name):
@@ -177,16 +176,17 @@ class Generator:
     fn new_label() -> int:
         return this.gen_id()
 
-    fn set_label(label: int):
+    fn set_label(label?: int):
+        # TODO!
         pass
 
-    fn jump(label: int):
-        this.emit(Instruction.Jump(label))
+    fn jump(label?: int):
+        this.emit(Instruction.Jump(target: label))
 
     fn jump_if(label: int, label2: int):
-        this.emit(Instruction.JumpIf(label, label2))
+        this.emit(Instruction.JumpIf(label1: label, label2))
 
-    fn emit(instruction: Instruction):
+    fn emit(instruction?: Instruction):
         print("Inst: {instruction_to_string(instruction)}")
 
     fn gen_id() -> int:

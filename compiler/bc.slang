@@ -15,21 +15,21 @@ struct Function:
 enum Instruction:
     Nop
     Dup  # Duplicate stack top
-    Int(int)
-    Str(str)
-    Float(float)
+    Int(value: int)
+    Str(value: str)
+    Float(value: float)
+    Bool(value: bool)
     Not
-    Bool(bool)
-    Jump(int)  # Unconditional jump
-    JumpIf(int, int)
-    Call(int)
-    Return(int)
-    LocalGet(int)
-    LocalSet(int)
-    GetAttr(int)
-    SetAttr(int)
-    LoadFunc(str)
-    StructLiteral(int)
+    Jump(label: int)  # Unconditional jump
+    JumpIf(label1: int, label2: int)
+    Call(n_arguments: int)
+    Return(n_values: int)
+    LocalGet(index: int)
+    LocalSet(index: int)
+    GetAttr(index: int)
+    SetAttr(index: int)
+    LoadFunc(name: str)
+    StructLiteral(n_values: int)
 
 fn instruction_to_string(instruction: Instruction) -> str:
     case instruction:

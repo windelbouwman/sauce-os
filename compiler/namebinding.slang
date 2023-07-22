@@ -16,15 +16,15 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) except Com
         on_statement: filler_on_statement
         on_expression: filler_on_expression
         on_node: filler_on_node
-    filler.enter_scope(module.scope)
+    filler.enter_scope(scope: module.scope)
 
     for imp in module.imports:
         import_mod(imp, module_map, filler)
 
-    ast.visit_module(fil_vis, module)
+    ast.visit_module(visitor: fil_vis, module)
     filler.leave_scope()
     if not filler.errors.is_empty():
-        raise new_errors(filler.errors)
+        raise new_errors(errors: filler.errors)
 
     log_info("Binding names for {module.name}")
     let binder = NameBinder()
@@ -35,34 +35,34 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) except Com
         on_statement: binder_on_statement
         on_expression: binder_on_expression
         on_node: binder_on_node
-    binder.enter_scope(base_scope())
-    binder.enter_scope(module.scope)
-    ast.visit_module(bind_visitor, module)
+    binder.enter_scope(scope: base_scope())
+    binder.enter_scope(scope: module.scope)
+    ast.visit_module(visitor: bind_visitor, module)
     binder.leave_scope()
     binder.leave_scope()
 
     if not binder.errors.is_empty():
-        raise new_errors(binder.errors)
+        raise new_errors(errors: binder.errors)
 
     return
 
 fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: ScopeFiller):
     log_trace("Import {imp.modname}")
-    case module_map.get(imp.modname):
+    case module_map.get(key: imp.modname):
         Some(m):
             case imp.kind:
                 Self:
-                    filler.define(m.name, ast.Symbol.Mod(m))
+                    filler.define(name: m.name, symbol: ast.Symbol.Mod(m))
                 Names(names):
                     for name in names:
                         log_trace("Importing {name} from {imp.modname}")
                         case m.scope.lookup(name):
-                            Some(sym):
-                                filler.define(name, sym)
+                            Some(symbol):
+                                filler.define(name, symbol)
                             None:
-                                filler.add_error(imp.location, "Error, module {m.name} has no symbol: {name}")
+                                filler.add_error(location: imp.location, message: "Error, module {m.name} has no symbol: {name}")
         None:
-            filler.add_error(imp.location, "Error, no mod: {imp.modname}")
+            filler.add_error(location: imp.location, message: "Error, no mod: {imp.modname}")
 
 fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
     # try to retrieve a scope, if we have one
@@ -85,44 +85,44 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
         Pre:
             case definition:
                 Function(func):
-                    filler.define(func.name, ast.Symbol.Function(func))
-                    filler.enter_scope(func.scope)
+                    filler.define(name: func.name, symbol: ast.Symbol.Function(func))
+                    filler.enter_scope(scope: func.scope)
                     for type_parameter in func.type_parameters:
-                        filler.define(type_parameter.node_id.name, ast.Symbol.Type(ast.type_parameter_ref(type_parameter)))
+                        filler.define(name: type_parameter.node_id.name, symbol: ast.Symbol.Type(ty: ast.type_parameter_ref(type_parameter)))
                     for param_def in func.parameters:
-                        filler.define(param_def.name, ast.Symbol.Parameter(param_def))
+                        filler.define(name: param_def.name, symbol: ast.Symbol.Parameter(param_def))
                 ExternFunction(efunc):
                     pass
                 Enum(e):
-                    filler.define(e.name, ast.Symbol.TypeConstructor(ast.TyCon.Enum(e)))
-                    filler.enter_scope(e.scope)
+                    filler.define(name: e.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(e)))
+                    filler.enter_scope(scope: e.scope)
                     for type_parameter in e.type_parameters:
-                        filler.define(type_parameter.node_id.name, ast.Symbol.Type(ast.type_parameter_ref(type_parameter)))
+                        filler.define(name: type_parameter.node_id.name, symbol: ast.Symbol.Type(ty: ast.type_parameter_ref(type_parameter)))
                     for variant in e.variants:
-                        filler.define(variant.name, ast.Symbol.Variant(variant))
+                        filler.define(name: variant.name, symbol: ast.Symbol.Variant(variant))
                 Struct(s):
-                    filler.define(s.node_id.name, ast.Symbol.TypeConstructor(ast.TyCon.Struct(s)))
-                    filler.enter_scope(s.scope)
+                    filler.define(name: s.node_id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Struct(s)))
+                    filler.enter_scope(scope: s.scope)
                     for type_parameter in s.type_parameters:
-                        filler.define(type_parameter.node_id.name, ast.Symbol.Type(ast.type_parameter_ref(type_parameter)))
+                        filler.define(name: type_parameter.node_id.name, symbol: ast.Symbol.Type(ty: ast.type_parameter_ref(type_parameter)))
                     for field in s.fields:
-                        filler.define(field.name, ast.Symbol.Field(field))
+                        filler.define(name: field.name, symbol: ast.Symbol.Field(field))
                 Class(c):
-                    filler.define(c.node_id.name, ast.Symbol.TypeConstructor(ast.TyCon.Class(c)))
-                    filler.enter_scope(c.scope)
+                    filler.define(name: c.node_id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Class(c)))
+                    filler.enter_scope(scope: c.scope)
                     for type_parameter in c.type_parameters:
-                        filler.define(type_parameter.node_id.name, ast.Symbol.Type(ast.type_parameter_ref(type_parameter)))
-                    filler.define(c.this_var.name, ast.Symbol.Var(c.this_var))
+                        filler.define(name: type_parameter.node_id.name, symbol: ast.Symbol.Type(ty: ast.type_parameter_ref(type_parameter)))
+                    filler.define(name: c.this_var.name, symbol: ast.Symbol.Var(variable: c.this_var))
                     for definition in c.definitions:
                         case definition:
                             Var(v):
                                 pass
                             Function(func):
-                                filler.define(func.name, ast.Symbol.Function(func))
+                                filler.define(name: func.name, symbol: ast.Symbol.Function(func))
                         else:
                             panic("class can only contain var/func")
                 Var(v):
-                    filler.define(v.variable.name, ast.Symbol.Var(v.variable))
+                    filler.define(name: v.variable.name, symbol: ast.Symbol.Var(variable: v.variable))
         Post:
             case get_scope(definition):
                 None:
@@ -140,12 +140,12 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast
         Pre:
             case statement.kind:
                 Let(letty):
-                    filler.define(letty.variable.name, ast.Symbol.Var(letty.variable))
+                    filler.define(name: letty.variable.name, symbol: ast.Symbol.Var(variable: letty.variable))
                 For(for_statement):
-                    filler.define(for_statement.iter_var.name, ast.Symbol.Var(for_statement.iter_var))
+                    filler.define(name: for_statement.iter_var.name, symbol: ast.Symbol.Var(variable: for_statement.iter_var))
                 Try(try_statement):
                     # TODO: create new scope for except clause?
-                    filler.define(try_statement.except_param.name, ast.Symbol.Parameter(try_statement.except_param))
+                    filler.define(name: try_statement.except_param.name, symbol: ast.Symbol.Parameter(parameter: try_statement.except_param))
             else:
                 pass
     else:
@@ -159,9 +159,9 @@ fn filler_on_node(filler: ScopeFiller, node: ast.VisitNode, phase: ast.VisitPhas
         Pre:
             case node:
                 Arm(arm):
-                    filler.enter_scope(arm.scope)
-                    for v in arm.variables:
-                        filler.define(v.name, ast.Symbol.Var(v))
+                    filler.enter_scope(scope: arm.scope)
+                    for variable in arm.variables:
+                        filler.define(name: variable.name, symbol: ast.Symbol.Var(variable))
         Post:
             case node:
                 Arm(arm):
@@ -194,8 +194,8 @@ fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: a
             case get_scope(definition):
                 None:
                     pass
-                Some(s):
-                    binder.enter_scope(s)
+                Some(scope):
+                    binder.enter_scope(scope)
         Post:
             case get_scope(definition):
                 None:
@@ -232,17 +232,17 @@ fn binder_on_expression(binder: NameBinder, expression: ast.Expression, phase: a
                         Some(symbol):
                             expression.kind = symbol_to_kind(symbol)
                         None:
-                            binder.add_error(expression.location, "'{name}' not defined!")
+                            binder.add_error(location: expression.location, message: "'{name}' not defined!")
                 GetAttr(base, attr):
                     case base.kind:
                         LoadSymbol(sym):
                             case sym:
                                 Mod(m):
-                                    case m.scope.lookup(attr):
+                                    case m.scope.lookup(name: attr):
                                         Some(symbol):
                                             expression.kind = symbol_to_kind(symbol)
                                         None:
-                                            binder.add_error(expression.location, "module '{m.name}' has no symbol: '{attr}'")
+                                            binder.add_error(location: expression.location, message: "module '{m.name}' has no symbol: '{attr}'")
                             else:
                                 pass
                     else:
@@ -257,7 +257,7 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
         Pre:
             case node:
                 Arm(arm):
-                    binder.enter_scope(arm.scope)
+                    binder.enter_scope(scope: arm.scope)
         Post:
             case node:
                 Arm(arm):
@@ -267,10 +267,10 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 
 fn base_scope() -> ast.Scope:
     let s = ast.Scope()
-    s.define("int", ast.Symbol.Type(ast.int_type()))
-    s.define("str", ast.Symbol.Type(ast.str_type()))
-    s.define("bool", ast.Symbol.Type(ast.bool_type()))
-    s.define("float", ast.Symbol.Type(ast.float_type()))
+    s.define(name: "int", symbol: ast.Symbol.Type(ty: ast.int_type()))
+    s.define(name: "str", symbol: ast.Symbol.Type(ty: ast.str_type()))
+    s.define(name: "bool", symbol: ast.Symbol.Type(ty: ast.bool_type()))
+    s.define(name: "float", symbol: ast.Symbol.Type(ty: ast.float_type()))
     return s
 
 class NameBinder:

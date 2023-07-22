@@ -15,12 +15,12 @@ fn main():
     let bar: Bar[Integer] = Bar()
     bar.val3 = "Woei!"
     bar.val1 = 1337
-    let x = bar.info(Integer())
+    let x = bar.info(v: Integer())
     std.print("integer: {x.v}")
 
     let baz: Bar[String] = Bar()
     baz.val3 = "Hello world"
-    let y = baz.info(String())
+    let y = baz.info(v: String())
     std.print("String:" + y.v)
 
 class Integer:

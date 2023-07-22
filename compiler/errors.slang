@@ -4,29 +4,29 @@ from datatypes import List
 from location import Location
 
 enum CompilationError:
-    Single(SingleCompilationError)
-    Multi(List[CompilationError])
+    Single(error: SingleCompilationError)
+    Multi(errors: List[CompilationError])
 
 struct SingleCompilationError:
     location: Location
     message: str
 
-fn new_error(loc: Location, message: str) -> CompilationError:
-    let e = SingleCompilationError:
-        location: loc
+fn new_error(location: Location, message: str) -> CompilationError:
+    let error = SingleCompilationError:
+        location: location
         message: message
-    return CompilationError.Single(e)
+    return CompilationError.Single(error)
 
 fn new_errors(errors: List[CompilationError]) -> CompilationError:
     return CompilationError.Multi(errors)
 
 fn display_error(error: CompilationError):
     case error:
-        Single(e):
-            display_single_error(e)
+        Single(error):
+            display_single_error(error)
         Multi(errs):
-            for e in errs:
-                display_error(e)
+            for error in errs:
+                display_error(error)
 
 fn display_single_error(error: SingleCompilationError):
     print("ERROR: {int_to_str(error.location.row)}:{int_to_str(error.location.column)}: {error.message}")

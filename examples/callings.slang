@@ -2,12 +2,13 @@
 import std
 
 fn main() -> int:
-    let a = foo(2, 5, "Fiir")
-    let b = foo(9, 5, "No sir")
+    let a = foo(a: 2, b: 5, message: "Fiir")
+    let message = "No sir"
+    let b = foo(a: 9, b: 5, message)
     return 0
 
 enum Option[T]:
-    Some(T)
+    Some(value: T)
 
 enum Symbol:
     A

@@ -8,16 +8,16 @@ fn main() -> int:
     # let y = 2
     x()
     call_f(x)
-    call_f(baz)
+    call_f(x: baz)
     x = baz
-    call_f(bla)
+    call_f(x: bla)
     x()
 
     let z = A:
         func1: bla
         func2: baz
 
-    complexor(z)
+    complexor(x: z)
 
     return 0
 
@@ -27,8 +27,8 @@ struct A:
 
 fn complexor(x: A):
     print("Complexor entry")
-    call_f(x.func1)
-    call_f(x.func2)
+    call_f(x: x.func1)
+    call_f(x: x.func2)
     print("Complexor exit")
 
 fn bla():

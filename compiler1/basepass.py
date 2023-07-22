@@ -34,4 +34,4 @@ class BasePass(ast.AstVisitor):
         if self._errors:
             raise CompilationError(self._errors)
         else:
-            logger.info(msg, extra={"markup": True})
+            logger.debug(msg, extra={"markup": True})

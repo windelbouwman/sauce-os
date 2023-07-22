@@ -1,24 +1,24 @@
 
-import std
+from std import print
 
 fn main() -> int:
     # let x = 2
     for x in [1,2,3,4,5,6,7,8,9, 11, 13]:
         switch x:
             0:
-                std.print("Zero!")
+                print("Zero!")
             1:
-                std.print("One!")
+                print("One!")
             2:
-                std.print("Two!")
+                print("Two!")
             13:
-                std.print("Drie + 10!")
+                print("Drie + 10!")
             4:
-                std.print("IV")
+                print("IV")
             5:
-                std.print("V")
+                print("V")
             133:
-                std.print("Muchos!")
+                print("Muchos!")
         else:
-            std.print("Defaulty!")
+            print("Defaulty!")
     return 0

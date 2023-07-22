@@ -7,7 +7,7 @@ struct List:
 
 # TODO: replace by Option<ListElement>
 enum Option:
-    Some(ListElement)
+    Some(value: ListElement)
     None
 
 struct ListElement:
@@ -66,13 +66,13 @@ fn main():
     std.print("Walk 1")
     list_walk(x)
 
-    list_append(x, 13)
-    list_append(x, 12)
-    list_append(x, 2001)
+    list_append(this: x, val: 13)
+    list_append(this: x, val: 12)
+    list_append(this: x, val: 2001)
     std.print("Walk 2")
     list_walk(x)
 
-    list_append(x, 88)
+    list_append(this: x, val: 88)
     std.print("Walk 3")
     list_walk(x)
 
@@ -80,7 +80,7 @@ fn main():
     let it = list_iter_new(x)
     let n = 0
     loop:
-        let opt = list_iter_next(it)
+        let opt = list_iter_next(iter: it)
         case opt:
             None:
                 break

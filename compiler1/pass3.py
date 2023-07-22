@@ -73,8 +73,9 @@ class TypeEvaluation(BasePass):
 
         elif isinstance(kind, ast.FunctionCall):
             if isinstance(kind.target.kind, ast.SemiEnumLiteral):
+                values = [a.value for a in kind.args]
                 expression.kind = ast.EnumLiteral(
-                    kind.target.kind.enum_ty, kind.target.kind.variant, kind.args
+                    kind.target.kind.enum_ty, kind.target.kind.variant, values
                 )
             elif isinstance(kind.target.kind, ast.GenericLiteral):
                 ty = kind.target.kind.tycon.apply2()
@@ -87,8 +88,8 @@ class TypeEvaluation(BasePass):
                 expression.kind = ast.GenericLiteral(obj)
             elif isinstance(obj, ast.MyType):
                 expression.kind = ast.TypeLiteral(obj)
-            elif isinstance(obj, ast.TypeVar):
-                expression.kind = ast.TypeLiteral(ast.type_var_ref(obj))
+            elif isinstance(obj, ast.TypeParameter):
+                expression.kind = ast.TypeLiteral(ast.type_parameter_ref(obj))
 
         elif isinstance(kind, ast.ArrayIndex):
             if isinstance(kind.base.kind, ast.GenericLiteral):

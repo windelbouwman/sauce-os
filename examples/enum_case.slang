@@ -1,26 +1,27 @@
 
+from std import print
 import std
 
 enum Option:
     None
-    Some(str)
-    Money(int, float)
+    Some(txt: str)
+    Money(a: int, b: float)
 
 
 fn main():
-    let val: Option = Option.Some("TXT")
+    let val: Option = Option.Some(txt: "TXT")
     foo(val)
     let val2 = Option.None()
-    foo(val2)
-    let val3: Option = Option.Money(5, 2.3)
-    foo(val3)
+    foo(val: val2)
+    let val3: Option = Option.Money(a: 5, b: 2.3)
+    foo(val: val3)
 
 
 fn foo(val: Option):
     case val:
         Some(x):
-            std.print("And the message is: " + x)
+            print("And the message is: " + x)
         None:
-            std.print("Nothing here")
+            print("Nothing here")
         Money(x,y):
-            std.print("Money!! x=" + std.int_to_str(x) + " y=" + std.float_to_str(y))
+            print("Money!! x=" + std.int_to_str(x) + " y=" + std.float_to_str(y))

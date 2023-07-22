@@ -8,7 +8,7 @@ from std import print
 struct Integer:
     value: int
 
-fn new_integer(value: int) -> Integer:
+fn new_integer(value?: int) -> Integer:
     let i = Integer:
         value: value
     return i
@@ -16,7 +16,7 @@ fn new_integer(value: int) -> Integer:
 class List[T]:
     var head_element: Option[ListElement[T]] = Option.None()
 
-    fn append(val: T):
+    fn append(val?: T):
         let new_tail_element = ListElement:
             next: Option.None()
             data: val
@@ -39,7 +39,7 @@ class List[T]:
         return it
 
 enum Option[D]:
-    Some(D)
+    Some(value: D)
     None
 
 struct ListElement[T]:

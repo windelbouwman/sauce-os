@@ -6,7 +6,7 @@ struct List[T]:
     head_element: Option[ListElement[T]]
 
 enum Option[T]:
-    Some(T)
+    Some(value: T)
     None
 
 struct ListElement[T]:
@@ -74,19 +74,19 @@ fn main():
     # TODO: the below could work?
     # let x = list_new()
 
-    list_append(x, new_integer(13))
-    list_append(x, new_integer(12))
+    list_append(this: x, value: new_integer(13))
+    list_append(this: x, value: new_integer(12))
     #list_append(x, new_integer(2001))
 
     std.print("Walk 1")
     list_walk(x)
 
-    list_append(x, new_integer(88))
-    list_append(x, new_integer(1337))
+    list_append(this: x, value: new_integer(88))
+    list_append(this: x, value: new_integer(1337))
     std.print("Iter integers")
-    let x_iter = list_iter_new(x)
+    let x_iter = list_iter_new(this: x)
     loop:
-        let maybe_value2 = list_iter_next(x_iter)
+        let maybe_value2 = list_iter_next(this: x_iter)
         case maybe_value2:
             None:
                 break
@@ -97,13 +97,13 @@ fn main():
     # let y = List[String]()
     # y.append(new_string("Bla"))
     let y: List[String] = list_new()
-    list_append(y, new_string("Bla"))
-    list_append(y, new_string("Fu"))
-    list_append(y, new_string("Baz"))
+    list_append(this: y, value: new_string("Bla"))
+    list_append(this: y, value: new_string("Fu"))
+    list_append(this: y, value: new_string("Baz"))
     std.print("Walk strings")
-    let y_iter = list_iter_new(y)
+    let y_iter = list_iter_new(this: y)
     loop:
-        let maybe_value = list_iter_next(y_iter)
+        let maybe_value = list_iter_next(this: y_iter)
         case maybe_value:
             None:
                 break
@@ -114,7 +114,7 @@ fn main():
 struct Integer:
     value: int
 
-fn new_integer(value: int) -> Integer:
+fn new_integer(value?: int) -> Integer:
     let i = Integer:
         value: value
     return i
@@ -122,7 +122,7 @@ fn new_integer(value: int) -> Integer:
 struct String:
     value: str
 
-fn new_string(value: str) -> String:
+fn new_string(value?: str) -> String:
     let i = String:
         value: value
     return i

@@ -15,7 +15,7 @@ struct Token:
     kind: TokenKind
 
 enum TokenKind:
-    Identifier(str)
+    Identifier(id: str)
 
     # Keywords:
     KwAnd
@@ -47,16 +47,17 @@ enum TokenKind:
     KwWhile
 
     # Literals:
-    Float(float)
-    Integer(int)
-    String(str)
-    Bool(bool)
+    Float(value: float)
+    Integer(value: int)
+    String(value: str)
+    Bool(value: bool)
 
     # Punctuation:
     Colon
     Comma
     Dot
     Arrow
+    Question
     BraceOpen
     BraceClose
     BracketOpen
@@ -77,9 +78,9 @@ enum TokenKind:
     MinusEquals
 
     # White-space:
-    Space(int)
+    Space(amount: int)
     NewLine
-    Comment(str)
+    Comment(comment: str)
     Indent
     Dedent
 
@@ -144,23 +145,23 @@ fn token_to_string(tok: Token) -> str:
             txt = "VAR"
         KwWhile:
             txt = "WHILE"
-        Identifier(x):
-            txt = "ID({x})"
+        Identifier(id):
+            txt = "ID({id})"
         String(a):
             txt = "STRING({a})"
         Integer(v):
             txt = "INT({v})"
         Float(v):
             txt = "FLOAT(...)"
-        Bool(v):
-            if v:
+        Bool(value):
+            if value:
                 txt = "BOOL(yes)"
             else:
                 txt = "BOOL(no)"
-        Space(v):
-            txt = "SPACE({v})"
-        Comment(a):
-            txt = "COMMENT({a})"
+        Space(amount):
+            txt = "SPACE({amount})"
+        Comment(comment):
+            txt = "COMMENT({comment})"
         NewLine:
             txt = "NEWLINE"
         Indent:
@@ -171,6 +172,8 @@ fn token_to_string(tok: Token) -> str:
             txt = "COLON"
         Arrow:
             txt = "ARROW"
+        Question:
+            txt = "QUESTION"
         Comma:
             txt = "COMMA"
         Dot:

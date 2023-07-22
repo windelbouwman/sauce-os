@@ -13,6 +13,7 @@ logger = logging.getLogger("ast")
 class Node:
     def __init__(self, location: Location):
         self.location = location
+        assert isinstance(location, Location)
         assert hasattr(location, "row")
 
 
@@ -112,8 +113,8 @@ class MyType:
     def is_bool(self) -> bool:
         return isinstance(self.kind, BaseType) and self.kind.is_bool()
 
-    def is_type_var_ref(self) -> bool:
-        return isinstance(self.kind, TypeVarKind)
+    def is_type_parameter_ref(self) -> bool:
+        return isinstance(self.kind, TypeParameterKind)
 
     def has_field(self, name: str) -> bool:
         if isinstance(self.kind, App):
@@ -223,11 +224,11 @@ class MyType:
         return f"{self.kind}"
 
 
-def subst(t: MyType, m: dict["TypeVar", MyType]) -> MyType:
+def subst(t: MyType, m: dict["TypeParameter", MyType]) -> MyType:
     """Substitute type variables."""
-    if isinstance(t.kind, TypeVarKind):
-        if t.kind.type_variable in m:
-            return m[t.kind.type_variable]
+    if isinstance(t.kind, TypeParameterKind):
+        if t.kind.type_parameter in m:
+            return m[t.kind.type_parameter]
         else:
             return t
     elif isinstance(t.kind, App):
@@ -236,9 +237,10 @@ def subst(t: MyType, m: dict["TypeVar", MyType]) -> MyType:
         return t
     elif isinstance(t.kind, FunctionType):
         new_args = [subst(a, m) for a in t.kind.parameter_types]
+        parameter_names = t.kind.parameter_names
         return_type = subst(t.kind.return_type, m)
         except_type = subst(t.kind.except_type, m)
-        return function_type(new_args, return_type, except_type)
+        return function_type(parameter_names, new_args, return_type, except_type)
     else:
         raise NotImplementedError(str(t))
 
@@ -251,7 +253,9 @@ class TypeConstructor(Definition):
     Basetype for struct/enum/class defs!
     """
 
-    def __init__(self, name: str, location: Location, type_parameters: list["TypeVar"]):
+    def __init__(
+        self, name: str, location: Location, type_parameters: list["TypeParameter"]
+    ):
         super().__init__(name, location)
         self.type_parameters = type_parameters
 
@@ -296,7 +300,7 @@ class TypeFunc(TypeConstructor):
     by applying type arguments.
     """
 
-    def __init__(self, type_parameters: list["TypeVar"], ty: MyType):
+    def __init__(self, type_parameters: list["TypeParameter"], ty: MyType):
         super().__init__()
         self.type_parameters = type_parameters
         self.ty = ty
@@ -359,21 +363,31 @@ class VoidType(TypeKind):
 
 
 def function_type(
-    parameter_types: list[MyType], return_type: MyType, except_type: MyType
+    parameter_names: list[str],
+    parameter_types: list[MyType],
+    return_type: MyType,
+    except_type: MyType,
 ) -> MyType:
     """Create function type with no type parameters."""
-    return MyType(FunctionType(parameter_types, return_type, except_type))
+    return MyType(
+        FunctionType(parameter_names, parameter_types, return_type, except_type)
+    )
 
 
 class FunctionType(TypeKind):
     def __init__(
-        self, parameter_types: list[MyType], return_type: MyType, except_type: MyType
+        self,
+        parameter_names: list[str],
+        parameter_types: list[MyType],
+        return_type: MyType,
+        except_type: MyType,
     ):
         super().__init__()
         assert isinstance(parameter_types, list)
         assert all(isinstance(t, MyType) for t in parameter_types)
         assert isinstance(return_type, MyType)
         assert isinstance(except_type, MyType)
+        self.parameter_names = parameter_names
         self.parameter_types = parameter_types
         self.return_type = return_type
         self.except_type = except_type
@@ -441,17 +455,17 @@ class Meta(TypeKind):
             return f"Meta({self.name})"
 
 
-def type_var_ref(type_variable: "TypeVar") -> MyType:
-    return MyType(TypeVarKind(type_variable))
+def type_parameter_ref(type_parameter: "TypeParameter") -> MyType:
+    return MyType(TypeParameterKind(type_parameter))
 
 
-class TypeVarKind(TypeKind):
-    def __init__(self, type_variable: "TypeVar"):
+class TypeParameterKind(TypeKind):
+    def __init__(self, type_parameter: "TypeParameter"):
         super().__init__()
-        self.type_variable = type_variable
+        self.type_parameter = type_parameter
 
     def __repr__(self):
-        return f"var({self.type_variable})"
+        return f"var({self.type_parameter})"
 
 
 str_type = base_type("str")
@@ -561,11 +575,11 @@ class ImportFrom(BaseImport):
         return f"import({self.names})from({self.modname})"
 
 
-def type_var(name: str, location: Location):
-    return TypeVar(name, location)
+def type_parameter(name: str, location: Location) -> "TypeParameter":
+    return TypeParameter(name, location)
 
 
-class TypeVar(Definition):
+class TypeParameter(Definition):
     """Type variable, used when dealing with generics."""
 
     def __init__(self, name: str, location: Location):
@@ -576,7 +590,7 @@ class TypeVar(Definition):
 
     def get_ref(self) -> MyType:
         """Get a type referring to this type parameter."""
-        return type_var_ref(self)
+        return type_parameter_ref(self)
 
 
 def type_def(name: str, ty: MyType, location: Location):
@@ -592,7 +606,7 @@ class TypeDef(Definition):
 
 def class_def(
     name: str,
-    type_parameters: list[TypeVar],
+    type_parameters: list[TypeParameter],
     members: list["Definition"],
     location: Location,
 ):
@@ -603,7 +617,7 @@ class ClassDef(TypeConstructor):
     def __init__(
         self,
         name: str,
-        type_parameters: list[TypeVar],
+        type_parameters: list[TypeParameter],
         members: list["Definition"],
         location: Location,
     ):
@@ -657,7 +671,7 @@ class VarDef(Definition):
 
 def function_def(
     name: str,
-    type_parameters: list[TypeVar],
+    type_parameters: list[TypeParameter],
     parameters: list["Parameter"],
     return_ty: MyType,
     except_type: MyType,
@@ -673,7 +687,7 @@ class FunctionDef(Definition):
     def __init__(
         self,
         name: str,
-        type_parameters: list[TypeVar],
+        type_parameters: list[TypeParameter],
         parameters: list["Parameter"],
         return_ty: MyType,
         except_type: MyType,
@@ -691,24 +705,28 @@ class FunctionDef(Definition):
     def __repr__(self):
         return f"func-def-{self.name}"
 
-    def get_type(self):
+    def get_type(self) -> "MyType":
         # Interesting!
         # Construct polymorphic type
         new_free = []
         for i, tp in enumerate(self.type_parameters):
             new_free.append(meta_type(f"{i}_{tp.name}"))
+        parameter_names = [p.name if p.needs_label else None for p in self.parameters]
         m2 = dict(zip(self.type_parameters, new_free))
+        parameter_types = [subst(p.ty, m2) for p in self.parameters]
         return function_type(
-            [subst(p.ty, m2) for p in self.parameters],
+            parameter_names,
+            parameter_types,
             subst(self.return_ty, m2),
             subst(self.except_type, m2),
         )
 
 
 class Parameter(Definition):
-    def __init__(self, name: str, ty: MyType, location: Location):
+    def __init__(self, name: str, needs_label: bool, ty: MyType, location: Location):
         super().__init__(name, location)
         assert isinstance(ty, MyType), str(ty)
+        self.needs_label = needs_label
         self.ty = ty
 
     def __repr__(self):
@@ -719,7 +737,7 @@ class StructDef(TypeConstructor):
     def __init__(
         self,
         name: str,
-        type_parameters: list[TypeVar],
+        type_parameters: list[TypeParameter],
         is_union: bool,
         fields: list["StructFieldDef"],
         location: Location,
@@ -776,9 +794,9 @@ class StructBuilder:
         self.is_union = value
 
     def add_type_parameter(self, name: str, location: Location) -> MyType:
-        type_var = TypeVar(name, location)
+        type_var = TypeParameter(name, location)
         self.type_parameters.append(type_var)
-        return type_var_ref(type_var)
+        return type_parameter_ref(type_var)
 
     def add_field(self, name: str, ty: MyType, location: Location):
         self.fields.append(StructFieldDef(name, ty, location))
@@ -797,7 +815,7 @@ class EnumDef(TypeConstructor):
     def __init__(
         self,
         name: str,
-        type_parameters: list[TypeVar],
+        type_parameters: list[TypeParameter],
         variants: list["EnumVariant"],
         location: Location,
     ):
@@ -1136,14 +1154,14 @@ class ExpressionKind:
     pass
 
 
-def new_op(ty: MyType, fields: list["NewOpField"], location: Location):
+def new_op(ty: MyType, fields: list["LabeledExpression"], location: Location):
     kind = NewOp(ty, fields)
     ty = void_type
     return Expression(kind, ty, location)
 
 
 class NewOp(ExpressionKind):
-    def __init__(self, ty: MyType, fields: list["NewOpField"]):
+    def __init__(self, ty: MyType, fields: list["LabeledExpression"]):
         super().__init__()
         self.new_ty = ty
         self.fields = fields
@@ -1152,26 +1170,29 @@ class NewOp(ExpressionKind):
         return f"NewOP"
 
 
-class NewOpField(Node):
+class LabeledExpression(Node):
     def __init__(self, name: str, value: Expression, location: Location):
         super().__init__(location)
         self.name = name
         self.value = value
 
     def __repr__(self):
-        return f"NewOpField({self.name})"
+        return f"LabeledExpression({self.name})"
 
 
-def function_call(target: Expression, args: list["Expression"], location: Location):
+def function_call(
+    target: Expression, args: list["LabeledExpression"], location: Location
+):
     kind = FunctionCall(target, args)
     ty = void_type
     return Expression(kind, ty, location)
 
 
 class FunctionCall(ExpressionKind):
-    def __init__(self, target: Expression, args: list["Expression"]):
+    def __init__(self, target: Expression, args: list["LabeledExpression"]):
         super().__init__()
         self.target = target
+        assert all(isinstance(a, LabeledExpression) for a in args)
         self.args = args
 
     def __repr__(self):
@@ -1481,7 +1502,10 @@ class Variable(Definition):
 class BuiltinFunction(Definition):
     def __init__(self, name: str, parameter_types: list[MyType], return_type: MyType):
         super().__init__(name, Location(1, 1))
-        self.ty = function_type(parameter_types, return_type, void_type)
+        parameter_names = [None] * len(parameter_types)
+        self.ty = function_type(
+            parameter_names, parameter_types, return_type, void_type
+        )
 
     def __repr__(self):
         return f"builtin({self.name})"
@@ -1608,7 +1632,7 @@ class AstVisitor:
         elif isinstance(kind, FunctionCall):
             self.visit_expression(kind.target)
             for arg in kind.args:
-                self.visit_expression(arg)
+                self.visit_expression(arg.value)
         elif isinstance(kind, DotOperator):
             self.visit_expression(kind.base)
         elif isinstance(kind, ArrayLiteral):
@@ -1722,7 +1746,11 @@ class AstPrinter(AstVisitor):
 
 
 def str_ty(ty: MyType):
-    return f":garlic:[b gold1]{rich.markup.escape(str(ty))}[/]"
+    fancy = False
+    if fancy:
+        return f":garlic:[b gold1]{rich.markup.escape(str(ty))}[/]"
+    else:
+        return str(ty)
 
 
 class RichAstPrinter(AstVisitor):

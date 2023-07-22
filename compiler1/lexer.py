@@ -63,7 +63,7 @@ def detect_indentations(tokens: Iterable[Token]):
 def tokenize(code: str | tuple[Location, str]):
     token_spec = [
         ("OP2", r"(->)|(\+=)|(\-=)|(==)|(<=)|(!=)|(>=)"),
-        ("OP", r"[\(\):+\-\*/\.,<>={}\[\]]"),
+        ("OP", r"[\(\):+\-\*/\.,<>={}\[\]\?]"),
         ("ID", r"[A-Za-z][A-Za-z_0-9]*"),
         ("FNUMBER", r"[0-9]+\.[0-9]+"),
         ("NUMBER", r"[0-9]+"),

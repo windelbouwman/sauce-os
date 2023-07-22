@@ -4,10 +4,10 @@ from utils import panic
 from bc import Instruction
 
 enum Value:
-    Int(int)
-    Str(str)
-    Float(float)
-    Bool(bool)
+    Int(value: int)
+    Str(value: str)
+    Float(value: float)
+    Bool(value: bool)
 
 
 class Frame:
@@ -68,7 +68,7 @@ class VM:
                     count -= 1
                 panic("TODO: struct literal")
     
-    fn push(value: Value):
+    fn push(value?: Value):
         this.frames.last().stack.append(value)
     
     fn pop() -> Value:

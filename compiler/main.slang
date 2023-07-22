@@ -20,37 +20,41 @@ fn main() -> int:
     let filenames: List[String] = List()
 
     # Manually sorted list of compiler sources:
-    filenames.append(new_string("compiler/location.slang"))
-    filenames.append(new_string("compiler/utils.slang"))
-    filenames.append(new_string("compiler/token.slang"))
-    filenames.append(new_string("compiler/datatypes.slang"))
-    filenames.append(new_string("compiler/bc.slang"))
-    filenames.append(new_string("compiler/errors.slang"))
-    filenames.append(new_string("compiler/lexer.slang"))
-    filenames.append(new_string("compiler/ast.slang"))
-    filenames.append(new_string("compiler/parsing.slang"))
-    filenames.append(new_string("compiler/namebinding.slang"))
-    filenames.append(new_string("compiler/builtins.slang"))
-    filenames.append(new_string("compiler/pass3.slang"))
-    filenames.append(new_string("compiler/typechecking.slang"))
-    filenames.append(new_string("compiler/transforms.slang"))
-    filenames.append(new_string("compiler/pygenerator.slang"))
-    filenames.append(new_string("compiler/ir_gen.slang"))
-    filenames.append(new_string("compiler/main.slang"))
+    if false:
+        filenames.append(new_string("compiler/location.slang"))
+        filenames.append(new_string("compiler/utils.slang"))
+        filenames.append(new_string("compiler/token.slang"))
+        filenames.append(new_string("compiler/datatypes.slang"))
+        filenames.append(new_string("compiler/bc.slang"))
+        filenames.append(new_string("compiler/errors.slang"))
+        filenames.append(new_string("compiler/lexer.slang"))
+        filenames.append(new_string("compiler/ast.slang"))
+        filenames.append(new_string("compiler/parsing.slang"))
+        filenames.append(new_string("compiler/namebinding.slang"))
+        filenames.append(new_string("compiler/builtins.slang"))
+        filenames.append(new_string("compiler/pass3.slang"))
+        filenames.append(new_string("compiler/typechecking.slang"))
+        filenames.append(new_string("compiler/transforms.slang"))
+        filenames.append(new_string("compiler/pygenerator.slang"))
+        filenames.append(new_string("compiler/ir_gen.slang"))
+        filenames.append(new_string("compiler/main.slang"))
+    else:
 
-    # filenames.append(new_string("examples/hello-world.slang"))
+        #filenames.append(new_string("examples/hello-world.slang"))
     # filenames.append(new_string("examples/callings.slang"))
     # filenames.append(new_string("examples/expressions.slang"))
-    # filenames.append(new_string("examples/mandel.slang"))
-    # filenames.append(new_string("examples/structs-passing.slang"))
-    # filenames.append(new_string("examples/loops.slang"))
+        #filenames.append(new_string("examples/mandel.slang"))
+        #filenames.append(new_string("examples/structs-passing.slang"))
+        # filenames.append(new_string("examples/loops.slang"))
+        filenames.append(new_string("examples/exceptionally.slang"))
+
     try:
         let prog = compile(filenames)
         log_info("OK")
         return 0
-    except (err: CompilationError):
+    except (error: CompilationError):
         log_error("HORROR")
-        display_error(err)
+        display_error(error)
         return 1
 
 fn compile(filenames: List[String]) -> bc.Program except CompilationError:
@@ -58,7 +62,7 @@ fn compile(filenames: List[String]) -> bc.Program except CompilationError:
 
     let module_map: Dictionary[ast.Module] = Dictionary()
     let std_module = get_std_module()
-    module_map.insert("std", std_module)
+    module_map.insert(key: "std", value: std_module)
 
     let modules: List[ast.Module] = List()
     for filename in filenames:
@@ -68,7 +72,7 @@ fn compile(filenames: List[String]) -> bc.Program except CompilationError:
         log_info("Parsed module: {program.name}")
         # ast.print_ast(program)
         modules.append(program)
-        module_map.insert(program.name, program)
+        module_map.insert(key: program.name, value: program)
     
     # TODO: topo-sort modules!
 
@@ -78,16 +82,16 @@ fn compile(filenames: List[String]) -> bc.Program except CompilationError:
     
     for module3 in modules:
         # ast.print_ast(module3)
-        type_check(module3)
+        type_check(module: module3)
     
     for module4 in modules:
-        transform(module4)
+        transform(module: module4)
 
     # TODO!
     for module2 in modules:
         # let prog = gen_bytecode(module2)
         #log_info("generating bytecode: {module2.name}")
-        # gen_python(module2)
+        gen_python(prog: module2)
         pass
 
     let prog = bc.new_program()

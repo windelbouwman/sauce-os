@@ -8,6 +8,7 @@ from std import print
 fn gen_python(prog: ast.Module):
     let g = PyGenerator()
     g.gen_module(prog)
+    g.emit("main()")
 
 class PyGenerator:
     var indent_level: int = 0
@@ -22,7 +23,7 @@ class PyGenerator:
                 let parameter_names: List[str] = List()
                 for parameter in function_def.parameters:
                     parameter_names.append(parameter.name)
-                let params = str_join(parameter_names, ", ")
+                let params = str_join(parts: parameter_names, sep: ", ")
                 this.emit("def {function_def.name}({params}):")
                 this.indent()
                 this.gen_statement(function_def.body)
@@ -31,7 +32,7 @@ class PyGenerator:
         else:
             pass
 
-    fn gen_statement(statement: ast.Statement):
+    fn gen_statement(statement?: ast.Statement):
         case statement.kind:
             While(while_statement):
                 this.emit("while {this.gen_expression(while_statement.condition)}:")
@@ -43,7 +44,7 @@ class PyGenerator:
             Let(let_statement):
                 this.emit("{let_statement.variable.name} = {this.gen_expression(let_statement.value)}")
             If(if_statement):
-                this.gen_if_statement(if_statement, "if")
+                this.gen_if_statement(if_statement, kw: "if")
             Pass:
                 this.emit("pass")
             Break:
@@ -53,7 +54,16 @@ class PyGenerator:
             For(for_statement):
                 panic("Please rewrite for-loop!")
             Try(try_statement):
-                panic("TODO: try")
+                this.emit("try:")
+                this.indent()
+                this.gen_statement(try_statement.try_body)
+                this.dedent()
+                let ex_name = "ex_{try_statement.except_param.name}"
+                this.emit("except ValueError as {ex_name}:")
+                this.indent()
+                this.emit("{try_statement.except_param.name} = {ex_name}.args[0]")
+                this.gen_statement(try_statement.except_body)
+                this.dedent()
             Case(case_statement):
                 panic("Please rewrite case-statement!")
             Switch(switch_statement):
@@ -68,7 +78,7 @@ class PyGenerator:
                     Some(value2):
                         this.emit("return {this.gen_expression(value2)}")
             Raise(value):
-                this.emit("raise {this.gen_expression(value)}")
+                this.emit("raise ValueError({this.gen_expression(value)})")
             Compound(inner):
                 for s in inner:
                     this.gen_statement(s)
@@ -82,14 +92,14 @@ class PyGenerator:
         this.dedent()
         case if_statement.false_body.kind:
             If(if2):
-                this.gen_if_statement(if2, "elif")
+                this.gen_if_statement(if_statement: if2, kw: "elif")
         else:
             this.emit("else:")
             this.indent()
             this.gen_statement(if_statement.false_body)
             this.dedent()
 
-    fn gen_expression(expression: ast.Expression) -> str:
+    fn gen_expression(expression?: ast.Expression) -> str:
         let txt = "?"
         case expression.kind:
             BoolLiteral(v):
@@ -105,7 +115,7 @@ class PyGenerator:
                 # TODO!
                 txt = "1337.3.14"
             StructLiteral(ty, values):
-                let args = this.gen_expression_list(values)
+                let args = this.gen_expression_list(expressions: values)
                 txt = "struct ({args})"
                 # panic("Struct literal not supported")
             EnumLiteral(a, b, c):
@@ -119,7 +129,7 @@ class PyGenerator:
                 txt = "{b}.{attr}"
             GetIndex(base, indici):
                 let b = this.gen_expression(base)
-                let i = this.gen_expression_list(indici)
+                let i = this.gen_expression_list(expressions: indici)
                 txt = "{b}[{i}]"
             ObjInit(a, b):
                 panic("ObjInit not supported")
@@ -152,14 +162,43 @@ class PyGenerator:
             VarRef(variable):
                 txt = variable.name
             Call(call):
-                let arguments = this.gen_expression_list(call.arguments)
-                txt = "{this.gen_expression(call.callee)}({arguments})"
+                let expressions: List[ast.Expression] = List()
+                for argument in call.arguments:
+                    expressions.append(argument.value)
+                let argument_text = this.gen_expression_list(expressions)
+                txt = "{this.gen_expression(call.callee)}({argument_text})"
             Unop(op, value):
                 let op2 = "$"
                 txt = "{op2}{this.gen_expression(value)}"
             Binop(binop):
                 let op = "$"
-                txt = "({this.gen_expression(binop.lhs)} {op} {this.gen_expression(binop.lhs)})"
+                case binop.op:
+                    Or:
+                        op = "or"
+                    And:
+                        op = "and"
+                    Equals:
+                        op = "=="
+                    NotEquals:
+                        op = "!="
+                    Less:
+                        op = "<"
+                    LessEquals:
+                        op = "<="
+                    Greater:
+                        op = ">"
+                    GreaterEquals:
+                        op = ">="
+                    Add:
+                        op = "+"
+                    Sub:
+                        op = "-"
+                    Mul:
+                        op = "*"
+                    Div:
+                        op = "/"
+
+                txt = "({this.gen_expression(binop.lhs)} {op} {this.gen_expression(binop.rhs)})"
             Undefined:
                 panic("undefined not supported")
         return txt
@@ -168,9 +207,9 @@ class PyGenerator:
         let parts: List[str] = List()
         for expression in expressions:
             parts.append(this.gen_expression(expression))
-        return str_join(parts, ", ")
+        return str_join(parts, sep: ", ")
 
-    fn emit(txt: str):
+    fn emit(txt?: str):
         let space = ""
         let i = 0
         while i < this.indent_level:

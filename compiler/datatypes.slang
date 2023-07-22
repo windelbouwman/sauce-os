@@ -3,24 +3,24 @@ from utils import panic
 from std import str_len, str_slice, str_get
 
 enum Option[D]:
-    Some(D)
+    Some(value?: D)
     None
 
-fn option_unwrap[T](opt: Option[T]) -> T:
-    case opt:
-        Some(v):
-            return v
-        None:
-            panic("Cannot unwrap None")
-
-fn option_unwrap_or[T](opt: Option[T], alt: T) -> T:
-    case opt:
+fn option_unwrap[T](option?: Option[T]) -> T:
+    case option:
         Some(value):
             return value
         None:
-            return alt
+            panic("Cannot unwrap None")
 
-fn option_is_some[T](opt: Option[T]) -> bool:
+fn option_unwrap_or[T](option: Option[T], default: T) -> T:
+    case option:
+        Some(value):
+            return value
+        None:
+            return default
+
+fn option_is_some[T](opt?: Option[T]) -> bool:
     case opt:
         Some(v):
             return true
@@ -28,15 +28,15 @@ fn option_is_some[T](opt: Option[T]) -> bool:
             return false
 
 enum Result[O,E]:
-    Ok(O)
-    Error(E)
+    Ok(value: O)
+    Error(value: E)
 
 # Boxed versions of int and str..
 # TODO: figure out nicer way to store int and str in List
 struct Integer:
     value: int
 
-fn new_integer(value: int) -> Integer:
+fn new_integer(value?: int) -> Integer:
     let i = Integer:
         value: value
     return i
@@ -44,7 +44,7 @@ fn new_integer(value: int) -> Integer:
 struct String:
     value: str
 
-fn new_string(value: str) -> String:
+fn new_string(value?: str) -> String:
     let i = String:
         value: value
     return i
@@ -55,28 +55,28 @@ fn split_string(value: String, sep: str) -> List[String]:
     let cur = 0
     let parts: List[String] = List()
     while cur < size:
-        let c = str_get(value.value, cur)
+        let c = str_get(value: value.value, index: cur)
         if c == sep:
-            parts.append(new_string(str_slice(value.value, start, cur)))
+            parts.append(new_string(value: str_slice(value: value.value, begin: start, end: cur)))
             cur += 1
             start = cur
         else:
             cur += 1
-    parts.append(new_string(str_slice(value.value, start, cur)))
+    parts.append(new_string(value: str_slice(value: value.value, begin: start, end: cur)))
     return parts
 
-fn vec1[T](v1: T) -> List[T]:
+fn vec1[T](v1?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     return vec
 
-fn vec2[T](v1: T, v2: T) -> List[T]:
+fn vec2[T](v1?: T, v2?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
     return vec
 
-fn vec3[T](v1: T, v2: T, v3: T) -> List[T]:
+fn vec3[T](v1?: T, v2?: T, v3?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
@@ -88,7 +88,7 @@ class List[T]:
 
     var head_element: Option[ListElement[T]] = Option.None()
 
-    fn append(val: T):
+    fn append(val?: T):
         let new_tail_element = ListElement[T]:
             next: Option.None()
             data: val
@@ -105,7 +105,7 @@ class List[T]:
                             element = nxt_element
                 element.next = Option.Some(new_tail_element)
 
-    fn prepend(val: T):
+    fn prepend(val?: T):
         # Prepend value in front of list
         let new_head_element = ListElement[T]:
             next: this.head_element
@@ -287,13 +287,13 @@ class Dictionary[T]:
     
     fn pop(key: str) -> Option[T]:
         # remove an item from this dictionary
-        let idx = 0
+        let index = 0
         for item in this.items:
             if item.key == key:
                 # patch list:
-                this.items.delete_at(idx)
+                this.items.delete_at(index)
                 return Option.Some(item.value)
-            idx += 1
+            index += 1
 
         panic("KeyError: {key}")
 

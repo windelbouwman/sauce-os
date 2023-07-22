@@ -80,7 +80,7 @@ class ByteCodeGenerator:
             return bc.FunctionType(param_types, return_type)
         elif ty.is_void():
             return bc.BaseTyp(bc.SimpleTyp.VOID)
-        elif ty.is_type_var_ref():
+        elif ty.is_type_parameter_ref():
             return bc.BaseTyp(bc.SimpleTyp.PTR)
         elif ty.is_array():
             ety = self.get_bc_ty(ty.kind.element_type)
@@ -313,7 +313,7 @@ class ByteCodeGenerator:
             self.emit(OpCode.CAST, to_ty)
         elif isinstance(kind, ast.FunctionCall):
             for arg in kind.args:
-                self.gen_expression(arg)
+                self.gen_expression(arg.value)
             self.gen_expression(kind.target)
             ret_ty = self.get_bc_ty(expression.ty)
             self.emit(OpCode.CALL, len(kind.args), ret_ty)

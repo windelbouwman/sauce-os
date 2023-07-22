@@ -216,8 +216,28 @@ class TypeChecker(BasePass):
                 ftyp = kind.target.ty.kind
                 arg_types = ftyp.parameter_types
                 return_type = ftyp.return_type
-                self.check_arguments(arg_types, kind.args, expression.location)
+                values = [a.value for a in kind.args]
+                self.check_arguments(arg_types, values, expression.location)
                 expression.ty = return_type
+
+                # Check argument names:
+                if len(ftyp.parameter_names) == len(values):
+                    for expected_name, got_name in zip(
+                        ftyp.parameter_names, [a.name for a in kind.args]
+                    ):
+                        if expected_name:
+                            if expected_name != got_name:
+                                self.error(
+                                    expression.location,
+                                    f"Got {got_name}, but expected: {expected_name}",
+                                )
+                        # TODO: check for redundant labels?
+                        # else:
+                        #     if got_name:
+                        #         self.error(
+                        #             expression.location,
+                        #             f"Unexpected label: {got_name}",
+                        #         )
 
                 # Check if we may call error throwing function
                 if not ftyp.except_type.is_void():
@@ -339,10 +359,10 @@ class TypeChecker(BasePass):
             return a.kind.equals(b.kind)
         elif isinstance(a.kind, ast.VoidType) and isinstance(b.kind, ast.VoidType):
             return True
-        elif isinstance(a.kind, ast.TypeVarKind) and isinstance(
-            b.kind, ast.TypeVarKind
+        elif isinstance(a.kind, ast.TypeParameterKind) and isinstance(
+            b.kind, ast.TypeParameterKind
         ):
-            return a.kind.type_variable is b.kind.type_variable
+            return a.kind.type_parameter is b.kind.type_parameter
         elif isinstance(a.kind, ast.FunctionType) and isinstance(
             b.kind, ast.FunctionType
         ):
@@ -359,7 +379,7 @@ class TypeChecker(BasePass):
             elif (
                 b.is_struct()
                 or b.is_class()
-                or b.is_type_var_ref()
+                or b.is_type_parameter_ref()
                 or b.is_void()
                 or b.is_int()
                 or b.is_str()

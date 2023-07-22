@@ -36,7 +36,7 @@ class FlowCheck(BasePass):
 
     def visit_definition(self, definition: ast.Definition):
         if isinstance(definition, ast.FunctionDef):
-            logger.info(f"flow check on function '{definition.name}'")
+            logger.debug(f"flow check on function '{definition.name}'")
             self._g = nx.DiGraph()
             self._variables = []
             func_entry = self.new_label()
@@ -65,7 +65,11 @@ class FlowCheck(BasePass):
                 else:
                     # TBD: this check may be too annoying:
                     # self.error(variable.location, f"'{variable.name}' was never used")
-                    self.warning(variable.location, f"'{variable.name}' was never used")
+                    warn_about_unused = False
+                    if warn_about_unused:
+                        self.warning(
+                            variable.location, f"'{variable.name}' was never used"
+                        )
 
         else:
             super().visit_definition(definition)

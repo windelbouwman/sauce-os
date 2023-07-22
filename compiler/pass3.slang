@@ -10,16 +10,16 @@ from datatypes import Dictionary, List, Option
 fn resolve_newops(module: ast.Module) except CompilationError:
     log_info("resolve new-ops for {module.name}")
     let newop = NewOp()
-    let newop_visitor = ast.Visitor[NewOp]:
+    let visitor = ast.Visitor[NewOp]:
         data: newop
         on_definition: newop_on_definition
         on_type: newop_on_type
         on_statement: newop_on_statement
         on_expression: newop_on_expression
         on_node: newop_on_node
-    ast.visit_module(newop_visitor, module)
+    ast.visit_module(visitor, module)
     if not newop.errors.is_empty():
-        raise new_errors(newop.errors)
+        raise new_errors(errors: newop.errors)
 
 fn newop_on_definition(newop: NewOp, definition: ast.Definition, phase: ast.VisitPhase):
     pass
@@ -28,8 +28,8 @@ fn newop_on_type(newop: NewOp, ty: ast.MyType, phase: ast.VisitPhase):
     case phase:
         Post:
             case ty.kind:
-                TypeExpression(expr):
-                    ast.change_type_to(ty, newop.eval_type_expr(expr))
+                TypeExpression(expression):
+                    ast.change_type_to(ty, ty2: newop.eval_type_expr(expression))
             else:
                 pass
     else:
@@ -46,10 +46,14 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                 ObjInit(ty, labeled_fields):
                     let value_map: Dictionary[ast.Expression] = Dictionary()
                     for labeled_field in labeled_fields:
-                        if value_map.contains(labeled_field.name):
-                            newop.add_error(expression.location, "Error: duplicate field")
-                        else:
-                            value_map.insert(labeled_field.name, labeled_field.value)
+                        case labeled_field.name:
+                            Some(field_name3):
+                                if value_map.contains(key: field_name3):
+                                    newop.add_error(location: labeled_field.location, message: "Duplicate field: {field_name3}")
+                                else:
+                                    value_map.insert(key: field_name3, value: labeled_field.value)
+                            None:
+                                newop.add_error(location: labeled_field.location, message: "Unlabeled expression")
                     
                     # Check that type is struct?
                     let ok = false
@@ -60,14 +64,14 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                                     ok = true
                                     let values: List[ast.Expression] = List()
                                     for field in struct_def.fields:
-                                        case value_map.pop(field.name):
+                                        case value_map.pop(key: field.name):
                                             Some(v):
                                                 values.append(v)
                                             None:
-                                                newop.add_error(expression.location, "Missing field: {field.name}")
+                                                newop.add_error(location: expression.location, message: "Missing field: {field.name}")
                                     
                                     for name in value_map:
-                                        newop.add_error(expression.location, "Superfluous field: {name}")
+                                        newop.add_error(location: expression.location, message: "Superfluous field: {name}")
 
                                     expression.kind = ast.ExpressionKind.StructLiteral(ty, values)
                             else:
@@ -76,32 +80,32 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                         pass
 
                     if not ok:
-                        newop.add_error(expression.location, "Type {ast.type_to_string(ty)} is not struct")
+                        newop.add_error(location: expression.location, message: "Type {ast.type_to_string(ty)} is not struct")
                 GetIndex(base, indici):
                     case base.kind:
                         TypeConstructor(tycon):
                             let type_arguments: List[ast.MyType] = List()
                             for index in indici:
-                                type_arguments.append(newop.eval_type_expr(index))
+                                type_arguments.append(newop.eval_type_expr(expression: index))
                             let ty = ast.apply_tycon(tycon, type_arguments)
                             expression.kind = ast.ExpressionKind.Type(ty)
                     else:
                         pass
 
                 GetAttr(base, attr):
-                    case newop.try_as_type(base):
+                    case newop.try_as_type(expression: base):
                         None:
                             pass
-                        Some(ty3):
-                            if ast.is_enum_type(ty3):
-                                case ast.get_enum_variant(ty3, attr):
+                        Some(ty):
+                            if ast.is_enum_type(ty):
+                                case ast.get_enum_variant(ty, attr):
                                     Some(variant):
-                                        expression.kind = ast.ExpressionKind.Variant(ty3, variant)
+                                        expression.kind = ast.ExpressionKind.Variant(ty, variant)
                                     None:
-                                        newop.add_error(expression.location, "No such enum variant: {attr}")
+                                        newop.add_error(location: expression.location, message: "No such enum variant: {attr}")
                                     
                             else:
-                                newop.add_error(expression.location, "Can only get attr from enum type, not {ast.type_to_string(ty3)}")
+                                newop.add_error(location: expression.location, message: "Can only get attr from enum type, not {ast.type_to_string(ty)}")
                     
                 Call(call):
                     case call.callee.kind:
@@ -109,7 +113,10 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                             let ty2 = newop.turn_tycon_to_type(tycon)
                             expression.kind = ast.ExpressionKind.ClassLiteral(ty2)
                         Variant(ty, variant):
-                            expression.kind = ast.ExpressionKind.EnumLiteral(ty, variant, call.arguments)
+                            let values: List[ast.Expression] = List()
+                            for argument in call.arguments:
+                                values.append(argument.value)
+                            expression.kind = ast.ExpressionKind.EnumLiteral(ty, variant, values)
                     else:
                         pass
             else:
@@ -124,9 +131,9 @@ class NewOp:
     var errors: List[CompilationError] = List()
     var counter: int = 1
 
-    fn try_as_type(expr: ast.Expression) -> Option[ast.MyType]:
+    fn try_as_type(expression: ast.Expression) -> Option[ast.MyType]:
         # Try to use this expression as a type.
-        case expr.kind:
+        case expression.kind:
             Type(ty2):
                 return Option.Some(ty2)
             TypeConstructor(tycon):
@@ -135,14 +142,14 @@ class NewOp:
         else:
             return Option.None()
 
-    fn eval_type_expr(expr: ast.Expression) -> ast.MyType:
+    fn eval_type_expr(expression: ast.Expression) -> ast.MyType:
         # Try to use this expression as a type.
-        case this.try_as_type(expr):
+        case this.try_as_type(expression):
             Some(ty2):
                 return ty2
             None:
-                let message = "Invalid type expr: {ast.expression_to_string(expr)}"
-                this.add_error(expr.location, message)
+                let message = "Invalid type expression: {ast.expression_to_string(expression)}"
+                this.add_error(location: expression.location, message)
                 return ast.undefined_type()
 
     fn add_error(location: Location, message: str):
@@ -151,7 +158,7 @@ class NewOp:
     fn turn_tycon_to_type(tycon: ast.TyCon) -> ast.MyType:
         let type_arguments: List[ast.MyType] = List()
         for tp in ast.tycon_get_type_parameters(tycon):
-            let type_var: ast.TypeVariable = ast.new_type_var(this.new_id())
+            let type_var: ast.TypeVariable = ast.new_type_var(unique: this.new_id())
             type_arguments.append(ast.new_type_var_ref(type_var))
         return ast.apply_tycon(tycon, type_arguments)
     

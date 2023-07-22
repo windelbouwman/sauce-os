@@ -11,21 +11,21 @@ import errors
 
 
 fn new_error(tok: Token, message: str) -> CompilationError:
-    return errors.new_error(tok.location, "{message}, got {token_to_string(tok)}")
+    return errors.new_error(location: tok.location, message: "{message}, got {token_to_string(tok)}")
 
 fn basename(path: String) -> String:
     # retrieve 'bla' from 'for/bar/bla.txt'
-    let base = split_string(path, "/").last()
-    return split_string(base, ".").first()
+    let base = split_string(value: path, sep: "/").last()
+    return split_string(value: base, sep: ".").first()
 
 fn parse_source(filename: String) -> ast.Module except CompilationError:
-    let source = std.read_file(filename.value)
-    let modname = basename(filename).value
+    let source = std.read_file(filename: filename.value)
+    let modname = basename(path: filename).value
 
     let parser = Parser()
     parser.feed(source)
 
-    return parser.parse_module(modname)
+    return parser.parse_module(name: modname)
     
 
 class Parser:
@@ -36,7 +36,7 @@ class Parser:
     fn feed(source: str):
         this.lex.init(source)
     
-    fn parse_module(modname: str) -> ast.Module except CompilationError:
+    fn parse_module(name: str) -> ast.Module except CompilationError:
         let definitions: List[ast.Definition] = List()
         let imports: List[ast.Import] = List()
 
@@ -47,25 +47,25 @@ class Parser:
                     # We are done!
                     break
                 KwImport:
-                    imports.append(this.parse_import(tok.location))
+                    imports.append(this.parse_import(location: tok.location))
                 KwFrom:
-                    imports.append(this.parse_from_import(tok.location))
+                    imports.append(this.parse_from_import(location: tok.location))
                 KwFn:
-                    let func_def = this.parse_func_def(tok.location)
+                    let func_def = this.parse_func_def(location: tok.location)
                     definitions.append(ast.Definition.Function(func_def))
                 KwEnum:
-                    let enum_def = this.parse_enum_def(tok.location)
+                    let enum_def = this.parse_enum_def(location: tok.location)
                     definitions.append(ast.Definition.Enum(enum_def))
                 KwStruct:
-                    let struct_def = this.parse_struct_def(tok.location)
+                    let struct_def = this.parse_struct_def(location: tok.location)
                     definitions.append(ast.Definition.Struct(struct_def))
                 KwClass:
-                    let class_def = this.parse_class_def(tok.location)
+                    let class_def = this.parse_class_def(location: tok.location)
                     definitions.append(ast.Definition.Class(class_def))
             else:
-                raise new_error(tok, "Unexpected token")
+                raise new_error(tok, message: "Unexpected token")
 
-        let program = ast.new_module(modname, imports, definitions)
+        let program = ast.new_module(name, imports, definitions)
         return program
 
     fn parse_import(location: Location) -> ast.Import except CompilationError:
@@ -82,7 +82,7 @@ class Parser:
             KwImport:
                 pass
         else:
-            raise new_error(tok, "Expected 'import'")
+            raise new_error(tok, message: "Expected 'import'")
         
         let names: List[str] = List()
 
@@ -96,7 +96,7 @@ class Parser:
                 NewLine:
                     break
             else:
-                raise new_error(tok2, "Expected ',' or newline")
+                raise new_error(tok: tok2, message: "Expected ',' or newline")
 
         return ast.import_names(modname, location, names)
 
@@ -109,40 +109,33 @@ class Parser:
         this.parse_indent()
 
         let variants: List[ast.EnumVariant] = List()
-        loop:
-            # expect id or dedent (eventually)
-            let tok = this.get_token()
-            case tok.kind:
-                Identifier(v):
-                    let payload_types: List[ast.MyType] = List()
-                    let tok3 = this.get_token()
-                    case tok3.kind:
-                        BraceOpen:
-                            loop:
-                                payload_types.append(this.parse_type())
+        while not this.try_parse_dedent():
+            let name_at = this.parse_name()
+            let payload_types: List[ast.MyType] = List()
+            let tok3 = this.get_token()
+            case tok3.kind:
+                BraceOpen:
+                    loop:
+                        payload_types.append(this.parse_parameter_def().ty)
 
-                                let tok4 = this.get_token()
-                                case tok4.kind:
-                                    BraceClose:
-                                        break
-                                    Comma:
-                                        continue
-                                else:
-                                    raise new_error(tok4, "Expected ',' or ')'")
-                    else:
-                        this.unget_token(tok3)
-                    
-                    let variant = ast.EnumVariant:
-                        name: v
-                        payload: payload_types
-                        location: tok.location
-                    variants.append(variant)
-
-                    this.parse_newline()
-                Dedent:
-                    break
+                        let tok4 = this.get_token()
+                        case tok4.kind:
+                            BraceClose:
+                                break
+                            Comma:
+                                continue
+                        else:
+                            raise new_error(tok: tok4, message: "Expected ',' or ')'")
             else:
-                raise new_error(tok, "Expected variant or dedent")
+                this.unget_token(tok3)
+            
+            let variant = ast.EnumVariant:
+                name: name_at.name
+                payload: payload_types
+                location: name_at.location
+            variants.append(variant)
+
+            this.parse_newline()
 
         return ast.enum_def(name, location, type_parameters, variants)
 
@@ -154,7 +147,7 @@ class Parser:
                 # take in type parameters
                 loop:
                     let name_at = this.parse_name()
-                    type_parameters.append(ast.type_parameter(name_at.name, this.new_id(), name_at.location))
+                    type_parameters.append(ast.new_type_parameter(name: name_at.name, id: this.new_id(), location: name_at.location))
 
                     let tok2 = this.get_token()
                     case tok2.kind:
@@ -163,7 +156,7 @@ class Parser:
                         Comma:
                             continue
                     else:
-                        raise new_error(tok2, "Expected , or ]")
+                        raise new_error(tok: tok2, message: "Expected , or ]")
         else:
             this.unget_token(tok)
         return type_parameters
@@ -176,21 +169,14 @@ class Parser:
         this.parse_indent()
 
         let fields: List[ast.StructField] = List()
-        loop:
-            # expect id or dedent (eventually)
-            let tok = this.get_token()
-            case tok.kind:
-                Identifier(field_name):
-                    this.parse_colon()
-                    let field_type = this.parse_type()
-                    this.parse_newline()
-                    fields.append(ast.new_struct_field(field_name, field_type, tok.location))
-                Dedent:
-                    break
-            else:
-                raise new_error(tok, "Expected field or dedent")
+        while not this.try_parse_dedent():
+            let name_at = this.parse_name()
+            this.parse_colon()
+            let ty = this.parse_type()
+            this.parse_newline()
+            fields.append(ast.new_struct_field(name: name_at.name, ty, location: name_at.location))
 
-        return ast.struct_def(name, this.new_id(), type_parameters, fields, location)
+        return ast.struct_def(name, id: this.new_id(), type_parameters, fields, location)
 
     fn parse_class_def(location: Location) -> ast.ClassDef except CompilationError:
         let name_at = this.parse_name()
@@ -205,30 +191,30 @@ class Parser:
             let tok = this.get_token()
             case tok.kind:
                 KwVar:
-                    let var_def = this.parse_var_def(tok.location)
+                    let var_def = this.parse_var_def(location: tok.location)
                     inner_defs.append(ast.Definition.Var(var_def))
                 KwFn:
-                    let func_def = this.parse_func_def(tok.location)
+                    let func_def = this.parse_func_def(location: tok.location)
                     inner_defs.append(ast.Definition.Function(func_def))
                 Dedent:
                     break
             else:
-                raise new_error(tok, "Expected field or dedent")
+                raise new_error(tok, message: "Expected field or dedent")
 
-        let this_var = ast.variable("this", ast.undefined_type())
+        let this_var = ast.variable(name: "this", ty: ast.undefined_type())
         let class_def = ast.ClassDef:
-            node_id: ast.new_node_id(name_at.name, this.new_id())
+            node_id: ast.new_node_id(name: name_at.name, id: this.new_id())
             location: name_at.location
-            type_parameters: type_parameters
+            type_parameters
             this_var: this_var
             definitions: inner_defs
             scope: ast.Scope()
         
         # Prepare 'this' variable:
-        let type_args: List[ast.MyType] = List()
-        for tp in type_parameters:
-            type_args.append(ast.type_parameter_ref(tp))
-        class_def.this_var.ty = ast.apply_tycon(ast.TyCon.Class(class_def), type_args)
+        let type_arguments: List[ast.MyType] = List()
+        for type_parameter in type_parameters:
+            type_arguments.append(ast.type_parameter_ref(type_parameter))
+        class_def.this_var.ty = ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments)
         return class_def
 
     fn parse_func_def(location: Location) -> ast.FunctionDef except CompilationError:
@@ -254,7 +240,7 @@ class Parser:
                     Comma:
                         pass
                 else:
-                    raise new_error(tok4, "Expected ')' or ','")
+                    raise new_error(tok: tok4, message: "Expected ')' or ','")
 
         # Optional return type
         let return_type: ast.MyType = ast.void_type()
@@ -280,20 +266,27 @@ class Parser:
     
     fn parse_parameter_def() -> ast.ParameterDef except CompilationError:
         let name_at = this.parse_name()
+        # Parse optional '?' to indicate label is optional at call-site
+        let label_is_optional = false
+        let tok = this.get_token()
+        case tok.kind:
+            Question:
+                label_is_optional = true
+        else:
+            this.unget_token(tok)
         this.parse_colon()
-        let param_type = this.parse_type()
-        let param_def = ast.parameter_def(name_at.name, param_type, name_at.location)
-        return param_def
+        let ty = this.parse_type()
+        return ast.parameter_def(name: name_at.name, label_is_optional, ty, location: name_at.location)
 
     fn parse_var_def(location: Location) -> ast.VarDef except CompilationError:
         let name_at = this.parse_name()
-        let var_name = name_at.name
+        let name = name_at.name
         this.parse_colon()
-        let var_type = this.parse_type()
+        let ty = this.parse_type()
         this.parse_equals()
         let var_init = this.parse_expression()
         this.parse_newline()
-        let variable = ast.variable(var_name, var_type)
+        let variable = ast.variable(name, ty)
         let var_def = ast.VarDef:
             location: location
             variable: variable
@@ -328,7 +321,7 @@ class Parser:
                             Comma:
                                 continue
                         else:
-                            raise new_error(tok4, "Expected ')' or ','")
+                            raise new_error(tok: tok4, message: "Expected ')' or ','")
 
                 # Optional return type
                 tok2 = this.get_token()
@@ -347,27 +340,17 @@ class Parser:
 
     fn parse_block() -> ast.Statement except CompilationError:
         # parse block of statements.
-        # expect indent
         log_trace("parsing block")
-        let location = new_location(1, 1)
+        let location = new_location(row: 1, column: 1)
 
         this.parse_colon()
         this.parse_newline()
         this.parse_indent()
 
         let inner: List[ast.Statement] = List()
-
-        loop:
+        while not this.try_parse_dedent():
             let statement = this.parse_statement()
             inner.append(statement)
-            
-            # expect dedent (eventually)
-            let tok = this.get_token()
-            case tok.kind:
-                Dedent:
-                    break
-            else:
-                this.unget_token(tok)
 
         return ast.compound(inner, location)
     
@@ -377,32 +360,32 @@ class Parser:
         case tok.kind:
             KwPass:
                 this.parse_newline()
-                return ast.pass_statement(tok.location)
+                return ast.pass_statement(location: tok.location)
             KwBreak:
                 this.parse_newline()
-                return ast.statement(ast.StatementKind.Break(), tok.location)
+                return ast.break_statement(location: tok.location)
             KwContinue:
                 this.parse_newline()
-                return ast.statement(ast.StatementKind.Continue(), tok.location)
+                return ast.continue_statement(location: tok.location)
             KwLet:
-                return this.parse_let_statement(tok.location)
+                return this.parse_let_statement(location: tok.location)
             KwIf:
-                return this.parse_if_statement(tok.location)
+                return this.parse_if_statement(location: tok.location)
             KwLoop:
-                let statement = this.parse_block()
-                return ast.loop_statement(statement, tok.location)
+                let body = this.parse_block()
+                return ast.loop_statement(body, location: tok.location)
             KwWhile:
-                return this.parse_while_statement(tok.location)
+                return this.parse_while_statement(location: tok.location)
             KwCase:
-                return this.parse_case_statement(tok.location)
+                return this.parse_case_statement(location: tok.location)
             KwFor:
-                return this.parse_for_statement(tok.location)
+                return this.parse_for_statement(location: tok.location)
             KwTry:
-                return this.parse_try_statement(tok.location)
+                return this.parse_try_statement(location: tok.location)
             KwReturn:
-                return this.parse_return_statement(tok.location)
+                return this.parse_return_statement(location: tok.location)
             KwRaise:
-                return this.parse_raise_statement(tok.location)
+                return this.parse_raise_statement(location: tok.location)
         else:
             this.unget_token(tok)
 
@@ -428,7 +411,7 @@ class Parser:
             if is_assign:
                 # Assignment!
                 let value = this.parse_expression()
-                s = ast.assignment_statement(expr, assign_op, value, tok2.location)
+                s = ast.assignment_statement(target: expr, op: assign_op, value, location: tok2.location)
             else:
                 s = ast.expression_statement(expr)
 
@@ -439,7 +422,7 @@ class Parser:
         let name_at = this.parse_name()
         let var_name = name_at.name
         let var_type = ast.undefined_type()
-        let target_var = ast.variable(var_name, var_type)
+        let variable = ast.variable(name: var_name, ty: var_type)
         
         let type_hint: Option[ast.MyType] = Option.None()
 
@@ -459,42 +442,59 @@ class Parser:
             NewLine:
                 pass
             Colon:
-                let obj_ty = ast.new_type(ast.TypeKind.TypeExpression(value))
-                value = this.parse_obj_init(obj_ty, tok2.location)
+                let obj_ty = ast.new_type(kind: ast.TypeKind.TypeExpression(value))
+                value = this.parse_obj_init(obj_ty, location: tok2.location)
         else:
-            raise new_error(tok2, "Expected newline or ':'")
+            raise new_error(tok: tok2, message: "Expected newline or ':'")
         
-        return ast.let_statement(target_var, type_hint, value, location)
+        return ast.let_statement(variable, type_hint, value, location)
     
     fn parse_obj_init(obj_ty: ast.MyType, location: Location) -> ast.Expression except CompilationError:
         # Obj initializer!
         this.parse_newline()
         this.parse_indent()
         
-        let obj_fields: List[ast.FieldInit] = List()
-        loop:
-            # ID
-            let field_name = "?"
-            let tok3 = this.get_token()
-            let field_loc = tok3.location
-            case tok3.kind:
-                Identifier(x):
-                    field_name = x
-                Dedent:
-                    break
-            else:
-                raise new_error(tok3, "Expected dedent")
-
-            this.parse_colon()
-            let field_value = this.parse_expression()
-            let field_init = ast.FieldInit:
-                location: field_loc
-                name: field_name
-                value: field_value
-            obj_fields.append(field_init)
+        let obj_fields: List[ast.LabeledExpression] = List()
+        while not this.try_parse_dedent():
+            obj_fields.append(this.parse_labeled_expression())
 
             this.parse_newline()
-        return ast.expression(ast.ExpressionKind.ObjInit(obj_ty, obj_fields), ast.undefined_type(), location)
+        return ast.expression(kind: ast.ExpressionKind.ObjInit(obj_ty, obj_fields), ty: ast.undefined_type(), location)
+    
+    fn parse_labeled_expression() -> ast.LabeledExpression except CompilationError:
+        # Parse ID ':' expression | expression
+        let tok = this.get_token()
+        case tok.kind:
+            Identifier(name):
+                let tok2 = this.get_token()
+                case tok2.kind:
+                    Colon:
+                        # Parse ID ':' expression
+                        let value = this.parse_expression()
+                        let labeled_expression = ast.LabeledExpression:
+                            location: tok.location
+                            name: Option.Some(name)
+                            value
+                        return labeled_expression
+                else:
+                    this.unget_token(tok2)
+                    this.unget_token(tok)
+        else:
+            this.unget_token(tok)
+
+        # Parse expression
+        let value = this.parse_expression()
+        let name: Option[str] = Option.None()
+        case value.kind:
+            NameRef(name2):
+                name = Option.Some(name2)
+        else:
+            pass
+        let labeled_expression = ast.LabeledExpression:
+            location: value.location
+            name
+            value
+        return labeled_expression
 
     fn parse_if_statement(location: Location) -> ast.Statement except CompilationError:
         # Parse if-statement (if or elif keyword already parsed)
@@ -509,16 +509,16 @@ class Parser:
             KwElse:
                 false_block = this.parse_block()
             KwElif:
-                false_block = this.parse_if_statement(tok2.location)
+                false_block = this.parse_if_statement(location: tok2.location)
         else:
             this.unget_token(tok2)
         
-        return ast.if_statement(condition, true_block, false_block, location)
+        return ast.if_statement(condition, body: true_block, false_body: false_block, location)
     
     fn parse_while_statement(location: Location) -> ast.Statement except CompilationError:
         let condition = this.parse_expression()
-        let statement = this.parse_block()
-        return ast.while_statement(condition, statement, location)
+        let body = this.parse_block()
+        return ast.while_statement(condition, body, location)
 
     fn parse_for_statement(location: Location) -> ast.Statement except CompilationError:
         let iter_var = this.parse_name().name
@@ -529,16 +529,16 @@ class Parser:
             KwIn:
                 pass
         else:
-            raise new_error(tok2, "Expected 'in'")
+            raise new_error(tok: tok2, message: "Expected 'in'")
 
         let iter_value = this.parse_expression()
 
         # ':' + indented block:
-        let statement = this.parse_block()
-        return ast.for_statement(iter_var, iter_value, statement, location)
+        let body = this.parse_block()
+        return ast.for_statement(iter_var, iter_value, body, location)
 
     fn parse_try_statement(location: Location) -> ast.Statement except CompilationError:
-        let try_code = this.parse_block()
+        let try_body = this.parse_block()
 
         # 'except'
         let tok = this.get_token()
@@ -546,14 +546,14 @@ class Parser:
             KwExcept:
                 pass
         else:
-            raise new_error(tok, "Expected 'except'")
+            raise new_error(tok, message: "Expected 'except'")
 
         this.parse_brace_open()
-        let exc_param = this.parse_parameter_def()
+        let except_param = this.parse_parameter_def()
         this.parse_brace_close()
 
-        let exc_code = this.parse_block()
-        return ast.try_statement(try_code, exc_param, exc_code, location)
+        let except_body = this.parse_block()
+        return ast.try_statement(try_body, except_param, except_body, location)
 
     fn parse_case_statement(location: Location) -> ast.Statement except CompilationError:
         # Value
@@ -563,47 +563,9 @@ class Parser:
         this.parse_indent()
         
         let case_arms: List[ast.CaseArm] = List()
-        loop:
-            let tok3 = this.get_token()
-            case tok3.kind:
-                Identifier(name):
-                    let variables: List[ast.Variable] = List()
-                    # Eventual payload values to unpack:
-                    let tok4 = this.get_token()
-                    case tok4.kind:
-                        BraceOpen:
-                            loop:
-                                let tok5 = this.get_token()
-                                case tok5.kind:
-                                    Identifier(n):
-                                        variables.append(ast.variable(n, ast.undefined_type()))
-                                else:
-                                    raise new_error(tok5, "Expected name")
-                                
-                                tok5 = this.get_token()
-                                case tok5.kind:
-                                    BraceClose:
-                                        break
-                                    Comma:
-                                        continue
-                                else:
-                                    raise new_error(tok5, "Expected ',' or ')'")
-                    else:
-                        this.unget_token(tok4)
-
-                    # Arm body:
-                    let statement = this.parse_block()
-                    let arm = ast.CaseArm:
-                        location: tok3.location
-                        name: name
-                        variables: variables
-                        scope: ast.Scope()
-                        body: statement
-                    case_arms.append(arm)
-                Dedent:
-                    break
-            else:
-                raise new_error(tok3, "Expected variant or dedent")
+        while not this.try_parse_dedent():
+            let name_at = this.parse_name()
+            case_arms.append(this.parse_case_arm(name: name_at.name, location: name_at.location))
         
         # Parse optional 'else' block
         let else_clause = Option.None()
@@ -618,7 +580,38 @@ class Parser:
             value: case_value
             arms: case_arms
             else_clause: else_clause
-        return ast.statement(ast.StatementKind.Case(c), location)
+        return ast.statement(kind: ast.StatementKind.Case(c), location)
+    
+    fn parse_case_arm(name: str, location: Location) -> ast.CaseArm except CompilationError:
+        let variables: List[ast.Variable] = List()
+        # Eventual payload values to unpack:
+        let tok4 = this.get_token()
+        case tok4.kind:
+            BraceOpen:
+                loop:
+                    let name_at = this.parse_name()
+                    variables.append(ast.variable(name: name_at.name, ty: ast.undefined_type()))
+                    
+                    let tok5 = this.get_token()
+                    case tok5.kind:
+                        BraceClose:
+                            break
+                        Comma:
+                            continue
+                    else:
+                        raise new_error(tok: tok5, message: "Expected ',' or ')'")
+        else:
+            this.unget_token(tok4)
+
+        # Arm body:
+        let statement = this.parse_block()
+        let arm = ast.CaseArm:
+            location: location
+            name: name
+            variables: variables
+            scope: ast.Scope()
+            body: statement
+        return arm
 
     fn parse_return_statement(location: Location) -> ast.Statement except CompilationError:
         # optionally parse expression (or newline)!
@@ -632,16 +625,16 @@ class Parser:
             let ret_val = this.parse_expression()
             res_value = Option.Some(ret_val)
             this.parse_newline()
-        return ast.return_statement(res_value, location)
+        return ast.return_statement(value: res_value, location)
 
     fn parse_raise_statement(location: Location) -> ast.Statement except CompilationError:
-        let exc_val = this.parse_expression()
+        let value = this.parse_expression()
         this.parse_newline()
-        return ast.raise_statement(exc_val, location)
+        return ast.raise_statement(value, location)
 
     fn parse_expression() -> ast.Expression except CompilationError:
         log_trace("Parsing expression")
-        return this.parse_expression2(0)
+        return this.parse_expression2(min_prec: 0)
 
     fn parse_expression2(min_prec: int) -> ast.Expression except CompilationError:
         let expr = this.parse_unary()
@@ -696,8 +689,8 @@ class Parser:
                 this.unget_token(tok)
                 break
             
-            let rhs = this.parse_expression2(prec + 1)
-            expr = ast.binop(expr, op, rhs, ast.undefined_type(), tok.location)
+            let rhs = this.parse_expression2(min_prec: prec + 1)
+            expr = ast.binop(lhs: expr, op, rhs, ty: ast.undefined_type(), location: tok.location)
 
         return expr
 
@@ -707,7 +700,7 @@ class Parser:
             KwNot:
                 let value = this.parse_unary()
                 let op = ast.UnaryOperator.Not()
-                return ast.unop(op, value, ast.undefined_type(), tok.location)
+                return ast.unop(op, value, ty: ast.undefined_type(), location: tok.location)
         else:
             this.unget_token(tok)
             return this.parse_atom()
@@ -716,21 +709,21 @@ class Parser:
         let expr = ast.undefined_value()
         let tok = this.get_token()
         case tok.kind:
-            Integer(v):
-                expr = ast.integer_literal(v, tok.location)
-            Float(v):
-                expr = ast.float_literal(v, tok.location)
-            String(v):
-                expr = ast.string_literal(v, tok.location)
-            Bool(v):
-                expr = ast.bool_literal(v, tok.location)
-            Identifier(v):
-                expr = ast.name_ref(v, tok.location)
+            Integer(value):
+                expr = ast.integer_literal(value, location: tok.location)
+            Float(value):
+                expr = ast.float_literal(value, location: tok.location)
+            String(value):
+                expr = ast.string_literal(value, location: tok.location)
+            Bool(value):
+                expr = ast.bool_literal(value, location: tok.location)
+            Identifier(name):
+                expr = ast.name_ref(name, location: tok.location)
             BraceOpen:
                 expr = this.parse_expression()
                 this.parse_brace_close()
         else:
-            raise new_error(tok, "Unexpected token")
+            raise new_error(tok, message: "Unexpected token")
 
         # Attempt suffixes
         loop:
@@ -739,12 +732,12 @@ class Parser:
                 Dot:
                     # handle '.attribute' suffix
                     let attr_at = this.parse_name()
-                    expr = ast.get_attr(expr, attr_at.name, ast.undefined_type(), tok.location)
+                    expr = ast.get_attr(base: expr, field: attr_at.name, ty: ast.undefined_type(), location: tok.location)
                 BraceOpen:
                     # print("CALL")
                     # Handle '(arg1,arg2)' suffix
                     # Or '()' or '(arg1)'
-                    let arguments: List[ast.Expression] = List()
+                    let arguments: List[ast.LabeledExpression] = List()
                     let tok2 = this.get_token()
                     case tok2.kind:
                         BraceClose:
@@ -755,7 +748,7 @@ class Parser:
                         # call with parameters
 
                         loop:
-                            arguments.append(this.parse_expression())
+                            arguments.append(this.parse_labeled_expression())
                             let tok4 = this.get_token()
                             case tok4.kind:
                                 BraceClose:
@@ -763,15 +756,14 @@ class Parser:
                                 Comma:
                                     continue
                             else:
-                                raise new_error(tok4, "Expected ')' or ','")
+                                raise new_error(tok: tok4, message: "Expected ')' or ','")
 
-                    expr = ast.call(expr, arguments, ast.undefined_type(), tok.location)
+                    expr = ast.call(callee: expr, arguments, ty: ast.undefined_type(), location: tok.location)
                 
                 BracketOpen:
-                    let arguments: List[ast.Expression] = List()
+                    let indici: List[ast.Expression] = List()
                     loop:
-                        let arg = this.parse_expression()
-                        arguments.append(arg)
+                        indici.append(this.parse_expression())
                         let tok4 = this.get_token()
                         case tok4.kind:
                             BracketClose:
@@ -779,8 +771,8 @@ class Parser:
                             Comma:
                                 continue
                         else:
-                            raise new_error(tok4, "Expected ']' or ','")
-                    expr = ast.subscript(expr, arguments, ast.undefined_type(), tok.location)
+                            raise new_error(tok: tok4, message: "Expected ']' or ','")
+                    expr = ast.subscript(base: expr, indici, ty: ast.undefined_type(), location: tok.location)
             else:
                 this.unget_token(tok)
                 break
@@ -795,7 +787,7 @@ class Parser:
                     location: tok.location
                 return name_at
         else:
-            raise new_error(tok, "Expected name")
+            raise new_error(tok, message: "Expected name")
 
     fn parse_brace_open() except CompilationError:
         let tok = this.get_token()
@@ -803,7 +795,7 @@ class Parser:
             BraceOpen:
                 pass
         else:
-            raise new_error(tok, "Expected '('")
+            raise new_error(tok, message: "Expected '('")
 
     fn parse_brace_close() except CompilationError:
         let tok = this.get_token()
@@ -811,7 +803,7 @@ class Parser:
             BraceClose:
                 pass
         else:
-            raise new_error(tok, "Expected ')'")
+            raise new_error(tok, message: "Expected ')'")
 
     fn parse_newline() except CompilationError:
         let tok = this.get_token()
@@ -819,7 +811,7 @@ class Parser:
             NewLine:
                 pass
         else:
-            raise new_error(tok, "Expected newline")
+            raise new_error(tok, message: "Expected newline")
 
     fn parse_indent() except CompilationError:
         let tok = this.get_token()
@@ -827,7 +819,17 @@ class Parser:
             Indent:
                 pass
         else:
-            raise new_error(tok, "Expected indent")
+            raise new_error(tok, message: "Expected indent")
+
+    fn try_parse_dedent() -> bool:
+        # expect dedent (eventually)
+        let tok = this.get_token()
+        case tok.kind:
+            Dedent:
+                return true
+        else:
+            this.unget_token(tok)
+            return false
 
     fn parse_colon() except CompilationError:
         let tok = this.get_token()
@@ -835,7 +837,7 @@ class Parser:
             Colon:
                 pass
         else:
-            raise new_error(tok, "Expected ':'")
+            raise new_error(tok, message: "Expected ':'")
 
     fn parse_equals() except CompilationError:
         let tok = this.get_token()
@@ -843,13 +845,13 @@ class Parser:
             Equals:
                 pass
         else:
-            raise new_error(tok, "Expected '='")
+            raise new_error(tok, message: "Expected '='")
 
     fn get_token() -> Token:
         # Get token (EOF in case of end of file)
         return this.lex.next_token()
 
-    fn unget_token(token: Token):
+    fn unget_token(token?: Token):
         this.lex.pushback_token(token)
 
     fn new_id() -> int:

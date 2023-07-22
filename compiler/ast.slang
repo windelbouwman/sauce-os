@@ -39,7 +39,7 @@ fn types_to_string(typs: List[MyType]) -> str:
     txt = txt + "]"
     return txt
 
-fn type_to_string(ty: MyType) -> str:
+fn type_to_string(ty?: MyType) -> str:
     case ty.kind:
         Str:
             return "STR"
@@ -54,7 +54,7 @@ fn type_to_string(ty: MyType) -> str:
         TypeExpression(expr):
             return "TYPE-EXPR"
         Function(parameter_types, return_type):
-            return "FUNC-TYPE({types_to_string(parameter_types)},{type_to_string(return_type)})"
+            return "FUNC-TYPE({types_to_string(typs: parameter_types)},{type_to_string(return_type)})"
         Undefined:
             return "UNDEFINED"
         TypeParam(param):
@@ -66,7 +66,7 @@ fn type_to_string(ty: MyType) -> str:
                 Some(ty_assigned):
                     return "TYPE-VAR(id={v.unique},{type_to_string(ty_assigned)})"
         App(tycon, type_arguments):
-            let args = types_to_string(type_arguments)
+            let args = types_to_string(typs: type_arguments)
             return "APP({tycon_to_str(tycon)}, {args})"
 
 fn change_type_to(ty: MyType, ty2: MyType):
@@ -77,21 +77,21 @@ fn apply_tycon(tycon: TyCon, type_arguments: List[MyType]) -> MyType:
     # if type_arguments
     let type_parameters = tycon_get_type_parameters(tycon)
     # Check lengths!
-    assert(type_parameters.len() == type_arguments.len(), "type arguments does not match amount of type parameters")
-    return new_type(TypeKind.App(tycon, type_arguments))
+    assert(condition: type_parameters.len() == type_arguments.len(), message: "type arguments does not match amount of type parameters")
+    return new_type(kind: TypeKind.App(tycon, type_arguments))
 
 fn subst(ty: MyType, m: Dictionary[MyType]) -> MyType:
     case ty.kind:
         TypeParam(p):
-            case m.get(p.node_id.name):
+            case m.get(key: p.node_id.name):
                 Some(ty3):
                     return ty3
                 None:
                     return ty
         Function(parameter_types, return_type):
-            return function_type(subst_many(parameter_types, m), subst(return_type, m))
+            return function_type(parameter_types: subst_many(typs: parameter_types, m), return_type: subst(ty: return_type, m))
         App(tycon, type_arguments):
-            return apply_tycon(tycon, subst_many(type_arguments, m))
+            return apply_tycon(tycon, type_arguments: subst_many(typs: type_arguments, m))
     else:
         return ty
 
@@ -102,16 +102,16 @@ fn subst_many(typs: List[MyType], m: Dictionary[MyType]) -> List[MyType]:
     return typs2
 
 fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: List[MyType]) -> Dictionary[MyType]:
-    assert(type_parameters.len() == type_arguments.len(), "amount of type parameters and type arguments must be equal")
+    assert(condition: type_parameters.len() == type_arguments.len(), message: "amount of type parameters and type arguments must be equal")
     let m: Dictionary[MyType] = Dictionary()
     let tpi = type_parameters.iter()
     for ty in type_arguments:
         let tp = option_unwrap(tpi.next())
-        m.insert(tp.node_id.name, ty)
+        m.insert(key: tp.node_id.name, value: ty)
     return m
 
 
-fn is_enum_type(ty: MyType) -> bool:
+fn is_enum_type(ty?: MyType) -> bool:
     case ty.kind:
         App(tycon, type_arguments):
             case tycon:
@@ -122,70 +122,70 @@ fn is_enum_type(ty: MyType) -> bool:
     else:
         return false
 
-fn is_void_type(ty: MyType) -> bool:
+fn is_void_type(ty?: MyType) -> bool:
     case ty.kind:
         Void:
             return true
     else:
         return false
 
-fn is_int_type(ty: MyType) -> bool:
+fn is_int_type(ty?: MyType) -> bool:
     case ty.kind:
         Int:
             return true
     else:
         return false
 
-fn is_str_type(ty: MyType) -> bool:
+fn is_str_type(ty?: MyType) -> bool:
     case ty.kind:
         Str:
             return true
     else:
         return false
 
-fn is_bool_type(ty: MyType) -> bool:
+fn is_bool_type(ty?: MyType) -> bool:
     case ty.kind:
         Bool:
             return true
     else:
         return false
 
-fn is_float_type(ty: MyType) -> bool:
+fn is_float_type(ty?: MyType) -> bool:
     case ty.kind:
         Float:
             return true
     else:
         return false
 
-fn is_tycon_app_type(ty: MyType) -> bool:
+fn is_tycon_app_type(ty?: MyType) -> bool:
     case ty.kind:
         App(tycon, args):
             return true
     else:
         return false
 
-fn is_type_parameter_type(ty: MyType) -> bool:
+fn is_type_parameter_type(ty?: MyType) -> bool:
     case ty.kind:
         TypeParam(p):
             return true
     else:
         return false
 
-fn is_type_var_type(ty: MyType) -> bool:
+fn is_type_var_type(ty?: MyType) -> bool:
     case ty.kind:
         TypeVar(v):
             return true
     else:
         return false
 
-fn get_type_var_from_type(ty: MyType) -> TypeVariable:
+fn get_type_var_from_type(ty?: MyType) -> TypeVariable:
     case ty.kind:
         TypeVar(v):
             return v
     else:
         panic("Type must be type variable reference")
 
-fn deref_type_var(ty: MyType) -> MyType:
+fn deref_type_var(ty?: MyType) -> MyType:
     case ty.kind:
         TypeVar(type_var):
             case type_var.ty:
@@ -197,28 +197,28 @@ fn deref_type_var(ty: MyType) -> MyType:
         return ty
 
 
-fn get_type_parameter_from_type(ty: MyType) -> TypeParameter:
+fn get_type_parameter_from_type(ty?: MyType) -> TypeParameter:
     case ty.kind:
         TypeParam(p):
             return p
     else:
         panic("Type must be type parameter")
 
-fn is_function_type(ty: MyType) -> bool:
+fn is_function_type(ty?: MyType) -> bool:
     case ty.kind:
         Function(p,r):
             return true
     else:
         return false
 
-fn get_parameter_types_from_type(ty: MyType) -> List[MyType]:
+fn get_parameter_types_from_type(ty?: MyType) -> List[MyType]:
     case ty.kind:
         Function(p, r):
             return p
     else:
         panic("Type must be function type")
 
-fn get_return_type_from_type(ty: MyType) -> MyType:
+fn get_return_type_from_type(ty?: MyType) -> MyType:
     case ty.kind:
         Function(p, r):
             return r
@@ -229,10 +229,10 @@ fn get_enum_variant(ty: MyType, attr: str) -> Option[EnumVariant]:
     case ty.kind:
         App(tycon, type_arguments):
             case tycon:
-                Enum(x):
-                    case x.scope.lookup(attr):
-                        Some(s):
-                            case s:
+                Enum(enum_def):
+                    case enum_def.scope.lookup(name: attr):
+                        Some(symbol):
+                            case symbol:
                                 Variant(v):
                                     return Option.Some(v)
                             else:
@@ -248,13 +248,13 @@ fn get_enum_variant(ty: MyType, attr: str) -> Option[EnumVariant]:
 fn get_subst_map(ty: MyType) -> Dictionary[MyType]:
     case ty.kind:
         App(tycon, type_arguments):
-            return create_subst_mapping(tycon_get_type_parameters(tycon), type_arguments)
+            return create_subst_mapping(type_parameters: tycon_get_type_parameters(tycon), type_arguments)
     else:
         panic("Must be App type")
 
-fn get_variant_payload_types(ty: MyType, v: EnumVariant) -> List[MyType]:
+fn get_variant_payload_types(ty: MyType, variant: EnumVariant) -> List[MyType]:
     let m = get_subst_map(ty)
-    let payload = subst_many(v.payload, m)
+    let payload = subst_many(typs: variant.payload, m)
     return payload
 
 fn get_field_types(ty: MyType) -> List[MyType]:
@@ -262,10 +262,10 @@ fn get_field_types(ty: MyType) -> List[MyType]:
         App(tycon, type_arguments):
             case tycon:
                 Struct(struct_def):
-                    let m = create_subst_mapping(struct_def.type_parameters, type_arguments)
+                    let m = create_subst_mapping(type_parameters: struct_def.type_parameters, type_arguments)
                     let field_types: List[MyType] = List()
                     for field in struct_def.fields:
-                        field_types.append(subst(field.ty, m))
+                        field_types.append(subst(ty: field.ty, m))
                     return field_types
             else:
                 panic("Type without fields")
@@ -280,25 +280,25 @@ fn get_field_type(ty: MyType, attr: str) -> Option[MyType]:
         App(tycon, type_arguments):
             case tycon:
                 Struct(s):
-                    case s.scope.lookup(attr):
+                    case s.scope.lookup(name: attr):
                         Some(sym):
-                            let m = create_subst_mapping(s.type_parameters, type_arguments)
+                            let m = create_subst_mapping(type_parameters: s.type_parameters, type_arguments)
                             case sym:
                                 Field(f):
-                                    return Option.Some(subst(f.ty, m))
+                                    return Option.Some(subst(ty: f.ty, m))
                             else:
                                 panic("Struct field must be ")
                         None:
                             return Option.None()
                 Class(c):
-                    case c.scope.lookup(attr):
+                    case c.scope.lookup(name: attr):
                         Some(sym):
-                            let m = create_subst_mapping(c.type_parameters, type_arguments)
+                            let m = create_subst_mapping(type_parameters: c.type_parameters, type_arguments)
                             case sym:
-                                Function(f):
-                                    return Option.Some(subst(get_function_type(f), m))
+                                Function(function_def):
+                                    return Option.Some(subst(ty: get_function_type(function_def), m))
                                 Var(v):
-                                    return Option.Some(subst(v.ty, m))
+                                    return Option.Some(subst(ty: v.ty, m))
                             else:
                                 panic("class must contain func/vars")
                         None:
@@ -308,21 +308,21 @@ fn get_field_type(ty: MyType, attr: str) -> Option[MyType]:
     else:
         return Option.None()
 
-fn get_return_type(ty: MyType) -> MyType:
+fn get_return_type(ty?: MyType) -> MyType:
     case ty.kind:
         Function(args, rty):
             return rty
     else:
         panic("Must be function type")
 
-fn get_tycon(ty: MyType) -> TyCon:
+fn get_tycon(ty?: MyType) -> TyCon:
     case ty.kind:
         App(tycon, args):
             return tycon
     else:
         panic("Must be App type")
 
-fn get_type_arguments(ty: MyType) -> List[MyType]:
+fn get_type_arguments(ty?: MyType) -> List[MyType]:
     case ty.kind:
         App(tycon, args):
             return args
@@ -336,22 +336,22 @@ enum TypeKind:
     Str
     Float
     Void
-    TypeExpression(Expression)
-    Function(List[MyType], MyType)
-    TypeParam(TypeParameter)
-    TypeVar(TypeVariable)
+    TypeExpression(expression: Expression)
+    Function(parameter_types: List[MyType], return_type: MyType)
+    TypeParam(type_parameter: TypeParameter)
+    TypeVar(type_variable: TypeVariable)
     
     # Application of a type-constructor:
-    App(TyCon,List[MyType])
+    App(tycon: TyCon,type_arguments: List[MyType])
 
 struct TypeVariable:
     unique: int
     ty: Option[MyType]  # assigned type
 
 enum TyCon:
-    Struct(StructDef)
-    Enum(EnumDef)
-    Class(ClassDef)
+    Struct(struct_def: StructDef)
+    Enum(enum_def: EnumDef)
+    Class(class_def: ClassDef)
 
 fn tycon_to_str(tycon: TyCon) -> str:
     case tycon:
@@ -367,7 +367,7 @@ fn tycon_equal(tycon1: TyCon, tycon2: TyCon) -> bool:
         Struct(struct_def1):
             case tycon2:
                 Struct(struct_def2):
-                    return node_id_equal(struct_def1.node_id, struct_def2.node_id)
+                    return node_id_equal(node_id1: struct_def1.node_id, node_id2: struct_def2.node_id)
             else:
                 return false
         Enum(enum_def1):
@@ -379,7 +379,7 @@ fn tycon_equal(tycon1: TyCon, tycon2: TyCon) -> bool:
         Class(class_def1):
             case tycon2:
                 Class(class_def2):
-                    return node_id_equal(class_def1.node_id, class_def2.node_id)
+                    return node_id_equal(node_id1: class_def1.node_id, node_id2: class_def2.node_id)
             else:
                 return false
 
@@ -393,34 +393,34 @@ fn tycon_get_type_parameters(tycon: TyCon) -> List[TypeParameter]:
             return class_def.type_parameters
 
 fn void_type() -> MyType:
-    return new_type(TypeKind.Void())
+    return new_type(kind: TypeKind.Void())
 
 fn bool_type() -> MyType:
-    return new_type(TypeKind.Bool())
+    return new_type(kind: TypeKind.Bool())
 
 fn int_type() -> MyType:
-    return new_type(TypeKind.Int())
+    return new_type(kind: TypeKind.Int())
 
 fn float_type() -> MyType:
-    return new_type(TypeKind.Float())
+    return new_type(kind: TypeKind.Float())
 
 fn str_type() -> MyType:
-    return new_type(TypeKind.Str())
+    return new_type(kind: TypeKind.Str())
 
 fn undefined_type() -> MyType:
-    return new_type(TypeKind.Undefined())
+    return new_type(kind: TypeKind.Undefined())
 
 fn type_expression(expr: Expression) -> MyType:
-    return new_type(TypeKind.TypeExpression(expr))
+    return new_type(kind: TypeKind.TypeExpression(expr))
 
 fn function_type(parameter_types: List[MyType], return_type: MyType) -> MyType:
-    return new_type(TypeKind.Function(parameter_types, return_type))
+    return new_type(kind: TypeKind.Function(parameter_types, return_type))
 
-fn type_parameter_ref(type_param: TypeParameter) -> MyType:
-    return new_type(TypeKind.TypeParam(type_param))
+fn type_parameter_ref(type_parameter: TypeParameter) -> MyType:
+    return new_type(kind: TypeKind.TypeParam(type_parameter))
 
-fn new_type_var_ref(t_var: TypeVariable) -> MyType:
-    return new_type(TypeKind.TypeVar(t_var))
+fn new_type_var_ref(type_var: TypeVariable) -> MyType:
+    return new_type(kind: TypeKind.TypeVar(type_var))
 
 fn new_type_var(unique: int) -> TypeVariable:
     let t_var = TypeVariable:
@@ -449,17 +449,17 @@ fn module_define_symbol(module: Module, definition: Definition):
     module.definitions.append(definition)
     case definition:
         Var(variable):
-            module.scope.define(variable.variable.name, Symbol.Var(variable.variable))
-        Function(func):
-            module.scope.define(func.name, Symbol.Function(func))
-        ExternFunction(efunc):
-            module.scope.define(efunc.name, Symbol.ExternFunction(efunc))
-        Enum(e):
-            module.scope.define(e.name, Symbol.TypeConstructor(TyCon.Enum(e)))
+            module.scope.define(name: variable.variable.name, symbol: Symbol.Var(variable: variable.variable))
+        Function(function):
+            module.scope.define(name: function.name, symbol: Symbol.Function(function))
+        ExternFunction(external_function):
+            module.scope.define(name: external_function.name, symbol: Symbol.ExternFunction(external_function))
+        Enum(enum_def):
+            module.scope.define(name: enum_def.name, symbol: Symbol.TypeConstructor(tycon: TyCon.Enum(enum_def)))
         Struct(struct_def):
-            module.scope.define(struct_def.node_id.name, Symbol.TypeConstructor(TyCon.Struct(struct_def)))
+            module.scope.define(name: struct_def.node_id.name, symbol: Symbol.TypeConstructor(tycon: TyCon.Struct(struct_def)))
         Class(class_def):
-            module.scope.define(class_def.node_id.name, Symbol.TypeConstructor(TyCon.Class(class_def)))
+            module.scope.define(name: class_def.node_id.name, symbol: Symbol.TypeConstructor(tycon: TyCon.Class(class_def)))
 
 fn import_self(modname: str, location: Location) -> Import:
     let i = Import:
@@ -482,7 +482,7 @@ struct Import:
 
 enum ImportKind:
     Self
-    Names(List[str])
+    Names(names: List[str])
 
 struct ExternFunctionDef:
     name: str
@@ -490,35 +490,31 @@ struct ExternFunctionDef:
     return_type: MyType
 
 fn extern_function_type(func: ExternFunctionDef) -> MyType:
-    return function_type(func.parameter_types, func.return_type)
+    return function_type(parameter_types: func.parameter_types, return_type: func.return_type)
 
 class Scope:
     var symbols: Dictionary[Symbol] = Dictionary()
 
     fn define(name: str, symbol: Symbol):
-        this.symbols.insert(name, symbol)
+        this.symbols.insert(key: name, value: symbol)
     
     fn is_defined(name: str) -> bool:
         # Check if given name is defined.
-        case this.lookup(name):
-            Some(s):
-                return true
-            None:
-                return false
+        return option_is_some(this.lookup(name))
 
     fn lookup(name: str) -> Option[Symbol]:
-        return this.symbols.get(name)
+        return this.symbols.get(key: name)
 
 enum Symbol:
-    Mod(Module)
-    Function(FunctionDef)
-    ExternFunction(ExternFunctionDef)
-    Parameter(ParameterDef)
-    Var(Variable)
-    TypeConstructor(TyCon)
-    Type(MyType)
-    Variant(EnumVariant)
-    Field(StructField)
+    Mod(module: Module)
+    Function(function_def: FunctionDef)
+    ExternFunction(extern_function_def: ExternFunctionDef)
+    Parameter(parameter_def: ParameterDef)
+    Var(variable: Variable)
+    TypeConstructor(tycon: TyCon)
+    Type(typ: MyType)
+    Variant(enum_variant: EnumVariant)
+    Field(struct_field: StructField)
 
 fn symbol_to_str(symbol: Symbol) -> str:
     case symbol:
@@ -542,19 +538,19 @@ fn symbol_to_str(symbol: Symbol) -> str:
             return "Field({f.name})"
 
 enum Definition:
-    Function(FunctionDef)
-    ExternFunction(ExternFunctionDef)
-    Enum(EnumDef)
-    Struct(StructDef)
-    Class(ClassDef)
-    Var(VarDef)
+    Function(function_def: FunctionDef)
+    ExternFunction(extern_function_def: ExternFunctionDef)
+    Enum(enum_def: EnumDef)
+    Struct(struct_def: StructDef)
+    Class(class_def: ClassDef)
+    Var(var_def: VarDef)
 
 struct VarDef:
     location: Location
     variable: Variable
     value: Expression
     
-fn type_parameter(name: str, id: int, location: Location) -> TypeParameter:
+fn new_type_parameter(name: str, id: int, location: Location) -> TypeParameter:
     let tp = TypeParameter:
         node_id: new_node_id(name, id)
         location: location
@@ -581,15 +577,15 @@ struct StructDef:
     scope: Scope
 
 class StructBuilder:
-    var nodeId: NodeId = new_node_id("", 0)
-    var location: Location = new_location(1, 1)
+    var nodeId: NodeId = new_node_id(name: "", id: 0)
+    var location: Location = new_location(row: 1, column: 1)
     var type_parameters: List[TypeParameter] = List()
     var fields: List[StructField] = List()
 
     fn add_type_parameter(name: str, id: int, location: Location) -> MyType:
-        let tp = type_parameter(name, id, location)
-        this.type_parameters.append(tp)
-        return type_parameter_ref(tp)
+        let type_parameter = new_type_parameter(name, id, location)
+        this.type_parameters.append(type_parameter)
+        return type_parameter_ref(type_parameter)
 
     fn add_field(name: str, ty: MyType, location: Location):
         this.fields.append(new_struct_field(name, ty, location))
@@ -668,27 +664,29 @@ struct FunctionDef:
     body: Statement
     location: Location
 
-fn get_function_type(func: FunctionDef) -> MyType:
+fn get_function_type(function_def: FunctionDef) -> MyType:
     let m: Dictionary[MyType] = Dictionary()
     let unique_id = 1
-    for tp in func.type_parameters:
-        let t_var = new_type_var(unique_id)
-        m.insert(tp.node_id.name, new_type_var_ref(t_var))
+    for tp in function_def.type_parameters:
+        let type_var = new_type_var(unique: unique_id)
+        m.insert(key: tp.node_id.name, value: new_type_var_ref(type_var))
         unique_id += 1
     let parameter_types: List[MyType] = List()
-    for p in func.parameters:
-        parameter_types.append(subst(p.ty, m))
-    return function_type(parameter_types, subst(func.return_type, m))
+    for p in function_def.parameters:
+        parameter_types.append(subst(ty: p.ty, m))
+    return function_type(parameter_types, return_type: subst(ty: function_def.return_type, m))
 
-fn parameter_def(name: str, ty: MyType, location: Location) -> ParameterDef:
+fn parameter_def(name: str, label_is_optional: bool, ty: MyType, location: Location) -> ParameterDef:
     let p = ParameterDef:
-        name: name
-        ty: ty
-        location: location
+        name
+        label_is_optional
+        ty
+        location
     return p
 
 struct ParameterDef:
     name: str
+    label_is_optional: bool
     ty: MyType
     location: Location
 
@@ -713,19 +711,19 @@ struct Statement:
     kind: StatementKind
 
 enum StatementKind:
-    If(IfStatement)
-    While(WhileStatement)
-    Loop(LoopStatement)
-    For(ForStatement)
-    Case(CaseStatement)
-    Switch(SwitchStatement)
-    Let(LetStatement)
-    Try(TryStatement)
-    Compound(List[Statement])
-    Expr(Expression)
-    Assignment(Expression, Option[BinaryOperator], Expression)
-    Return(Option[Expression])
-    Raise(Expression)
+    If(if_statement: IfStatement)
+    While(while_statement: WhileStatement)
+    Loop(loop_statement: LoopStatement)
+    For(for_statement: ForStatement)
+    Case(case_statement: CaseStatement)
+    Switch(switch_statement: SwitchStatement)
+    Let(let_statement: LetStatement)
+    Try(try_statement: TryStatement)
+    Compound(body: List[Statement])
+    Expr(expression: Expression)
+    Assignment(target: Expression, operator: Option[BinaryOperator], value: Expression)
+    Return(value: Option[Expression])
+    Raise(value: Expression)
     Pass
     Break
     Continue
@@ -736,7 +734,7 @@ fn if_statement(condition: Expression, body: Statement, false_body: Statement, l
         true_body: body
         false_body: false_body
 
-    let kind = StatementKind.If(i)
+    let kind = StatementKind.If(if_statement: i)
     return statement(kind, location)
 
 struct IfStatement:
@@ -749,30 +747,30 @@ struct WhileStatement:
     body: Statement
 
 fn while_statement(condition: Expression, body: Statement, location: Location) -> Statement:
-    let w = WhileStatement:
+    let while_statement = WhileStatement:
         condition: condition
         body: body
 
-    let kind = StatementKind.While(w)
+    let kind = StatementKind.While(while_statement)
     return statement(kind, location)
 
 fn loop_statement(body: Statement, location: Location) -> Statement:
     let i = LoopStatement:
         body: body
 
-    let kind = StatementKind.Loop(i)
+    let kind = StatementKind.Loop(loop_statement: i)
     return statement(kind, location)
 
 struct LoopStatement:
     body: Statement
 
 fn for_statement(iter_var: str, iter_value: Expression, body: Statement, location: Location) -> Statement:
-    let v = variable(iter_var, undefined_type())
-    let f = ForStatement:
+    let v = variable(name: iter_var, ty: undefined_type())
+    let for_statement = ForStatement:
         iter_var: v
         iter_value: iter_value
         body: body
-    return statement(StatementKind.For(f), location)
+    return statement(kind: StatementKind.For(for_statement), location)
 
 struct ForStatement:
     iter_var: Variable
@@ -780,11 +778,11 @@ struct ForStatement:
     body: Statement
 
 fn try_statement(try_body: Statement, except_param: ParameterDef, except_body: Statement, location: Location) -> Statement:
-    let t = TryStatement:
+    let try_statement = TryStatement:
         try_body: try_body
         except_param: except_param
         except_body: except_body
-    return statement(StatementKind.Try(t), location)
+    return statement(kind: StatementKind.Try(try_statement), location)
 
 struct TryStatement:
     try_body: Statement
@@ -804,11 +802,11 @@ struct CaseArm:
     body: Statement
 
 fn switch_statement(value: Expression, arms: List[SwitchArm], default_body: Statement, location: Location) -> Statement:
-    let s = SwitchStatement:
+    let switch_statement = SwitchStatement:
         value: value
         arms: arms
         default_body: default_body
-    return statement(StatementKind.Switch(s), location)
+    return statement(kind: StatementKind.Switch(switch_statement), location)
 
 struct SwitchStatement:
     value: Expression
@@ -835,27 +833,33 @@ struct LetStatement:
 
 fn compound(inner: List[Statement], location: Location) -> Statement:
     if inner.len() == 1:
-        return inner.get(0)
+        return inner.get(index: 0)
     else:
-        let kind = StatementKind.Compound(inner)
+        let kind = StatementKind.Compound(body: inner)
         return statement(kind, location)
 
 fn expression_statement(expr: Expression) -> Statement:
     let kind = StatementKind.Expr(expr)
-    return statement(kind, expr.location)
+    return statement(kind, location: expr.location)
 
 fn assignment_statement(target: Expression, op: Option[BinaryOperator], value: Expression, location: Location) -> Statement:
     let kind = StatementKind.Assignment(target, op, value)
     return statement(kind, location)
 
 fn return_statement(value: Option[Expression], location: Location) -> Statement:
-    return statement(StatementKind.Return(value), location)
+    return statement(kind: StatementKind.Return(value), location)
 
 fn raise_statement(value: Expression, location: Location) -> Statement:
-    return statement(StatementKind.Raise(value), location)
+    return statement(kind: StatementKind.Raise(value), location)
 
 fn pass_statement(location: Location) -> Statement:
-    return statement(StatementKind.Pass(), location)
+    return statement(kind: StatementKind.Pass(), location)
+
+fn break_statement(location: Location) -> Statement:
+    return statement(kind: StatementKind.Break(), location)
+
+fn continue_statement(location: Location) -> Statement:
+    return statement(kind: StatementKind.Continue(), location)
 
 struct Expression:
     location: Location
@@ -870,39 +874,39 @@ fn expression(kind: ExpressionKind, ty: MyType, location: Location) -> Expressio
     return expression
 
 enum ExpressionKind:
-    Call(FunctionCall)
-    GetAttr(Expression,str)
-    GetIndex(Expression,List[Expression])
-    Binop(BinopExpression)
-    Unop(UnaryOperator, Expression)
-    NameRef(str)
-    VarRef(Variable)
-    LoadSymbol(Symbol)
-    IntLiteral(int)
-    FloatLiteral(float)
-    StringLiteral(str)
-    BoolLiteral(bool)
-    StructLiteral(MyType,List[Expression])
-    ClassLiteral(MyType)
-    ObjInit(MyType,List[FieldInit])
-    Type(MyType)
-    TypeConstructor(TyCon)
-    Variant(MyType, EnumVariant)
-    EnumLiteral(MyType, EnumVariant, List[Expression])
+    Call(call: FunctionCall)
+    GetAttr(base: Expression, name:str)
+    GetIndex(base: Expression, indici: List[Expression])
+    Binop(binop: BinopExpression)
+    Unop(op: UnaryOperator, rhs: Expression)
+    NameRef(name: str)
+    VarRef(variable: Variable)
+    LoadSymbol(symbol: Symbol)
+    IntLiteral(value: int)
+    FloatLiteral(value: float)
+    StringLiteral(value: str)
+    BoolLiteral(value: bool)
+    StructLiteral(ty: MyType, values: List[Expression])
+    ClassLiteral(typ: MyType)
+    ObjInit(ty: MyType, field_inits: List[LabeledExpression])
+    Type(ty: MyType)
+    TypeConstructor(tycon: TyCon)
+    Variant(ty: MyType, variant: EnumVariant)
+    EnumLiteral(ty: MyType, variant: EnumVariant, values: List[Expression])
     Undefined
 
-struct FieldInit:
+struct LabeledExpression:
     location: Location
-    name: str
+    name: Option[str]
     value: Expression
 
 fn struct_literal(ty: MyType, values: List[Expression], location: Location) -> Expression:
-    return expression(ExpressionKind.StructLiteral(ty, values), ty, location)
+    return expression(kind: ExpressionKind.StructLiteral(ty, values), ty, location)
 
 fn load_symbol(symbol: Symbol, ty: MyType, location: Location) -> Expression:
-    return expression(ExpressionKind.LoadSymbol(symbol), ty, location)
+    return expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
 
-fn call(callee: Expression, arguments: List[Expression], ty: MyType, location: Location) -> Expression:
+fn call(callee: Expression, arguments: List[LabeledExpression], ty: MyType, location: Location) -> Expression:
     let c = FunctionCall:
         callee: callee
         arguments: arguments
@@ -915,16 +919,16 @@ fn get_attr(base: Expression, field: str, ty: MyType, location: Location) -> Exp
 
 struct FunctionCall:
     callee: Expression
-    arguments: List[Expression]
+    arguments: List[LabeledExpression]
 
 fn subscript(base: Expression, indici: List[Expression], ty: MyType, location: Location) -> Expression:
     let kind = ExpressionKind.GetIndex(base, indici)
     return expression(kind, ty, location)
 
 # Reference a variable:
-fn var_ref(v: Variable, location: Location) -> Expression:
-    let kind = ExpressionKind.VarRef(v)
-    return expression(kind, v.ty, location)
+fn var_ref(variable: Variable, location: Location) -> Expression:
+    let kind = ExpressionKind.VarRef(variable)
+    return expression(kind, ty: variable.ty, location)
 
 # Reference a symbol:
 fn name_ref(name: str, location: Location) -> Expression:
@@ -1005,19 +1009,20 @@ fn string_literal(value: str, location: Location) -> Expression:
     return expression(kind, ty, location)
 
 fn undefined_value() -> Expression:
-    return expression(ExpressionKind.Undefined(), undefined_type(), new_location(1, 1))
+    let location = new_location(row: 1, column: 1)
+    return expression(kind: ExpressionKind.Undefined(), ty: undefined_type(), location)
 
-fn print_ast(mod: Module):
-    print("Module: " + mod.name)
+fn print_ast(module: Module):
+    print("Module: " + module.name)
     let printer = AstPrinter()
     printer.indent()
-    for imp in mod.imports:
+    for imp in module.imports:
         case imp.kind:
             Self:
-                printer.print2("import {imp.modname}")
+                printer.print2(txt: "import {imp.modname}")
             Names(names):
-                printer.print2("from {imp.modname} import ..")
-    let vis = Visitor:
+                printer.print2(txt: "from {imp.modname} import ..")
+    let visitor = Visitor:
         data: printer
         on_definition: print_ast_definition
         on_type: print_ast_type
@@ -1025,24 +1030,24 @@ fn print_ast(mod: Module):
         on_expression: print_ast_expression
         on_node: print_ast_node
         
-    visit_module(vis, mod)
+    visit_module(visitor, module)
     printer.dedent()
 
 class AstPrinter:
     var indent_level: int = 0
 
     fn indent():
-        this.indent_level += 3
+        this.indent_level += 1
 
     fn dedent():
-        this.indent_level -= 3
+        this.indent_level -= 1
     
     fn get_prefix() -> str:
         let space = ""
         let i = 0
         while i < this.indent_level:
             i += 1
-            space = space + " "
+            space = space + "   "
         return space
     
     fn print2(txt: str):
@@ -1054,17 +1059,17 @@ fn print_ast_definition(printer: AstPrinter, definition: Definition, phase: Visi
         Pre:
             case definition:
                 Function(func):
-                    printer.print2("Func: {func.name}")
+                    printer.print2(txt: "Func: {func.name}")
                 ExternFunction(efunc):
-                    printer.print2("Extern func: {efunc.name}")
+                    printer.print2(txt: "Extern func: {efunc.name}")
                 Struct(struct_def):
-                    printer.print2("Struct: {struct_def.node_id.name},{struct_def.node_id.id}")
+                    printer.print2(txt: "Struct: {struct_def.node_id.name},{struct_def.node_id.id}")
                 Enum(e):
-                    printer.print2("Enum: {e.name}")
+                    printer.print2(txt: "Enum: {e.name}")
                 Class(class_def):
-                    printer.print2("Class: {class_def.node_id.name},{class_def.node_id.id}")
+                    printer.print2(txt: "Class: {class_def.node_id.name},{class_def.node_id.id}")
                 Var(v):
-                    printer.print2("Var: {v.variable.name}")
+                    printer.print2(txt: "Var: {v.variable.name}")
             printer.indent()
         Post:
             printer.dedent()
@@ -1075,7 +1080,7 @@ fn print_ast_type(printer: AstPrinter, ty: MyType, phase: VisitPhase):
     case phase:
         Pre:
             let txt = type_to_string(ty)
-            printer.print2("TYPE {txt}")
+            printer.print2(txt: "TYPE {txt}")
             printer.indent()
         Post:
             printer.dedent()
@@ -1128,16 +1133,16 @@ fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPh
     case phase:
         Pre:
             let txt = statement_to_string(statement)
-            printer.print2("STMT {txt}")
+            printer.print2(txt: "STMT {txt}")
             printer.indent()
         Post:
             printer.dedent()
     else:
         pass
 
-fn expression_to_string(expr: Expression) -> str:
+fn expression_to_string(expression: Expression) -> str:
     let txt = "?"
-    case expr.kind:
+    case expression.kind:
         StringLiteral(val):
             txt = "String={val}"
         IntLiteral(val):
@@ -1154,8 +1159,8 @@ fn expression_to_string(expr: Expression) -> str:
             txt = "CALL"
         NameRef(name):
             txt = "REF({name})"
-        LoadSymbol(s):
-            txt = "LOAD_SYM({symbol_to_str(s)})"
+        LoadSymbol(symbol):
+            txt = "LOAD_SYM({symbol_to_str(symbol)})"
         GetAttr(base, attr):
             txt = "GET-ATTR({attr})"
         GetIndex(base, indici):
@@ -1163,7 +1168,7 @@ fn expression_to_string(expr: Expression) -> str:
         Undefined:
             txt = "UNDEFINED"
         Binop(op):
-            let op_txt = binary_op_to_str(op.op)
+            let op_txt = binary_op_to_str(op: op.op)
             txt = "BINOP({op_txt})"
         Unop(op, value):
             let op_txt = unary_op_to_str(op)
@@ -1186,10 +1191,10 @@ fn expression_to_string(expr: Expression) -> str:
             txt = "ENUM-LITERAL"
     return txt
 
-fn print_ast_expression(printer: AstPrinter, expr: Expression, phase: VisitPhase):
+fn print_ast_expression(printer: AstPrinter, expression: Expression, phase: VisitPhase):
     case phase:
         Pre:
-            printer.print2("EXPR {expression_to_string(expr)}")
+            printer.print2(txt: "EXPR {expression_to_string(expression)}")
             printer.indent()
         Post:
             printer.dedent()
@@ -1251,122 +1256,121 @@ enum VisitPhase:
     Post
 
 enum VisitNode:
-    Arm(CaseArm)
+    Arm(arm: CaseArm)
 
-fn visit_module[T](visitor: Visitor[T], mod: Module):
-    for definition in mod.definitions:
+fn visit_module[T](visitor: Visitor[T], module: Module):
+    for definition in module.definitions:
         visit_definition(visitor, definition)
 
 
-
 fn visit_definition[T](visitor: Visitor[T], definition: Definition):
-    visitor.on_definition(visitor.data, definition, VisitPhase.Pre())
+    visitor.on_definition(a: visitor.data, definition, phase: VisitPhase.Pre())
     case definition:
         Function(func):
             # print("VISIT {func.name}")
             for parameter in func.parameters:
-                visit_type(visitor, parameter.ty)
-            visit_type(visitor, func.return_type)
-            visit_statement(visitor, func.body)
+                visit_type(visitor, ty: parameter.ty)
+            visit_type(visitor, ty: func.return_type)
+            visit_statement(visitor, statement: func.body)
         ExternFunction(e):
             pass
         Enum(e):
             for variant in e.variants:
                 for p in variant.payload:
-                    visit_type(visitor, p)
+                    visit_type(visitor, ty: p)
 
-        Struct(s):
-            for field in s.fields:
-                visit_type(visitor, field.ty)
-        Class(c):
-            for d2 in c.definitions:
-                visit_definition(visitor, d2)
+        Struct(struct_def):
+            for field in struct_def.fields:
+                visit_type(visitor, ty: field.ty)
+        Class(class_def):
+            for d2 in class_def.definitions:
+                visit_definition(visitor, definition: d2)
         Var(v):
-            visit_type(visitor, v.variable.ty)
-            visit_expression(visitor, v.value)
-    visitor.on_definition(visitor.data, definition, VisitPhase.Post())
+            visit_type(visitor, ty: v.variable.ty)
+            visit_expression(visitor, expression: v.value)
+    visitor.on_definition(data: visitor.data, definition, phase: VisitPhase.Post())
 
 fn visit_type[T](visitor: Visitor[T], ty: MyType):
     # print("Visit type")
-    visitor.on_type(visitor.data, ty, VisitPhase.Pre())
+    visitor.on_type(data: visitor.data, ty, phase: VisitPhase.Pre())
     case ty.kind:
-        TypeExpression(expr):
-            visit_expression(visitor, expr)
+        TypeExpression(expression):
+            visit_expression(visitor, expression)
         App(tycon, type_arguments):
             for type_argument in type_arguments:
-                visit_type(visitor, type_argument)
+                visit_type(visitor, ty: type_argument)
         Function(parameter_types, return_type):
             for parameter_type in parameter_types:
-                visit_type(visitor, parameter_type)
-            visit_type(visitor, return_type)
+                visit_type(visitor, ty: parameter_type)
+            visit_type(visitor, ty: return_type)
     else:
         pass
-    visitor.on_type(visitor.data, ty, VisitPhase.Post())
+    visitor.on_type(data: visitor.data, ty, phase: VisitPhase.Post())
 
 fn visit_statement[T](visitor: Visitor[T], statement: Statement):
-    visitor.on_statement(visitor.data, statement, VisitPhase.Pre())
+    visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Pre())
     case statement.kind:
         Pass:
             pass
         Let(let_statement):
             case let_statement.type_hint:
-                Some(t):
-                    visit_type(visitor, t)
+                Some(ty):
+                    visit_type(visitor, ty)
                 None:
                     pass
-            visit_expression(visitor, let_statement.value)
+            visit_expression(visitor, expression: let_statement.value)
         If(if_statement):
-            visit_expression(visitor, if_statement.condition)
-            visit_statement(visitor, if_statement.true_body)
-            visit_statement(visitor, if_statement.false_body)
+            visit_expression(visitor, expression: if_statement.condition)
+            visit_statement(visitor, statement: if_statement.true_body)
+            visit_statement(visitor, statement: if_statement.false_body)
         While(while_statement):
-            visit_expression(visitor, while_statement.condition)
-            visit_statement(visitor, while_statement.body)
+            visit_expression(visitor, expression: while_statement.condition)
+            visit_statement(visitor, statement: while_statement.body)
         Loop(loop_statement):
-            visit_statement(visitor, loop_statement.body)
+            visit_statement(visitor, statement: loop_statement.body)
         Switch(switch_statement):
-            visit_expression(visitor, switch_statement.value)
+            visit_expression(visitor, expression: switch_statement.value)
             # TODO: visit arms!
         For(for_statement):
-            visit_expression(visitor, for_statement.iter_value)
-            visitor.on_statement(visitor.data, statement, VisitPhase.Mid())
-            visit_statement(visitor, for_statement.body)
+            visit_expression(visitor, expression: for_statement.iter_value)
+            visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Mid())
+            visit_statement(visitor, statement: for_statement.body)
         Try(try_statement):
-            visit_statement(visitor, try_statement.try_body)
-            visit_type(visitor, try_statement.except_param.ty)
-            visit_statement(visitor, try_statement.except_body)
+            visit_statement(visitor, statement: try_statement.try_body)
+            visit_type(visitor, ty: try_statement.except_param.ty)
+            visit_statement(visitor, statement: try_statement.except_body)
         Case(case_statement):
-            visit_expression(visitor, case_statement.value)
-            visitor.on_statement(visitor.data, statement, VisitPhase.Mid())
+            visit_expression(visitor, expression: case_statement.value)
+            visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Mid())
             for arm in case_statement.arms:
                 let arm_node = VisitNode.Arm(arm)
-                visitor.on_node(visitor.data, arm_node, VisitPhase.Pre())
-                visit_statement(visitor, arm.body)
-                visitor.on_node(visitor.data, arm_node, VisitPhase.Post())
+                visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Pre())
+                visit_statement(visitor, statement: arm.body)
+                visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Post())
         Compound(inner):
             for s in inner:
-                visit_statement(visitor, s)
-        Expr(expr):
-            visit_expression(visitor, expr)
+                visit_statement(visitor, statement: s)
+        Expr(expression):
+            visit_expression(visitor, expression)
         Assignment(target, op, expr):
-            visit_expression(visitor, target)
-            visit_expression(visitor, expr)
+            visit_expression(visitor, expression: target)
+            visit_expression(visitor, expression: expr)
         Return(opt_val):
             case opt_val:
                 Some(expr):
-                    visit_expression(visitor, expr)
+                    visit_expression(visitor, expression: expr)
                 None:
                     pass
         Raise(exc_val):
-            visit_expression(visitor, exc_val)
+            visit_expression(visitor, expression: exc_val)
         Break:
             pass
         Continue:
             pass
-    visitor.on_statement(visitor.data, statement, VisitPhase.Post())
+    visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Post())
 
 fn visit_expression[T](visitor: Visitor[T], expression: Expression):
-    visitor.on_expression(visitor.data, expression, VisitPhase.Pre())
+    visitor.on_expression(data: visitor.data, expression, phase: VisitPhase.Pre())
 
     case expression.kind:
         BoolLiteral(v):
@@ -1385,30 +1389,30 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         LoadSymbol(s):
             pass
         Call(v):
-            visit_expression(visitor, v.callee)
+            visit_expression(visitor, expression: v.callee)
             for arg in v.arguments:
-                visit_expression(visitor, arg)
+                visit_expression(visitor, expression: arg.value)
         GetAttr(base, index):
-            visit_expression(visitor, base)
+            visit_expression(visitor, expression: base)
         GetIndex(base, indici):
-            visit_expression(visitor, base)
-            for arg in indici:
-                visit_expression(visitor, arg)
+            visit_expression(visitor, expression: base)
+            for index in indici:
+                visit_expression(visitor, expression: index)
         Binop(v):
-            visit_expression(visitor, v.lhs)
-            visit_expression(visitor, v.rhs)
+            visit_expression(visitor, expression: v.lhs)
+            visit_expression(visitor, expression: v.rhs)
         Unop(op,value):
-            visit_expression(visitor, value)
+            visit_expression(visitor, expression: value)
         VarRef(v):
             pass
         ObjInit(ty, fields):
             visit_type(visitor, ty)
             for field in fields:
-                visit_expression(visitor, field.value)
+                visit_expression(visitor, expression: field.value)
         StructLiteral(ty, values):
             visit_type(visitor, ty)
             for value in values:
-                visit_expression(visitor, value)
+                visit_expression(visitor, expression: value)
         ClassLiteral(ty):
             visit_type(visitor, ty)
         Type(ty):
@@ -1419,6 +1423,6 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
             pass
         EnumLiteral(ty, v, values):
             for value in values:
-                visit_expression(visitor, value)
+                visit_expression(visitor, expression: value)
 
-    visitor.on_expression(visitor.data, expression, VisitPhase.Post())
+    visitor.on_expression(data: visitor.data, expression, phase: VisitPhase.Post())

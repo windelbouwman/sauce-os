@@ -29,7 +29,7 @@ def parse_file(filename: str) -> ast.Module:
 
 def parse(code: str, modname: str, filename: str) -> ast.Module:
     """Parse the given code."""
-    logger.info("Starting parse")
+    logger.debug("Starting parse")
     try:
         module: ast.Module = lark_it(code, "module")
     except ParseError as ex:
@@ -39,7 +39,7 @@ def parse(code: str, modname: str, filename: str) -> ast.Module:
 
     module.name = modname
     module.filename = filename
-    logger.info("Parse complete!")
+    logger.debug("Parse complete!")
     return module
 
 
@@ -126,6 +126,7 @@ class CustomLarkLexer(LarkLexer):
             ",": "COMMA",
             ".": "DOT",
             "->": "ARROW",
+            "?": "QUESTION",
         }
         for token in detect_indentations(tokenize(data)):
             # print('token', token)
@@ -254,7 +255,7 @@ class CustomTransformer(LarkTransformer):
             payload = []
         else:
             assert len(x) == 5
-            payload = x[2]
+            payload = [p.ty for p in x[2]]
         return ast.EnumVariant(name, payload, get_loc(x[0]))
 
     def type_def(self, x):
@@ -273,7 +274,7 @@ class CustomTransformer(LarkTransformer):
 
     def type_parameters(self, x):
         # type_parameters: LESS_THAN ids GREATER_THAN
-        return [ast.type_var(name, location) for name, location in x[1]]
+        return [ast.type_parameter(name, location) for name, location in x[1]]
 
     def typ(self, x):
         if isinstance(x[0], LarkToken) and x[0].type == "KW_FN":
@@ -283,6 +284,7 @@ class CustomTransformer(LarkTransformer):
             else:
                 assert isinstance(x[2], list)
                 parameter_types = x[2]
+            parameter_names = [None] * len(parameter_types)
 
             if isinstance(x[-2], LarkToken) and x[-2].type == "ARROW":
                 return_type = x[-1]
@@ -291,7 +293,9 @@ class CustomTransformer(LarkTransformer):
 
             except_type = ast.void_type
 
-            return ast.function_type(parameter_types, return_type, except_type)
+            return ast.function_type(
+                parameter_names, parameter_types, return_type, except_type
+            )
         else:
             assert isinstance(x[0], ast.Expression)
             return ast.type_expression(x[0])
@@ -303,7 +307,14 @@ class CustomTransformer(LarkTransformer):
             return x[0] + [x[2]]
 
     def parameter(self, x):
-        return ast.Parameter(x[0].value, x[2], get_loc(x[0]))
+        # ID QUESTION? COLON typ
+        name = x[0].value
+        typ = x[-1]
+        if len(x) == 4:
+            needs_label = False
+        else:
+            needs_label = True
+        return ast.Parameter(name, needs_label, typ, get_loc(x[0]))
 
     def block(self, x):
         # COLON NEWLINE INDENT statement+ DEDENT
@@ -531,6 +542,12 @@ class CustomTransformer(LarkTransformer):
         else:
             raise NotImplementedError(str(x))
 
+    def tests(self, x):
+        if len(x) == 1:
+            return x
+        else:
+            return x[0] + [x[2]]
+
     def arguments(self, x):
         if len(x) == 1:
             return x
@@ -565,8 +582,23 @@ class CustomTransformer(LarkTransformer):
         return ast.new_op(ty, fields, get_loc(x[1]))
 
     def field_init(self, x):
-        name, value = x[0], x[2]
-        return ast.NewOpField(name, value, get_loc(x[1]))
+        return x[0]
+
+    def labeled_expression(self, x):
+        if len(x) == 1:
+            # value = ast.name_ref(name, get_loc(x[0]))
+            location = x[0].location
+            value = x[0]
+            if isinstance(value.kind, ast.NameRef):
+                name = value.kind.name
+            else:
+                name = None
+        else:
+            assert len(x) == 3
+            location = get_loc(x[0])
+            name = x[0].value
+            value = x[2]
+        return ast.LabeledExpression(name, value, location)
 
     def obj_ref(self, x):
         assert len(x) == 1
@@ -594,12 +626,12 @@ func_def: KW_FN id_and_type_parameters function_signature block
 function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? (KW_EXCEPT typ)?
 parameters: parameter
           | parameters COMMA parameter
-parameter: ID COLON typ
+parameter: ID QUESTION? COLON typ
 struct_def: KW_STRUCT id_and_type_parameters COLON NEWLINE INDENT struct_field+ DEDENT
 struct_field: ID COLON typ NEWLINE
 enum_def: KW_ENUM id_and_type_parameters COLON NEWLINE INDENT enum_variant+ DEDENT
 enum_variant: ID NEWLINE
-            | ID LEFT_BRACE types RIGHT_BRACE NEWLINE
+            | ID LEFT_BRACE parameters RIGHT_BRACE NEWLINE
 type_def: KW_TYPE ID EQUALS typ NEWLINE
 id_and_type_parameters: ID type_parameters?
 type_parameters: LEFT_BRACKET ids RIGHT_BRACKET
@@ -676,18 +708,23 @@ atom: obj_ref
     | array_literal
     | atom LEFT_BRACE arguments? RIGHT_BRACE
     | LEFT_BRACE test RIGHT_BRACE
-    | atom LEFT_BRACKET arguments RIGHT_BRACKET
+    | atom LEFT_BRACKET tests RIGHT_BRACKET
     | atom DOT ID
 
-arguments: test
-         | arguments COMMA test
+tests: test
+     | tests COMMA test
+
+arguments: labeled_expression
+         | arguments COMMA labeled_expression
 
 literal: STRING | NUMBER | FNUMBER | BOOL
-array_literal: LEFT_BRACKET arguments RIGHT_BRACKET
+array_literal: LEFT_BRACKET tests RIGHT_BRACKET
 obj_ref: ID
 
 obj_init: typ COLON NEWLINE INDENT field_init+ DEDENT
-field_init: ID COLON expression NEWLINE
+field_init: labeled_expression NEWLINE
+labeled_expression: test
+                  | ID COLON test
 
 %declare KW_AND KW_BREAK KW_CASE KW_CLASS KW_CONTINUE
 %declare KW_ELIF KW_ELSE KW_ENUM
@@ -697,7 +734,7 @@ field_init: ID COLON expression NEWLINE
 %declare KW_RAISE KW_TRY KW_EXCEPT
 
 %declare LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
-%declare COLON COMMA DOT ARROW
+%declare COLON COMMA DOT ARROW QUESTION
 %declare MINUS PLUS ASTERIX SLASH
 %declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS NOT_EQUALS
 %declare EQUALS PLUS_EQUALS MINUS_EQUALS

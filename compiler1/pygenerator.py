@@ -153,6 +153,8 @@ class PyCodeGenerator:
         if isinstance(if_statement.false_statement.kind, ast.IfStatement):
             # We got el-if!
             self.gen_if_statement(if_statement.false_statement.kind, kw="elif")
+        elif isinstance(if_statement.false_statement.kind, ast.PassStatement):
+            pass
         else:
             self.emit("else:")
             self.indent()
@@ -211,7 +213,9 @@ class PyCodeGenerator:
             return self.gen_expression(kind.value)
         elif isinstance(kind, ast.FunctionCall):
             callee = self.gen_expression(kind.target)
-            args = ", ".join([self.gen_expression(a, parens=False) for a in kind.args])
+            args = ", ".join(
+                [self.gen_expression(a.value, parens=False) for a in kind.args]
+            )
             return f"{callee}({args})"
         else:
             raise NotImplementedError(str(kind))

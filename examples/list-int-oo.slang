@@ -7,10 +7,10 @@ import std
 class List:
     var head_element: Option = Option.None()
 
-    fn append(val: int):
+    fn append(value?: int):
         let new_tail_element = ListElement:
             next: Option.None()
-            data: val
+            data: value
         
         case this.head_element:
             None:
@@ -43,7 +43,7 @@ class List:
 
 # TODO: replace by Option<ListElement>
 enum Option:
-    Some(ListElement)
+    Some(value: ListElement)
     None
 
 struct ListElement:

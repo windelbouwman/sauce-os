@@ -4,16 +4,16 @@ from std import print
 
 fn main():
     try:
-        let y: int = foo(false)
+        let y: int = foo(x: false)
         print("y1 = {y}")
-        y = foo(true)
+        y = foo(x: true)
         print("y2 = {y}")
     except(err_val: str):
         print("ERROR: {err_val}")
 
 fn foo(x: bool) -> int except str:
-    let x1 = may_bork(false)
-    let x2 = may_bork(x)
+    let x1 = may_bork(do_bork: false)
+    let x2 = may_bork(do_bork: x)
     return x1 + x2
 
 fn may_bork(do_bork: bool) -> int except str:
