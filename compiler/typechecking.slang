@@ -154,8 +154,6 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                     panic("variants must be literals")
                 Undefined:
                     panic("TODO: undefined")
-                ObjInit(ty, fields):
-                    panic("obj init must be rewritten")
                 GetAttr(base, attr):
                     # panic("TODO: get attr")
                     case ast.get_field_type(ty: base.ty, attr):

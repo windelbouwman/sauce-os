@@ -43,7 +43,8 @@ class TypeChecker(BasePass):
             elif isinstance(definition, ast.ClassDef):
                 pass
             elif isinstance(definition, ast.VarDef):
-                self.assert_type(definition.value, definition.ty)
+                if definition.value:
+                    self.assert_type(definition.value, definition.ty)
             else:
                 raise NotImplementedError(str(definition))
 
@@ -253,8 +254,6 @@ class TypeChecker(BasePass):
                     f"Trying to call non-function type: {kind.target.ty}",
                 )
 
-        elif isinstance(kind, ast.NewOp):
-            raise ValueError("new-op must be rewritten before!")
         elif isinstance(kind, ast.NameRef):
             raise ValueError(f"Must be resolved: {kind}")
         elif isinstance(kind, ast.StructLiteral):

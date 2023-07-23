@@ -131,8 +131,6 @@ class PyGenerator:
                 let b = this.gen_expression(base)
                 let i = this.gen_expression_list(expressions: indici)
                 txt = "{b}[{i}]"
-            ObjInit(a, b):
-                panic("ObjInit not supported")
             Type(ty):
                 panic("Type not supported")
             TypeConstructor(tycon):

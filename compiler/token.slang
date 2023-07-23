@@ -3,13 +3,6 @@ from location import Location
 from std import int_to_str
 import std
 
-fn new_token(kind: TokenKind, location: Location) -> Token:
-    let tok = Token:
-        kind: kind
-        location: location
-
-    return tok
-
 struct Token:
     location: Location
     kind: TokenKind

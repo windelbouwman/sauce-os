@@ -11,7 +11,7 @@ from lark.lexer import Lexer as LarkLexer, Token as LarkToken
 from lark.exceptions import UnexpectedInput, VisitError
 
 from . import ast
-from .lexer import detect_indentations, tokenize, Location
+from .lexer import detect_indentations, tokenize, Location, Position
 from .errors import ParseError, CompilationError
 
 logger = logging.getLogger("parser")
@@ -83,7 +83,9 @@ def process_fstrings(literal: str, location: Location) -> ast.Expression:
     exprs = []
     col = 1
     for part in parts:
-        part_loc = Location(location.row, location.column + col + 1)
+        p1 = Position(location.begin.row, location.begin.column + col + 1)
+        p2 = Position(location.begin.row, location.begin.column + col + 2)
+        part_loc = Location(p1, p2)
         if part.startswith(r"{") and part.endswith("}"):
             value = parse_expr(part[1:-1], part_loc)
             expr = value.to_string()
@@ -132,12 +134,20 @@ class CustomLarkLexer(LarkLexer):
             # print('token', token)
             ty2 = type_map.get(token.ty, token.ty)
             yield LarkToken(
-                ty2, token.value, line=token.location.row, column=token.location.column
+                ty2,
+                token.value,
+                line=token.location.begin.row,
+                column=token.location.begin.column,
+                end_line=token.location.end.row,
+                end_column=token.location.end.column,
             )
 
 
-def get_loc(tok: LarkToken):
-    return Location(tok.line, tok.column)
+def get_loc(tok: LarkToken) -> Location:
+    """Get Location from lark token."""
+    return Location(
+        Position(tok.line, tok.column), Position(tok.end_line, tok.end_column)
+    )
 
 
 class CustomTransformer(LarkTransformer):
@@ -177,10 +187,15 @@ class CustomTransformer(LarkTransformer):
         return ast.class_def(name, type_parameters, members, location)
 
     def var_def(self, x):
-        # var_def: KW_VAR ID COLON typ EQUALS expression NEWLINE
+        # var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
+        location = get_loc(x[0])
         name = x[1].value
-        ty, value = x[3], x[5]
-        return ast.var_def(name, ty, value, get_loc(x[0]))
+        ty = x[3]
+        if isinstance(x[4], LarkToken) and x[4].type == "EQUALS":
+            value = x[5]
+        else:
+            value = None
+        return ast.var_def(name, ty, value, location)
 
     def func_def(self, x):
         # KW_FN id_and_type_parameters function_signature block
@@ -577,9 +592,9 @@ class CustomTransformer(LarkTransformer):
         return ast.array_literal(x[1], get_loc(x[0]))
 
     def obj_init(self, x):
-        "obj_init: ID COLON NEWLINE INDENT field_init+ DEDENT"
+        "obj_init: expr COLON NEWLINE INDENT field_init+ DEDENT"
         ty, fields = x[0], x[4:-1]
-        return ast.new_op(ty, fields, get_loc(x[1]))
+        return ast.function_call(ty, fields, get_loc(x[1]))
 
     def field_init(self, x):
         return x[0]
@@ -621,7 +636,7 @@ definition: func_def
           | type_def
 
 class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
-var_def: KW_VAR ID COLON typ EQUALS expression NEWLINE
+var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
 func_def: KW_FN id_and_type_parameters function_signature block
 function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? (KW_EXCEPT typ)?
 parameters: parameter
@@ -721,7 +736,7 @@ literal: STRING | NUMBER | FNUMBER | BOOL
 array_literal: LEFT_BRACKET tests RIGHT_BRACKET
 obj_ref: ID
 
-obj_init: typ COLON NEWLINE INDENT field_init+ DEDENT
+obj_init: expression COLON NEWLINE INDENT field_init+ DEDENT
 field_init: labeled_expression NEWLINE
 labeled_expression: test
                   | ID COLON test

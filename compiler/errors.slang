@@ -12,9 +12,7 @@ struct SingleCompilationError:
     message: str
 
 fn new_error(location: Location, message: str) -> CompilationError:
-    let error = SingleCompilationError:
-        location: location
-        message: message
+    let error = SingleCompilationError(location, message)
     return CompilationError.Single(error)
 
 fn new_errors(errors: List[CompilationError]) -> CompilationError:

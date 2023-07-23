@@ -3,8 +3,8 @@
 import std
 from utils import panic
 from std import print, ord, str_slice, str_len
-from token import Token, TokenKind, new_token, token_to_string
-from location import Location, new_location
+from token import Token, TokenKind, token_to_string
+from location import Location
 from datatypes import List, Option, Integer, new_integer
 
 
@@ -26,14 +26,14 @@ class Lexer:
         this.at_end = false
         this.at_bol = true
         this.row = 1
-        this.indent_stack.append(new_integer(value: 0))
+        this.indent_stack.append(new_integer(0))
 
     fn next_token() -> Token:
         while this.pending.is_empty() and not this.at_end:
             this.work_some()
         
         if this.pending.is_empty():
-            return new_token(kind: TokenKind.Eof(), location: new_location(row: this.row, column: 1))
+            return Token(kind: TokenKind.Eof(), location: Location(row: this.row, column: 1))
         else:
             return this.pending.pop_front()
     
@@ -48,12 +48,12 @@ class Lexer:
                 this.at_end = true
 
                 if not this.at_bol:
-                    this.emit_token(kind: TokenKind.NewLine(), location: new_location(row: this.row, column: 1))
+                    this.emit_token(kind: TokenKind.NewLine(), location: Location(row: this.row, column: 1))
 
                 # Dedent to top level!
                 while this.indent_stack.len() > 1:
                     let tmp = this.indent_stack.pop_front()
-                    this.emit_token(kind: TokenKind.Dedent(), location: new_location(row: this.row, column: 1))
+                    this.emit_token(kind: TokenKind.Dedent(), location: Location(row: this.row, column: 1))
 
             Space(x):
                 if this.at_bol:
@@ -68,7 +68,7 @@ class Lexer:
                 this.at_bol = false
                 if this.spaces > this.indent_stack.last().value:
                     # 1x indent!
-                    this.indent_stack.append(new_integer(value: this.spaces))
+                    this.indent_stack.append(new_integer(this.spaces))
 
                     this.emit_token(kind: TokenKind.Indent(), location: tok.location)
                 else:
@@ -93,7 +93,7 @@ class Lexer:
         this.pending.append(tok)
     
     fn emit_token(kind: TokenKind, location: Location):
-        this.emit(tok: new_token(kind, location))
+        this.emit(tok: Token(kind, location))
 
     fn next_token2() -> Token:
         let n = std.str_len(this.source)
@@ -102,7 +102,7 @@ class Lexer:
             this.tok_begin = this.offset
             let kind = TokenKind.Error()
             let column = this.tok_begin - this.col_start + 1
-            let location = new_location(row: this.row, column)
+            let location = Location(row: this.row, column)
 
             # Get char:
             let c = std.str_get(value: this.source, index: this.offset)
@@ -203,9 +203,9 @@ class Lexer:
                 if this.match(txt: "="):
                     kind = TokenKind.NotEquals()
 
-            return new_token(kind, location)
+            return Token(kind, location)
         else:
-            return new_token(kind: TokenKind.Eof(), location: new_location(row: this.row, column: 1))
+            return Token(kind: TokenKind.Eof(), location: Location(row: this.row, column: 1))
     
     fn peek() -> str:
         let n = std.str_len(this.source)

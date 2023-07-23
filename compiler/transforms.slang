@@ -39,9 +39,7 @@ fn transformer_on_statement(transformer: Transformer, statement: ast.Statement, 
             case statement.kind:
                 Loop(loop_statement):
                     let condition = ast.bool_literal(value: true, location: statement.location)
-                    let while_statement = ast.WhileStatement:
-                        condition: condition
-                        body: loop_statement.body
+                    let while_statement = ast.WhileStatement(condition, body: loop_statement.body)
                     statement.kind = ast.StatementKind.While(while_statement)
                 Case(case_statement):
                     statement.kind = transform_case(case_statement).kind

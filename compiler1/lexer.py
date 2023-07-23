@@ -3,7 +3,7 @@
 
 from typing import Iterable
 from .errors import ParseError
-from .location import Location
+from .location import Location, Position
 import logging
 import re
 
@@ -51,7 +51,7 @@ def detect_indentations(tokens: Iterable[Token]):
                 level_stack.append(new_indentation)
             yield token
 
-    end_loc = Location(0xFFFFFFFF, 1)
+    end_loc = Location.default()
     if not bol:
         yield Token("NEWLINE", "NEWLINE", end_loc)
 
@@ -108,8 +108,8 @@ def tokenize(code: str | tuple[Location, str]):
 
     regex = "|".join(f"(?P<{name}>{pattern})" for name, pattern in token_spec)
     if isinstance(code, tuple):
-        start_row, start_col = code[0].row, code[0].column
-        code = code[1]
+        start_location, code = code
+        start_row, start_col = start_location.begin.row, start_location.begin.column
     else:
         assert isinstance(code, str)
         start_row = start_col = 1
@@ -121,7 +121,8 @@ def tokenize(code: str | tuple[Location, str]):
         kind: str = mo.lastgroup
         value = mo.group()
         col = mo.start() - col_start + start_col
-        loc = Location(row, col)
+        col2 = mo.end() - col_start + start_col
+        loc = Location(Position(row, col), Position(row, col2))
         if kind == "OP" or kind == "OP2":
             tok = Token(value, value, loc)
         elif kind == "ID":

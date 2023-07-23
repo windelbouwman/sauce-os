@@ -374,6 +374,7 @@ class ClassRewriter(BaseTransformer):
 
         # Create a struct instead of a class:
         init_values = []
+        ctor_parameters = []
         methods = []
         type_args = []
         builder = ast.StructBuilder(class_def.name, False, class_def.location)
@@ -386,8 +387,19 @@ class ClassRewriter(BaseTransformer):
         m = dict(zip(class_def.type_parameters, type_args))
         for member in class_def.members:
             if isinstance(member, ast.VarDef):
-                builder.add_field(member.name, ast.subst(member.ty, m), member.location)
-                init_values.append(member.value)
+                ty = ast.subst(member.ty, m)
+                builder.add_field(member.name, ty, member.location)
+                if member.value:
+                    init_values.append(member.value)
+                else:
+                    # Create ctor parameter
+                    ctor_parameter = ast.Parameter(
+                        member.name, True, ty, class_def.location
+                    )
+                    ctor_parameters.append(ctor_parameter)
+                    init_values.append(
+                        ast.obj_ref(ctor_parameter, ty, class_def.location)
+                    )
             elif isinstance(member, ast.FunctionDef):
                 methods.append(member)
             else:
@@ -437,7 +449,7 @@ class ClassRewriter(BaseTransformer):
         ctor_func = ast.function_def(
             f"{class_def.name}_ctor",
             type_parameters,
-            [],
+            ctor_parameters,
             struct_type,
             except_type,
             ctor_code,
@@ -466,7 +478,7 @@ class ClassRewriter(BaseTransformer):
             tycon = expression.ty.kind.tycon
             ctor_func = self._struct_defs[id(tycon)][1]
             ctor_call = ast.obj_ref(ctor_func, ast.void_type, expression.location).call(
-                []
+                kind.arguments
             )
             expression.kind = ctor_call.kind
         elif isinstance(kind, ast.FunctionCall):

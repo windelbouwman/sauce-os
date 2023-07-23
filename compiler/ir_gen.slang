@@ -156,8 +156,6 @@ class Generator:
                 panic("Names must be resolved: {name}")
             Undefined:
                 panic("Undefined value!")
-            ObjInit(ty,fields):
-                panic("obj init must be rewritten")
             StructLiteral(ty,values):
                 for value in values:
                     this.gen_expression(value)

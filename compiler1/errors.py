@@ -9,19 +9,21 @@ def print_error(code: str, filename: str, location: Location, message: str):
     context_amount = 5
     was_printed = False
     for row_nr, text in enumerate(code.splitlines(), start=1):
-        if row_nr < location.row - context_amount:
+        if row_nr < location.begin.row - context_amount:
             continue
 
         print(f"[italic]{row_nr:5}[/italic]: {rich.markup.escape(text)}")
-        if row_nr == location.row:
-            indent = " " * (location.column + 6)
-            pointer = indent + "^"
+        if row_nr == location.begin.row:
+            indent = " " * (location.begin.column + 6)
+            lexeme_length = max(location.end.column - location.begin.column, 1)
+            pointer = indent + "^" * lexeme_length
+            indent += " " * (lexeme_length // 2)
             print(pointer)
             print(indent + "|")
             print(indent + f"+----< [bold]{message}[/bold]")
             was_printed = True
 
-        if row_nr > location.row + context_amount:
+        if row_nr > location.begin.row + context_amount:
             break
 
     if not was_printed:

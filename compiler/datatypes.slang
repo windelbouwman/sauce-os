@@ -37,17 +37,13 @@ struct Integer:
     value: int
 
 fn new_integer(value?: int) -> Integer:
-    let i = Integer:
-        value: value
-    return i
+    return Integer(value)
 
 struct String:
     value: str
 
 fn new_string(value?: str) -> String:
-    let i = String:
-        value: value
-    return i
+    return String(value)
 
 fn split_string(value: String, sep: str) -> List[String]:
     let size = str_len(value.value)
@@ -280,9 +276,7 @@ class Dictionary[T]:
             if item.key == key:
                 item.value = value
                 return
-        let new_item = DictionaryItem[T]:
-            key: key
-            value: value
+        let new_item = DictionaryItem[T](key, value)
         this.items.append(new_item)
     
     fn pop(key: str) -> Option[T]:

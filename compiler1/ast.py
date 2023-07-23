@@ -4,6 +4,7 @@ import logging
 import rich
 import rich.tree
 import rich.markup
+from typing import Optional
 from lark.load_grammar import Definition
 from .location import Location
 
@@ -14,7 +15,6 @@ class Node:
     def __init__(self, location: Location):
         self.location = location
         assert isinstance(location, Location)
-        assert hasattr(location, "row")
 
 
 class Definition(Node):
@@ -509,10 +509,10 @@ class Expression(Node):
         ty = self.ty.kind.element_type
         return array_index(self, [value], ty, self.location)
 
-    def call(self, arguments: list["Expression"]) -> "Expression":
+    def call(self, arguments: list["LabeledExpression"]) -> "Expression":
         return function_call(self, arguments, self.location)
 
-    def call_method(self, field: str, args: list["Expression"]) -> "Expression":
+    def call_method(self, field: str, args: list["LabeledExpression"]) -> "Expression":
         return self.get_attr(field).call(args)
 
     def to_string(self) -> "Expression":
@@ -523,7 +523,7 @@ class Module(Node):
     def __init__(
         self, name: str, imports: list["BaseImport"], definitions: list["Definition"]
     ):
-        super().__init__(Location(1, 1))
+        super().__init__(Location.default())
         assert isinstance(name, str)
         self.name = name
         self.filename = ""
@@ -657,13 +657,16 @@ class ClassDef(TypeConstructor):
         return self is other
 
 
-def var_def(name: str, ty: MyType, value: Expression, location: Location):
-    assert isinstance(value, Expression)
+def var_def(name: str, ty: MyType, value: Optional[Expression], location: Location):
+    if value:
+        assert isinstance(value, Expression)
     return VarDef(name, ty, value, location)
 
 
 class VarDef(Definition):
-    def __init__(self, name: str, ty: MyType, value: Expression, location: Location):
+    def __init__(
+        self, name: str, ty: MyType, value: Optional[Expression], location: Location
+    ):
         super().__init__(name, location)
         self.ty = ty
         self.value = value
@@ -1154,22 +1157,6 @@ class ExpressionKind:
     pass
 
 
-def new_op(ty: MyType, fields: list["LabeledExpression"], location: Location):
-    kind = NewOp(ty, fields)
-    ty = void_type
-    return Expression(kind, ty, location)
-
-
-class NewOp(ExpressionKind):
-    def __init__(self, ty: MyType, fields: list["LabeledExpression"]):
-        super().__init__()
-        self.new_ty = ty
-        self.fields = fields
-
-    def __repr__(self):
-        return f"NewOP"
-
-
 class LabeledExpression(Node):
     def __init__(self, name: str, value: Expression, location: Location):
         super().__init__(location)
@@ -1381,8 +1368,9 @@ class TypeLiteral(ExpressionKind):
 
 
 class ClassLiteral(ExpressionKind):
-    def __init__(self, class_ty: MyType):
+    def __init__(self, class_ty: MyType, arguments: list["LabeledExpression"]):
         self.class_ty = class_ty
+        self.arguments = arguments
 
     def __repr__(self):
         return f"class-constructor({self.class_ty})"
@@ -1501,7 +1489,7 @@ class Variable(Definition):
 
 class BuiltinFunction(Definition):
     def __init__(self, name: str, parameter_types: list[MyType], return_type: MyType):
-        super().__init__(name, Location(1, 1))
+        super().__init__(name, Location.default())
         parameter_names = [None] * len(parameter_types)
         self.ty = function_type(
             parameter_names, parameter_types, return_type, void_type
@@ -1540,7 +1528,8 @@ class AstVisitor:
                 self.visit_definition(member)
         elif isinstance(definition, VarDef):
             self.visit_type(definition.ty)
-            self.visit_expression(definition.value)
+            if definition.value:
+                self.visit_expression(definition.value)
         elif isinstance(definition, TypeDef):
             self.visit_type(definition.ty)
 
@@ -1651,10 +1640,8 @@ class AstVisitor:
                 self.visit_expression(value)
         elif isinstance(kind, ClassLiteral):
             self.visit_type(kind.class_ty)
-        elif isinstance(kind, NewOp):
-            self.visit_type(kind.new_ty)
-            for field in kind.fields:
-                self.visit_expression(field.value)
+            for arg in kind.arguments:
+                self.visit_expression(arg.value)
         elif isinstance(kind, ArrayIndex):
             self.visit_expression(kind.base)
             for index in kind.indici:

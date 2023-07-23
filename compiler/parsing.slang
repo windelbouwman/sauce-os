@@ -3,7 +3,7 @@ import ast
 import std
 from lexer import Lexer
 from token import token_to_string, Token
-from location import Location, new_location
+from location import Location
 from datatypes import List, Result, Option, String, split_string
 from utils import panic, log_debug, log_trace
 from errors import CompilationError
@@ -174,7 +174,7 @@ class Parser:
             this.parse_colon()
             let ty = this.parse_type()
             this.parse_newline()
-            fields.append(ast.new_struct_field(name: name_at.name, ty, location: name_at.location))
+            fields.append(ast.StructField(name: name_at.name, ty, location: name_at.location))
 
         return ast.struct_def(name, id: this.new_id(), type_parameters, fields, location)
 
@@ -203,7 +203,7 @@ class Parser:
 
         let this_var = ast.variable(name: "this", ty: ast.undefined_type())
         let class_def = ast.ClassDef:
-            node_id: ast.new_node_id(name: name_at.name, id: this.new_id())
+            node_id: ast.NodeId(name: name_at.name, id: this.new_id())
             location: name_at.location
             type_parameters
             this_var: this_var
@@ -287,10 +287,7 @@ class Parser:
         let var_init = this.parse_expression()
         this.parse_newline()
         let variable = ast.variable(name, ty)
-        let var_def = ast.VarDef:
-            location: location
-            variable: variable
-            value: var_init
+        let var_def = ast.VarDef(location, variable, value: var_init)
         return var_def
 
     fn parse_type() -> ast.MyType except CompilationError:
@@ -341,7 +338,7 @@ class Parser:
     fn parse_block() -> ast.Statement except CompilationError:
         # parse block of statements.
         log_trace("parsing block")
-        let location = new_location(row: 1, column: 1)
+        let location = Location(row: 1, column: 1)
 
         this.parse_colon()
         this.parse_newline()
@@ -442,14 +439,13 @@ class Parser:
             NewLine:
                 pass
             Colon:
-                let obj_ty = ast.new_type(kind: ast.TypeKind.TypeExpression(value))
-                value = this.parse_obj_init(obj_ty, location: tok2.location)
+                value = this.parse_obj_init(obj_ty: value, location: tok2.location)
         else:
             raise new_error(tok: tok2, message: "Expected newline or ':'")
         
         return ast.let_statement(variable, type_hint, value, location)
     
-    fn parse_obj_init(obj_ty: ast.MyType, location: Location) -> ast.Expression except CompilationError:
+    fn parse_obj_init(obj_ty: ast.Expression, location: Location) -> ast.Expression except CompilationError:
         # Obj initializer!
         this.parse_newline()
         this.parse_indent()
@@ -457,9 +453,8 @@ class Parser:
         let obj_fields: List[ast.LabeledExpression] = List()
         while not this.try_parse_dedent():
             obj_fields.append(this.parse_labeled_expression())
-
             this.parse_newline()
-        return ast.expression(kind: ast.ExpressionKind.ObjInit(obj_ty, obj_fields), ty: ast.undefined_type(), location)
+        return ast.call(callee: obj_ty, arguments: obj_fields, ty: ast.undefined_type(), location)
     
     fn parse_labeled_expression() -> ast.LabeledExpression except CompilationError:
         # Parse ID ':' expression | expression
@@ -471,11 +466,7 @@ class Parser:
                     Colon:
                         # Parse ID ':' expression
                         let value = this.parse_expression()
-                        let labeled_expression = ast.LabeledExpression:
-                            location: tok.location
-                            name: Option.Some(name)
-                            value
-                        return labeled_expression
+                        return ast.LabeledExpression(location: tok.location, name: Option.Some(name), value)
                 else:
                     this.unget_token(tok2)
                     this.unget_token(tok)
@@ -490,11 +481,7 @@ class Parser:
                 name = Option.Some(name2)
         else:
             pass
-        let labeled_expression = ast.LabeledExpression:
-            location: value.location
-            name
-            value
-        return labeled_expression
+        return ast.LabeledExpression(location: value.location, name, value)
 
     fn parse_if_statement(location: Location) -> ast.Statement except CompilationError:
         # Parse if-statement (if or elif keyword already parsed)
@@ -576,11 +563,8 @@ class Parser:
         else:
             this.unget_token(tok2)
         
-        let c = ast.CaseStatement:
-            value: case_value
-            arms: case_arms
-            else_clause: else_clause
-        return ast.statement(kind: ast.StatementKind.Case(c), location)
+        let c = ast.CaseStatement(value: case_value, arms: case_arms, else_clause)
+        return ast.Statement(kind: ast.StatementKind.Case(c), location)
     
     fn parse_case_arm(name: str, location: Location) -> ast.CaseArm except CompilationError:
         let variables: List[ast.Variable] = List()
@@ -606,8 +590,8 @@ class Parser:
         # Arm body:
         let statement = this.parse_block()
         let arm = ast.CaseArm:
-            location: location
-            name: name
+            location
+            name
             variables: variables
             scope: ast.Scope()
             body: statement
@@ -782,10 +766,7 @@ class Parser:
         let tok = this.get_token()
         case tok.kind:
             Identifier(name):
-                let name_at = NameAtLocation:
-                    name: name
-                    location: tok.location
-                return name_at
+                return NameAtLocation(name, location: tok.location)
         else:
             raise new_error(tok, message: "Expected name")
 

@@ -55,12 +55,7 @@ class TypeEvaluation(BasePass):
 
         if isinstance(kind, ast.DotOperator):
             # Resolve obj_ref . field at this point, we can do this here.
-            if isinstance(kind.base.kind, ast.TypeLiteral):
-                ty = kind.base.kind.ty
-            elif isinstance(kind.base.kind, ast.GenericLiteral):
-                ty = kind.base.kind.tycon.apply2()
-            else:
-                ty = None
+            ty = try_as_type(kind.base)
 
             if ty and ty.is_enum():
                 if ty.has_variant(kind.field):
@@ -77,10 +72,11 @@ class TypeEvaluation(BasePass):
                 expression.kind = ast.EnumLiteral(
                     kind.target.kind.enum_ty, kind.target.kind.variant, values
                 )
-            elif isinstance(kind.target.kind, ast.GenericLiteral):
-                ty = kind.target.kind.tycon.apply2()
-                if ty.is_class():
-                    expression.kind = ast.ClassLiteral(ty)
+            else:
+                ty = try_as_type(kind.target)
+                if ty:
+                    if ty.is_class():
+                        expression.kind = ast.ClassLiteral(ty, kind.args)
 
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
@@ -106,37 +102,51 @@ class NewOpPass(BasePass):
 
     def visit_expression(self, expression: ast.Expression):
         super().visit_expression(expression)
-        kind = expression.kind
 
-        if isinstance(kind, ast.NewOp):
+        if isinstance(expression.kind, ast.FunctionCall):
             # Fixup new-op operation
 
-            named_values = {}
-            for label_value in kind.fields:
-                if label_value.name in named_values:
-                    self.error(
-                        label_value.location, f"Duplicate field: {label_value.name}"
-                    )
+            #  = kind.new_ty
+            ty = try_as_type(expression.kind.target)
+
+            if ty:
+                if ty.is_struct():
+                    expression.ty = ty
+                    named_values = {}
+                    for label_value in expression.kind.args:
+                        if label_value.name in named_values:
+                            self.error(
+                                label_value.location,
+                                f"Duplicate field: {label_value.name}",
+                            )
+                        else:
+                            named_values[label_value.name] = label_value
+
+                    values = []
+                    for name in ty.get_field_names():
+                        if name in named_values:
+                            values.append(named_values.pop(name).value)
+                        else:
+                            self.error(expression.location, f"Missing field '{name}'")
+
+                    for left in named_values.values():
+                        self.error(left.location, f"Superfluous field: {left.name}")
+                    expression.kind = ast.StructLiteral(ty, values)
+                    expression.ty = ty
+
                 else:
-                    named_values[label_value.name] = label_value
+                    self.error(
+                        expression.location,
+                        f"Can only contrap struct type, not {ty}",
+                    )
 
-            expression.ty = kind.new_ty
-            ty = expand(kind.new_ty)
-            if ty.is_struct():
-                values = []
-                for name in ty.get_field_names():
-                    if name in named_values:
-                        values.append(named_values.pop(name).value)
-                    else:
-                        self.error(expression.location, f"Missing field '{name}'")
 
-                for left in named_values.values():
-                    self.error(left.location, f"Superfluous field: {left.name}")
-                expression.kind = ast.StructLiteral(ty, values)
-                expression.ty = ty
-
-            else:
-                self.error(
-                    expression.location,
-                    f"Can only contrap struct type, not {kind.new_ty}",
-                )
+def try_as_type(expression: ast.Expression):
+    if isinstance(expression.kind, ast.TypeLiteral):
+        ty = expression.kind.ty
+    elif isinstance(expression.kind, ast.GenericLiteral):
+        # TODO: check if we can omit type arguments.
+        ty = expression.kind.tycon.apply2()
+    else:
+        ty = None
+    return ty

@@ -1,25 +1,23 @@
 
-import std
+from std import print
 
 class Bar:
     var val1: int = 2
     var val2: float = 3.14
-    var val3: str = "bla"
+    var val3: str
 
-    fn info():
-        std.print("Bar instance: " + this.val3)
-        # std.print(self.val3 )
+    fn info(x: int):
+        print("Bar instance {x + this.val1}")
+        this.info2()
 
-    fn info2(x: int):
-        std.print("Bar instance {x + this.val1}")
+    fn info2():
+        print("Bar instance: " + this.val3)
 
 
 fn main() -> int:
-    let bar = Bar()
-    bar.val3 = "Woei!"
-    bar.info()
+    let bar = Bar(val3: "Woei!")
+    bar.info(x: 2)
 
-    let baz = Bar()
-    baz.val3 = "Hello world"
-    baz.info()
+    let baz = Bar(val3: "Hello world")
+    baz.info(x: 3)
     return 0

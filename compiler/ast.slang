@@ -1,19 +1,13 @@
 
 from std import print
 from utils import panic, assert
-from location import Location, new_location
+from location import Location
 from datatypes import List, Option, Dictionary, option_unwrap, option_is_some
 
 # Name coupled with global unique ID:
 struct NodeId:
     name: str
     id: int
-
-fn new_node_id(name: str, id: int) -> NodeId:
-    let n = NodeId:
-        name: name
-        id: id
-    return n
 
 fn node_id_equal(node_id1: NodeId, node_id2: NodeId) -> bool:
     if node_id1.id == node_id2.id:
@@ -551,10 +545,7 @@ struct VarDef:
     value: Expression
     
 fn new_type_parameter(name: str, id: int, location: Location) -> TypeParameter:
-    let tp = TypeParameter:
-        node_id: new_node_id(name, id)
-        location: location
-    return tp
+    return TypeParameter(node_id: NodeId(name, id), location)
 
 struct TypeParameter:
     node_id: NodeId
@@ -562,7 +553,7 @@ struct TypeParameter:
 
 fn struct_def(name: str, id: int, type_parameters: List[TypeParameter], fields: List[StructField], location: Location) -> StructDef:
     let s = StructDef:
-        node_id: new_node_id(name, id)
+        node_id: NodeId(name, id)
         type_parameters: type_parameters
         fields: fields
         location: location
@@ -577,8 +568,8 @@ struct StructDef:
     scope: Scope
 
 class StructBuilder:
-    var nodeId: NodeId = new_node_id(name: "", id: 0)
-    var location: Location = new_location(row: 1, column: 1)
+    var nodeId: NodeId = NodeId(name: "", id: 0)
+    var location: Location = Location(row: 1, column: 1)
     var type_parameters: List[TypeParameter] = List()
     var fields: List[StructField] = List()
 
@@ -588,7 +579,7 @@ class StructBuilder:
         return type_parameter_ref(type_parameter)
 
     fn add_field(name: str, ty: MyType, location: Location):
-        this.fields.append(new_struct_field(name, ty, location))
+        this.fields.append(StructField(name, ty, location))
 
     fn finish() -> StructDef:
         let s = StructDef:
@@ -598,13 +589,6 @@ class StructBuilder:
             location: this.location
             scope: Scope()
         return s
-
-fn new_struct_field(name: str, ty: MyType, location: Location) -> StructField:
-    let f = StructField:
-        name: name
-        ty: ty
-        location: location
-    return f
 
 struct StructField:
     name: str
@@ -691,20 +675,11 @@ struct ParameterDef:
     location: Location
 
 fn variable(name: str, ty: MyType) -> Variable:
-    let v = Variable:
-        name: name
-        ty: ty
-    return v
+    return Variable(name, ty)
 
 struct Variable:
     name: str
     ty: MyType
-
-fn statement(kind: StatementKind, location: Location) -> Statement:
-    let statement = Statement:
-        kind: kind
-        location: location
-    return statement
 
 struct Statement:
     location: Location
@@ -735,7 +710,7 @@ fn if_statement(condition: Expression, body: Statement, false_body: Statement, l
         false_body: false_body
 
     let kind = StatementKind.If(if_statement: i)
-    return statement(kind, location)
+    return Statement(kind, location)
 
 struct IfStatement:
     condition: Expression
@@ -752,14 +727,11 @@ fn while_statement(condition: Expression, body: Statement, location: Location) -
         body: body
 
     let kind = StatementKind.While(while_statement)
-    return statement(kind, location)
+    return Statement(kind, location)
 
 fn loop_statement(body: Statement, location: Location) -> Statement:
-    let i = LoopStatement:
-        body: body
-
-    let kind = StatementKind.Loop(loop_statement: i)
-    return statement(kind, location)
+    let kind = StatementKind.Loop(loop_statement: LoopStatement(body))
+    return Statement(kind, location)
 
 struct LoopStatement:
     body: Statement
@@ -770,7 +742,7 @@ fn for_statement(iter_var: str, iter_value: Expression, body: Statement, locatio
         iter_var: v
         iter_value: iter_value
         body: body
-    return statement(kind: StatementKind.For(for_statement), location)
+    return Statement(kind: StatementKind.For(for_statement), location)
 
 struct ForStatement:
     iter_var: Variable
@@ -782,7 +754,7 @@ fn try_statement(try_body: Statement, except_param: ParameterDef, except_body: S
         try_body: try_body
         except_param: except_param
         except_body: except_body
-    return statement(kind: StatementKind.Try(try_statement), location)
+    return Statement(kind: StatementKind.Try(try_statement), location)
 
 struct TryStatement:
     try_body: Statement
@@ -806,7 +778,7 @@ fn switch_statement(value: Expression, arms: List[SwitchArm], default_body: Stat
         value: value
         arms: arms
         default_body: default_body
-    return statement(kind: StatementKind.Switch(switch_statement), location)
+    return Statement(kind: StatementKind.Switch(switch_statement), location)
 
 struct SwitchStatement:
     value: Expression
@@ -824,7 +796,7 @@ fn let_statement(variable: Variable, type_hint: Option[MyType], value: Expressio
         type_hint: type_hint
         value: value
     let kind = StatementKind.Let(let_statement)
-    return statement(kind, location)
+    return Statement(kind, location)
 
 struct LetStatement:
     variable: Variable
@@ -836,42 +808,35 @@ fn compound(inner: List[Statement], location: Location) -> Statement:
         return inner.get(index: 0)
     else:
         let kind = StatementKind.Compound(body: inner)
-        return statement(kind, location)
+        return Statement(kind, location)
 
 fn expression_statement(expr: Expression) -> Statement:
     let kind = StatementKind.Expr(expr)
-    return statement(kind, location: expr.location)
+    return Statement(kind, location: expr.location)
 
 fn assignment_statement(target: Expression, op: Option[BinaryOperator], value: Expression, location: Location) -> Statement:
     let kind = StatementKind.Assignment(target, op, value)
-    return statement(kind, location)
+    return Statement(kind, location)
 
 fn return_statement(value: Option[Expression], location: Location) -> Statement:
-    return statement(kind: StatementKind.Return(value), location)
+    return Statement(kind: StatementKind.Return(value), location)
 
 fn raise_statement(value: Expression, location: Location) -> Statement:
-    return statement(kind: StatementKind.Raise(value), location)
+    return Statement(kind: StatementKind.Raise(value), location)
 
 fn pass_statement(location: Location) -> Statement:
-    return statement(kind: StatementKind.Pass(), location)
+    return Statement(kind: StatementKind.Pass(), location)
 
 fn break_statement(location: Location) -> Statement:
-    return statement(kind: StatementKind.Break(), location)
+    return Statement(kind: StatementKind.Break(), location)
 
 fn continue_statement(location: Location) -> Statement:
-    return statement(kind: StatementKind.Continue(), location)
+    return Statement(kind: StatementKind.Continue(), location)
 
 struct Expression:
     location: Location
     ty: MyType
     kind: ExpressionKind
-
-fn expression(kind: ExpressionKind, ty: MyType, location: Location) -> Expression:
-    let expression = Expression:
-        kind: kind
-        ty: ty
-        location: location
-    return expression
 
 enum ExpressionKind:
     Call(call: FunctionCall)
@@ -888,7 +853,6 @@ enum ExpressionKind:
     BoolLiteral(value: bool)
     StructLiteral(ty: MyType, values: List[Expression])
     ClassLiteral(typ: MyType)
-    ObjInit(ty: MyType, field_inits: List[LabeledExpression])
     Type(ty: MyType)
     TypeConstructor(tycon: TyCon)
     Variant(ty: MyType, variant: EnumVariant)
@@ -901,21 +865,21 @@ struct LabeledExpression:
     value: Expression
 
 fn struct_literal(ty: MyType, values: List[Expression], location: Location) -> Expression:
-    return expression(kind: ExpressionKind.StructLiteral(ty, values), ty, location)
+    return Expression(kind: ExpressionKind.StructLiteral(ty, values), ty, location)
 
 fn load_symbol(symbol: Symbol, ty: MyType, location: Location) -> Expression:
-    return expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
+    return Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
 
 fn call(callee: Expression, arguments: List[LabeledExpression], ty: MyType, location: Location) -> Expression:
     let c = FunctionCall:
         callee: callee
         arguments: arguments
     let kind = ExpressionKind.Call(c)
-    return expression(kind, ty, location)
+    return Expression(kind, ty, location)
 
 fn get_attr(base: Expression, field: str, ty: MyType, location: Location) -> Expression:
     let kind = ExpressionKind.GetAttr(base, field)
-    return expression(kind, ty, location)
+    return Expression(kind, ty, location)
 
 struct FunctionCall:
     callee: Expression
@@ -923,18 +887,18 @@ struct FunctionCall:
 
 fn subscript(base: Expression, indici: List[Expression], ty: MyType, location: Location) -> Expression:
     let kind = ExpressionKind.GetIndex(base, indici)
-    return expression(kind, ty, location)
+    return Expression(kind, ty, location)
 
 # Reference a variable:
 fn var_ref(variable: Variable, location: Location) -> Expression:
     let kind = ExpressionKind.VarRef(variable)
-    return expression(kind, ty: variable.ty, location)
+    return Expression(kind, ty: variable.ty, location)
 
 # Reference a symbol:
 fn name_ref(name: str, location: Location) -> Expression:
     let kind = ExpressionKind.NameRef(name)
     let ty = undefined_type()
-    return expression(kind, ty, location)
+    return Expression(kind, ty, location)
 
 struct BinopExpression:
     lhs: Expression
@@ -973,12 +937,9 @@ fn is_comparison_op(op: BinaryOperator) -> bool:
         return false
 
 fn binop(lhs: Expression, op: BinaryOperator, rhs: Expression, ty: MyType, location: Location) -> Expression:
-    let b = BinopExpression:
-        lhs: lhs
-        op: op
-        rhs: rhs
+    let b = BinopExpression(lhs, op, rhs)
     let kind = ExpressionKind.Binop(b)
-    return expression(kind, ty, location)
+    return Expression(kind, ty, location)
 
 enum UnaryOperator:
     Not
@@ -986,31 +947,31 @@ enum UnaryOperator:
 
 fn unop(op: UnaryOperator, value: Expression, ty: MyType, location: Location) -> Expression:
     let kind = ExpressionKind.Unop(op, value)
-    return expression(kind, ty, location)
+    return Expression(kind, ty, location)
 
 fn bool_literal(value: bool, location: Location) -> Expression:
     let kind = ExpressionKind.BoolLiteral(value)
     let ty = bool_type()
-    return expression(kind, ty, location)
+    return Expression(kind, ty, location)
 
 fn integer_literal(value: int, location: Location) -> Expression:
     let kind = ExpressionKind.IntLiteral(value)
     let ty = int_type()
-    return expression(kind, ty, location)
+    return Expression(kind, ty, location)
 
 fn float_literal(value: float, location: Location) -> Expression:
     let kind = ExpressionKind.FloatLiteral(value)
     let ty = float_type()
-    return expression(kind, ty, location)
+    return Expression(kind, ty, location)
 
 fn string_literal(value: str, location: Location) -> Expression:
     let kind = ExpressionKind.StringLiteral(value)
     let ty = str_type()
-    return expression(kind, ty, location)
+    return Expression(kind, ty, location)
 
 fn undefined_value() -> Expression:
-    let location = new_location(row: 1, column: 1)
-    return expression(kind: ExpressionKind.Undefined(), ty: undefined_type(), location)
+    let location = Location(row: 1, column: 1)
+    return Expression(kind: ExpressionKind.Undefined(), ty: undefined_type(), location)
 
 fn print_ast(module: Module):
     print("Module: " + module.name)
@@ -1175,8 +1136,6 @@ fn expression_to_string(expression: Expression) -> str:
             txt = "UNOP({op_txt})"
         VarRef(v):
             txt = "VAR-REF({v.name})"
-        ObjInit(ty, fields):
-            txt = "OBJ-INIT"
         StructLiteral(ty, values):
             txt = "STRUCT-LITERAL"
         ClassLiteral(ty):
@@ -1405,10 +1364,6 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
             visit_expression(visitor, expression: value)
         VarRef(v):
             pass
-        ObjInit(ty, fields):
-            visit_type(visitor, ty)
-            for field in fields:
-                visit_expression(visitor, expression: field.value)
         StructLiteral(ty, values):
             visit_type(visitor, ty)
             for value in values:
