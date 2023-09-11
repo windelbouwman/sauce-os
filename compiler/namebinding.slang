@@ -3,7 +3,7 @@ from utils import log_info, log_trace, panic
 from location import Location
 from datatypes import List, Option, Dictionary
 import ast
-from errors import CompilationError, new_error, new_errors
+from errors import CompilationError, new_error, new_errors, SingleCompilationError
 
 
 fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) except CompilationError:
@@ -24,7 +24,7 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) except Com
     ast.visit_module(visitor: fil_vis, module)
     filler.leave_scope()
     if not filler.errors.is_empty():
-        raise new_errors(errors: filler.errors)
+        raise new_errors(filename: module.filename, errors: filler.errors)
 
     log_info("Binding names for {module.name}")
     let binder = NameBinder()
@@ -42,7 +42,7 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) except Com
     binder.leave_scope()
 
     if not binder.errors.is_empty():
-        raise new_errors(errors: binder.errors)
+        raise new_errors(filename: module.filename, errors: binder.errors)
 
     return
 
@@ -84,45 +84,49 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
     case phase:
         Pre:
             case definition:
-                Function(func):
-                    filler.define(name: func.name, symbol: ast.Symbol.Function(func))
-                    filler.enter_scope(scope: func.scope)
-                    for type_parameter in func.type_parameters:
-                        filler.define(name: type_parameter.node_id.name, symbol: ast.Symbol.Type(ty: ast.type_parameter_ref(type_parameter)))
-                    for param_def in func.parameters:
-                        filler.define(name: param_def.name, symbol: ast.Symbol.Parameter(param_def))
+                Function(function_def):
+                    filler.define(name: function_def.id.name, symbol: ast.Symbol.Function(function_def))
+                    filler.enter_scope(scope: function_def.scope)
+                    for type_parameter in function_def.type_parameters:
+                        filler.define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)))
+                    for parameter_def in function_def.parameters:
+                        filler.define(name: parameter_def.id.name, symbol: ast.Symbol.Parameter(parameter_def))
+                    case function_def.this_parameter:
+                        Some(this_parameter2):
+                            filler.define(name: this_parameter2.id.name, symbol: ast.Symbol.Parameter(this_parameter2))
+                        None:
+                            pass
                 ExternFunction(efunc):
                     pass
-                Enum(e):
-                    filler.define(name: e.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(e)))
-                    filler.enter_scope(scope: e.scope)
-                    for type_parameter in e.type_parameters:
-                        filler.define(name: type_parameter.node_id.name, symbol: ast.Symbol.Type(ty: ast.type_parameter_ref(type_parameter)))
-                    for variant in e.variants:
+                Enum(enum_def):
+                    filler.define(name: enum_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)))
+                    filler.enter_scope(scope: enum_def.scope)
+                    for type_parameter in enum_def.type_parameters:
+                        filler.define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)))
+                    for variant in enum_def.variants:
                         filler.define(name: variant.name, symbol: ast.Symbol.Variant(variant))
-                Struct(s):
-                    filler.define(name: s.node_id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Struct(s)))
-                    filler.enter_scope(scope: s.scope)
-                    for type_parameter in s.type_parameters:
-                        filler.define(name: type_parameter.node_id.name, symbol: ast.Symbol.Type(ty: ast.type_parameter_ref(type_parameter)))
-                    for field in s.fields:
+                Struct(struct_def):
+                    filler.define(name: struct_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Struct(struct_def)))
+                    filler.enter_scope(scope: struct_def.scope)
+                    for type_parameter in struct_def.type_parameters:
+                        filler.define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)))
+                    for field in struct_def.fields:
                         filler.define(name: field.name, symbol: ast.Symbol.Field(field))
-                Class(c):
-                    filler.define(name: c.node_id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Class(c)))
-                    filler.enter_scope(scope: c.scope)
-                    for type_parameter in c.type_parameters:
-                        filler.define(name: type_parameter.node_id.name, symbol: ast.Symbol.Type(ty: ast.type_parameter_ref(type_parameter)))
-                    filler.define(name: c.this_var.name, symbol: ast.Symbol.Var(variable: c.this_var))
-                    for definition in c.definitions:
+                Class(class_def):
+                    filler.define(name: class_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Class(class_def)))
+                    filler.enter_scope(scope: class_def.scope)
+                    for type_parameter in class_def.type_parameters:
+                        filler.define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)))
+                    for definition in class_def.definitions:
                         case definition:
                             Var(v):
                                 pass
-                            Function(func):
-                                filler.define(name: func.name, symbol: ast.Symbol.Function(func))
+                            Function(function_def):
+                                filler.define(name: function_def.id.name, symbol: ast.Symbol.Function(function_def))
                         else:
                             panic("class can only contain var/func")
-                Var(v):
-                    filler.define(name: v.variable.name, symbol: ast.Symbol.Var(variable: v.variable))
+                Var(variable_def):
+                    filler.define(name: variable_def.variable.id.name, symbol: ast.Symbol.Var(variable: variable_def.variable))
         Post:
             case get_scope(definition):
                 None:
@@ -132,7 +136,7 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
     else:
         pass
 
-fn filler_on_type(filler: ScopeFiller, ty: ast.MyType, phase: ast.VisitPhase):
+fn filler_on_type(filler: ScopeFiller, ty: ast.Type, phase: ast.VisitPhase):
     pass
 
 fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast.VisitPhase):
@@ -140,12 +144,12 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast
         Pre:
             case statement.kind:
                 Let(letty):
-                    filler.define(name: letty.variable.name, symbol: ast.Symbol.Var(variable: letty.variable))
+                    filler.define(name: letty.variable.id.name, symbol: ast.Symbol.Var(variable: letty.variable))
                 For(for_statement):
-                    filler.define(name: for_statement.iter_var.name, symbol: ast.Symbol.Var(variable: for_statement.iter_var))
+                    filler.define(name: for_statement.iter_var.id.name, symbol: ast.Symbol.Var(variable: for_statement.iter_var))
                 Try(try_statement):
                     # TODO: create new scope for except clause?
-                    filler.define(name: try_statement.except_param.name, symbol: ast.Symbol.Parameter(parameter: try_statement.except_param))
+                    filler.define(name: try_statement.except_param.id.name, symbol: ast.Symbol.Parameter(parameter: try_statement.except_param))
             else:
                 pass
     else:
@@ -161,7 +165,7 @@ fn filler_on_node(filler: ScopeFiller, node: ast.VisitNode, phase: ast.VisitPhas
                 Arm(arm):
                     filler.enter_scope(scope: arm.scope)
                     for variable in arm.variables:
-                        filler.define(name: variable.name, symbol: ast.Symbol.Var(variable))
+                        filler.define(name: variable.id.name, symbol: ast.Symbol.Var(variable))
         Post:
             case node:
                 Arm(arm):
@@ -172,7 +176,7 @@ fn filler_on_node(filler: ScopeFiller, node: ast.VisitNode, phase: ast.VisitPhas
 
 class ScopeFiller:
     var scopes: List[ast.Scope] = List()
-    var errors: List[CompilationError] = List()
+    var errors: List[SingleCompilationError] = List()
 
     fn define(name: str, symbol: ast.Symbol):
         # log_trace("DEFINE {name}")
@@ -205,7 +209,7 @@ fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: a
     else:
         pass
 
-fn binder_on_type(binder: NameBinder, ty: ast.MyType, phase: ast.VisitPhase):
+fn binder_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
     pass
 
 
@@ -214,8 +218,8 @@ fn binder_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.
 
 fn symbol_to_kind(symbol: ast.Symbol) -> ast.ExpressionKind:
     case symbol:
-        Type(ty):
-            return ast.ExpressionKind.Type(ty)
+        Typ(ty):
+            return ast.ExpressionKind.Typ(ty)
         TypeConstructor(tycon):
             return ast.ExpressionKind.TypeConstructor(tycon)
         Var(v):
@@ -267,15 +271,15 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 
 fn base_scope() -> ast.Scope:
     let s = ast.Scope()
-    s.define(name: "int", symbol: ast.Symbol.Type(ty: ast.int_type()))
-    s.define(name: "str", symbol: ast.Symbol.Type(ty: ast.str_type()))
-    s.define(name: "bool", symbol: ast.Symbol.Type(ty: ast.bool_type()))
-    s.define(name: "float", symbol: ast.Symbol.Type(ty: ast.float_type()))
+    s.define(name: "int", symbol: ast.Symbol.Typ(ty: ast.int_type()))
+    s.define(name: "str", symbol: ast.Symbol.Typ(ty: ast.str_type()))
+    s.define(name: "bool", symbol: ast.Symbol.Typ(ty: ast.bool_type()))
+    s.define(name: "float", symbol: ast.Symbol.Typ(ty: ast.float_type()))
     return s
 
 class NameBinder:
     var scopes: List[ast.Scope] = List()
-    var errors: List[CompilationError] = List()
+    var errors: List[SingleCompilationError] = List()
 
     fn lookup(name: str) -> Option[ast.Symbol]:
         # print("Lookup: {name}")

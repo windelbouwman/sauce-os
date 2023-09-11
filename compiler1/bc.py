@@ -101,6 +101,8 @@ class OpCode(Enum):
     MUL = 42
     DIV = 43
 
+    NEG = 45
+
     LT = 50
     GT = 51
     LTE = 52

@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass
 import logging, io, tempfile, subprocess
-from typing import TextIO
+from typing import TextIO, Optional
 
 import networkx as nx
 
@@ -38,7 +38,9 @@ class CompilationOptions:
     backend: str = "vm"
 
 
-def do_compile(filenames: list[str], output: TextIO, options: CompilationOptions):
+def do_compile(
+    filenames: list[str], output: Optional[TextIO], options: CompilationOptions
+):
     """Compile a list of module."""
     if not filenames:
         logger.error("No existing source files provided")

@@ -24,9 +24,14 @@ def std_module() -> ast.Module:
     mod.add_definition(
         "read_file", ast.BuiltinFunction("std_read_file", [ast.str_type], ast.str_type)
     )
+
     mod.add_definition(
         "float_to_str",
         ast.BuiltinFunction("std_float_to_str", [ast.float_type], ast.str_type),
+    )
+    mod.add_definition(
+        "str_to_float",
+        ast.BuiltinFunction("std_str_to_float", [ast.str_type], ast.float_type),
     )
 
     mod.add_definition(
@@ -81,6 +86,7 @@ def get_builtins(stdout=None):
         "std_int_to_str": str,
         "std_str_to_int": int,
         "std_float_to_str": str,
+        "std_str_to_float": float,
         "std_str_len": len,
         "std_str_get": lambda s, i: s[i],
         "std_str_slice": lambda s, b, e: s[b:e],
@@ -100,6 +106,7 @@ std_print = print
 std_int_to_str = str
 std_str_to_int = int
 std_float_to_str = str
+std_str_to_float = float
 std_str_len = len
 std_ord = ord
 

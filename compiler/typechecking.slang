@@ -6,7 +6,7 @@ from std import print
 from datatypes import Option, List, option_unwrap
 from location import Location
 from utils import log_info, panic
-from errors import CompilationError, new_errors, new_error, display_error
+from errors import CompilationError, new_errors, new_error, display_error, SingleCompilationError
 
 fn type_check(module: ast.Module) except CompilationError:
     log_info("Checking module {module.name}")
@@ -22,15 +22,15 @@ fn type_check(module: ast.Module) except CompilationError:
 
     ast.visit_module(visitor, module)
     if not checker.errors.is_empty():
-        raise new_errors(errors: checker.errors)
+        raise new_errors(filename: module.filename, errors: checker.errors)
 
 fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase: ast.VisitPhase):
     pass
 
-fn checker_on_type(checker: TypeChecker, ty: ast.MyType, phase: ast.VisitPhase):
+fn checker_on_type(checker: TypeChecker, ty: ast.Type, phase: ast.VisitPhase):
     pass
 
-fn assign_types(variables: List[ast.Variable], types: List[ast.MyType]):
+fn assign_types(variables: List[ast.Variable], types: List[ast.Type]):
     # TODO: this double for loops requires its own scope .. (only in python backend)
     let pi = types.iter()
     for v in variables:
@@ -60,12 +60,12 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
                     if ast.has_field(ty: for_statement.iter_value.ty, attr: "iter"):
                         # TODO: we have a few assumptions here, which panic. Should be proper warning:
                         # print("FORRRRRR")
-                        let iter_ty: ast.MyType = ast.get_return_type(option_unwrap(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "iter")))
+                        let iter_ty: ast.Type = ast.get_return_type(option_unwrap(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "iter")))
                         # print("iter ty: {ast.type_to_string(iter_ty)}")
-                        let opt_ty: ast.MyType = ast.get_return_type(option_unwrap(ast.get_field_type(ty: iter_ty, attr: "next")))
+                        let opt_ty: ast.Type = ast.get_return_type(option_unwrap(ast.get_field_type(ty: iter_ty, attr: "next")))
                         # print("Opt ty: {ast.type_to_string(opt_ty)}")
                         let opt_variant = option_unwrap(ast.get_enum_variant(ty: opt_ty, attr: "Some"))
-                        let val_ty: ast.MyType = ast.get_variant_payload_types(ty: opt_ty, variant: opt_variant).first()
+                        let val_ty: ast.Type = ast.get_variant_payload_types(ty: opt_ty, variant: opt_variant).first()
                         # print("Val ty: {ast.type_to_string(val_ty)}")
                         for_statement.iter_var.ty = val_ty
                     else:
@@ -132,11 +132,17 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                     expression.ty = v.ty
                 TypeConstructor(tycon):
                     panic("checker: TODO: tycon")
-                Type(t):
+                TypeCast(ty, value):
+                    expression.ty = ty
+                Typ(t):
                     panic("TODO: type")
                 Binop(b):
                     # panic("TODO: binop")
                     let ty = b.lhs.ty
+                    # Heuristics ahead...
+                    if ast.is_int_type(b.lhs.ty) and ast.is_float_type(b.rhs.ty):
+                        ty = b.rhs.ty
+
                     checker.coerce(ty, value: b.lhs)
                     checker.coerce(ty, value: b.rhs)
                     if ast.is_comparison_op(op: b.op):
@@ -167,7 +173,7 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                     let payload_types = ast.get_variant_payload_types(ty, variant)
                     checker.check_arguments(location: expression.location, parameter_types: payload_types, arguments: values)
                     expression.ty = ty
-                ClassLiteral(ty):
+                ClassLiteral(ty, arguments):
                     # panic("TODO: class literal")
                     expression.ty = ty
                 StructLiteral(ty, values):
@@ -190,9 +196,9 @@ fn checker_on_node(checker: TypeChecker, node: ast.VisitNode, phase: ast.VisitPh
     pass
 
 class TypeChecker:
-    var errors: List[CompilationError] = List()
+    var errors: List[SingleCompilationError] = List()
 
-    fn check_arguments(location: Location, parameter_types: List[ast.MyType], arguments: List[ast.Expression]):
+    fn check_arguments(location: Location, parameter_types: List[ast.Type], arguments: List[ast.Expression]):
         if parameter_types.len() == arguments.len():
             let p_iter = parameter_types.iter()
             for argument in arguments:
@@ -201,13 +207,18 @@ class TypeChecker:
         else:
             this.add_error(location, message: "got {arguments.len()} arguments, expected {parameter_types.len()}")
 
-    fn coerce(ty: ast.MyType, value: ast.Expression):
-        if this.unify(ty1: value.ty, ty2: ty):
-            pass
-        else:
+    fn coerce(ty: ast.Type, value: ast.Expression):
+        # Try to auto-convert before check:
+        if ast.is_int_type(value.ty) and ast.is_float_type(ty):
+            # Auto-conv int to floats
+            let old_expr = ast.clone_expression(value)
+            value.kind = ast.ExpressionKind.TypeCast(ty, old_expr)
+            value.ty = ty
+
+        if not this.unify(ty1: value.ty, ty2: ty):
             this.add_error(location: value.location, message: "Got {ast.type_to_string(value.ty)}, expected {ast.type_to_string(ty)}")
     
-    fn unify(ty1: ast.MyType, ty2: ast.MyType) -> bool:
+    fn unify(ty1: ast.Type, ty2: ast.Type) -> bool:
         if ast.is_int_type(ty1) and ast.is_int_type(ty2):
             return true
         elif ast.is_void_type(ty1) and ast.is_void_type(ty2):
@@ -230,7 +241,7 @@ class TypeChecker:
         elif ast.is_type_parameter_type(ty1) and ast.is_type_parameter_type(ty2):
             let tp1 = ast.get_type_parameter_from_type(ty1)
             let tp2 = ast.get_type_parameter_from_type(ty2)
-            return ast.node_id_equal(node_id1: tp1.node_id, node_id2: tp2.node_id)
+            return ast.node_id_equal(node_id1: tp1.id, node_id2: tp2.id)
         elif ast.is_function_type(ty1) and ast.is_function_type(ty2):
             let ptys1 = ast.get_parameter_types_from_type(ty1)
             let ptys2 = ast.get_parameter_types_from_type(ty2)
@@ -263,7 +274,7 @@ class TypeChecker:
         else:
             return false
     
-    fn unify_many(typs1: List[ast.MyType], typs2: List[ast.MyType]) -> bool:
+    fn unify_many(typs1: List[ast.Type], typs2: List[ast.Type]) -> bool:
         if typs1.len() == typs2.len():
             let typs2_it = typs2.iter()
             for ty1 in typs1:

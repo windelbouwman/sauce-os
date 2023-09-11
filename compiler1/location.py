@@ -18,6 +18,12 @@ class Location:
     def default(cls):
         return cls(Position.default(), Position.default())
 
+    @classmethod
+    def from_row_column(cls, row, column):
+        begin = Position(row, column)
+        end = Position(row, column + 1)
+        return cls(begin, end)
+
 
 class Position:
     def __init__(self, row: int, column: int):

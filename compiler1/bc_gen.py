@@ -45,6 +45,7 @@ class ByteCodeGenerator:
 
         self._unop_map = {
             "not": OpCode.NOT,
+            "-": OpCode.NEG,
         }
 
     def gen_module(self, module: ast.Module):

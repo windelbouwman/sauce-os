@@ -3,7 +3,7 @@ import ast
 from datatypes import List, Option, vec1, vec2, vec3
 
 fn get_std_module() -> ast.Module:
-    let module = ast.new_module(name: "std", imports: List(), definitions: List())
+    let module = ast.new_module(name: "std", filename: Option.None(), imports: List(), definitions: List())
 
     let std_print = ast.ExternFunctionDef:
         name: "print"
@@ -22,6 +22,18 @@ fn get_std_module() -> ast.Module:
         parameter_types: vec1(ast.str_type())
         return_type: ast.int_type()
     ast.module_define_symbol(module, definition: ast.Definition.ExternFunction(std_str_to_int))
+
+    let std_str_to_float = ast.ExternFunctionDef:
+        name: "str_to_float"
+        parameter_types: vec1(ast.str_type())
+        return_type: ast.float_type()
+    ast.module_define_symbol(module, definition: ast.Definition.ExternFunction(std_str_to_float))
+
+    let std_float_to_str = ast.ExternFunctionDef:
+        name: "float_to_str"
+        parameter_types: vec1(ast.float_type())
+        return_type: ast.str_type()
+    ast.module_define_symbol(module, definition: ast.Definition.ExternFunction(std_float_to_str))
 
     let std_exit = ast.ExternFunctionDef:
         name: "exit"

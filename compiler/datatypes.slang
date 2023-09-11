@@ -39,27 +39,6 @@ struct Integer:
 fn new_integer(value?: int) -> Integer:
     return Integer(value)
 
-struct String:
-    value: str
-
-fn new_string(value?: str) -> String:
-    return String(value)
-
-fn split_string(value: String, sep: str) -> List[String]:
-    let size = str_len(value.value)
-    let start = 0
-    let cur = 0
-    let parts: List[String] = List()
-    while cur < size:
-        let c = str_get(value: value.value, index: cur)
-        if c == sep:
-            parts.append(new_string(value: str_slice(value: value.value, begin: start, end: cur)))
-            cur += 1
-            start = cur
-        else:
-            cur += 1
-    parts.append(new_string(value: str_slice(value: value.value, begin: start, end: cur)))
-    return parts
 
 fn vec1[T](v1?: T) -> List[T]:
     let vec: List[T] = List()
@@ -103,9 +82,7 @@ class List[T]:
 
     fn prepend(val?: T):
         # Prepend value in front of list
-        let new_head_element = ListElement[T]:
-            next: this.head_element
-            data: val
+        let new_head_element = ListElement[T](next: this.head_element, data: val)
         this.head_element = Option.Some(new_head_element)
 
     fn is_empty() -> bool:
@@ -131,6 +108,10 @@ class List[T]:
                             n += 1
                 return n
 
+    fn clear():
+        while not this.is_empty():
+            let dummy = this.pop_front()
+
     fn pop_front() -> T:
         case this.head_element:
             None:
@@ -145,7 +126,7 @@ class List[T]:
         return it
 
     fn first() -> T:
-        # Retrieve last element
+        # Retrieve first element
         case this.head_element:
             None:
                 panic("List.first on empty list!")
@@ -193,6 +174,15 @@ class List[T]:
     
     fn get(index: int) -> T:
         # Retrieve value at index
+        let element = this.get_element(index)
+        return element.data
+    
+    fn set(index: int, value: T):
+        # " Set value at index. "
+        let element = this.get_element(index)
+        element.data = value
+    
+    fn get_element(index: int) -> ListElement[T]:
         case this.head_element:
             None:
                 panic("List.get on empty list!")
@@ -200,7 +190,7 @@ class List[T]:
                 let n = 0
                 loop:
                     if n == index:
-                        return element.data
+                        return element
 
                     case element.next:
                         None:
@@ -208,7 +198,7 @@ class List[T]:
                         Some(nxt_element2):
                             element = nxt_element2
                     n = n + 1
-                panic("List.get index out of range!")
+                panic("List.get_element index out of range!")
 
     fn delete_at(index: int):
         # remove item at index from list
@@ -236,6 +226,18 @@ class List[T]:
                             element = nxt_element2
                     n += 1
 
+    fn reversed() -> List[T]:
+        # Return a reversed list
+        let result: List[T] = List()
+        for value in this:
+            result.prepend(value)
+        return result
+    
+    fn extend(other?: List[T]):
+        while not other.is_empty():
+            this.append(other.pop_front())
+    #fn filter():
+    #    pass
 
 struct ListElement[T]:
     next: Option[ListElement[T]]
@@ -264,6 +266,9 @@ class Dictionary[T]:
                 return Option.Some(item.value)
         return Option.None()
     
+    fn is_empty() -> bool:
+        return this.items.is_empty()
+
     fn contains(key: str) -> bool:
         case this.get(key):
             Some(x):
@@ -309,3 +314,31 @@ class DictionaryIter[T]:
                 return Option.None()
             Some(i):
                 return Option.Some(i.key)
+
+class Set:
+    # Use a dictionary to emulate a set datatype.
+    var items: Dictionary[int] = Dictionary()
+
+    fn add(value?: str):
+        this.items.insert(key: value, value: 1)
+    
+    fn remove(value?: str):
+        let stub = this.items.pop(key: value)
+    
+    fn contains(value?: str) -> bool:
+        return this.items.contains(key: value)
+
+    fn is_empty() -> bool:
+        return this.items.is_empty()
+
+    fn iter() -> SetIter:
+        let it = SetIter()
+        it.it2 = this.items.iter()
+        return it
+
+
+class SetIter:
+    var it2: DictionaryIter[int] = DictionaryIter()
+
+    fn next() -> Option[str]:
+        return this.it2.next()

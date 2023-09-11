@@ -127,7 +127,7 @@ class PyCodeGenerator:
             self.emit("pass")
         elif isinstance(kind, ast.AssignmentStatement):
             target = self.gen_expression(kind.target)
-            val = self.gen_expression(kind.value)
+            val = self.gen_expression(kind.value, parens=False)
             op = kind.op
             self.emit(f"{target} {op} {val}")
         elif isinstance(kind, ast.ExpressionStatement):
@@ -170,7 +170,7 @@ class PyCodeGenerator:
         elif isinstance(kind, ast.BoolLiteral):
             return f"{kind.value}"
         elif isinstance(kind, ast.ArrayLiteral):
-            values = ", ".join([self.gen_expression(e) for e in kind.values])
+            values = self.gen_expressions(kind.values)
             return f"[{values}]"
         elif isinstance(kind, ast.ArrayIndex):
             assert len(kind.indici) == 1
@@ -181,9 +181,7 @@ class PyCodeGenerator:
             base = self.gen_expression(kind.base)
             return f"{base}.f_{kind.field}"
         elif isinstance(kind, ast.StructLiteral):
-            values = ", ".join(
-                [self.gen_expression(e, parens=False) for e in kind.values]
-            )
+            values = self.gen_expressions(kind.values)
             return f"{kind.ty.kind.tycon.name}({values})"
         elif isinstance(kind, ast.UnionLiteral):
             name: str = kind.ty.kind.tycon.name
@@ -213,12 +211,13 @@ class PyCodeGenerator:
             return self.gen_expression(kind.value)
         elif isinstance(kind, ast.FunctionCall):
             callee = self.gen_expression(kind.target)
-            args = ", ".join(
-                [self.gen_expression(a.value, parens=False) for a in kind.args]
-            )
+            args = self.gen_expressions([a.value for a in kind.args])
             return f"{callee}({args})"
         else:
             raise NotImplementedError(str(kind))
+
+    def gen_expressions(self, values):
+        return ", ".join([self.gen_expression(value, parens=False) for value in values])
 
     def indent(self):
         self._level += 1

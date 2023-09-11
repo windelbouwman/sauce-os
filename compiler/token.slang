@@ -1,5 +1,5 @@
 
-from location import Location
+from location import Location, location_to_string
 from std import int_to_str
 import std
 
@@ -210,4 +210,4 @@ fn token_to_string(tok: Token) -> str:
         Eof:
             txt = "EOF"
 
-    return "row={tok.location.row}:{tok.location.column} {txt}"
+    return "loc={location_to_string(tok.location)} {txt}"

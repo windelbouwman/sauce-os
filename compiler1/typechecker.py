@@ -183,6 +183,10 @@ class TypeChecker(BasePass):
             if kind.op == "not":
                 self.assert_type(kind.rhs, bool_type)
                 expression.ty = bool_type
+            elif kind.op == "-":
+                # TODO: Assert numeric type?
+                # elif kind.lhs.ty.is_int() and kind.rhs.ty.is_float():
+                expression.ty = kind.rhs.ty
             else:
                 raise NotImplementedError(kind.op)
 
@@ -223,14 +227,12 @@ class TypeChecker(BasePass):
 
                 # Check argument names:
                 if len(ftyp.parameter_names) == len(values):
-                    for expected_name, got_name in zip(
-                        ftyp.parameter_names, [a.name for a in kind.args]
-                    ):
+                    for expected_name, arg in zip(ftyp.parameter_names, kind.args):
                         if expected_name:
-                            if expected_name != got_name:
+                            if expected_name != arg.name:
                                 self.error(
-                                    expression.location,
-                                    f"Got {got_name}, but expected: {expected_name}",
+                                    arg.location,
+                                    f"Expected labeled argument '{expected_name}'. Got {arg.name}",
                                 )
                         # TODO: check for redundant labels?
                         # else:

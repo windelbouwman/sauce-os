@@ -34,7 +34,7 @@ class Generator:
                     panic("VAR def not impl.")
 
     fn gen_func(function_def: ast.FunctionDef):
-        print("FUNC {function_def.name}:")
+        print("FUNC {function_def.id.name}:")
         this.gen_statement(function_def.body)
 
     fn gen_statement(statement?: ast.Statement):
@@ -160,9 +160,11 @@ class Generator:
                 for value in values:
                     this.gen_expression(value)
                 print("TODO: struct literal")
-            ClassLiteral(ty):
+            ClassLiteral(ty, arguments):
                 print("Not supported: class literal")
-            Type(ty):
+            TypeCast(ty, value):
+                panic("TODO: type-casting")
+            Typ(ty):
                 panic("Invalid expression: TYPE")
             TypeConstructor(ty):
                 panic("Invalid expression: TYPE-CONSTRUCTOR")

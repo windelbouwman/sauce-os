@@ -3,8 +3,9 @@
 import std
 from utils import panic
 from std import print, ord, str_slice, str_len
+from std import str_to_float, str_to_int
 from token import Token, TokenKind, token_to_string
-from location import Location
+from location import Location, location_at, Position
 from datatypes import List, Option, Integer, new_integer
 
 
@@ -33,7 +34,7 @@ class Lexer:
             this.work_some()
         
         if this.pending.is_empty():
-            return Token(kind: TokenKind.Eof(), location: Location(row: this.row, column: 1))
+            return Token(kind: TokenKind.Eof(), location: location_at(row: this.row, column: 1))
         else:
             return this.pending.pop_front()
     
@@ -48,12 +49,12 @@ class Lexer:
                 this.at_end = true
 
                 if not this.at_bol:
-                    this.emit_token(kind: TokenKind.NewLine(), location: Location(row: this.row, column: 1))
+                    this.emit_token(kind: TokenKind.NewLine(), location: location_at(row: this.row, column: 1))
 
                 # Dedent to top level!
                 while this.indent_stack.len() > 1:
                     let tmp = this.indent_stack.pop_front()
-                    this.emit_token(kind: TokenKind.Dedent(), location: Location(row: this.row, column: 1))
+                    this.emit_token(kind: TokenKind.Dedent(), location: location_at(row: this.row, column: 1))
 
             Space(x):
                 if this.at_bol:
@@ -102,7 +103,7 @@ class Lexer:
             this.tok_begin = this.offset
             let kind = TokenKind.Error()
             let column = this.tok_begin - this.col_start + 1
-            let location = Location(row: this.row, column)
+            let begin = Position(row: this.row, column)
 
             # Get char:
             let c = std.str_get(value: this.source, index: this.offset)
@@ -173,10 +174,10 @@ class Lexer:
                         this.offset += 1
                     # TODO: str to float
                     let val2 = this.get_lexeme()
-                    let float_value: float = 3.14
+                    let float_value: float = str_to_float(val2)
                     kind = TokenKind.Float(float_value)
                 else:
-                    let int_value: int = std.str_to_int(this.get_lexeme())
+                    let int_value: int = str_to_int(this.get_lexeme())
                     kind = TokenKind.Integer(int_value)
             elif is_id(c):
                 while is_id_or_digit(c: this.peek()):
@@ -203,9 +204,13 @@ class Lexer:
                 if this.match(txt: "="):
                     kind = TokenKind.NotEquals()
 
+            let end_column = this.offset - this.col_start
+            let end = Position(row: this.row, column: end_column)
+            let location = Location(begin, end)
+
             return Token(kind, location)
         else:
-            return Token(kind: TokenKind.Eof(), location: Location(row: this.row, column: 1))
+            return Token(kind: TokenKind.Eof(), location: location_at(row: this.row, column: 1))
     
     fn peek() -> str:
         let n = std.str_len(this.source)

@@ -18,12 +18,15 @@ logger = logging.getLogger("parser")
 
 
 def parse_file(filename: str) -> ast.Module:
+    if isinstance(filename, tuple):
+        filename, code = filename
+    else:
+        with open(filename, "r") as f:
+            code = f.read()
     logger.info(f"Parsing {filename}")
     modname = os.path.splitext(os.path.basename(filename))[0]
     # TODO: clean modname of more special characters
     modname = modname.replace("-", "_")
-    with open(filename, "r") as f:
-        code = f.read()
     return parse(code, modname, filename)
 
 
@@ -57,7 +60,9 @@ def lark_it(code, start):
     try:
         tree = lark_parser.parse(code, start=start)
     except UnexpectedInput as ex:
-        raise ParseError(Location(ex.line, ex.column), f"Parsing choked: {ex}")
+        raise ParseError(
+            Location.from_row_column(ex.line, ex.column), f"Parsing choked: {ex}"
+        )
 
     try:
         return CustomTransformer().transform(tree)
@@ -81,15 +86,19 @@ def process_fstrings(literal: str, location: Location) -> ast.Expression:
     assert "".join(parts) == literal
 
     exprs = []
-    col = 1
+    row = location.begin.row
+    col = location.begin.column + 1
     for part in parts:
-        p1 = Position(location.begin.row, location.begin.column + col + 1)
-        p2 = Position(location.begin.row, location.begin.column + col + 2)
-        part_loc = Location(p1, p2)
         if part.startswith(r"{") and part.endswith("}"):
+            p1 = Position(row, col + 1)
+            p2 = Position(row, col + len(part) - 2)
+            part_loc = Location(p1, p2)
             value = parse_expr(part[1:-1], part_loc)
             expr = value.to_string()
         else:
+            p1 = Position(row, col)
+            p2 = Position(row, col + len(part))
+            part_loc = Location(p1, p2)
             expr = ast.string_constant(part, part_loc)
         col += len(part)
         exprs.append(expr)
@@ -150,6 +159,10 @@ def get_loc(tok: LarkToken) -> Location:
     )
 
 
+def get_span(loc1: Location, loc2: Location):
+    return Location(loc1.begin, loc2.end)
+
+
 class CustomTransformer(LarkTransformer):
     def module(self, x):
         name = "?"
@@ -164,12 +177,12 @@ class CustomTransformer(LarkTransformer):
 
     def import1(self, x):
         modname = x[1].value
-        return ast.Import(modname, get_loc(x[0]))
+        return ast.Import(modname, get_loc(x[1]))
 
     def import2(self, x):
         modname = x[1].value
         names = x[3]
-        return ast.ImportFrom(modname, names, get_loc(x[0]))
+        return ast.ImportFrom(modname, names, get_loc(x[1]))
 
     def definitions(self, x):
         return x
@@ -536,24 +549,34 @@ class CustomTransformer(LarkTransformer):
         return x[0]
 
     def factor(self, x):
-        return x[0]
+        if len(x) == 1:
+            return x[0]
+        else:
+            op = x[0].value
+            return ast.unop(op, x[1], get_loc(x[0]))
 
     def atom(self, x):
         if len(x) == 1:
             return x[0]
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == "LEFT_BRACE":
             arguments = x[2] if len(x) == 4 else []
-            return ast.function_call(x[0], arguments, get_loc(x[1]))
+            callee = x[0]
+            span = get_span(callee.location, get_loc(x[-1]))
+            return ast.function_call(callee, arguments, span)
         elif len(x) > 2 and isinstance(x[0], LarkToken) and x[0].type == "LEFT_BRACE":
             return x[1]
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == "LEFT_BRACKET":
-            base, index = x[0], x[2]
+            base = x[0]
+            index = x[2]
             ty = ast.void_type
-            return ast.array_index(base, index, ty, get_loc(x[1]))
+            span = get_span(base.location, get_loc(x[-1]))
+            return ast.array_index(base, index, ty, span)
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == "DOT":
-            base, field = x[0], x[2].value
+            base = x[0]
+            field = x[2].value
+            span = get_span(base.location, get_loc(x[2]))
             ty = ast.void_type
-            return ast.dot_operator(base, field, ty, get_loc(x[1]))
+            return ast.dot_operator(base, field, ty, span)
         else:
             raise NotImplementedError(str(x))
 
@@ -717,6 +740,7 @@ term: term mulop factor
     | factor
 mulop: ASTERIX | SLASH
 factor: atom
+      | MINUS factor
 
 atom: obj_ref
     | literal

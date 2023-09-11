@@ -3,7 +3,7 @@ import ast
 from std import print
 from location import Location
 from utils import log_info, panic
-from errors import new_error, new_errors, CompilationError
+from errors import new_error, new_errors, CompilationError, SingleCompilationError
 from datatypes import Dictionary, List, Option
 
 
@@ -19,12 +19,12 @@ fn resolve_newops(module: ast.Module) except CompilationError:
         on_node: newop_on_node
     ast.visit_module(visitor, module)
     if not newop.errors.is_empty():
-        raise new_errors(errors: newop.errors)
+        raise new_errors(filename: module.filename, errors: newop.errors)
 
 fn newop_on_definition(newop: NewOp, definition: ast.Definition, phase: ast.VisitPhase):
     pass
 
-fn newop_on_type(newop: NewOp, ty: ast.MyType, phase: ast.VisitPhase):
+fn newop_on_type(newop: NewOp, ty: ast.Type, phase: ast.VisitPhase):
     case phase:
         Post:
             case ty.kind:
@@ -48,11 +48,11 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                 GetIndex(base, indici):
                     case base.kind:
                         TypeConstructor(tycon):
-                            let type_arguments: List[ast.MyType] = List()
+                            let type_arguments: List[ast.Type] = List()
                             for index in indici:
                                 type_arguments.append(newop.eval_type_expr(expression: index))
                             let ty = ast.apply_tycon(tycon, type_arguments)
-                            expression.kind = ast.ExpressionKind.Type(ty)
+                            expression.kind = ast.ExpressionKind.Typ(ty)
                     else:
                         pass
 
@@ -114,7 +114,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                                             Class(class_def):
                                                 ok = true
                                                 # TODO: check arguments
-                                                expression.kind = ast.ExpressionKind.ClassLiteral(ty)
+                                                expression.kind = ast.ExpressionKind.ClassLiteral(ty, arguments: call.arguments)
                                         else:
                                             pass
                                 else:
@@ -133,13 +133,13 @@ fn newop_on_node(newop: NewOp, node: ast.VisitNode, phase: ast.VisitPhase):
     pass
 
 class NewOp:
-    var errors: List[CompilationError] = List()
+    var errors: List[SingleCompilationError] = List()
     var counter: int = 1
 
-    fn try_as_type(expression: ast.Expression) -> Option[ast.MyType]:
+    fn try_as_type(expression: ast.Expression) -> Option[ast.Type]:
         # Try to use this expression as a type.
         case expression.kind:
-            Type(ty2):
+            Typ(ty2):
                 return Option.Some(ty2)
             TypeConstructor(tycon):
                 let ty2 = this.turn_tycon_to_type(tycon)
@@ -147,7 +147,7 @@ class NewOp:
         else:
             return Option.None()
 
-    fn eval_type_expr(expression: ast.Expression) -> ast.MyType:
+    fn eval_type_expr(expression: ast.Expression) -> ast.Type:
         # Try to use this expression as a type.
         case this.try_as_type(expression):
             Some(ty2):
@@ -160,8 +160,8 @@ class NewOp:
     fn add_error(location: Location, message: str):
         this.errors.append(new_error(location, message))
     
-    fn turn_tycon_to_type(tycon: ast.TyCon) -> ast.MyType:
-        let type_arguments: List[ast.MyType] = List()
+    fn turn_tycon_to_type(tycon: ast.TyCon) -> ast.Type:
+        let type_arguments: List[ast.Type] = List()
         for tp in ast.tycon_get_type_parameters(tycon):
             let type_var: ast.TypeVariable = ast.new_type_var(unique: this.new_id())
             type_arguments.append(ast.new_type_var_ref(type_var))
