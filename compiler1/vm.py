@@ -88,7 +88,7 @@ class VirtualMachine:
     def __init__(self, stdout):
         # Call stack:
         self._frames = []
-        self._builtins = get_builtins(stdout)
+        self._builtins = get_builtins(args=(), stdout=stdout)
 
     def load(self, prog: Program):
         self.prog = prog

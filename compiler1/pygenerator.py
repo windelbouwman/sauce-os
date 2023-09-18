@@ -21,8 +21,6 @@ def gen_pycode(modules: list[ast.Module], f):
         for definition in module.definitions:
             g.gen_definition(definition)
 
-    g.emit("main()")
-
 
 class PyCodeGenerator:
     def __init__(self, f):

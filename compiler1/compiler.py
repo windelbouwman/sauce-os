@@ -36,6 +36,7 @@ class CompilationOptions:
     dump_ast: bool = False
     run_code: bool = False
     backend: str = "vm"
+    program_args: tuple = ()
 
 
 def do_compile(
@@ -82,9 +83,10 @@ def do_compile(
             gen_pycode(modules, f)
             code = f.getvalue()
             logger.info("Invoking python code")
-            exec(code, get_builtins(output))
+            namespace = get_builtins(args=options.program_args, stdout=output)
+            exec(code, namespace)
+            namespace["main"]()
         else:
-            print(BUILTINS_PY_IMPL, file=output)
             gen_pycode(modules, output)
     elif options.backend == "c":
         prog = gen_bc(modules)
@@ -204,6 +206,7 @@ def print_modules(modules: list[ast.Module]):
 
 def merge_modules(modules: list[ast.Module]) -> ast.Module:
     """Merge a set of modules into a merged module."""
+
     if not modules:
         raise ValueError("To merge modules, we need at least 1 module.")
     elif len(modules) == 1:
@@ -220,6 +223,8 @@ def merge_modules(modules: list[ast.Module]) -> ast.Module:
                 definition.name = f"{module.name}_{definition.name}"
             new_definitions.append(definition)
 
+    # TODO: merging destroys error location info, since filename is not set.
+    # Reconsider merging..
     return ast.Module("merged", [], new_definitions)
 
 

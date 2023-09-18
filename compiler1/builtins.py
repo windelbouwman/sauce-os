@@ -56,10 +56,20 @@ def std_module() -> ast.Module:
         ast.BuiltinFunction("std_ord", [ast.str_type], ast.int_type),
     )
 
+    mod.add_definition(
+        "get_n_args",
+        ast.BuiltinFunction("std_get_n_args", [], ast.int_type),
+    )
+
+    mod.add_definition(
+        "get_arg",
+        ast.BuiltinFunction("std_get_arg", [ast.int_type], ast.str_type),
+    )
+
     return mod
 
 
-def get_builtins(stdout=None):
+def get_builtins(args=(), stdout=None):
     def std_read_file(filename: str) -> str:
         with open(filename, "r") as f:
             return f.read()
@@ -79,6 +89,12 @@ def get_builtins(stdout=None):
     def std_exit(code: int):
         raise RuntimeError(f"EXIT with code: {code}")
 
+    def get_n_args():
+        return len(args)
+
+    def get_arg(index):
+        return args[index]
+
     return {
         "std_print": std_print,
         "std_exit": std_exit,
@@ -91,10 +107,21 @@ def get_builtins(stdout=None):
         "std_str_get": lambda s, i: s[i],
         "std_str_slice": lambda s, b, e: s[b:e],
         "std_ord": ord,
+        "std_get_n_args": get_n_args,
+        "std_get_arg": get_arg,
     }
 
 
 BUILTINS_PY_IMPL = """
+
+import sys
+
+def std_get_n_args() -> int:
+    return len(sys.argv) - 1
+
+def std_get_arg(index) -> str:
+    return sys.argv[index + 1]
+
 def std_read_file(filename: str) -> str:
     with open(filename, "r") as f:
         return f.read()

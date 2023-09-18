@@ -27,7 +27,7 @@ fn display_error(error: CompilationError):
                 print("ERROR: {location_to_string(error2.location)} -> {error2.message}")
 
 fn print_error(filename: str, location: Location, message: str):
-    print("      /---------------[ {filename} ]-----------------")
+    print("      +---------------[ {filename} ]-----------------")
     let code = read_file(filename)
     let row = 1
     let target_row = location.begin.row
@@ -53,5 +53,5 @@ fn print_error(filename: str, location: Location, message: str):
                 print("{indent}")
 
         row += 1
-    print("      \----------------------------------------------")
+    print("      +----------------------------------------------")
     print("")

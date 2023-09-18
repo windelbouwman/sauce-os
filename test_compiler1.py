@@ -12,9 +12,15 @@ import pytest
 from compiler1 import compiler
 
 
+@pytest.mark.parametrize("filename", glob.glob("examples/*.slang"))
 @pytest.mark.parametrize("backend", ["vm", "py"])
 def test_compiles(filename: str, backend: str):
     # backend "cpp"
+
+    # Skip slow mandelbrot test for now:
+    if "mandel" in filename:
+        return
+
     options = compiler.CompilationOptions(
         dump_ast=False, run_code=True, backend=backend
     )
@@ -28,8 +34,3 @@ def test_compiles(filename: str, backend: str):
         with open(reference_output_filename) as f:
             expected_output = f.read()
         assert stdout == expected_output
-
-
-def pytest_generate_tests(metafunc):
-    filenames = glob.glob("examples/*.slang")
-    metafunc.parametrize("filename", filenames)

@@ -44,7 +44,7 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
                 Case(case_statement):
                     if ast.is_enum_type(case_statement.value.ty):
                         for arm in case_statement.arms:
-                            case ast.get_enum_variant(ty: case_statement.value.ty, attr: arm.name):
+                            case ast.get_enum_variant_from_type(ty: case_statement.value.ty, attr: arm.name):
                                 Some(variant):
                                     let payload_types = ast.get_variant_payload_types(ty: case_statement.value.ty, variant)
                                     if payload_types.len() == arm.variables.len():
@@ -57,14 +57,16 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
                     else:
                         checker.add_error(location: case_statement.value.location, message: "Got {ast.type_to_string(case_statement.value.ty)}, expected enum")
                 For(for_statement):
-                    if ast.has_field(ty: for_statement.iter_value.ty, attr: "iter"):
+                    if ast.is_array_type(for_statement.iter_value.ty):
+                        for_statement.iter_var.ty = ast.get_element_type_from_type(for_statement.iter_value.ty)
+                    elif ast.has_field(ty: for_statement.iter_value.ty, attr: "iter"):
                         # TODO: we have a few assumptions here, which panic. Should be proper warning:
                         # print("FORRRRRR")
                         let iter_ty: ast.Type = ast.get_return_type(option_unwrap(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "iter")))
                         # print("iter ty: {ast.type_to_string(iter_ty)}")
                         let opt_ty: ast.Type = ast.get_return_type(option_unwrap(ast.get_field_type(ty: iter_ty, attr: "next")))
                         # print("Opt ty: {ast.type_to_string(opt_ty)}")
-                        let opt_variant = option_unwrap(ast.get_enum_variant(ty: opt_ty, attr: "Some"))
+                        let opt_variant = option_unwrap(ast.get_enum_variant_from_type(ty: opt_ty, attr: "Some"))
                         let val_ty: ast.Type = ast.get_variant_payload_types(ty: opt_ty, variant: opt_variant).first()
                         # print("Val ty: {ast.type_to_string(val_ty)}")
                         for_statement.iter_var.ty = val_ty
@@ -134,6 +136,9 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                     panic("checker: TODO: tycon")
                 TypeCast(ty, value):
                     expression.ty = ty
+                ToString(value):
+                    # TODO: Check for int / str?
+                    expression.ty = ast.str_type()
                 Typ(t):
                     panic("TODO: type")
                 Binop(b):
@@ -167,8 +172,16 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                             expression.ty = ty
                         None:
                             checker.add_error(location: expression.location, message: "Type {ast.type_to_string(base.ty)} has no field: {attr}")
-                GetIndex(base,indici):
-                    panic("TODO: get index")
+                GetIndex(base, indici):
+                    if ast.is_array_type(ty: base.ty):
+                        expression.ty = ast.get_element_type_from_type(ty: base.ty)
+                        if indici.len() == 1:
+                            let index: ast.Expression = indici.first()
+                            checker.coerce(ty: ast.int_type(), value: index)
+                        else:
+                            checker.add_error(location: expression.location, message: "Only 1 dimensional indexing supported (for now)")
+                    else:
+                        checker.add_error(location: expression.location, message: "Expected array type")
                 EnumLiteral(ty, variant, values):
                     let payload_types = ast.get_variant_payload_types(ty, variant)
                     checker.check_arguments(location: expression.location, parameter_types: payload_types, arguments: values)
@@ -180,6 +193,23 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                     let field_types = ast.get_field_types(ty)
                     checker.check_arguments(location: expression.location, parameter_types: field_types, arguments: values)
                     expression.ty = ty
+                UnionLiteral(ty, field, value):
+                    let wanted_value_type = option_unwrap(ast.get_field_type(ty, attr: field))
+                    checker.coerce(ty: wanted_value_type, value)
+                    expression.ty = ty
+                ArrayLiteral(values):
+                    let element_type: ast.Type = values.first().ty
+
+                    # Check all types are equal!
+                    let skip = true
+                    for value in values:
+                        # we can skip the first item
+                        if skip:
+                            skip = false
+                        else:
+                            checker.coerce(ty: element_type, value)
+
+                    expression.ty = ast.array_type(element_type, size: values.len())
                 StringLiteral(s):
                     expression.ty = ast.str_type()
                 BoolLiteral(b):
@@ -241,7 +271,7 @@ class TypeChecker:
         elif ast.is_type_parameter_type(ty1) and ast.is_type_parameter_type(ty2):
             let tp1 = ast.get_type_parameter_from_type(ty1)
             let tp2 = ast.get_type_parameter_from_type(ty2)
-            return ast.node_id_equal(node_id1: tp1.id, node_id2: tp2.id)
+            return ast.type_parameter_equals(tp1, tp2)
         elif ast.is_function_type(ty1) and ast.is_function_type(ty2):
             let ptys1 = ast.get_parameter_types_from_type(ty1)
             let ptys2 = ast.get_parameter_types_from_type(ty2)

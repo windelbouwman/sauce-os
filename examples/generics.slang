@@ -19,15 +19,13 @@ struct Int:
 
 fn main():
     
-    let i_boxed = Int:
-        value: 2
+    let i_boxed = Int(value: 2)
 
     let a = Bla[Int]:
         message: "Hello cool world!!"
         value: i_boxed
 
-    let b_boxed = Bool:
-        value: true
+    let b_boxed = Bool(value: true)
 
     let b = Bla[Bool]:
         message: "W00t"
@@ -40,8 +38,7 @@ fn main():
         message: "double-bla"
         value: b
 
-    let b_false_boxed = Bool:
-        value: false
+    let b_false_boxed = Bool(value: false)
 
     let fu_b = Fuu[Bool]:
         x: b_false_boxed

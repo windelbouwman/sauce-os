@@ -1,6 +1,7 @@
 """ Main entry point to the compiler.
 """
 
+import sys
 from rich.logging import RichHandler
 from . import compiler, errors
 import argparse
@@ -9,6 +10,15 @@ import glob
 
 
 def main():
+    # Split args after '--' into args for program
+    if "--" in sys.argv:
+        index = sys.argv.index("--")
+        compiler_args = sys.argv[1:index]
+        program_args = sys.argv[index + 1 :]
+    else:
+        compiler_args = sys.argv[1:]
+        program_args = []
+
     parser = argparse.ArgumentParser()
     parser.add_argument("source", nargs="+", help="Source files")
     parser.add_argument("--output", "-o", help="File to write output to")
@@ -25,7 +35,7 @@ def main():
         default="vm",
         help="Which backend to use.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(args=compiler_args)
     if args.verbose > 1:
         loglevel = logging.DEBUG
     elif args.verbose > 0:
@@ -39,7 +49,10 @@ def main():
     logger = logging.getLogger("main")
 
     options = compiler.CompilationOptions(
-        dump_ast=args.dump_ast, run_code=args.run_code, backend=args.backend
+        dump_ast=args.dump_ast,
+        run_code=args.run_code,
+        backend=args.backend,
+        program_args=tuple(program_args),
     )
 
     sources = []

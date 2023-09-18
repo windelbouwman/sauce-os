@@ -160,10 +160,16 @@ class Generator:
                 for value in values:
                     this.gen_expression(value)
                 print("TODO: struct literal")
+            UnionLiteral(ty, field, value):
+                panic("TODO: union literal")
+            ArrayLiteral(values):
+                print("Not supported: array literal")
             ClassLiteral(ty, arguments):
                 print("Not supported: class literal")
             TypeCast(ty, value):
                 panic("TODO: type-casting")
+            ToString(value):
+                panic("ToString not supported, rewrite language construct")
             Typ(ty):
                 panic("Invalid expression: TYPE")
             TypeConstructor(ty):

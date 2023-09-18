@@ -1,29 +1,23 @@
-
 """ Helper script to bootstrap the compiler
 
 Use the python based bootstrap compiler to compile the compiler itself.
 
 """
 
-from compiler1 import compiler, errors
+import glob
+from compiler1 import compiler, errors, builtins
 
-options = compiler.CompilationOptions()
-sources = [
-    'compiler/ast.slang',
-    'compiler/datatypes.slang',
-    'compiler/token.slang',
-    'compiler/main.slang',
-    'compiler/lexer.slang',
-    'compiler/parsing.slang',
-    'compiler/location.slang',
-    'compiler/transforms.slang',
-]
+options = compiler.CompilationOptions(backend="py")
+sources = glob.glob("compiler/*.slang")
 
+output_filename = "tmp-compiler.py"
 try:
-    # 'bootstrapped.cpp'
-    compiler.do_compile(sources, None, options)
+    with open(output_filename, "w") as f:
+        print(builtins.BUILTINS_PY_IMPL, file=f)
+        compiler.do_compile(sources, f, options)
+        print("sys.exit(main())", file=f)
 except errors.CompilationError as ex:
-    print('ERRORS')
+    print("ERRORS")
     errors.print_errors(ex.errors)
 else:
-    print('OK')
+    print(f"OK --> {output_filename}")

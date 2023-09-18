@@ -24,10 +24,9 @@ class TypeEvaluation(BasePass):
 
     def eval_type_expr(self, expression: ast.Expression) -> ast.MyType:
         """Evaluate a type expression."""
-        if isinstance(expression.kind, ast.TypeLiteral):
-            return expression.kind.ty
-        elif isinstance(expression.kind, ast.GenericLiteral):
-            return expression.kind.tycon.apply2()
+        ty = try_as_type(expression)
+        if ty:
+            return ty
         else:
             self.error(
                 expression.location, f"Invalid type expression: {expression.kind}"
@@ -146,7 +145,11 @@ def try_as_type(expression: ast.Expression):
         ty = expression.kind.ty
     elif isinstance(expression.kind, ast.GenericLiteral):
         # TODO: check if we can omit type arguments.
+        # Omitting type arguments relaxes the requirements on types you must provide. It's noice.
+        # if len(expression.kind.tycon.type_parameters) == 0:
         ty = expression.kind.tycon.apply2()
+        # else:
+        #    ty = None
     else:
         ty = None
     return ty

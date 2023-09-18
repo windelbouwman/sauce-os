@@ -2,14 +2,15 @@
 import ast
 from std import print
 from location import Location
+from basepass import IdGen
 from utils import log_info, panic
 from errors import new_error, new_errors, CompilationError, SingleCompilationError
 from datatypes import Dictionary, List, Option
 
 
-fn resolve_newops(module: ast.Module) except CompilationError:
+fn resolve_newops(module: ast.Module, id_gen: IdGen) except CompilationError:
     log_info("resolve new-ops for {module.name}")
-    let newop = NewOp()
+    let newop = NewOp(id_gen)
     let visitor = ast.Visitor[NewOp]:
         data: newop
         on_definition: newop_on_definition
@@ -60,7 +61,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                     case newop.try_as_type(expression: base):
                         Some(ty):
                             if ast.is_enum_type(ty):
-                                case ast.get_enum_variant(ty, attr):
+                                case ast.get_enum_variant_from_type(ty, attr):
                                     Some(variant):
                                         expression.kind = ast.ExpressionKind.Variant(ty, variant)
                                     None:
@@ -134,7 +135,7 @@ fn newop_on_node(newop: NewOp, node: ast.VisitNode, phase: ast.VisitPhase):
 
 class NewOp:
     var errors: List[SingleCompilationError] = List()
-    var counter: int = 1
+    var id_gen: IdGen
 
     fn try_as_type(expression: ast.Expression) -> Option[ast.Type]:
         # Try to use this expression as a type.
@@ -168,5 +169,4 @@ class NewOp:
         return ast.apply_tycon(tycon, type_arguments)
     
     fn new_id() -> int:
-        this.counter += 1
-        return this.counter
+        return this.id_gen.new_id()

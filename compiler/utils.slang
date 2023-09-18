@@ -15,7 +15,8 @@ fn log_error(message?: str):
     print("ERROR: {message}")
 
 fn log_info(message?: str):
-    print("INFO: {message}")
+    # LOL: Hack to enable valid python code to be output, including compiler logs.
+    print("# INFO: {message}")
 
 fn log_debug(message?: str):
     let do_debug = false

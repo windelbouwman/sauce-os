@@ -9,7 +9,6 @@ from strlib import str_join
 fn gen_python(prog: ast.Module):
     let g = PyGenerator()
     g.gen_module(prog)
-    g.emit("main()")
 
 class PyGenerator:
     var indent_level: int = 0
@@ -30,28 +29,35 @@ class PyGenerator:
                 this.gen_statement(function_def.body)
                 this.dedent()
                 this.emit("")
+                this.emit("")
             Struct(struct_def):
                 this.emit("class {this.get_id(id: struct_def.id)}:")
                 this.indent()
-                let parameter_names: List[str] = List()
-                for field1 in struct_def.fields:
-                    parameter_names.append(field1.name)
-                let params = str_join(parts: parameter_names, sep: ", ")
-                this.emit("def __init__(self, {params}):")
-                this.indent()
-                for field2 in struct_def.fields:
-                    this.emit("self.{field2.name} = {field2.name}")
+                if struct_def.is_union:
+                    this.emit("def __init__(self, field, value):")
+                    this.indent()
+                    this.emit("setattr(self, field, value)")
+                    this.dedent()
+                else:
+                    let parameter_names: List[str] = List()
+                    for field1 in struct_def.fields:
+                        parameter_names.append(field1.name)
+                    let params = str_join(parts: parameter_names, sep: ", ")
+                    this.emit("def __init__(self, {params}):")
+                    this.indent()
+                    for field2 in struct_def.fields:
+                        this.emit("self.{field2.name} = {field2.name}")
+                    this.dedent()
                 this.dedent()
                 this.emit("")
-                this.dedent()
                 this.emit("")
             Class(class_def):
                 panic("class-def not supported")
             ExternFunction(e):
                 panic("extern-function not supported")
-            Enum(e):
+            Enum(enum_def):
                 panic("enum-def not supported")
-            Var(v):
+            Var(variable_def):
                 panic("var-def not supported")
 
     fn gen_statement(statement?: ast.Statement):
@@ -121,6 +127,8 @@ class PyGenerator:
         case if_statement.false_body.kind:
             If(if2):
                 this.gen_if_statement(if_statement: if2, kw: "elif")
+            Pass:
+                pass
         else:
             this.emit("else:")
             this.indent()
@@ -142,9 +150,18 @@ class PyGenerator:
             FloatLiteral(value):
                 txt = float_to_str(value)
             StructLiteral(ty, values):
-                let name = ast.get_struct_name_from_type(ty)
+                let struct_def = ast.get_struct_def_from_type(ty)
+                let name = this.get_id(id: struct_def.id)
                 let args = this.gen_expression_list(expressions: values)
                 txt = "{name}({args})"
+            UnionLiteral(ty, field, value):
+                let struct_def = ast.get_struct_def_from_type(ty)
+                let name = this.get_id(id: struct_def.id)
+                let value_txt = this.gen_expression(value, parens: true)
+                txt = "{name}('{field}', {value_txt})"
+            ArrayLiteral(values):
+                let args = this.gen_expression_list(expressions: values)
+                txt = "[{args}]"
             EnumLiteral(a, b, c):
                 panic("Enum literal not supported")
             Variant(a, b):
@@ -161,6 +178,8 @@ class PyGenerator:
             TypeCast(ty, value):
                 # TODO
                 txt = this.gen_expression(value, parens: true)
+            ToString(value):
+                panic("ToString not supported, rewrite language construct")
             Typ(ty):
                 panic("Type not supported")
             TypeConstructor(tycon):
@@ -248,8 +267,11 @@ class PyGenerator:
     
     fn get_id(id: ast.NodeId) -> str:
         # TODO: we could use id as well?
-        # return "{id.name}_{id.id}"
-        return id.name
+        # TODO: think more about name mangling
+        if id.name == "main":
+            return id.name
+        else:
+            return "X{id.id}_{id.name}"
 
     fn emit(txt?: str):
         let space = ""

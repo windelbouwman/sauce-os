@@ -165,7 +165,7 @@ class Lexer:
                 kind = TokenKind.NewLine()
                 this.col_start = this.offset
             elif is_digit(c):
-                while is_digit(c: this.peek()):
+                while this.offset < n and is_digit(c: this.peek()):
                     this.offset += 1
                 if this.peek() == ".":
                     # Floating point!
@@ -180,7 +180,7 @@ class Lexer:
                     let int_value: int = str_to_int(this.get_lexeme())
                     kind = TokenKind.Integer(int_value)
             elif is_id(c):
-                while is_id_or_digit(c: this.peek()):
+                while this.offset < n and is_id_or_digit(c: this.peek()):
                     this.offset += 1
 
                 # Check for keywords:

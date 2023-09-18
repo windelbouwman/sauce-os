@@ -526,7 +526,7 @@ class Module(Node):
         super().__init__(Location.default())
         assert isinstance(name, str)
         self.name = name
-        self.filename = ""
+        self.filename = "?no-name?"
         self.imports = list(imports)
         self.definitions = list(definitions)
         self.types = []
