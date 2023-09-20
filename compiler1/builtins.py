@@ -57,6 +57,11 @@ def std_module() -> ast.Module:
     )
 
     mod.add_definition(
+        "chr",
+        ast.BuiltinFunction("std_chr", [ast.int_type], ast.str_type),
+    )
+
+    mod.add_definition(
         "get_n_args",
         ast.BuiltinFunction("std_get_n_args", [], ast.int_type),
     )
@@ -107,6 +112,7 @@ def get_builtins(args=(), stdout=None):
         "std_str_get": lambda s, i: s[i],
         "std_str_slice": lambda s, b, e: s[b:e],
         "std_ord": ord,
+        "std_chr": chr,
         "std_get_n_args": get_n_args,
         "std_get_arg": get_arg,
     }
@@ -136,6 +142,7 @@ std_float_to_str = str
 std_str_to_float = float
 std_str_len = len
 std_ord = ord
+std_chr = chr
 
 def std_str_get(s, i):
     return s[i]

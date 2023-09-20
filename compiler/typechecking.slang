@@ -8,6 +8,10 @@ from location import Location
 from utils import log_info, panic
 from errors import CompilationError, new_errors, new_error, display_error, SingleCompilationError
 
+fn type_check_modules(module_set: ast.ModuleSet) except CompilationError:
+    for module in module_set.modules:
+        type_check(module)
+
 fn type_check(module: ast.Module) except CompilationError:
     log_info("Checking module {module.name}")
 
@@ -160,7 +164,7 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                     # TODO: some checking might be nice
                     expression.ty = ty
                 NameRef(name):
-                    panic("names must be resolved")
+                    panic("names must be resolved: {name}")
                 Variant(ty, v):
                     panic("variants must be literals")
                 Undefined:

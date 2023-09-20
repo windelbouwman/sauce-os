@@ -3,7 +3,7 @@
 import ast
 from utils import panic
 from datatypes import List
-from std import print, float_to_str
+from std import print, float_to_str, chr
 from strlib import str_join
 
 fn gen_python(prog: ast.Module):
@@ -146,7 +146,7 @@ class PyGenerator:
             IntLiteral(v):
                 txt = "{v}"
             StringLiteral(s):
-                txt = "'{s}'"
+                txt = "{chr(34)}{s}{chr(34)}"
             FloatLiteral(value):
                 txt = float_to_str(value)
             StructLiteral(ty, values):

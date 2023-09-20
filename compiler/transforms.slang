@@ -5,8 +5,8 @@ from basepass import IdGen
 from datatypes import Dictionary, List, vec1, vec2, vec3, Option, option_unwrap_or, option_unwrap
 import ast
 
-fn transform(module: ast.Module, id_gen: IdGen, std_module: ast.Module):
-    log_info("Transforming")
+fn transform(module_set: ast.ModuleSet, id_gen: IdGen, std_module: ast.Module):
+    # log_info("Transforming {module.name}")
     let transformer = Transformer:
         class_rewriter: ClassRewriter(id_gen, std_module)
 
@@ -24,21 +24,22 @@ fn transform(module: ast.Module, id_gen: IdGen, std_module: ast.Module):
         on_expression: transformer_on_expression1
         on_node: transformer_on_node0
 
-    ast.visit_module(visitor, module)
+    for module in module_set.modules:
+        ast.visit_module(visitor, module)
 
-    # Filter class-defs:
-    let new_defs2: List[ast.Definition] = List()
-    for def2 in module.definitions:
-        case def2:
-            Class(c):
-                pass
-            Enum(e):
-                pass
-        else:
-            new_defs2.append(def2)
+        # Filter class-defs:
+        let new_defs2: List[ast.Definition] = List()
+        for def2 in module.definitions:
+            case def2:
+                Class(c):
+                    pass
+                Enum(e):
+                    pass
+            else:
+                new_defs2.append(def2)
 
-    new_defs2.extend(transformer.class_rewriter.new_definitions)
-    module.definitions = new_defs2
+        new_defs2.extend(transformer.class_rewriter.new_definitions)
+        module.definitions = new_defs2
 
     # ast.print_ast(module)
 
@@ -49,7 +50,7 @@ fn transform(module: ast.Module, id_gen: IdGen, std_module: ast.Module):
     visitor.on_statement = transformer_on_statement0
     visitor.on_expression = transformer_on_expression2
     visitor.on_node = transformer_on_node0
-    ast.visit_module(visitor, module)
+    ast.visit_module_set(visitor, module_set)
 
     # Phase 3:
     # - Rewrite case statement into switch statement
@@ -60,7 +61,7 @@ fn transform(module: ast.Module, id_gen: IdGen, std_module: ast.Module):
     visitor.on_statement = transformer_on_statement3
     visitor.on_expression = transformer_on_expression3
     visitor.on_node = transformer_on_node0
-    ast.visit_module(visitor, module)
+    ast.visit_module_set(visitor, module_set)
 
     # Phase 5:
     # - Change enum types into corresponding struct types
@@ -71,7 +72,7 @@ fn transform(module: ast.Module, id_gen: IdGen, std_module: ast.Module):
     visitor.on_statement = transformer_on_statement5
     visitor.on_expression = transformer_on_expression0
     visitor.on_node = transformer_on_node0
-    ast.visit_module(visitor, module)
+    ast.visit_module_set(visitor, module_set)
 
 struct Transformer:
     class_rewriter: ClassRewriter
@@ -165,7 +166,7 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
             case expression.kind:
                 ToString(value):
                     # Rewrite To String
-                    log_info("Rewrite to-string")
+                    # log_info("Rewrite to-string")
                     if ast.is_str_type(value.ty):
                         ast.change_expression_to(expression, to: value)
                     elif ast.is_int_type(value.ty):
@@ -189,14 +190,15 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                 Call(call):
                     case call.callee.kind:
                         GetAttr(base, name):
-                            # Rewrite method call
-                            log_info("Rewrite method call")
-                            let function_def: ast.FunctionDef = ast.get_method_from_type(ty: base.ty, attr: name)
-                            let this_arg = ast.LabeledExpression(location: base.location, name: Option.Some("this"), value: base)
-                            let arguments = call.arguments
-                            arguments.prepend(this_arg)
-                            let ty = ast.undefined_type()
-                            call.callee = ast.load_symbol(symbol: ast.Symbol.Function(function_def), ty, location: expression.location)
+                            if ast.is_class_type(base.ty):
+                                # Rewrite method call
+                                # log_info("Rewrite method call")
+                                let function_def: ast.FunctionDef = ast.get_method_from_type(ty: base.ty, attr: name)
+                                let this_arg = ast.LabeledExpression(location: base.location, name: Option.Some("this"), value: base)
+                                let arguments = call.arguments
+                                arguments.prepend(this_arg)
+                                let ty = ast.undefined_type()
+                                call.callee = ast.load_symbol(symbol: ast.Symbol.Function(function_def), ty, location: expression.location)
                     else:
                         pass
             else:
@@ -343,24 +345,27 @@ class ClassRewriter:
         return ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
 
     fn transform_for_loop(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
-        log_info("Rewrite for loop")
+        # log_info("Rewrite for loop")
         # Turn for loop into iterator and while loop
 
         if ast.is_array_type(for_statement.iter_value.ty):
             return this.transform_for_loop_over_array(for_statement, location)
         else:
             # Implement loop over 'iter' method:
+            # log_info(".... {ast.type_to_string(for_statement.iter_value.ty)}")
             let iter_val = ast.call_method(base: for_statement.iter_value, method: "iter", location)
             let iter_var = this.new_variable(name: "it", ty: iter_val.ty)
             let let_it_var = ast.let_statement(variable: iter_var, type_hint: Option.None(), value: iter_val, location)
 
+            # log_info("....>>> {ast.type_to_string(iter_var.ty)}")
             let opt_val = ast.call_method(base: ast.var_ref(variable: iter_var, location), method: "next", location)
             let opt_var = this.new_variable(name: "opt", ty: opt_val.ty)
             let let_opt_var = ast.let_statement(variable: opt_var, type_hint: Option.None(), value: opt_val, location)
 
             let arms: List[ast.CaseArm] = List()
-            panic("TODO: fill arms!")
-            # TODO: fill arms!
+            arms.append(ast.CaseArm(location, name: "None", variables: List(), scope: ast.Scope(), body: ast.break_statement(location)))
+            arms.append(ast.CaseArm(location, name: "Some", variables: vec1(for_statement.iter_var), scope: ast.Scope(), body: for_statement.body))
+
             let case_statement = ast.case_statement(value: ast.var_ref(variable: opt_var, location), arms, else_clause: Option.None(), location)
             let true_value = ast.bool_literal(value: true, location)
             let loop_body = ast.compound(inner: vec2(let_opt_var, case_statement), location)
@@ -526,7 +531,7 @@ class ClassRewriter:
         return ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
 
     fn rewrite_enum_literal(enum_ty: ast.Type, variant: ast.EnumVariant, values: List[ast.Expression], location: Location) -> ast.Expression:
-        log_info("Rewrite enum literal")
+        # log_info("Rewrite enum literal")
         let enum_def = ast.get_enum_def_from_type(enum_ty)
         let struct_def = this.get_struct_def_for_id(id: enum_def.id)
         let type_arguments = ast.get_type_arguments(enum_ty)

@@ -53,6 +53,12 @@ fn get_std_module() -> ast.Module:
         return_type: ast.int_type()
     ast.module_define_symbol(module, name: "ord", definition: ast.Definition.ExternFunction(std_ord))
 
+    let std_chr = ast.ExternFunctionDef:
+        name: "std_chr"
+        parameter_types: vec1(ast.int_type())
+        return_type: ast.str_type()
+    ast.module_define_symbol(module, name: "chr", definition: ast.Definition.ExternFunction(std_chr))
+
     let std_str_len = ast.ExternFunctionDef:
         name: "std_str_len"
         parameter_types: vec1(ast.str_type())

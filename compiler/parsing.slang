@@ -297,7 +297,8 @@ class Parser:
         let tok = this.get_token()
         case tok.kind:
             Equals:
-                let var_init = Option.Some(this.parse_expression())
+                # TODO/TBD: using let var_init here should be a programming error?
+                var_init = Option.Some(this.parse_expression())
         else:
             this.unget_token(tok)
 
@@ -391,6 +392,8 @@ class Parser:
                 return this.parse_while_statement(location: tok.location)
             KwCase:
                 return this.parse_case_statement(location: tok.location)
+            KwSwitch:
+                return this.parse_switch_statement(location: tok.location)
             KwFor:
                 return this.parse_for_statement(location: tok.location)
             KwTry:
@@ -611,6 +614,21 @@ class Parser:
             scope: ast.Scope()
             body: statement
         return arm
+    
+    fn parse_switch_statement(location: Location) -> ast.Statement except CompilationError:
+        let switch_value = this.parse_expression()
+        this.parse_colon()
+        this.parse_newline()
+        this.parse_indent()
+        let arms: List[ast.SwitchArm] = List()
+        while not this.try_parse_dedent():
+            let value = this.parse_expression()
+            let body = this.parse_block()
+            arms.append(ast.SwitchArm(location: value.location, value, body))
+        
+        this.parse_kw_else()
+        let default_body = this.parse_block()
+        return ast.switch_statement(value: switch_value, arms, default_body, location)
 
     fn parse_return_statement(location: Location) -> ast.Statement except CompilationError:
         # optionally parse expression (or newline)!
@@ -855,6 +873,14 @@ class Parser:
         else:
             this.unget_token(tok)
             return false
+
+    fn parse_kw_else() except CompilationError:
+        let tok = this.get_token()
+        case tok.kind:
+            KwElse:
+                pass
+        else:
+            raise this.new_error(tok, message: "Expected 'else'")
 
     fn parse_colon() except CompilationError:
         let tok = this.get_token()

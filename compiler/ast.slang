@@ -1,7 +1,7 @@
 
 from std import print, float_to_str
 from strlib import str_repeat
-from utils import panic, assert
+from utils import panic, assert, log_info
 from location import Location, location_default
 from datatypes import List, Option, Dictionary, option_unwrap, option_is_some
 
@@ -113,6 +113,17 @@ fn is_enum_type(ty?: Type) -> bool:
         App(tycon, type_arguments):
             case tycon:
                 Enum(x):
+                    return true
+            else:
+                return false
+    else:
+        return false
+
+fn is_class_type(ty?: Type) -> bool:
+    case ty.kind:
+        App(tycon, type_arguments):
+            case tycon:
+                Class(x):
                     return true
             else:
                 return false
@@ -360,9 +371,9 @@ fn get_method_from_type(ty: Type, attr: str) -> FunctionDef:
                     else:
                         panic("class must contain func/vars")
             else:
-                panic("No class")
+                panic("No class: {type_to_string(ty)}")
     else:
-        panic("No class")
+        panic("No class: {type_to_string(ty)}")
 
 fn get_class_def_from_type(ty: Type) -> ClassDef:
     case ty.kind:
@@ -500,6 +511,9 @@ fn new_type_var(unique: int) -> TypeVariable:
 fn type_var_equals(type_var1: TypeVariable, type_var2: TypeVariable) -> bool:
     return type_var1.unique == type_var2.unique
 
+struct ModuleSet:
+    modules: List[Module]
+
 struct Module:
     name: str
     filename: Option[str]
@@ -575,6 +589,11 @@ class Scope:
 
     fn lookup(name: str) -> Option[Symbol]:
         return this.symbols.get(key: name)
+    
+    fn dump():
+        log_info("Scope:")
+        for name in this.symbols:
+            log_info(" - {name}")
 
 enum Symbol:
     Mod(module: Module)
@@ -1087,6 +1106,10 @@ fn undefined_value() -> Expression:
     let location = location_default()
     return Expression(kind: ExpressionKind.Undefined(), ty: undefined_type(), location)
 
+fn print_ast2(module_set: ModuleSet):
+    for module in module_set.modules:
+        print_ast(module)
+
 fn print_ast(module: Module):
     print("Module: " + module.name)
     let printer = AstPrinter()
@@ -1336,6 +1359,10 @@ enum VisitPhase:
 enum VisitNode:
     Arm(arm: CaseArm)
 
+fn visit_module_set[T](visitor: Visitor[T], module_set: ModuleSet):
+    for module in module_set.modules:
+        visit_module(visitor, module)
+
 fn visit_module[T](visitor: Visitor[T], module: Module):
     for definition in module.definitions:
         visit_definition(visitor, definition)
@@ -1415,6 +1442,7 @@ fn visit_statement[T](visitor: Visitor[T], statement: Statement):
             for arm in switch_statement.arms:
                 visit_expression(visitor, expression: arm.value)
                 visit_statement(visitor, statement: arm.body)
+            visit_statement(visitor, statement: switch_statement.default_body)
         For(for_statement):
             visit_expression(visitor, expression: for_statement.iter_value)
             visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Mid())
@@ -1431,6 +1459,11 @@ fn visit_statement[T](visitor: Visitor[T], statement: Statement):
                 visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Pre())
                 visit_statement(visitor, statement: arm.body)
                 visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Post())
+            case case_statement.else_clause:
+                Some(else_statement):
+                    visit_statement(visitor, statement: else_statement)
+                None:
+                    pass
         Compound(inner):
             for s in inner:
                 visit_statement(visitor, statement: s)
