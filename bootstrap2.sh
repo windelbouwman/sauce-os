@@ -2,84 +2,30 @@
 
 set -eu
 
-echo "Compiling compiler with compiler"
+COMPILER1="tmp-compiler.py"
+COMPILER2="tmp-compiler2.py"
+COMPILER3="tmp-compiler3.py"
 
-cat > tmp2.py << EOF
+# Compile compiler with bootstrap compiler
+echo "Compile compiler with bootstrap compiler into ${COMPILER1}"
+python bootstrap.py
 
-import sys
+echo "Compiling compiler with ${COMPILER1} into ${COMPILER2}"
 
-def std_get_n_args() -> int:
-    return len(sys.argv) - 1
+echo "#!/usr/bin/env python" > ${COMPILER2}
+python ${COMPILER1} compiler/*.slang >> ${COMPILER2}
+chmod +x ${COMPILER2}
 
-def std_get_arg(index) -> str:
-    return sys.argv[index + 1]
+echo "Bootstrap again! Compile compiler with ${COMPILER2} into ${COMPILER3}"
 
-def std_read_file(filename: str) -> str:
-    with open(filename, "r") as f:
-        return f.read()
+echo "#!/usr/bin/env python" > ${COMPILER3}
+python ${COMPILER2} compiler/*.slang >> ${COMPILER3}
+chmod +x ${COMPILER3}
 
-def std_exit(code: int):
-    raise RuntimeError(f"EXIT with code: {code}")
+# Compiler 1 and 2 are different:
+# - They are produced from the same source, but using a different compiler.
 
-std_print = print
-std_int_to_str = str
-std_str_to_int = int
-std_float_to_str = str
-std_str_to_float = float
-std_str_len = len
-std_ord = ord
-std_chr = chr
+# Compiler 2 and 3 should be the same:
+diff ${COMPILER2} ${COMPILER3}
 
-def std_str_get(s, i):
-    return s[i]
-
-def std_str_slice(s,b,e):
-    return s[b:e]
-
-EOF
-
-python tmp-compiler.py compiler/*.slang >> tmp2.py
-
-echo "main()" >> tmp2.py
-
-
-echo "Bootstrap again!"
-
-cat > tmp3.py << EOF
-
-import sys
-
-def std_get_n_args() -> int:
-    return len(sys.argv) - 1
-
-def std_get_arg(index) -> str:
-    return sys.argv[index + 1]
-
-def std_read_file(filename: str) -> str:
-    with open(filename, "r") as f:
-        return f.read()
-
-def std_exit(code: int):
-    raise RuntimeError(f"EXIT with code: {code}")
-
-std_print = print
-std_int_to_str = str
-std_str_to_int = int
-std_float_to_str = str
-std_str_to_float = float
-std_str_len = len
-std_ord = ord
-std_chr = chr
-
-def std_str_get(s, i):
-    return s[i]
-
-def std_str_slice(s,b,e):
-    return s[b:e]
-
-EOF
-
-python tmp-compiler.py compiler/*.slang >> tmp3.py
-
-echo "main()" >> tmp3.py
-
+echo "OK"

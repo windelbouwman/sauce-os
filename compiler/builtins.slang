@@ -77,6 +77,13 @@ fn get_std_module() -> ast.Module:
         return_type: ast.str_type()
     ast.module_define_symbol(module, name: "str_get", definition: ast.Definition.ExternFunction(std_str_get))
 
+    # TODO: call this rt (runtime) or std (builtin standard library)?
+    let std_str_concat = ast.ExternFunctionDef:
+        name: "rt_str_concat"
+        parameter_types: vec2(ast.str_type(), ast.str_type())
+        return_type: ast.str_type()
+    ast.module_define_symbol(module, name: "str_concat", definition: ast.Definition.ExternFunction(std_str_concat))
+
     let std_get_n_args = ast.ExternFunctionDef:
         name: "std_get_n_args"
         parameter_types: List()

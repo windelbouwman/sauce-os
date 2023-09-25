@@ -171,9 +171,9 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                         ast.change_expression_to(expression, to: value)
                     elif ast.is_int_type(value.ty):
                         # call int-to-str
-                        let int_to_str_symbol = option_unwrap(transformer.class_rewriter.std_module.scope.lookup(name: "int_to_str"))
-                        let int_to_str_func = ast.load_symbol(symbol: int_to_str_symbol, ty: ast.undefined_type(), location: expression.location)
-                        let arguments = vec1(ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location))
+                        let int_to_str_func = transformer.class_rewriter.load_std_function(name: "int_to_str", location: expression.location)
+                        let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
+                        let arguments = vec1(arg1)
                         let call = ast.call(callee: int_to_str_func, arguments, ty: ast.str_type(), location: expression.location)
                         ast.change_expression_to(expression, to: call)
                     else:
@@ -201,6 +201,19 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                                 call.callee = ast.load_symbol(symbol: ast.Symbol.Function(function_def), ty, location: expression.location)
                     else:
                         pass
+                Binop(op):
+                    if ast.is_str_type(expression.ty):
+                        case op.op:
+                            Add:
+                                # Rewrite adding of strings by calling a runtime str_concat function
+                                let str_concat_func = transformer.class_rewriter.load_std_function(name: "str_concat", location: expression.location)
+                                let lhs_arg = ast.LabeledExpression(name: Option.None(), value: op.lhs, location: op.lhs.location)
+                                let rhs_arg = ast.LabeledExpression(name: Option.None(), value: op.rhs, location: op.rhs.location)
+                                let arguments = vec2(lhs_arg, rhs_arg)
+                                let call = ast.call(callee: str_concat_func, arguments, ty: ast.str_type(), location: expression.location)
+                                ast.change_expression_to(expression, to:call)
+                        else:
+                            panic("Can only add str types.")
             else:
                 pass
     else:
@@ -343,6 +356,11 @@ class ClassRewriter:
     fn get_struct_type_for_id(id: ast.NodeId, type_arguments: List[ast.Type]) -> ast.Type:
         let struct_def = this.get_struct_def_for_id(id)
         return ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
+
+    fn load_std_function(name: str, location: Location) -> ast.Expression:
+        # Get expression that loads a builtin runtime function.
+        let symbol = option_unwrap(this.std_module.scope.lookup(name))
+        return ast.load_symbol(symbol, ty: ast.undefined_type(), location)
 
     fn transform_for_loop(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
         # log_info("Rewrite for loop")

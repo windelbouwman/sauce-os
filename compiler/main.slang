@@ -17,12 +17,13 @@ from datatypes import List, Dictionary, Result, option_unwrap
 from strlib import String, new_string, string_compare
 from graphlib import DiGraph, topological_sort
 from sorting import sort_list
+from c_gen import gen_c_code
 
 
 fn main() -> int:
     let filenames: List[String] = List()
 
-    let options = CompilationOptions(dump_ast: false)
+    let options = CompilationOptions(dump_ast: false, backend: "py", verbosity: 0)
 
     # Argument processing
     let n = get_n_args()
@@ -34,6 +35,12 @@ fn main() -> int:
         elif argument == "-h":
             print_usage()
             return 0
+        elif argument == "-v":
+            options.verbosity += 1
+        elif argument == "-bc":
+            options.backend = "bc"
+        elif argument == "-py":
+            options.backend = "py"
         else:
             # Assume source file
             filenames.append(new_string(argument))
@@ -57,13 +64,18 @@ fn print_usage():
     print("Usage:")
     print("$ compiler.exe [-d] file1.slang file2.slang ..")
     print("    -d : dump AST between compilation phases")
+    print("    -v : Increase verbosity")
+    print("    -h : display usage information")
+    print("    -bc : Spit out bytecode")
     print("")
     print("Multiple source files can be passed")
 
 struct CompilationOptions:
     dump_ast: bool
+    backend: str
+    verbosity: int
 
-fn compile(filenames: List[String], options: CompilationOptions) -> bc.Program except CompilationError:
+fn compile(filenames: List[String], options: CompilationOptions) except CompilationError:
     let id_gen = IdGen()
     let module_map: Dictionary[ast.Module] = Dictionary()
     let std_module = get_std_module()
@@ -95,14 +107,14 @@ fn compile(filenames: List[String], options: CompilationOptions) -> bc.Program e
         ast.print_ast2(module_set)
     type_check_modules(module_set)
  
-    # TODO!
-    for module6 in modules:
-        # let prog = gen_bytecode(module2)
-        #log_info("generating bytecode: {module2.name}")
-        gen_python(prog: module6)
-
-    let prog = bc.new_program()
-    return prog
+    if options.backend == "py":  # Python backend
+        gen_python(module_set)
+    elif options.backend == "bc":  # Bytecode backend
+        let prog3 = gen_bytecode(module_set)
+        bc.print_bc_program(program: prog3)
+        gen_c_code(program: prog3)
+    else:
+        panic("Invalid backend: {options.backend}")
 
 fn topo_sort(modules: List[ast.Module]):
     # Sort modules (in-place) based on which module import the other one

@@ -308,7 +308,18 @@ fn get_field_types(ty: Type) -> List[Type]:
     else:
         panic("Type without fields")
 
-fn get_struct_def_from_type(ty: Type) -> StructDef:
+fn is_struct_type(ty?: Type) -> bool:
+    case ty.kind:
+        App(tycon, type_arguments):
+            case tycon:
+                Struct(struct_def):
+                    return true
+            else:
+                return false
+    else:
+        return false
+
+fn get_struct_def_from_type(ty?: Type) -> StructDef:
     case ty.kind:
         App(tycon, type_arguments):
             case tycon:

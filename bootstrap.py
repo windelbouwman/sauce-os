@@ -4,6 +4,7 @@ Use the python based bootstrap compiler to compile the compiler itself.
 
 """
 
+import sys
 import glob
 from compiler1 import compiler, errors, builtins
 
@@ -19,5 +20,6 @@ try:
 except errors.CompilationError as ex:
     print("ERRORS")
     errors.print_errors(ex.errors)
+    sys.exit(1)
 else:
     print(f"OK --> {output_filename}")

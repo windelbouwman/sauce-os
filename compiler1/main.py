@@ -9,7 +9,7 @@ import logging
 import glob
 
 
-def main():
+def main() -> int:
     # Split args after '--' into args for program
     if "--" in sys.argv:
         index = sys.argv.index("--")
@@ -71,10 +71,12 @@ def main():
     except errors.CompilationError as ex:
         logger.error("Errors occurred during compilation!")
         errors.print_errors(ex.errors)
+        return 1
     finally:
         if f:
             f.close()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

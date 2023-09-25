@@ -2,5 +2,14 @@
 build/
 
 .venv/
+.hypothesis/
+.mypy_cache/
+.pytest_cache/
+.benchmarks/
+
 
 __pycache__
+
+tmp-compiler.py
+tmp-compiler2.py
+tmp-compiler3.py

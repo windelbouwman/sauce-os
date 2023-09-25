@@ -51,9 +51,9 @@ class Parser:
                     # We are done!
                     break
                 KwImport:
-                    imports.append(this.parse_import(location: tok.location))
+                    imports.append(this.parse_import())
                 KwFrom:
-                    imports.append(this.parse_from_import(location: tok.location))
+                    imports.append(this.parse_from_import())
                 KwFn:
                     let func_def = this.parse_func_def(location: tok.location, this_parameter: Option.None())
                     definitions.append(ast.Definition.Function(func_def))
@@ -72,12 +72,12 @@ class Parser:
         let program = ast.new_module(name, filename: this.filename, imports, definitions)
         return program
 
-    fn parse_import(location: Location) -> ast.Import except CompilationError:
-        let modname = this.parse_name().name
+    fn parse_import() -> ast.Import except CompilationError:
+        let modname = this.parse_name()
         this.parse_newline()
-        return ast.import_self(modname, location)
+        return ast.import_self(modname: modname.name, location: modname.location)
 
-    fn parse_from_import(location: Location) -> ast.Import except CompilationError:
+    fn parse_from_import() -> ast.Import except CompilationError:
         let modname = this.parse_name()
 
         # 'import'

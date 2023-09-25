@@ -133,6 +133,10 @@ class List[T]:
             Some(element):
                 return element.data
 
+    fn drop_last():
+        # Drop last item from list
+        let x = this.pop_last()
+
     fn pop_last() -> T:
         # Pop last element of the list
         case this.head_element:

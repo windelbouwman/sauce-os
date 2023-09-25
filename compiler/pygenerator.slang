@@ -6,16 +6,47 @@ from datatypes import List
 from std import print, float_to_str, chr
 from strlib import str_join
 
-fn gen_python(prog: ast.Module):
+fn gen_python(module_set: ast.ModuleSet):
     let g = PyGenerator()
-    g.gen_module(prog)
+    g.emit_runtime()
+    g.emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
+    for module in module_set.modules:
+        g.gen_module(module)
+    g.emit("sys.exit(main())")
 
 class PyGenerator:
     var indent_level: int = 0
 
-    fn gen_module(prog: ast.Module):
-        for definition in prog.definitions:
+    fn gen_module(module: ast.Module):
+        for definition in module.definitions:
             this.gen_definition(definition)
+
+    fn emit_runtime():
+        # Print out runtime functions required
+        # TODO: figure out multiline string support?
+        # TBD: how to handle multiline strings. Do we want this?
+        this.emit("import sys")
+        this.emit("std_print = print")
+        this.emit("std_int_to_str = str")
+        this.emit("std_str_to_int = int")
+        this.emit("std_float_to_str = str")
+        this.emit("std_str_to_float = float")
+        this.emit("std_str_len = len")
+        this.emit("def std_str_get(s, i):  return s[i]")
+        this.emit("def std_str_slice(s,b,e):   return s[b:e]")
+        this.emit("def rt_str_concat(a, b):  return a + b")
+        this.emit("std_ord = ord")
+        this.emit("std_chr = chr")
+        this.emit("def std_get_n_args() -> int: return len(sys.argv) - 1")
+        this.emit("def std_get_arg(index) -> str:  return sys.argv[index + 1]")
+        this.emit("def std_exit(code: int): raise RuntimeError('EXIT with code: ' + str(code))")
+        this.emit("def std_read_file(filename: str) -> str:")
+        this.indent()
+        this.emit("with open(filename, 'r') as f:")
+        this.indent()
+        this.emit("return f.read()")
+        this.dedent()
+        this.dedent()
 
     fn gen_definition(definition: ast.Definition):
         case definition:
@@ -146,6 +177,7 @@ class PyGenerator:
             IntLiteral(v):
                 txt = "{v}"
             StringLiteral(s):
+                # TODO: implement escaping in string literals
                 txt = "{chr(34)}{s}{chr(34)}"
             FloatLiteral(value):
                 txt = float_to_str(value)
