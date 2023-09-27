@@ -1,4 +1,13 @@
 
+# Available transformations:
+# - Turn for-loops into while-loops
+# - Turn classes into structs with functions
+# - Turn enums into tagged unions
+# - Turn switch-statement into chain of if-statements
+
+# Ideas for transformations:
+# - Transform try/except into something else
+
 from location import Location
 from utils import panic, log_info
 from basepass import IdGen

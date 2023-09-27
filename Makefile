@@ -18,6 +18,18 @@ mandel: ${COMPILER3} examples/mandel.slang
 structs-passing: ${COMPILER3} examples/structs-passing.slang
 	python ${COMPILER3} -bc examples/structs-passing.slang
 
+enum-case: ${COMPILER3} examples/enum_case.slang
+	python ${COMPILER3} -bc examples/enum_case.slang
+
+classy: ${COMPILER3} examples/classy.slang
+	python ${COMPILER3} -bc examples/classy.slang
+
+generic-enum: ${COMPILER3} examples/generic-enum.slang
+	python ${COMPILER3} -bc examples/generic-enum.slang
+
+compiler4: ${COMPILER_SRCS} ${COMPILER3}
+	python ${COMPILER3} -bc ${COMPILER_SRCS}
+
 # Compile slang compiler:
 ${COMPILER3}: tmp-compiler2.py ${COMPILER_SRCS}
 	echo "#!/usr/bin/env python" > ${COMPILER3}

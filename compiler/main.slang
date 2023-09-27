@@ -18,12 +18,17 @@ from strlib import String, new_string, string_compare
 from graphlib import DiGraph, topological_sort
 from sorting import sort_list
 from c_gen import gen_c_code
+from c_gen_v2 import gen_c_code_v2
 
 
 fn main() -> int:
     let filenames: List[String] = List()
 
-    let options = CompilationOptions(dump_ast: false, backend: "py", verbosity: 0)
+    let options = CompilationOptions:
+        dump_ast: false
+        backend: "py"
+        verbosity: 0
+        runtime: true
 
     # Argument processing
     let n = get_n_args()
@@ -39,8 +44,12 @@ fn main() -> int:
             options.verbosity += 1
         elif argument == "-bc":
             options.backend = "bc"
+        elif argument == "-cv2":
+            options.backend = "c2"
         elif argument == "-py":
             options.backend = "py"
+        elif argument == "-rt":
+            options.runtime = false
         else:
             # Assume source file
             filenames.append(new_string(argument))
@@ -67,6 +76,8 @@ fn print_usage():
     print("    -v : Increase verbosity")
     print("    -h : display usage information")
     print("    -bc : Spit out bytecode")
+    print("    -cv2 : Spit out C code (v2)")
+    print("    -rt : Skip runtime?")
     print("")
     print("Multiple source files can be passed")
 
@@ -74,6 +85,7 @@ struct CompilationOptions:
     dump_ast: bool
     backend: str
     verbosity: int
+    runtime: bool
 
 fn compile(filenames: List[String], options: CompilationOptions) except CompilationError:
     let id_gen = IdGen()
@@ -108,11 +120,13 @@ fn compile(filenames: List[String], options: CompilationOptions) except Compilat
     type_check_modules(module_set)
  
     if options.backend == "py":  # Python backend
-        gen_python(module_set)
+        gen_python(module_set, generate_runtime: options.runtime)
     elif options.backend == "bc":  # Bytecode backend
         let prog3 = gen_bytecode(module_set)
         bc.print_bc_program(program: prog3)
         gen_c_code(program: prog3)
+    elif options.backend == "c2":  # C backend (v2)
+        gen_c_code_v2(module_set)
     else:
         panic("Invalid backend: {options.backend}")
 

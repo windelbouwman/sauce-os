@@ -149,6 +149,8 @@ void *rt_malloc(int size)
 // IDEA: use reference counting to free values.
 void rt_incref(void *ptr)
 {
+    return;
+
     if (ptr == NULL)
     {
         return;
@@ -164,6 +166,8 @@ void rt_incref(void *ptr)
 
 void rt_decref(void *ptr)
 {
+    return;
+
     if (ptr == NULL)
     {
         return;

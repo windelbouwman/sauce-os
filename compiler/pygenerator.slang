@@ -4,15 +4,17 @@ import ast
 from utils import panic
 from datatypes import List
 from std import print, float_to_str, chr
-from strlib import str_join
+from strlib import str_join, str_repeat
 
-fn gen_python(module_set: ast.ModuleSet):
+fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool):
     let g = PyGenerator()
-    g.emit_runtime()
+    if generate_runtime:
+        g.emit_runtime()
     g.emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
     for module in module_set.modules:
         g.gen_module(module)
-    g.emit("sys.exit(main())")
+    if generate_runtime:
+        g.emit("sys.exit(main())")
 
 class PyGenerator:
     var indent_level: int = 0
@@ -56,9 +58,7 @@ class PyGenerator:
                     parameter_names.append(this.get_id(id: parameter.id))
                 let params = str_join(parts: parameter_names, sep: ", ")
                 this.emit("def {this.get_id(id: function_def.id)}({params}):")
-                this.indent()
-                this.gen_statement(function_def.body)
-                this.dedent()
+                this.gen_block(function_def.body)
                 this.emit("")
                 this.emit("")
             Struct(struct_def):
@@ -91,13 +91,16 @@ class PyGenerator:
             Var(variable_def):
                 panic("var-def not supported")
 
+    fn gen_block(statement?: ast.Statement):
+        this.indent()
+        this.gen_statement(statement)
+        this.dedent()
+
     fn gen_statement(statement?: ast.Statement):
         case statement.kind:
             While(while_statement):
                 this.emit("while {this.gen_expression(while_statement.condition, parens: false)}:")
-                this.indent()
-                this.gen_statement(while_statement.body)
-                this.dedent()
+                this.gen_block(while_statement.body)
             Loop(loop_statement):
                 panic("loop statement not supported")
             Let(let_statement):
@@ -114,9 +117,7 @@ class PyGenerator:
                 panic("Please rewrite for-loop!")
             Try(try_statement):
                 this.emit("try:")
-                this.indent()
-                this.gen_statement(try_statement.try_body)
-                this.dedent()
+                this.gen_block(try_statement.try_body)
                 let ex_name = "ex_{this.get_id(id: try_statement.except_param.id)}"
                 this.emit("except ValueError as {ex_name}:")
                 this.indent()
@@ -134,7 +135,7 @@ class PyGenerator:
                     None:
                         op_txt = "="
                     Some(op3):
-                        op_txt = "{ast.binary_op_to_str(op: op3)}="
+                        op_txt = "{binary_operator_to_str(op: op3)}="
                 this.emit("{this.gen_expression(target, parens: true)} {op_txt} {this.gen_expression(value, parens: false)}")
             Return(value):
                 case value:
@@ -152,9 +153,7 @@ class PyGenerator:
 
     fn gen_if_statement(if_statement: ast.IfStatement, kw: str):
         this.emit("{kw} {this.gen_expression(if_statement.condition, parens: false)}:")
-        this.indent()
-        this.gen_statement(if_statement.true_body)
-        this.dedent()
+        this.gen_block(if_statement.true_body)
         case if_statement.false_body.kind:
             If(if2):
                 this.gen_if_statement(if_statement: if2, kw: "elif")
@@ -162,9 +161,7 @@ class PyGenerator:
                 pass
         else:
             this.emit("else:")
-            this.indent()
-            this.gen_statement(if_statement.false_body)
-            this.dedent()
+            this.gen_block(if_statement.false_body)
 
     fn gen_expression(expression?: ast.Expression, parens: bool) -> str:
         let txt = "?"
@@ -257,33 +254,7 @@ class PyGenerator:
                 if parens:
                     txt = "({txt})"
             Binop(binop):
-                let op = "$"
-                case binop.op:
-                    Or:
-                        op = "or"
-                    And:
-                        op = "and"
-                    Equals:
-                        op = "=="
-                    NotEquals:
-                        op = "!="
-                    Less:
-                        op = "<"
-                    LessEquals:
-                        op = "<="
-                    Greater:
-                        op = ">"
-                    GreaterEquals:
-                        op = ">="
-                    Add:
-                        op = "+"
-                    Sub:
-                        op = "-"
-                    Mul:
-                        op = "*"
-                    Div:
-                        op = "/"
-
+                let op = binary_operator_to_str(op: binop.op)
                 txt = "{this.gen_expression(binop.lhs, parens: true)} {op} {this.gen_expression(binop.rhs, parens: true)}"
                 if parens:
                     txt = "({txt})"
@@ -306,11 +277,7 @@ class PyGenerator:
             return "X{id.id}_{id.name}"
 
     fn emit(txt?: str):
-        let space = ""
-        let i = 0
-        while i < this.indent_level:
-            space += "    "
-            i += 1
+        let space = str_repeat(text: "    ", count: this.indent_level)
         print(space + txt)
     
     fn indent():
@@ -318,3 +285,32 @@ class PyGenerator:
     
     fn dedent():
         this.indent_level -= 1
+
+fn binary_operator_to_str(op: ast.BinaryOperator) -> str:
+    let op_txt = "?"
+    case op:
+        And:
+            op_txt = "and"
+        Or:
+            op_txt = "or"
+        Greater:
+            op_txt = ">"
+        GreaterEquals:
+            op_txt = ">="
+        Less:
+            op_txt = "<"
+        LessEquals:
+            op_txt = "<="
+        Equals:
+            op_txt = "=="
+        NotEquals:
+            op_txt = "!="
+        Add:
+            op_txt = "+"
+        Sub:
+            op_txt = "-"
+        Mul:
+            op_txt = "*"
+        Div:
+            op_txt = "/"
+    return op_txt

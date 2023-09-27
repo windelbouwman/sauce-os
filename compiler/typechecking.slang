@@ -146,11 +146,19 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                 Typ(t):
                     panic("TODO: type")
                 Binop(b):
-                    # panic("TODO: binop")
-                    let ty = b.lhs.ty
+                    let is_div = false
+                    case b.op:
+                        Div:
+                            is_div = true
+                    else:
+                        is_div = false
+
                     # Heuristics ahead...
+                    let ty = b.lhs.ty
                     if ast.is_int_type(b.lhs.ty) and ast.is_float_type(b.rhs.ty):
                         ty = b.rhs.ty
+                    elif is_div:
+                        ty = ast.float_type()
 
                     checker.coerce(ty, value: b.lhs)
                     checker.coerce(ty, value: b.rhs)

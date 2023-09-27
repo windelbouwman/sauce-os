@@ -49,7 +49,7 @@ class Generator:
                     let fields2: List[bc.Type] = List()
                     for field1 in struct_def.fields:
                         fields2.append(this.get_bc_type(field1.ty))
-                    this.structs.append(bc.Struct(fields: fields2))
+                    this.structs.append(bc.Struct(fields: fields2, is_union: struct_def.is_union))
             else:
                 pass
 
@@ -109,20 +109,44 @@ class Generator:
                 if not ast.is_void_type(expr.ty):
                     panic("Expression must be void!")
             Assignment(target, op, value):
-                # TODO: handle optional operator, like += and -=
                 case target.kind:
                     GetAttr(base, attr):
                         this.gen_expression(base)
-                        this.gen_expression(value)
                         let index = get_attr_index(ty: base.ty, attr)
+                        case op:
+                            Some(binop):
+                                this.emit(Instruction.GetAttr(index, ty: this.get_bc_type(target.ty)))
+                                this.gen_expression(value)
+                                case binop:
+                                    Add:
+                                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Add()))
+                                    Sub:
+                                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Sub()))
+                                else:
+                                    panic("Can only += and -=")
+                            None:
+                                this.gen_expression(value)
                         this.emit(Instruction.SetAttr(index))
                     GetIndex(base, indici):
                         this.gen_expression(base)
                         this.gen_expression(value)
+                        # TODO: handle optional operator, like += and -=
                         panic("TODO assign x[y] =")
                     VarRef(variable):
-                        this.gen_expression(value)
                         let index = this.get_local_index(variable)
+                        case op:
+                            Some(binop):
+                                this.emit(Instruction.LocalGet(index))
+                                this.gen_expression(value)
+                                case binop:
+                                    Add:
+                                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Add()))
+                                    Sub:
+                                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Sub()))
+                                else:
+                                    panic("Can only += and -=")
+                            None:
+                                this.gen_expression(value)
                         this.emit(Instruction.LocalSet(index))
                 else:
                     panic("Cannot assign: {ast.expression_to_string(expression: target)}")
@@ -186,10 +210,59 @@ class Generator:
                 panic("Raise not implemented")
     
     fn gen_condition(condition: ast.Expression, true_label: int, false_label: int):
-        # Generate short circuit logic for and / or things
-        this.gen_expression(condition)
-        # TODO?
-        this.jump_if(label: true_label, label2: false_label)
+        # Generate short circuit logic for 'and' and 'or' conditions
+        # Otherwise, evaluate the condition, and use jump-if
+        case condition.kind:
+            Binop(binop):
+                case binop.op:
+                    And:
+                        # Both sides must be true
+                        # If the first condition is true, we must check the second one.
+                        let middle_label = this.new_label()
+                        this.gen_condition(condition: binop.lhs, true_label: middle_label, false_label)
+                        this.set_label(middle_label)
+                        this.gen_condition(condition: binop.rhs, true_label, false_label)
+                    Or:
+                        # One condition must be true must be true
+                        # If the first condition is true, we are done. Otherwise, check the second condition
+                        let middle_label = this.new_label()
+                        this.gen_condition(condition: binop.lhs, true_label, false_label: middle_label)
+                        this.set_label(middle_label)
+                        this.gen_condition(condition: binop.rhs, true_label, false_label)
+                else:
+                    this.gen_expression(condition)
+                    this.jump_if(label: true_label, label2: false_label)
+            # TODO: unop -> not 
+        else:
+            this.gen_expression(condition)
+            this.jump_if(label: true_label, label2: false_label)
+
+    fn condition_as_value(condition: ast.Expression):
+        # Evaluate a condition into a value on the stack.
+
+        # Create a local variable for the result:
+        let ty = bc.Type.Int()
+        let index = this.local_variables.len()
+        this.local_variables.append(ty)
+
+        # Evaluate the condition, and branch:
+        let true_label = this.new_label()
+        let false_label = this.new_label()
+        let final_label = this.new_label()
+        this.gen_condition(condition, true_label, false_label)
+
+        this.set_label(true_label)
+        this.emit(Instruction.Literal(bc.LiteralValue.Bool(value: true)))
+        this.emit(Instruction.LocalSet(index))
+        this.jump(final_label)
+
+        this.set_label(false_label)
+        this.emit(Instruction.Literal(bc.LiteralValue.Bool(value: false)))
+        this.emit(Instruction.LocalSet(index))
+        this.jump(final_label)
+
+        this.set_label(final_label)
+        this.emit(Instruction.LocalGet(index))
 
     fn gen_expression(expression?: ast.Expression):
         case expression.kind:
@@ -211,33 +284,39 @@ class Generator:
                 this.gen_expression(base)
                 panic("TODO: get-index")
             Binop(binop):
-                this.gen_expression(binop.lhs)
-                this.gen_expression(binop.rhs)
                 case binop.op:
-                    Add:
-                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Add()))
-                    Sub:
-                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Sub()))
-                    Mul:
-                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Multiply()))
-                    Div:
-                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Divide()))
-                    NotEquals:
-                        this.emit(Instruction.Binop(op: bc.BinaryOperator.NotEquals()))
-                    Equals:
-                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Equals()))
-                    Greater:
-                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Greater()))
-                    GreaterEquals:
-                        this.emit(Instruction.Binop(op: bc.BinaryOperator.GreaterEquals()))
-                    Less:
-                        this.emit(Instruction.Binop(op: bc.BinaryOperator.Less()))
-                    LessEquals:
-                        this.emit(Instruction.Binop(op: bc.BinaryOperator.LessEquals()))
                     And:
-                        panic("TODO: and")
+                        this.condition_as_value(condition: expression)
                     Or:
-                        panic("TODO: or")
+                        this.condition_as_value(condition: expression)
+                else:
+                    this.gen_expression(binop.lhs)
+                    this.gen_expression(binop.rhs)
+                    case binop.op:
+                        Add:
+                            this.emit(Instruction.Binop(op: bc.BinaryOperator.Add()))
+                        Sub:
+                            this.emit(Instruction.Binop(op: bc.BinaryOperator.Sub()))
+                        Mul:
+                            this.emit(Instruction.Binop(op: bc.BinaryOperator.Multiply()))
+                        Div:
+                            this.emit(Instruction.Binop(op: bc.BinaryOperator.Divide()))
+                        NotEquals:
+                            this.emit(Instruction.Binop(op: bc.BinaryOperator.NotEquals()))
+                        Equals:
+                            this.emit(Instruction.Binop(op: bc.BinaryOperator.Equals()))
+                        Greater:
+                            this.emit(Instruction.Binop(op: bc.BinaryOperator.Greater()))
+                        GreaterEquals:
+                            this.emit(Instruction.Binop(op: bc.BinaryOperator.GreaterEquals()))
+                        Less:
+                            this.emit(Instruction.Binop(op: bc.BinaryOperator.Less()))
+                        LessEquals:
+                            this.emit(Instruction.Binop(op: bc.BinaryOperator.LessEquals()))
+                        And:
+                            panic("unreachable: and")
+                        Or:
+                            panic("unreachable: or")
 
             Unop(op, value):
                 this.gen_expression(value)
@@ -294,16 +373,20 @@ class Generator:
                 this.emit(Instruction.StructLiteral(struct_index))
             UnionLiteral(ty, field, value):
                 this.gen_expression(value)
-                # TODO: field -> 0?
-                this.emit(Instruction.UnionLiteral(field: 0))
+                let struct_def = ast.get_struct_def_from_type(ty)
+                let struct_index = option_unwrap(this.struct_mapping.get(key: ast.node_id_to_string(struct_def.id)))
+                let field_index = get_attr_index(ty, attr: field)
+                this.emit(Instruction.UnionLiteral(struct_index, field_index))
             ArrayLiteral(values):
                 for value in values:
                     this.gen_expression(value)
                 this.emit(Instruction.ArrayLiteral(n_values: values.len()))
             TypeCast(ty, value):
-                # panic("TODO: type-casting")
-                log_info("Skip type cast for now? Leave value on stack, hope for the best.")
-                pass
+                this.gen_expression(value)
+                if ast.is_int_type(value.ty) and ast.is_float_type(ty):
+                    this.emit(Instruction.IntToFloat())
+                else:
+                    panic("TODO: unsupported type-casting")
             ClassLiteral(ty, arguments):
                 print("Not supported: class literal")
             ToString(value):
@@ -379,6 +462,16 @@ class Generator:
             let struct_def = ast.get_struct_def_from_type(ty2)
             let index = option_unwrap(this.struct_mapping.get(key: ast.node_id_to_string(struct_def.id)))
             ty = bc.Type.StructRef(index)
+        elif ast.is_function_type(ty2):
+            let parameter_types2 = ast.get_parameter_types_from_type(ty2)
+            let parameter_types: List[bc.Type] = List()
+            for p2 in parameter_types2:
+                parameter_types.append(this.get_bc_type(p2))
+            ty = bc.Type.Function(parameter_types)
+        elif ast.is_type_parameter_type(ty2):
+            ty = bc.Type.Ptr()
+        elif ast.is_bool_type(ty2):
+            ty = bc.Type.Int()
         else:
             panic("Type: {ast.type_to_string(ty2)} not supported")
         return ty

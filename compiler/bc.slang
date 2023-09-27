@@ -1,5 +1,5 @@
 
-from std import print
+from std import print, float_to_str
 from datatypes import List, Option
 
 struct Program:
@@ -7,6 +7,7 @@ struct Program:
     functions: List[Function]
 
 struct Struct:
+    is_union: bool
     fields: List[Type]
 
 struct Function:
@@ -22,6 +23,7 @@ enum Type:
     Str
     Ptr
     StructRef(index: int)
+    Function(parameter_types: List[Type])
 
 enum Instruction:
     Nop
@@ -33,6 +35,8 @@ enum Instruction:
     Neg
 
     Binop(op: BinaryOperator)
+
+    IntToFloat
 
     Jump(label: int)  # Unconditional jump
     JumpIf(label1: int, label2: int)
@@ -47,7 +51,7 @@ enum Instruction:
     LoadFunc(name: str)
 
     StructLiteral(struct_index: int)
-    UnionLiteral(field: int)
+    UnionLiteral(struct_index: int, field_index: int)
     ArrayLiteral(size: int)
 
 enum LiteralValue:
@@ -77,14 +81,14 @@ fn instruction_to_string(instruction: Instruction) -> str:
             return "dup"
         Literal(literal):
             case literal:
-                Int(v):
-                    return "int({v})"
-                Float(v):
-                    return "float(....)"
-                Str(v):
-                    return "str('{v}')"
-                Bool(v):
-                    if v:
+                Int(value):
+                    return "int({value})"
+                Float(value):
+                    return "float({float_to_str(value)})"
+                Str(value):
+                    return "str('{value}')"
+                Bool(value):
+                    if value:
                         return "bool(true)"
                     else:
                         return "bool(false)"
@@ -121,6 +125,8 @@ fn instruction_to_string(instruction: Instruction) -> str:
                 NotEquals:
                     return "ne"
 
+        IntToFloat:
+            return "int-to-float"
         Call(n, r):
             return "call({n})"
         Return(v):
@@ -139,8 +145,8 @@ fn instruction_to_string(instruction: Instruction) -> str:
             return "load-func({name})"
         StructLiteral(struct_index):
             return "struct-literal(index={struct_index})"
-        UnionLiteral(field):
-            return "union-literal({field})"
+        UnionLiteral(struct_index, field_index):
+            return "union-literal(index={struct_index}, field={field_index})"
         ArrayLiteral(count):
             return "array-literal({count})"
 
@@ -186,3 +192,5 @@ fn type_to_string(ty?: Type) -> str:
             return "str"
         StructRef(index):
             return "struct-ref({index})"
+        Function(parameter_types):
+            return "func-ptr()"

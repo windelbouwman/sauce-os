@@ -80,6 +80,8 @@ class VM:
                         panic("TODO: eq")
                     NotEquals:
                         panic("TODO: ne")
+            IntToFloat:
+                panic("TODO int-to-float")
             Jump(target):
                 panic("TODO")
             JumpIf(target, target2):
@@ -98,7 +100,7 @@ class VM:
                 let count = 13333  # TODO: retrieve from struct def array
                 let values = this.pop_n(count)
                 panic("TODO: struct literal")
-            UnionLiteral(field):
+            UnionLiteral(struct_index, field_index):
                 panic("TODO: union literal")
             ArrayLiteral(count):
                 let values = this.pop_n(count)

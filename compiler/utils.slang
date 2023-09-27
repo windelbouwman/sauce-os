@@ -19,9 +19,10 @@ fn log_info(message?: str):
     print("# INFO: {message}")
 
 fn log_debug(message?: str):
+    # let do_debug = true
     let do_debug = false
     if do_debug:
-        print("DEBUG: {message}")
+        print("# DEBUG: {message}")
     
 
 fn log_trace(message?: str):
