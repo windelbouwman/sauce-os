@@ -14,6 +14,9 @@ fn assert(condition: bool, message: str):
 fn log_error(message?: str):
     print("ERROR: {message}")
 
+fn log_warning(message?: str):
+    print("# WARNING: {message}")
+
 fn log_info(message?: str):
     # LOL: Hack to enable valid python code to be output, including compiler logs.
     print("# INFO: {message}")

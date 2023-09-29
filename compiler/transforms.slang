@@ -211,7 +211,7 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                     else:
                         pass
                 Binop(op):
-                    if ast.is_str_type(expression.ty):
+                    if ast.is_str_type(op.lhs.ty):
                         case op.op:
                             Add:
                                 # Rewrite adding of strings by calling a runtime str_concat function
@@ -220,7 +220,17 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                                 let rhs_arg = ast.LabeledExpression(name: Option.None(), value: op.rhs, location: op.rhs.location)
                                 let arguments = vec2(lhs_arg, rhs_arg)
                                 let call = ast.call(callee: str_concat_func, arguments, ty: ast.str_type(), location: expression.location)
-                                ast.change_expression_to(expression, to:call)
+                                ast.change_expression_to(expression, to: call)
+
+                            Equals:
+                                # Rewrite '==' for strings into call to runtime function.
+                                let str_compare_func = transformer.class_rewriter.load_std_function(name: "str_compare", location: expression.location)
+                                let lhs_arg = ast.LabeledExpression(name: Option.None(), value: op.lhs, location: op.lhs.location)
+                                let rhs_arg = ast.LabeledExpression(name: Option.None(), value: op.rhs, location: op.rhs.location)
+                                let arguments = vec2(lhs_arg, rhs_arg)
+                                let call = ast.call(callee: str_compare_func, arguments, ty: ast.bool_type(), location: expression.location)
+                                ast.change_expression_to(expression, to: call)
+
                         else:
                             panic("Can only add str types.")
             else:

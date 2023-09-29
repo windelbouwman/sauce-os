@@ -45,12 +45,14 @@ fn str_join(parts: List[str], sep: str) -> str:
     let x = ""
     let counter = parts.len()
     for part in parts:
-        x += part
+        # TODO: allow += on string variables.
+        x = x + part
         if counter > 1:
-            x += sep
+            x = x + sep
             counter -= 1
     return x
 
+# TODO: duplicate with rt_str_compare in C
 fn str_comparison(a: str, b: str) -> int:
     let index = 0
     let n_a = str_len(a)

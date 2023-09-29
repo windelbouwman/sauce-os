@@ -28,4 +28,12 @@ chmod +x ${COMPILER3}
 # Compiler 2 and 3 should be the same:
 diff ${COMPILER2} ${COMPILER3}
 
+echo "Compiling compiler4"
+python ${COMPILER3} -cv2 compiler/*.slang | sed '/^# /d' > tmp-compiler4.c
+gcc -Wno-incompatible-pointer-types -Wno-int-conversion -o compiler4 tmp-compiler4.c runtime/runtime.c
+
+echo "Compiling compiler5"
+./compiler4 -cv2 compiler/*.slang | sed '/^# /d' > tmp-compiler5.c
+gcc -Wno-incompatible-pointer-types -Wno-int-conversion -o compiler5 tmp-compiler5.c runtime/runtime.c
+
 echo "OK"

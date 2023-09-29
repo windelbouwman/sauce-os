@@ -6,6 +6,7 @@
 // Config:
 // #define DEBUG_REFCOUNTING
 
+extern int main2();
 void *rt_malloc(int size);
 void rt_incref(void *ptr);
 void rt_decref(void *ptr);
@@ -35,9 +36,9 @@ void std_panic(const char *message)
 
 int std_str_to_int(char *x)
 {
-    // TODO!
-    return 1337;
+    int value = strtol(x, NULL, 10);
     rt_decref(x);
+    return value;
 }
 
 char *std_int_to_str(int x)
@@ -58,6 +59,12 @@ char *std_float_to_str(double x)
     return text;
 }
 
+double std_str_to_float(char *x)
+{
+    double value = strtod(x, NULL);
+    return value;
+}
+
 int std_str_len(char *txt)
 {
     const int len = strlen(txt);
@@ -70,6 +77,14 @@ int std_ord(char *txt)
     int c = txt[0];
     rt_decref(txt);
     return c;
+}
+
+char *std_chr(int val)
+{
+    char *buffer = rt_malloc(2);
+    buffer[0] = val;
+    buffer[1] = 0;
+    return buffer;
 }
 
 char *std_str_slice(char *txt, int begin, int end)
@@ -112,6 +127,26 @@ char *std_read_file(char *filename)
     }
     rt_decref(filename);
     return buffer;
+}
+
+int g_argc;
+char **g_argv;
+
+int main(int argc, char **argv)
+{
+    g_argc = argc;
+    g_argv = argv;
+    return main2();
+}
+
+int std_get_n_args()
+{
+    return g_argc - 1;
+}
+
+char *std_get_arg(int index)
+{
+    return g_argv[index + 1];
 }
 
 char *rt_str_concat(char *a, char *b)

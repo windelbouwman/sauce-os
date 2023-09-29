@@ -14,7 +14,7 @@ fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool):
     for module in module_set.modules:
         g.gen_module(module)
     if generate_runtime:
-        g.emit("sys.exit(main())")
+        g.emit("sys.exit(main2())")
 
 class PyGenerator:
     var indent_level: int = 0
@@ -37,6 +37,7 @@ class PyGenerator:
         this.emit("def std_str_get(s, i):  return s[i]")
         this.emit("def std_str_slice(s,b,e):   return s[b:e]")
         this.emit("def rt_str_concat(a, b):  return a + b")
+        this.emit("def rt_str_compare(a, b):  return a == b")
         this.emit("std_ord = ord")
         this.emit("std_chr = chr")
         this.emit("def std_get_n_args() -> int: return len(sys.argv) - 1")
@@ -272,7 +273,7 @@ class PyGenerator:
         # TODO: we could use id as well?
         # TODO: think more about name mangling
         if id.name == "main":
-            return id.name
+            return "{id.name}2"
         else:
             return "X{id.id}_{id.name}"
 

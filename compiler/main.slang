@@ -59,7 +59,7 @@ fn main() -> int:
     filenames = sort_list(filenames, cmp: string_compare)
     
     try:
-        let prog = compile(filenames, options)
+        compile(filenames, options)
         log_info("OK")
         return 0
     except (error: CompilationError):

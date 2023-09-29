@@ -7,13 +7,14 @@ from std import print, float_to_str, chr
 from strlib import str_repeat, str_join
 import ast
 from datatypes import List, Dictionary, option_unwrap, Option
-from utils import panic, log_info, log_debug
+from utils import panic, log_info, log_debug, log_warning
 
 
 fn gen_c_code_v2(module_set: ast.ModuleSet):
     log_info("Generating C-code")
     let g = CGenerator2()
 
+    g.gen_header()
     g.gen_forward_declarations1(module_set)
     g.gen_forward_declarations2(module_set)
     g.gen_struct_defs(module_set)
@@ -21,6 +22,41 @@ fn gen_c_code_v2(module_set: ast.ModuleSet):
 
 class CGenerator2:
     var indentation: int = 0
+
+    fn gen_header():
+        this.emit("#include <setjmp.h>")
+        this.emit("#include <stdlib.h>")
+        this.emit("")
+
+        # MEH: copy/pasted from c_gen.slang ..
+        this.emit("void* rt_malloc(int size);")
+        this.emit("void rt_incref(void *ptr);")
+        this.emit("void rt_decref(void *ptr);")
+
+        this.emit("void std_print(char *message);")
+        this.emit("void std_exit(int code);")
+
+        this.emit("char* std_read_file(char *filename);")
+
+        this.emit("char* rt_str_concat(char*, char*);")
+        this.emit("int rt_str_compare(char *a, char *b);")
+        this.emit("int std_str_len(char* txt);")
+        this.emit("char* std_str_slice(char* txt, int begin, int end);")
+        this.emit("char* std_str_get(char* txt, int pos);")
+
+        this.emit("int std_ord(char *txt);")
+        this.emit("char* std_chr(int val);")
+
+        this.emit("char *std_int_to_str(int x);")
+        this.emit("int std_str_to_int(char *x);")
+        this.emit("char *std_float_to_str(double x);")
+        this.emit("double std_str_to_float(char *x);")
+
+        this.emit("char *std_get_arg(int);")
+        this.emit("int std_get_n_args();")
+
+        this.emit("jmp_buf g_except_hook;")
+        this.emit("char* g_except_value;")
 
     fn gen_forward_declarations1(module_set: ast.ModuleSet):
         for module in module_set.modules:
@@ -39,6 +75,15 @@ class CGenerator2:
                     Function(function_def):
                         let decl = this.gen_function_decl(function_def)
                         this.emit("{decl};")
+                    Struct(struct_def):
+                        # Create struct constructor function
+                        let name = this.gen_id(id: struct_def.id)
+                        if struct_def.is_union:
+                            for field in struct_def.fields:
+                                let arg = this.gen_type(ty: field.ty, name: field.name)
+                                this.emit("union {name}* {name}_{field.name}({arg});")
+                        else:
+                            this.emit("struct {name}* {name}_new();")
                 else:
                     pass
 
@@ -57,6 +102,8 @@ class CGenerator2:
                 case definition:
                     Function(function_def):
                         this.gen_function(function_def)
+                    Struct(struct_def):
+                        this.gen_struct_ctors(struct_def)
                 else:
                     pass
 
@@ -77,6 +124,35 @@ class CGenerator2:
         this.dedent()
         this.emit("{chr(125)};")
         this.emit("")
+    
+    fn gen_struct_ctors(struct_def: ast.StructDef):
+        # Create struct constructor function
+        let struct_name = this.gen_id(id: struct_def.id)
+        if struct_def.is_union:
+            for field1 in struct_def.fields:
+                let arg = this.gen_type(ty: field1.ty, name: field1.name)
+                this.emit("union {struct_name}* {struct_name}_{field1.name}({arg}) {chr(123)}")
+                this.indent()
+                this.emit("union {struct_name}* X = malloc(sizeof(union {struct_name}));")
+                this.emit("X->{field1.name} = {field1.name};")
+                this.emit("return X;")
+                this.dedent()
+                this.emit("{chr(125)}")
+                this.emit("")
+        else:
+            let parts: List[str] = List()
+            for field2 in struct_def.fields:
+                parts.append(this.gen_type(ty: field2.ty, name: field2.name))
+            let args = str_join(parts, sep: ", ")
+            this.emit("struct {struct_name}* {struct_name}_new({args}) {chr(123)}")
+            this.indent()
+            this.emit("struct {struct_name}* X = malloc(sizeof(struct {struct_name}));")
+            for field3 in struct_def.fields:
+                this.emit("X->{field3.name} = {field3.name};")
+            this.emit("return X;")
+            this.dedent()
+            this.emit("{chr(125)}")
+            this.emit("")
 
     fn gen_function_decl(function_def: ast.FunctionDef) -> str:
         let name = this.gen_id(id: function_def.id)
@@ -85,7 +161,12 @@ class CGenerator2:
             let parameter_name = this.gen_id(id: parameter_def.id)
             parameter_parts.append(this.gen_type(ty: parameter_def.ty, name: parameter_name))
         let parameter_text = str_join(parts: parameter_parts, sep: ", ")
-        return "void {name}({parameter_text})"
+        let return_type_text = "void"
+        if ast.is_void_type(function_def.return_type):
+            return_type_text = "void {name}"
+        else:
+            return_type_text = this.gen_type(ty: function_def.return_type, name)
+        return "{return_type_text}({parameter_text})"
 
     fn gen_function(function_def: ast.FunctionDef):
         let decl = this.gen_function_decl(function_def)
@@ -98,7 +179,7 @@ class CGenerator2:
         if ast.is_int_type(ty):
             return "int {name}"
         elif ast.is_bool_type(ty):
-            return "bool {name}"
+            return "int {name}"
         elif ast.is_str_type(ty):
             return "char* {name}"
         elif ast.is_float_type(ty):
@@ -110,6 +191,18 @@ class CGenerator2:
                 return "union {struct_name}* {name}"
             else:
                 return "struct {struct_name}* {name}"
+        elif ast.is_type_parameter_type(ty):
+            # Treat generics as void pointers
+            return "void* {name}"
+        elif ast.is_function_type(ty):
+            let ret_ty = ast.get_return_type_from_type(ty)
+            let parts: List[str] = List()
+            for param_ty in ast.get_parameter_types_from_type(ty):
+                parts.append(this.gen_type(ty: param_ty, name: ""))
+            let param_text = str_join(parts, sep: ", ")
+            return this.gen_type(ty: ret_ty, name: "(*{name})({param_text})")
+        elif ast.is_void_type(ty):
+            return "void {name}"
         else:
             panic("Type: {ast.type_to_string(ty)} not supported")
 
@@ -180,7 +273,18 @@ class CGenerator2:
                 panic("case-statement not supported")
 
             Try(try_statement):
-                panic("try-statement not supported")
+                # this.emit("jmpbuf buf1;")
+                log_warning("try-catch C logic is probably wrong.")
+                this.emit("if (setjmp(g_except_hook) == 0) {chr(123)}")
+                this.gen_block(try_statement.try_body)
+                this.emit("{chr(125)} else {chr(123)}")
+                let param_name = this.gen_id(id: try_statement.except_param.id)
+                let typed_var = this.gen_type(ty: try_statement.except_param.ty, name: param_name)
+                this.indent()
+                this.emit("{typed_var} = g_except_value;")
+                this.gen_statement(try_statement.except_body)
+                this.dedent()
+                this.emit("{chr(125)}")
 
             Switch(switch_statement):
                 # TBD: IDEA: we actually have switch in C!
@@ -191,7 +295,9 @@ class CGenerator2:
                 this.emit("{chr(125)}")
 
             Raise(value):
-                panic("raise-statement not supported")
+                let value_txt = this.gen_expression(value)
+                this.emit("g_except_value = {value_txt};")
+                this.emit("longjmp(g_except_hook, 1);")
 
             Pass:
                 pass
@@ -222,7 +328,11 @@ class CGenerator2:
 
             Unop(op, rhs):
                 let v = this.gen_expression(rhs)
-                panic("TODO: unop")
+                case op:
+                    Minus:
+                        return "-{v}"
+                    Not:
+                        return "({v} ? 0 : 1)"
 
             Call(call):
                 let callee = this.gen_expression(call.callee)
@@ -230,11 +340,22 @@ class CGenerator2:
                 for argument in call.arguments:
                     values.append(argument.value)
                 let args = this.gen_expression_list(values)
-                return "{callee}({args})"
+                let value = "{callee}({args})"
+                # TODO: type promotion
+                #let from_type = ?
+                #let to_type = expression.ty
+                #return this.promote_type(from_type, to_type, value: )
+                # HACK: not all values need castig:
+                if ast.is_struct_type(expression.ty):
+                    let to_type2 = this.gen_type(ty: expression.ty, name: "")
+                    value = "(({to_type2})({value}))"
+                return value
 
             GetAttr(base, name):
                 let base_txt = this.gen_expression(base)
-                return "{base_txt}->{name}"
+                # Might introduce type erasure here!
+                let from_type = get_field_type(ty: base.ty, attr: name)
+                return this.promote_type(from_type, to_type: expression.ty, value: "{base_txt}->{name}")
             
             GetIndex(base, indici):
                 let base_txt = this.gen_expression(base)
@@ -247,7 +368,7 @@ class CGenerator2:
                     return "(double)({source})"
                 else:
                     panic("Unsupported cast to: {ast.type_to_string(ty)}")
-            
+
             LoadSymbol(symbol):
                 case symbol:
                     Function(function_def):
@@ -301,11 +422,18 @@ class CGenerator2:
             parts.append(this.gen_expression(value))
         return str_join(parts, sep: ", ")
 
+    fn promote_type(from_type: ast.Type, to_type: ast.Type, value: str) -> str:
+        if ast.is_type_parameter_type(from_type) and not ast.is_type_parameter_type(to_type):
+            let to_type2 = this.gen_type(ty: to_type, name: "")
+            return "(({to_type2})({value}))"
+        else:
+            return value
+
     fn gen_id(id: ast.NodeId) -> str:
         # TODO: we could use id as well?
         # TODO: think more about name mangling
         if id.name == "main":
-            return id.name
+            return "{id.name}2"
         else:
             return "X{id.id}_{id.name}"
 
@@ -348,3 +476,16 @@ fn binary_op_to_str(op: ast.BinaryOperator) -> str:
         NotEquals:
             op_text = "!="
     return op_text
+
+
+fn get_field_type(ty: ast.Type, attr: str) -> ast.Type:
+    let struct_def = ast.get_struct_def_from_type(ty)
+    case struct_def.scope.lookup(name: attr):
+        Some(sym):
+            case sym:
+                Field(field):
+                    return field.ty
+            else:
+                panic("Struct member must be field")
+        None:
+            panic("Struct has no field {attr}")

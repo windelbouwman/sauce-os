@@ -84,6 +84,12 @@ fn get_std_module() -> ast.Module:
         return_type: ast.str_type()
     ast.module_define_symbol(module, name: "str_concat", definition: ast.Definition.ExternFunction(std_str_concat))
 
+    let std_str_compare = ast.ExternFunctionDef:
+        name: "rt_str_compare"
+        parameter_types: vec2(ast.str_type(), ast.str_type())
+        return_type: ast.bool_type()
+    ast.module_define_symbol(module, name: "str_compare", definition: ast.Definition.ExternFunction(std_str_compare))
+
     let std_get_n_args = ast.ExternFunctionDef:
         name: "std_get_n_args"
         parameter_types: List()

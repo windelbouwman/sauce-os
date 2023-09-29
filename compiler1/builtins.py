@@ -112,6 +112,7 @@ def get_builtins(args=(), stdout=None):
         "std_str_get": lambda s, i: s[i],
         "std_str_slice": lambda s, b, e: s[b:e],
         "rt_str_concat": lambda a, b: a + b,
+        "rt_str_compare": lambda a, b: a == b,
         "std_ord": ord,
         "std_chr": chr,
         "std_get_n_args": get_n_args,
