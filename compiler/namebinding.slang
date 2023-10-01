@@ -146,10 +146,17 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast
                 Let(letty):
                     filler.define(name: letty.variable.id.name, symbol: ast.Symbol.Var(variable: letty.variable))
                 For(for_statement):
+                    filler.enter_scope(scope: for_statement.block.scope)
                     filler.define(name: for_statement.iter_var.id.name, symbol: ast.Symbol.Var(variable: for_statement.iter_var))
                 Try(try_statement):
                     # TODO: create new scope for except clause?
                     filler.define(name: try_statement.except_param.id.name, symbol: ast.Symbol.Parameter(parameter: try_statement.except_param))
+            else:
+                pass
+        Post:
+            case statement.kind:
+                For(for_statement):
+                    filler.leave_scope()
             else:
                 pass
     else:
@@ -163,12 +170,16 @@ fn filler_on_node(filler: ScopeFiller, node: ast.VisitNode, phase: ast.VisitPhas
         Pre:
             case node:
                 Arm(arm):
-                    filler.enter_scope(scope: arm.scope)
+                    filler.enter_scope(scope: arm.block.scope)
                     for variable in arm.variables:
                         filler.define(name: variable.id.name, symbol: ast.Symbol.Var(variable))
+                ScopeNode(scope):
+                    filler.enter_scope(scope)
         Post:
             case node:
                 Arm(arm):
+                    filler.leave_scope()
+                ScopeNode(scope):
                     filler.leave_scope()
     else:
         pass
@@ -214,7 +225,21 @@ fn binder_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
 
 
 fn binder_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.VisitPhase):
-    pass
+    case phase:
+        Pre:
+            case statement.kind:
+                For(for_statement):
+                    binder.enter_scope(scope: for_statement.block.scope)
+            else:
+                pass
+        Post:
+            case statement.kind:
+                For(for_statement):
+                    binder.leave_scope()
+            else:
+                pass
+    else:
+        pass
 
 fn symbol_to_kind(symbol: ast.Symbol) -> ast.ExpressionKind:
     case symbol:
@@ -261,10 +286,14 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
         Pre:
             case node:
                 Arm(arm):
-                    binder.enter_scope(scope: arm.scope)
+                    binder.enter_scope(scope: arm.block.scope)
+                ScopeNode(scope):
+                    binder.enter_scope(scope)
         Post:
             case node:
                 Arm(arm):
+                    binder.leave_scope()
+                ScopeNode(scope):
                     binder.leave_scope()
     else:
         pass
@@ -273,6 +302,7 @@ fn base_scope() -> ast.Scope:
     let s = ast.Scope()
     s.define(name: "int", symbol: ast.Symbol.Typ(ty: ast.int_type()))
     s.define(name: "str", symbol: ast.Symbol.Typ(ty: ast.str_type()))
+    s.define(name: "char", symbol: ast.Symbol.Typ(ty: ast.char_type()))
     s.define(name: "bool", symbol: ast.Symbol.Typ(ty: ast.bool_type()))
     s.define(name: "float", symbol: ast.Symbol.Typ(ty: ast.float_type()))
     return s
@@ -282,7 +312,6 @@ class NameBinder:
     var errors: List[SingleCompilationError] = List()
 
     fn lookup(name: str) -> Option[ast.Symbol]:
-        # print("Lookup: {name}")
         for scope in this.scopes:
             case scope.lookup(name):
                 Some(s):

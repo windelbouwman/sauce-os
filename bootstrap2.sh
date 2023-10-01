@@ -1,10 +1,11 @@
 #!/bin/bash
 
-set -eu
+set -euo pipefail
 
 COMPILER1="tmp-compiler.py"
 COMPILER2="tmp-compiler2.py"
 COMPILER3="tmp-compiler3.py"
+COMPILER6="tmp-compiler6.py"
 
 # Compile compiler with bootstrap compiler
 echo "Compile compiler with bootstrap compiler into ${COMPILER1}"
@@ -35,5 +36,11 @@ gcc -Wno-incompatible-pointer-types -Wno-int-conversion -o compiler4 tmp-compile
 echo "Compiling compiler5"
 ./compiler4 -cv2 compiler/*.slang | sed '/^# /d' > tmp-compiler5.c
 gcc -Wno-incompatible-pointer-types -Wno-int-conversion -o compiler5 tmp-compiler5.c runtime/runtime.c
+
+diff tmp-compiler4.c tmp-compiler5.c
+
+echo "Compiling compiler6"
+echo "#!/usr/bin/env python" > ${COMPILER6}
+./compiler5 compiler/*.slang >> ${COMPILER6}
 
 echo "OK"

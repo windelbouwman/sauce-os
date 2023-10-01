@@ -2,30 +2,24 @@
 from datatypes import List
 from std import str_slice, str_get, str_len, ord
 
-struct String:
-    value: str
-
-fn new_string(value?: str) -> String:
-    return String(value)
-
-fn split_string(value: String, sep: str) -> List[String]:
-    let size = str_len(value.value)
+fn split_string(value: str, sep: char) -> List[str]:
+    let size = str_len(value)
     let start = 0
     let cur = 0
-    let parts: List[String] = List()
+    let parts: List[str] = List()
     while cur < size:
-        let c = str_get(value: value.value, index: cur)
+        let c = str_get(value, index: cur)
         if c == sep:
-            parts.append(new_string(value: str_slice(value: value.value, begin: start, end: cur)))
+            parts.append(str_slice(value, begin: start, end: cur))
             cur += 1
             start = cur
         else:
             cur += 1
-    parts.append(new_string(value: str_slice(value: value.value, begin: start, end: cur)))
+    parts.append(str_slice(value, begin: start, end: cur))
     return parts
 
-fn string_compare(a: String, b: String) -> bool:
-    return str_comparison(a: a.value, b: b.value) < 0
+fn string_compare(a: str, b: str) -> bool:
+    return str_comparison(a, b) < 0
 
 fn str_repeat(text: str, count: int) -> str:
     let result = ""
@@ -72,7 +66,6 @@ fn str_comparison(a: str, b: str) -> int:
 
 fn split_lines(text: str) -> List[str]:
     # TODO: use split_string here?
-    # TODO: unify str and String
     let lines: List[str] = List()
     let line_start = 0
     let n = str_len(text)

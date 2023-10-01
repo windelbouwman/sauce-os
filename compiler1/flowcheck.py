@@ -88,11 +88,11 @@ class FlowCheck(BasePass):
             self.jump_to([yes_target, no_target])
 
             self.set_label(yes_target)
-            self.visit_statement(kind.true_statement)
+            self.visit_statement(kind.true_block.body)
             self.jump_to([final_target])
 
             self.set_label(no_target)
-            self.visit_statement(kind.false_statement)
+            self.visit_statement(kind.false_block.body)
             self.jump_to([final_target])
 
             self.set_label(final_target)
@@ -106,7 +106,7 @@ class FlowCheck(BasePass):
             for arm_target, arm in zip(arm_targets, kind.arms):
                 self.set_label(arm_target)
                 self.visit_expression(arm.value)
-                self.visit_statement(arm.body)
+                self.visit_statement(arm.block.body)
                 self.jump_to([final_target])
 
             self.set_label(default_target)
@@ -139,7 +139,7 @@ class FlowCheck(BasePass):
             self._loops.append((test_target, final_target))
 
             self.set_label(yes_target)
-            self.visit_statement(kind.inner)
+            self.visit_statement(kind.block.body)
             self.jump_to([test_target])
 
             self._loops.pop()

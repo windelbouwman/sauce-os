@@ -160,7 +160,7 @@ class ByteCodeGenerator:
             self.emit(OpCode.JUMP_IF, body_label, final_label)
 
             self.set_label(body_label)
-            self.gen_statement(kind.inner)
+            self.gen_statement(kind.block.body)
             self.emit(OpCode.JUMP, start_label)
 
             self._loops.pop()
@@ -174,11 +174,11 @@ class ByteCodeGenerator:
             self.emit(OpCode.JUMP_IF, true_label, false_label)
 
             self.set_label(true_label)
-            self.gen_statement(kind.true_statement)
+            self.gen_statement(kind.true_block.body)
             self.emit(OpCode.JUMP, final_label)
 
             self.set_label(false_label)
-            self.gen_statement(kind.false_statement)
+            self.gen_statement(kind.false_block.body)
             self.emit(OpCode.JUMP, final_label)
 
             self.set_label(final_label)
@@ -242,7 +242,7 @@ class ByteCodeGenerator:
             except_label = self.new_label()
 
             self.emit(OpCode.SETUP_EXCEPT, except_label)
-            self.gen_statement(kind.try_code)
+            self.gen_statement(kind.try_block.body)
             self.emit(OpCode.POP_EXCEPT)
             self.emit(OpCode.JUMP, final_label)
 
@@ -250,7 +250,7 @@ class ByteCodeGenerator:
             local_index = self._locals.index(kind.parameter)
             self.emit(OpCode.LOCAL_SET, local_index)
 
-            self.gen_statement(kind.except_code)
+            self.gen_statement(kind.except_block.body)
             self.emit(OpCode.JUMP, final_label)
 
             self.set_label(final_label)

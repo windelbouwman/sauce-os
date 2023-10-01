@@ -5,24 +5,24 @@ from lexer import Lexer
 from token import token_to_string, Token
 from location import Location, location_default
 from datatypes import List, Result, Option, vec1
-from strlib import String, split_string
+from strlib import split_string
 from basepass import IdGen
 from utils import panic, log_debug, log_trace, log_info
 from errors import CompilationError, SingleCompilationError
 import errors
 
 
-fn basename(path: String) -> String:
+fn basename(path: str) -> str:
     # retrieve 'bla' from 'for/bar/bla.txt'
-    let base = split_string(value: path, sep: "/").last()
-    return split_string(value: base, sep: ".").first()
+    let base = split_string(value: path, sep: '/').last()
+    return split_string(value: base, sep: '.').first()
 
-fn parse_source(filename: String, id_gen: IdGen) -> ast.Module except CompilationError:
-    let source = std.read_file(filename: filename.value)
-    let modname = basename(path: filename).value
+fn parse_source(filename: str, id_gen: IdGen) -> ast.Module except CompilationError:
+    let source = std.read_file(filename)
+    let modname = basename(path: filename)
     let parser = Parser(id_gen)
     parser.feed(source)
-    return parser.parse_module(filename: filename.value, name: modname)
+    return parser.parse_module(filename, name: modname)
 
 fn parse_expr_from_text(source: str, id_gen: IdGen) -> ast.Expression except CompilationError:
     # Invoke parsing, purely on expression.
@@ -611,8 +611,7 @@ class Parser:
             location
             name
             variables: variables
-            scope: ast.Scope()
-            body: statement
+            block: ast.scoped_block(body: statement)
         return arm
     
     fn parse_switch_statement(location: Location) -> ast.Statement except CompilationError:
@@ -623,8 +622,8 @@ class Parser:
         let arms: List[ast.SwitchArm] = List()
         while not this.try_parse_dedent():
             let value = this.parse_expression()
-            let body = this.parse_block()
-            arms.append(ast.SwitchArm(location: value.location, value, body))
+            let block = ast.scoped_block(body: this.parse_block())
+            arms.append(ast.SwitchArm(location: value.location, value, block))
         
         this.parse_kw_else()
         let default_body = this.parse_block()
@@ -737,6 +736,8 @@ class Parser:
                 expr = ast.float_literal(value, location: tok.location)
             String(value):
                 expr = this.process_fstring(literal: value, location: tok.location)
+            Char(value):
+                expr = ast.char_literal(value, location: tok.location)
             Bool(value):
                 expr = ast.bool_literal(value, location: tok.location)
             Identifier(name):

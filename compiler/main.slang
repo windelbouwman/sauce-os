@@ -14,7 +14,7 @@ from basepass import IdGen
 from transforms import transform
 from builtins import get_std_module
 from datatypes import List, Dictionary, Result, option_unwrap
-from strlib import String, new_string, string_compare
+from strlib import string_compare
 from graphlib import DiGraph, topological_sort
 from sorting import sort_list
 from c_gen import gen_c_code
@@ -22,7 +22,7 @@ from c_gen_v2 import gen_c_code_v2
 
 
 fn main() -> int:
-    let filenames: List[String] = List()
+    let filenames: List[str] = List()
 
     let options = CompilationOptions:
         dump_ast: false
@@ -52,7 +52,7 @@ fn main() -> int:
             options.runtime = false
         else:
             # Assume source file
-            filenames.append(new_string(argument))
+            filenames.append(argument)
         i += 1
     
     # Sort filenames lexicographical
@@ -87,7 +87,7 @@ struct CompilationOptions:
     verbosity: int
     runtime: bool
 
-fn compile(filenames: List[String], options: CompilationOptions) except CompilationError:
+fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
     let id_gen = IdGen()
     let module_map: Dictionary[ast.Module] = Dictionary()
     let std_module = get_std_module()
@@ -95,7 +95,7 @@ fn compile(filenames: List[String], options: CompilationOptions) except Compilat
 
     let modules: List[ast.Module] = List()
     for filename in filenames:
-        log_info("Parsing: {filename.value}")
+        log_info("Parsing: {filename}")
 
         let program = parse_source(filename, id_gen)
         log_trace("Parsed module: {program.name}")

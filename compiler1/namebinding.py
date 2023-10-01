@@ -12,6 +12,7 @@ logger = logging.getLogger("namebinding")
 def base_scope() -> ast.Scope:
     top_scope = ast.Scope()
     top_scope.define("str", ast.str_type)
+    top_scope.define("char", ast.char_type)
     top_scope.define("int", ast.int_type)
     top_scope.define("float", ast.float_type)
     top_scope.define("bool", ast.bool_type)
@@ -51,6 +52,7 @@ class ScopeFiller(BasePass):
 
         self.visit_module(module)
         self.leave_scope()
+        assert not self._scopes
         self.finish("Scopes filled")
 
     def visit_definition(self, definition: ast.Definition):
@@ -88,7 +90,7 @@ class ScopeFiller(BasePass):
 
     def visit_node(self, node: ast.Node):
         if isinstance(node, ast.CaseArm):
-            self.enter_scope(node.scope)
+            self.enter_scope(node.block.scope)
             has_scope = True
             for variable in node.variables:
                 self.define(variable)
@@ -99,14 +101,45 @@ class ScopeFiller(BasePass):
             self.leave_scope()
 
     def visit_statement(self, statement: ast.Statement):
-        super().visit_statement(statement)
         kind = statement.kind
-        if isinstance(kind, ast.LetStatement):
-            self.define(kind.variable)
+        if isinstance(kind, ast.IfStatement):
+            self.visit_expression(kind.condition)
+            self.visit_scoped_block(kind.true_block)
+            self.visit_scoped_block(kind.false_block)
+
+        elif isinstance(kind, ast.WhileStatement):
+            self.visit_expression(kind.condition)
+            self.visit_scoped_block(kind.block)
+
+        elif isinstance(kind, ast.LoopStatement):
+            self.visit_scoped_block(kind.block)
+
         elif isinstance(kind, ast.ForStatement):
+            self.visit_expression(kind.values)
+            self.enter_scope(kind.block.scope)
             self.define(kind.variable)
+            self.visit_statement(kind.block.body)
+            self.leave_scope()
+
         elif isinstance(kind, ast.TryStatement):
+            self.visit_statement(kind.try_block.body)
+
+            self.visit_type(kind.parameter.ty)
+            self.enter_scope(kind.except_block.scope)
             self.define(kind.parameter)
+            self.visit_statement(kind.except_block.body)
+            self.leave_scope()
+
+        else:
+            super().visit_statement(statement)
+
+            if isinstance(kind, ast.LetStatement):
+                self.define(kind.variable)
+
+    def visit_scoped_block(self, block: ast.ScopedBlock):
+        self.enter_scope(block.scope)
+        self.visit_statement(block.body)
+        self.leave_scope()
 
     def enter_scope(self, scope: ast.Scope):
         self._scopes.append(scope)
@@ -147,9 +180,41 @@ class NameBinder(BasePass):
         super().visit_definition(definition)
         self.leave_scope()
 
+    def visit_statement(self, statement: ast.Statement):
+        kind = statement.kind
+
+        if isinstance(kind, ast.IfStatement):
+            self.visit_expression(kind.condition)
+            self.visit_scoped_block(kind.true_block)
+            self.visit_scoped_block(kind.false_block)
+
+        elif isinstance(kind, ast.ForStatement):
+            self.visit_expression(kind.values)
+            self.visit_scoped_block(kind.block)
+
+        elif isinstance(kind, ast.WhileStatement):
+            self.visit_expression(kind.condition)
+            self.visit_scoped_block(kind.block)
+
+        elif isinstance(kind, ast.LoopStatement):
+            self.visit_scoped_block(kind.block)
+
+        elif isinstance(kind, ast.TryStatement):
+            self.visit_scoped_block(kind.try_block)
+            self.visit_type(kind.parameter.ty)
+            self.visit_scoped_block(kind.except_block)
+
+        else:
+            super().visit_statement(statement)
+
+    def visit_scoped_block(self, block: ast.ScopedBlock):
+        self.enter_scope(block.scope)
+        self.visit_statement(block.body)
+        self.leave_scope()
+
     def visit_node(self, node: ast.Node):
         if isinstance(node, ast.CaseArm):
-            scope = node.scope
+            scope = node.block.scope
         else:
             scope = None
 

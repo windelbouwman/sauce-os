@@ -65,6 +65,14 @@ double std_str_to_float(char *x)
     return value;
 }
 
+char *std_char_to_str(char x)
+{
+    char *text = rt_malloc(2);
+    text[0] = x;
+    text[1] = 0;
+    return text;
+}
+
 int std_str_len(char *txt)
 {
     const int len = strlen(txt);
@@ -72,19 +80,14 @@ int std_str_len(char *txt)
     return len;
 }
 
-int std_ord(char *txt)
+int std_ord(char c)
 {
-    int c = txt[0];
-    rt_decref(txt);
     return c;
 }
 
-char *std_chr(int val)
+char std_chr(int val)
 {
-    char *buffer = rt_malloc(2);
-    buffer[0] = val;
-    buffer[1] = 0;
-    return buffer;
+    return val;
 }
 
 char *std_str_slice(char *txt, int begin, int end)
@@ -98,13 +101,9 @@ char *std_str_slice(char *txt, int begin, int end)
 }
 
 // TBD: special case of slice?
-char *std_str_get(char *txt, int pos)
+char std_str_get(char *txt, int pos)
 {
-    char *buffer = malloc(2);
-    buffer[0] = txt[pos];
-    buffer[1] = 0;
-    rt_decref(txt);
-    return buffer;
+    return txt[pos];
 }
 
 char *std_read_file(char *filename)

@@ -134,7 +134,7 @@ fn transformer_on_statement1(transformer: Transformer, statement: ast.Statement,
             case statement.kind:
                 Loop(loop_statement):
                     let condition = ast.bool_literal(value: true, location: statement.location)
-                    let while_statement = ast.WhileStatement(condition, body: loop_statement.body)
+                    let while_statement = ast.WhileStatement(condition, block: loop_statement.block)
                     statement.kind = ast.StatementKind.While(while_statement)
                 For(for_statement):
                     statement.kind = transformer.class_rewriter.transform_for_loop(for_statement, location: statement.location).kind
@@ -184,6 +184,13 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                         let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
                         let arguments = vec1(arg1)
                         let call = ast.call(callee: int_to_str_func, arguments, ty: ast.str_type(), location: expression.location)
+                        ast.change_expression_to(expression, to: call)
+                    elif ast.is_char_type(value.ty):
+                        # call char-to-str
+                        let char_to_str_func = transformer.class_rewriter.load_std_function(name: "char_to_str", location: expression.location)
+                        let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
+                        let arguments = vec1(arg1)
+                        let call = ast.call(callee: char_to_str_func, arguments, ty: ast.str_type(), location: expression.location)
                         ast.change_expression_to(expression, to: call)
                     else:
                         panic("Invalid type for to-string")
@@ -276,7 +283,7 @@ class ClassRewriter:
 
         let type_arguments: List[ast.Type] = List()
         for type_parameter in class_def.type_parameters:
-            let type_parameter_ref = builder.add_type_parameter(name: this.unique_name(hint: type_parameter.id.name), id: this.get_unique_id(), location: type_parameter.location)
+            let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: this.get_unique_id(), location: type_parameter.location)
             type_arguments.append(type_parameter_ref)
         let m = ast.create_subst_mapping(type_parameters: class_def.type_parameters, type_arguments)
 
@@ -356,18 +363,13 @@ class ClassRewriter:
         let ctor_call = ast.call(callee: ctor_func_ref, arguments, ty: struct_ty, location)
         return ctor_call
 
-    fn unique_name(hint: str) -> str:
-        # TODO: figure out unique name
-        # TODO: get unique ID!
-        return hint
-    
     fn get_unique_id() -> int:
         return this.id_gen.new_id()
     
     fn new_variable(name: str, ty: ast.Type) -> ast.Variable:
         # Create a new variable with unique id
         let id = this.get_unique_id()
-        return ast.variable(name: this.unique_name(hint: name), id, ty)
+        return ast.variable(name, id, ty)
 
     fn get_struct_def_for_id(id: ast.NodeId) -> ast.StructDef:
         return option_unwrap(this.struct_map.get(key: ast.node_id_to_string(id)))
@@ -399,9 +401,17 @@ class ClassRewriter:
             let opt_var = this.new_variable(name: "opt", ty: opt_val.ty)
             let let_opt_var = ast.let_statement(variable: opt_var, type_hint: Option.None(), value: opt_val, location)
 
-            let arms: List[ast.CaseArm] = List()
-            arms.append(ast.CaseArm(location, name: "None", variables: List(), scope: ast.Scope(), body: ast.break_statement(location)))
-            arms.append(ast.CaseArm(location, name: "Some", variables: vec1(for_statement.iter_var), scope: ast.Scope(), body: for_statement.body))
+            let arm1 = ast.CaseArm:
+                location
+                name: "None"
+                variables: List()
+                block: ast.scoped_block(body: ast.break_statement(location))
+            let arm2 = ast.CaseArm:
+                location
+                name: "Some"
+                variables: vec1(for_statement.iter_var)
+                block: for_statement.block
+            let arms: List[ast.CaseArm] = vec2(arm1, arm2)
 
             let case_statement = ast.case_statement(value: ast.var_ref(variable: opt_var, location), arms, else_clause: Option.None(), location)
             let true_value = ast.bool_literal(value: true, location)
@@ -442,7 +452,7 @@ class ClassRewriter:
         let inc_index = ast.assignment_statement(target: index_ref3, op: Option.None(), value: index_plus_1, location)
 
         # While loop:
-        let loop_body1 = ast.compound(inner: vec3(let_v, for_statement.body, inc_index), location)
+        let loop_body1 = ast.compound(inner: vec3(let_v, for_statement.block.body, inc_index), location)
         let while_loop = ast.while_statement(condition, body: loop_body1, location)
 
         return ast.compound(inner: vec3(let_x, let_index, while_loop), location)
@@ -452,13 +462,13 @@ class ClassRewriter:
         let x_var = this.new_variable(name: "x", ty: ast.int_type())
         let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: switch_statement.value, location)
 
-        let else_clause = switch_statement.default_body
+        let else_clause = switch_statement.default_block.body
         for arm in switch_statement.arms:
             let x_ref = ast.var_ref(variable: x_var, location: arm.location)
             let eq_op = ast.BinaryOperator.Equals()
             let eq_ty = ast.bool_type()
             let condition = ast.binop(lhs: x_ref, op: eq_op, rhs: arm.value, ty: eq_ty, location: arm.location)
-            else_clause = ast.if_statement(condition, body: arm.body, false_body: else_clause, location: arm.location)
+            else_clause = ast.if_statement(condition, body: arm.block.body, false_body: else_clause, location: arm.location)
         
         return ast.StatementKind.Compound(vec2(let_x, else_clause))
 
@@ -472,7 +482,7 @@ class ClassRewriter:
 
         let type_arguments2: List[ast.Type] = List()
         for type_parameter2 in enum_def.type_parameters:
-            let type_parameter_ref2 = builder2.add_type_parameter(name: this.unique_name(hint: type_parameter2.id.name), id: this.get_unique_id(), location: type_parameter2.location)
+            let type_parameter_ref2 = builder2.add_type_parameter(name: type_parameter2.id.name, id: this.get_unique_id(), location: type_parameter2.location)
             type_arguments2.append(type_parameter_ref2)
 
         for variant in enum_def.variants:
@@ -504,7 +514,7 @@ class ClassRewriter:
 
         let type_arguments: List[ast.Type] = List()
         for type_parameter in enum_def.type_parameters:
-            let type_parameter_ref = builder.add_type_parameter(name: this.unique_name(hint: type_parameter.id.name), id: this.get_unique_id(), location: type_parameter.location)
+            let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: this.get_unique_id(), location: type_parameter.location)
             type_arguments.append(type_parameter_ref)
 
         builder.add_field(name: "tag", ty: ast.int_type(), location: enum_def.location)
@@ -552,14 +562,19 @@ class ClassRewriter:
                     switch_arm_body.append(store_var2)
                     idx += 1
 
-            switch_arm_body.append(arm.body)
+            switch_arm_body.append(arm.block.body)
             let switch_arm = ast.SwitchArm:
                 location: arm.location
                 value: switch_arm_value
-                body: ast.compound(inner: switch_arm_body, location: arm.location)
+                block: ast.scoped_block(body: ast.compound(inner: switch_arm_body, location: arm.location))
             switch_arms.append(switch_arm)
         
-        let switch_default_code: ast.Statement = option_unwrap_or(option: case_statement.else_clause, default: ast.pass_statement(location))
+        let switch_default_code: ast.Statement = ast.pass_statement(location)
+        case case_statement.else_block:
+            None:
+                switch_default_code = ast.pass_statement(location)
+            Some(else_block):
+                switch_default_code = else_block.body
 
         let x_var_ref0 = ast.var_ref(variable: x_var, location)
         let switch_value = ast.get_attr_typed(value: x_var_ref0, attr: "tag", location)

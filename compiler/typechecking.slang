@@ -178,7 +178,6 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                 Undefined:
                     panic("TODO: undefined")
                 GetAttr(base, attr):
-                    # panic("TODO: get attr")
                     case ast.get_field_type(ty: base.ty, attr):
                         Some(ty):
                             expression.ty = ty
@@ -199,7 +198,6 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                     checker.check_arguments(location: expression.location, parameter_types: payload_types, arguments: values)
                     expression.ty = ty
                 ClassLiteral(ty, arguments):
-                    # panic("TODO: class literal")
                     expression.ty = ty
                 StructLiteral(ty, values):
                     let field_types = ast.get_field_types(ty)
@@ -224,6 +222,8 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                     expression.ty = ast.array_type(element_type, size: values.len())
                 StringLiteral(s):
                     expression.ty = ast.str_type()
+                CharLiteral(s):
+                    expression.ty = ast.char_type()
                 BoolLiteral(b):
                     expression.ty = ast.bool_type()
                 IntLiteral(i):
@@ -270,6 +270,8 @@ class TypeChecker:
         elif ast.is_bool_type(ty1) and ast.is_bool_type(ty2):
             return true
         elif ast.is_float_type(ty1) and ast.is_float_type(ty2):
+            return true
+        elif ast.is_char_type(ty1) and ast.is_char_type(ty2):
             return true
         elif ast.is_tycon_app_type(ty1) and ast.is_tycon_app_type(ty2):
             let tycon1 = ast.get_tycon(ty1)

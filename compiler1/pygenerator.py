@@ -102,20 +102,20 @@ class PyCodeGenerator:
                 self.emit(f"elif {tmp_var} == {v2}:")
                 self.gen_block(arm.body)
             self.emit("else:")
-            self.gen_block(kind.default_body)
+            self.gen_block(kind.default_block.body)
 
         elif isinstance(kind, ast.WhileStatement):
             val = self.gen_expression(kind.condition, parens=False)
             self.emit(f"while {val}:")
-            self.gen_block(kind.inner)
+            self.gen_block(kind.block.body)
         elif isinstance(kind, ast.TryStatement):
             self.emit(f"try:")
-            self.gen_block(kind.try_code)
+            self.gen_block(kind.try_block.body)
             ex_name = f"ex_{kind.parameter.name}"
             self.emit(f"except ValueError as {ex_name}:")
             self.indent()
             self.emit(f"{kind.parameter.name} = {ex_name}.args[0]")
-            self.gen_statement(kind.except_code)
+            self.gen_statement(kind.except_block.body)
             self.dedent()
         elif isinstance(kind, ast.BreakStatement):
             self.emit("break")
@@ -145,23 +145,21 @@ class PyCodeGenerator:
     def gen_if_statement(self, if_statement: ast.IfStatement, kw: str = "if"):
         val = self.gen_expression(if_statement.condition, parens=False)
         self.emit(f"{kw} {val}:")
-        self.indent()
-        self.gen_statement(if_statement.true_statement)
-        self.dedent()
-        if isinstance(if_statement.false_statement.kind, ast.IfStatement):
+        self.gen_block(if_statement.true_block.body)
+        if isinstance(if_statement.false_block.body.kind, ast.IfStatement):
             # We got el-if!
-            self.gen_if_statement(if_statement.false_statement.kind, kw="elif")
-        elif isinstance(if_statement.false_statement.kind, ast.PassStatement):
+            self.gen_if_statement(if_statement.false_block.body.kind, kw="elif")
+        elif isinstance(if_statement.false_block.body.kind, ast.PassStatement):
             pass
         else:
             self.emit("else:")
-            self.indent()
-            self.gen_statement(if_statement.false_statement)
-            self.dedent()
+            self.gen_block(if_statement.false_block.body)
 
     def gen_expression(self, expression: ast.Expression, parens: bool = True) -> str:
         kind = expression.kind
         if isinstance(kind, ast.StringConstant):
+            return f'"{kind.text}"'
+        elif isinstance(kind, ast.CharConstant):
             return f'"{kind.text}"'
         elif isinstance(kind, ast.NumericConstant):
             return f"{kind.value}"

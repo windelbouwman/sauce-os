@@ -110,6 +110,9 @@ class MyType:
     def is_str(self) -> bool:
         return isinstance(self.kind, BaseType) and self.kind.is_str()
 
+    def is_char(self) -> bool:
+        return isinstance(self.kind, BaseType) and self.kind.is_char()
+
     def is_bool(self) -> bool:
         return isinstance(self.kind, BaseType) and self.kind.is_bool()
 
@@ -334,6 +337,9 @@ class BaseType(TypeKind):
     def is_str(self) -> bool:
         return self.name == "str"
 
+    def is_char(self) -> bool:
+        return self.name == "char"
+
     def is_bool(self) -> bool:
         return self.name == "bool"
 
@@ -469,6 +475,7 @@ class TypeParameterKind(TypeKind):
 
 
 str_type = base_type("str")
+char_type = base_type("char")
 int_type = base_type("int")
 float_type = base_type("float")
 bool_type = base_type("bool")
@@ -924,7 +931,7 @@ def loop_statement(inner: Statement, location: Location) -> Statement:
 class LoopStatement(StatementKind):
     def __init__(self, inner: Statement):
         super().__init__()
-        self.inner = inner
+        self.block = ScopedBlock(inner)
 
     def __repr__(self):
         return "Loop"
@@ -939,7 +946,7 @@ class WhileStatement(StatementKind):
     def __init__(self, condition: Expression, inner: Statement):
         super().__init__()
         self.condition = condition
-        self.inner = inner
+        self.block = ScopedBlock(inner)
 
     def __repr__(self):
         return "While"
@@ -964,8 +971,8 @@ class IfStatement(StatementKind):
     ):
         super().__init__()
         self.condition = condition
-        self.true_statement = true_statement
-        self.false_statement = false_statement
+        self.true_block = ScopedBlock(true_statement)
+        self.false_block = ScopedBlock(false_statement)
 
     def __repr__(self):
         return "IfStatement"
@@ -991,6 +998,15 @@ class CaseStatement(StatementKind):
         return f"CaseStatement"
 
 
+class ScopedBlock:
+    """A code block with its own scope"""
+
+    def __init__(self, body: "Statement"):
+        assert isinstance(body, Statement)
+        self.body = body
+        self.scope = Scope()
+
+
 class CaseArm(Node):
     def __init__(
         self,
@@ -1004,8 +1020,7 @@ class CaseArm(Node):
         self.name = name
         self.variables = variables
         assert isinstance(body, Statement)
-        self.body = body
-        self.scope = Scope()
+        self.block = ScopedBlock(body)
 
 
 def switch_statement(
@@ -1025,7 +1040,7 @@ class SwitchStatement(StatementKind):
         assert isinstance(value, Expression)
         self.value = value
         self.arms = arms
-        self.default_body = default_body
+        self.default_block = ScopedBlock(default_body)
 
     def __repr__(self):
         return f"SwitchStatement"
@@ -1037,7 +1052,7 @@ class SwitchArm(Node):
         assert isinstance(value, Expression)
         self.value = value
         assert isinstance(body, Statement)
-        self.body = body
+        self.block = ScopedBlock(body)
 
 
 def for_statement(
@@ -1053,7 +1068,7 @@ class ForStatement(StatementKind):
         assert isinstance(variable, Variable)
         self.variable = variable
         self.values = values
-        self.inner = inner
+        self.block = ScopedBlock(inner)
 
     def __repr__(self):
         return f"ForStatement({self.variable})"
@@ -1074,9 +1089,9 @@ class TryStatement(StatementKind):
         self, try_code: Statement, parameter: Parameter, except_code: Statement
     ):
         super().__init__()
-        self.try_code = try_code
+        self.try_block = ScopedBlock(try_code)
         self.parameter = parameter
-        self.except_code = except_code
+        self.except_block = ScopedBlock(except_code)
 
 
 def break_statement(location: Location) -> Statement:
@@ -1243,6 +1258,22 @@ class StringConstant(ExpressionKind):
 
     def __repr__(self):
         return f'StringConstant("{self.text}")'
+
+
+def char_constant(text: str, location: Location):
+    kind = CharConstant(text)
+    ty = char_type
+    return Expression(kind, ty, location)
+
+
+class CharConstant(ExpressionKind):
+    def __init__(self, text: str):
+        super().__init__()
+        assert isinstance(text, str)
+        self.text = text
+
+    def __repr__(self):
+        return f'CharConstant("{self.text}")'
 
 
 def numeric_constant(value: int | float, location: Location):
@@ -1535,10 +1566,10 @@ class AstVisitor:
 
     def visit_node(self, node: Node):
         if isinstance(node, CaseArm):
-            self.visit_statement(node.body)
+            self.visit_statement(node.block.body)
         elif isinstance(node, SwitchArm):
             self.visit_expression(node.value)
-            self.visit_statement(node.body)
+            self.visit_statement(node.block.body)
         else:
             raise NotImplementedError(str(node))
 
@@ -1562,9 +1593,8 @@ class AstVisitor:
         kind = statement.kind
         if isinstance(kind, IfStatement):
             self.visit_expression(kind.condition)
-            self.visit_statement(kind.true_statement)
-            if kind.false_statement:
-                self.visit_statement(kind.false_statement)
+            self.visit_statement(kind.true_block.body)
+            self.visit_statement(kind.false_block.body)
         elif isinstance(kind, CaseStatement):
             self.visit_expression(kind.value)
             for arm in kind.arms:
@@ -1575,7 +1605,7 @@ class AstVisitor:
             self.visit_expression(kind.value)
             for arm in kind.arms:
                 self.visit_node(arm)
-            self.visit_statement(kind.default_body)
+            self.visit_statement(kind.default_block.body)
         elif isinstance(kind, LetStatement):
             if kind.ty:
                 self.visit_type(kind.ty)
@@ -1588,16 +1618,16 @@ class AstVisitor:
             self.visit_expression(kind.value)
         elif isinstance(kind, WhileStatement):
             self.visit_expression(kind.condition)
-            self.visit_statement(kind.inner)
+            self.visit_statement(kind.block.body)
         elif isinstance(kind, LoopStatement):
-            self.visit_statement(kind.inner)
+            self.visit_statement(kind.block.body)
         elif isinstance(kind, ForStatement):
             self.visit_expression(kind.values)
-            self.visit_statement(kind.inner)
+            self.visit_statement(kind.block.body)
         elif isinstance(kind, TryStatement):
-            self.visit_statement(kind.try_code)
+            self.visit_statement(kind.try_block.body)
             self.visit_type(kind.parameter.ty)
-            self.visit_statement(kind.except_code)
+            self.visit_statement(kind.except_block.body)
         elif isinstance(kind, RaiseStatement):
             self.visit_expression(kind.value)
         elif isinstance(kind, AssignmentStatement):

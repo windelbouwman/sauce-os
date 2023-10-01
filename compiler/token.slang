@@ -43,6 +43,7 @@ enum TokenKind:
     Float(value: float)
     Integer(value: int)
     String(value: str)
+    Char(value: char)
     Bool(value: bool)
 
     # Punctuation:
@@ -142,8 +143,10 @@ fn token_to_string(tok: Token) -> str:
             txt = "ID({id})"
         String(a):
             txt = "STRING({a})"
-        Integer(v):
-            txt = "INT({v})"
+        Char(value):
+            txt = "CHAR({value})"
+        Integer(value):
+            txt = "INT({value})"
         Float(v):
             txt = "FLOAT(...)"
         Bool(value):

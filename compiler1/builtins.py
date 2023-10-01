@@ -35,13 +35,18 @@ def std_module() -> ast.Module:
     )
 
     mod.add_definition(
+        "char_to_str",
+        ast.BuiltinFunction("std_char_to_str", [ast.char_type], ast.str_type),
+    )
+
+    mod.add_definition(
         "str_len",
         ast.BuiltinFunction("std_str_len", [ast.str_type], ast.int_type),
     )
 
     mod.add_definition(
         "str_get",
-        ast.BuiltinFunction("std_str_get", [ast.str_type, ast.int_type], ast.str_type),
+        ast.BuiltinFunction("std_str_get", [ast.str_type, ast.int_type], ast.char_type),
     )
 
     mod.add_definition(
@@ -53,12 +58,12 @@ def std_module() -> ast.Module:
 
     mod.add_definition(
         "ord",
-        ast.BuiltinFunction("std_ord", [ast.str_type], ast.int_type),
+        ast.BuiltinFunction("std_ord", [ast.char_type], ast.int_type),
     )
 
     mod.add_definition(
         "chr",
-        ast.BuiltinFunction("std_chr", [ast.int_type], ast.str_type),
+        ast.BuiltinFunction("std_chr", [ast.int_type], ast.char_type),
     )
 
     mod.add_definition(
@@ -108,6 +113,7 @@ def get_builtins(args=(), stdout=None):
         "std_str_to_int": int,
         "std_float_to_str": str,
         "std_str_to_float": float,
+        "std_char_to_str": str,
         "std_str_len": len,
         "std_str_get": lambda s, i: s[i],
         "std_str_slice": lambda s, b, e: s[b:e],
@@ -145,6 +151,8 @@ std_str_to_float = float
 std_str_len = len
 std_ord = ord
 std_chr = chr
+
+std_char_to_str = str
 
 def std_str_get(s, i):
     return s[i]

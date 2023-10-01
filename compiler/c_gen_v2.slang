@@ -42,15 +42,16 @@ class CGenerator2:
         this.emit("int rt_str_compare(char *a, char *b);")
         this.emit("int std_str_len(char* txt);")
         this.emit("char* std_str_slice(char* txt, int begin, int end);")
-        this.emit("char* std_str_get(char* txt, int pos);")
+        this.emit("char std_str_get(char* txt, int pos);")
 
-        this.emit("int std_ord(char *txt);")
-        this.emit("char* std_chr(int val);")
+        this.emit("int std_ord(char txt);")
+        this.emit("char std_chr(int val);")
 
         this.emit("char *std_int_to_str(int x);")
         this.emit("int std_str_to_int(char *x);")
         this.emit("char *std_float_to_str(double x);")
         this.emit("double std_str_to_float(char *x);")
+        this.emit("char *std_char_to_str(char x);")
 
         this.emit("char *std_get_arg(int);")
         this.emit("int std_get_n_args();")
@@ -129,26 +130,26 @@ class CGenerator2:
         # Create struct constructor function
         let struct_name = this.gen_id(id: struct_def.id)
         if struct_def.is_union:
-            for field1 in struct_def.fields:
-                let arg = this.gen_type(ty: field1.ty, name: field1.name)
-                this.emit("union {struct_name}* {struct_name}_{field1.name}({arg}) {chr(123)}")
+            for field in struct_def.fields:
+                let arg = this.gen_type(ty: field.ty, name: field.name)
+                this.emit("union {struct_name}* {struct_name}_{field.name}({arg}) {chr(123)}")
                 this.indent()
                 this.emit("union {struct_name}* X = malloc(sizeof(union {struct_name}));")
-                this.emit("X->{field1.name} = {field1.name};")
+                this.emit("X->{field.name} = {field.name};")
                 this.emit("return X;")
                 this.dedent()
                 this.emit("{chr(125)}")
                 this.emit("")
         else:
             let parts: List[str] = List()
-            for field2 in struct_def.fields:
-                parts.append(this.gen_type(ty: field2.ty, name: field2.name))
+            for field in struct_def.fields:
+                parts.append(this.gen_type(ty: field.ty, name: field.name))
             let args = str_join(parts, sep: ", ")
             this.emit("struct {struct_name}* {struct_name}_new({args}) {chr(123)}")
             this.indent()
             this.emit("struct {struct_name}* X = malloc(sizeof(struct {struct_name}));")
-            for field3 in struct_def.fields:
-                this.emit("X->{field3.name} = {field3.name};")
+            for field in struct_def.fields:
+                this.emit("X->{field.name} = {field.name};")
             this.emit("return X;")
             this.dedent()
             this.emit("{chr(125)}")
@@ -184,6 +185,8 @@ class CGenerator2:
             return "char* {name}"
         elif ast.is_float_type(ty):
             return "double {name}"
+        elif ast.is_char_type(ty):
+            return "char {name}"
         elif ast.is_struct_type(ty):
             let struct_def = ast.get_struct_def_from_type(ty)
             let struct_name = this.gen_id(id: struct_def.id)
@@ -216,7 +219,7 @@ class CGenerator2:
             While(while_statement):
                 let value = this.gen_expression(while_statement.condition)
                 this.emit("while ({value}) {chr(123)}")
-                this.gen_block(while_statement.body)
+                this.gen_block(while_statement.block.body)
                 this.emit("{chr(125)}")
 
             If(if_statement):
@@ -224,7 +227,7 @@ class CGenerator2:
 
             Loop(loop_statement):
                 this.emit("while (1) {chr(123)}")
-                this.gen_block(loop_statement.body)
+                this.gen_block(loop_statement.block.body)
                 this.emit("{chr(125)}")
 
             Compound(body):
@@ -276,13 +279,13 @@ class CGenerator2:
                 # this.emit("jmpbuf buf1;")
                 log_warning("try-catch C logic is probably wrong.")
                 this.emit("if (setjmp(g_except_hook) == 0) {chr(123)}")
-                this.gen_block(try_statement.try_body)
+                this.gen_block(try_statement.try_block.body)
                 this.emit("{chr(125)} else {chr(123)}")
                 let param_name = this.gen_id(id: try_statement.except_param.id)
                 let typed_var = this.gen_type(ty: try_statement.except_param.ty, name: param_name)
                 this.indent()
                 this.emit("{typed_var} = g_except_value;")
-                this.gen_statement(try_statement.except_body)
+                this.gen_statement(try_statement.except_block.body)
                 this.dedent()
                 this.emit("{chr(125)}")
 
@@ -305,15 +308,15 @@ class CGenerator2:
     fn gen_if_statement(if_statement: ast.IfStatement, kw: str):
         let value = this.gen_expression(if_statement.condition)
         this.emit("{kw} ({value}) {chr(123)}")
-        this.gen_block(if_statement.true_body)
-        case if_statement.false_body.kind:
+        this.gen_block(if_statement.true_block.body)
+        case if_statement.false_block.body.kind:
             Pass:
                 this.emit("{chr(125)}")
             If(if_statement2):
                 this.gen_if_statement(if_statement: if_statement2, kw: "{chr(125)} else if")
         else:
             this.emit("{chr(125)} else {chr(123)}")
-            this.gen_block(if_statement.false_body)
+            this.gen_block(if_statement.false_block.body)
             this.emit("{chr(125)}")
 
     fn gen_expression(expression?: ast.Expression) -> str:
@@ -397,6 +400,9 @@ class CGenerator2:
 
             StringLiteral(value):
                 return "{chr(34)}{value}{chr(34)}"
+
+            CharLiteral(value):
+                return "'{value}'"
             
             StructLiteral(ty, values):
                 let struct_def = ast.get_struct_def_from_type(ty)
@@ -430,8 +436,6 @@ class CGenerator2:
             return value
 
     fn gen_id(id: ast.NodeId) -> str:
-        # TODO: we could use id as well?
-        # TODO: think more about name mangling
         if id.name == "main":
             return "{id.name}2"
         else:

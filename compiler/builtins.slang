@@ -35,6 +35,12 @@ fn get_std_module() -> ast.Module:
         return_type: ast.str_type()
     ast.module_define_symbol(module, name: "float_to_str", definition: ast.Definition.ExternFunction(std_float_to_str))
 
+    let std_char_to_str = ast.ExternFunctionDef:
+        name: "std_char_to_str"
+        parameter_types: vec1(ast.char_type())
+        return_type: ast.str_type()
+    ast.module_define_symbol(module, name: "char_to_str", definition: ast.Definition.ExternFunction(std_char_to_str))
+
     let std_exit = ast.ExternFunctionDef:
         name: "std_exit"
         parameter_types: vec1(ast.int_type())
@@ -49,14 +55,14 @@ fn get_std_module() -> ast.Module:
 
     let std_ord = ast.ExternFunctionDef:
         name: "std_ord"
-        parameter_types: vec1(ast.str_type())
+        parameter_types: vec1(ast.char_type())
         return_type: ast.int_type()
     ast.module_define_symbol(module, name: "ord", definition: ast.Definition.ExternFunction(std_ord))
 
     let std_chr = ast.ExternFunctionDef:
         name: "std_chr"
         parameter_types: vec1(ast.int_type())
-        return_type: ast.str_type()
+        return_type: ast.char_type()
     ast.module_define_symbol(module, name: "chr", definition: ast.Definition.ExternFunction(std_chr))
 
     let std_str_len = ast.ExternFunctionDef:
@@ -74,7 +80,7 @@ fn get_std_module() -> ast.Module:
     let std_str_get = ast.ExternFunctionDef:
         name: "std_str_get"
         parameter_types: vec2(ast.str_type(), ast.int_type())
-        return_type: ast.str_type()
+        return_type: ast.char_type()
     ast.module_define_symbol(module, name: "str_get", definition: ast.Definition.ExternFunction(std_str_get))
 
     # TODO: call this rt (runtime) or std (builtin standard library)?

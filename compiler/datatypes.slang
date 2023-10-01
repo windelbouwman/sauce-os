@@ -31,15 +31,6 @@ enum Result[O,E]:
     Ok(value: O)
     Error(value: E)
 
-# Boxed versions of int and str..
-# TODO: figure out nicer way to store int and str in List
-struct Integer:
-    value: int
-
-fn new_integer(value?: int) -> Integer:
-    return Integer(value)
-
-
 fn vec1[T](v1?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)

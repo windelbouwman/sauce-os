@@ -104,12 +104,12 @@ class TypeChecker(BasePass):
                     kind.values.location,
                     f"Expected array or iterable, not {kind.values.ty}",
                 )
-            self.visit_statement(kind.inner)
+            self.visit_statement(kind.block.body)
         elif isinstance(kind, ast.TryStatement):
             self._except_handlers.append(kind.parameter.ty)
-            super().visit_statement(kind.try_code)
+            super().visit_statement(kind.try_block.body)
             self._except_handlers.pop()
-            super().visit_statement(kind.except_code)
+            super().visit_statement(kind.except_block.body)
         else:
             super().visit_statement(statement)
 
@@ -153,7 +153,15 @@ class TypeChecker(BasePass):
         """Perform type checking on expression!"""
         super().visit_expression(expression)
         kind = expression.kind
-        if isinstance(kind, (ast.NumericConstant, ast.StringConstant, ast.BoolLiteral)):
+        if isinstance(
+            kind,
+            (
+                ast.NumericConstant,
+                ast.StringConstant,
+                ast.CharConstant,
+                ast.BoolLiteral,
+            ),
+        ):
             pass
         elif isinstance(kind, ast.ArrayLiteral):
             assert len(kind.values) > 0
@@ -297,6 +305,8 @@ class TypeChecker(BasePass):
             expression.ty = kind.ty
         elif isinstance(kind, ast.ToString):
             if kind.expr.ty.is_int():
+                pass
+            elif kind.expr.ty.is_char():
                 pass
             else:
                 self.assert_type(kind.expr, ast.str_type)

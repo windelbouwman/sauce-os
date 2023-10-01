@@ -38,6 +38,8 @@ fn type_to_string(ty?: Type) -> str:
     case ty.kind:
         Str:
             return "STR"
+        Char:
+            return "CHAR"
         Int:
             return "INT"
         Bool:
@@ -147,6 +149,13 @@ fn is_int_type(ty?: Type) -> bool:
 fn is_str_type(ty?: Type) -> bool:
     case ty.kind:
         Str:
+            return true
+    else:
+        return false
+
+fn is_char_type(ty?: Type) -> bool:
+    case ty.kind:
+        Char:
             return true
     else:
         return false
@@ -424,6 +433,7 @@ enum TypeKind:
     Bool
     Int
     Str
+    Char
     Float
     Void
     TypeExpression(expression: Expression)
@@ -497,6 +507,9 @@ fn float_type() -> Type:
 
 fn str_type() -> Type:
     return new_type(kind: TypeKind.Str())
+
+fn char_type() -> Type:
+    return new_type(kind: TypeKind.Char())
 
 fn undefined_type() -> Type:
     return new_type(kind: TypeKind.Undefined())
@@ -805,6 +818,13 @@ struct Variable:
     id: NodeId
     ty: Type
 
+struct ScopedBlock:
+    scope: Scope
+    body: Statement
+
+fn scoped_block(body: Statement) -> ScopedBlock:
+    return ScopedBlock(scope: Scope(), body)
+
 struct Statement:
     location: Location
     kind: StatementKind
@@ -828,83 +848,98 @@ enum StatementKind:
     Continue
 
 fn if_statement(condition: Expression, body: Statement, false_body: Statement, location: Location) -> Statement:
-    let i = IfStatement:
+    let if_statement = IfStatement:
         condition: condition
-        true_body: body
-        false_body: false_body
+        true_block: scoped_block(body)
+        false_block: scoped_block(body: false_body)
 
-    let kind = StatementKind.If(if_statement: i)
+    let kind = StatementKind.If(if_statement)
     return Statement(kind, location)
 
 struct IfStatement:
     condition: Expression
-    true_body: Statement
-    false_body: Statement
+    true_block: ScopedBlock
+    false_block: ScopedBlock
 
 struct WhileStatement:
     condition: Expression
-    body: Statement
+    block: ScopedBlock
 
 fn while_statement(condition: Expression, body: Statement, location: Location) -> Statement:
-    let while_statement = WhileStatement(condition, body)
+    let while_statement = WhileStatement:
+        condition
+        block: scoped_block(body)
     let kind = StatementKind.While(while_statement)
     return Statement(kind, location)
 
 fn loop_statement(body: Statement, location: Location) -> Statement:
-    let kind = StatementKind.Loop(loop_statement: LoopStatement(body))
+    let block = scoped_block(body)
+    let kind = StatementKind.Loop(loop_statement: LoopStatement(block))
     return Statement(kind, location)
 
 struct LoopStatement:
-    body: Statement
+    block: ScopedBlock
 
 fn for_statement(iter_var: str, iter_var_id: int, iter_value: Expression, body: Statement, location: Location) -> Statement:
     let v = variable(name: iter_var, id: iter_var_id, ty: undefined_type())
-    let for_statement = ForStatement(iter_var: v, iter_value, body)
+    let for_statement = ForStatement:
+        iter_var: v
+        iter_value
+        block: scoped_block( body)
     return Statement(kind: StatementKind.For(for_statement), location)
 
 struct ForStatement:
     iter_var: Variable
     iter_value: Expression
-    body: Statement
+    block: ScopedBlock
 
 fn try_statement(try_body: Statement, except_param: ParameterDef, except_body: Statement, location: Location) -> Statement:
-    let try_statement = TryStatement(try_body, except_param, except_body)
+    let try_statement = TryStatement:
+        try_block: scoped_block(body: try_body)
+        except_param
+        except_block: scoped_block(body: except_body)
     return Statement(kind: StatementKind.Try(try_statement), location)
 
 struct TryStatement:
-    try_body: Statement
+    try_block: ScopedBlock
     except_param: ParameterDef
-    except_body: Statement
+    except_block: ScopedBlock
 
 fn case_statement(value: Expression, arms: List[CaseArm], else_clause: Option[Statement], location: Location) -> Statement:
-    let c = CaseStatement(value, arms, else_clause)
-    return Statement(kind: StatementKind.Case(c), location)
+    let else_block: Option[ScopedBlock] = Option.None()
+    case else_clause:
+        Some(body):
+            else_block = Option.Some(scoped_block(body))
+        None:
+            else_block = Option.None()
+    let case_statement = CaseStatement(value, arms, else_block)
+    return Statement(kind: StatementKind.Case(case_statement), location)
 
 struct CaseStatement:
     value: Expression
     arms: List[CaseArm]
-    else_clause: Option[Statement]
+    else_block: Option[ScopedBlock]
 
 struct CaseArm:
     location: Location
     name: str
     variables: List[Variable]
-    scope: Scope
-    body: Statement
+    block: ScopedBlock
 
 fn switch_statement(value: Expression, arms: List[SwitchArm], default_body: Statement, location: Location) -> Statement:
-    let switch_statement = SwitchStatement(value, arms, default_body)
+    let default_block = scoped_block(body: default_body)
+    let switch_statement = SwitchStatement(value, arms, default_block)
     return Statement(kind: StatementKind.Switch(switch_statement), location)
 
 struct SwitchStatement:
     value: Expression
     arms: List[SwitchArm]
-    default_body: Statement
+    default_block: ScopedBlock
 
 struct SwitchArm:
     location: Location
     value: Expression
-    body: Statement
+    block: ScopedBlock
 
 fn let_statement(variable: Variable, type_hint: Option[Type], value: Expression, location: Location) -> Statement:
     let let_statement = LetStatement(variable, type_hint, value)
@@ -970,6 +1005,7 @@ enum ExpressionKind:
     IntLiteral(value: int)
     FloatLiteral(value: float)
     StringLiteral(value: str)
+    CharLiteral(value: char)
     BoolLiteral(value: bool)
     StructLiteral(ty: Type, values: List[Expression])
     UnionLiteral(ty: Type, field: str, value: Expression)
@@ -1107,6 +1143,11 @@ fn float_literal(value: float, location: Location) -> Expression:
 fn string_literal(value: str, location: Location) -> Expression:
     let kind = ExpressionKind.StringLiteral(value)
     let ty = str_type()
+    return Expression(kind, ty, location)
+
+fn char_literal(value: char, location: Location) -> Expression:
+    let kind = ExpressionKind.CharLiteral(value)
+    let ty = char_type()
     return Expression(kind, ty, location)
 
 fn to_string(value: Expression, location: Location) -> Expression:
@@ -1249,10 +1290,12 @@ fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPh
 fn expression_to_string(expression: Expression) -> str:
     let txt = "?"
     case expression.kind:
-        StringLiteral(val):
-            txt = "String={val}"
-        IntLiteral(val):
-            txt = "Integer={val}"
+        StringLiteral(value):
+            txt = "String={value}"
+        CharLiteral(value):
+            txt = "Char={value}"
+        IntLiteral(value):
+            txt = "Integer={value}"
         FloatLiteral(val):
             txt = "Float={float_to_str(val)}"
         BoolLiteral(val):
@@ -1369,6 +1412,7 @@ enum VisitPhase:
 
 enum VisitNode:
     Arm(arm: CaseArm)
+    ScopeNode(scope: Scope)
 
 fn visit_module_set[T](visitor: Visitor[T], module_set: ModuleSet):
     for module in module_set.modules:
@@ -1441,38 +1485,44 @@ fn visit_statement[T](visitor: Visitor[T], statement: Statement):
             visit_expression(visitor, expression: let_statement.value)
         If(if_statement):
             visit_expression(visitor, expression: if_statement.condition)
-            visit_statement(visitor, statement: if_statement.true_body)
-            visit_statement(visitor, statement: if_statement.false_body)
+            let arm_node = VisitNode.ScopeNode(if_statement.true_block.scope)
+            visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Pre())
+            visit_statement(visitor, statement: if_statement.true_block.body)
+            visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Post())
+            arm_node = VisitNode.ScopeNode(if_statement.false_block.scope)
+            visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Pre())
+            visit_statement(visitor, statement: if_statement.false_block.body)
+            visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Post())
         While(while_statement):
             visit_expression(visitor, expression: while_statement.condition)
-            visit_statement(visitor, statement: while_statement.body)
+            visit_statement(visitor, statement: while_statement.block.body)
         Loop(loop_statement):
-            visit_statement(visitor, statement: loop_statement.body)
+            visit_statement(visitor, statement: loop_statement.block.body)
         Switch(switch_statement):
             visit_expression(visitor, expression: switch_statement.value)
             for arm in switch_statement.arms:
                 visit_expression(visitor, expression: arm.value)
-                visit_statement(visitor, statement: arm.body)
-            visit_statement(visitor, statement: switch_statement.default_body)
+                visit_statement(visitor, statement: arm.block.body)
+            visit_statement(visitor, statement: switch_statement.default_block.body)
         For(for_statement):
             visit_expression(visitor, expression: for_statement.iter_value)
             visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Mid())
-            visit_statement(visitor, statement: for_statement.body)
+            visit_statement(visitor, statement: for_statement.block.body)
         Try(try_statement):
-            visit_statement(visitor, statement: try_statement.try_body)
+            visit_statement(visitor, statement: try_statement.try_block.body)
             visit_type(visitor, ty: try_statement.except_param.ty)
-            visit_statement(visitor, statement: try_statement.except_body)
+            visit_statement(visitor, statement: try_statement.except_block.body)
         Case(case_statement):
             visit_expression(visitor, expression: case_statement.value)
             visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Mid())
             for arm in case_statement.arms:
                 let arm_node = VisitNode.Arm(arm)
                 visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Pre())
-                visit_statement(visitor, statement: arm.body)
+                visit_statement(visitor, statement: arm.block.body)
                 visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Post())
-            case case_statement.else_clause:
-                Some(else_statement):
-                    visit_statement(visitor, statement: else_statement)
+            case case_statement.else_block:
+                Some(else_block):
+                    visit_statement(visitor, statement: else_block.body)
                 None:
                     pass
         Compound(inner):
@@ -1508,6 +1558,8 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         FloatLiteral(val):
             pass
         StringLiteral(v):
+            pass
+        CharLiteral(v):
             pass
         Undefined:
             pass

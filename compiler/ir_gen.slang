@@ -160,7 +160,7 @@ class Generator:
                 this.gen_condition(condition: while_statement.condition, true_label: body_label, false_label: final_label)
 
                 this.set_label(body_label)
-                this.gen_statement(while_statement.body)
+                this.gen_statement(while_statement.block.body)
                 this.jump(test_label)
 
                 this.loop_stack.drop_last()
@@ -173,11 +173,11 @@ class Generator:
                 this.gen_condition(condition: if_statement.condition, true_label, false_label)
                 
                 this.set_label(true_label)
-                this.gen_statement(if_statement.true_body)
+                this.gen_statement(if_statement.true_block.body)
                 this.jump(final_label)
 
                 this.set_label(false_label)
-                this.gen_statement(if_statement.false_body)
+                this.gen_statement(if_statement.false_block.body)
                 this.jump(final_label)
 
                 this.set_label(final_label)
@@ -331,6 +331,8 @@ class Generator:
                 this.emit(Instruction.Literal(bc.LiteralValue.Float(value)))
             StringLiteral(value):
                 this.emit(Instruction.Literal(bc.LiteralValue.Str(value)))
+            CharLiteral(value):
+                panic("TODO: char literal")
             BoolLiteral(value):
                 this.emit(Instruction.Literal(bc.LiteralValue.Bool(value)))
             VarRef(variable):

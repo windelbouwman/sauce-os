@@ -6,16 +6,17 @@ from std import print, ord, str_slice, str_len
 from std import str_to_float, str_to_int
 from token import Token, TokenKind, token_to_string
 from location import Location, location_at, Position
-from datatypes import List, Option, Integer, new_integer
+from datatypes import List, Option
 
 
 class Lexer:
     var pending: List[Token] = List()
-    var indent_stack: List[Integer] = List()  # TODO: list of integers! (can only make list of non-basic types..)
+    var indent_stack: List[int] = List()
     var at_bol: bool = true  # at begin-of-line (bol)
     var at_end: bool = false
     var spaces: int = 0
     var source: str = ""
+    var source_length: int = 0
 
     var tok_begin: int = 0
     var offset: int = 0
@@ -24,10 +25,11 @@ class Lexer:
 
     fn init(source: str):
         this.source = source
+        this.source_length = str_len(source)
         this.at_end = false
         this.at_bol = true
         this.row = 1
-        this.indent_stack.append(new_integer(0))
+        this.indent_stack.append(0)
 
     fn next_token() -> Token:
         while this.pending.is_empty() and not this.at_end:
@@ -67,15 +69,15 @@ class Lexer:
         else:
             if this.at_bol:
                 this.at_bol = false
-                if this.spaces > this.indent_stack.last().value:
+                if this.spaces > this.indent_stack.last():
                     # 1x indent!
-                    this.indent_stack.append(new_integer(this.spaces))
+                    this.indent_stack.append(this.spaces)
 
                     this.emit_token(kind: TokenKind.Indent(), location: tok.location)
                 else:
-                    while this.spaces < this.indent_stack.last().value:
+                    while this.spaces < this.indent_stack.last():
                         # n times dedent!
-                        let tmp = this.indent_stack.pop_last().value
+                        let tmp = this.indent_stack.pop_last()
                         if tmp < this.spaces:
                             panic("Indentation error")
                         this.emit_token(kind: TokenKind.Dedent(), location: tok.location)
@@ -97,7 +99,7 @@ class Lexer:
         this.emit(tok: Token(kind, location))
 
     fn next_token2() -> Token:
-        let n = std.str_len(this.source)
+        let n = this.source_length
         if this.offset < n:
             # Start of new token:
             this.tok_begin = this.offset
@@ -110,56 +112,56 @@ class Lexer:
             this.offset += 1
 
             # Decide what to do based on char:
-            if c == "(":
+            if c == '(':
                 kind = TokenKind.BraceOpen()
-            elif c == ")":
+            elif c == ')':
                 kind = TokenKind.BraceClose()
-            elif c == "[":
+            elif c == '[':
                 kind = TokenKind.BracketOpen()
-            elif c == "]":
+            elif c == ']':
                 kind = TokenKind.BracketClose()
-            elif c == ",":
+            elif c == ',':
                 kind = TokenKind.Comma()
-            elif c == ".":
+            elif c == '.':
                 kind = TokenKind.Dot()
-            elif c == ":":
+            elif c == ':':
                 kind = TokenKind.Colon()
-            elif c == " ":
-                while this.match(txt: " "):
+            elif c == ' ':
+                while this.match(txt: ' '):
                     pass
                 kind = TokenKind.Space(amount: std.str_len(this.get_lexeme()))
-            elif c == "#":
+            elif c == '#':
                 # Line comment
-                while not is_lf(c: this.peek()) and this.offset < n:
+                while this.offset < n and not is_lf(c: this.peek()):
                     this.offset += 1
                 this.offset += 1
                 kind = TokenKind.Comment(comment: this.get_lexeme())
                 this.col_start = this.offset
             elif ord(c) == 34:
-                while not (ord(c: this.peek()) == 34) and this.offset < n:
+                while this.offset < n and not (ord(c: this.peek()) == 34):
                     this.offset += 1
                 this.offset += 1
                 # String
                 let txt: str = this.get_lexeme()
                 txt = str_slice(value: txt, begin: 1, end: str_len(txt) - 1)
                 kind = TokenKind.String(txt)
-            elif c == "-":
-                if this.match(txt: ">"):
+            elif c == '-':
+                if this.match(txt: '>'):
                     kind = TokenKind.Arrow()
-                elif this.match(txt: "="):
+                elif this.match(txt: '='):
                     kind = TokenKind.MinusEquals()
                 else:
                     kind = TokenKind.Minus()
-            elif c == "+":
-                if this.match(txt: "="):
+            elif c == '+':
+                if this.match(txt: '='):
                     kind = TokenKind.PlusEquals()
                 else:
                     kind = TokenKind.Plus()
-            elif c == "?":
+            elif c == '?':
                 kind = TokenKind.Question()
-            elif c == "/":
+            elif c == '/':
                 kind = TokenKind.Slash()
-            elif c == "*":
+            elif c == '*':
                 kind = TokenKind.Asterix()
             elif is_lf(c):
                 kind = TokenKind.NewLine()
@@ -167,12 +169,11 @@ class Lexer:
             elif is_digit(c):
                 while this.offset < n and is_digit(c: this.peek()):
                     this.offset += 1
-                if this.peek() == ".":
+                if this.offset < n and this.peek() == '.':
                     # Floating point!
                     this.offset += 1
-                    while is_digit(c: this.peek()):
+                    while this.offset < n and is_digit(c: this.peek()):
                         this.offset += 1
-                    # TODO: str to float
                     let val2 = this.get_lexeme()
                     let float_value: float = str_to_float(val2)
                     kind = TokenKind.Float(float_value)
@@ -185,23 +186,31 @@ class Lexer:
 
                 # Check for keywords:
                 kind = check_keyword(txt: this.get_lexeme())
-            elif c == "<":
-                if this.match(txt: "="):
+
+            elif ord(c) == 39:
+                # Char literal
+                this.offset += 2
+                # TODO: check closing '
+                let char_value = std.str_get(value: this.get_lexeme(), index: 1)
+                kind = TokenKind.Char(char_value)
+
+            elif c == '<':
+                if this.match(txt: '='):
                     kind = TokenKind.LessEquals()
                 else:
                     kind = TokenKind.Less()
-            elif c == ">":
-                if this.match(txt: "="):
+            elif c == '>':
+                if this.match(txt: '='):
                     kind = TokenKind.GreaterEquals()
                 else:
                     kind = TokenKind.Greater()
-            elif c == "=":
-                if this.match(txt: "="):
+            elif c == '=':
+                if this.match(txt: '='):
                     kind = TokenKind.EqualsEquals()
                 else:
                     kind = TokenKind.Equals()
-            elif c == "!":
-                if this.match(txt: "="):
+            elif c == '!':
+                if this.match(txt: '='):
                     kind = TokenKind.NotEquals()
 
             let end_column = this.offset - this.col_start
@@ -212,16 +221,16 @@ class Lexer:
         else:
             return Token(kind: TokenKind.Eof(), location: location_at(row: this.row, column: 1))
     
-    fn peek() -> str:
-        let n = std.str_len(this.source)
+    fn peek() -> char:
+        let n = this.source_length
         if this.offset < n:
             let c = std.str_get(text: this.source, index: this.offset)
             return c
         else:
-            return ""
+            panic("Peek beyond input")
 
-    fn match(txt: str) -> bool:
-        let n = std.str_len(this.source)
+    fn match(txt: char) -> bool:
+        let n = this.source_length
         if this.offset < n:
             let c = std.str_get(text: this.source, index: this.offset)
             if c == txt:
@@ -235,27 +244,27 @@ class Lexer:
     fn get_lexeme() -> str:
         return std.str_slice(value: this.source, begin: this.tok_begin, end: this.offset)
 
-fn is_lf(c: str) -> bool:
+fn is_lf(c: char) -> bool:
     let o = ord(value: c)
     return o == 10
 
-fn is_digit(c: str) -> bool:
+fn is_digit(c: char) -> bool:
     # Check if a character is a digit.
     let o = ord(value: c)
     return (o >= 48) and (o <= 57)
 
-fn is_id(c: str) -> bool:
+fn is_id(c: char) -> bool:
     let o = ord(c)
     if (o >= 65) and (o <= 90):
         return true
     elif (o >= 97) and (o <= 122):
         return true
-    elif c == "_":
+    elif c == '_':
         return true
     else:
         return false
 
-fn is_id_or_digit(c: str) -> bool:
+fn is_id_or_digit(c: char) -> bool:
     return is_id(c) or is_digit(c)
 
 fn check_keyword(txt: str) -> TokenKind:

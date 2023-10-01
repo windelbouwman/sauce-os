@@ -9,6 +9,7 @@ import logging
 
 
 from . import ast
+from .location import Location
 
 logger = logging.getLogger("transforms")
 
@@ -16,10 +17,22 @@ logger = logging.getLogger("transforms")
 class BaseTransformer(ast.AstVisitor):
     name = "?"
 
+    def __init__(self):
+        super().__init__()
+        self._counter = 5
+
     def transform(self, modules: list[ast.Module]):
         logger.info(f"Transforming {self.name}")
         for module in modules:
             self.visit_module(module)
+
+    def new_variable(
+        self, hint: str, ty: ast.MyType, location: Location
+    ) -> ast.Variable:
+        # TODO: create globally unique names! Also, do not clash with names in source-code
+        self._counter += 1
+        name = f"FV{self._counter}_{hint}"
+        return ast.Variable(name, ty, location)
 
 
 class LoopRewriter(BaseTransformer):
@@ -27,7 +40,7 @@ class LoopRewriter(BaseTransformer):
 
     def __init__(self, std_module: ast.Module):
         super().__init__()
-        self._counter = 5
+
         self._std_module = std_module
 
     def visit_statement(self, statement: ast.Statement):
@@ -37,7 +50,7 @@ class LoopRewriter(BaseTransformer):
         if isinstance(kind, ast.LoopStatement):
             # Turn loop into a while-true clause
             yes_value = ast.bool_constant(True, statement.location)
-            statement.kind = ast.WhileStatement(yes_value, kind.inner)
+            statement.kind = ast.WhileStatement(yes_value, kind.block.body)
         elif isinstance(kind, ast.ForStatement):
             if kind.values.ty.is_array():
                 # Turn for loop into while loop.
@@ -55,15 +68,12 @@ class LoopRewriter(BaseTransformer):
                 #   i = i + 1
 
                 # x = arr
-                x_var = ast.Variable(
-                    self.new_var_name("x"), kind.values.ty, statement.location
-                )
+                x_var = self.new_variable("x", kind.values.ty, statement.location)
+
                 let_x = ast.let_statement(x_var, None, kind.values, statement.location)
 
                 # i = 0
-                i_var = ast.Variable(
-                    self.new_var_name("i"), ast.int_type, statement.location
-                )
+                i_var = self.new_variable("i", ast.int_type, statement.location)
                 zero = ast.numeric_constant(0, statement.location)
                 let_i0 = ast.let_statement(i_var, None, zero, statement.location)
 
@@ -96,7 +106,7 @@ class LoopRewriter(BaseTransformer):
                 )
 
                 loop_body = ast.compound_statement(
-                    [let_v, kind.inner, inc_i], kind.inner.location
+                    [let_v, kind.block.body, inc_i], kind.block.body.location
                 )
                 while_loop = ast.while_statement(
                     loop_condition, loop_body, statement.location
@@ -127,8 +137,8 @@ class LoopRewriter(BaseTransformer):
                 opt_ty: ast.MyType = iter_ty.get_field_type("next").kind.return_type
                 location = statement.location
 
-                it_var = ast.Variable(self.new_var_name("it"), iter_ty, location)
-                opt_var = ast.Variable(self.new_var_name("opt"), opt_ty, location)
+                it_var = self.new_variable("it", iter_ty, location)
+                opt_var = self.new_variable("opt", opt_ty, location)
                 let_it_var = ast.let_statement(
                     it_var, None, kind.values.call_method("iter", []), location
                 )
@@ -141,7 +151,9 @@ class LoopRewriter(BaseTransformer):
                 none_arm = ast.CaseArm(
                     "None", [], ast.break_statement(location), location
                 )
-                some_arm = ast.CaseArm("Some", [kind.variable], kind.inner, location)
+                some_arm = ast.CaseArm(
+                    "Some", [kind.variable], kind.block.body, location
+                )
                 arms = [none_arm, some_arm]
                 case_statement = ast.case_statement(
                     opt_var.ref_expr(location), arms, None, location
@@ -167,15 +179,16 @@ class LoopRewriter(BaseTransformer):
                 callee = ast.obj_ref(int_to_str, ast.void_type, expression.location)
                 args = [ast.LabeledExpression("value", kind.expr, kind.expr.location)]
                 expression.kind = ast.FunctionCall(callee, args)
+            elif kind.expr.ty.is_char():
+                # call built-in char_to_str
+                char_to_str = self._std_module.get_field("char_to_str")
+                callee = ast.obj_ref(char_to_str, ast.void_type, expression.location)
+                args = [ast.LabeledExpression("value", kind.expr, kind.expr.location)]
+                expression.kind = ast.FunctionCall(callee, args)
             else:
                 raise ValueError(
                     f"Cannot resolve to-string for {ast.str_ty(kind.expr.ty)}"
                 )
-
-    def new_var_name(self, hint: str) -> str:
-        # TODO: create globally unique names! Also, do not clash with names in source-code
-        self._counter += 1
-        return f"FV{self._counter}_{hint}"
 
 
 class EnumRewriter(BaseTransformer):
@@ -272,7 +285,7 @@ class EnumRewriter(BaseTransformer):
             self.change_enum_type(kind.value.ty)
 
             # x = value
-            x_var = ast.Variable("x1337", kind.value.ty, statement.location)
+            x_var = self.new_variable("x1337", kind.value.ty, statement.location)
             let_x = ast.let_statement(x_var, None, kind.value, statement.location)
 
             arms = []
@@ -301,7 +314,7 @@ class EnumRewriter(BaseTransformer):
                         val2 = union_val.get_attr(var_idx)
                         let_v = ast.let_statement(var, None, val2, arm.location)
                         body.append(let_v)
-                body.append(arm.body)
+                body.append(arm.block.body)
                 body = ast.compound_statement(body, arm.location)
                 tag_val = ast.numeric_constant(variant_idx, arm.location)
                 arms.append(ast.SwitchArm(tag_val, body, arm.location))
@@ -537,15 +550,15 @@ class SwitchRewriter(BaseTransformer):
             logger.debug("rewrite switch into chain of if-then-else")
             # Step 1: capture switch value in variable:
 
-            x_var = ast.Variable("x1234", kind.value.ty, statement.location)
+            x_var = self.new_variable("x1234", kind.value.ty, statement.location)
             let_x = ast.let_statement(x_var, None, kind.value, statement.location)
 
             # Create if-then tree
-            else_clause = kind.default_body
+            else_clause = kind.default_block.body
             for arm in kind.arms:
                 condition = x_var.ref_expr(arm.location).binop("==", arm.value)
                 else_clause = ast.if_statement(
-                    condition, arm.body, else_clause, arm.location
+                    condition, arm.block.body, else_clause, arm.location
                 )
 
             statement.kind = ast.CompoundStatement([let_x, else_clause])
@@ -564,9 +577,9 @@ class ConstantFolder(BaseTransformer):
             if isinstance(kind.condition.kind, ast.BoolLiteral):
                 # Deal with if-true or if-false
                 if kind.condition.kind.value:
-                    statement.kind = kind.true_statement.kind
+                    statement.kind = kind.true_block.body.kind
                 else:
-                    statement.kind = kind.false_statement.kind
+                    statement.kind = kind.false_block.body.kind
 
     def visit_expression(self, expression: ast.Expression):
         super().visit_expression(expression)

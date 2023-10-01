@@ -69,6 +69,7 @@ def tokenize(code: str | tuple[Location, str]):
         ("NUMBER", r"[0-9]+"),
         ("SPACE", r"[ ]+"),
         ("STRING", r"\"[^\"]*\""),
+        ("CHAR", r"\'[^\']\'"),
         ("NEWLINE", r"\n"),
         ("COMMENT", r"#[^\n]*\n"),
         ("OTHER", r"."),
@@ -136,6 +137,8 @@ def tokenize(code: str | tuple[Location, str]):
                 value = False
             tok = Token(kind, value, loc)
         elif kind == "STRING":
+            tok = Token(kind, value[1:-1], loc)
+        elif kind == "CHAR":
             tok = Token(kind, value[1:-1], loc)
         elif kind == "NUMBER":
             value = int(value)

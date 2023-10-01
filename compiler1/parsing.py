@@ -608,8 +608,10 @@ class CustomTransformer(LarkTransformer):
             return ast.numeric_constant(x[0].value, get_loc(x[0]))
         elif x[0].type == "BOOL":
             return ast.bool_constant(x[0].value, get_loc(x[0]))
+        elif x[0].type == "CHAR":
+            return ast.char_constant(x[0].value, get_loc(x[0]))
         else:
-            print("Literal!", x)
+            raise NotImplementedError(f"Literal: {x}")
 
     def array_literal(self, x):
         return ast.array_literal(x[1], get_loc(x[0]))
@@ -756,7 +758,7 @@ tests: test
 arguments: labeled_expression
          | arguments COMMA labeled_expression
 
-literal: STRING | NUMBER | FNUMBER | BOOL
+literal: STRING | NUMBER | FNUMBER | BOOL | CHAR
 array_literal: LEFT_BRACKET tests RIGHT_BRACKET
 obj_ref: ID
 
@@ -779,7 +781,7 @@ labeled_expression: test
 %declare EQUALS PLUS_EQUALS MINUS_EQUALS
 
 %declare INDENT DEDENT NEWLINE
-%declare NUMBER STRING FNUMBER BOOL ID
+%declare NUMBER STRING FNUMBER BOOL CHAR ID
 
 """
 lark_parser = Lark(
