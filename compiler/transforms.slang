@@ -481,8 +481,8 @@ class ClassRewriter:
         builder2.set_is_union(true)
 
         let type_arguments2: List[ast.Type] = List()
-        for type_parameter2 in enum_def.type_parameters:
-            let type_parameter_ref2 = builder2.add_type_parameter(name: type_parameter2.id.name, id: this.get_unique_id(), location: type_parameter2.location)
+        for type_parameter in enum_def.type_parameters:
+            let type_parameter_ref2 = builder2.add_type_parameter(name: type_parameter.id.name, id: this.get_unique_id(), location: type_parameter.location)
             type_arguments2.append(type_parameter_ref2)
 
         for variant in enum_def.variants:
@@ -546,20 +546,20 @@ class ClassRewriter:
 
             # Unpack payload:
             if arm.variables.len() == 1:
-                let x_var_ref1 = ast.var_ref(variable: x_var, location: arm.location)
-                let payload_value1 = ast.get_attr_typed(value: x_var_ref1, attr: "data", location: arm.location)
-                let union_val1 = ast.get_attr_typed(value: payload_value1, attr: arm.name, location: arm.location)
-                let store_var1 = ast.let_statement(variable: arm.variables.first(), type_hint: Option.None(), value: union_val1, location: arm.location)
-                switch_arm_body.append(store_var1)
+                let x_var_ref = ast.var_ref(variable: x_var, location: arm.location)
+                let payload_value = ast.get_attr_typed(value: x_var_ref, attr: "data", location: arm.location)
+                let union_val = ast.get_attr_typed(value: payload_value, attr: arm.name, location: arm.location)
+                let store_var = ast.let_statement(variable: arm.variables.first(), type_hint: Option.None(), value: union_val, location: arm.location)
+                switch_arm_body.append(store_var)
             elif arm.variables.len() > 1:
                 let idx = 0
                 for variable in arm.variables:
-                    let x_var_ref2 = ast.var_ref(variable: x_var, location: arm.location)
-                    let payload_value2 = ast.get_attr_typed(value: x_var_ref2, attr: "data", location: arm.location)
-                    let union_val2 = ast.get_attr_typed(value: payload_value2, attr: arm.name, location: arm.location)
-                    let actual_val2 = ast.get_attr_typed(value: union_val2, attr: "f_{idx}", location: arm.location)
-                    let store_var2 = ast.let_statement(variable, type_hint: Option.None(), value: actual_val2, location: arm.location)
-                    switch_arm_body.append(store_var2)
+                    let x_var_ref = ast.var_ref(variable: x_var, location: arm.location)
+                    let payload_value = ast.get_attr_typed(value: x_var_ref, attr: "data", location: arm.location)
+                    let union_val = ast.get_attr_typed(value: payload_value, attr: arm.name, location: arm.location)
+                    let actual_val = ast.get_attr_typed(value: union_val, attr: "f_{idx}", location: arm.location)
+                    let store_var = ast.let_statement(variable, type_hint: Option.None(), value: actual_val, location: arm.location)
+                    switch_arm_body.append(store_var)
                     idx += 1
 
             switch_arm_body.append(arm.block.body)

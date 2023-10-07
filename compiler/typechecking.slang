@@ -66,9 +66,9 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
                     elif ast.has_field(ty: for_statement.iter_value.ty, attr: "iter"):
                         # TODO: we have a few assumptions here, which panic. Should be proper warning:
                         # print("FORRRRRR")
-                        let iter_ty: ast.Type = ast.get_return_type(option_unwrap(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "iter")))
+                        let iter_ty: ast.Type = ast.get_return_type_from_type(option_unwrap(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "iter")))
                         # print("iter ty: {ast.type_to_string(iter_ty)}")
-                        let opt_ty: ast.Type = ast.get_return_type(option_unwrap(ast.get_field_type(ty: iter_ty, attr: "next")))
+                        let opt_ty: ast.Type = ast.get_return_type_from_type(option_unwrap(ast.get_field_type(ty: iter_ty, attr: "next")))
                         # print("Opt ty: {ast.type_to_string(opt_ty)}")
                         let opt_variant = option_unwrap(ast.get_enum_variant_from_type(ty: opt_ty, attr: "Some"))
                         let val_ty: ast.Type = ast.get_variant_payload_types(ty: opt_ty, variant: opt_variant).first()
@@ -111,13 +111,14 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
         Post:
             case expression.kind:
                 Call(call):
-                    case call.callee.ty.kind:
-                        Function(parameter_types, return_type):
-                            let arguments: List[ast.Expression] = List()
-                            for argument in call.arguments:
-                                arguments.append(argument.value)
-                            checker.check_arguments(location: expression.location, parameter_types, arguments)
-                            expression.ty = ast.deref_type_var(return_type)
+                    if ast.is_function_type(call.callee.ty):
+                        let parameter_types = ast.get_parameter_types_from_type(call.callee.ty)
+                        let return_type = ast.get_return_type_from_type(call.callee.ty)
+                        let arguments: List[ast.Expression] = List()
+                        for argument in call.arguments:
+                            arguments.append(argument.value)
+                        checker.check_arguments(location: expression.location, parameter_types, arguments)
+                        expression.ty = ast.deref_type_var(return_type)
                     else:
                         checker.add_error(location: expression.location, message: "Cannot call non-function type {ast.type_to_string(call.callee.ty)}")
                 LoadSymbol(symbol):

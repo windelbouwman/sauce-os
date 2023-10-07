@@ -1,6 +1,6 @@
 
 from std import print, float_to_str
-from strlib import str_repeat
+from strlib import str_repeat, str_join
 from utils import panic, assert, log_info
 from location import Location, location_default
 from datatypes import List, Option, Dictionary, option_unwrap, option_is_some
@@ -28,10 +28,10 @@ fn new_type(kind: TypeKind) -> Type:
     return Type(stub: 0, kind)
 
 fn types_to_string(typs: List[Type]) -> str:
-    let txt = "["
+    let parts: List[str] = List()
     for ty in typs:
-        txt = txt + type_to_string(ty) + ","
-    txt = txt + "]"
+        parts.append(type_to_string(ty))
+    let txt = "[" + str_join(parts, sep: ", ") + "]"
     return txt
 
 fn type_to_string(ty?: Type) -> str:
@@ -46,6 +46,8 @@ fn type_to_string(ty?: Type) -> str:
             return "BOOL"
         Float:
             return "FLOAT"
+        Opaque:
+            return "OPAQUE"
         Void:
             return "VOID"
         TypeExpression(expr):
@@ -65,8 +67,11 @@ fn type_to_string(ty?: Type) -> str:
                 Some(ty_assigned):
                     return "TYPE-VAR(id={v.unique},{type_to_string(ty_assigned)})"
         App(tycon, type_arguments):
-            let args = types_to_string(typs: type_arguments)
-            return "APP({tycon_to_str(tycon)}, {args})"
+            if type_arguments.is_empty():
+                return tycon_to_str(tycon)
+            else:
+                let args = types_to_string(typs: type_arguments)
+                return tycon_to_str(tycon) + args
 
 fn change_type_to(ty: Type, ty2: Type):
     # Adjust ty to ty2
@@ -406,14 +411,6 @@ fn get_class_def_from_type(ty: Type) -> ClassDef:
     else:
         panic("No class type")
 
-
-fn get_return_type(ty?: Type) -> Type:
-    case ty.kind:
-        Function(args, rty):
-            return rty
-    else:
-        panic("Must be function type")
-
 fn get_tycon(ty?: Type) -> TyCon:
     case ty.kind:
         App(tycon, args):
@@ -435,6 +432,7 @@ enum TypeKind:
     Str
     Char
     Float
+    Opaque
     Void
     TypeExpression(expression: Expression)
     Function(parameter_types: List[Type], return_type: Type)
@@ -510,6 +508,10 @@ fn str_type() -> Type:
 
 fn char_type() -> Type:
     return new_type(kind: TypeKind.Char())
+
+# Opaque type, void*
+fn opaque_type() -> Type:
+    return new_type(kind: TypeKind.Opaque())
 
 fn undefined_type() -> Type:
     return new_type(kind: TypeKind.Undefined())
@@ -1051,7 +1053,7 @@ fn get_attr_typed(value: Expression, attr: str, location: Location) -> Expressio
 
 fn call_method(base: Expression, method: str, location: Location) -> Expression:
     let callee = get_attr_typed(value: base, attr: method, location)
-    let result_ty: Type = get_return_type(callee.ty)
+    let result_ty: Type = get_return_type_from_type(callee.ty)
     return call(callee, arguments: List(), ty: result_ty, location)
 
 struct FunctionCall:

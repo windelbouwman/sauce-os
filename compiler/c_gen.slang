@@ -17,8 +17,8 @@ fn gen_c_code(program: bc.Program):
 
     # Struct forward declarations:
     let index = 0
-    for struct0 in program.structs:
-        if struct0.is_union:
+    for struct_def in program.structs:
+        if struct_def.is_union:
             g.emit("union U{index};")
         else:
             g.emit("struct S{index};")
@@ -26,8 +26,8 @@ fn gen_c_code(program: bc.Program):
     
     # Struct definitions:
     index = 0
-    for struct1 in program.structs:
-        g.gen_struct_def(sidx: index, struct1)
+    for struct_def in program.structs:
+        g.gen_struct_def(sidx: index, struct_def)
         index += 1
 
     # Forward declarations:
@@ -90,14 +90,14 @@ class CGenerator:
         this.emit("int std_str_to_int(char *x);")
         this.emit("char *std_float_to_str(double x);")
 
-    fn gen_struct_def(sidx: int, struct1: bc.Struct):
-        if struct1.is_union:
+    fn gen_struct_def(sidx: int, struct_def: bc.Struct):
+        if struct_def.is_union:
             this.emit("union U{sidx} {chr(123)}")
         else:
             this.emit("struct S{sidx} {chr(123)}")
         this.indent()
         let index = 0
-        for field in struct1.fields:
+        for field in struct_def.fields:
             let typed_var = this.get_type_txt(ty: field, name: "field{index}")
             this.emit("{typed_var};")
             index += 1

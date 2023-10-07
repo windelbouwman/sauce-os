@@ -164,16 +164,16 @@ fn print_bc_program(program: Program):
     for function in program.functions:
         print("  FUNC: {function.name}")
         print("    PARAMETERS:")
-        for ty1 in function.parameters:
-            print("      > {type_to_string(ty1)}")
+        for ty in function.parameters:
+            print("      > {type_to_string(ty)}")
         case function.return_type:
             Some(ty):
-                print("    RETURNS: type_to_string(ty)")
+                print("    RETURNS: {type_to_string(ty)}")
             None:
                 pass
         print("    LOCALS:")
-        for ty2 in function.locals:
-            print("      > {type_to_string(ty2)}")
+        for ty in function.locals:
+            print("      > {type_to_string(ty)}")
         print("    CODE:")
         index = 0
         for instruction in function.instructions:

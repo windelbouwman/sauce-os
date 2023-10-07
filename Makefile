@@ -33,7 +33,11 @@ exceptionally: ${COMPILER3} examples/exceptionally.slang
 func_ptr: ${COMPILER3} examples/func_ptr.slang
 	python ${COMPILER3} -cv2 examples/func_ptr.slang
 
-compiler4: compiler4.c runtime/runtime.c
+list-generic-oo: compiler5 examples/list-generic-oo.slang
+	./compiler5 -cv2 examples/list-generic-oo.slang | sed '/^# /d' > tmp-list-generic-oo.c
+	gcc -o list-generic-oo tmp-list-generic-oo.c runtime/runtime.c
+
+compiler4: tmp-compiler4.c runtime/runtime.c
 	gcc -Wno-incompatible-pointer-types -Wno-int-conversion -o compiler4 tmp-compiler4.c runtime/runtime.c
 
 tmp-compiler4.c: ${COMPILER_SRCS} ${COMPILER3}
@@ -42,7 +46,7 @@ tmp-compiler4.c: ${COMPILER_SRCS} ${COMPILER3}
 tmp-compiler5.c: compiler4 ${COMPILER_SRCS}
 	./compiler4 -cv2 ${COMPILER_SRCS} | sed '/^# /d' > tmp-compiler5.c
 
-compiler5: tmp-compiler5.c runtime/runtime.c
+compiler5: tmp-compiler5.c runtime/runtime.c Makefile
 	gcc -Wno-incompatible-pointer-types -Wno-int-conversion -o compiler5 tmp-compiler5.c runtime/runtime.c
 
 generics2: ${COMPILER3} runtime/runtime.c examples/generics2.slang

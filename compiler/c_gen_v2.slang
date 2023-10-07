@@ -26,6 +26,7 @@ class CGenerator2:
     fn gen_header():
         this.emit("#include <setjmp.h>")
         this.emit("#include <stdlib.h>")
+        this.emit("#include <stdint.h>")
         this.emit("")
 
         # MEH: copy/pasted from c_gen.slang ..
@@ -178,9 +179,9 @@ class CGenerator2:
     
     fn gen_type(ty: ast.Type, name: str) -> str:
         if ast.is_int_type(ty):
-            return "int {name}"
+            return "intptr_t {name}"
         elif ast.is_bool_type(ty):
-            return "int {name}"
+            return "intptr_t {name}"
         elif ast.is_str_type(ty):
             return "char* {name}"
         elif ast.is_float_type(ty):

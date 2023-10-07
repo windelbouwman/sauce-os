@@ -73,13 +73,13 @@ class PyGenerator:
                     this.dedent()
                 else:
                     let parameter_names: List[str] = List()
-                    for field1 in struct_def.fields:
-                        parameter_names.append(field1.name)
+                    for field in struct_def.fields:
+                        parameter_names.append(field.name)
                     let params = str_join(parts: parameter_names, sep: ", ")
                     this.emit("def __init__(self, {params}):")
                     this.indent()
-                    for field2 in struct_def.fields:
-                        this.emit("self.{field2.name} = {field2.name}")
+                    for field in struct_def.fields:
+                        this.emit("self.{field.name} = {field.name}")
                     this.dedent()
                 this.dedent()
                 this.emit("")
