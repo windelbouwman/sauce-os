@@ -338,31 +338,17 @@ class Generator:
             VarRef(variable):
                 let var_index = this.get_local_index(variable)
                 this.emit(Instruction.LocalGet(var_index))
+            FunctionRef(function_def, type_arguments):
+                this.emit(Instruction.LoadFunc(name: function_def.id.name))
             LoadSymbol(symbol):
                 case symbol:
-                    Var(v):
-                        # let index = this.get_local(variable: v)
-                        # this.emit(Instruction.LocalGet(index))
-                        panic("Var ref?")
                     ExternFunction(e):
                         this.emit(Instruction.LoadFunc(name: e.name))
-                    Function(function_def):
-                        this.emit(Instruction.LoadFunc(name: function_def.id.name))
-                    Mod(module):
-                        panic("Cannot load mod")
                     Parameter(parameter_def):
                         let parameter_index = this.get_parameter_index(parameter_def)
                         this.emit(Instruction.ParameterGet(parameter_index))
-                    TypeConstructor(tycon):
-                        panic("Cannot load type constructor")
-                    Typ(typ):
-                        panic("Cannot load type")
-                    Variant(enum_variant):
-                        panic("Cannot load variant")
-                    Field(struct_field):
-                        panic("Cannot load field")
-                # else:
-                    # panic("TODO: load symbol")
+                else:
+                    panic("Cannot load symbol {ast.symbol_to_str(symbol)}")
             NameRef(name):
                 panic("Names must be resolved: {name}")
             Undefined:

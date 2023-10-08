@@ -3,7 +3,7 @@ import ast
 import std
 from lexer import Lexer
 from token import token_to_string, Token
-from location import Location, location_default
+from location import Location, location_default, Position
 from datatypes import List, Result, Option, vec1
 from strlib import split_string
 from basepass import IdGen
@@ -24,10 +24,12 @@ fn parse_source(filename: str, id_gen: IdGen) -> ast.Module except CompilationEr
     parser.feed(source)
     return parser.parse_module(filename, name: modname)
 
-fn parse_expr_from_text(source: str, id_gen: IdGen) -> ast.Expression except CompilationError:
+fn parse_expr_from_text(source: str, id_gen: IdGen, p1: Position) -> ast.Expression except CompilationError:
     # Invoke parsing, purely on expression.
     let parser = Parser(id_gen)
     parser.feed(source)
+    parser.lex.row = p1.row
+    parser.lex.start_col = p1.column
     return parser.parse_expression()
 
 class Parser:
@@ -944,8 +946,10 @@ class Parser:
                 # Expression which must be turned into string
                 end = index
                 if begin < end:
+                    # Skip past first " of string:
+                    let p1 = Position(row: location.begin.row, column: location.begin.column + begin + 1)
                     let expr_text = std.str_slice(value: literal, begin, end)
-                    let to_string_expr: ast.Expression = parse_expr_from_text(source: expr_text, id_gen: this.id_gen)
+                    let to_string_expr: ast.Expression = parse_expr_from_text(source: expr_text, id_gen: this.id_gen, p1)
                     to_string_expr = ast.to_string(value: to_string_expr, location)
                     parts.append(to_string_expr)
                 begin = index + 1

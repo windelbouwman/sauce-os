@@ -21,7 +21,8 @@ class Lexer:
     var tok_begin: int = 0
     var offset: int = 0
     var row: int = 1
-    var col_start: int = 0
+    var col_start: int = 0  # Offset in source of this line
+    var start_col: int = 1  # Offset added to column
 
     fn init(source: str):
         this.source = source
@@ -104,8 +105,8 @@ class Lexer:
             # Start of new token:
             this.tok_begin = this.offset
             let kind = TokenKind.Error()
-            let column = this.tok_begin - this.col_start + 1
-            let begin = Position(row: this.row, column)
+            let begin_column = this.tok_begin - this.col_start + this.start_col
+            let begin = Position(row: this.row, column: begin_column)
 
             # Get char:
             let c = std.str_get(value: this.source, index: this.offset)
@@ -213,7 +214,9 @@ class Lexer:
                 if this.match(txt: '='):
                     kind = TokenKind.NotEquals()
 
-            let end_column = this.offset - this.col_start
+            let end_column = this.offset - 1
+            end_column = end_column - this.col_start + this.start_col
+                
             let end = Position(row: this.row, column: end_column)
             let location = Location(begin, end)
 

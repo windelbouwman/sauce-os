@@ -113,11 +113,17 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
     
     if options.dump_ast:
         ast.print_ast2(module_set)
+
     type_check_modules(module_set)
     transform(module_set, id_gen, std_module)
+
     if options.dump_ast:
         ast.print_ast2(module_set)
+
     type_check_modules(module_set)
+
+    if options.dump_ast:
+        ast.print_ast2(module_set)
  
     if options.backend == "py":  # Python backend
         gen_python(module_set, generate_runtime: options.runtime)

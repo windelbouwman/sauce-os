@@ -240,13 +240,29 @@ class CGenerator2:
                 this.emit("{value};")
 
             Assignment(target, operator, value):
-                let target_text = this.gen_expression(target)
+                let target_text = ""
                 let op_text = ""
                 case operator:
                     Some(op):
                         op_text = "{binary_op_to_str(op)}="
                     None:
                         op_text = "="
+
+                case target.kind:
+                    GetAttr(base, attr):
+                        let base_txt = this.gen_expression(base)
+                        target_text = "{base_txt}->{attr}"
+                    VarRef(variable):
+                        target_text = this.gen_id(id: variable.id)
+                    LoadSymbol(symbol):
+                        case symbol:
+                            Parameter(parameter_def):
+                                target_text = this.gen_id(id: parameter_def.id)
+                        else:
+                            panic("Unsupported assignment target: {ast.symbol_to_str(symbol)}")
+                else:
+                    panic("Unsupported assignment target: {ast.expression_to_string(expression: target)}")
+
                 let value_text = this.gen_expression(value)
                 this.emit("{target_text} {op_text} {value_text};")
 
@@ -345,21 +361,12 @@ class CGenerator2:
                     values.append(argument.value)
                 let args = this.gen_expression_list(values)
                 let value = "{callee}({args})"
-                # TODO: type promotion
-                #let from_type = ?
-                #let to_type = expression.ty
-                #return this.promote_type(from_type, to_type, value: )
-                # HACK: not all values need castig:
-                if ast.is_struct_type(expression.ty):
-                    let to_type2 = this.gen_type(ty: expression.ty, name: "")
-                    value = "(({to_type2})({value}))"
-                return value
+                return this.promote_type(to_type: expression.ty, value)
 
             GetAttr(base, name):
                 let base_txt = this.gen_expression(base)
                 # Might introduce type erasure here!
-                let from_type = get_field_type(ty: base.ty, attr: name)
-                return this.promote_type(from_type, to_type: expression.ty, value: "{base_txt}->{name}")
+                return this.promote_type(to_type: expression.ty, value: "{base_txt}->{name}")
             
             GetIndex(base, indici):
                 let base_txt = this.gen_expression(base)
@@ -375,8 +382,6 @@ class CGenerator2:
 
             LoadSymbol(symbol):
                 case symbol:
-                    Function(function_def):
-                        return this.gen_id(id: function_def.id)
                     ExternFunction(extern_function):
                         return extern_function.name
                     Parameter(parameter_def):
@@ -384,6 +389,9 @@ class CGenerator2:
                 else:
                     panic("todo-symbol: {ast.symbol_to_str(symbol)}")
             
+            FunctionRef(function_def, type_arguments):
+                return this.gen_id(id: function_def.id)
+
             VarRef(variable):
                 return this.gen_id(id: variable.id)
             
@@ -429,8 +437,9 @@ class CGenerator2:
             parts.append(this.gen_expression(value))
         return str_join(parts, sep: ", ")
 
-    fn promote_type(from_type: ast.Type, to_type: ast.Type, value: str) -> str:
-        if ast.is_type_parameter_type(from_type) and not ast.is_type_parameter_type(to_type):
+    fn promote_type(to_type: ast.Type, value: str) -> str:
+        let needs_cast = to_type.was_generic
+        if needs_cast:
             let to_type2 = this.gen_type(ty: to_type, name: "")
             return "(({to_type2})({value}))"
         else:
@@ -482,15 +491,3 @@ fn binary_op_to_str(op: ast.BinaryOperator) -> str:
             op_text = "!="
     return op_text
 
-
-fn get_field_type(ty: ast.Type, attr: str) -> ast.Type:
-    let struct_def = ast.get_struct_def_from_type(ty)
-    case struct_def.scope.lookup(name: attr):
-        Some(sym):
-            case sym:
-                Field(field):
-                    return field.ty
-            else:
-                panic("Struct member must be field")
-        None:
-            panic("Struct has no field {attr}")

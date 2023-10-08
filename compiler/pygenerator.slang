@@ -201,8 +201,6 @@ class PyGenerator:
                 txt = this.gen_expression(value, parens: true)
             LoadSymbol(symbol):
                 case symbol:
-                    Function(function_def):
-                        txt = this.get_id(id: function_def.id)
                     ExternFunction(extern_function):
                         txt = extern_function.name
                     Parameter(parameter):
@@ -213,6 +211,8 @@ class PyGenerator:
                     panic("Unsupported: {ast.symbol_to_str(symbol)}")
             VarRef(variable):
                 txt = this.get_id(id: variable.id)
+            FunctionRef(function_def, type_parameters):
+                txt = this.get_id(id: function_def.id)
             Call(call):
                 let expressions: List[ast.Expression] = List()
                 for argument in call.arguments:

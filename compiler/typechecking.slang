@@ -125,18 +125,15 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                     case symbol:
                         ExternFunction(func):
                             expression.ty = ast.extern_function_type(func)
-                        Function(function_def):
-                            expression.ty = ast.get_function_type(function_def)
                         Parameter(p):
                             # TODO: clone type?
                             expression.ty = p.ty
-                        Var(v):
-                            # TODO: clone type?
-                            expression.ty = v.ty
                     else:
                         panic("Must not happen: {ast.symbol_to_str(symbol)}")
                 VarRef(v):
                     expression.ty = v.ty
+                FunctionRef(function_def, type_arguments):
+                    expression.ty = ast.get_function_type2(function_def, type_arguments)
                 TypeConstructor(tycon):
                     panic("checker: TODO: tycon")
                 TypeCast(ty, value):
@@ -332,5 +329,4 @@ class TypeChecker:
 
     fn add_error(location: Location, message: str):
         let err = new_error(location, message)
-        # display_error(err)
         this.errors.append(err)

@@ -33,7 +33,7 @@ class List[T]:
                             element = nxt_element
                 element.next = Option.Some(new_tail_element)
 
-    fn iter() -> ListIter:
+    fn iter() -> ListIter[T]:
         let it = ListIter()
         it.next_element = this.head_element
         return it

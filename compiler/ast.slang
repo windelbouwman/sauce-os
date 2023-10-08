@@ -21,11 +21,14 @@ fn node_id_to_string(id?: NodeId) -> str:
 
 # TODO: implement type-defs!
 struct Type:
-    stub: int
     kind: TypeKind
+    was_generic: bool
+
+fn clone_type(ty?: Type) -> Type:
+    return new_type(kind: ty.kind)
 
 fn new_type(kind: TypeKind) -> Type:
-    return Type(stub: 0, kind)
+    return Type(kind, was_generic: false)
 
 fn types_to_string(typs: List[Type]) -> str:
     let parts: List[str] = List()
@@ -35,43 +38,49 @@ fn types_to_string(typs: List[Type]) -> str:
     return txt
 
 fn type_to_string(ty?: Type) -> str:
+    let txt = "?"
     case ty.kind:
         Str:
-            return "STR"
+            txt = "STR"
         Char:
-            return "CHAR"
+            txt = "CHAR"
         Int:
-            return "INT"
+            txt = "INT"
         Bool:
-            return "BOOL"
+            txt = "BOOL"
         Float:
-            return "FLOAT"
+            txt = "FLOAT"
         Opaque:
-            return "OPAQUE"
+            txt = "OPAQUE"
         Void:
-            return "VOID"
+            txt = "VOID"
         TypeExpression(expr):
-            return "TYPE-EXPR"
+            txt = "TYPE-EXPR"
         Array(element_type, size):
-            return "ARRAY({type_to_string(element_type)} x {size})"
+            txt = "ARRAY({type_to_string(element_type)} x {size})"
         Function(parameter_types, return_type):
-            return "FUNC-TYPE({types_to_string(typs: parameter_types)},{type_to_string(return_type)})"
+            txt = "FUNC-TYPE({types_to_string(typs: parameter_types)},{type_to_string(return_type)})"
         Undefined:
-            return "UNDEFINED"
+            txt = "UNDEFINED"
         TypeParam(param):
-            return "TYPE-PARAM({node_id_to_string(param.id)})"
+            txt = "TYPE-PARAM({node_id_to_string(param.id)})"
         TypeVar(v):
             case v.ty:
                 None:
-                    return "TYPE-VAR(id={v.unique})"
+                    txt = "TYPE-VAR(id={v.unique})"
                 Some(ty_assigned):
-                    return "TYPE-VAR(id={v.unique},{type_to_string(ty_assigned)})"
+                    txt = "TYPE-VAR(id={v.unique},{type_to_string(ty_assigned)})"
         App(tycon, type_arguments):
             if type_arguments.is_empty():
-                return tycon_to_str(tycon)
+                txt = tycon_to_str(tycon)
             else:
                 let args = types_to_string(typs: type_arguments)
-                return tycon_to_str(tycon) + args
+                txt = tycon_to_str(tycon) + args
+        
+    if ty.was_generic:
+        txt = "@" + txt
+
+    return txt
 
 fn change_type_to(ty: Type, ty2: Type):
     # Adjust ty to ty2
@@ -89,7 +98,10 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
         TypeParam(p):
             case m.get(key: p.id.name):
                 Some(ty3):
-                    return ty3
+                    # Idea is to record if we once were a type-parameter:
+                    let ty4 = clone_type(ty3)
+                    ty4.was_generic = true
+                    return ty4
                 None:
                     return ty
         Function(parameter_types, return_type):
@@ -235,6 +247,8 @@ fn deref_type_var(ty?: Type) -> Type:
                 None:
                     panic("Must be assigned type!")
                 Some(t):
+                    t = clone_type(t)
+                    t.was_generic = ty.was_generic
                     return t
     else:
         return ty
@@ -791,13 +805,26 @@ struct FunctionDef:
     body: Statement
     location: Location
 
+fn function_ref(function_def: FunctionDef, type_arguments: List[Type], location: Location) -> Expression:
+    let kind = ExpressionKind.FunctionRef(function_def, type_arguments)
+    let ty = get_function_type2(function_def, type_arguments)
+    return Expression(kind, ty, location)
+
 fn get_function_type(function_def: FunctionDef) -> Type:
+    assert(condition: function_def.type_parameters.is_empty(), message: "Get function type can only be used on a non-generic function")
+    let parameter_types: List[Type] = List()
+    for parameter in function_def.parameters:
+        parameter_types.append(parameter.ty)
+    let return_type = function_def.return_type
+    return function_type(parameter_types, return_type)
+
+fn get_function_type2(function_def: FunctionDef, type_arguments: List[Type]) -> Type:
+    assert(condition: function_def.type_parameters.len() == type_arguments.len(), message: "{node_id_to_string(function_def.id)} -> Amount of type arguments must match amount of type parameters")
     let m: Dictionary[Type] = Dictionary()
-    let unique_id = 1
+    let tai = type_arguments.iter()
     for tp in function_def.type_parameters:
-        let type_var = new_type_var(unique: unique_id)
-        m.insert(key: tp.id.name, value: new_type_var_ref(type_var))
-        unique_id += 1
+        let ta = option_unwrap(tai.next())
+        m.insert(key: tp.id.name, value: ta)
     let parameter_types: List[Type] = List()
     for parameter in function_def.parameters:
         parameter_types.append(subst(ty: parameter.ty, m))
@@ -1003,6 +1030,7 @@ enum ExpressionKind:
     Unop(op: UnaryOperator, rhs: Expression)
     NameRef(name: str)
     VarRef(variable: Variable)
+    FunctionRef(function: FunctionDef, type_arguments: List[Type])
     LoadSymbol(symbol: Symbol)
     IntLiteral(value: int)
     FloatLiteral(value: float)
@@ -1325,6 +1353,9 @@ fn expression_to_string(expression: Expression) -> str:
             txt = "UNOP({op_txt})"
         VarRef(v):
             txt = "VAR-REF({node_id_to_string(v.id)})"
+        FunctionRef(function, type_arguments):
+            let args = types_to_string(typs: type_arguments)
+            txt = "FN-{node_id_to_string(function.id)}{args}"
         StructLiteral(ty, values):
             txt = "STRUCT-LITERAL"
         UnionLiteral(ty, field, value):
@@ -1469,6 +1500,12 @@ fn visit_type[T](visitor: Visitor[T], ty: Type):
             for parameter_type in parameter_types:
                 visit_type(visitor, ty: parameter_type)
             visit_type(visitor, ty: return_type)
+        TypeVar(type_variable):
+            case type_variable.ty:
+                Some(ty2):
+                    visit_type(visitor, ty: ty2)
+                None:
+                    pass
     else:
         pass
     visitor.on_type(data: visitor.data, ty, phase: VisitPhase.Post())
@@ -1587,6 +1624,9 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
             visit_expression(visitor, expression: value)
         VarRef(v):
             pass
+        FunctionRef(function_def, type_arguments):
+            for type_argument in type_arguments:
+                visit_type(visitor, ty: type_argument)
         StructLiteral(ty, values):
             visit_type(visitor, ty)
             for value in values:

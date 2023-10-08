@@ -9,7 +9,7 @@
 # - Transform try/except into something else
 
 from location import Location
-from utils import panic, log_info
+from utils import panic, log_info, log_debug
 from basepass import IdGen
 from datatypes import Dictionary, List, vec1, vec2, vec3, Option, option_unwrap_or, option_unwrap
 import ast
@@ -19,19 +19,36 @@ fn transform(module_set: ast.ModuleSet, id_gen: IdGen, std_module: ast.Module):
     let transformer = Transformer:
         class_rewriter: ClassRewriter(id_gen, std_module)
 
-    # Phase 1:
+    let visitor = ast.Visitor[Transformer]:
+        data: transformer
+        on_definition: transformer_on_definition0
+        on_type: transformer_on_type0
+        on_statement: transformer_on_statement0
+        on_expression: transformer_on_expression0
+        on_node: transformer_on_node0
+
+    # Phase 1-a:
+    # - Rewrite for-loops into while loops
+    # - Rewrite loops into while loops
+    # - Rewrite ToString contraptions
+    visitor.on_definition = transformer_on_definition0
+    visitor.on_type = transformer_on_type0
+    visitor.on_statement = transformer_on_statement1
+    visitor.on_expression = transformer_on_expression1
+    visitor.on_node = transformer_on_node0
+    ast.visit_module_set(visitor, module_set)
+
+    # Phase 1-b:
     # - Rewrite for-loops into while loops
     # - Rewrite loops into while loops
     # - Rewrite enum definitions into struct definitions
     # - Rewrite classes into structs with functions
     # - Rewrite ToString contraptions
-    let visitor = ast.Visitor[Transformer]:
-        data: transformer
-        on_definition: transformer_on_definition1
-        on_type: transformer_on_type0
-        on_statement: transformer_on_statement1
-        on_expression: transformer_on_expression1
-        on_node: transformer_on_node0
+    visitor.on_definition = transformer_on_definition1
+    visitor.on_type = transformer_on_type0
+    visitor.on_statement = transformer_on_statement0
+    visitor.on_expression = transformer_on_expression0
+    visitor.on_node = transformer_on_node0
 
     for module in module_set.modules:
         ast.visit_module(visitor, module)
@@ -213,8 +230,8 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                                 let this_arg = ast.LabeledExpression(location: base.location, name: Option.Some("this"), value: base)
                                 let arguments = call.arguments
                                 arguments.prepend(this_arg)
-                                let ty = ast.undefined_type()
-                                call.callee = ast.load_symbol(symbol: ast.Symbol.Function(function_def), ty, location: expression.location)
+                                let type_arguments = ast.get_type_arguments(base.ty)
+                                call.callee = ast.function_ref(function_def, type_arguments, location: expression.location)
                     else:
                         pass
                 Binop(op):
@@ -357,8 +374,8 @@ class ClassRewriter:
     fn rewrite_class_literal(ty: ast.Type, arguments: List[ast.LabeledExpression], location: Location) -> ast.Expression:
         let class_def = ast.get_class_def_from_type(ty)
         let ctor_func_def: ast.FunctionDef = option_unwrap(this.ctor_map.get(key: ast.node_id_to_string(class_def.id)))
-        let symbol = ast.Symbol.Function(ctor_func_def)
-        let ctor_func_ref = ast.load_symbol(symbol, ty: ast.get_function_type(function_def: ctor_func_def), location)
+        let type_arguments = ast.get_type_arguments(ty)
+        let ctor_func_ref = ast.function_ref(function_def: ctor_func_def, type_arguments, location)
         let struct_ty: ast.Type = ast.undefined_type()
         let ctor_call = ast.call(callee: ctor_func_ref, arguments, ty: struct_ty, location)
         return ctor_call
@@ -384,7 +401,7 @@ class ClassRewriter:
         return ast.load_symbol(symbol, ty: ast.undefined_type(), location)
 
     fn transform_for_loop(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
-        # log_info("Rewrite for loop")
+        log_debug("Rewrite for loop")
         # Turn for loop into iterator and while loop
 
         if ast.is_array_type(for_statement.iter_value.ty):
