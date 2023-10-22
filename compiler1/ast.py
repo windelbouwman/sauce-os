@@ -236,8 +236,6 @@ def subst(t: MyType, m: dict["TypeParameter", MyType]) -> MyType:
             return t
     elif isinstance(t.kind, App):
         return tycon_apply(t.kind.tycon, [subst(u, m) for u in t.kind.type_args])
-    elif isinstance(t.kind, (BaseType, VoidType)):
-        return t
     elif isinstance(t.kind, FunctionType):
         new_args = [subst(a, m) for a in t.kind.parameter_types]
         parameter_names = t.kind.parameter_names
@@ -245,7 +243,7 @@ def subst(t: MyType, m: dict["TypeParameter", MyType]) -> MyType:
         except_type = subst(t.kind.except_type, m)
         return function_type(parameter_names, new_args, return_type, except_type)
     else:
-        raise NotImplementedError(str(t))
+        return t
 
 
 class TypeConstructor(Definition):

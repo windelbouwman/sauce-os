@@ -7,7 +7,7 @@ from std import print, float_to_str, chr
 from strlib import str_repeat, str_join
 import ast
 from datatypes import List, Dictionary, option_unwrap, Option
-from utils import panic, log_info, log_debug, log_warning
+from utils import panic, log_info, log_debug, log_warning, assert
 
 
 fn gen_c_code_v2(module_set: ast.ModuleSet):
@@ -58,7 +58,7 @@ class CGenerator2:
         this.emit("int std_get_n_args();")
 
         this.emit("jmp_buf g_except_hook;")
-        this.emit("char* g_except_value;")
+        this.emit("void* g_except_value;")
 
     fn gen_forward_declarations1(module_set: ast.ModuleSet):
         for module in module_set.modules:
@@ -188,6 +188,8 @@ class CGenerator2:
             return "double {name}"
         elif ast.is_char_type(ty):
             return "char {name}"
+        elif ast.is_opaque(ty):
+            return "void* {name}"
         elif ast.is_struct_type(ty):
             let struct_def = ast.get_struct_def_from_type(ty)
             let struct_name = this.gen_id(id: struct_def.id)
@@ -195,9 +197,6 @@ class CGenerator2:
                 return "union {struct_name}* {name}"
             else:
                 return "struct {struct_name}* {name}"
-        elif ast.is_type_parameter_type(ty):
-            # Treat generics as void pointers
-            return "void* {name}"
         elif ast.is_function_type(ty):
             let ret_ty = ast.get_return_type_from_type(ty)
             let parts: List[str] = List()
@@ -260,6 +259,24 @@ class CGenerator2:
                                 target_text = this.gen_id(id: parameter_def.id)
                         else:
                             panic("Unsupported assignment target: {ast.symbol_to_str(symbol)}")
+                    TypeCast(typ, value):
+                        if ast.is_opaque(value.ty):
+                            case value.kind:
+                                GetAttr(base, attr):
+                                    let base_txt = this.gen_expression(base)
+                                    target_text = "{base_txt}->{attr}"
+                                VarRef(variable):
+                                    target_text = this.gen_id(id: variable.id)
+                                LoadSymbol(symbol):
+                                    case symbol:
+                                        Parameter(parameter_def):
+                                            target_text = this.gen_id(id: parameter_def.id)
+                                    else:
+                                        panic("Unsupported assignment target: {ast.symbol_to_str(symbol)}")
+                            else:
+                                panic("Unsupported assignment target: {ast.expression_to_string(expression: target)}")
+                        else:
+                            panic("Only supported type cast from opaque as assignment target")
                 else:
                     panic("Unsupported assignment target: {ast.expression_to_string(expression: target)}")
 
@@ -357,16 +374,15 @@ class CGenerator2:
             Call(call):
                 let callee = this.gen_expression(call.callee)
                 let values: List[ast.Expression] = List()
+                let parameter_types = ast.get_parameter_types_from_type(call.callee.ty)
                 for argument in call.arguments:
                     values.append(argument.value)
                 let args = this.gen_expression_list(values)
-                let value = "{callee}({args})"
-                return this.promote_type(to_type: expression.ty, value)
+                return "{callee}({args})"
 
             GetAttr(base, name):
                 let base_txt = this.gen_expression(base)
-                # Might introduce type erasure here!
-                return this.promote_type(to_type: expression.ty, value: "{base_txt}->{name}")
+                return "{base_txt}->{name}"
             
             GetIndex(base, indici):
                 let base_txt = this.gen_expression(base)
@@ -377,6 +393,15 @@ class CGenerator2:
                 let source = this.gen_expression(value)
                 if ast.is_float_type(ty):
                     return "(double)({source})"
+                elif ast.is_opaque(ty):
+                    return "(void*)({source})"
+                elif ast.is_str_type(ty):
+                    return "(char*)({source})"
+                elif ast.is_int_type(ty):
+                    return "(intptr_t)({source})"
+                elif ast.is_struct_type(ty):
+                    let to_type2 = this.gen_type(ty: ty, name: "")
+                    return "(({to_type2})({source}))"
                 else:
                     panic("Unsupported cast to: {ast.type_to_string(ty)}")
 
@@ -436,14 +461,6 @@ class CGenerator2:
         for value in values:
             parts.append(this.gen_expression(value))
         return str_join(parts, sep: ", ")
-
-    fn promote_type(to_type: ast.Type, value: str) -> str:
-        let needs_cast = to_type.was_generic
-        if needs_cast:
-            let to_type2 = this.gen_type(ty: to_type, name: "")
-            return "(({to_type2})({value}))"
-        else:
-            return value
 
     fn gen_id(id: ast.NodeId) -> str:
         if id.name == "main":

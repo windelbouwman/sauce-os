@@ -133,7 +133,9 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                             let type_arguments: List[ast.Type] = List()
                             for tp in function_def.type_parameters:
                                 let type_var = ast.new_type_var(unique: newop.new_id())
-                                type_arguments.append(ast.new_type_var_ref(type_var))
+                                let type_arg = ast.new_type_var_ref(type_var)
+                                type_arg.was_generic = true
+                                type_arguments.append(type_arg)
 
                             expression.kind = ast.ExpressionKind.FunctionRef(function_def, type_arguments)
                     else:

@@ -31,7 +31,7 @@ def slang_compiler():
 
 
 @pytest.mark.parametrize("filename", glob.glob("examples/*.slang"))
-def test_examples(filename):
+def test_examples_py_backend(filename):
     """
     Test all examples can be compiled using our slang compiler
 
@@ -58,7 +58,7 @@ def test_examples(filename):
     f2 = io.StringIO()
     program_global_map = builtins.get_builtins(args=[], stdout=f2)
     exec(program_py_code, program_global_map)
-    program_global_map["main"]()
+    program_global_map["main2"]()
     stdout = f2.getvalue()
 
     reference_output_filename = os.path.splitext(filename)[0] + ".stdout"
@@ -66,3 +66,27 @@ def test_examples(filename):
         with open(reference_output_filename) as f:
             expected_output = f.read()
         assert stdout == expected_output
+
+
+@pytest.mark.parametrize("filename", glob.glob("examples/*.slang"))
+def test_examples_c_backend(filename):
+    """
+    Test all examples can be compiled using our slang compiler
+
+    Recipe:
+    1. compile slang compiler to python
+    2. invoke slang compiler on the example, to produce C code
+
+    """
+    slang_compiler_py_code = slang_compiler()
+
+    # Compile example using bootstrapped compiler:
+    f1 = io.StringIO()
+    global_map = builtins.get_builtins(args=["-bc"] + [filename], stdout=f1)
+    exec(slang_compiler_py_code, global_map)
+    exit_code = global_map["main"]()
+    program_c_code = f1.getvalue()
+    print(program_c_code)
+    if exit_code != 0:
+        print(program_c_code)
+        raise ValueError(f"Compiler failed: {exit_code}")

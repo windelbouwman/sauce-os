@@ -2,6 +2,8 @@
 COMPILER_SRCS=compiler/*.slang
 COMPILER2=tmp-compiler2.py
 COMPILER3=tmp-compiler3.py
+COMPILER4=compiler4
+COMPILER5=compiler5
 
 all: hello-world loops structs-passing
 
@@ -37,17 +39,17 @@ list-generic-oo: compiler5 examples/list-generic-oo.slang
 	./compiler5 -cv2 examples/list-generic-oo.slang | sed '/^# /d' > tmp-list-generic-oo.c
 	gcc -o list-generic-oo tmp-list-generic-oo.c runtime/runtime.c
 
-compiler4: tmp-compiler4.c runtime/runtime.c
-	gcc -Wno-incompatible-pointer-types -Wno-int-conversion -o compiler4 tmp-compiler4.c runtime/runtime.c
+compiler4: tmp-compiler4.c runtime/runtime.c Makefile
+	gcc -Wno-incompatible-pointer-types -o ${COMPILER4} tmp-compiler4.c runtime/runtime.c
 
 tmp-compiler4.c: ${COMPILER_SRCS} ${COMPILER3}
 	python ${COMPILER3} -cv2 ${COMPILER_SRCS} | sed '/^# /d' > tmp-compiler4.c
 
-tmp-compiler5.c: compiler4 ${COMPILER_SRCS}
-	./compiler4 -cv2 ${COMPILER_SRCS} | sed '/^# /d' > tmp-compiler5.c
+tmp-compiler5.c: ${COMPILER4} ${COMPILER_SRCS}
+	./${COMPILER4} -cv2 ${COMPILER_SRCS} | sed '/^# /d' > tmp-compiler5.c
 
 compiler5: tmp-compiler5.c runtime/runtime.c Makefile
-	gcc -Wno-incompatible-pointer-types -Wno-int-conversion -o compiler5 tmp-compiler5.c runtime/runtime.c
+	gcc -Wno-incompatible-pointer-types -o ${COMPILER5} tmp-compiler5.c runtime/runtime.c
 
 generics2: ${COMPILER3} runtime/runtime.c examples/generics2.slang
 	python ${COMPILER3} -cv2 examples/generics2.slang | sed '/^# /d' > generics2.c

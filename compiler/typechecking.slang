@@ -4,8 +4,8 @@
 import ast
 from std import print
 from datatypes import Option, List, option_unwrap
-from location import Location
-from utils import log_info, panic
+from location import Location, location_to_string
+from utils import log_info, panic, log_error
 from errors import CompilationError, new_errors, new_error, display_error, SingleCompilationError
 
 fn type_check_modules(module_set: ast.ModuleSet) except CompilationError:
@@ -87,6 +87,7 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
                             let_statement.variable.ty = ty
                         None:
                             let_statement.variable.ty = let_statement.value.ty
+                    # log_trace("Let var {ast.node_id_to_string(let_statement.variable.id)} -> {ast.type_to_string(let_statement.variable.ty)} @ {location_to_string(statement.location)}")
                 Pass:
                     pass
                 Break:
@@ -125,13 +126,15 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                     case symbol:
                         ExternFunction(func):
                             expression.ty = ast.extern_function_type(func)
-                        Parameter(p):
+                        Parameter(parameter):
                             # TODO: clone type?
-                            expression.ty = p.ty
+                            # log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {ast.type_to_string(parameter.ty)}")
+                            expression.ty = parameter.ty
                     else:
                         panic("Must not happen: {ast.symbol_to_str(symbol)}")
-                VarRef(v):
-                    expression.ty = v.ty
+                VarRef(variable):
+                    # log_trace("Var ref {ast.node_id_to_string(variable.id)}: {ast.type_to_string(variable.ty)}")
+                    expression.ty = variable.ty
                 FunctionRef(function_def, type_arguments):
                     expression.ty = ast.get_function_type2(function_def, type_arguments)
                 TypeConstructor(tycon):
@@ -181,6 +184,7 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                             expression.ty = ty
                         None:
                             checker.add_error(location: expression.location, message: "Type {ast.type_to_string(base.ty)} has no field: {attr}")
+                            expression.ty = ast.undefined_type()
                 GetIndex(base, indici):
                     if ast.is_array_type(ty: base.ty):
                         expression.ty = ast.get_element_type_from_type(ty: base.ty)
@@ -271,12 +275,14 @@ class TypeChecker:
             return true
         elif ast.is_char_type(ty1) and ast.is_char_type(ty2):
             return true
+        elif ast.is_opaque(ty1) and ast.is_opaque(ty2):
+            return true
         elif ast.is_tycon_app_type(ty1) and ast.is_tycon_app_type(ty2):
             let tycon1 = ast.get_tycon(ty1)
             let tycon2 = ast.get_tycon(ty2)
             if ast.tycon_equal(tycon1, tycon2):
-                let type_arguments1 = ast.get_type_arguments(ty1)
-                let type_arguments2 = ast.get_type_arguments(ty2)
+                let type_arguments1 = ast.get_type_arguments_from_type(ty1)
+                let type_arguments2 = ast.get_type_arguments_from_type(ty2)
                 return this.unify_many(typs1: type_arguments1, typs2: type_arguments2)
             else:
                 return false
@@ -328,5 +334,7 @@ class TypeChecker:
             return false
 
     fn add_error(location: Location, message: str):
+        # This can be handy if type checking fails half way:
+        # log_error(message)
         let err = new_error(location, message)
         this.errors.append(err)

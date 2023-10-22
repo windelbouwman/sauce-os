@@ -9,12 +9,14 @@
 # - Transform try/except into something else
 
 from location import Location
-from utils import panic, log_info, log_debug
+from utils import panic, log_info, log_debug, assert
 from basepass import IdGen
+from typechecking import type_check_modules
 from datatypes import Dictionary, List, vec1, vec2, vec3, Option, option_unwrap_or, option_unwrap
+from errors import CompilationError
 import ast
 
-fn transform(module_set: ast.ModuleSet, id_gen: IdGen, std_module: ast.Module):
+fn transform(module_set: ast.ModuleSet, id_gen: IdGen, std_module: ast.Module) except CompilationError:
     # log_info("Transforming {module.name}")
     let transformer = Transformer:
         class_rewriter: ClassRewriter(id_gen, std_module)
@@ -100,6 +102,32 @@ fn transform(module_set: ast.ModuleSet, id_gen: IdGen, std_module: ast.Module):
     visitor.on_node = transformer_on_node0
     ast.visit_module_set(visitor, module_set)
 
+    # TBD:
+    # Optionally check types in between?
+    type_check_modules(module_set)
+
+    log_info("Type erasure")
+
+    # Phase 7a: apply type erasure (part 1), this involves:
+    # - Apply cast to opaque pointer for generic parameters when calling a function
+    visitor.on_definition = transformer_on_definition0
+    visitor.on_type = transformer_on_type0
+    visitor.on_statement = transformer_on_statement7
+    visitor.on_expression = transformer_on_expression7
+    visitor.on_node = transformer_on_node7
+    ast.visit_module_set(visitor, module_set)
+
+    # Phase 7b: apply type erasure (part 2), this involves:
+    # - Remove type parameters from structs and functions
+    # - Remove type arguments from type applications
+    visitor.on_definition = transformer_on_definition7
+    visitor.on_type = transformer_on_type7
+    visitor.on_statement = transformer_on_statement0
+    visitor.on_expression = transformer_on_expression0
+    visitor.on_node = transformer_on_node0
+    ast.visit_module_set(visitor, module_set)
+
+
 struct Transformer:
     class_rewriter: ClassRewriter
 
@@ -119,6 +147,19 @@ fn transformer_on_definition1(transformer: Transformer, definition: ast.Definiti
     else:
         pass
 
+fn transformer_on_definition7(transformer: Transformer, definition: ast.Definition, phase: ast.VisitPhase):
+    case phase:
+        Post:
+            # Remove type parameters. They are all opaque pointers now.
+            case definition:
+                Struct(struct_def):
+                    struct_def.type_parameters.clear()
+                Function(function_def):
+                    function_def.type_parameters.clear()
+            else:
+                panic("Only structs and functions supported during type erasure!")
+    else:
+        pass
 
 fn transformer_on_type0(transformer: Transformer, ty: ast.Type, phase: ast.VisitPhase):
     pass
@@ -141,6 +182,19 @@ fn transformer_on_type5(transformer: Transformer, ty: ast.Type, phase: ast.Visit
                 pass
     else:
         pass
+
+fn transformer_on_type7(transformer: Transformer, ty: ast.Type, phase: ast.VisitPhase):
+    case phase:
+        Post:
+            if ast.is_type_parameter_type(ty):
+                ast.change_type_to(ty, ty2: ast.opaque_type())
+            elif ast.is_tycon_app_type(ty):
+                let type_arguments = ast.get_type_arguments_from_type(ty)
+                type_arguments.clear()
+    else:
+        pass
+
+
 
 fn transformer_on_statement0(transformer: Transformer, statement: ast.Statement, phase: ast.VisitPhase):
     pass
@@ -182,6 +236,19 @@ fn transformer_on_statement5(transformer: Transformer, statement: ast.Statement,
     else:
         pass
 
+fn transformer_on_statement7(transformer: Transformer, statement: ast.Statement, phase: ast.VisitPhase):
+    case phase:
+        Post:
+            case statement.kind:
+                Assignment(target, op, expr):
+                    # Check if we must do type erasure:
+                    transformer.class_rewriter.erase_type(ft: target.ty, value: expr, assign: true)
+
+                    # If we cast to a value, we must move the cast to the value side
+            else:
+                pass
+    else:
+        pass
 
 fn transformer_on_expression0(transformer: Transformer, expression: ast.Expression, phase: ast.VisitPhase):
     pass
@@ -230,7 +297,7 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                                 let this_arg = ast.LabeledExpression(location: base.location, name: Option.Some("this"), value: base)
                                 let arguments = call.arguments
                                 arguments.prepend(this_arg)
-                                let type_arguments = ast.get_type_arguments(base.ty)
+                                let type_arguments = ast.get_type_arguments_from_type(base.ty)
                                 call.callee = ast.function_ref(function_def, type_arguments, location: expression.location)
                     else:
                         pass
@@ -278,8 +345,69 @@ fn transformer_on_expression3(transformer: Transformer, expression: ast.Expressi
     else:
         pass
 
+fn transformer_on_expression7(transformer: Transformer, expression: ast.Expression, phase: ast.VisitPhase):
+    case phase:
+        Post:
+            case expression.kind:
+                Call(call):
+                    # Perform type erasure on function call arguments if required.
+                    let parameter_types = ast.get_parameter_types_from_type(call.callee.ty)
+                    
+                    assert(condition: call.arguments.len() == parameter_types.len(), message: "arguments and parameters types must be the same length")
+                    let pti = parameter_types.iter()
+                    for argument in call.arguments:
+                        let pt = option_unwrap(pti.next())
+                        transformer.class_rewriter.erase_type(ft: pt, value: argument.value, assign: false)
+
+                    upcast_type(expression)
+
+                FunctionRef(function_def, type_arguments):
+                    # Remove type arguments:
+                    type_arguments.clear()
+
+                StructLiteral(ty, values):
+                    # Perform type erasure on struct literal values
+                    let field_types = ast.get_field_types(ty)
+                    assert(condition: values.len() == field_types.len(), message: "values and field-types must be the same length")
+                    let fti = field_types.iter()
+                    for value in values:
+                        let ft = option_unwrap(fti.next())
+                        transformer.class_rewriter.erase_type(ft, value, assign: false)
+
+                UnionLiteral(ty, attr, value):
+                    # Perform type erasure on union literal value
+                    let ft = option_unwrap(ast.get_field_type(ty, attr))
+                    transformer.class_rewriter.erase_type(ft, value, assign: false)
+
+                GetAttr(base, attr):
+                    upcast_type(expression)
+            else:
+                pass
+    else:
+        pass
+
+
+
+fn upcast_type(expression: ast.Expression):
+    # Perform type promotion, when this type was a generic
+    if expression.ty.was_generic:
+        let old_expression = ast.clone_expression(value: expression)
+        let new_expression = ast.cast(value: old_expression, to_type: expression.ty, location: expression.location)
+        ast.change_expression_to(expression: expression, to: new_expression)
+
 fn transformer_on_node0(transformer: Transformer, node: ast.VisitNode, phase: ast.VisitPhase):
     pass
+
+fn transformer_on_node7(transformer: Transformer, node: ast.VisitNode, phase: ast.VisitPhase):
+    case phase:
+        Post:
+            case node:
+                ModuleNode(module):
+                    module.definitions.extend(transformer.class_rewriter.new_definitions)
+            else:
+                pass
+    else:
+        pass
 
 
 class ClassRewriter:
@@ -318,8 +446,7 @@ class ClassRewriter:
                             # log_info("c-tor param")
                             let ctor_param = ast.parameter_def(name: var_def.variable.id.name, id: this.get_unique_id(), label_is_optional: false, ty, location: class_def.location)
                             ctor_parameters.append(ctor_param)
-                            let symbol = ast.Symbol.Parameter(ctor_param)
-                            let iv2 = ast.load_symbol(symbol, ty, location: class_def.location)
+                            let iv2 = ast.parameter_ref(parameter: ctor_param, location: class_def.location)
                             init_values.append(iv2)
                 Function(function_def):
                     methods.append(function_def)
@@ -374,7 +501,7 @@ class ClassRewriter:
     fn rewrite_class_literal(ty: ast.Type, arguments: List[ast.LabeledExpression], location: Location) -> ast.Expression:
         let class_def = ast.get_class_def_from_type(ty)
         let ctor_func_def: ast.FunctionDef = option_unwrap(this.ctor_map.get(key: ast.node_id_to_string(class_def.id)))
-        let type_arguments = ast.get_type_arguments(ty)
+        let type_arguments = ast.get_type_arguments_from_type(ty)
         let ctor_func_ref = ast.function_ref(function_def: ctor_func_def, type_arguments, location)
         let struct_ty: ast.Type = ast.undefined_type()
         let ctor_call = ast.call(callee: ctor_func_ref, arguments, ty: struct_ty, location)
@@ -549,7 +676,7 @@ class ClassRewriter:
         let location = case_statement.value.location
         let enum_def = ast.get_enum_def_from_type(case_statement.value.ty)
         let struct_def = this.get_struct_def_for_id(id: enum_def.id)
-        let type_arguments = ast.get_type_arguments(case_statement.value.ty)
+        let type_arguments = ast.get_type_arguments_from_type(case_statement.value.ty)
         let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
 
         let x_var = this.new_variable(name: "x", ty: struct_type)
@@ -603,7 +730,7 @@ class ClassRewriter:
         # log_info("Rewrite enum literal")
         let enum_def = ast.get_enum_def_from_type(enum_ty)
         let struct_def = this.get_struct_def_for_id(id: enum_def.id)
-        let type_arguments = ast.get_type_arguments(enum_ty)
+        let type_arguments = ast.get_type_arguments_from_type(enum_ty)
         let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
         let union_type = option_unwrap(ast.get_field_type(ty: struct_type, attr: "data"))
 
@@ -621,5 +748,81 @@ class ClassRewriter:
         let tag = ast.integer_literal(value: tag_value, location)
         return ast.struct_literal(ty: struct_type, values: vec2(tag, payload), location)
 
+    fn erase_type(ft: ast.Type, value: ast.Expression, assign: bool):
+        if ft.was_generic and not assign:
+            let old_value = ast.clone_expression(value)
+            let new_value = ast.cast(value: old_value, to_type: ast.opaque_type(), location: value.location)
+            ast.change_expression_to(expression: value, to: new_value)
+        elif ast.is_function_type(ft):
+            let parameter_types = ast.get_parameter_types_from_type(ft)
 
+            # Check if we need a bridge function:
+            let opaq = false
+            for pt in parameter_types:
+                if needs_opaque_cast(pt):
+                    opaq = true
 
+            if opaq:
+                log_info("We need a bridge function for {ast.type_to_string(ft)} {ast.expression_to_string(expression: value)}")
+                case value.kind:
+                    FunctionRef(function_def, type_arguments):
+                        # TODO: check for existing bridge functions!
+                        let bridge_function = this.create_bridge_function(function_def, parameter_types)
+                        value.kind = ast.ExpressionKind.FunctionRef(bridge_function, type_arguments: List())
+                else:
+                    panic("Can only bridge a function reference")
+
+    fn create_bridge_function(function_def: ast.FunctionDef, parameter_types: List[ast.Type]) -> ast.FunctionDef:
+        # Create a bridge function which takes potential opaque parameters
+        # and calls the specific function with opaque types casted.
+        let location = function_def.location
+        let bridge_function_name = "bridge_to_{function_def.id.name}"
+        let type_parameters: List[ast.TypeParameter] = List()
+        let parameters: List[ast.ParameterDef] = List()
+        let arguments: List[ast.LabeledExpression] = List()
+        assert(condition: not function_def.return_type.was_generic, message: "Bridge function only supports non generic returning functions")
+        let return_type = function_def.return_type
+        assert(condition: ast.is_void_type(function_def.except_type), message: "Bridge function only supports non-throwing functions")
+        let except_type = ast.void_type()
+        let pti = parameter_types.iter()
+        for parameter in function_def.parameters:
+            let pt = option_unwrap(pti.next())
+            let needs_cast = needs_opaque_cast(pt)
+
+            let ty = parameter.ty
+            if needs_cast:
+                ty = ast.opaque_type()
+            else:
+                ty = parameter.ty
+            let bridge_function_parameter = ast.parameter_def(name: parameter.id.name, id: this.get_unique_id(), label_is_optional: true, ty, location)
+            parameters.append(bridge_function_parameter)
+
+            let parameter_ref = ast.parameter_ref(parameter: bridge_function_parameter, location)
+            let argument = ast.LabeledExpression(name: Option.Some(parameter.id.name), value: parameter_ref, location)
+            if needs_cast:
+                # Introduce cast from opaque to specific type here.
+                argument.value = ast.cast(value: argument.value, to_type: parameter.ty, location)
+            arguments.append(argument)
+
+        let function_ref = ast.function_ref(function_def, type_arguments: List(), location)
+        let function_call = ast.call(callee: function_ref, arguments, ty: ast.void_type(), location)
+        let body = ast.pass_statement(location)
+        if ast.is_void_type(return_type):
+            body = ast.expression_statement(expr: function_call)
+        else:
+            body = ast.return_statement(value: Option.Some(function_call), location)
+
+        let bridge_function = ast.function_def(name: bridge_function_name, id: this.get_unique_id(), type_parameters, this_parameter: Option.None(), parameters, return_type, except_type, body, location)
+        # TODO: we could insert duplicate bridge functions.
+        # TODO: check for duplicate bridge functions.
+        this.new_definitions.append(ast.Definition.Function(bridge_function))
+        return bridge_function
+
+fn needs_opaque_cast(ty?: ast.Type) -> bool:
+    if ty.was_generic:
+        if ast.is_type_parameter_type(ty):
+            return false
+        else:
+            return true
+    else:
+        return false

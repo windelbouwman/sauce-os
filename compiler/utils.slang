@@ -12,7 +12,7 @@ fn assert(condition: bool, message: str):
         panic(message)
 
 fn log_error(message?: str):
-    print("ERROR: {message}")
+    print("# ERROR: {message}")
 
 fn log_warning(message?: str):
     print("# WARNING: {message}")

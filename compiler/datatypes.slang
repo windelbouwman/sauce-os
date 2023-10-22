@@ -289,7 +289,7 @@ class Dictionary[T]:
                 return Option.Some(item.value)
             index += 1
 
-        panic("KeyError: {key}")
+        return Option.None()
 
     fn iter() -> DictionaryIter:
         let it = DictionaryIter()

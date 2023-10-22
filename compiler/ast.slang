@@ -1,7 +1,7 @@
 
 from std import print, float_to_str
 from strlib import str_repeat, str_join
-from utils import panic, assert, log_info
+from utils import panic, assert, log_info, log_error
 from location import Location, location_default
 from datatypes import List, Option, Dictionary, option_unwrap, option_is_some
 
@@ -25,7 +25,9 @@ struct Type:
     was_generic: bool
 
 fn clone_type(ty?: Type) -> Type:
-    return new_type(kind: ty.kind)
+    let ty2 = new_type(kind: ty.kind)
+    ty2.was_generic = ty.was_generic
+    return ty2
 
 fn new_type(kind: TypeKind) -> Type:
     return Type(kind, was_generic: false)
@@ -85,6 +87,8 @@ fn type_to_string(ty?: Type) -> str:
 fn change_type_to(ty: Type, ty2: Type):
     # Adjust ty to ty2
     ty.kind = ty2.kind
+    # TBD: copy was generic?
+    # ty.was_generic = ty.was_generic
 
 fn apply_tycon(tycon: TyCon, type_arguments: List[Type]) -> Type:
     # if type_arguments
@@ -118,7 +122,12 @@ fn subst_many(typs: List[Type], m: Dictionary[Type]) -> List[Type]:
     return typs2
 
 fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: List[Type]) -> Dictionary[Type]:
-    assert(condition: type_parameters.len() == type_arguments.len(), message: "amount of type parameters and type arguments must be equal")
+    if type_parameters.len() != type_arguments.len():
+        for type_parameter in type_parameters:
+            log_error("type parameter: {node_id_to_string(type_parameter.id)}")
+        for type_argument in type_arguments:
+            log_error("type argument: {type_to_string(type_argument)}")
+        panic("amount of type parameters and type arguments must be equal")
     let m: Dictionary[Type] = Dictionary()
     let tpi = type_parameters.iter()
     for ty in type_arguments:
@@ -194,6 +203,13 @@ fn is_float_type(ty?: Type) -> bool:
 fn is_array_type(ty?: Type) -> bool:
     case ty.kind:
         Array(element_type, size):
+            return true
+    else:
+        return false
+
+fn is_opaque(ty?: Type) -> bool:
+    case ty.kind:
+        Opaque:
             return true
     else:
         return false
@@ -432,7 +448,7 @@ fn get_tycon(ty?: Type) -> TyCon:
     else:
         panic("Must be App type")
 
-fn get_type_arguments(ty?: Type) -> List[Type]:
+fn get_type_arguments_from_type(ty?: Type) -> List[Type]:
     case ty.kind:
         App(tycon, args):
             return args
@@ -1066,6 +1082,11 @@ fn array_literal(values: List[Expression], location: Location) -> Expression:
 fn load_symbol(symbol: Symbol, ty: Type, location: Location) -> Expression:
     return Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
 
+fn parameter_ref(parameter: ParameterDef, location: Location) -> Expression:
+    let symbol = Symbol.Parameter(parameter)
+    let ty = parameter.ty
+    return load_symbol(symbol, ty, location)
+
 fn call(callee: Expression, arguments: List[LabeledExpression], ty: Type, location: Location) -> Expression:
     let c = FunctionCall(callee, arguments)
     let kind = ExpressionKind.Call(c)
@@ -1091,6 +1112,10 @@ struct FunctionCall:
 fn subscript(base: Expression, indici: List[Expression], ty: Type, location: Location) -> Expression:
     let kind = ExpressionKind.GetIndex(base, indici)
     return Expression(kind, ty, location)
+
+fn cast(value: Expression, to_type: Type, location: Location) -> Expression:
+    let kind = ExpressionKind.TypeCast(to_type, value)
+    return Expression(kind, ty: to_type, location)
 
 #fn array_index(base: Expression, index: Expression, location: Location) -> Expression:
 #    pass
@@ -1238,9 +1263,14 @@ fn print_ast_definition(printer: AstPrinter, definition: Definition, phase: Visi
                 ExternFunction(efunc):
                     printer.print2(txt: "Extern func: {efunc.name}")
                 Struct(struct_def):
-                    printer.print2(txt: "Struct: {node_id_to_string(struct_def.id)}")
+                    let t = "Struct"
+                    if struct_def.is_union:
+                        t = "Union"
+                    printer.print2(txt: "{t}: {node_id_to_string(struct_def.id)}")
                     for type_parameter in struct_def.type_parameters:
                         printer.print2(txt: "- TP {node_id_to_string(type_parameter.id)}")
+                    for field in struct_def.fields:
+                        printer.print2(txt: "- FIELD {field.name}")
                 Enum(enum_def):
                     printer.print2(txt: "Enum: {node_id_to_string(enum_def.id)}")
                 Class(class_def):
@@ -1354,12 +1384,13 @@ fn expression_to_string(expression: Expression) -> str:
         VarRef(v):
             txt = "VAR-REF({node_id_to_string(v.id)})"
         FunctionRef(function, type_arguments):
-            let args = types_to_string(typs: type_arguments)
-            txt = "FN-{node_id_to_string(function.id)}{args}"
+            txt = "FN-{node_id_to_string(function.id)}"
+            if not type_arguments.is_empty():
+                txt = txt + types_to_string(typs: type_arguments)
         StructLiteral(ty, values):
             txt = "STRUCT-LITERAL"
         UnionLiteral(ty, field, value):
-            txt = "UNION-LITERAL {field}"
+            txt = "UNION-LITERAL field={field}"
         ClassLiteral(ty, arguments):
             txt = "CLASS-LITERAL"
         ArrayLiteral(values):
@@ -1446,10 +1477,13 @@ enum VisitPhase:
 enum VisitNode:
     Arm(arm: CaseArm)
     ScopeNode(scope: Scope)
+    ModuleNode(module: Module)
 
 fn visit_module_set[T](visitor: Visitor[T], module_set: ModuleSet):
     for module in module_set.modules:
+        let module_node = VisitNode.ModuleNode(module)
         visit_module(visitor, module)
+        visitor.on_node(data: visitor.data, module_node, phase: VisitPhase.Post())
 
 fn visit_module[T](visitor: Visitor[T], module: Module):
     for definition in module.definitions:

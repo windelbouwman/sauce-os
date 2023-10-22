@@ -32,7 +32,10 @@ fn main():
     let bla_s = new_bla(v2: s, x2: 3)
 
     print("{bla_i.value.i}")
-    print(bla_s.value.s)
+    print(get_v(v: bla_s).s)
+
+    let bla_i2 = new_bla(v2: 2, x2: 3)
+    print("{get_v(v: bla_i2)}")
     # print(bla_s2.value.s)
 
 fn new_bla[T](v2: T, x2: int) -> Bla[T]:
@@ -40,3 +43,6 @@ fn new_bla[T](v2: T, x2: int) -> Bla[T]:
         value: v2
         x: x2
     return b2
+
+fn get_v[T](v: Bla[T]) -> T:
+    return v.value

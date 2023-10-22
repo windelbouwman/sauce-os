@@ -175,12 +175,16 @@ fn filler_on_node(filler: ScopeFiller, node: ast.VisitNode, phase: ast.VisitPhas
                         filler.define(name: variable.id.name, symbol: ast.Symbol.Var(variable))
                 ScopeNode(scope):
                     filler.enter_scope(scope)
+            else:
+                pass
         Post:
             case node:
                 Arm(arm):
                     filler.leave_scope()
                 ScopeNode(scope):
                     filler.leave_scope()
+            else:
+                pass
     else:
         pass
 
@@ -289,12 +293,16 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
                     binder.enter_scope(scope: arm.block.scope)
                 ScopeNode(scope):
                     binder.enter_scope(scope)
+            else:
+                pass
         Post:
             case node:
                 Arm(arm):
                     binder.leave_scope()
                 ScopeNode(scope):
                     binder.leave_scope()
+            else:
+                pass
     else:
         pass
 
