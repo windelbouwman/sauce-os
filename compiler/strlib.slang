@@ -1,6 +1,7 @@
 
 from datatypes import List
 from std import str_slice, str_get, str_len, ord
+from utils import assert, panic
 
 fn split_string(value: str, sep: char) -> List[str]:
     let size = str_len(value)
@@ -45,6 +46,29 @@ fn str_join(parts: List[str], sep: str) -> str:
             x = x + sep
             counter -= 1
     return x
+
+fn hex_to_int(hextext: str) -> int:
+    # Convert hex text
+    let n = str_len(hextext)
+    assert(condition: n > 0, message: "Hex string must be at least a single digit.")
+    let index = 0
+    let value = 0
+    while index < n:
+        let c = str_get(hextext, index)
+        let o = ord(c)
+
+        let cval = 0
+        if (o >= 48) and (o <= 57):     # 0..9
+            cval = o - 48
+        elif (o >= 65) and (o <= 70):   # A..F
+            cval = o - 55
+        elif (o >= 97) and (o <= 102):  # a..f
+            cval = o - 87
+        else:
+            panic("Invalid hex char: {c}")
+        value = value * 16 + cval
+        index += 1
+    return value
 
 # TODO: duplicate with rt_str_compare in C
 fn str_comparison(a: str, b: str) -> int:

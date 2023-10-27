@@ -43,6 +43,8 @@ fn assign_types(variables: List[ast.Variable], types: List[ast.Type]):
 
 fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: ast.VisitPhase):
     case phase:
+        Pre:
+            checker.was_errors = false
         Mid:
             case statement.kind:
                 Case(case_statement):
@@ -79,6 +81,9 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
             else:
                 pass
         Post:
+            if checker.was_errors:
+                return
+
             case statement.kind:
                 Let(let_statement):
                     case let_statement.type_hint:
@@ -110,6 +115,9 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
 fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase: ast.VisitPhase):
     case phase:
         Post:
+            if checker.was_errors:
+                return
+
             case expression.kind:
                 Call(call):
                     if ast.is_function_type(call.callee.ty):
@@ -147,19 +155,10 @@ fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase
                 Typ(t):
                     panic("TODO: type")
                 Binop(b):
-                    let is_div = false
-                    case b.op:
-                        Div:
-                            is_div = true
-                    else:
-                        is_div = false
-
                     # Heuristics ahead...
                     let ty = b.lhs.ty
                     if ast.is_int_type(b.lhs.ty) and ast.is_float_type(b.rhs.ty):
                         ty = b.rhs.ty
-                    elif is_div:
-                        ty = ast.float_type()
 
                     checker.coerce(ty, value: b.lhs)
                     checker.coerce(ty, value: b.rhs)
@@ -241,6 +240,7 @@ fn checker_on_node(checker: TypeChecker, node: ast.VisitNode, phase: ast.VisitPh
 
 class TypeChecker:
     var errors: List[SingleCompilationError] = List()
+    var was_errors: bool = false
 
     fn check_arguments(location: Location, parameter_types: List[ast.Type], arguments: List[ast.Expression]):
         if parameter_types.len() == arguments.len():
@@ -338,3 +338,4 @@ class TypeChecker:
         # log_error(message)
         let err = new_error(location, message)
         this.errors.append(err)
+        this.was_errors = true

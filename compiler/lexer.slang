@@ -6,6 +6,7 @@ from std import print, ord, str_slice, str_len
 from std import str_to_float, str_to_int
 from token import Token, TokenKind, token_to_string
 from location import Location, location_at, Position
+from strlib import hex_to_int
 from datatypes import List, Option
 
 
@@ -109,8 +110,7 @@ class Lexer:
             let begin = Position(row: this.row, column: begin_column)
 
             # Get char:
-            let c = std.str_get(value: this.source, index: this.offset)
-            this.offset += 1
+            let c = this.next_char()
 
             # Decide what to do based on char:
             if c == '(':
@@ -168,19 +168,37 @@ class Lexer:
                 kind = TokenKind.NewLine()
                 this.col_start = this.offset
             elif is_digit(c):
-                while this.offset < n and is_digit(c: this.peek()):
+                let is_hex = false
+                if c == '0' and this.offset < n:
+                    if this.peek() == 'x':
+                        is_hex = true
+                    elif this.peek() == 'X':
+                        is_hex = true
+
+                if is_hex:
                     this.offset += 1
-                if this.offset < n and this.peek() == '.':
-                    # Floating point!
-                    this.offset += 1
+                    # Hex number!
+                    while this.offset < n and is_hex_digit(c: this.peek()):
+                        this.offset += 1
+                    let hextext = this.get_lexeme()
+                    hextext = str_slice(value: hextext, begin: 2, end: str_len(hextext))
+                    let int_value = hex_to_int(hextext)
+                    kind = TokenKind.Integer(int_value)
+                else:
                     while this.offset < n and is_digit(c: this.peek()):
                         this.offset += 1
-                    let val2 = this.get_lexeme()
-                    let float_value: float = str_to_float(val2)
-                    kind = TokenKind.Float(float_value)
-                else:
-                    let int_value: int = str_to_int(this.get_lexeme())
-                    kind = TokenKind.Integer(int_value)
+                    if this.offset < n and this.peek() == '.':
+                        # Floating point!
+                        this.offset += 1
+                        while this.offset < n and is_digit(c: this.peek()):
+                            this.offset += 1
+                        let val2 = this.get_lexeme()
+                        let float_value: float = str_to_float(val2)
+                        kind = TokenKind.Float(float_value)
+                    else:
+                        # Normal decimal number
+                        let int_value: int = str_to_int(this.get_lexeme())
+                        kind = TokenKind.Integer(int_value)
             elif is_id(c):
                 while this.offset < n and is_id_or_digit(c: this.peek()):
                     this.offset += 1
@@ -231,6 +249,15 @@ class Lexer:
             return c
         else:
             panic("Peek beyond input")
+    
+    fn next_char() -> char:
+        let n = this.source_length
+        if this.offset < n:
+            let c = std.str_get(text: this.source, index: this.offset)
+            this.offset += 1
+            return c
+        else:
+            panic("Next char beyond input")
 
     fn match(txt: char) -> bool:
         let n = this.source_length
@@ -255,6 +282,18 @@ fn is_digit(c: char) -> bool:
     # Check if a character is a digit.
     let o = ord(value: c)
     return (o >= 48) and (o <= 57)
+
+fn is_hex_digit(c: char) -> bool:
+    # Check if a character is a hex digit.
+    let o = ord(value: c)
+    if (o >= 48) and (o <= 57):     # 0..9
+        return true
+    elif (o >= 65) and (o <= 70):   # A..F
+        return true
+    elif (o >= 97) and (o <= 102):  # a..f
+        return true
+    else:
+        return false
 
 fn is_id(c: char) -> bool:
     let o = ord(c)

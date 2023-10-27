@@ -44,13 +44,12 @@ fn print_error(filename: str, location: Location, message: str):
                 if location.end.column > location.begin.column:
                     lexeme_width = location.end.column - location.begin.column + 1
                 let pointer = str_repeat(text: "^", count: lexeme_width)
-                # TODO: center align line under pointer
-                # let indent2 = str_repeat(text: " ", count: lexeme_width / 2)
+                let indent2 = indent + str_repeat(text: " ", count: lexeme_width / 2)
                 print("{indent}{pointer}")
-                print("{indent}|")
-                print("{indent}|")
-                print("{indent}+-----< {message}")
-                print("{indent}")
+                print("{indent2}|")
+                print("{indent2}|")
+                print("{indent2}+-----< {message}")
+                print("{pre_text}")
 
         row += 1
     print("      +----------------------------------------------")

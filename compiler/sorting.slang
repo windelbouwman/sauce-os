@@ -18,13 +18,13 @@ fn merge_sort[T](m: List[T], cmp: fn(T, T) -> bool) -> List[T]:
         let left: List[T] = List()
         let right: List[T] = List()
         let index = 0
-        let n: int = m.len()  # TODO: Would be nice to be able to use /2 here..
+        let n: int = m.len() / 2
         for value in m:
             if index < n:
                 left.append(value)
             else:
                 right.append(value)
-            index += 2
+            index += 1
 
         left = merge_sort(m: left, cmp)
         right = merge_sort(m: right, cmp)

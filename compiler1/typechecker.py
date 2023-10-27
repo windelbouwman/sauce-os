@@ -168,9 +168,7 @@ class TypeChecker(BasePass):
             expression.ty = ast.array_type(len(kind.values), kind.values[0].ty)
         elif isinstance(kind, ast.Binop):
             # Introduce some heuristics...
-            if kind.op == "/":
-                ty = ast.float_type
-            elif kind.lhs.ty.is_int() and kind.rhs.ty.is_float():
+            if kind.lhs.ty.is_int() and kind.rhs.ty.is_float():
                 ty = kind.rhs.ty
             else:
                 ty = kind.lhs.ty

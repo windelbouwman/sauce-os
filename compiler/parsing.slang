@@ -69,7 +69,7 @@ class Parser:
                     let class_def = this.parse_class_def(location: tok.location)
                     definitions.append(ast.Definition.Class(class_def))
             else:
-                raise this.new_error(tok, message: "Unexpected token")
+                raise this.unexpected_token(tok, expected: "import, fn, enum, struct, class")
 
         let program = ast.new_module(name, filename: this.filename, imports, definitions)
         return program
@@ -88,7 +88,7 @@ class Parser:
             KwImport:
                 pass
         else:
-            raise this.new_error(tok, message: "Expected 'import'")
+            raise this.unexpected_token(tok, expected: "'import'")
         
         let names: List[str] = List()
 
@@ -102,7 +102,7 @@ class Parser:
                 NewLine:
                     break
             else:
-                raise this.new_error(tok: tok2, message: "Expected ',' or newline")
+                raise this.unexpected_token(tok: tok2, expected: "',' or newline")
 
         return ast.import_names(modname: modname.name, location: modname.location, names)
 
@@ -132,7 +132,7 @@ class Parser:
                             Comma:
                                 continue
                         else:
-                            raise this.new_error(tok: tok4, message: "Expected ',' or ')'")
+                            raise this.unexpected_token(tok: tok4, expected: "',' or ')'")
             else:
                 this.unget_token(tok3)
             
@@ -165,7 +165,7 @@ class Parser:
                         Comma:
                             continue
                     else:
-                        raise this.new_error(tok: tok2, message: "Expected , or ]")
+                        raise this.unexpected_token(tok: tok2, expected: "',' or ']'")
         else:
             this.unget_token(tok)
         return type_parameters
@@ -211,7 +211,7 @@ class Parser:
                 Dedent:
                     break
             else:
-                raise this.new_error(tok, message: "Expected field or dedent")
+                raise this.unexpected_token(tok, expected: "field or dedent")
 
         let class_def = ast.ClassDef:
             id: ast.NodeId(name: name_at.name, id: this.new_id())
@@ -250,7 +250,7 @@ class Parser:
                     Comma:
                         pass
                 else:
-                    raise this.new_error(tok: tok4, message: "Expected ')' or ','")
+                    raise this.unexpected_token(tok: tok4, expected: "')' or ','")
 
         # Optional return type
         let return_type: ast.Type = ast.void_type()
@@ -337,7 +337,7 @@ class Parser:
                             Comma:
                                 continue
                         else:
-                            raise this.new_error(tok: tok4, message: "Expected ')' or ','")
+                            raise this.unexpected_token(tok: tok4, expected: "')' or ','")
 
                 # Optional return type
                 tok2 = this.get_token()
@@ -462,7 +462,7 @@ class Parser:
             Colon:
                 value = this.parse_obj_init(obj_ty: value, location: tok2.location)
         else:
-            raise this.new_error(tok: tok2, message: "Expected newline or ':'")
+            raise this.unexpected_token(tok: tok2, expected: "newline or ':'")
         
         return ast.let_statement(variable, type_hint, value, location)
     
@@ -537,7 +537,7 @@ class Parser:
             KwIn:
                 pass
         else:
-            raise this.new_error(tok: tok2, message: "Expected 'in'")
+            raise this.unexpected_token(tok: tok2, expected: "'in'")
 
         let iter_value = this.parse_expression()
 
@@ -554,7 +554,7 @@ class Parser:
             KwExcept:
                 pass
         else:
-            raise this.new_error(tok, message: "Expected 'except'")
+            raise this.unexpected_token(tok, expected: "'except'")
 
         this.parse_brace_open()
         let except_param = this.parse_parameter_def()
@@ -603,7 +603,7 @@ class Parser:
                         Comma:
                             continue
                     else:
-                        raise this.new_error(tok: tok5, message: "Expected ',' or ')'")
+                        raise this.unexpected_token(tok: tok5, expected: "',' or ')'")
         else:
             this.unget_token(tok4)
 
@@ -750,7 +750,7 @@ class Parser:
             BracketOpen:
                 expr = this.parse_array_literal(location: tok.location)
         else:
-            raise this.new_error(tok, message: "Unexpected token")
+            raise this.unexpected_token(tok, expected: "integer, string, identifier, '('")
 
         # Attempt suffixes
         loop:
@@ -774,7 +774,7 @@ class Parser:
                             Comma:
                                 continue
                         else:
-                            raise this.new_error(tok: tok4, message: "Expected ']' or ','")
+                            raise this.unexpected_token(tok: tok4, expected: "']' or ','")
                     expr = ast.subscript(base: expr, indici, ty: ast.undefined_type(), location: tok.location)
             else:
                 this.unget_token(tok)
@@ -807,7 +807,7 @@ class Parser:
                     Comma:
                         continue
                 else:
-                    raise this.new_error(tok: tok4, message: "Expected ')' or ','")
+                    raise this.unexpected_token(tok: tok4, expected: "')' or ','")
 
         let location = Location(begin, end)
         return ast.call(callee, arguments, ty: ast.undefined_type(), location)
@@ -824,7 +824,7 @@ class Parser:
                 Comma:
                     continue
             else:
-                raise this.new_error(tok: tok5, message: "Expected ',' or ']'")
+                raise this.unexpected_token(tok: tok5, expected: "',' or ']'")
         return ast.array_literal(values, location)
 
     fn parse_name() -> NameAtLocation except CompilationError:
@@ -833,7 +833,7 @@ class Parser:
             Identifier(name):
                 return NameAtLocation(name, location: tok.location)
         else:
-            raise this.new_error(tok, message: "Expected name")
+            raise this.unexpected_token(tok, expected: "name")
 
     fn parse_brace_open() except CompilationError:
         let tok = this.get_token()
@@ -841,7 +841,7 @@ class Parser:
             BraceOpen:
                 pass
         else:
-            raise this.new_error(tok, message: "Expected '('")
+            raise this.unexpected_token(tok, expected: "'('")
 
     fn parse_brace_close() except CompilationError:
         let tok = this.get_token()
@@ -849,7 +849,7 @@ class Parser:
             BraceClose:
                 pass
         else:
-            raise this.new_error(tok, message: "Expected ')'")
+            raise this.unexpected_token(tok, expected: "')'")
 
     fn parse_newline() except CompilationError:
         let tok = this.get_token()
@@ -857,7 +857,7 @@ class Parser:
             NewLine:
                 pass
         else:
-            raise this.new_error(tok, message: "Expected newline")
+            raise this.unexpected_token(tok, expected: "newline")
 
     fn parse_indent() except CompilationError:
         let tok = this.get_token()
@@ -865,7 +865,7 @@ class Parser:
             Indent:
                 pass
         else:
-            raise this.new_error(tok, message: "Expected indent")
+            raise this.unexpected_token(tok, expected: "indent")
 
     fn try_parse_dedent() -> bool:
         # expect dedent (eventually)
@@ -883,7 +883,7 @@ class Parser:
             KwElse:
                 pass
         else:
-            raise this.new_error(tok, message: "Expected 'else'")
+            raise this.unexpected_token(tok, expected: "'else'")
 
     fn parse_colon() except CompilationError:
         let tok = this.get_token()
@@ -891,7 +891,7 @@ class Parser:
             Colon:
                 pass
         else:
-            raise this.new_error(tok, message: "Expected ':'")
+            raise this.unexpected_token(tok, expected: "':'")
 
     fn parse_equals() except CompilationError:
         let tok = this.get_token()
@@ -899,7 +899,7 @@ class Parser:
             Equals:
                 pass
         else:
-            raise this.new_error(tok, message: "Expected '='")
+            raise this.unexpected_token(tok, expected: "'='")
 
     fn get_token() -> Token:
         # Get token (EOF in case of end of file)
@@ -911,8 +911,11 @@ class Parser:
     fn new_id() -> int:
         return this.id_gen.new_id()
 
-    fn new_error(tok: Token, message: str) -> CompilationError:
-        let err = errors.new_error(location: tok.location, message: "{message}, got {token_to_string(tok)}")
+    fn unexpected_token(tok: Token, expected: str) -> CompilationError:
+        return this.new_error(location: tok.location, message: "Expected {expected}, got {token_to_string(tok)}")
+
+    fn new_error(location: Location, message: str) -> CompilationError:
+        let err = errors.new_error(location, message)
         return errors.new_errors(filename: this.filename, errors: vec1(err))
 
     fn process_fstring(literal: str, location: Location) -> ast.Expression except CompilationError:
@@ -957,8 +960,7 @@ class Parser:
             index += 1
         
         if in_braces:
-            # TODO: raise proper error
-            panic("invalid f-string!")
+            raise this.new_error(location, message: "invalid f-string!")
 
         # Last part:
         end = index

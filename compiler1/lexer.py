@@ -65,6 +65,7 @@ def tokenize(code: str | tuple[Location, str]):
         ("OP2", r"(->)|(\+=)|(\-=)|(==)|(<=)|(!=)|(>=)"),
         ("OP", r"[\(\):+\-\*/\.,<>={}\[\]\?]"),
         ("ID", r"[A-Za-z][A-Za-z_0-9]*"),
+        ("HEXNUMBER", r"0x[0-9a-fA-F]+"),
         ("FNUMBER", r"[0-9]+\.[0-9]+"),
         ("NUMBER", r"[0-9]+"),
         ("SPACE", r"[ ]+"),
@@ -143,6 +144,9 @@ def tokenize(code: str | tuple[Location, str]):
         elif kind == "NUMBER":
             value = int(value)
             tok = Token(kind, value, loc)
+        elif kind == "HEXNUMBER":
+            value = int(value, 16)
+            tok = Token("NUMBER", value, loc)
         elif kind == "FNUMBER":
             value = float(value)
             tok = Token(kind, value, loc)

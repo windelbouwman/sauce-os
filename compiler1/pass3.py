@@ -133,6 +133,10 @@ class NewOpPass(BasePass):
                     expression.kind = ast.StructLiteral(ty, values)
                     expression.ty = ty
 
+                elif ty.is_float():
+                    value = expression.kind.args[0].value
+                    expression.kind = ast.TypeCast(ty, value)
+
                 else:
                     self.error(
                         expression.location,

@@ -213,4 +213,4 @@ fn token_to_string(tok: Token) -> str:
         Eof:
             txt = "EOF"
 
-    return "loc={location_to_string(tok.location)} {txt}"
+    return txt

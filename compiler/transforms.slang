@@ -245,6 +245,16 @@ fn transformer_on_statement7(transformer: Transformer, statement: ast.Statement,
                     transformer.class_rewriter.erase_type(ft: target.ty, value: expr, assign: true)
 
                     # If we cast to a value, we must move the cast to the value side
+
+                    case target.kind:
+                        TypeCast(typ, value):
+                            if ast.is_opaque(value.ty) or ast.is_type_parameter_type(value.ty):
+                                ast.change_expression_to(expression: target, to: value)
+                            else:
+                                panic("Only supported type cast from opaque as assignment target (not {ast.type_to_string(value.ty)})")
+                    else:
+                        pass
+
             else:
                 pass
     else:

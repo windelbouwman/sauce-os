@@ -259,24 +259,6 @@ class CGenerator2:
                                 target_text = this.gen_id(id: parameter_def.id)
                         else:
                             panic("Unsupported assignment target: {ast.symbol_to_str(symbol)}")
-                    TypeCast(typ, value):
-                        if ast.is_opaque(value.ty):
-                            case value.kind:
-                                GetAttr(base, attr):
-                                    let base_txt = this.gen_expression(base)
-                                    target_text = "{base_txt}->{attr}"
-                                VarRef(variable):
-                                    target_text = this.gen_id(id: variable.id)
-                                LoadSymbol(symbol):
-                                    case symbol:
-                                        Parameter(parameter_def):
-                                            target_text = this.gen_id(id: parameter_def.id)
-                                    else:
-                                        panic("Unsupported assignment target: {ast.symbol_to_str(symbol)}")
-                            else:
-                                panic("Unsupported assignment target: {ast.expression_to_string(expression: target)}")
-                        else:
-                            panic("Only supported type cast from opaque as assignment target")
                 else:
                     panic("Unsupported assignment target: {ast.expression_to_string(expression: target)}")
 

@@ -14,7 +14,7 @@ fn main() -> int:
             let Tr: float = 0
             let Ti = 0.0
             let Cr = 2.0 * x / w - 1.5
-            let Ci = 2.0 * (y / h) - 1.0
+            let Ci = 2.0 * (float(y) / h) - 1.0
 
             let i = 0
             while i < 50 and Tr + Ti <= 4.0:

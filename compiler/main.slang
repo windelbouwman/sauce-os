@@ -19,6 +19,7 @@ from graphlib import DiGraph, topological_sort
 from sorting import sort_list
 from c_gen import gen_c_code
 from c_gen_v2 import gen_c_code_v2
+from wasm_gen import gen_webassembly
 
 
 fn main() -> int:
@@ -50,6 +51,8 @@ fn main() -> int:
             options.backend = "py"
         elif argument == "-rt":
             options.runtime = false
+        elif argument == "-wasm":
+            options.backend = "wasm"
         else:
             # Assume source file
             filenames.append(argument)
@@ -133,6 +136,8 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
         gen_c_code(program: prog3)
     elif options.backend == "c2":  # C backend (v2)
         gen_c_code_v2(module_set)
+    elif options.backend == "wasm":
+        gen_webassembly(module_set)
     else:
         panic("Invalid backend: {options.backend}")
 

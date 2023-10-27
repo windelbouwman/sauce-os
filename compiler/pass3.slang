@@ -118,6 +118,11 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                                                 expression.kind = ast.ExpressionKind.ClassLiteral(ty, arguments: call.arguments)
                                         else:
                                             pass
+                                    Float:
+                                        ok = true
+                                        # TODO: check arguments
+                                        let value = call.arguments.first().value
+                                        expression.kind = ast.ExpressionKind.TypeCast(ty, value)
                                 else:
                                     pass
 
