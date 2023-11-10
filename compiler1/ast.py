@@ -17,17 +17,33 @@ class Node:
         assert isinstance(location, Location)
 
 
-class Definition(Node):
-    def __init__(self, name: str, location: Location):
-        super().__init__(location)
+class Id:
+    def __init__(self, name: str, id: int):
         assert isinstance(name, str)
+        assert isinstance(id, int)
         self.name = name
+        self.id = id
+
+    def __repr__(self):
+        return f"{self.name}_{self.id}"
+
+    def __eq__(self, other: "Id"):
+        assert isinstance(other, Id)
+        return self.id == other.id and self.name == other.name
+
+
+class Definition(Node):
+    def __init__(self, id: Id, location: Location):
+        super().__init__(location)
+        assert isinstance(id, Id)
+        self.id = id
         self.scope = Scope()
 
 
 class Scope:
     def __init__(self):
         self.symbols: dict[str, "Definition"] = {}
+        self.this_parameter = None
 
     def is_defined(self, name: str) -> bool:
         return name in self.symbols
@@ -134,9 +150,9 @@ class MyType:
         """Retrieve name of field. i can be index or name"""
         if isinstance(self.kind, App):
             if isinstance(self.kind.tycon, StructDef):
-                return self.kind.tycon.get_field(i).name
+                return self.kind.tycon.get_field(i).id.name
             elif isinstance(self.kind.tycon, ClassDef):
-                return self.kind.tycon.get_field(i).name
+                return self.kind.tycon.get_field(i).id.name
 
         raise ValueError("Can only get field from struct/union")
 
@@ -188,14 +204,14 @@ class MyType:
 
     def get_variant_types(self, name: str) -> list["MyType"]:
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, EnumDef):
-            variant: EnumVariant = self.kind.tycon.scope.lookup(name)
+            variant: EnumVariant = self.get_variant(name)
             return [subst(p, self.kind.m) for p in variant.payload]
         else:
             raise ValueError(f"No variant enum type")
 
     def get_variant_names(self) -> list[str]:
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, EnumDef):
-            return [v.name for v in self.kind.tycon.variants]
+            return [v.id.name for v in self.kind.tycon.variants]
         else:
             raise ValueError(f"No variant enum type")
 
@@ -204,24 +220,6 @@ class MyType:
             return self.kind.tycon.get_field(name)
         else:
             raise ValueError(f"No class type")
-
-    # def equals(self, other: 'MyType'):
-    #     assert isinstance(other, MyType)
-    #     if self is other:
-    #         return True
-    #     elif isinstance(self.kind, BaseType) and isinstance(other.kind, BaseType):
-    #         return self.kind.name == other.kind.name
-    #     elif isinstance(self.kind, StructType) and isinstance(other.kind, StructType):
-    #         # TODO: check for equal type_arguments
-    #         return (self.kind.struct_def is other.kind.struct_def)
-    #     elif isinstance(self.kind, EnumType) and isinstance(other.kind, EnumType):
-    #         return self.kind.enum_def is other.kind.enum_def
-    #     elif isinstance(self.kind, FunctionType) and isinstance(other.kind, FunctionType):
-    #         return self.kind.equals(other.kind)
-    #     elif isinstance(self.kind, ClassType) and isinstance(other.kind, ClassType):
-    #         return self.kind.class_def is other.kind.class_def
-    #     else:
-    #         return False
 
     def __repr__(self):
         return f"{self.kind}"
@@ -255,17 +253,18 @@ class TypeConstructor(Definition):
     """
 
     def __init__(
-        self, name: str, location: Location, type_parameters: list["TypeParameter"]
+        self, id: Id, location: Location, type_parameters: list["TypeParameter"]
     ):
-        super().__init__(name, location)
+        super().__init__(id, location)
         self.type_parameters = type_parameters
 
     def apply(self, type_arguments: list["MyType"]) -> MyType:
         return tycon_apply(self, type_arguments)
 
     def apply2(self) -> MyType:
+        # TODO: get new id's
         type_args = [
-            meta_type(f"{i}_{tp.name}") for i, tp in enumerate(self.type_parameters)
+            meta_type(f"{i}_{tp.id.name}") for i, tp in enumerate(self.type_parameters)
         ]
         return self.apply(type_args)
 
@@ -289,7 +288,7 @@ class App(TypeKind):
 
     def __repr__(self):
         if self.type_args:
-            return f"{self.tycon}{self.type_args}"
+            return f"A({self.tycon}{self.type_args})"
         else:
             return f"A({self.tycon})"
 
@@ -399,13 +398,6 @@ class FunctionType(TypeKind):
     def __repr__(self):
         return f"Function({self.parameter_types}, {self.return_type}, ex={self.except_type})"
 
-    # def equals(self, other: 'FunctionType') -> bool:
-    #     if not self.return_type.equals(other.return_type):
-    #         return False
-    #     if len(self.parameter_types) != len(other.parameter_types):
-    #         return False
-    #     return all(a.equals(b) for a, b in zip(self.parameter_types, other.parameter_types))
-
 
 def struct_type(struct_def: "StructDef", type_arguments: list[MyType]) -> MyType:
     return tycon_apply(struct_def, type_arguments)
@@ -469,7 +461,7 @@ class TypeParameterKind(TypeKind):
         self.type_parameter = type_parameter
 
     def __repr__(self):
-        return f"var({self.type_parameter})"
+        return f"tpt-{self.type_parameter.id}"
 
 
 str_type = base_type("str")
@@ -580,18 +572,18 @@ class ImportFrom(BaseImport):
         return f"import({self.names})from({self.modname})"
 
 
-def type_parameter(name: str, location: Location) -> "TypeParameter":
-    return TypeParameter(name, location)
+def type_parameter(id: Id, location: Location) -> "TypeParameter":
+    return TypeParameter(id, location)
 
 
 class TypeParameter(Definition):
-    """Type variable, used when dealing with generics."""
+    """Type parameter, used when dealing with generics."""
 
-    def __init__(self, name: str, location: Location):
-        super().__init__(name, location)
+    def __init__(self, id: Id, location: Location):
+        super().__init__(id, location)
 
     def __repr__(self):
-        return f"type-var({self.name})"
+        return f"type-param({self.id})"
 
     def get_ref(self) -> MyType:
         """Get a type referring to this type parameter."""
@@ -603,8 +595,8 @@ def type_def(name: str, ty: MyType, location: Location):
 
 
 class TypeDef(Definition):
-    def __init__(self, name: str, ty: MyType, location: Location):
-        super().__init__(name, location)
+    def __init__(self, id: Id, ty: MyType, location: Location):
+        super().__init__(id, location)
         assert isinstance(ty, MyType)
         self.ty = ty
 
@@ -621,22 +613,21 @@ def class_def(
 class ClassDef(TypeConstructor):
     def __init__(
         self,
-        name: str,
+        id: Id,
         type_parameters: list[TypeParameter],
         members: list["Definition"],
         location: Location,
     ):
-        super().__init__(name, location, type_parameters)
+        super().__init__(id, location, type_parameters)
         self.members = members
 
         # Create 'this' variable
         # TODO: this might be a type-ish loop? Dunno..
         type_args = [t.get_ref() for t in type_parameters]
         this_ty = class_type(self, type_args)
-        self.this_var = Variable("this", this_ty, location)
 
     def __repr__(self):
-        return f"class-{self.name}"
+        return f"class-{self.id}"
 
     def get_type(self, type_arguments: list[MyType]):
         return class_type(self, type_arguments)
@@ -670,15 +661,15 @@ def var_def(name: str, ty: MyType, value: Optional[Expression], location: Locati
 
 class VarDef(Definition):
     def __init__(
-        self, name: str, ty: MyType, value: Optional[Expression], location: Location
+        self, id: Id, ty: MyType, value: Optional[Expression], location: Location
     ):
-        super().__init__(name, location)
+        super().__init__(id, location)
         self.ty = ty
         self.value = value
 
 
 def function_def(
-    name: str,
+    id: Id,
     type_parameters: list[TypeParameter],
     parameters: list["Parameter"],
     return_ty: MyType,
@@ -687,14 +678,14 @@ def function_def(
     location: Location,
 ):
     return FunctionDef(
-        name, type_parameters, parameters, return_ty, except_type, statements, location
+        id, type_parameters, parameters, return_ty, except_type, statements, location
     )
 
 
 class FunctionDef(Definition):
     def __init__(
         self,
-        name: str,
+        id: Id,
         type_parameters: list[TypeParameter],
         parameters: list["Parameter"],
         return_ty: MyType,
@@ -702,24 +693,27 @@ class FunctionDef(Definition):
         statements: "Statement",
         location: Location,
     ):
-        super().__init__(name, location)
-        self.name = name
+        super().__init__(id, location)
         self.type_parameters = type_parameters
         self.parameters: list[Parameter] = parameters
         self.return_ty = return_ty
         self.except_type = except_type
         self.statements = statements
+        self.this_parameter = None
 
     def __repr__(self):
-        return f"func-def-{self.name}"
+        return f"func-def-{self.id}"
 
     def get_type(self) -> "MyType":
         # Interesting!
         # Construct polymorphic type
         new_free = []
         for i, tp in enumerate(self.type_parameters):
-            new_free.append(meta_type(f"{i}_{tp.name}"))
-        parameter_names = [p.name if p.needs_label else None for p in self.parameters]
+            new_free.append(meta_type(f"{i}_{tp.id}"))
+        # TODO: create unique ids
+        parameter_names = [
+            p.id.name if p.needs_label else None for p in self.parameters
+        ]
         m2 = dict(zip(self.type_parameters, new_free))
         parameter_types = [subst(p.ty, m2) for p in self.parameters]
         return function_type(
@@ -731,27 +725,26 @@ class FunctionDef(Definition):
 
 
 class Parameter(Definition):
-    def __init__(self, name: str, needs_label: bool, ty: MyType, location: Location):
-        super().__init__(name, location)
+    def __init__(self, id: Id, needs_label: bool, ty: MyType, location: Location):
+        super().__init__(id, location)
         assert isinstance(ty, MyType), str(ty)
         self.needs_label = needs_label
         self.ty = ty
 
     def __repr__(self):
-        return f"param({self.name})"
+        return f"param({self.id})"
 
 
 class StructDef(TypeConstructor):
     def __init__(
         self,
-        name: str,
+        id: Id,
         type_parameters: list[TypeParameter],
         is_union: bool,
         fields: list["StructFieldDef"],
         location: Location,
     ):
-        super().__init__(name, location, type_parameters)
-        assert isinstance(name, str)
+        super().__init__(id, location, type_parameters)
         self.is_union = is_union
         for index, field in enumerate(fields):
             field.index = index
@@ -759,7 +752,7 @@ class StructDef(TypeConstructor):
 
     def __repr__(self):
         t = "union" if self.is_union else "struct"
-        return f"{t}-{self.name}"
+        return f"{t}-{self.id}"
 
     def has_field(self, name: str) -> bool:
         if isinstance(name, int):
@@ -774,7 +767,7 @@ class StructDef(TypeConstructor):
             return self.scope.lookup(name)
 
     def get_field_names(self) -> list[str]:
-        return [field.name for field in self.fields]
+        return [field.id.name for field in self.fields]
 
     def equals(self, other: "TypeConstructor") -> bool:
         return self is other
@@ -782,7 +775,7 @@ class StructDef(TypeConstructor):
 
 class StructFieldDef(Definition):
     def __init__(self, name: str, ty: MyType, location: Location):
-        super().__init__(name, location)
+        super().__init__(Id(name, 0), location)
         assert isinstance(ty, MyType)
         self.index = 0
         self.ty = ty
@@ -791,8 +784,8 @@ class StructFieldDef(Definition):
 class StructBuilder:
     """Builder for structs."""
 
-    def __init__(self, name: str, is_union: bool, location: Location):
-        self.name = name
+    def __init__(self, id: Id, is_union: bool, location: Location):
+        self.id = id
         self.type_parameters = []
         self.is_union = is_union
         self.fields = []
@@ -801,8 +794,8 @@ class StructBuilder:
     def set_is_union(self, value: bool):
         self.is_union = value
 
-    def add_type_parameter(self, name: str, location: Location) -> MyType:
-        type_var = TypeParameter(name, location)
+    def add_type_parameter(self, id: Id, location: Location) -> MyType:
+        type_var = TypeParameter(id, location)
         self.type_parameters.append(type_var)
         return type_parameter_ref(type_var)
 
@@ -811,23 +804,23 @@ class StructBuilder:
 
     def finish(self) -> StructDef:
         struct_def = StructDef(
-            self.name, self.type_parameters, self.is_union, self.fields, self.location
+            self.id, self.type_parameters, self.is_union, self.fields, self.location
         )
         for definition in struct_def.fields:
-            assert not struct_def.scope.is_defined(definition.name)
-            struct_def.scope.define(definition.name, definition)
+            assert not struct_def.scope.is_defined(definition.id.name)
+            struct_def.scope.define(definition.id.name, definition)
         return struct_def
 
 
 class EnumDef(TypeConstructor):
     def __init__(
         self,
-        name: str,
+        id: Id,
         type_parameters: list[TypeParameter],
         variants: list["EnumVariant"],
         location: Location,
     ):
-        super().__init__(name, location, type_parameters)
+        super().__init__(id, location, type_parameters)
 
         # Assign index to variants:
         for idx, variant in enumerate(variants):
@@ -836,7 +829,7 @@ class EnumDef(TypeConstructor):
         self.variants = variants
 
     def __repr__(self):
-        return f"Enum-{self.name}"
+        return f"Enum-{self.id}"
 
     def get_type(self, type_arguments: list[MyType]) -> MyType:
         return enum_type(self, type_arguments)
@@ -847,12 +840,12 @@ class EnumDef(TypeConstructor):
 
 class EnumVariant(Definition):
     def __init__(self, name: str, payload: list[MyType], location: Location):
-        super().__init__(name, location)
+        super().__init__(Id(name, 0), location)
         self.payload = payload
         self.index = 0
 
     def __repr__(self):
-        return f"EnumVariant({self.name})"
+        return f"EnumVariant({self.id.name})"
 
 
 class Statement(Node):
@@ -1503,13 +1496,13 @@ class ArrayIndex(ExpressionKind):
 
 
 class Variable(Definition):
-    def __init__(self, name: str, ty: MyType, location: Location):
-        super().__init__(name, location)
+    def __init__(self, id: Id, ty: MyType, location: Location):
+        super().__init__(id, location)
         assert isinstance(ty, MyType)
         self.ty = ty
 
     def __repr__(self):
-        return f"var({self.name})"
+        return f"var({self.id})"
 
     def ref_expr(self, location: Location) -> Expression:
         """Retrieve an expression referring to this variable!"""
@@ -1518,14 +1511,14 @@ class Variable(Definition):
 
 class BuiltinFunction(Definition):
     def __init__(self, name: str, parameter_types: list[MyType], return_type: MyType):
-        super().__init__(name, Location.default())
+        super().__init__(Id(name, 0), Location.default())
         parameter_names = [None] * len(parameter_types)
         self.ty = function_type(
             parameter_names, parameter_types, return_type, void_type
         )
 
     def __repr__(self):
-        return f"builtin({self.name})"
+        return f"builtin({self.id.name})"
 
 
 class Undefined:
@@ -1681,91 +1674,15 @@ class AstVisitor:
             self.visit_expression(kind.expr)
 
 
-def print_ast(mod: Module):
+def print_ast(module: Module):
+    """Dump AST to console."""
     logger.info("Dumping AST")
-    RichAstPrinter().print_module(mod)
-
-
-class AstPrinter(AstVisitor):
-    def __init__(self):
-        self._indent = 0
-
-    def indent(self):
-        self._indent += 4
-
-    def dedent(self):
-        self._indent -= 4
-
-    def emit(self, txt: str):
-        indent = " " * self._indent
-        print(indent + txt)
-
-    def print_module(self, module: Module):
-        self.emit("Imports:")
-        for imp in module.imports:
-            self.emit(f"- {imp}")
-
-        self.visit_module(module)
-
-    def visit_definition(self, definition: Definition):
-        if isinstance(definition, FunctionDef):
-            self.emit(f"- fn {definition.name}")
-            self.indent()
-            for parameter in definition.parameters:
-                pass
-
-        elif isinstance(definition, StructDef):
-            t = "union" if definition.is_union else "struct"
-            self.emit(f"- {t} {definition.name}")
-            self.indent()
-            for field in definition.fields:
-                self.emit(f"- {field.name} : {field.ty}")
-        elif isinstance(definition, EnumDef):
-            self.emit(f"- enum {definition.name}")
-            self.indent()
-            for variant in definition.variants:
-                self.emit(f"- {variant.name} : {variant.payload}")
-        elif isinstance(definition, ClassDef):
-            self.emit(f"- class {definition.name}")
-            self.indent()
-        elif isinstance(definition, VarDef):
-            self.emit(f"- var {definition.name}")
-            self.indent()
-        elif isinstance(definition, TypeDef):
-            self.emit(f"- type-def {definition.name}")
-            self.indent()
-        else:
-            self.emit(f"- ? {definition}")
-            self.indent()
-
-        super().visit_definition(definition)
-        self.dedent()
-
-    def visit_type(self, ty: MyType):
-        self.indent()
-        self.emit(f"ty > {str_ty(ty)}")
-        super().visit_type(ty)
-        self.dedent()
-
-    def visit_statement(self, statement: Statement):
-        self.emit(f"{statement.kind}")
-        self.indent()
-        super().visit_statement(statement)
-        self.dedent()
-
-    def visit_expression(self, expression: Expression):
-        self.emit(f"{expression}")
-        self.indent()
-        super().visit_expression(expression)
-        self.dedent()
+    RichAstPrinter().print_module(module)
 
 
 def str_ty(ty: MyType):
-    fancy = False
-    if fancy:
-        return f":garlic:[b gold1]{rich.markup.escape(str(ty))}[/]"
-    else:
-        return str(ty)
+    """Fancy string representation of a type"""
+    return f":garlic:[b gold1]{rich.markup.escape(str(ty))}[/]"
 
 
 class RichAstPrinter(AstVisitor):
@@ -1796,39 +1713,39 @@ class RichAstPrinter(AstVisitor):
 
     def visit_definition(self, definition: Definition):
         if isinstance(definition, FunctionDef):
-            self.emit(f":zap:[b green]fn {definition.name}")
+            self.emit(f":zap:[b green]fn {definition.id}")
             self.indent()
             for type_parameter in definition.type_parameters:
-                self.emit(f":scream:[b hot_pink]{type_parameter.name}")
+                self.emit(f":scream:[b hot_pink]{type_parameter.id}")
             for parameter in definition.parameters:
-                self.emit(f":gem:[b cyan]{parameter.name} : {str_ty(parameter.ty)}")
-            if definition.return_ty:
-                self.emit(f":dollar:[b red]{str_ty(definition.return_ty)}[/]")
-                # :dragon: or :dollar:
+                self.emit(f":gem:[b cyan]{parameter.id} : {str_ty(parameter.ty)}")
+            # if definition.return_ty:
+            #    self.emit(f":dragon:[b red]{str_ty(definition.return_ty)}[/]")
+            #    # :dragon: or :dollar:
 
         elif isinstance(definition, StructDef):
             t = "union" if definition.is_union else "struct"
-            self.emit(f":hammer:[b green]{t} {definition.name}")
+            self.emit(f":hammer:[b green]{t} {definition.id}")
             self.indent()
             for type_parameter in definition.type_parameters:
-                self.emit(f":scream:[b hot_pink]{type_parameter.name}")
+                self.emit(f":scream:[b hot_pink]{type_parameter.id}")
             for field in definition.fields:
-                self.emit(f":star:[b magenta]{field.name} : {str_ty(field.ty)}")
+                self.emit(f":star:[b magenta]{field.id.name} : {str_ty(field.ty)}")
         elif isinstance(definition, EnumDef):
-            self.emit(f":hammer:[b green]enum {definition.name}")
+            self.emit(f":hammer:[b green]enum {definition.id}")
             self.indent()
             for variant in definition.variants:
-                self.emit(f":star:[b magenta]{variant.name} : {variant.payload}")
+                self.emit(f":star:[b magenta]{variant.id.name} : {variant.payload}")
         elif isinstance(definition, ClassDef):
-            self.emit(f":rocket:[b green]class {definition.name}")
+            self.emit(f":rocket:[b green]class {definition.id}")
             self.indent()
             for type_parameter in definition.type_parameters:
-                self.emit(f":scream:[b hot_pink]{type_parameter.name}")
+                self.emit(f":scream:[b hot_pink]{type_parameter.id}")
         elif isinstance(definition, VarDef):
-            self.emit(f":star:[b green]var {definition.name}")
+            self.emit(f":star:[b green]var {definition.id}")
             self.indent()
         elif isinstance(definition, TypeDef):
-            self.emit(f"type-def {definition.name}")
+            self.emit(f"type-def {definition.id}")
             self.indent()
         else:
             self.emit(f"- ? {definition}")
@@ -1859,3 +1776,13 @@ class RichAstPrinter(AstVisitor):
         self.indent()
         super().visit_expression(expression)
         self.dedent()
+
+
+class IdContext:
+    def __init__(self):
+        self._counter = 0
+
+    def new_id(self, name: str) -> Id:
+        assert isinstance(name, str)
+        self._counter += 1
+        return Id(name, self._counter)

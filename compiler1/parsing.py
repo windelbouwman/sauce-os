@@ -17,7 +17,7 @@ from .errors import ParseError, CompilationError
 logger = logging.getLogger("parser")
 
 
-def parse_file(filename: str) -> ast.Module:
+def parse_file(id_context: ast.IdContext, filename: str) -> ast.Module:
     if isinstance(filename, tuple):
         filename, code = filename
     else:
@@ -27,14 +27,16 @@ def parse_file(filename: str) -> ast.Module:
     modname = os.path.splitext(os.path.basename(filename))[0]
     # TODO: clean modname of more special characters
     modname = modname.replace("-", "_")
-    return parse(code, modname, filename)
+    return parse(id_context, code, modname, filename)
 
 
-def parse(code: str, modname: str, filename: str) -> ast.Module:
+def parse(
+    id_context: ast.IdContext, code: str, modname: str, filename: str
+) -> ast.Module:
     """Parse the given code."""
     logger.debug("Starting parse")
     try:
-        module: ast.Module = lark_it(code, "module")
+        module: ast.Module = lark_it(id_context, code, "module")
     except ParseError as ex:
         raise CompilationError([(filename, ex.location, ex.message)])
 
@@ -46,16 +48,18 @@ def parse(code: str, modname: str, filename: str) -> ast.Module:
     return module
 
 
-def parse_expr(expr: str, start_loc: Location) -> ast.Expression:
+def parse_expr(
+    id_context: ast.IdContext, expr: str, start_loc: Location
+) -> ast.Expression:
     """Parse a single expression. Useful in f-strings."""
 
-    node: ast.Expression = lark_it((start_loc, expr), start="eval_expr")
+    node: ast.Expression = lark_it(id_context, (start_loc, expr), start="eval_expr")
     assert isinstance(node, ast.Expression)
     # print(n)
     return node
 
 
-def lark_it(code, start):
+def lark_it(id_context: ast.IdContext, code, start):
     """Invoke the lark parsing."""
     try:
         tree = lark_parser.parse(code, start=start)
@@ -65,7 +69,7 @@ def lark_it(code, start):
         )
 
     try:
-        return CustomTransformer().transform(tree)
+        return CustomTransformer(id_context).transform(tree)
     except VisitError as ex:
         if isinstance(ex.orig_exc, ParseError):
             raise ex.orig_exc
@@ -73,7 +77,9 @@ def lark_it(code, start):
             raise
 
 
-def process_fstrings(literal: str, location: Location) -> ast.Expression:
+def process_fstrings(
+    id_context: ast.IdContext, literal: str, location: Location
+) -> ast.Expression:
     """Check if we have a string with f-strings in it."""
 
     # Check empty string:
@@ -93,7 +99,7 @@ def process_fstrings(literal: str, location: Location) -> ast.Expression:
             p1 = Position(row, col + 1)
             p2 = Position(row, col + len(part) - 2)
             part_loc = Location(p1, p2)
-            value = parse_expr(part[1:-1], part_loc)
+            value = parse_expr(id_context, part[1:-1], part_loc)
             expr = value.to_string()
         else:
             p1 = Position(row, col)
@@ -164,6 +170,13 @@ def get_span(loc1: Location, loc2: Location):
 
 
 class CustomTransformer(LarkTransformer):
+    def __init__(self, id_context):
+        super().__init__()
+        self.id_context = id_context
+
+    def new_id(self, name: str) -> ast.Id:
+        return self.id_context.new_id(name)
+
     def module(self, x):
         name = "?"
         imports, definitions = x
@@ -197,7 +210,21 @@ class CustomTransformer(LarkTransformer):
         assert x[4].type == "INDENT"
         assert x[-1].type == "DEDENT"
         members = x[5:-1]
-        return ast.class_def(name, type_parameters, members, location)
+        this_type = ast.void_type.clone()
+        for member in members:
+            if isinstance(member, ast.FunctionDef):
+                this_parameter = ast.Parameter(
+                    self.new_id("this"), False, this_type, member.location
+                )
+                member.this_parameter = this_parameter
+        class_def = ast.class_def(self.new_id(name), type_parameters, members, location)
+
+        # Update the type of the 'this' parameter
+        type_args = [t.get_ref().clone() for t in type_parameters]
+        real_this_type = ast.class_type(class_def, type_args)
+        this_type.change_to(real_this_type)
+
+        return class_def
 
     def var_def(self, x):
         # var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
@@ -208,7 +235,7 @@ class CustomTransformer(LarkTransformer):
             value = x[5]
         else:
             value = None
-        return ast.var_def(name, ty, value, location)
+        return ast.var_def(self.new_id(name), ty, value, location)
 
     def func_def(self, x):
         # KW_FN id_and_type_parameters function_signature block
@@ -216,7 +243,7 @@ class CustomTransformer(LarkTransformer):
         parameters, return_type, except_type = x[2]
         body = x[-1]
         return ast.function_def(
-            name,
+            self.new_id(name),
             type_parameters,
             parameters,
             return_type,
@@ -265,7 +292,9 @@ class CustomTransformer(LarkTransformer):
         location, name, type_parameters = x[1]
         fields = x[5:-1]
         is_union = False
-        return ast.StructDef(name, type_parameters, is_union, fields, location)
+        return ast.StructDef(
+            self.new_id(name), type_parameters, is_union, fields, location
+        )
 
     def struct_field(self, x):
         return ast.StructFieldDef(x[0], x[2], get_loc(x[0]))
@@ -275,7 +304,7 @@ class CustomTransformer(LarkTransformer):
         assert isinstance(x[2], LarkToken) and x[2].type == "COLON"
         location, name, type_parameters = x[1]
         variants = x[5:-1]
-        return ast.EnumDef(name, type_parameters, variants, location)
+        return ast.EnumDef(self.new_id(name), type_parameters, variants, location)
 
     def enum_variant(self, x):
         name = x[0].value
@@ -302,7 +331,9 @@ class CustomTransformer(LarkTransformer):
 
     def type_parameters(self, x):
         # type_parameters: LESS_THAN ids GREATER_THAN
-        return [ast.type_parameter(name, location) for name, location in x[1]]
+        return [
+            ast.type_parameter(self.new_id(name), location) for name, location in x[1]
+        ]
 
     def typ(self, x):
         if isinstance(x[0], LarkToken) and x[0].type == "KW_FN":
@@ -342,7 +373,7 @@ class CustomTransformer(LarkTransformer):
             needs_label = False
         else:
             needs_label = True
-        return ast.Parameter(name, needs_label, typ, get_loc(x[0]))
+        return ast.Parameter(self.new_id(name), needs_label, typ, get_loc(x[0]))
 
     def block(self, x):
         # COLON NEWLINE INDENT statement+ DEDENT
@@ -432,7 +463,8 @@ class CustomTransformer(LarkTransformer):
         name = x[0].value
         if isinstance(x[1], LarkToken) and x[1].type == "LEFT_BRACE":
             variables = [
-                ast.Variable(name, ast.void_type, location) for name, location in x[2]
+                self.new_variable(name, ast.void_type, location)
+                for name, location in x[2]
             ]
         else:
             variables = []
@@ -452,7 +484,7 @@ class CustomTransformer(LarkTransformer):
 
     def let_statement(self, x):
         """KW_LET ID (COLON typ)? EQUALS expression NEWLINE"""
-        variable = ast.Variable(x[1].value, ast.void_type, get_loc(x[1]))
+        variable = self.new_variable(x[1].value, ast.void_type, get_loc(x[1]))
         if isinstance(x[2], LarkToken) and x[2].type == "COLON":
             assert isinstance(x[4], LarkToken) and x[4].type == "EQUALS"
             ty, value = x[3], x[5]
@@ -473,9 +505,12 @@ class CustomTransformer(LarkTransformer):
 
     def for_statement(self, x):
         # KW_FOR ID KW_IN expression block
-        variable = ast.Variable(x[1].value, ast.void_type, get_loc(x[1]))
+        variable = self.new_variable(x[1].value, ast.void_type, get_loc(x[1]))
         values, inner = x[3], x[4]
         return ast.for_statement(variable, values, inner, get_loc(x[0]))
+
+    def new_variable(self, name, ty, location) -> ast.Variable:
+        return ast.Variable(self.new_id(name), ty, location)
 
     def elif_clause(self, x):
         # : KW_ELIF test block
@@ -603,7 +638,7 @@ class CustomTransformer(LarkTransformer):
             return ast.numeric_constant(x[0].value, get_loc(x[0]))
         elif x[0].type == "STRING":
             text = x[0].value
-            return process_fstrings(text, get_loc(x[0]))
+            return process_fstrings(self.id_context, text, get_loc(x[0]))
         elif x[0].type == "FNUMBER":
             return ast.numeric_constant(x[0].value, get_loc(x[0]))
         elif x[0].type == "BOOL":

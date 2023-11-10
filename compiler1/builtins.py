@@ -5,7 +5,7 @@
 from . import ast
 
 
-def std_module() -> ast.Module:
+def create_std_module() -> ast.Module:
     mod = ast.Module("std", [], [])
     mod.add_definition(
         "print", ast.BuiltinFunction("std_print", [ast.str_type], ast.void_type)

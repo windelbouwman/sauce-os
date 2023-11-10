@@ -36,35 +36,32 @@ class PyCodeGenerator:
         if isinstance(definition, ast.FunctionDef):
             self.gen_func(definition)
         elif isinstance(definition, ast.StructDef):
+            self.emit(f"class {self.gen_id(definition.id)}:")
+            self.indent()
             if definition.is_union:
-                self.emit(f"class {definition.name}:")
-                self.indent()
                 self.emit(f"def __init__(self, field, value):")
                 self.indent()
                 self.emit(f"setattr(self, field, value)")
                 self.dedent()
-                self.dedent()
             else:
-                self.emit(f"class {definition.name}:")
-                self.indent()
-                field_names = [f"f_{field.name}" for field in definition.fields]
+                field_names = [f"f_{field.id.name}" for field in definition.fields]
                 args = ", ".join(field_names)
                 self.emit(f"def __init__(self, {args}):")
                 self.indent()
                 for field_name in field_names:
                     self.emit(f"self.{field_name} = {field_name}")
                 self.dedent()
-                self.dedent()
+            self.dedent()
         else:
             raise NotImplementedError(str(definition))
         self.emit("")
 
     def gen_func(self, func_def: ast.FunctionDef):
         if func_def.parameters:
-            params = ", ".join([p.name for p in func_def.parameters])
+            params = ", ".join([self.gen_id(p.id) for p in func_def.parameters])
         else:
             params = ""
-        self.emit(f"def {func_def.name}({params}):")
+        self.emit(f"def {self.gen_id(func_def.id)}({params}):")
         self.indent()
         if func_def.statements:
             self.gen_statement(func_def.statements)
@@ -82,28 +79,12 @@ class PyCodeGenerator:
         kind = statement.kind
         if isinstance(kind, ast.LetStatement):
             val = self.gen_expression(kind.value)
-            self.emit(f"{kind.variable.name} = {val}")
+            self.emit(f"{self.gen_id(kind.variable.id)} = {val}")
         elif isinstance(kind, ast.CompoundStatement):
             for statement in kind.statements:
                 self.gen_statement(statement)
         elif isinstance(kind, ast.IfStatement):
             self.gen_if_statement(kind)
-        elif isinstance(kind, ast.SwitchStatement):
-            value = self.gen_expression(kind.value)
-            # TODO: unique name:
-            tmp_var = "_x1337b"
-            self.emit(f"{tmp_var} = {value}")
-            self.emit("if False:")
-            self.indent()
-            self.emit("pass")
-            self.dedent()
-            for arm in kind.arms:
-                v2 = self.gen_expression(arm.value)
-                self.emit(f"elif {tmp_var} == {v2}:")
-                self.gen_block(arm.body)
-            self.emit("else:")
-            self.gen_block(kind.default_block.body)
-
         elif isinstance(kind, ast.WhileStatement):
             val = self.gen_expression(kind.condition, parens=False)
             self.emit(f"while {val}:")
@@ -111,10 +92,11 @@ class PyCodeGenerator:
         elif isinstance(kind, ast.TryStatement):
             self.emit(f"try:")
             self.gen_block(kind.try_block.body)
-            ex_name = f"ex_{kind.parameter.name}"
+            parameter_name = self.gen_id(kind.parameter.id)
+            ex_name = f"ex_{parameter_name}"
             self.emit(f"except ValueError as {ex_name}:")
             self.indent()
-            self.emit(f"{kind.parameter.name} = {ex_name}.args[0]")
+            self.emit(f"{parameter_name} = {ex_name}.args[0]")
             self.gen_statement(kind.except_block.body)
             self.dedent()
         elif isinstance(kind, ast.BreakStatement):
@@ -177,10 +159,11 @@ class PyCodeGenerator:
             base = self.gen_expression(kind.base)
             return f"{base}.f_{kind.field}"
         elif isinstance(kind, ast.StructLiteral):
+            name = self.gen_id(kind.ty.kind.tycon.id)
             values = self.gen_expressions(kind.values)
-            return f"{kind.ty.kind.tycon.name}({values})"
+            return f"{name}({values})"
         elif isinstance(kind, ast.UnionLiteral):
-            name: str = kind.ty.kind.tycon.name
+            name: str = self.gen_id(kind.ty.kind.tycon.id)
             value = self.gen_expression(kind.value)
             return f"{name}('f_{kind.field}', {value})"
         elif isinstance(kind, ast.Binop):
@@ -194,12 +177,10 @@ class PyCodeGenerator:
             return f"({res})" if parens else res
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
-            if isinstance(obj, (ast.Variable, ast.FunctionDef)):
-                return obj.name
+            if isinstance(obj, (ast.Variable, ast.FunctionDef, ast.Parameter)):
+                return self.gen_id(obj.id)
             elif isinstance(obj, ast.BuiltinFunction):
-                return obj.name
-            elif isinstance(obj, ast.Parameter):
-                return obj.name
+                return obj.id.name
             else:
                 raise NotImplementedError(str(obj))
         elif isinstance(kind, ast.TypeCast):
@@ -214,6 +195,11 @@ class PyCodeGenerator:
 
     def gen_expressions(self, values):
         return ", ".join([self.gen_expression(value, parens=False) for value in values])
+
+    def gen_id(self, id: ast.Id):
+        if id.name == "main":
+            return "main"
+        return f"X{id.id}_{id.name}"
 
     def indent(self):
         self._level += 1

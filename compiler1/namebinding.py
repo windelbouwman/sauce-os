@@ -71,15 +71,13 @@ class ScopeFiller(BasePass):
         elif isinstance(definition, ast.FunctionDef):
             for type_parameter in definition.type_parameters:
                 self.define(type_parameter)
+            if definition.this_parameter:
+                self.define(definition.this_parameter)
             for parameter in definition.parameters:
                 self.define(parameter)
         elif isinstance(definition, ast.ClassDef):
             for type_parameter in definition.type_parameters:
                 self.define(type_parameter)
-            self.define(definition.this_var)
-            # members are visited during visitor
-            # for member in definition.members:
-            #    self.define_symbol(member.name, member)
         elif isinstance(definition, (ast.VarDef, ast.TypeDef)):
             pass
         else:
@@ -148,7 +146,7 @@ class ScopeFiller(BasePass):
         self._scopes.pop()
 
     def define(self, definition: ast.Definition):
-        self.define_symbol(definition.name, definition)
+        self.define_symbol(definition.id.name, definition)
 
     def define_symbol(self, name: str, symbol: ast.Definition):
         assert isinstance(name, str)
@@ -253,7 +251,12 @@ class NameBinder(BasePass):
             if scope.is_defined(name):
                 obj = scope.lookup(name)
                 assert obj
-                return obj
+                if scope.this_parameter:
+                    # print("class var ref!", name)
+                    # return ast.Undefined()
+                    return obj
+                else:
+                    return obj
 
         self.error(location, f"Undefined symbol: {name}")
         return ast.Undefined()

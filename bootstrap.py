@@ -6,8 +6,10 @@ Use the python based bootstrap compiler to compile the compiler itself.
 
 import sys
 import glob
+import logging
 from compiler1 import compiler, errors, builtins
 
+logging.basicConfig(level=logging.WARNING)
 options = compiler.CompilationOptions(backend="py")
 sources = glob.glob("compiler/*.slang")
 

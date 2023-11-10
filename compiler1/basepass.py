@@ -13,6 +13,7 @@ class BasePass(ast.AstVisitor):
     def __init__(self):
         self._errors = []
         self._filename = "?"
+        self._was_error = False
 
     def run(self, module: ast.Module):
         self.begin(module.filename, f"Running {self.name} pass on '{module.name}'")
@@ -26,6 +27,7 @@ class BasePass(ast.AstVisitor):
     def error(self, location: Location, msg: str):
         logger.error(f"{self._filename}:{location}: {msg}", extra={"markup": True})
         self._errors.append((self._filename, location, msg))
+        self._was_error = True
 
     def warning(self, location: Location, msg: str):
         logger.warning(f"{self._filename}:{location}: {msg}", extra={"markup": True})

@@ -36,7 +36,7 @@ class FlowCheck(BasePass):
 
     def visit_definition(self, definition: ast.Definition):
         if isinstance(definition, ast.FunctionDef):
-            logger.debug(f"flow check on function '{definition.name}'")
+            logger.debug(f"flow check on function '{definition.id}'")
             self._g = nx.DiGraph()
             self._variables = []
             func_entry = self.new_label()
@@ -47,7 +47,7 @@ class FlowCheck(BasePass):
             self.set_label(func_exit)
 
             if self.write_to_dot_file:
-                nx.drawing.nx_pydot.write_dot(self._g, f"blabla_{definition.name}.dot")
+                nx.drawing.nx_pydot.write_dot(self._g, f"blabla_{definition.id}.dot")
             logger.debug(f"Flow graph {self._g}")
 
             dom = nx.algorithms.immediate_dominators(self._g, func_entry)
@@ -60,7 +60,7 @@ class FlowCheck(BasePass):
                         if not is_dominated(dom, use_point, variable.def_point):
                             self.error(
                                 use_location,
-                                f"Variable {variable.name} not always defined",
+                                f"Variable {variable.id} not always defined",
                             )
                 else:
                     # TBD: this check may be too annoying:
@@ -68,7 +68,7 @@ class FlowCheck(BasePass):
                     warn_about_unused = False
                     if warn_about_unused:
                         self.warning(
-                            variable.location, f"'{variable.name}' was never used"
+                            variable.location, f"'{variable.id}' was never used"
                         )
 
         else:
@@ -160,14 +160,14 @@ class FlowCheck(BasePass):
         # Hack-in an additional field, use points:
         if not hasattr(variable, "use_points"):
             variable.use_points = []
-        x = f"use{self.new_id()} {variable.name}"
+        x = f"use{self.new_id()} {variable.id}"
         variable.use_points.append((x, location))
         self.execute(x)
 
     def var_def(self, variable: ast.Variable):
         # print(f'def: {variable.name}')
         self._variables.append(variable)
-        x = f"def{self.new_id()} {variable.name}"
+        x = f"def{self.new_id()} {variable.id}"
         assert not hasattr(variable, "def_point")
         variable.def_point = x
         self.execute(x)

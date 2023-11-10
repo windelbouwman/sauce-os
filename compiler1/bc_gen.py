@@ -90,15 +90,15 @@ class ByteCodeGenerator:
             raise NotImplementedError(str(ty))
 
     def gen_struct(self, struct_def: ast.StructDef):
-        logger.debug(f"generating bytecode type for struct {struct_def.name}")
+        logger.debug(f"generating bytecode type for struct {struct_def.id}")
         ts = []
         for field in struct_def.fields:
             t = self.get_bc_ty(field.ty)
             ts.append(t)
-        self._types.append((struct_def.name, struct_def.is_union, ts))
+        self._types.append((struct_def.id.name, struct_def.is_union, ts))
 
     def gen_function(self, func_def: ast.FunctionDef):
-        logger.debug(f"generating bytecode for function {func_def.name}")
+        logger.debug(f"generating bytecode for function {func_def.id}")
         self._code = []
         self._locals = []  # parameters and local variables
         self._local_typs = []
@@ -127,7 +127,9 @@ class ByteCodeGenerator:
             code.append((opcode, operands))
 
         self._functions.append(
-            bc.Function(func_def.name, code, params, self._local_typs, ret_ty)
+            bc.Function(
+                self.get_id(func_def.id), code, params, self._local_typs, ret_ty
+            )
         )
 
     def gen_statement(self, statement: ast.Statement):
@@ -331,13 +333,18 @@ class ByteCodeGenerator:
                 idx = self._locals.index(obj)
                 self.emit(OpCode.LOCAL_GET, idx)
             elif isinstance(obj, ast.FunctionDef):
-                self.emit(OpCode.LOADFUNC, obj.name)
+                self.emit(OpCode.LOADFUNC, self.get_id(obj.id))
             elif isinstance(obj, ast.BuiltinFunction):
-                self.emit(OpCode.BUILTIN, obj.name)
+                self.emit(OpCode.BUILTIN, obj.id.name)
             else:
                 raise NotImplementedError(str(obj))
         else:
             raise NotImplementedError(str(kind))
+
+    def get_id(self, id: ast.Id) -> str:
+        if id.name == "main":
+            return "main"
+        return f"X{id.id}_{id.name}"
 
     def emit(self, opcode: bc.OpCode, *args):
         # print(f'    {len(self._code)} Op', opcode, args)

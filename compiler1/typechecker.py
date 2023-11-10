@@ -25,7 +25,7 @@ class TypeChecker(BasePass):
 
     def visit_definition(self, definition: ast.Definition):
         if isinstance(definition, ast.FunctionDef):
-            logger.debug(f"Checking function '{definition.name}'")
+            logger.debug(f"Checking function '{definition.id}'")
             assert not self._function
             self._function = definition
             may_raise = not definition.except_type.is_void()
@@ -50,6 +50,7 @@ class TypeChecker(BasePass):
 
     def visit_statement(self, statement: ast.Statement):
         kind = statement.kind
+        self._was_error = False
 
         # Handle special cases:
         if isinstance(kind, ast.CaseStatement):
@@ -113,6 +114,9 @@ class TypeChecker(BasePass):
         else:
             super().visit_statement(statement)
 
+            if self._was_error:
+                return
+
             if isinstance(kind, ast.LoopStatement):
                 pass
             elif isinstance(kind, ast.WhileStatement):
@@ -134,7 +138,7 @@ class TypeChecker(BasePass):
                     if not self.unify(kind.value.ty, self._function.return_ty):
                         self.error(
                             statement.location,
-                            f"Returning wrong type {kind.value.ty} (should be {self._function.return_ty})",
+                            f"Returning wrong type {ast.str_ty(kind.value.ty)} (should be {ast.str_ty(self._function.return_ty)})",
                         )
             elif isinstance(kind, ast.RaiseStatement):
                 self.check_may_raise(kind.value.ty, statement.location)
@@ -152,6 +156,10 @@ class TypeChecker(BasePass):
     def visit_expression(self, expression: ast.Expression):
         """Perform type checking on expression!"""
         super().visit_expression(expression)
+
+        if self._was_error:
+            return
+
         kind = expression.kind
         if isinstance(
             kind,
@@ -201,7 +209,8 @@ class TypeChecker(BasePass):
                 expression.ty = kind.base.ty.get_field_type(kind.field)
             else:
                 self.error(
-                    expression.location, f"{kind.base.ty} has no field: {kind.field}"
+                    expression.location,
+                    f"{ast.str_ty(kind.base.ty)} has no field: {kind.field}",
                 )
                 expression.ty = void_type
 
@@ -211,7 +220,7 @@ class TypeChecker(BasePass):
             else:
                 self.error(
                     expression.location,
-                    f"Indexing requires array type, not {kind.base.ty}",
+                    f"Indexing requires array type, not {ast.str_ty(kind.base.ty)}",
                 )
 
             if len(kind.indici) == 1:
@@ -259,7 +268,7 @@ class TypeChecker(BasePass):
             else:
                 self.error(
                     expression.location,
-                    f"Trying to call non-function type: {kind.target.ty}",
+                    f"Trying to call non-function type: {ast.str_ty(kind.target.ty)}",
                 )
 
         elif isinstance(kind, ast.NameRef):
@@ -275,7 +284,7 @@ class TypeChecker(BasePass):
             self.assert_type(kind.value, field_type)
             expression.ty = kind.ty
         elif isinstance(kind, ast.EnumLiteral):
-            payload_types = kind.enum_ty.get_variant_types(kind.variant.name)
+            payload_types = kind.enum_ty.get_variant_types(kind.variant.id.name)
             self.check_arguments(payload_types, kind.values, expression.location)
             expression.ty = kind.enum_ty.clone()
         elif isinstance(kind, ast.ClassLiteral):
@@ -408,9 +417,6 @@ class TypeChecker(BasePass):
             # Simply swap comparison
             return self.unify(b, a)
         else:
-            # location = Location(1, 1)
-            # self.error(location, f'Cannot unify types {a} and {b}')
-            print("Full nack", a, b)
             return False
 
     def unify_many(self, types1: list[ast.MyType], types2: list[ast.MyType]) -> bool:

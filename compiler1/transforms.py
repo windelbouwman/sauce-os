@@ -17,9 +17,9 @@ logger = logging.getLogger("transforms")
 class BaseTransformer(ast.AstVisitor):
     name = "?"
 
-    def __init__(self):
+    def __init__(self, id_context: ast.IdContext):
         super().__init__()
-        self._counter = 5
+        self._id_context = id_context
 
     def transform(self, modules: list[ast.Module]):
         logger.info(f"Transforming {self.name}")
@@ -27,19 +27,24 @@ class BaseTransformer(ast.AstVisitor):
             self.visit_module(module)
 
     def new_variable(
-        self, hint: str, ty: ast.MyType, location: Location
+        self, name: str, ty: ast.MyType, location: Location
     ) -> ast.Variable:
-        # TODO: create globally unique names! Also, do not clash with names in source-code
-        self._counter += 1
-        name = f"FV{self._counter}_{hint}"
-        return ast.Variable(name, ty, location)
+        id = self.new_id(name)
+        return ast.Variable(id, ty, location)
+
+    def new_id(self, name: str) -> ast.Id:
+        return self._id_context.new_id(name)
+
+
+def rewrite_loops(id_context: ast.IdContext, std_module: ast.Module, modules):
+    LoopRewriter(id_context, std_module).transform(modules)
 
 
 class LoopRewriter(BaseTransformer):
     name = "loop-rewrite"
 
-    def __init__(self, std_module: ast.Module):
-        super().__init__()
+    def __init__(self, id_context: ast.IdContext, std_module: ast.Module):
+        super().__init__(id_context)
 
         self._std_module = std_module
 
@@ -191,11 +196,15 @@ class LoopRewriter(BaseTransformer):
                 )
 
 
+def rewrite_enums(id_context, modules):
+    EnumRewriter(id_context).transform(modules)
+
+
 class EnumRewriter(BaseTransformer):
     name = "enum-rewrite"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, id_context: ast.IdContext):
+        super().__init__(id_context)
         self._tagged_unions: dict[int, ast.StructDef] = {}
 
     def visit_module(self, module: ast.Module):
@@ -212,13 +221,13 @@ class EnumRewriter(BaseTransformer):
     def rewrite_enum_def(self, definition: ast.EnumDef):
         """Create tagged union types / definitions"""
 
-        logger.debug(f"Creating tagged union for {definition.name}")
+        logger.debug(f"Creating tagged union for {definition.id}")
 
         builder2 = ast.StructBuilder(
-            f"{definition.name}Data", True, definition.location
+            self.new_id(f"{definition.id.name}Data"), True, definition.location
         )
         type_vars2 = [
-            builder2.add_type_parameter(tp.name, tp.location)
+            builder2.add_type_parameter(self.new_id(tp.id.name), tp.location)
             for tp in definition.type_parameters
         ]
         m2 = dict(zip(definition.type_parameters, type_vars2))
@@ -232,10 +241,12 @@ class EnumRewriter(BaseTransformer):
             else:
                 assert len(variant.payload) > 1
                 builder3 = ast.StructBuilder(
-                    f"{definition.name}{variant.name}Data", False, variant.location
+                    self.new_id(f"{definition.id.name}{variant.id.name}Data"),
+                    False,
+                    variant.location,
                 )
                 type_vars3 = [
-                    builder3.add_type_parameter(tp.name, tp.location)
+                    builder3.add_type_parameter(self.new_id(tp.id.name), tp.location)
                     for tp in definition.type_parameters
                 ]
 
@@ -246,12 +257,14 @@ class EnumRewriter(BaseTransformer):
                 self.new_defs.append(s_def3)
                 t3 = s_def3.apply(type_vars2)
 
-            builder2.add_field(f"{variant.name}", t3, variant.location)
+            builder2.add_field(variant.id.name, t3, variant.location)
         union_def = builder2.finish()
         self.new_defs.append(union_def)
-        builder1 = ast.StructBuilder(f"{definition.name}", False, definition.location)
+        builder1 = ast.StructBuilder(
+            self.new_id(definition.id.name), False, definition.location
+        )
         type_vars1 = [
-            builder1.add_type_parameter(tp.name, tp.location)
+            builder1.add_type_parameter(self.new_id(tp.id.name), tp.location)
             for tp in definition.type_parameters
         ]
         builder1.add_field("tag", ast.int_type, definition.location)
@@ -363,11 +376,15 @@ class EnumRewriter(BaseTransformer):
             expression.ty = tagged_union_ty
 
 
+def rewrite_classes(id_context, modules):
+    ClassRewriter(id_context).transform(modules)
+
+
 class ClassRewriter(BaseTransformer):
     name = "class-rewrite"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, id_context: ast.IdContext):
+        super().__init__(id_context)
         self._struct_defs = {}
 
     def visit_module(self, module: ast.Module):
@@ -382,33 +399,30 @@ class ClassRewriter(BaseTransformer):
         super().visit_module(module)
 
     def rewrite_class_def(self, class_def: ast.ClassDef):
-        # Add some uniqueness to new parameter names:
-        counter = 1
-
         # Create a struct instead of a class:
         init_values = []
         ctor_parameters = []
         methods = []
         type_args = []
-        builder = ast.StructBuilder(class_def.name, False, class_def.location)
+        builder = ast.StructBuilder(
+            self.new_id(class_def.id.name), False, class_def.location
+        )
         for type_parameter in class_def.type_parameters:
             type_arg = builder.add_type_parameter(
-                f"{type_parameter.name}{counter}", type_parameter.location
+                self.new_id(type_parameter.id.name), type_parameter.location
             )
-            counter += 1
             type_args.append(type_arg)
         m = dict(zip(class_def.type_parameters, type_args))
         for member in class_def.members:
             if isinstance(member, ast.VarDef):
+                id = self.new_id(member.id.name)
                 ty = ast.subst(member.ty, m)
-                builder.add_field(member.name, ty, member.location)
+                builder.add_field(id.name, ty, member.location)
                 if member.value:
                     init_values.append(member.value)
                 else:
                     # Create ctor parameter
-                    ctor_parameter = ast.Parameter(
-                        member.name, True, ty, class_def.location
-                    )
+                    ctor_parameter = ast.Parameter(id, True, ty, class_def.location)
                     ctor_parameters.append(ctor_parameter)
                     init_values.append(
                         ast.obj_ref(ctor_parameter, ty, class_def.location)
@@ -423,36 +437,50 @@ class ClassRewriter(BaseTransformer):
 
         # Patch methods, add this parameter
         for method in methods:
-            logger.debug(f'lifting "{method.name}" to toplevel')
-            method.name = f"{class_def.name}_{method.name}"
+            self.lift_method(method, class_def, struct_def)
 
-            type_args = []
-            for tp in class_def.type_parameters:
-                tp = ast.TypeParameter(f"{tp.name}{counter}", tp.location)
-                counter += 1
-                # Hmm, append type arguments to already existing ones?
-                # TBD: what happens with type annotations?
-                method.type_parameters.append(tp)
-                type_args.append(tp.get_ref())
+        self.create_constructor(class_def, struct_def, init_values, ctor_parameters)
 
-            struct_type = struct_def.apply(type_args)
-            needs_label = False
-            this_param = ast.Parameter(
-                "this2", needs_label, struct_type, class_def.location
-            )
-            method.parameters.insert(0, this_param)
+    def lift_method(
+        self,
+        method: ast.FunctionDef,
+        class_def: ast.ClassDef,
+        struct_def: ast.StructDef,
+    ):
+        logger.debug(f'lifting "{method.id}" to toplevel')
+        method.id.name = f"{class_def.id.name}_{method.id.name}"
 
-            m7 = dict(zip(class_def.type_parameters, type_args))
-            m9 = {class_def.this_var: this_param}
-            replace_goo(method, m7, m9)
-            self.new_defs.append(method)
+        type_args = []
+        for tp in class_def.type_parameters:
+            tp = ast.TypeParameter(self.new_id(tp.id.name), tp.location)
+            # Hmm, append type arguments to already existing ones?
+            # TBD: what happens with type annotations?
+            method.type_parameters.append(tp)
+            type_args.append(tp.get_ref())
 
-        # Create constructor function
+        struct_type = struct_def.apply(type_args)
+        needs_label = False
+        this_param: ast.Parameter = method.this_parameter
+        this_param.ty = struct_type
+        assert this_param
+        method.parameters.insert(0, this_param)
+
+        m7 = dict(zip(class_def.type_parameters, type_args))
+        replace_goo(method, m7)
+        self.new_defs.append(method)
+
+    def create_constructor(
+        self,
+        class_def: ast.ClassDef,
+        struct_def: ast.StructDef,
+        init_values,
+        ctor_parameters,
+    ):
+        """Create constructor function"""
         type_parameters = []  # TODO!
         type_args = []
         for tp in class_def.type_parameters:
-            tp = ast.TypeParameter(f"{tp.name}{counter}", tp.location)
-            counter += 1
+            tp = ast.TypeParameter(self.new_id(tp.id.name), tp.location)
             type_parameters.append(tp)
             type_args.append(tp.get_ref())
         struct_type = struct_def.apply(type_args)
@@ -460,7 +488,7 @@ class ClassRewriter(BaseTransformer):
         ctor_code = ast.return_statement(init_literal, class_def.location)
         except_type = ast.void_type
         ctor_func = ast.function_def(
-            f"{class_def.name}_ctor",
+            self.new_id(f"{class_def.id.name}_ctor"),
             type_parameters,
             ctor_parameters,
             struct_type,
@@ -470,7 +498,7 @@ class ClassRewriter(BaseTransformer):
         )
         m7 = dict(zip(class_def.type_parameters, type_args))
 
-        replace_goo(ctor_func, m7, {})
+        replace_goo(ctor_func, m7)
         self.new_defs.append(ctor_func)
 
         self._struct_defs[id(class_def)] = (struct_def, ctor_func)
@@ -511,25 +539,16 @@ class ClassRewriter(BaseTransformer):
                     )
 
 
-def replace_goo(func_def: ast.FunctionDef, type_mapping, var_mapping):
+def replace_goo(func_def: ast.FunctionDef, type_mapping):
     """Replace occurences of certain type variables and certain variables."""
-    r = TypeReplacer(type_mapping, var_mapping)
+    r = TypeReplacer(type_mapping)
     r.visit_definition(func_def)
 
 
 class TypeReplacer(ast.AstVisitor):
-    def __init__(self, type_mapping, var_mapping):
+    def __init__(self, type_mapping):
         super().__init__()
         self.type_mapping = type_mapping
-        self.var_mapping = var_mapping
-
-    def visit_expression(self, expression: ast.Expression):
-        super().visit_expression(expression)
-        kind = expression.kind
-        if isinstance(kind, ast.ObjRef):
-            obj = kind.obj
-            if obj in self.var_mapping:
-                kind.obj = self.var_mapping[obj]
 
     def visit_type(self, ty: ast.MyType):
         super().visit_type(ty)
@@ -537,6 +556,10 @@ class TypeReplacer(ast.AstVisitor):
             if ty.kind.type_parameter in self.type_mapping:
                 t2 = self.type_mapping[ty.kind.type_parameter]
                 ty.change_to(t2)
+
+
+def rewrite_switch(id_context, modules):
+    SwitchRewriter(id_context).transform(modules)
 
 
 class SwitchRewriter(BaseTransformer):
@@ -562,6 +585,10 @@ class SwitchRewriter(BaseTransformer):
                 )
 
             statement.kind = ast.CompoundStatement([let_x, else_clause])
+
+
+def constant_folding(id_context, modules):
+    ConstantFolder(id_context).transform(modules)
 
 
 class ConstantFolder(BaseTransformer):
