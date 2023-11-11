@@ -52,6 +52,8 @@ class PyCodeGenerator:
                     self.emit(f"self.{field_name} = {field_name}")
                 self.dedent()
             self.dedent()
+        elif isinstance(definition, ast.BuiltinFunction):
+            self.emit(f"# Using external function: {definition.id.name}")
         else:
             raise NotImplementedError(str(definition))
         self.emit("")

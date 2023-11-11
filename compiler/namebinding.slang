@@ -1,7 +1,7 @@
 
 from utils import log_info, log_trace, panic
 from location import Location
-from datatypes import List, Option, Dictionary
+from datatypes import List, Option, Dictionary, option_unwrap
 import ast
 from errors import CompilationError, new_error, new_errors, SingleCompilationError
 
@@ -96,8 +96,8 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
                             filler.define(name: this_parameter2.id.name, symbol: ast.Symbol.Parameter(this_parameter2))
                         None:
                             pass
-                ExternFunction(efunc):
-                    pass
+                ExternFunction(extern_function_def):
+                    filler.define(name: extern_function_def.name, symbol: ast.Symbol.ExternFunction(extern_function_def))
                 Enum(enum_def):
                     filler.define(name: enum_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)))
                     filler.enter_scope(scope: enum_def.scope)
@@ -195,17 +195,17 @@ class ScopeFiller:
 
     fn define(name: str, symbol: ast.Symbol):
         # log_trace("DEFINE {name}")
-        this.scopes.last().define(name, symbol)
+        scopes.last().define(name, symbol)
     
     fn enter_scope(scope: ast.Scope):
-        this.scopes.append(scope)
+        scopes.append(scope)
     
     fn leave_scope():
-        let unused = this.scopes.pop_last()
+        let unused = scopes.pop_last()
 
     fn add_error(location: Location, message: str):
         let err = new_error(location, message)
-        this.errors.append(err)
+        errors.append(err)
 
 fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: ast.VisitPhase):
     case phase:
@@ -261,9 +261,9 @@ fn binder_on_expression(binder: NameBinder, expression: ast.Expression, phase: a
         Post:
             case expression.kind:
                 NameRef(name):
-                    case binder.lookup(name):
-                        Some(symbol):
-                            expression.kind = symbol_to_kind(symbol)
+                    case binder.lookup2(name, location: expression.location):
+                        Some(kind):
+                            expression.kind = kind
                         None:
                             binder.add_error(location: expression.location, message: "'{name}' not defined!")
                 GetAttr(base, attr):
@@ -319,21 +319,48 @@ class NameBinder:
     var scopes: List[ast.Scope] = List()
     var errors: List[SingleCompilationError] = List()
 
-    fn lookup(name: str) -> Option[ast.Symbol]:
-        for scope in this.scopes:
+    fn lookup2(name: str, location: Location) -> Option[ast.ExpressionKind]:
+        for scope in scopes:
             case scope.lookup(name):
-                Some(s):
-                    return Option.Some(s)
+                Some(symbol):
+                    let introduce_this = false
+                    if scope.class_scope:
+                        case symbol:
+                            Function(function_def):
+                                introduce_this = true
+                            Var(var_def):
+                                introduce_this = true
+                        else:
+                            pass
+
+                    if introduce_this:
+                        let base = option_unwrap(lookup3(name: "this", location))
+                        let kind = ast.ExpressionKind.GetAttr(base, field: name)
+                        return Option.Some(kind)
+                    else:
+                        let kind = symbol_to_kind(symbol)
+                        return Option.Some(kind)
+                None:
+                    pass
+        return Option.None()
+
+    fn lookup3(name: str, location: Location) -> Option[ast.Expression]:
+        for scope in scopes:
+            case scope.lookup(name):
+                Some(symbol):
+                    let kind = symbol_to_kind(symbol)
+                    let expr = ast.Expression(kind, ty: ast.undefined_type(), location)
+                    return Option.Some(expr)
                 None:
                     pass
         return Option.None()
 
     fn enter_scope(scope: ast.Scope):
-        this.scopes.prepend(scope)
+        scopes.prepend(scope)
     
     fn leave_scope():
-        let unused = this.scopes.pop_front()
+        let unused = scopes.pop_front()
     
     fn add_error(location: Location, message: str):
         let err = new_error(location, message)
-        this.errors.append(err)
+        errors.append(err)

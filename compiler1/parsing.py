@@ -238,7 +238,9 @@ class CustomTransformer(LarkTransformer):
         return ast.var_def(self.new_id(name), ty, value, location)
 
     def func_def(self, x):
-        # KW_FN id_and_type_parameters function_signature block
+        # KW_PUB? KW_FN id_and_type_parameters function_signature block
+        if x[0].type == "KW_PUB":
+            x = x[1:]
         location, name, type_parameters = x[1]
         parameters, return_type, except_type = x[2]
         body = x[-1]
@@ -251,6 +253,13 @@ class CustomTransformer(LarkTransformer):
             body,
             get_loc(x[0]),
         )
+
+    def extern_func_def(self, x):
+        # extern_func_def: KW_EXTERN KW_FN id_and_type_parameters function_signature NEWLINE
+        location, name, type_parameters = x[2]
+        parameters, return_type, except_type = x[3]
+        ptypes = [p.ty for p in parameters]
+        return ast.BuiltinFunction(name, ptypes, return_type)
 
     def function_signature(self, x):
         # LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
@@ -694,10 +703,12 @@ definition: func_def
           | enum_def
           | class_def
           | type_def
+          | extern_func_def
 
 class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
 var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
-func_def: KW_FN id_and_type_parameters function_signature block
+func_def: KW_PUB? KW_FN id_and_type_parameters function_signature block
+extern_func_def: KW_EXTERN KW_FN id_and_type_parameters function_signature NEWLINE
 function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? (KW_EXCEPT typ)?
 parameters: parameter
           | parameters COMMA parameter
@@ -803,11 +814,11 @@ labeled_expression: test
                   | ID COLON test
 
 %declare KW_AND KW_BREAK KW_CASE KW_CLASS KW_CONTINUE
-%declare KW_ELIF KW_ELSE KW_ENUM
+%declare KW_ELIF KW_ELSE KW_ENUM KW_PUB
 %declare KW_FN KW_FOR KW_FROM KW_IF KW_IMPORT KW_IN
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
 %declare KW_RETURN KW_STRUCT KW_SWITCH KW_TYPE KW_VAR KW_WHILE
-%declare KW_RAISE KW_TRY KW_EXCEPT
+%declare KW_RAISE KW_TRY KW_EXCEPT KW_EXTERN
 
 %declare LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON COMMA DOT ARROW QUESTION

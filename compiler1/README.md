@@ -1,6 +1,6 @@
 Bootstrapping compiler.
 
-Idea: implement a compiler in python, transforming source-code to C++ code.
+Idea: implement a compiler in python, transforming slang source-code to python code.
 
 # Usage
 
@@ -18,8 +18,3 @@ Profile the bootstrap compiler:
 
     $ python -m cProfile -o profiled.out bootstrap.py
     $ pyprof2calltree -i profiled.out -k
-
-Or, profile the C version:
-
-    $ valgrind --tool=callgrind ./compiler5 -cv2 compiler/*.slang
-    $ kcachegrind callgrind.out.4090

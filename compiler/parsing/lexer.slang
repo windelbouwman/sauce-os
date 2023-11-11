@@ -27,90 +27,90 @@ class Lexer:
 
     fn init(source: str):
         this.source = source
-        this.source_length = str_len(source)
-        this.at_end = false
-        this.at_bol = true
-        this.row = 1
-        this.indent_stack.append(0)
+        source_length = str_len(source)
+        at_end = false
+        at_bol = true
+        row = 1
+        indent_stack.append(0)
 
     fn next_token() -> Token:
-        while this.pending.is_empty() and not this.at_end:
-            this.work_some()
+        while pending.is_empty() and not at_end:
+            work_some()
         
-        if this.pending.is_empty():
-            return Token(kind: TokenKind.Eof(), location: location_at(row: this.row, column: 1))
+        if pending.is_empty():
+            return Token(kind: TokenKind.Eof(), location: location_at(row: row, column: 1))
         else:
-            return this.pending.pop_front()
+            return pending.pop_front()
     
     fn pushback_token(token: Token):
-        this.pending.prepend(token)
+        pending.prepend(token)
 
     fn work_some():
-        let tok = this.next_token2()
+        let tok = next_token2()
         # print("EHHH: {token_to_string(tok)}")
         case tok.kind:
             Eof:
-                this.at_end = true
+                at_end = true
 
-                if not this.at_bol:
-                    this.emit_token(kind: TokenKind.NewLine(), location: location_at(row: this.row, column: 1))
+                if not at_bol:
+                    emit_token(kind: TokenKind.NewLine(), location: location_at(row: row, column: 1))
 
                 # Dedent to top level!
-                while this.indent_stack.len() > 1:
-                    let tmp = this.indent_stack.pop_front()
-                    this.emit_token(kind: TokenKind.Dedent(), location: location_at(row: this.row, column: 1))
+                while indent_stack.len() > 1:
+                    let tmp = indent_stack.pop_front()
+                    emit_token(kind: TokenKind.Dedent(), location: location_at(row: row, column: 1))
 
             Space(x):
-                if this.at_bol:
-                    this.spaces += x
+                if at_bol:
+                    spaces += x
             NewLine:
-                this.on_newline(tok)
+                on_newline(tok)
             Comment(x):
                 tok.kind = TokenKind.NewLine()
-                this.on_newline(tok)
+                on_newline(tok)
         else:
-            if this.at_bol:
-                this.at_bol = false
-                if this.spaces > this.indent_stack.last():
+            if at_bol:
+                at_bol = false
+                if spaces > indent_stack.last():
                     # 1x indent!
-                    this.indent_stack.append(this.spaces)
+                    indent_stack.append(spaces)
 
-                    this.emit_token(kind: TokenKind.Indent(), location: tok.location)
+                    emit_token(kind: TokenKind.Indent(), location: tok.location)
                 else:
-                    while this.spaces < this.indent_stack.last():
+                    while spaces < indent_stack.last():
                         # n times dedent!
-                        let tmp = this.indent_stack.pop_last()
-                        if tmp < this.spaces:
+                        let tmp = indent_stack.pop_last()
+                        if tmp < spaces:
                             panic("Indentation error")
-                        this.emit_token(kind: TokenKind.Dedent(), location: tok.location)
+                        emit_token(kind: TokenKind.Dedent(), location: tok.location)
 
             # print("ehhh -> " + token_to_string(tok))
-            this.emit(tok)
+            emit(tok)
 
     fn on_newline(tok: Token):
-        if not this.at_bol:
-            this.emit(tok)
-        this.at_bol = true
-        this.spaces = 0
-        this.row += 1
+        if not at_bol:
+            emit(tok)
+        at_bol = true
+        spaces = 0
+        row += 1
     
     fn emit(tok: Token):
-        this.pending.append(tok)
+        pending.append(tok)
     
     fn emit_token(kind: TokenKind, location: Location):
-        this.emit(tok: Token(kind, location))
+        emit(tok: Token(kind, location))
 
     fn next_token2() -> Token:
-        let n = this.source_length
-        if this.offset < n:
+        let n = source_length
+        if offset < n:
             # Start of new token:
-            this.tok_begin = this.offset
+            tok_begin = offset
             let kind = TokenKind.Error()
-            let begin_column = this.tok_begin - this.col_start + this.start_col
-            let begin = Position(row: this.row, column: begin_column)
+            let begin_column = tok_begin - col_start + start_col
+            let begin = Position(row: row, column: begin_column)
 
             # Get char:
-            let c = this.next_char()
+            let c = next_char()
 
             # Decide what to do based on char:
             if c == '(':
@@ -128,33 +128,33 @@ class Lexer:
             elif c == ':':
                 kind = TokenKind.Colon()
             elif c == ' ':
-                while this.match(txt: ' '):
+                while match(txt: ' '):
                     pass
-                kind = TokenKind.Space(amount: std.str_len(this.get_lexeme()))
+                kind = TokenKind.Space(amount: std.str_len(get_lexeme()))
             elif c == '#':
                 # Line comment
-                while this.offset < n and not is_lf(c: this.peek()):
-                    this.offset += 1
-                this.offset += 1
-                kind = TokenKind.Comment(comment: this.get_lexeme())
-                this.col_start = this.offset
+                while offset < n and not is_lf(c: peek()):
+                    offset += 1
+                offset += 1
+                kind = TokenKind.Comment(comment: get_lexeme())
+                col_start = offset
             elif ord(c) == 34:
-                while this.offset < n and not (ord(c: this.peek()) == 34):
-                    this.offset += 1
-                this.offset += 1
+                while offset < n and not (ord(c: peek()) == 34):
+                    offset += 1
+                offset += 1
                 # String
-                let txt: str = this.get_lexeme()
+                let txt: str = get_lexeme()
                 txt = str_slice(value: txt, begin: 1, end: str_len(txt) - 1)
                 kind = TokenKind.String(txt)
             elif c == '-':
-                if this.match(txt: '>'):
+                if match(txt: '>'):
                     kind = TokenKind.Arrow()
-                elif this.match(txt: '='):
+                elif match(txt: '='):
                     kind = TokenKind.MinusEquals()
                 else:
                     kind = TokenKind.Minus()
             elif c == '+':
-                if this.match(txt: '='):
+                if match(txt: '='):
                     kind = TokenKind.PlusEquals()
                 else:
                     kind = TokenKind.Plus()
@@ -166,105 +166,105 @@ class Lexer:
                 kind = TokenKind.Asterix()
             elif is_lf(c):
                 kind = TokenKind.NewLine()
-                this.col_start = this.offset
+                col_start = offset
             elif is_digit(c):
                 let is_hex = false
-                if c == '0' and this.offset < n:
-                    if this.peek() == 'x':
+                if c == '0' and offset < n:
+                    if peek() == 'x':
                         is_hex = true
-                    elif this.peek() == 'X':
+                    elif peek() == 'X':
                         is_hex = true
 
                 if is_hex:
-                    this.offset += 1
+                    offset += 1
                     # Hex number!
-                    while this.offset < n and is_hex_digit(c: this.peek()):
-                        this.offset += 1
-                    let hextext = this.get_lexeme()
+                    while offset < n and is_hex_digit(c: peek()):
+                        offset += 1
+                    let hextext = get_lexeme()
                     hextext = str_slice(value: hextext, begin: 2, end: str_len(hextext))
                     let int_value = hex_to_int(hextext)
                     kind = TokenKind.Integer(int_value)
                 else:
-                    while this.offset < n and is_digit(c: this.peek()):
-                        this.offset += 1
-                    if this.offset < n and this.peek() == '.':
+                    while offset < n and is_digit(c: peek()):
+                        offset += 1
+                    if offset < n and peek() == '.':
                         # Floating point!
-                        this.offset += 1
-                        while this.offset < n and is_digit(c: this.peek()):
-                            this.offset += 1
-                        let val2 = this.get_lexeme()
+                        offset += 1
+                        while offset < n and is_digit(c: peek()):
+                            offset += 1
+                        let val2 = get_lexeme()
                         let float_value: float = str_to_float(val2)
                         kind = TokenKind.Float(float_value)
                     else:
                         # Normal decimal number
-                        let int_value: int = str_to_int(this.get_lexeme())
+                        let int_value: int = str_to_int(get_lexeme())
                         kind = TokenKind.Integer(int_value)
             elif is_id(c):
-                while this.offset < n and is_id_or_digit(c: this.peek()):
-                    this.offset += 1
+                while offset < n and is_id_or_digit(c: peek()):
+                    offset += 1
 
                 # Check for keywords:
-                kind = check_keyword(txt: this.get_lexeme())
+                kind = check_keyword(txt: get_lexeme())
 
             elif ord(c) == 39:
                 # Char literal
-                this.offset += 2
+                offset += 2
                 # TODO: check closing '
-                let char_value = std.str_get(value: this.get_lexeme(), index: 1)
+                let char_value = std.str_get(value: get_lexeme(), index: 1)
                 kind = TokenKind.Char(char_value)
 
             elif c == '<':
-                if this.match(txt: '='):
+                if match(txt: '='):
                     kind = TokenKind.LessEquals()
                 else:
                     kind = TokenKind.Less()
             elif c == '>':
-                if this.match(txt: '='):
+                if match(txt: '='):
                     kind = TokenKind.GreaterEquals()
                 else:
                     kind = TokenKind.Greater()
             elif c == '=':
-                if this.match(txt: '='):
+                if match(txt: '='):
                     kind = TokenKind.EqualsEquals()
                 else:
                     kind = TokenKind.Equals()
             elif c == '!':
-                if this.match(txt: '='):
+                if match(txt: '='):
                     kind = TokenKind.NotEquals()
 
-            let end_column = this.offset - 1
-            end_column = end_column - this.col_start + this.start_col
+            let end_column = offset - 1
+            end_column = end_column - col_start + start_col
                 
-            let end = Position(row: this.row, column: end_column)
+            let end = Position(row: row, column: end_column)
             let location = Location(begin, end)
 
             return Token(kind, location)
         else:
-            return Token(kind: TokenKind.Eof(), location: location_at(row: this.row, column: 1))
+            return Token(kind: TokenKind.Eof(), location: location_at(row: row, column: 1))
     
     fn peek() -> char:
-        let n = this.source_length
-        if this.offset < n:
-            let c = std.str_get(text: this.source, index: this.offset)
+        let n = source_length
+        if offset < n:
+            let c = std.str_get(text: source, index: offset)
             return c
         else:
             panic("Peek beyond input")
     
     fn next_char() -> char:
-        let n = this.source_length
-        if this.offset < n:
-            let c = std.str_get(text: this.source, index: this.offset)
-            this.offset += 1
+        let n = source_length
+        if offset < n:
+            let c = std.str_get(text: source, index: offset)
+            offset += 1
             return c
         else:
             panic("Next char beyond input")
 
     fn match(txt: char) -> bool:
-        let n = this.source_length
-        if this.offset < n:
-            let c = std.str_get(text: this.source, index: this.offset)
+        let n = source_length
+        if offset < n:
+            let c = std.str_get(text: source, index: offset)
             if c == txt:
-                this.offset += 1
+                offset += 1
                 return true
             else:
                 return false
@@ -272,7 +272,7 @@ class Lexer:
             return false
     
     fn get_lexeme() -> str:
-        return std.str_slice(value: this.source, begin: this.tok_begin, end: this.offset)
+        return std.str_slice(value: source, begin: tok_begin, end: offset)
 
 fn is_lf(c: char) -> bool:
     let o = ord(value: c)
@@ -329,6 +329,8 @@ fn check_keyword(txt: str) -> TokenKind:
         kind = TokenKind.KwEnum()
     elif txt == "except":
         kind = TokenKind.KwExcept()
+    elif txt == "extern":
+        kind = TokenKind.KwExtern()
     elif txt == "fn":
         kind = TokenKind.KwFn()
     elif txt == "for":
@@ -351,6 +353,8 @@ fn check_keyword(txt: str) -> TokenKind:
         kind = TokenKind.KwOr()
     elif txt == "pass":
         kind = TokenKind.KwPass()
+    elif txt == "pub":
+        kind = TokenKind.KwPub()
     elif txt == "raise":
         kind = TokenKind.KwRaise()
     elif txt == "return":

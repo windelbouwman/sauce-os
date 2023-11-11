@@ -66,7 +66,7 @@ fn main() -> int:
         log_info("OK")
         return 0
     except (error: CompilationError):
-        log_error("HORROR")
+        log_error("Errors found during compilation")
         display_error(error)
         return 1
 

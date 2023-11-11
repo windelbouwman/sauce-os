@@ -78,7 +78,7 @@ class ScopeFiller(BasePass):
         elif isinstance(definition, ast.ClassDef):
             for type_parameter in definition.type_parameters:
                 self.define(type_parameter)
-        elif isinstance(definition, (ast.VarDef, ast.TypeDef)):
+        elif isinstance(definition, (ast.VarDef, ast.TypeDef, ast.BuiltinFunction)):
             pass
         else:
             raise NotImplementedError(str(definition))
@@ -226,8 +226,8 @@ class NameBinder(BasePass):
         super().visit_expression(expression)
         kind = expression.kind
         if isinstance(kind, ast.NameRef):
-            obj = self.check_name(kind.name, expression.location)
-            expression.kind = ast.ObjRef(obj)
+            expression.kind = self.check_name(kind.name, expression.location)
+
         elif isinstance(kind, ast.DotOperator):
             # Resolve obj_ref . field at this point, we can do this here.
             if isinstance(kind.base.kind, ast.ObjRef):
@@ -244,19 +244,29 @@ class NameBinder(BasePass):
     def leave_scope(self):
         self._scopes.pop()
 
-    def check_name(self, name: str, location: Location):
+    def check_name(self, name: str, location: Location) -> ast.ExpressionKind:
         assert isinstance(name, str), str(type(name))
         scope = self._scopes[-1]
         for scope in reversed(self._scopes):
             if scope.is_defined(name):
                 obj = scope.lookup(name)
                 assert obj
-                if scope.this_parameter:
-                    # print("class var ref!", name)
-                    # return ast.Undefined()
-                    return obj
+                if scope.has_this_context:
+                    if isinstance(obj, (ast.FunctionDef, ast.VarDef)):
+                        this_parameter = self.lookup2("this", location)
+                        return ast.DotOperator(this_parameter, name)
+                    else:
+                        return ast.ObjRef(obj)
                 else:
-                    return obj
+                    return ast.ObjRef(obj)
 
         self.error(location, f"Undefined symbol: {name}")
         return ast.Undefined()
+
+    def lookup2(self, name: str, location):
+        for scope in reversed(self._scopes):
+            if scope.is_defined(name):
+                obj = scope.lookup(name)
+                return ast.obj_ref(obj, ast.undefined_type(), location)
+
+        raise KeyError(name)

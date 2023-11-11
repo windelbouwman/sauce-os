@@ -13,7 +13,12 @@ from compiler1 import compiler, errors, builtins
 @lru_cache
 def slang_compiler():
     options = compiler.CompilationOptions(backend="py")
-    sources = glob.glob("compiler/*.slang")
+    sources = (
+        glob.glob("compiler/*.slang")
+        + glob.glob("compiler/utils/*.slang")
+        + glob.glob("compiler/parsing/*.slang")
+        + glob.glob("compiler/backend/*.slang")
+    )
 
     f = io.StringIO()
     try:

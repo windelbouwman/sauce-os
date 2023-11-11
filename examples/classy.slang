@@ -8,10 +8,10 @@ class Bar:
 
     fn info(x: int):
         print("Bar instance {x + this.val1}")
-        this.info2()
+        info2()
 
     fn info2():
-        print("Bar instance: " + this.val3)
+        print("Bar instance: " + val3)
 
 
 fn main() -> int:

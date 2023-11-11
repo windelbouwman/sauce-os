@@ -635,20 +635,21 @@ fn extern_function_type(func: ExternFunctionDef) -> Type:
 
 class Scope:
     var symbols: Dictionary[Symbol] = Dictionary()
+    var class_scope: bool = false
 
     fn define(name: str, symbol: Symbol):
-        this.symbols.insert(key: name, value: symbol)
+        symbols.insert(key: name, value: symbol)
     
     fn is_defined(name: str) -> bool:
         # Check if given name is defined.
-        return option_is_some(this.lookup(name))
+        return option_is_some(lookup(name))
 
     fn lookup(name: str) -> Option[Symbol]:
-        return this.symbols.get(key: name)
+        return symbols.get(key: name)
     
     fn dump():
         log_info("Scope:")
-        for name in this.symbols:
+        for name in symbols:
             log_info(" - {name}")
 
 enum Symbol:
@@ -732,32 +733,32 @@ class StructBuilder:
     var fields: List[StructField] = List()
 
     fn set_name(name: str):
-        this.nodeId.name = name
+        nodeId.name = name
     
     fn set_id(id?: int):
-        this.nodeId.id = id
+        nodeId.id = id
     
-    fn set_is_union(is_union2?: bool):
-        this.is_union = is_union2
+    fn set_is_union(is_union?: bool):
+        this.is_union = is_union
 
     fn add_type_parameter(name: str, id: int, location: Location) -> Type:
         let type_parameter = new_type_parameter(name, id, location)
-        this.type_parameters.append(type_parameter)
+        type_parameters.append(type_parameter)
         return type_parameter_ref(type_parameter)
 
     fn add_field(name: str, ty: Type, location: Location):
-        this.fields.append(StructField(name, ty, location))
+        fields.append(StructField(name, ty, location))
 
     fn finish() -> StructDef:
         let scope = Scope()
-        for field in this.fields:
+        for field in fields:
             scope.define(name: field.name, symbol: Symbol.Field(field))
         let struct_def = StructDef:
-            id: this.nodeId
-            is_union: this.is_union
-            type_parameters: this.type_parameters
-            fields: this.fields
-            location: this.location
+            id: nodeId
+            is_union: is_union
+            type_parameters: type_parameters
+            fields: fields
+            location: location
             scope
         return struct_def
 
@@ -1242,16 +1243,16 @@ class AstPrinter:
     var indent_level: int = 0
 
     fn indent():
-        this.indent_level += 1
+        indent_level += 1
 
     fn dedent():
-        this.indent_level -= 1
+        indent_level -= 1
     
     fn get_prefix() -> str:
-        return str_repeat(text: "   ", count: this.indent_level)
+        return str_repeat(text: "   ", count: indent_level)
     
     fn print2(txt: str):
-        let prefix = this.get_prefix()
+        let prefix = get_prefix()
         print(prefix + txt)
 
 fn print_ast_definition(printer: AstPrinter, definition: Definition, phase: VisitPhase):
@@ -1493,14 +1494,17 @@ fn visit_module[T](visitor: Visitor[T], module: Module):
 fn visit_definition[T](visitor: Visitor[T], definition: Definition):
     visitor.on_definition(a: visitor.data, definition, phase: VisitPhase.Pre())
     case definition:
-        Function(func):
+        Function(function_def):
             # print("VISIT {func.name}")
-            for parameter in func.parameters:
+            for parameter in function_def.parameters:
                 visit_type(visitor, ty: parameter.ty)
-            visit_type(visitor, ty: func.return_type)
-            visit_statement(visitor, statement: func.body)
-        ExternFunction(e):
-            pass
+            visit_type(visitor, ty: function_def.return_type)
+            # visit_type(visitor, ty: function_def.except_type)
+            visit_statement(visitor, statement: function_def.body)
+        ExternFunction(extern_function_def):
+            for parameter_type in extern_function_def.parameter_types:
+                visit_type(visitor, ty: parameter_type)
+            visit_type(visitor, ty: extern_function_def.return_type)
         Enum(enum_def):
             for variant in enum_def.variants:
                 for p in variant.payload:
@@ -1547,8 +1551,6 @@ fn visit_type[T](visitor: Visitor[T], ty: Type):
 fn visit_statement[T](visitor: Visitor[T], statement: Statement):
     visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Pre())
     case statement.kind:
-        Pass:
-            pass
         Let(let_statement):
             case let_statement.type_hint:
                 Some(ty):
@@ -1614,33 +1616,14 @@ fn visit_statement[T](visitor: Visitor[T], statement: Statement):
                     pass
         Raise(exc_val):
             visit_expression(visitor, expression: exc_val)
-        Break:
-            pass
-        Continue:
-            pass
+    else:
+        pass
     visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Post())
 
 fn visit_expression[T](visitor: Visitor[T], expression: Expression):
     visitor.on_expression(data: visitor.data, expression, phase: VisitPhase.Pre())
 
     case expression.kind:
-        BoolLiteral(v):
-            pass
-        IntLiteral(v):
-            pass
-        FloatLiteral(val):
-            pass
-        StringLiteral(v):
-            pass
-        CharLiteral(v):
-            pass
-        Undefined:
-            pass
-        NameRef(v):
-            # print("name-ref -> {v}")
-            pass
-        LoadSymbol(s):
-            pass
         Call(v):
             visit_expression(visitor, expression: v.callee)
             for arg in v.arguments:
@@ -1656,8 +1639,6 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
             visit_expression(visitor, expression: v.rhs)
         Unop(op,value):
             visit_expression(visitor, expression: value)
-        VarRef(v):
-            pass
         FunctionRef(function_def, type_arguments):
             for type_argument in type_arguments:
                 visit_type(visitor, ty: type_argument)
@@ -1689,6 +1670,8 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         EnumLiteral(ty, v, values):
             for value in values:
                 visit_expression(visitor, expression: value)
+    else:
+        pass
 
     visitor.on_expression(data: visitor.data, expression, phase: VisitPhase.Post())
 

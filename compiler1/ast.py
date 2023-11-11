@@ -43,7 +43,7 @@ class Definition(Node):
 class Scope:
     def __init__(self):
         self.symbols: dict[str, "Definition"] = {}
-        self.this_parameter = None
+        self.has_this_context = False
 
     def is_defined(self, name: str) -> bool:
         return name in self.symbols
@@ -472,6 +472,10 @@ bool_type = base_type("bool")
 void_type = MyType(VoidType())
 
 
+def undefined_type() -> MyType:
+    return MyType(VoidType())
+
+
 class Expression(Node):
     def __init__(self, kind: "ExpressionKind", ty: MyType, location: Location):
         super().__init__(location)
@@ -620,6 +624,7 @@ class ClassDef(TypeConstructor):
     ):
         super().__init__(id, location, type_parameters)
         self.members = members
+        self.scope.has_this_context = True
 
         # Create 'this' variable
         # TODO: this might be a type-ish loop? Dunno..
@@ -1553,6 +1558,8 @@ class AstVisitor:
             if definition.value:
                 self.visit_expression(definition.value)
         elif isinstance(definition, TypeDef):
+            self.visit_type(definition.ty)
+        elif isinstance(definition, BuiltinFunction):
             self.visit_type(definition.ty)
 
     def visit_node(self, node: Node):

@@ -67,43 +67,43 @@ class CGenerator:
     var structs: List[bc.Struct] = List()
 
     fn emit_runtime():
-        this.emit("// runtime functions:")
+        emit("// runtime functions:")
 
-        this.emit("void* rt_malloc(int size);")
-        this.emit("void rt_incref(void *ptr);")
-        this.emit("void rt_decref(void *ptr);")
+        emit("void* rt_malloc(int size);")
+        emit("void rt_incref(void *ptr);")
+        emit("void rt_decref(void *ptr);")
 
-        this.emit("void std_print(char *message);")
-        this.emit("void std_exit(int code);")
+        emit("void std_print(char *message);")
+        emit("void std_exit(int code);")
 
-        this.emit("char* std_read_file(char *filename);")
+        emit("char* std_read_file(char *filename);")
 
-        this.emit("char* rt_str_concat(char*, char*);")
-        this.emit("int rt_str_compare(char *a, char *b);")
-        this.emit("int std_str_len(char* txt);")
-        this.emit("char* std_str_slice(char* txt, int begin, int end);")
-        this.emit("char* std_str_get(char* txt, int pos);")
+        emit("char* rt_str_concat(char*, char*);")
+        emit("int rt_str_compare(char *a, char *b);")
+        emit("int std_str_len(char* txt);")
+        emit("char* std_str_slice(char* txt, int begin, int end);")
+        emit("char* std_str_get(char* txt, int pos);")
 
-        this.emit("int std_ord(char *txt);")
+        emit("int std_ord(char *txt);")
 
-        this.emit("char *std_int_to_str(int x);")
-        this.emit("int std_str_to_int(char *x);")
-        this.emit("char *std_float_to_str(double x);")
+        emit("char *std_int_to_str(int x);")
+        emit("int std_str_to_int(char *x);")
+        emit("char *std_float_to_str(double x);")
 
     fn gen_struct_def(sidx: int, struct_def: bc.Struct):
         if struct_def.is_union:
-            this.emit("union U{sidx} {chr(123)}")
+            emit("union U{sidx} {chr(123)}")
         else:
-            this.emit("struct S{sidx} {chr(123)}")
-        this.indent()
+            emit("struct S{sidx} {chr(123)}")
+        indent()
         let index = 0
         for field in struct_def.fields:
-            let typed_var = this.get_type_txt(ty: field, name: "field{index}")
-            this.emit("{typed_var};")
+            let typed_var = get_type_txt(ty: field, name: "field{index}")
+            emit("{typed_var};")
             index += 1
-        this.dedent()
-        this.emit("{chr(125)};")
-        this.emit("")
+        dedent()
+        emit("{chr(125)};")
+        emit("")
 
     fn get_function_decl(function: bc.Function, fill_param: bool) -> str:
         let parameters2: List[str] = List()
@@ -111,8 +111,8 @@ class CGenerator:
         for parameter_type in function.parameters:
             let pname = "P{index}"
             if fill_param:
-                this.local_parameters.append(Value(name: pname, ty: parameter_type))
-            let typed_var = this.get_type_txt(ty: parameter_type, name: pname)
+                local_parameters.append(Value(name: pname, ty: parameter_type))
+            let typed_var = get_type_txt(ty: parameter_type, name: pname)
             parameters2.append(typed_var)
             index += 1
         let param_txt = str_join(parts: parameters2, sep: ", ")
@@ -120,36 +120,36 @@ class CGenerator:
         let return_type = "void"
         case function.return_type:
             Some(ty):
-                return_type = this.get_type_txt(ty, name: "")
+                return_type = get_type_txt(ty, name: "")
             None:
                 return_type = "void"
         return "{return_type} {function.name}({param_txt})"
 
     fn gen_function(function: bc.Function):
-        this.next_id = 1
-        this.local_variables = List()
-        this.local_parameters = List()
+        next_id = 1
+        local_variables = List()
+        local_parameters = List()
 
-        let decl = this.get_function_decl(function, fill_param: true)
+        let decl = get_function_decl(function, fill_param: true)
         # TODO: allow string literal escaping
-        this.emit("{decl} {chr(123)}")  # '{' = 123
-        this.indent()
+        emit("{decl} {chr(123)}")  # '{' = 123
+        indent()
         for ty in function.locals:
-            let varname = this.new_local_var()
-            let ty_txt = this.get_type_txt(ty, name: varname)
-            this.emit("{ty_txt};")
-            this.local_variables.append(Value(name: varname, ty))
+            let varname = new_local_var()
+            let ty_txt = get_type_txt(ty, name: varname)
+            emit("{ty_txt};")
+            local_variables.append(Value(name: varname, ty))
 
         let target_labels = get_target_labels(instructions: function.instructions)
         let index = 0
         for instruction in function.instructions:
             if target_labels.contains(int_to_str(index)):
-                this.emit("{this.get_label_str(index)}:")
-            this.gen_instruction(instruction)
+                emit("{get_label_str(index)}:")
+            gen_instruction(instruction)
             index += 1
-        this.dedent()
-        this.emit("{chr(125)}") # '}' => 125
-        this.emit("")
+        dedent()
+        emit("{chr(125)}") # '}' => 125
+        emit("")
 
     fn gen_instruction(instruction: bc.Instruction):
         case instruction:
@@ -157,35 +157,35 @@ class CGenerator:
                 pass
 
             Dup:
-                let value = this.pop()
-                this.push(value)
-                this.push(value)
+                let value = pop()
+                push(value)
+                push(value)
 
             Literal(literal):
                 case literal:
                     Int(value):
-                        this.push(Value(name: "{value}", ty: bc.Type.Int()))
+                        push(Value(name: "{value}", ty: bc.Type.Int()))
                     Float(value):
-                        this.push(Value(name: "{float_to_str(value)}", ty: bc.Type.Float()))
+                        push(Value(name: "{float_to_str(value)}", ty: bc.Type.Float()))
                     Str(value):
-                        this.push(Value(name: "{chr(34)}{value}{chr(34)}", ty: bc.Type.Str()))
+                        push(Value(name: "{chr(34)}{value}{chr(34)}", ty: bc.Type.Str()))
                     Bool(value):
                         if value:
-                            this.push(Value(name: "1", ty: bc.Type.Int()))
+                            push(Value(name: "1", ty: bc.Type.Int()))
                         else:
-                            this.push(Value(name: "0", ty: bc.Type.Int()))
+                            push(Value(name: "0", ty: bc.Type.Int()))
 
             Jump(label):
-                this.emit("goto {this.get_label_str(label)};")
+                emit("goto {get_label_str(label)};")
 
             JumpIf(label1, label2):
-                let condition = this.pop()
-                this.emit("if ({condition.name}) goto {this.get_label_str(label1)};")
-                this.emit("  else goto {this.get_label_str(label2)};")
+                let condition = pop()
+                emit("if ({condition.name}) goto {get_label_str(label1)};")
+                emit("  else goto {get_label_str(label2)};")
 
             # Raise
-                # let value = this.pop()
-                # this.emit("longjmp(jmpbuf, {value.name});")
+                # let value = pop()
+                # emit("longjmp(jmpbuf, {value.name});")
 
             Not:
                 panic("TODO: not")
@@ -194,9 +194,9 @@ class CGenerator:
                 panic("TODO: neg")
 
             Binop(op):
-                let rhs = this.pop()
-                let lhs = this.pop()
-                let varname = this.new_local_var()
+                let rhs = pop()
+                let lhs = pop()
+                let varname = new_local_var()
                 let ty = lhs.ty
                 case op:
                     Add:
@@ -220,124 +220,124 @@ class CGenerator:
                     NotEquals:
                         ty = bc.Type.Int()
 
-                let typed_var = this.get_type_txt(ty, name: varname)
+                let typed_var = get_type_txt(ty, name: varname)
                 case op:
                     Add:
-                        this.emit("const {typed_var} = {lhs.name} + {rhs.name};")
+                        emit("const {typed_var} = {lhs.name} + {rhs.name};")
                     Sub:
-                        this.emit("const {typed_var} = {lhs.name} - {rhs.name};")
+                        emit("const {typed_var} = {lhs.name} - {rhs.name};")
                     Multiply:
-                        this.emit("const {typed_var} = {lhs.name} * {rhs.name};")
+                        emit("const {typed_var} = {lhs.name} * {rhs.name};")
                     Divide:
-                        this.emit("const {typed_var} = {lhs.name} / {rhs.name};")
+                        emit("const {typed_var} = {lhs.name} / {rhs.name};")
 
                     Less:
-                        this.emit("const {typed_var} = ({lhs.name} < {rhs.name});")
+                        emit("const {typed_var} = ({lhs.name} < {rhs.name});")
                     LessEquals:
-                        this.emit("const {typed_var} = ({lhs.name} <= {rhs.name});")
+                        emit("const {typed_var} = ({lhs.name} <= {rhs.name});")
                     Greater:
-                        this.emit("const {typed_var} = ({lhs.name} > {rhs.name});")
+                        emit("const {typed_var} = ({lhs.name} > {rhs.name});")
                     GreaterEquals:
-                        this.emit("const {typed_var} = ({lhs.name} >= {rhs.name});")
+                        emit("const {typed_var} = ({lhs.name} >= {rhs.name});")
                     Equals:
-                        this.emit("const {typed_var} = ({lhs.name} == {rhs.name});")
+                        emit("const {typed_var} = ({lhs.name} == {rhs.name});")
                     NotEquals:
-                        this.emit("const {typed_var} = ({lhs.name} != {rhs.name});")
-                this.push(Value(name: varname, ty))
+                        emit("const {typed_var} = ({lhs.name} != {rhs.name});")
+                push(Value(name: varname, ty))
 
             IntToFloat:
-                let value = this.pop()
-                let varname = this.new_local_var()
+                let value = pop()
+                let varname = new_local_var()
                 let ty = bc.Type.Float()
-                let typed_var = this.get_type_txt(ty, name: varname)
-                this.emit("{typed_var} = (double)({value.name});")
-                this.push(Value(name: varname, ty))
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("{typed_var} = (double)({value.name});")
+                push(Value(name: varname, ty))
             Call(n_args, result_type):
-                let args = this.pop_n(count: n_args)
-                let callee = this.pop().name
+                let args = pop_n(count: n_args)
+                let callee = pop().name
                 let args2: List[str] = List()
                 for arg in args:
                     args2.append(arg.name)
                 let arg_text = str_join(parts: args2, sep: ", ")
                 case result_type:
                     Some(ty):
-                        let varname = this.new_local_var()
-                        let typed_var = this.get_type_txt(ty, name: varname)
-                        this.emit("{typed_var} = {callee}({arg_text});")
-                        this.push(Value(name: varname, ty))
+                        let varname = new_local_var()
+                        let typed_var = get_type_txt(ty, name: varname)
+                        emit("{typed_var} = {callee}({arg_text});")
+                        push(Value(name: varname, ty))
                     None:
-                        this.emit("{callee}({arg_text});")
+                        emit("{callee}({arg_text});")
 
             LocalGet(index):
-                let varname = this.local_variables.get(index)
-                this.push(varname)
+                let varname = local_variables.get(index)
+                push(varname)
 
             LocalSet(index):
-                let value = this.pop()
-                let varname = this.local_variables.get(index)
-                this.emit("{varname.name} = {value.name};")
+                let value = pop()
+                let varname = local_variables.get(index)
+                emit("{varname.name} = {value.name};")
 
             ParameterGet(index):
-                let varname = this.local_parameters.get(index)
-                this.push(varname)
+                let varname = local_parameters.get(index)
+                push(varname)
 
             GetAttr(index, ty):
-                let base = this.pop()
-                let varname = this.new_local_var()
-                let typed_var = this.get_type_txt(ty, name: varname)
-                this.emit("{typed_var} = {base.name}->field{index};")
-                this.push(Value(name: varname, ty))
+                let base = pop()
+                let varname = new_local_var()
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("{typed_var} = {base.name}->field{index};")
+                push(Value(name: varname, ty))
 
             SetAttr(index):
-                let value = this.pop()
-                let base = this.pop()
-                this.emit("{base.name}->field{index} = {value.name};")
+                let value = pop()
+                let base = pop()
+                emit("{base.name}->field{index} = {value.name};")
 
             Return(amount):
                 if amount == 1:
-                    let value = this.pop()
-                    this.emit("return {value.name};")
+                    let value = pop()
+                    emit("return {value.name};")
                 else:
-                    this.emit("return;")
+                    emit("return;")
 
             LoadFunc(name):
-                this.push(Value(name, ty: bc.Type.Ptr()))
+                push(Value(name, ty: bc.Type.Ptr()))
 
             StructLiteral(index):
                 # we can derive count from struct type:
-                let struct_def = this.structs.get(index)
-                let values = this.pop_n(count: struct_def.fields.len())
+                let struct_def = structs.get(index)
+                let values = pop_n(count: struct_def.fields.len())
                 # Malloc it!
-                let varname = this.new_local_var()
+                let varname = new_local_var()
                 let ty = bc.Type.StructRef(index)  # "struct S{index}*"
-                let typed_var = this.get_type_txt(ty, name: varname)
-                this.emit("{typed_var} = rt_malloc(sizeof(struct S{index}));")
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("{typed_var} = rt_malloc(sizeof(struct S{index}));")
                 let index2 = 0
                 for value in values:
-                    this.emit("{varname}->field{index2} = {value.name};")
+                    emit("{varname}->field{index2} = {value.name};")
                     index2 += 1
-                this.push(Value(name: varname, ty))
+                push(Value(name: varname, ty))
 
             UnionLiteral(struct_index, field_index):
-                let value = this.pop()
+                let value = pop()
                 # Treat unions as structs (for now)
                 # Malloc it!
-                let varname = this.new_local_var()
+                let varname = new_local_var()
                 let ty = bc.Type.StructRef(struct_index)   # "union U{struct_index}*"
-                let typed_var = this.get_type_txt(ty, name: varname)
-                this.emit("{typed_var} = rt_malloc(sizeof(union U{struct_index}));")
-                this.emit("{varname}->field{field_index} = {value.name};")
-                this.push(Value(name: varname, ty))
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("{typed_var} = rt_malloc(sizeof(union U{struct_index}));")
+                emit("{varname}->field{field_index} = {value.name};")
+                push(Value(name: varname, ty))
 
             ArrayLiteral(size):
-                let varname = this.new_local_var()
-                let values = this.pop_n(count: size)
+                let varname = new_local_var()
+                let values = pop_n(count: size)
                 let parts: List[str] = List()
                 for value in values:
                     parts.append(value.name)
                 let arg_text = str_join(parts, sep: ",")
-                this.emit("const int {varname} [{size}] = | {arg_text} |;")
-                this.push(Value(name: varname, ty: bc.Type.Int()))
+                emit("const int {varname} [{size}] = | {arg_text} |;")
+                push(Value(name: varname, ty: bc.Type.Int()))
 
     fn get_type_txt(ty: bc.Type, name: str) -> str:
         case ty:
@@ -350,45 +350,45 @@ class CGenerator:
             Ptr:
                 return "void* {name}"
             StructRef(index):
-                if this.structs.get(index).is_union:
+                if structs.get(index).is_union:
                     return "union U{index}* {name}"
                 else:
                     return "struct S{index}* {name}"
             Function(parameter_types):
                 let parts: List[str] = List()
                 for p in parameter_types:
-                    parts.append(this.get_type_txt(ty: p, name: ""))
+                    parts.append(get_type_txt(ty: p, name: ""))
                 let param_text = str_join(parts, sep: ", ")
                 return "void (*{name})({param_text})"
 
     fn push(value?: Value):
-        this.stack.append(value)
+        stack.append(value)
     
     fn pop_n(count: int) -> List[Value]:
         let values: List[Value] = List()
         while count > 0:
-            let val = this.pop()
+            let val = pop()
             values.append(val)
             count -= 1
         return values.reversed()
 
     fn pop() -> Value:
-        return this.stack.pop_last()
+        return stack.pop_last()
     
     fn get_label_str(index?: int) -> str:
         return "L{index}"
     
     fn new_local_var() -> str:
-        let id = this.next_id
-        this.next_id += 1
+        let id = next_id
+        next_id += 1
         return "VAR{id}"
 
     fn indent():
-        this.indentation += 1
+        indentation += 1
 
     fn dedent():
-        this.indentation -= 1
+        indentation -= 1
 
     fn emit(text?: str):
-        let indent = str_repeat(text: "   ", count: this.indentation)
+        let indent = str_repeat(text: "   ", count: indentation)
         print(indent + text)

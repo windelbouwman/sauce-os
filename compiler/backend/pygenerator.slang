@@ -21,107 +21,107 @@ class PyGenerator:
 
     fn gen_module(module: ast.Module):
         for definition in module.definitions:
-            this.gen_definition(definition)
+            gen_definition(definition)
 
     fn emit_runtime():
         # Print out runtime functions required
         # TODO: figure out multiline string support?
         # TBD: how to handle multiline strings. Do we want this?
-        this.emit("import sys")
-        this.emit("std_print = print")
-        this.emit("std_int_to_str = str")
-        this.emit("std_str_to_int = int")
-        this.emit("std_float_to_str = str")
-        this.emit("std_str_to_float = float")
-        this.emit("std_char_to_str = str")
-        this.emit("std_str_len = len")
-        this.emit("def std_str_get(s, i):  return s[i]")
-        this.emit("def std_str_slice(s,b,e):   return s[b:e]")
-        this.emit("def rt_str_concat(a, b):  return a + b")
-        this.emit("def rt_str_compare(a, b):  return a == b")
-        this.emit("std_ord = ord")
-        this.emit("std_chr = chr")
-        this.emit("def std_get_n_args() -> int: return len(sys.argv) - 1")
-        this.emit("def std_get_arg(index) -> str:  return sys.argv[index + 1]")
-        this.emit("def std_exit(code: int): raise RuntimeError('EXIT with code: ' + str(code))")
-        this.emit("def std_read_file(filename: str) -> str:")
-        this.indent()
-        this.emit("with open(filename, 'r') as f:")
-        this.indent()
-        this.emit("return f.read()")
-        this.dedent()
-        this.dedent()
+        emit("import sys")
+        emit("std_print = print")
+        emit("std_int_to_str = str")
+        emit("std_str_to_int = int")
+        emit("std_float_to_str = str")
+        emit("std_str_to_float = float")
+        emit("std_char_to_str = str")
+        emit("std_str_len = len")
+        emit("def std_str_get(s, i):  return s[i]")
+        emit("def std_str_slice(s,b,e):   return s[b:e]")
+        emit("def rt_str_concat(a, b):  return a + b")
+        emit("def rt_str_compare(a, b):  return a == b")
+        emit("std_ord = ord")
+        emit("std_chr = chr")
+        emit("def std_get_n_args() -> int: return len(sys.argv) - 1")
+        emit("def std_get_arg(index) -> str:  return sys.argv[index + 1]")
+        emit("def std_exit(code: int): raise RuntimeError('EXIT with code: ' + str(code))")
+        emit("def std_read_file(filename: str) -> str:")
+        indent()
+        emit("with open(filename, 'r') as f:")
+        indent()
+        emit("return f.read()")
+        dedent()
+        dedent()
 
     fn gen_definition(definition: ast.Definition):
         case definition:
             Function(function_def):
                 let parameter_names: List[str] = List()
                 for parameter in function_def.parameters:
-                    parameter_names.append(this.get_id(id: parameter.id))
+                    parameter_names.append(get_id(id: parameter.id))
                 let params = str_join(parts: parameter_names, sep: ", ")
-                this.emit("def {this.get_id(id: function_def.id)}({params}):")
-                this.gen_block(function_def.body)
-                this.emit("")
-                this.emit("")
+                emit("def {get_id(id: function_def.id)}({params}):")
+                gen_block(function_def.body)
+                emit("")
+                emit("")
             Struct(struct_def):
-                this.emit("class {this.get_id(id: struct_def.id)}:")
-                this.indent()
+                emit("class {get_id(id: struct_def.id)}:")
+                indent()
                 if struct_def.is_union:
-                    this.emit("def __init__(self, field, value):")
-                    this.indent()
-                    this.emit("setattr(self, field, value)")
-                    this.dedent()
+                    emit("def __init__(self, field, value):")
+                    indent()
+                    emit("setattr(self, field, value)")
+                    dedent()
                 else:
                     let parameter_names: List[str] = List()
                     for field in struct_def.fields:
                         parameter_names.append(field.name)
                     let params = str_join(parts: parameter_names, sep: ", ")
-                    this.emit("def __init__(self, {params}):")
-                    this.indent()
+                    emit("def __init__(self, {params}):")
+                    indent()
                     for field in struct_def.fields:
-                        this.emit("self.{field.name} = {field.name}")
-                    this.dedent()
-                this.dedent()
-                this.emit("")
-                this.emit("")
+                        emit("self.{field.name} = {field.name}")
+                    dedent()
+                dedent()
+                emit("")
+                emit("")
             Class(class_def):
                 panic("class-def not supported")
-            ExternFunction(e):
-                panic("extern-function not supported")
+            ExternFunction(extern_function_def):
+                emit("# Using external function: {extern_function_def.name}")
             Enum(enum_def):
                 panic("enum-def not supported")
             Var(variable_def):
                 panic("var-def not supported")
 
     fn gen_block(body?: ast.Statement):
-        this.indent()
-        this.gen_statement(body)
-        this.dedent()
+        indent()
+        gen_statement(body)
+        dedent()
 
     fn gen_statement(statement?: ast.Statement):
         case statement.kind:
             While(while_statement):
-                this.emit("while {this.gen_expression(while_statement.condition, parens: false)}:")
-                this.gen_block(while_statement.block.body)
+                emit("while {gen_expression(while_statement.condition, parens: false)}:")
+                gen_block(while_statement.block.body)
             Let(let_statement):
-                this.emit("{this.get_id(id: let_statement.variable.id)} = {this.gen_expression(let_statement.value, parens: false)}")
+                emit("{get_id(id: let_statement.variable.id)} = {gen_expression(let_statement.value, parens: false)}")
             If(if_statement):
-                this.gen_if_statement(if_statement, kw: "if")
+                gen_if_statement(if_statement, kw: "if")
             Pass:
-                this.emit("pass")
+                emit("pass")
             Break:
-                this.emit("break")
+                emit("break")
             Continue:
-                this.emit("continue")
+                emit("continue")
             Try(try_statement):
-                this.emit("try:")
-                this.gen_block(try_statement.try_block.body)
-                let ex_name = "ex_{this.get_id(id: try_statement.except_param.id)}"
-                this.emit("except ValueError as {ex_name}:")
-                this.indent()
-                this.emit("{this.get_id(id: try_statement.except_param.id)} = {ex_name}.args[0]")
-                this.gen_statement(try_statement.except_block.body)
-                this.dedent()
+                emit("try:")
+                gen_block(try_statement.try_block.body)
+                let ex_name = "ex_{get_id(id: try_statement.except_param.id)}"
+                emit("except ValueError as {ex_name}:")
+                indent()
+                emit("{get_id(id: try_statement.except_param.id)} = {ex_name}.args[0]")
+                gen_statement(try_statement.except_block.body)
+                dedent()
             Assignment(target, op, value):
                 let op_txt = ""
                 case op:
@@ -129,34 +129,34 @@ class PyGenerator:
                         op_txt = "="
                     Some(op3):
                         op_txt = "{binary_operator_to_str(op: op3)}="
-                this.emit("{this.gen_expression(target, parens: true)} {op_txt} {this.gen_expression(value, parens: false)}")
+                emit("{gen_expression(target, parens: true)} {op_txt} {gen_expression(value, parens: false)}")
             Return(value):
                 case value:
                     None:
-                        this.emit("return")
+                        emit("return")
                     Some(value2):
-                        this.emit("return {this.gen_expression(value2, parens: false)}")
+                        emit("return {gen_expression(value2, parens: false)}")
             Raise(value):
-                this.emit("raise ValueError({this.gen_expression(value, parens: false)})")
+                emit("raise ValueError({gen_expression(value, parens: false)})")
             Compound(inner):
                 for s in inner:
-                    this.gen_statement(s)
+                    gen_statement(s)
             Expr(expr):
-                this.emit(this.gen_expression(expr, parens: true))
+                emit(gen_expression(expr, parens: true))
         else:
             panic("Unsupported: {ast.statement_to_string(statement)}")
 
     fn gen_if_statement(if_statement: ast.IfStatement, kw: str):
-        this.emit("{kw} {this.gen_expression(if_statement.condition, parens: false)}:")
-        this.gen_block(if_statement.true_block.body)
+        emit("{kw} {gen_expression(if_statement.condition, parens: false)}:")
+        gen_block(if_statement.true_block.body)
         case if_statement.false_block.body.kind:
             If(if2):
-                this.gen_if_statement(if_statement: if2, kw: "elif")
+                gen_if_statement(if_statement: if2, kw: "elif")
             Pass:
                 pass
         else:
-            this.emit("else:")
-            this.gen_block(if_statement.false_block.body)
+            emit("else:")
+            gen_block(if_statement.false_block.body)
 
     fn gen_expression(expression?: ast.Expression, parens: bool) -> str:
         let txt = "?"
@@ -178,47 +178,47 @@ class PyGenerator:
                 txt = float_to_str(value)
             StructLiteral(ty, values):
                 let struct_def = ast.get_struct_def_from_type(ty)
-                let name = this.get_id(id: struct_def.id)
-                let args = this.gen_expression_list(expressions: values)
+                let name = get_id(id: struct_def.id)
+                let args = gen_expression_list(expressions: values)
                 txt = "{name}({args})"
             UnionLiteral(ty, field, value):
                 let struct_def = ast.get_struct_def_from_type(ty)
-                let name = this.get_id(id: struct_def.id)
-                let value_txt = this.gen_expression(value, parens: true)
+                let name = get_id(id: struct_def.id)
+                let value_txt = gen_expression(value, parens: true)
                 txt = "{name}('{field}', {value_txt})"
             ArrayLiteral(values):
-                let args = this.gen_expression_list(expressions: values)
+                let args = gen_expression_list(expressions: values)
                 txt = "[{args}]"
             GetAttr(base, attr):
-                let b = this.gen_expression(base, parens: true)
+                let b = gen_expression(base, parens: true)
                 txt = "{b}.{attr}"
             GetIndex(base, indici):
-                let b = this.gen_expression(base, parens: true)
-                let i = this.gen_expression_list(expressions: indici)
+                let b = gen_expression(base, parens: true)
+                let i = gen_expression_list(expressions: indici)
                 txt = "{b}[{i}]"
             TypeCast(ty, value):
                 # TODO
-                txt = this.gen_expression(value, parens: true)
+                txt = gen_expression(value, parens: true)
             LoadSymbol(symbol):
                 case symbol:
                     ExternFunction(extern_function):
                         txt = extern_function.name
                     Parameter(parameter):
-                        txt = this.get_id(id: parameter.id)
+                        txt = get_id(id: parameter.id)
                     Var(variable):
-                        txt = this.get_id(id: variable.id)
+                        txt = get_id(id: variable.id)
                 else:
                     panic("Unsupported: {ast.symbol_to_str(symbol)}")
             VarRef(variable):
-                txt = this.get_id(id: variable.id)
+                txt = get_id(id: variable.id)
             FunctionRef(function_def, type_parameters):
-                txt = this.get_id(id: function_def.id)
+                txt = get_id(id: function_def.id)
             Call(call):
                 let expressions: List[ast.Expression] = List()
                 for argument in call.arguments:
                     expressions.append(argument.value)
-                let argument_text = this.gen_expression_list(expressions)
-                txt = "{this.gen_expression(call.callee, parens: true)}({argument_text})"
+                let argument_text = gen_expression_list(expressions)
+                txt = "{gen_expression(call.callee, parens: true)}({argument_text})"
             Unop(op, value):
                 let op2 = "$"
                 case op:
@@ -226,12 +226,12 @@ class PyGenerator:
                         op2 = "not "
                     Minus:
                         op2 = "-"
-                txt = "{op2}{this.gen_expression(value, parens: true)}"
+                txt = "{op2}{gen_expression(value, parens: true)}"
                 if parens:
                     txt = "({txt})"
             Binop(binop):
                 let op = binary_operator_to_str(op: binop.op)
-                txt = "{this.gen_expression(binop.lhs, parens: true)} {op} {this.gen_expression(binop.rhs, parens: true)}"
+                txt = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
                 if parens:
                     txt = "({txt})"
         else:
@@ -241,7 +241,7 @@ class PyGenerator:
     fn gen_expression_list(expressions: List[ast.Expression]) -> str:
         let parts: List[str] = List()
         for expression in expressions:
-            parts.append(this.gen_expression(expression, parens: false))
+            parts.append(gen_expression(expression, parens: false))
         return str_join(parts, sep: ", ")
     
     fn get_id(id: ast.NodeId) -> str:
@@ -251,14 +251,14 @@ class PyGenerator:
             return "X{id.id}_{id.name}"
 
     fn emit(txt?: str):
-        let space = str_repeat(text: "    ", count: this.indent_level)
+        let space = str_repeat(text: "    ", count: indent_level)
         print(space + txt)
     
     fn indent():
-        this.indent_level += 1
+        indent_level += 1
     
     fn dedent():
-        this.indent_level -= 1
+        indent_level -= 1
 
 fn binary_operator_to_str(op: ast.BinaryOperator) -> str:
     let op_txt = "?"

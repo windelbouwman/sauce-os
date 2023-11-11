@@ -163,30 +163,30 @@ class NewOp:
             Typ(ty2):
                 return Option.Some(ty2)
             TypeConstructor(tycon):
-                let ty2 = this.turn_tycon_to_type(tycon)
+                let ty2 = turn_tycon_to_type(tycon)
                 return Option.Some(ty2)
         else:
             return Option.None()
 
     fn eval_type_expr(expression: ast.Expression) -> ast.Type:
         # Try to use this expression as a type.
-        case this.try_as_type(expression):
+        case try_as_type(expression):
             Some(ty2):
                 return ty2
             None:
                 let message = "Invalid type expression: {ast.expression_to_string(expression)}"
-                this.add_error(location: expression.location, message)
+                add_error(location: expression.location, message)
                 return ast.undefined_type()
 
     fn add_error(location: Location, message: str):
-        this.errors.append(new_error(location, message))
+        errors.append(new_error(location, message))
     
     fn turn_tycon_to_type(tycon: ast.TyCon) -> ast.Type:
         let type_arguments: List[ast.Type] = List()
         for tp in ast.tycon_get_type_parameters(tycon):
-            let type_var: ast.TypeVariable = ast.new_type_var(unique: this.new_id())
+            let type_var: ast.TypeVariable = ast.new_type_var(unique: new_id())
             type_arguments.append(ast.new_type_var_ref(type_var))
         return ast.apply_tycon(tycon, type_arguments)
     
     fn new_id() -> int:
-        return this.id_gen.new_id()
+        return id_gen.new_id()

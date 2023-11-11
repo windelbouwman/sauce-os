@@ -61,6 +61,9 @@ class ByteCodeGenerator:
                 self.gen_function(definition)
             elif isinstance(definition, ast.StructDef):
                 self.gen_struct(definition)
+            elif isinstance(definition, ast.BuiltinFunction):
+                # TODO: maybe generate import clause?
+                pass
             else:
                 raise NotImplementedError(str(definition))
 

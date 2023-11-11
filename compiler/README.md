@@ -20,3 +20,10 @@ Use this bootstrap script to compile compiler using compiler1:
 Now, you can use compiler to compile itself:
 
     $ python tmp-compiler.py compiler/*.slang > tmp2.py
+
+# Profiling
+
+Profile the C version:
+
+    $ valgrind --tool=callgrind ./compiler5 -cv2 compiler/*.slang
+    $ kcachegrind callgrind.out.4090

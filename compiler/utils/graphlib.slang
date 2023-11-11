@@ -12,40 +12,40 @@ class DiGraph:
     var succ: Dictionary[Set] = Dictionary()
 
     fn add_node(n?: str):
-        if not this.nodes.contains(key: n):
-            this.nodes.add(n)
+        if not nodes.contains(key: n):
+            nodes.add(n)
             # TODO: assert n not in pred and succ?
-            this.pred.insert(key: n, value: Set())
-            this.succ.insert(key: n, value: Set())
+            pred.insert(key: n, value: Set())
+            succ.insert(key: n, value: Set())
     
     fn add_edge(src: str, dst: str):
-        this.add_node(src)
-        this.add_node(dst)
-        option_unwrap(this.succ.get(key: src)).add(dst)
-        option_unwrap(this.pred.get(key: dst)).add(src)
+        add_node(src)
+        add_node(dst)
+        option_unwrap(succ.get(key: src)).add(dst)
+        option_unwrap(pred.get(key: dst)).add(src)
     
     fn remove_edge(src: str, dst: str):
         # Remove edge from src to dst
-        option_unwrap(this.succ.get(key: src)).remove(dst)
-        option_unwrap(this.pred.get(key: dst)).remove(src)
+        option_unwrap(succ.get(key: src)).remove(dst)
+        option_unwrap(pred.get(key: dst)).remove(src)
 
     fn has_edge(src: str, dst: str) -> bool:
-        case this.succ.get(key: src):
+        case succ.get(key: src):
             Some(s):
                 return s.contains(dst)
             None:
                 return false
     
     fn has_preds(n?: str) -> bool:
-        case this.pred.get(key: n):
+        case pred.get(key: n):
             Some(p):
                 return not p.is_empty()
             None:
                 return false
     
     fn has_edges() -> bool:
-        for n in this.nodes:
-            let pred2 = option_unwrap(this.pred.get(key: n))
+        for n in nodes:
+            let pred2 = option_unwrap(pred.get(key: n))
             if not pred2.is_empty():
                 #for p in pred2:
                 #    print("{n} has pred: {p}")

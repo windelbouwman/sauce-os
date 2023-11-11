@@ -156,6 +156,8 @@ fn transformer_on_definition7(transformer: Transformer, definition: ast.Definiti
                     struct_def.type_parameters.clear()
                 Function(function_def):
                     function_def.type_parameters.clear()
+                ExternFunction(extern_function_def):
+                    pass
             else:
                 panic("Only structs and functions supported during type erasure!")
     else:
@@ -434,11 +436,11 @@ class ClassRewriter:
         let methods: List[ast.FunctionDef] = List()
         let builder = ast.StructBuilder()
         builder.set_name(name: class_def.id.name)
-        builder.set_id(id: this.get_unique_id())
+        builder.set_id(id: get_unique_id())
 
         let type_arguments: List[ast.Type] = List()
         for type_parameter in class_def.type_parameters:
-            let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: this.get_unique_id(), location: type_parameter.location)
+            let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
             type_arguments.append(type_parameter_ref)
         let m = ast.create_subst_mapping(type_parameters: class_def.type_parameters, type_arguments)
 
@@ -454,7 +456,7 @@ class ClassRewriter:
                         None:
                             # Create a c-tor parameter
                             # log_info("c-tor param")
-                            let ctor_param = ast.parameter_def(name: var_def.variable.id.name, id: this.get_unique_id(), label_is_optional: false, ty, location: class_def.location)
+                            let ctor_param = ast.parameter_def(name: var_def.variable.id.name, id: get_unique_id(), label_is_optional: false, ty, location: class_def.location)
                             ctor_parameters.append(ctor_param)
                             let iv2 = ast.parameter_ref(parameter: ctor_param, location: class_def.location)
                             init_values.append(iv2)
@@ -464,19 +466,19 @@ class ClassRewriter:
                 panic("only fields and functions expected")
 
         let struct_def = builder.finish()
-        this.new_definitions.append(ast.Definition.Struct(struct_def))
-        this.struct_map.insert(key: ast.node_id_to_string(class_def.id), value: struct_def)
+        new_definitions.append(ast.Definition.Struct(struct_def))
+        struct_map.insert(key: ast.node_id_to_string(class_def.id), value: struct_def)
 
         # Lift methods:
         for method in methods:
-            this.lift_method(method, class_def, struct_def)
+            lift_method(method, class_def, struct_def)
 
-        this.create_constructor(class_def, struct_def, parameters: ctor_parameters, init_values)
+        create_constructor(class_def, struct_def, parameters: ctor_parameters, init_values)
 
     fn lift_method(method: ast.FunctionDef, class_def: ast.ClassDef, struct_def: ast.StructDef):
         let type_arguments: List[ast.Type] = List()
         for type_parameter in class_def.type_parameters:
-            type_parameter = ast.new_type_parameter(name: type_parameter.id.name, id: this.get_unique_id(), location: type_parameter.location)
+            type_parameter = ast.new_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
             method.type_parameters.append(type_parameter)
             type_arguments.append(ast.type_parameter_ref(type_parameter))
         let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
@@ -484,7 +486,7 @@ class ClassRewriter:
         let this_parameter = option_unwrap(method.this_parameter)
         # ast.change_type_to(ty: this_parameter.ty, ty2: struct_type)
         method.parameters.prepend(this_parameter)
-        this.new_definitions.append(ast.Definition.Function(method))
+        new_definitions.append(ast.Definition.Function(method))
 
     fn create_constructor(class_def: ast.ClassDef, struct_def: ast.StructDef, parameters: List[ast.ParameterDef], init_values: List[ast.Expression]):
         # Create constructor function
@@ -493,24 +495,24 @@ class ClassRewriter:
         let except_type = ast.void_type()
         let type_arguments: List[ast.Type] = List()
         for type_parameter in class_def.type_parameters:
-            type_parameter = ast.new_type_parameter(name: type_parameter.id.name, id: this.get_unique_id(), location: type_parameter.location)
+            type_parameter = ast.new_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
             type_parameters.append(type_parameter)
             type_arguments.append(ast.type_parameter_ref(type_parameter))
         let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
         let init_literal = ast.struct_literal(ty: struct_type, values: init_values, location: class_def.location)
         let body = ast.return_statement(value: Option.Some(init_literal), location: class_def.location)
-        let ctor_func = ast.function_def(name: ctor_name, id: this.get_unique_id(), type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
+        let ctor_func = ast.function_def(name: ctor_name, id: get_unique_id(), type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
 
         # Use node-id to store constructor:
-        this.ctor_map.insert(key: ast.node_id_to_string(class_def.id), value: ctor_func)
-        this.new_definitions.append(ast.Definition.Function(ctor_func))
+        ctor_map.insert(key: ast.node_id_to_string(class_def.id), value: ctor_func)
+        new_definitions.append(ast.Definition.Function(ctor_func))
 
     #fn rewrite_method_call():
     #    pass
 
     fn rewrite_class_literal(ty: ast.Type, arguments: List[ast.LabeledExpression], location: Location) -> ast.Expression:
         let class_def = ast.get_class_def_from_type(ty)
-        let ctor_func_def: ast.FunctionDef = option_unwrap(this.ctor_map.get(key: ast.node_id_to_string(class_def.id)))
+        let ctor_func_def: ast.FunctionDef = option_unwrap(ctor_map.get(key: ast.node_id_to_string(class_def.id)))
         let type_arguments = ast.get_type_arguments_from_type(ty)
         let ctor_func_ref = ast.function_ref(function_def: ctor_func_def, type_arguments, location)
         let struct_ty: ast.Type = ast.undefined_type()
@@ -518,23 +520,23 @@ class ClassRewriter:
         return ctor_call
 
     fn get_unique_id() -> int:
-        return this.id_gen.new_id()
+        return id_gen.new_id()
     
     fn new_variable(name: str, ty: ast.Type) -> ast.Variable:
         # Create a new variable with unique id
-        let id = this.get_unique_id()
+        let id = get_unique_id()
         return ast.variable(name, id, ty)
 
     fn get_struct_def_for_id(id: ast.NodeId) -> ast.StructDef:
-        return option_unwrap(this.struct_map.get(key: ast.node_id_to_string(id)))
+        return option_unwrap(struct_map.get(key: ast.node_id_to_string(id)))
     
     fn get_struct_type_for_id(id: ast.NodeId, type_arguments: List[ast.Type]) -> ast.Type:
-        let struct_def = this.get_struct_def_for_id(id)
+        let struct_def = get_struct_def_for_id(id)
         return ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
 
     fn load_std_function(name: str, location: Location) -> ast.Expression:
         # Get expression that loads a builtin runtime function.
-        let symbol = option_unwrap(this.std_module.scope.lookup(name))
+        let symbol = option_unwrap(std_module.scope.lookup(name))
         return ast.load_symbol(symbol, ty: ast.undefined_type(), location)
 
     fn transform_for_loop(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
@@ -542,17 +544,17 @@ class ClassRewriter:
         # Turn for loop into iterator and while loop
 
         if ast.is_array_type(for_statement.iter_value.ty):
-            return this.transform_for_loop_over_array(for_statement, location)
+            return transform_for_loop_over_array(for_statement, location)
         else:
             # Implement loop over 'iter' method:
             # log_info(".... {ast.type_to_string(for_statement.iter_value.ty)}")
             let iter_val = ast.call_method(base: for_statement.iter_value, method: "iter", location)
-            let iter_var = this.new_variable(name: "it", ty: iter_val.ty)
+            let iter_var = new_variable(name: "it", ty: iter_val.ty)
             let let_it_var = ast.let_statement(variable: iter_var, type_hint: Option.None(), value: iter_val, location)
 
             # log_info("....>>> {ast.type_to_string(iter_var.ty)}")
             let opt_val = ast.call_method(base: ast.var_ref(variable: iter_var, location), method: "next", location)
-            let opt_var = this.new_variable(name: "opt", ty: opt_val.ty)
+            let opt_var = new_variable(name: "opt", ty: opt_val.ty)
             let let_opt_var = ast.let_statement(variable: opt_var, type_hint: Option.None(), value: opt_val, location)
 
             let arm1 = ast.CaseArm:
@@ -579,11 +581,11 @@ class ClassRewriter:
         let array_type = for_statement.iter_value.ty
 
         # let arr = iter_value
-        let x_var = this.new_variable(name: "x", ty: array_type)
+        let x_var = new_variable(name: "x", ty: array_type)
         let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: for_statement.iter_value, location)
 
         # index = 0
-        let index_var = this.new_variable(name: "index", ty: ast.int_type())
+        let index_var = new_variable(name: "index", ty: ast.int_type())
         let zero = ast.integer_literal(value: 0, location)
         let let_index = ast.let_statement(variable: index_var, type_hint: Option.None(), value: zero, location)
 
@@ -613,7 +615,7 @@ class ClassRewriter:
 
     fn transform_switch(switch_statement: ast.SwitchStatement, location: Location) -> ast.StatementKind:
         # Turn switch into sequence of if-else
-        let x_var = this.new_variable(name: "x", ty: ast.int_type())
+        let x_var = new_variable(name: "x", ty: ast.int_type())
         let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: switch_statement.value, location)
 
         let else_clause = switch_statement.default_block.body
@@ -631,12 +633,12 @@ class ClassRewriter:
 
         let builder2 = ast.StructBuilder()
         builder2.set_name(name: "{enum_def.id.name}Data")
-        builder2.set_id(this.get_unique_id())
+        builder2.set_id(get_unique_id())
         builder2.set_is_union(true)
 
         let type_arguments2: List[ast.Type] = List()
         for type_parameter in enum_def.type_parameters:
-            let type_parameter_ref2 = builder2.add_type_parameter(name: type_parameter.id.name, id: this.get_unique_id(), location: type_parameter.location)
+            let type_parameter_ref2 = builder2.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
             type_arguments2.append(type_parameter_ref2)
 
         for variant in enum_def.variants:
@@ -646,7 +648,7 @@ class ClassRewriter:
             elif variant.payload.len() > 1:
                 let builder3 = ast.StructBuilder()
                 builder3.set_name(name: "{enum_def.id.name}{variant.name}Data")
-                builder3.set_id(id: this.get_unique_id())
+                builder3.set_id(id: get_unique_id())
 
                 let idx = 0
                 for payload_type in variant.payload:
@@ -654,21 +656,21 @@ class ClassRewriter:
                     idx += 1
 
                 let struct_def3 = builder3.finish()
-                this.new_definitions.append(ast.Definition.Struct(struct_def3))
+                new_definitions.append(ast.Definition.Struct(struct_def3))
                 t3 = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def3), type_arguments: type_arguments2)
 
             builder2.add_field(name: variant.name, ty: t3, location: variant.location)
 
         let union_def = builder2.finish()
-        this.new_definitions.append(ast.Definition.Struct(union_def))
+        new_definitions.append(ast.Definition.Struct(union_def))
 
         let builder = ast.StructBuilder()
         builder.set_name(name: enum_def.id.name)
-        builder.set_id(this.get_unique_id())
+        builder.set_id(get_unique_id())
 
         let type_arguments: List[ast.Type] = List()
         for type_parameter in enum_def.type_parameters:
-            let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: this.get_unique_id(), location: type_parameter.location)
+            let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
             type_arguments.append(type_parameter_ref)
 
         builder.add_field(name: "tag", ty: ast.int_type(), location: enum_def.location)
@@ -677,19 +679,19 @@ class ClassRewriter:
         let struct_def = builder.finish()
         # let m = ast.create_subst_mapping(type_parameters: enum_def.type_parameters, type_arguments)
 
-        this.new_definitions.append(ast.Definition.Struct(struct_def))
-        this.struct_map.insert(key: ast.node_id_to_string(enum_def.id), value: struct_def)
+        new_definitions.append(ast.Definition.Struct(struct_def))
+        struct_map.insert(key: ast.node_id_to_string(enum_def.id), value: struct_def)
 
     fn transform_case(case_statement: ast.CaseStatement) -> ast.Statement:
         # TODO: support doc strings
         # """ Transform case statement into switch case over tagged unions. """
         let location = case_statement.value.location
         let enum_def = ast.get_enum_def_from_type(case_statement.value.ty)
-        let struct_def = this.get_struct_def_for_id(id: enum_def.id)
+        let struct_def = get_struct_def_for_id(id: enum_def.id)
         let type_arguments = ast.get_type_arguments_from_type(case_statement.value.ty)
         let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
 
-        let x_var = this.new_variable(name: "x", ty: struct_type)
+        let x_var = new_variable(name: "x", ty: struct_type)
         let store_tagged_union = ast.let_statement(variable: x_var, type_hint: Option.None(), value: case_statement.value, location)
 
         let switch_arms: List[ast.SwitchArm] = List()
@@ -739,7 +741,7 @@ class ClassRewriter:
     fn rewrite_enum_literal(enum_ty: ast.Type, variant: ast.EnumVariant, values: List[ast.Expression], location: Location) -> ast.Expression:
         # log_info("Rewrite enum literal")
         let enum_def = ast.get_enum_def_from_type(enum_ty)
-        let struct_def = this.get_struct_def_for_id(id: enum_def.id)
+        let struct_def = get_struct_def_for_id(id: enum_def.id)
         let type_arguments = ast.get_type_arguments_from_type(enum_ty)
         let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
         let union_type = option_unwrap(ast.get_field_type(ty: struct_type, attr: "data"))
@@ -777,7 +779,7 @@ class ClassRewriter:
                 case value.kind:
                     FunctionRef(function_def, type_arguments):
                         # TODO: check for existing bridge functions!
-                        let bridge_function = this.create_bridge_function(function_def, parameter_types)
+                        let bridge_function = create_bridge_function(function_def, parameter_types)
                         value.kind = ast.ExpressionKind.FunctionRef(bridge_function, type_arguments: List())
                 else:
                     panic("Can only bridge a function reference")
@@ -804,7 +806,7 @@ class ClassRewriter:
                 ty = ast.opaque_type()
             else:
                 ty = parameter.ty
-            let bridge_function_parameter = ast.parameter_def(name: parameter.id.name, id: this.get_unique_id(), label_is_optional: true, ty, location)
+            let bridge_function_parameter = ast.parameter_def(name: parameter.id.name, id: get_unique_id(), label_is_optional: true, ty, location)
             parameters.append(bridge_function_parameter)
 
             let parameter_ref = ast.parameter_ref(parameter: bridge_function_parameter, location)
@@ -822,10 +824,10 @@ class ClassRewriter:
         else:
             body = ast.return_statement(value: Option.Some(function_call), location)
 
-        let bridge_function = ast.function_def(name: bridge_function_name, id: this.get_unique_id(), type_parameters, this_parameter: Option.None(), parameters, return_type, except_type, body, location)
+        let bridge_function = ast.function_def(name: bridge_function_name, id: get_unique_id(), type_parameters, this_parameter: Option.None(), parameters, return_type, except_type, body, location)
         # TODO: we could insert duplicate bridge functions.
         # TODO: check for duplicate bridge functions.
-        this.new_definitions.append(ast.Definition.Function(bridge_function))
+        new_definitions.append(ast.Definition.Function(bridge_function))
         return bridge_function
 
 fn needs_opaque_cast(ty?: ast.Type) -> bool:

@@ -40,7 +40,7 @@ class TypeChecker(BasePass):
 
             if isinstance(definition, (ast.StructDef, ast.EnumDef, ast.TypeDef)):
                 pass
-            elif isinstance(definition, ast.ClassDef):
+            elif isinstance(definition, (ast.ClassDef, ast.BuiltinFunction)):
                 pass
             elif isinstance(definition, ast.VarDef):
                 if definition.value:

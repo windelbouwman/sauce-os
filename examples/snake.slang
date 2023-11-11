@@ -3,6 +3,9 @@
 
 from std import print
 
+extern fn screen_swap()
+extern fn screen_clear(r: int, g: int, b: int)
+
 fn main() -> int:
     let game = Game()
     game.draw()
@@ -23,22 +26,23 @@ class Game:
     var direction: Direction = Direction.Up()
 
     fn draw():
+        screen_clear(0, 0, 255)
         let y = 0
-        while y < this.height:
+        while y < height:
             let x = 0
             let line = ""
-            while x < this.width:
+            while x < width:
                 let cell = " "
                 if y == 0:
                     cell = "#"
-                elif y == this.height - 1:
+                elif y == height - 1:
                     cell = "#"
                 elif x == 0:
                     cell = "#"
-                elif x == this.width - 1:
+                elif x == width - 1:
                     cell = "#"
 
-                if this.head.x == x and this.head.y == y:
+                if head.x == x and head.y == y:
                     cell = "@"
 
                 line = line + cell + cell
@@ -47,22 +51,22 @@ class Game:
             y += 1
 
     fn move():
-        case this.direction:
+        case direction:
             Up:
-                this.head.y -= 1
+                head.y -= 1
             Down:
-                this.head.y += 1
+                head.y += 1
             Left:
-                this.head.x -= 1
+                head.x -= 1
             Right:
-                this.head.x += 1
+                head.x += 1
 
     fn handle_key(key: Key):
         case key:
             Left:
-                this.direction = rotate_left(this.direction)
+                direction = rotate_left(direction)
             Right:
-                this.direction = rotate_right(this.direction)
+                direction = rotate_right(direction)
 
 fn rotate_right(d?: Direction) -> Direction:
     case d:

@@ -11,7 +11,12 @@ from compiler1 import compiler, errors, builtins
 
 logging.basicConfig(level=logging.WARNING)
 options = compiler.CompilationOptions(backend="py")
-sources = glob.glob("compiler/*.slang")
+sources = (
+    glob.glob("compiler/*.slang")
+    + glob.glob("compiler/parsing/*.slang")
+    + glob.glob("compiler/utils/*.slang")
+    + glob.glob("compiler/backend/*.slang")
+)
 
 output_filename = "tmp-compiler.py"
 try:

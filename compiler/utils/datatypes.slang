@@ -59,9 +59,9 @@ class List[T]:
             next: Option.None()
             data: val
 
-        case this.head_element:
+        case head_element:
             None:
-                this.head_element = Option.Some(new_tail_element)
+                head_element = Option.Some(new_tail_element)
             Some(element):
                 loop:
                     case element.next:
@@ -73,11 +73,11 @@ class List[T]:
 
     fn prepend(val?: T):
         # Prepend value in front of list
-        let new_head_element = ListElement[T](next: this.head_element, data: val)
-        this.head_element = Option.Some(new_head_element)
+        let new_head_element = ListElement[T](next: head_element, data: val)
+        head_element = Option.Some(new_head_element)
 
     fn is_empty() -> bool:
-        case this.head_element:
+        case head_element:
             None:
                 return true
         else:
@@ -85,7 +85,7 @@ class List[T]:
 
     fn len() -> int:
         # Retrieve length of the list
-        case this.head_element:
+        case head_element:
             None:
                 return 0
             Some(element):
@@ -100,25 +100,25 @@ class List[T]:
                 return n
 
     fn clear():
-        while not this.is_empty():
-            let dummy = this.pop_front()
+        while not is_empty():
+            let dummy = pop_front()
 
     fn pop_front() -> T:
-        case this.head_element:
+        case head_element:
             None:
                 panic("List.pop_front from empty list!")
             Some(element):
-                this.head_element = element.next
+                head_element = element.next
                 return element.data
 
     fn iter() -> ListIter[T]:
         let it = ListIter()
-        it.next_element = this.head_element
+        it.next_element = head_element
         return it
 
     fn first() -> T:
         # Retrieve first element
-        case this.head_element:
+        case head_element:
             None:
                 panic("List.first on empty list!")
             Some(element):
@@ -126,18 +126,18 @@ class List[T]:
 
     fn drop_last():
         # Drop last item from list
-        let x = this.pop_last()
+        let x = pop_last()
 
     fn pop_last() -> T:
         # Pop last element of the list
-        case this.head_element:
+        case head_element:
             None:
                 panic("List.pop_last from empty list!")
             Some(element):
                 case element.next:
                     None:
                         # single item in list!
-                        this.head_element = Option.None()
+                        head_element = Option.None()
                         return element.data
                     Some(next_element):
                         # More than 1 item in the list
@@ -155,7 +155,7 @@ class List[T]:
 
     fn last() -> T:
         # Retrieve last element
-        case this.head_element:
+        case head_element:
             None:
                 panic("List.last on empty list!")
             Some(element):
@@ -169,16 +169,16 @@ class List[T]:
     
     fn get(index: int) -> T:
         # Retrieve value at index
-        let element = this.get_element(index)
+        let element = get_element(index)
         return element.data
     
     fn set(index: int, value: T):
         # " Set value at index. "
-        let element = this.get_element(index)
+        let element = get_element(index)
         element.data = value
     
     fn get_element(index: int) -> ListElement[T]:
-        case this.head_element:
+        case head_element:
             None:
                 panic("List.get on empty list!")
             Some(element):
@@ -197,7 +197,7 @@ class List[T]:
 
     fn delete_at(index: int):
         # remove item at index from list
-        case this.head_element:
+        case head_element:
             None:
                 panic("List.delete_at on empty list!")
             Some(element):
@@ -209,7 +209,7 @@ class List[T]:
                             Some(pe):
                                 pe.next = element.next
                             None:
-                                this.head_element = element.next
+                                head_element = element.next
                         return
 
                     case element.next:
@@ -230,7 +230,7 @@ class List[T]:
     
     fn extend(other?: List[T]):
         while not other.is_empty():
-            this.append(other.pop_front())
+            append(other.pop_front())
     #fn filter():
     #    pass
 
@@ -242,13 +242,13 @@ class ListIter[T]:
     var next_element: Option[ListElement[T]] = Option.None()
 
     fn next() -> Option[T]:
-        let opt = this.next_element
+        let opt = next_element
         case opt:
             None:
                 return Option.None()
             Some(nxt_element):
                 let x = Option.Some(nxt_element.data)
-                this.next_element = nxt_element.next
+                next_element = nxt_element.next
                 return x
 
 
@@ -256,36 +256,36 @@ class Dictionary[T]:
     var items: List[DictionaryItem[T]] = List()
 
     fn get(key: str) -> Option[T]:
-        for item in this.items:
+        for item in items:
             if item.key == key:
                 return Option.Some(item.value)
         return Option.None()
     
     fn is_empty() -> bool:
-        return this.items.is_empty()
+        return items.is_empty()
 
     fn contains(key: str) -> bool:
-        case this.get(key):
+        case get(key):
             Some(x):
                 return true
             None:
                 return false
     
     fn insert(key: str, value: T):
-        for item in this.items:
+        for item in items:
             if item.key == key:
                 item.value = value
                 return
         let new_item = DictionaryItem[T](key, value)
-        this.items.append(new_item)
+        items.append(new_item)
     
     fn pop(key: str) -> Option[T]:
         # remove an item from this dictionary
         let index = 0
-        for item in this.items:
+        for item in items:
             if item.key == key:
                 # patch list:
-                this.items.delete_at(index)
+                items.delete_at(index)
                 return Option.Some(item.value)
             index += 1
 
@@ -293,7 +293,7 @@ class Dictionary[T]:
 
     fn iter() -> DictionaryIter:
         let it = DictionaryIter()
-        it.it2 = this.items.iter()
+        it.it2 = items.iter()
         return it
 
 struct DictionaryItem[T]:
@@ -304,7 +304,7 @@ class DictionaryIter[T]:
     var it2: ListIter[DictionaryItem[T]] = ListIter()
 
     fn next() -> Option[str]:
-        case this.it2.next():
+        case it2.next():
             None:
                 return Option.None()
             Some(i):
@@ -315,20 +315,20 @@ class Set:
     var items: Dictionary[int] = Dictionary()
 
     fn add(value?: str):
-        this.items.insert(key: value, value: 1)
+        items.insert(key: value, value: 1)
     
     fn remove(value?: str):
-        let stub = this.items.pop(key: value)
+        let stub = items.pop(key: value)
     
     fn contains(value?: str) -> bool:
-        return this.items.contains(key: value)
+        return items.contains(key: value)
 
     fn is_empty() -> bool:
-        return this.items.is_empty()
+        return items.is_empty()
 
     fn iter() -> SetIter:
         let it = SetIter()
-        it.it2 = this.items.iter()
+        it.it2 = items.iter()
         return it
 
 
@@ -336,4 +336,4 @@ class SetIter:
     var it2: DictionaryIter[int] = DictionaryIter()
 
     fn next() -> Option[str]:
-        return this.it2.next()
+        return it2.next()

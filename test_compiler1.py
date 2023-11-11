@@ -21,6 +21,10 @@ def test_compiles(filename: str, backend: str):
     if "mandel" in filename:
         return
 
+    # Skip snake example
+    if "snake" in filename:
+        return
+
     options = compiler.CompilationOptions(
         dump_ast=False, run_code=True, backend=backend
     )
