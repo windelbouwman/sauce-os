@@ -79,7 +79,9 @@ fn print_usage():
     print("    -v : Increase verbosity")
     print("    -h : display usage information")
     print("    -bc : Spit out bytecode")
+    print("    -py : Spit out python code")
     print("    -cv2 : Spit out C code (v2)")
+    print("    -wasm : Spit out WebAssembly")
     print("    -rt : Skip runtime?")
     print("")
     print("Multiple source files can be passed")
@@ -97,6 +99,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
     module_map.insert(key: "std", value: std_module)
 
     let modules: List[ast.Module] = List()
+    modules.append(std_module)
     for filename in filenames:
         log_info("Parsing: {filename}")
 

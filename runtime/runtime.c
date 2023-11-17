@@ -2,11 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 // Config:
 // #define DEBUG_REFCOUNTING
 
-extern int main2();
+typedef intptr_t slang_int_t;
+extern slang_int_t main2();
 void *rt_malloc(int size);
 void rt_incref(void *ptr);
 void rt_decref(void *ptr);
@@ -23,7 +25,7 @@ void std_putc(const char *ch)
     putchar(ch[0]);
 }
 
-void std_exit(int code)
+void std_exit(slang_int_t code)
 {
     exit(code);
 }
@@ -34,14 +36,14 @@ void std_panic(const char *message)
     std_exit(1);
 }
 
-int std_str_to_int(char *x)
+slang_int_t std_str_to_int(char *x)
 {
     int value = strtol(x, NULL, 10);
     rt_decref(x);
     return value;
 }
 
-char *std_int_to_str(int x)
+char *std_int_to_str(slang_int_t x)
 {
     char buffer[50];
     snprintf(buffer, 50, "%d", x);
@@ -73,24 +75,24 @@ char *std_char_to_str(char x)
     return text;
 }
 
-int std_str_len(char *txt)
+slang_int_t std_str_len(char *txt)
 {
     const int len = strlen(txt);
     rt_decref(txt);
     return len;
 }
 
-int std_ord(char c)
+slang_int_t std_ord(char c)
 {
     return c;
 }
 
-char std_chr(int val)
+char std_chr(slang_int_t val)
 {
     return val;
 }
 
-char *std_str_slice(char *txt, int begin, int end)
+char *std_str_slice(char *txt, slang_int_t begin, slang_int_t end)
 {
     const int size = end - begin;
     char *buffer = rt_malloc(size + 1);
@@ -101,7 +103,7 @@ char *std_str_slice(char *txt, int begin, int end)
 }
 
 // TBD: special case of slice?
-char std_str_get(char *txt, int pos)
+char std_str_get(char *txt, slang_int_t pos)
 {
     return txt[pos];
 }
@@ -138,12 +140,12 @@ int main(int argc, char **argv)
     return main2();
 }
 
-int std_get_n_args()
+slang_int_t std_get_n_args()
 {
     return g_argc - 1;
 }
 
-char *std_get_arg(int index)
+char *std_get_arg(slang_int_t index)
 {
     return g_argv[index + 1];
 }

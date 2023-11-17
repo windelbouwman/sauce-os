@@ -11,14 +11,9 @@ from compiler1 import compiler, errors, builtins
 
 logging.basicConfig(level=logging.WARNING)
 options = compiler.CompilationOptions(backend="py")
-sources = (
-    glob.glob("compiler/*.slang")
-    + glob.glob("compiler/parsing/*.slang")
-    + glob.glob("compiler/utils/*.slang")
-    + glob.glob("compiler/backend/*.slang")
-)
+sources = glob.glob("compiler/**/*.slang", recursive=True)
 
-output_filename = "tmp-compiler.py"
+output_filename = "build/tmp-compiler.py"
 try:
     with open(output_filename, "w") as f:
         print(builtins.BUILTINS_PY_IMPL, file=f)

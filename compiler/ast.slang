@@ -414,6 +414,15 @@ fn get_field_type(ty: Type, attr: str) -> Option[Type]:
     else:
         return Option.None()
 
+fn get_struct_field_index(ty: Type, attr: str) -> int:
+    let struct_def = get_struct_def_from_type(ty)
+    let index = 0
+    for field in struct_def.fields:
+        if field.name == attr:
+            return index
+        index += 1
+    panic("No attr: {attr}")
+
 fn get_method_from_type(ty: Type, attr: str) -> FunctionDef:
     case ty.kind:
         App(tycon, type_arguments):

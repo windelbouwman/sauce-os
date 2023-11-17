@@ -73,23 +73,6 @@ class CGenerator:
         emit("void rt_incref(void *ptr);")
         emit("void rt_decref(void *ptr);")
 
-        emit("void std_print(char *message);")
-        emit("void std_exit(int code);")
-
-        emit("char* std_read_file(char *filename);")
-
-        emit("char* rt_str_concat(char*, char*);")
-        emit("int rt_str_compare(char *a, char *b);")
-        emit("int std_str_len(char* txt);")
-        emit("char* std_str_slice(char* txt, int begin, int end);")
-        emit("char* std_str_get(char* txt, int pos);")
-
-        emit("int std_ord(char *txt);")
-
-        emit("char *std_int_to_str(int x);")
-        emit("int std_str_to_int(char *x);")
-        emit("char *std_float_to_str(double x);")
-
     fn gen_struct_def(sidx: int, struct_def: bc.Struct):
         if struct_def.is_union:
             emit("union U{sidx} {chr(123)}")

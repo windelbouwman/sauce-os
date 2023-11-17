@@ -2,13 +2,14 @@
 
 set -euo pipefail
 
-COMPILER_SRCS="compiler/*.slang compiler/parsing/*.slang compiler/utils/*.slang compiler/backend/*.slang"
-COMPILER1="tmp-compiler.py"
-COMPILER2="tmp-compiler2.py"
-COMPILER3="tmp-compiler3.py"
-COMPILER4="tmp-compiler4.c"
-COMPILER6="tmp-compiler6.py"
+COMPILER_SRCS="compiler/*.slang compiler/**/*.slang"
+COMPILER1="build/tmp-compiler.py"
+COMPILER2="build/tmp-compiler2.py"
+COMPILER3="build/tmp-compiler3.py"
+COMPILER4="build/tmp-compiler4.c"
+COMPILER6="build/tmp-compiler6.py"
 
+mkdir -p build
 # Compile compiler with bootstrap compiler
 echo "Compile compiler with bootstrap compiler into ${COMPILER1}"
 python bootstrap.py
@@ -32,17 +33,17 @@ chmod +x ${COMPILER3}
 diff ${COMPILER2} ${COMPILER3}
 
 echo "Compiling compiler4"
-python ${COMPILER3} -cv2 ${COMPILER_SRCS} | sed '/^# /d' > tmp-compiler4.c
-gcc -o compiler4 tmp-compiler4.c runtime/runtime.c
+python ${COMPILER3} -cv2 ${COMPILER_SRCS} | sed '/^# /d' > build/tmp-compiler4.c
+gcc -o build/compiler4 build/tmp-compiler4.c runtime/runtime.c
 
 echo "Compiling compiler5"
-./compiler4 -cv2 ${COMPILER_SRCS} | sed '/^# /d' > tmp-compiler5.c
-gcc -o compiler5 tmp-compiler5.c runtime/runtime.c
+./build/compiler4 -cv2 ${COMPILER_SRCS} | sed '/^# /d' > build/tmp-compiler5.c
+gcc -o build/compiler5 build/tmp-compiler5.c runtime/runtime.c
 
-diff tmp-compiler4.c tmp-compiler5.c
+diff build/tmp-compiler4.c build/tmp-compiler5.c
 
 echo "Compiling compiler6"
 echo "#!/usr/bin/env python" > ${COMPILER6}
-./compiler5 ${COMPILER_SRCS} >> ${COMPILER6}
+./build/compiler5 ${COMPILER_SRCS} >> ${COMPILER6}
 
 echo "OK"

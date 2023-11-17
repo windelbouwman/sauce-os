@@ -1,6 +1,86 @@
 
-from std import float_to_str
+# 
+# WebAssembly
+# ===========
+#
+# WebAssembly support.
 
+from datatypes import List
+from utils import panic
+from std import float_to_str, print, chr
+from strlib import str_join
+
+struct Module:
+    types: List[Type]
+    imports: List[Import]
+    functions: List[Function]
+    exports: List[Export]
+    datas: List[Data]
+
+enum ValueType:
+    i32
+    i64
+    f32
+    f64
+
+#enum Type:
+#    Value(t: ValueType)
+#    Function(ref: int)
+
+struct Type:
+    params: List[ValueType]
+    results: List[ValueType]
+
+fn value_type_to_string(ty?: ValueType) -> str:
+    let txt = "?"
+    case ty:
+        i32:
+            txt = "i32"
+        i64:
+            txt = "i64"
+        f32:
+            txt = "f32"
+        f64:
+            txt = "f64"
+    return txt
+
+fn type_to_string(ty?: Type) -> str:
+    let parts2: List[str] = List()
+    let parts: List[str] = List()
+    if not ty.params.is_empty():
+        parts.clear()
+        for param in ty.params:
+            parts.append(value_type_to_string(param))
+        let params_txt = str_join(parts, sep: " ")
+        parts2.append("(param {params_txt})")
+
+    if not ty.results.is_empty():
+        parts.clear()
+        for result in ty.results:
+            parts.append(value_type_to_string(result))
+        let results_txt = str_join(parts, sep: " ")
+        parts2.append("(result {results_txt})")
+
+    return str_join(parts: parts2, sep: " ") 
+
+struct Import:
+    module: str
+    name: str
+    ty: int  # Type ref
+    # TODO: description
+
+struct Function:
+    ty: int  # reference to a type
+    locals: List[ValueType]
+    code: List[Instruction]
+
+struct Export:
+    name: str
+    funcidx: int
+
+struct Data:
+    offset: int
+    text: str
 
 enum Instruction:
 
@@ -33,6 +113,17 @@ enum Instruction:
     global_set(globalidx: int)
 
     # table instructions
+
+    # Memory instructions
+    i32_load(align: int, offset: int)
+    i64_load(align: int, offset: int)
+    f32_load(align: int, offset: int)
+    f64_load(align: int, offset: int)
+
+    i32_store(align: int, offset: int)
+    i64_store(align: int, offset: int)
+    f32_store(align: int, offset: int)
+    f64_store(align: int, offset: int)
 
     # Numeric constants
     i32_const(value: int)
@@ -230,6 +321,32 @@ fn encode(instruction: Instruction):
         global_set(globalidx):
             pack_byte(0x24)
             pack_u32(globalidx)
+
+        i32_load(align, offset):
+            pack_byte(0x28)
+            panic("TODO")
+        i64_load(align, offset):
+            pack_byte(0x29)
+            panic("TODO")
+        f32_load(align, offset):
+            pack_byte(0x2A)
+            panic("TODO")
+        f64_load(align, offset):
+            pack_byte(0x2B)
+            panic("TODO")
+
+        i32_store(align, offset):
+            pack_byte(0x36)
+            panic("TODO")
+        i64_store(align, offset):
+            pack_byte(0x37)
+            panic("TODO")
+        f32_store(align, offset):
+            pack_byte(0x38)
+            panic("TODO")
+        f64_store(align, offset):
+            pack_byte(0x39)
+            panic("TODO")
 
         i32_const(value):
             pack_byte(0x41)
@@ -531,27 +648,52 @@ fn to_string(instruction: Instruction) -> str:
         ctrl_return:
             txt = "return"
         ctrl_call(funcidx):
-            txt = "call(funcidx={funcidx})"
+            txt = "call {funcidx}"
 
         local_get(localidx):
-            txt = "local.get({localidx})"
+            txt = "local.get {localidx}"
         local_set(localidx):
-            txt = "local.set({localidx})"
+            txt = "local.set {localidx}"
         local_tee(localidx):
-            txt = "local.tee({localidx})"
+            txt = "local.tee {localidx}"
         global_get(globalidx):
-            txt = "global.get({globalidx})"
+            txt = "global.get {globalidx}"
         global_set(globalidx):
-            txt = "global.set({globalidx})"
+            txt = "global.set {globalidx}"
+
+
+        i32_load(align, offset):
+            txt = "i32.load offset={offset} align={align}"
+
+        i64_load(align, offset):
+            txt = "i64.load offset={offset} align={align}"
+
+        f32_load(align, offset):
+            txt = "f32.load offset={offset} align={align}"
+
+        f64_load(align, offset):
+            txt = "f64.load offset={offset} align={align}"
+
+        i32_store(align, offset):
+            txt = "i32.store offset={offset} align={align}"
+
+        i64_store(align, offset):
+            txt = "i64.store offset={offset} align={align}"
+
+        f32_store(align, offset):
+            txt = "f32.store offset={offset} align={align}"
+
+        f64_store(align, offset):
+            txt = "f64.store offset={offset} align={align}"
 
         i32_const(value):
-            txt = "i32.const({value})"
+            txt = "i32.const {value}"
         i64_const(value):
-            txt = "i64.const({value})"
+            txt = "i64.const {value}"
         f32_const(value):
-            txt = "f32.const({float_to_str(value)})"
+            txt = "f32.const {float_to_str(value)}"
         f64_const(value):
-            txt = "f64.const({float_to_str(value)})"
+            txt = "f64.const {float_to_str(value)}"
 
         i32_eqz:
             txt = "i32.eqz"
@@ -823,3 +965,36 @@ fn to_string(instruction: Instruction) -> str:
 
     return txt
 
+
+fn to_wat(module: Module):
+    # Print webassembly module in text format (WAT)
+
+    print("(module")
+    for ty in module.types:
+        let type_txt = type_to_string(ty)
+        print("  (type (func {type_txt}))")
+
+    let quote = chr(34)
+    for imp in module.imports:
+        print("  (import {quote}{imp.module}{quote} {quote}{imp.name}{quote} (func (type {imp.ty})))")
+    
+    print("  (import {quote}js{quote} {quote}mem{quote} (memory 25))")
+
+    for function in module.functions:
+        print("  (func (type {function.ty})")
+        for local in function.locals:
+            print("    (local {value_type_to_string(ty: local)})")
+
+        for instruction in function.code:
+            print("    {to_string(instruction)}")
+        print("  )")
+
+    # print("  (memory 25)")
+
+    for ex in module.exports:
+        print("  (export {quote}{ex.name}{quote} (func {ex.funcidx}))")
+
+    for data in module.datas:
+        print("  (data (i32.const {data.offset}) {quote}{data.text}{quote})")
+
+    print(")")

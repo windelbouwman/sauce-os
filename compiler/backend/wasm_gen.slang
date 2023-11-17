@@ -1,30 +1,150 @@
+#
+# WebAssembly backend
+# ===================
+#
+# Generate WebAssembly from AST.
+# 
+# - Pointers are mapped to i32 type
+# - floats are mapped to f64
+# - ints are mapped to i64
+# - linear memory is imported from javascript side
 
 import webassembly
 import ast
-from std import print
-from utils import panic, log_info
+from webassembly import Instruction
+from datatypes import List, Dictionary, option_unwrap, vec1
+from std import print, str_len
+from utils import panic, log_info, log_debug
 
 
 fn gen_webassembly(module_set: ast.ModuleSet):
     log_info("Generating WebAssembly")
     let generator = WasmGenerator()
-    for module in module_set.modules:
-        generator.gen_module(module)
+    generator.gen_module_set(modules: module_set.modules)
 
 class WasmGenerator:
-    var dummy: int = 0
+    var types: List[webassembly.Type] = List()
+    var imports: List[webassembly.Import] = List()
+    var functions: List[webassembly.Function] = List()
+    var exports: List[webassembly.Export] = List()
+    var datas: List[webassembly.Data] = List()
+    var code: List[webassembly.Instruction] = List()
+
+    var local_variables: List[webassembly.ValueType] = List()
+    var index_mapping: Dictionary[int] = Dictionary()
+    var literal_offset: int = 0
+
+    fn gen_module_set(modules: List[ast.Module]):
+        let malloc_def = ast.ExternFunctionDef(name: "malloc", parameter_types: vec1(ast.int_type()), return_type: ast.opaque_type())
+        gen_external_function(module_name: "js", extern_function_def: malloc_def)
+
+        for module in modules:
+            log_info("Generating external functions {module.name}")
+            for definition in module.definitions:
+                case definition:
+                    ExternFunction(extern_function_def):
+                        gen_external_function(module_name: "ugh", extern_function_def)
+                else:
+                    pass
+
+        let counter = imports.len()
+        for module in modules:
+            for definition in module.definitions:
+                case definition:
+                    Function(function_def):
+                        let key = ast.node_id_to_string(function_def.id)
+                        let funcidx = counter
+                        index_mapping.insert(key, value: funcidx)
+                        let name = function_def.id.name
+                        exports.append(webassembly.Export(name, funcidx))
+
+                        counter += 1
+                else:
+                    pass
+
+        for module in modules:
+            gen_module(module)
+        
+        # Create module:
+        let wasm_module = webassembly.Module:
+            types
+            imports
+            functions
+            exports
+            datas
+        webassembly.to_wat(module: wasm_module)
+
+    fn gen_external_function(module_name: str, extern_function_def: ast.ExternFunctionDef):
+        # log_debug("extern function def: {extern_function_def.name}")
+        let funcidx = imports.len()
+        index_mapping.insert(key: extern_function_def.name, value: funcidx)
+        let func_ty = reg_signature(parameter_types: extern_function_def.parameter_types, return_type: extern_function_def.return_type)
+        imports.append(webassembly.Import(module: module_name, name: extern_function_def.name, ty: func_ty))
 
     fn gen_module(module: ast.Module):
         for definition in module.definitions:
             case definition:
+                ExternFunction(extern_function_def):
+                    pass
                 Function(function_def):
                     gen_function(function_def)
+                Struct(struct_def):
+                    log_debug("Struct def: {struct_def.id.name}")
             else:
-                panic("Not supported")
+                panic("Definition not supported")
+
+    fn get_wasm_type(ty?: ast.Type) -> webassembly.ValueType:
+        if ast.is_int_type(ty):
+            return webassembly.ValueType.i64()
+        elif ast.is_opaque(ty) or ast.is_tycon_app_type(ty):
+            return webassembly.ValueType.i32()
+        elif ast.is_str_type(ty):
+            return webassembly.ValueType.i32()
+        elif ast.is_float_type(ty):
+            return webassembly.ValueType.f64()
+        elif ast.is_char_type(ty):
+            return webassembly.ValueType.i32()
+        elif ast.is_bool_type(ty):
+            return webassembly.ValueType.i32()
+        else:
+            panic("TODO: {ast.type_to_string(ty)}!")
+
+    fn reg_signature(parameter_types: List[ast.Type], return_type: ast.Type) -> int:
+        let params: List[webassembly.ValueType] = List()
+        let results: List[webassembly.ValueType] = List()
+        for pt in parameter_types:
+            params.append(get_wasm_type(pt))
+        if not ast.is_void_type(return_type):
+            results.append(get_wasm_type(return_type))
+        let ft = webassembly.Type(params, results)
+        let key = webassembly.type_to_string(ft)
+        let index = 0
+        if index_mapping.contains(key):
+            index = option_unwrap(index_mapping.get(key))
+        else:
+            index = types.len()
+            index_mapping.insert(key, value: index)
+            types.append(ft)
+        return index
 
     fn gen_function(function_def: ast.FunctionDef):
-        print("++ Function: {function_def.id.name}")
+        log_info("Generating code for function: {function_def.id.name}")
+        code = List()
+        local_variables = List()
+        
+        local_variables = List()
+        let parameter_types: List[ast.Type] = List()
+        for parameter in function_def.parameters:
+            let x = create_parameter(id: parameter.id, ty: parameter.ty)
+            parameter_types.append(parameter.ty)
+        let func_ty = reg_signature(parameter_types, return_type: function_def.return_type)
         gen_statement(function_def.body)
+
+        let f = webassembly.Function:
+            ty: func_ty
+            locals: local_variables
+            code
+        functions.append(f)
 
     fn gen_statement(statement?: ast.Statement):
         case statement.kind:
@@ -35,27 +155,48 @@ class WasmGenerator:
                 panic("TODO: continue")
 
             Compound(inner):
-                for s in inner:
-                    gen_statement(s)
+                for sub_statement in inner:
+                    gen_statement(sub_statement)
 
             Expr(expression):
                 gen_expression(expression)
             
             Assignment(target, op, value):
-                panic("TODO: assignment")
+                case target.kind:
+                    GetAttr(base, attr):
+                        let index = ast.get_struct_field_index(ty: base.ty, attr)
+                        let offset = offsetof(ty: base.ty, index)
+                        gen_expression(base)
+                        gen_expression(value)
+                        gen_store(offset, ty: value.ty)
+
+                    VarRef(variable):
+                        gen_expression(value)
+                        let localidx = get_local_index(id: variable.id)
+                        emit(Instruction.local_set(localidx))
+
+                    LoadSymbol(symbol):
+                        case symbol:
+                            Parameter(parameter_def):
+                                let localidx = get_local_index(id: parameter_def.id)
+                                emit(Instruction.local_set(localidx))
+                        else:
+                            panic("Unsupported assignment target: {ast.symbol_to_str(symbol)}")
+                else:
+                    panic("Unsupported assignment target: {ast.expression_to_string(expression: target)}")
 
             Let(let_statement):
                 gen_expression(let_statement.value)
-                let localidx = create_local(id: let_statement.variable.id)
-                emit(webassembly.Instruction.local_set(localidx))
+                let localidx = create_local(id: let_statement.variable.id, ty: let_statement.variable.ty)
+                emit(Instruction.local_set(localidx))
 
             If(if_statement):
                 gen_expression(if_statement.condition)
-                emit(webassembly.Instruction.ctrl_if())
+                emit(Instruction.ctrl_if())
                 gen_statement(if_statement.true_block.body)
-                emit(webassembly.Instruction.ctrl_else())
+                emit(Instruction.ctrl_else())
                 gen_statement(if_statement.false_block.body)
-                emit(webassembly.Instruction.ctrl_end())
+                emit(Instruction.ctrl_end())
 
             While(while_statement):
                 gen_expression(while_statement.condition)
@@ -70,17 +211,60 @@ class WasmGenerator:
                         pass
                     Some(v2):
                         gen_expression(v2)
-                emit(webassembly.Instruction.ctrl_return())
+                emit(Instruction.ctrl_return())
         else:
             panic("Not implemented: {ast.statement_to_string(statement)}")
     
     fn gen_expression(expression?: ast.Expression):
         case expression.kind:
             IntLiteral(value):
-                emit(webassembly.Instruction.i64_const(value))
+                emit(Instruction.i64_const(value))
+
+            BoolLiteral(value):
+                if value:
+                    emit(Instruction.i32_const(value: 1))
+                else:
+                    emit(Instruction.i32_const(value: 0))
 
             StringLiteral(value):
-                print(value)
+                let offset = add_literal(data: "{value}\\00")
+                emit(Instruction.i32_const(offset))
+
+            FloatLiteral(value):
+                emit(Instruction.f64_const(value))
+
+            StructLiteral(ty, values):
+                let size = sizeof(ty)
+
+                let node_id = ast.NodeId(name: "$ptr$", id: 0)
+                let ptr_index = create_local(id: node_id, ty: ast.opaque_type())
+                gen_malloc_call(size)
+                emit(Instruction.local_set(ptr_index))
+
+                let index = 0
+                for value in values:
+                    emit(Instruction.local_get(ptr_index))
+                    gen_expression(value)
+                    let offset = offsetof(ty, index)
+                    gen_store(offset, ty: value.ty)
+                    index += 1
+                emit(Instruction.local_get(ptr_index))
+
+            UnionLiteral(ty, field, value):
+                let size = sizeof(ty)
+                let node_id = ast.NodeId(name: "$ptr$", id: 0)
+                let ptr_index = create_local(id: node_id, ty: ast.opaque_type())
+                gen_malloc_call(size)
+                emit(Instruction.local_set(ptr_index))
+
+                let index = ast.get_struct_field_index(ty, attr: field)
+                let offset = offsetof(ty, index)
+
+                emit(Instruction.local_get(ptr_index))
+                gen_expression(value)
+                gen_store(offset, ty: value.ty)
+
+                emit(Instruction.local_get(ptr_index))
 
             Binop(binop):
                 gen_expression(binop.lhs)
@@ -88,66 +272,216 @@ class WasmGenerator:
                 if ast.is_int_type(binop.lhs.ty):
                     case binop.op:
                         Add:
-                            emit(webassembly.Instruction.i64_add())
+                            emit(Instruction.i64_add())
                         Sub:
-                            emit(webassembly.Instruction.i64_sub())
+                            emit(Instruction.i64_sub())
                         Mul:
-                            emit(webassembly.Instruction.i64_mul())
+                            emit(Instruction.i64_mul())
                         Div:
-                            emit(webassembly.Instruction.i64_div_s())
+                            emit(Instruction.i64_div_s())
                         Less:
-                            emit(webassembly.Instruction.i64_lt_s())
+                            emit(Instruction.i64_lt_s())
                         LessEquals:
-                            emit(webassembly.Instruction.i64_le_s())
+                            emit(Instruction.i64_le_s())
                         Greater:
-                            emit(webassembly.Instruction.i64_gt_s())
+                            emit(Instruction.i64_gt_s())
                         GreaterEquals:
-                            emit(webassembly.Instruction.i64_ge_s())
+                            emit(Instruction.i64_ge_s())
                         Equals:
-                            emit(webassembly.Instruction.i64_eq())
+                            emit(Instruction.i64_eq())
                         NotEquals:
-                            emit(webassembly.Instruction.i64_ne())
+                            emit(Instruction.i64_ne())
                         And:
                             panic("and not impl")
                         Or:
                             panic("or not impl")
+                elif ast.is_bool_type(binop.lhs.ty):
+                    case binop.op:
+                        And:
+                            emit(Instruction.i32_and())
+                        Or:
+                            emit(Instruction.i32_or())
+                    else:
+                        panic("Invalid bool binop")
+                elif ast.is_float_type(binop.lhs.ty):
+                    case binop.op:
+                        Add:
+                            emit(Instruction.f64_add())
+                        Sub:
+                            emit(Instruction.f64_sub())
+                        Mul:
+                            emit(Instruction.f64_mul())
+                        Div:
+                            emit(Instruction.f64_div())
+                        Less:
+                            emit(Instruction.f64_lt())
+                        LessEquals:
+                            emit(Instruction.f64_le())
+                        Greater:
+                            emit(Instruction.f64_gt())
+                        GreaterEquals:
+                            emit(Instruction.f64_ge())
+                        Equals:
+                            emit(Instruction.f64_eq())
+                        NotEquals:
+                            emit(Instruction.f64_ne())
+                        And:
+                            panic("and not impl")
+                        Or:
+                            panic("or not impl")              
                 else:
                     panic("Binop type not supported: {ast.type_to_string(binop.lhs.ty)}")
 
             Call(call):
-                gen_expression(call.callee)
-                
                 for argument in call.arguments:
                     gen_expression(argument.value)
+                
+                let funcidx = 0
 
-                let funcidx = 1337  # TODO!
-                emit(webassembly.Instruction.ctrl_call(funcidx))
+                case call.callee.kind:
+                    LoadSymbol(symbol):
+                        case symbol:
+                            ExternFunction(external_function_def):
+                                let key = external_function_def.name
+                                log_info(key)
+                                funcidx = option_unwrap(index_mapping.get(key))
+                        else:
+                            panic("cannot call symbol")
+
+                    FunctionRef(function_def, type_args):
+                        # print("call {function_def.id.name}")
+                        let key = ast.node_id_to_string(function_def.id)
+                        funcidx = option_unwrap(index_mapping.get(key))
+                else:
+                    panic("Cannot call!")
+
+                emit(Instruction.ctrl_call(funcidx))
+            
+            TypeCast(ty, value):
+                gen_expression(value)
+                if ast.is_float_type(ty):
+                    if ast.is_int_type(value.ty):
+                        emit(Instruction.f64_convert_i64_s())
+                    else:
+                        panic("TODO: cast {ast.type_to_string(value.ty)} to float")
+                elif ast.is_opaque(ty):
+                    if ast.is_tycon_app_type(value.ty):
+                        pass
+                    elif ast.is_opaque(value.ty):
+                        pass
+                    else:
+                        panic("TODO: cast to opaque: {ast.type_to_string(value.ty)}")
+                elif ast.is_tycon_app_type(ty):
+                    if ast.is_opaque(value.ty):
+                        pass
+                    else:
+                        panic("TODO: cast to tycon-app: {ast.type_to_string(value.ty)}")
+                else:
+                    panic("TODO: cast to {ast.type_to_string(ty)}")
+
+            GetAttr(base, attr):
+                let index = ast.get_struct_field_index(ty: base.ty, attr)
+                let offset = offsetof(ty: base.ty, index)
+                gen_expression(base)
+                gen_load(offset, ty: expression.ty)
 
             LoadSymbol(symbol):
                 case symbol:
                     ExternFunction(external_function):
-                        # TODO: import external function!
-                        print("ext -> {external_function.name}")
-                    Parameter(p):
-                        let localidx = get_local_index(id: p.id)
-                        emit(webassembly.Instruction.local_get(localidx))
+                        panic("ext -> {external_function.name}")
+                    Parameter(parameter_def):
+                        let localidx = get_local_index(id: parameter_def.id)
+                        emit(Instruction.local_get(localidx))
                 else:
                     panic("Not impl symbol")
 
-            VarRef(v):
-                let localidx = get_local_index(id: v.id)
-                emit(webassembly.Instruction.local_get(localidx))
+            VarRef(variable):
+                let localidx = get_local_index(id: variable.id)
+                emit(Instruction.local_get(localidx))
 
-            FunctionRef(f, type_args):
-                print("FN {f.id.name}")
+            FunctionRef(function_def, type_args):
+                print("FN {function_def.id.name}")
         else:
             panic("Not implemented: {ast.expression_to_string(expression)}")
 
-    fn get_local_index(id: ast.NodeId) -> int:
-        return 13
+    fn gen_malloc_call(size: int):
+        emit(Instruction.i64_const(size))
+        let funcidx = option_unwrap(index_mapping.get(key: "malloc"))
+        emit(Instruction.ctrl_call(funcidx))
     
-    fn create_local(id: ast.NodeId) -> int:
-        return 12
+    fn sizeof(ty: ast.Type) -> int:
+        let layout = get_struct_layout(ty)
+        return layout.size
 
-    fn emit(instruction?: webassembly.Instruction):
-        print("WASM INSTR> {webassembly.to_string(instruction)}")
+    fn offsetof(ty: ast.Type, index: int) -> int:
+        let layout = get_struct_layout(ty)
+        return layout.offsets.get(index)
+    
+    fn get_struct_layout(ty: ast.Type) -> StructLayout:
+        # TODO: cache results.
+        let struct_def = ast.get_struct_def_from_type(ty)
+        let size: int = 0
+        let offsets: List[int] = List()
+        for field in struct_def.fields:
+            offsets.append(size)
+            let field_size = 8
+
+            size += field_size
+        return StructLayout(size, offsets)
+
+    fn gen_store(offset: int, ty: ast.Type):
+        let wasm_ty = get_wasm_type(ty)
+        case wasm_ty:
+            i32:
+                emit(Instruction.i32_store(align: 4, offset))
+            f32:
+                emit(Instruction.f32_store(align: 4, offset))
+            i64:
+                emit(Instruction.i64_store(align: 8, offset))
+            f64:
+                emit(Instruction.f64_store(align: 8, offset))
+
+    fn gen_load(offset: int, ty: ast.Type):
+        let wasm_ty = get_wasm_type(ty)
+        case wasm_ty:
+            i32:
+                emit(Instruction.i32_load(align: 4, offset))
+            f32:
+                emit(Instruction.f32_load(align: 4, offset))
+            i64:
+                emit(Instruction.i64_load(align: 8, offset))
+            f64:
+                emit(Instruction.f64_load(align: 8, offset))
+
+    fn get_local_index(id: ast.NodeId) -> int:
+        return option_unwrap(index_mapping.get(key: ast.node_id_to_string(id)))
+
+    fn create_parameter(id: ast.NodeId, ty: ast.Type) -> int:
+        let idx = local_variables.len()
+        let wasm_ty = get_wasm_type(ty)
+        local_variables.append(wasm_ty)
+        index_mapping.insert(key: ast.node_id_to_string(id), value: idx)
+        return idx
+
+    fn create_local(id: ast.NodeId, ty: ast.Type) -> int:
+        let idx = local_variables.len()
+        let wasm_ty = get_wasm_type(ty)
+        local_variables.append(wasm_ty)
+        index_mapping.insert(key: ast.node_id_to_string(id), value: idx)
+        return idx
+
+    fn emit(instruction?: Instruction):
+        # log_info("WASM INSTR> {webassembly.to_string(instruction)}")
+        code.append(instruction)
+
+    fn add_literal(data: str) -> int:
+        # TODO!
+        let offset = literal_offset
+        literal_offset += str_len(data) + 3  # Some extra space for trailing zeroes
+        datas.append(webassembly.Data(offset, text: data))
+        log_debug("STRING LITERAL> {data}")
+        return offset
+
+struct StructLayout:
+    size: int
+    offsets: List[int]

@@ -34,28 +34,8 @@ class CGenerator2:
         emit("void rt_incref(void *ptr);")
         emit("void rt_decref(void *ptr);")
 
-        emit("void std_print(char *message);")
-        emit("void std_exit(int code);")
-
-        emit("char* std_read_file(char *filename);")
-
-        emit("char* rt_str_concat(char*, char*);")
-        emit("int rt_str_compare(char *a, char *b);")
-        emit("int std_str_len(char* txt);")
-        emit("char* std_str_slice(char* txt, int begin, int end);")
-        emit("char std_str_get(char* txt, int pos);")
-
-        emit("int std_ord(char txt);")
-        emit("char std_chr(int val);")
-
-        emit("char *std_int_to_str(int x);")
-        emit("int std_str_to_int(char *x);")
-        emit("char *std_float_to_str(double x);")
-        emit("double std_str_to_float(char *x);")
-        emit("char *std_char_to_str(char x);")
-
-        emit("char *std_get_arg(int);")
-        emit("int std_get_n_args();")
+        # emit("char* rt_str_concat(char*, char*);")
+        # emit("int rt_str_compare(char *a, char *b);")
 
         emit("jmp_buf g_except_hook;")
         emit("void* g_except_value;")

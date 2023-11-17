@@ -1,12 +1,13 @@
 # Generate python code from AST.
 
 import ast
-from utils import panic
+from utils import panic, log_info
 from datatypes import List
 from std import print, float_to_str, chr
 from strlib import str_join, str_repeat
 
 fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool):
+    log_info("Generating python code")
     let g = PyGenerator()
     if generate_runtime:
         g.emit_runtime()

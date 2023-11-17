@@ -799,22 +799,29 @@ class Parser:
                 BraceOpen:
                     expr = parse_call_suffix(callee: expr)
                 BracketOpen:
-                    let indici: List[ast.Expression] = List()
-                    loop:
-                        indici.append(parse_expression())
-                        let tok4 = get_token()
-                        case tok4.kind:
-                            BracketClose:
-                                break
-                            Comma:
-                                continue
-                        else:
-                            raise unexpected_token(tok: tok4, expected: "']' or ','")
-                    expr = ast.subscript(base: expr, indici, ty: ast.undefined_type(), location: tok.location)
+                    expr = parse_index_suffix(base: expr)
             else:
                 unget_token(tok)
                 break
         return expr
+    
+    fn parse_index_suffix(base: ast.Expression) -> ast.Expression except CompilationError:
+        let begin = base.location.begin
+        let end = base.location.end
+        let indici: List[ast.Expression] = List()
+        loop:
+            indici.append(parse_expression())
+            let tok4 = get_token()
+            case tok4.kind:
+                BracketClose:
+                    end = tok4.location.end
+                    break
+                Comma:
+                    continue
+            else:
+                raise unexpected_token(tok: tok4, expected: "']' or ','")
+        let location = Location(begin, end)
+        return ast.subscript(base, indici, ty: ast.undefined_type(), location)
     
     fn parse_call_suffix(callee: ast.Expression) -> ast.Expression except CompilationError:
         # print("CALL")
