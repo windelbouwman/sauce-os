@@ -1,5 +1,5 @@
 
-from std import print, int_to_str, read_file
+from std import print, read_file
 from datatypes import List, vec1, Option
 from strlib import split_lines, str_repeat, str_pad_right
 from location import Location, location_to_string
@@ -34,7 +34,7 @@ fn print_error(filename: str, location: Location, message: str):
     let nr_context_rows = 4
     for line in split_lines(text: code):
         if target_row - nr_context_rows <= row and row <= target_row + nr_context_rows:
-            let row_text = str_pad_right(text: int_to_str(row), length: 5, fill: " ")
+            let row_text = str_pad_right(text: "{row}", length: 5, fill: " ")
             print(" {row_text}| {line}")
             let pre_text = "      |"
 

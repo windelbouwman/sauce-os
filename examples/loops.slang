@@ -7,7 +7,7 @@ fn main() -> int:
 
     loop:
         x = x + 1
-        std.print("1: x = " + std.int_to_str(x))
+        std.print("1: x = {x}")
 
         if x > 5:
             break
@@ -18,7 +18,7 @@ fn main() -> int:
 
     while x < 10:
         x = x + 1
-        std.print("2: x = " + std.int_to_str(x))
+        std.print("2: x = {x}")
         continue
 
     return 0

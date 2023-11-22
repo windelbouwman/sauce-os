@@ -24,7 +24,7 @@ from .pygenerator import gen_pycode
 from .bc_gen import gen_bc
 from .vm import run_bytecode
 from .bc import print_bytecode
-from .builtins import create_std_module, get_builtins, BUILTINS_PY_IMPL
+from .builtins import create_rt_module, get_builtins, BUILTINS_PY_IMPL
 
 logger = logging.getLogger("compiler")
 
@@ -47,8 +47,8 @@ def do_compile(
 
     id_context = ast.IdContext()
 
-    std_module = create_std_module()
-    known_modules = {"std": std_module}
+    rt_module = create_rt_module()
+    known_modules = {"rt": rt_module}
 
     modules = []
     for filename in filenames:
@@ -63,7 +63,7 @@ def do_compile(
         if options.dump_ast:
             ast.print_ast(module)
 
-    transform(id_context, modules, std_module, options)
+    transform(id_context, modules, rt_module, options)
 
     if options.dump_ast:
         print_modules(modules)
@@ -149,7 +149,7 @@ def print_modules(modules: list[ast.Module]):
 def transform(
     id_context: ast.IdContext,
     modules: list[ast.Module],
-    std_module: ast.Module,
+    rt_module: ast.Module,
     options: CompilationOptions,
 ):
     """Transform a slew of modules (in-place)
@@ -157,7 +157,7 @@ def transform(
     Some real compilation being done here.
     """
     # Rewrite and type-check for each transformation.
-    rewrite_loops(id_context, std_module, modules)
+    rewrite_loops(id_context, rt_module, modules)
     check_modules(modules)
 
     rewrite_enums(id_context, modules)

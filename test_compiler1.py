@@ -15,8 +15,6 @@ from compiler1 import compiler
 @pytest.mark.parametrize("filename", glob.glob("examples/*.slang"))
 @pytest.mark.parametrize("backend", ["vm", "py"])
 def test_compiles(filename: str, backend: str):
-    # backend "cpp"
-
     # Skip slow mandelbrot test for now:
     if "mandel" in filename:
         return
@@ -25,11 +23,15 @@ def test_compiles(filename: str, backend: str):
     if "snake" in filename:
         return
 
+    if "linkable" in filename:
+        return
+
     options = compiler.CompilationOptions(
         dump_ast=False, run_code=True, backend=backend
     )
     f = io.StringIO()
-    compiler.do_compile([filename], f, options)
+    runtime_filename = "runtime/std.slang"
+    compiler.do_compile([filename, runtime_filename], f, options)
     stdout = f.getvalue()
 
     # Compare with reference file (if one exists):

@@ -2,8 +2,7 @@
 # Demo of a generic enum type.
 ######
 
-import std
-from std import print, int_to_str
+from std import print
 
 fn main():
     let i = new_integer(23)

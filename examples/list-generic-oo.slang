@@ -79,7 +79,7 @@ fn main():
             None:
                 break
             Some(element):
-                print("Item[{n}]=" + std.int_to_str(element.value))
+                print("Item[{n}]={element.value}")
         n = n + 1
 
     # This works when x has an 'iter' method:

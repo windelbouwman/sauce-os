@@ -2,7 +2,8 @@
 # C code backend
 # Translate bytecode into C code.
 
-from std import float_to_str, print, chr, int_to_str
+from std import float_to_str, print, chr
+from rt import int_to_str
 from utils import panic
 from datatypes import List, Set
 from strlib import str_repeat, str_join
@@ -68,7 +69,6 @@ class CGenerator:
 
     fn emit_runtime():
         emit("// runtime functions:")
-
         emit("void* rt_malloc(int size);")
         emit("void rt_incref(void *ptr);")
         emit("void rt_decref(void *ptr);")

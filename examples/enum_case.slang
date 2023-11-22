@@ -24,4 +24,4 @@ fn foo(val: Option):
         None:
             print("Nothing here")
         Money(x,y):
-            print("Money!! x=" + std.int_to_str(x) + " y=" + std.float_to_str(y))
+            print("Money!! x={x} y=" + std.float_to_str(y))

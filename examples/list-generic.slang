@@ -65,7 +65,7 @@ fn list_walk(x: List[Integer]):
             None:
                 break
             Some(element):
-                std.print("Item[{i}]=" + std.int_to_str(element.data.value))
+                std.print("Item[{i}]={element.data.value}")
                 mabye_element = element.next
         i = i + 1
 
@@ -91,7 +91,7 @@ fn main():
             None:
                 break
             Some(value):
-                std.print("Iter value: " + std.int_to_str(value.value))
+                std.print("Iter value: {value.value}")
 
     # Nicer syntax would be:
     # let y = List[String]()

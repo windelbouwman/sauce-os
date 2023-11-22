@@ -16,10 +16,10 @@ from datatypes import Dictionary, List, vec1, vec2, vec3, Option, option_unwrap_
 from errors import CompilationError
 import ast
 
-fn transform(module_set: ast.ModuleSet, id_gen: IdGen, std_module: ast.Module) except CompilationError:
+fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module) except CompilationError:
     # log_info("Transforming {module.name}")
     let transformer = Transformer:
-        class_rewriter: ClassRewriter(id_gen, std_module)
+        class_rewriter: ClassRewriter(id_gen, rt_module)
 
     let visitor = ast.Visitor[Transformer]:
         data: transformer
@@ -250,7 +250,7 @@ fn transformer_on_statement7(transformer: Transformer, statement: ast.Statement,
 
                     case target.kind:
                         TypeCast(typ, value):
-                            if ast.is_opaque(value.ty) or ast.is_type_parameter_type(value.ty):
+                            if ast.is_opaque_type(value.ty) or ast.is_type_parameter_type(value.ty):
                                 ast.change_expression_to(expression: target, to: value)
                             else:
                                 panic("Only supported type cast from opaque as assignment target (not {ast.type_to_string(value.ty)})")
@@ -427,7 +427,7 @@ class ClassRewriter:
     var struct_map: Dictionary[ast.StructDef] = Dictionary()
     var new_definitions: List[ast.Definition] = List()
     var id_gen: IdGen
-    var std_module: ast.Module
+    var rt_module: ast.Module
 
     fn rewrite_class_def(class_def: ast.ClassDef):
         log_info("Rewriting class def {class_def.id.name}")
@@ -536,7 +536,7 @@ class ClassRewriter:
 
     fn load_std_function(name: str, location: Location) -> ast.Expression:
         # Get expression that loads a builtin runtime function.
-        let symbol = option_unwrap(std_module.scope.lookup(name))
+        let symbol = option_unwrap(rt_module.scope.lookup(name))
         return ast.load_symbol(symbol, ty: ast.undefined_type(), location)
 
     fn transform_for_loop(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
@@ -728,7 +728,7 @@ class ClassRewriter:
         let switch_default_code: ast.Statement = ast.pass_statement(location)
         case case_statement.else_block:
             None:
-                switch_default_code = ast.pass_statement(location)
+                switch_default_code = ast.unreachable_statement(location)
             Some(else_block):
                 switch_default_code = else_block.body
 

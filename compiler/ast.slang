@@ -207,7 +207,7 @@ fn is_array_type(ty?: Type) -> bool:
     else:
         return false
 
-fn is_opaque(ty?: Type) -> bool:
+fn is_opaque_type(ty?: Type) -> bool:
     case ty.kind:
         Opaque:
             return true
@@ -635,9 +635,14 @@ enum ImportKind:
     Names(names: List[str])
 
 struct ExternFunctionDef:
+    modname: str
     name: str
     parameter_types: List[Type]
     return_type: Type
+    no_return: bool
+
+fn extern_function_def(modname: str, name: str, parameter_types: List[Type], return_type: Type) -> ExternFunctionDef:
+    return ExternFunctionDef(modname, name, parameter_types, return_type, no_return: false)
 
 fn extern_function_type(func: ExternFunctionDef) -> Type:
     return function_type(parameter_types: func.parameter_types, return_type: func.return_type)
@@ -809,6 +814,7 @@ fn function_def(name: str, id: int, type_parameters: List[TypeParameter], this_p
     let f = FunctionDef:
         id: NodeId(name, id)
         is_pub: true
+        no_return: false
         type_parameters
         this_parameter
         parameters
@@ -822,6 +828,7 @@ fn function_def(name: str, id: int, type_parameters: List[TypeParameter], this_p
 struct FunctionDef:
     id: NodeId
     is_pub: bool
+    no_return: bool  # no_return attribute
     type_parameters: List[TypeParameter]
     this_parameter: Option[ParameterDef]
     parameters: List[ParameterDef]
@@ -898,6 +905,7 @@ enum StatementKind:
     Assignment(target: Expression, operator: Option[BinaryOperator], value: Expression)
     Return(value: Option[Expression])
     Raise(value: Expression)
+    Unreachable
     Pass
     Break
     Continue
@@ -1035,6 +1043,9 @@ fn break_statement(location: Location) -> Statement:
 
 fn continue_statement(location: Location) -> Statement:
     return Statement(kind: StatementKind.Continue(), location)
+
+fn unreachable_statement(location: Location) -> Statement:
+    return Statement(kind: StatementKind.Unreachable(), location)
 
 struct Expression:
     location: Location
@@ -1344,6 +1355,8 @@ fn statement_to_string(statement: Statement) -> str:
             txt = "LET {node_id_to_string(letty.variable.id)}"
         Switch(switchy):
             txt = "SWITCH"
+        Unreachable:
+            txt = "UNREACHABLE"
     return txt
 
 fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPhase):

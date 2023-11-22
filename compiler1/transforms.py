@@ -36,17 +36,17 @@ class BaseTransformer(ast.AstVisitor):
         return self._id_context.new_id(name)
 
 
-def rewrite_loops(id_context: ast.IdContext, std_module: ast.Module, modules):
-    LoopRewriter(id_context, std_module).transform(modules)
+def rewrite_loops(id_context: ast.IdContext, rt_module: ast.Module, modules):
+    LoopRewriter(id_context, rt_module).transform(modules)
 
 
 class LoopRewriter(BaseTransformer):
     name = "loop-rewrite"
 
-    def __init__(self, id_context: ast.IdContext, std_module: ast.Module):
+    def __init__(self, id_context: ast.IdContext, rt_module: ast.Module):
         super().__init__(id_context)
 
-        self._std_module = std_module
+        self._rt_module = rt_module
 
     def visit_statement(self, statement: ast.Statement):
         super().visit_statement(statement)
@@ -180,13 +180,13 @@ class LoopRewriter(BaseTransformer):
                 expression.kind = kind.expr.kind
             elif kind.expr.ty.is_int():
                 # call built-in int_to_str
-                int_to_str = self._std_module.get_field("int_to_str")
+                int_to_str = self.get_rt_function("int_to_str")
                 callee = ast.obj_ref(int_to_str, ast.void_type, expression.location)
                 args = [ast.LabeledExpression("value", kind.expr, kind.expr.location)]
                 expression.kind = ast.FunctionCall(callee, args)
             elif kind.expr.ty.is_char():
                 # call built-in char_to_str
-                char_to_str = self._std_module.get_field("char_to_str")
+                char_to_str = self.get_rt_function("char_to_str")
                 callee = ast.obj_ref(char_to_str, ast.void_type, expression.location)
                 args = [ast.LabeledExpression("value", kind.expr, kind.expr.location)]
                 expression.kind = ast.FunctionCall(callee, args)
@@ -194,6 +194,9 @@ class LoopRewriter(BaseTransformer):
                 raise ValueError(
                     f"Cannot resolve to-string for {ast.str_ty(kind.expr.ty)}"
                 )
+
+    def get_rt_function(self, name: str):
+        return self._rt_module.get_field(name)
 
 
 def rewrite_enums(id_context, modules):

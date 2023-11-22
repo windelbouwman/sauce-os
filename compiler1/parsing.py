@@ -27,22 +27,21 @@ def parse_file(id_context: ast.IdContext, filename: str) -> ast.Module:
     modname = os.path.splitext(os.path.basename(filename))[0]
     # TODO: clean modname of more special characters
     modname = modname.replace("-", "_")
-    return parse(id_context, code, modname, filename)
+    return parse_source(id_context, code, modname, filename)
 
 
-def parse(
+def parse_source(
     id_context: ast.IdContext, code: str, modname: str, filename: str
 ) -> ast.Module:
     """Parse the given code."""
     logger.debug("Starting parse")
     try:
-        module: ast.Module = lark_it(id_context, code, "module")
+        module: ast.Module = lark_it(id_context, modname, code, "module")
     except ParseError as ex:
         raise CompilationError([(filename, ex.location, ex.message)])
 
     assert isinstance(module, ast.Module)
 
-    module.name = modname
     module.filename = filename
     logger.debug("Parse complete!")
     return module
@@ -53,13 +52,15 @@ def parse_expr(
 ) -> ast.Expression:
     """Parse a single expression. Useful in f-strings."""
 
-    node: ast.Expression = lark_it(id_context, (start_loc, expr), start="eval_expr")
+    node: ast.Expression = lark_it(
+        id_context, "?", (start_loc, expr), start="eval_expr"
+    )
     assert isinstance(node, ast.Expression)
     # print(n)
     return node
 
 
-def lark_it(id_context: ast.IdContext, code, start):
+def lark_it(id_context: ast.IdContext, modname: str, code, start):
     """Invoke the lark parsing."""
     try:
         tree = lark_parser.parse(code, start=start)
@@ -69,7 +70,7 @@ def lark_it(id_context: ast.IdContext, code, start):
         )
 
     try:
-        return CustomTransformer(id_context).transform(tree)
+        return CustomTransformer(id_context, modname).transform(tree)
     except VisitError as ex:
         if isinstance(ex.orig_exc, ParseError):
             raise ex.orig_exc
@@ -170,15 +171,16 @@ def get_span(loc1: Location, loc2: Location):
 
 
 class CustomTransformer(LarkTransformer):
-    def __init__(self, id_context):
+    def __init__(self, id_context, modname):
         super().__init__()
         self.id_context = id_context
+        self._modname = modname
 
     def new_id(self, name: str) -> ast.Id:
         return self.id_context.new_id(name)
 
     def module(self, x):
-        name = "?"
+        name = self._modname
         imports, definitions = x
         return ast.Module(name, imports, definitions)
 
@@ -242,7 +244,7 @@ class CustomTransformer(LarkTransformer):
         if x[0].type == "KW_PUB":
             x = x[1:]
         location, name, type_parameters = x[1]
-        parameters, return_type, except_type = x[2]
+        parameters, return_type, except_type, no_return = x[2]
         body = x[-1]
         return ast.function_def(
             self.new_id(name),
@@ -257,37 +259,38 @@ class CustomTransformer(LarkTransformer):
     def extern_func_def(self, x):
         # extern_func_def: KW_EXTERN KW_FN id_and_type_parameters function_signature NEWLINE
         location, name, type_parameters = x[2]
-        parameters, return_type, except_type = x[3]
+        parameters, return_type, except_type, no_return = x[3]
         ptypes = [p.ty for p in parameters]
-        return ast.BuiltinFunction(name, ptypes, return_type)
+        return ast.BuiltinFunction(self._modname, name, ptypes, return_type)
 
     def function_signature(self, x):
         # LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
         if isinstance(x[1], LarkToken) and x[1].type == "RIGHT_BRACE":
             parameters = []
-            idx = 2
+            x = x[2:]
         else:
             assert isinstance(x[1], list)
             parameters = x[1]
-            idx = 3
+            x = x[3:]
 
-        if idx < len(x) and isinstance(x[idx], LarkToken) and x[idx].type == "ARROW":
-            return_type = x[idx + 1]
-            idx += 2
+        if x and isinstance(x[0], LarkToken) and x[0].type == "ARROW":
+            return_type = x[1]
+            x = x[2:]
         else:
             return_type = ast.void_type
 
-        if (
-            idx < len(x)
-            and isinstance(x[idx], LarkToken)
-            and x[idx].type == "KW_EXCEPT"
-        ):
-            except_type = x[idx + 1]
-            idx += 2
+        if x and isinstance(x[0], LarkToken) and x[0].type == "KW_EXCEPT":
+            except_type = x[1]
+            x = x[1:]
         else:
             except_type = ast.void_type
 
-        return parameters, return_type, except_type
+        if x and isinstance(x[0], LarkToken) and x[0].type == "QUESTION":
+            no_return = True
+        else:
+            no_return = False
+
+        return parameters, return_type, except_type, no_return
 
     def parameters(self, x):
         if len(x) == 1:
@@ -709,7 +712,7 @@ class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_
 var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
 func_def: KW_PUB? KW_FN id_and_type_parameters function_signature block
 extern_func_def: KW_EXTERN KW_FN id_and_type_parameters function_signature NEWLINE
-function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? (KW_EXCEPT typ)?
+function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? (KW_EXCEPT typ)? QUESTION?
 parameters: parameter
           | parameters COMMA parameter
 parameter: ID QUESTION? COLON typ

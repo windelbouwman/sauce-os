@@ -338,7 +338,7 @@ class ByteCodeGenerator:
             elif isinstance(obj, ast.FunctionDef):
                 self.emit(OpCode.LOADFUNC, self.get_id(obj.id))
             elif isinstance(obj, ast.BuiltinFunction):
-                self.emit(OpCode.BUILTIN, obj.id.name)
+                self.emit(OpCode.BUILTIN, f"{obj.modname}_{obj.id.name}")
             else:
                 raise NotImplementedError(str(obj))
         else:

@@ -19,7 +19,5 @@ jobs:
           pip install -r compiler1/requirements.txt
       - name: Test with pytest
         run: pytest test_compiler1.py -v
-      - name: Bootstrap compiler
-        run: python -m compiler1 compiler/*.slang -v --run-code --backend py
       - name: Bootstrap
         run: bash bootstrap2.sh

@@ -198,6 +198,8 @@ class Generator:
                     gen_statement(s)
             Switch(switch_statement):
                 panic("Switch not implemented")
+            Unreachable:
+                panic("TODO: unreachable")
             Return(opt_val):
                 case opt_val:
                     Some(val):

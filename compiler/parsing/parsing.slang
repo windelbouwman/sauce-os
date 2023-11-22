@@ -4,7 +4,7 @@ import std
 from lexer import Lexer
 from token import token_to_string, Token
 from location import Location, location_default, Position
-from datatypes import List, Result, Option, vec1
+from datatypes import List, Result, Option, vec1, option_unwrap
 from strlib import split_string
 from basepass import IdGen
 from utils import panic, log_debug, log_trace, log_info
@@ -37,6 +37,7 @@ class Parser:
     var lex: Lexer = Lexer()
     var filename: Option[str] = Option.None()
     var id_gen: IdGen
+    var modname: Option[str] = Option.None()
 
     fn feed(source: str):
         lex.init(source)
@@ -45,6 +46,7 @@ class Parser:
         let definitions: List[ast.Definition] = List()
         let imports: List[ast.Import] = List()
         this.filename = Option.Some(filename)
+        this.modname = Option.Some(name)
 
         loop:
             let tok = lex.next_token()
@@ -260,10 +262,13 @@ class Parser:
                 except_type = parse_type()
         else:
             unget_token(tok)
+        let no_return = has_parsed_question()
 
         # Body
         let body = parse_block()
-        return ast.function_def(name, id: new_id(), type_parameters, this_parameter, parameters, return_type, except_type, body, location)
+        let function_def = ast.function_def(name, id: new_id(), type_parameters, this_parameter, parameters, return_type, except_type, body, location)
+        function_def.no_return = no_return
+        return function_def
     
     fn parse_extern_func_def(location: Location) -> ast.ExternFunctionDef except CompilationError:
         let tok = get_token()
@@ -275,13 +280,16 @@ class Parser:
         let name: str = parse_name().name
         let parameters = parse_parameters()
         let return_type = parse_optional_return_type()
+        let no_return = has_parsed_question()
         parse_newline()
 
         let parameter_types: List[ast.Type] = List()
         for parameter in parameters:
             parameter_types.append(parameter.ty)
 
-        return ast.ExternFunctionDef(name, parameter_types, return_type)
+        let extern_function_def = ast.extern_function_def(modname: option_unwrap(modname), name, parameter_types, return_type)
+        extern_function_def.no_return = no_return
+        return extern_function_def
 
     fn parse_parameters() -> List[ast.ParameterDef] except CompilationError:
         let parameters: List[ast.ParameterDef] = List()
@@ -319,16 +327,20 @@ class Parser:
     fn parse_parameter_def() -> ast.ParameterDef except CompilationError:
         let name_at = parse_name()
         # Parse optional '?' to indicate label is optional at call-site
-        let label_is_optional = false
-        let tok = get_token()
-        case tok.kind:
-            Question:
-                label_is_optional = true
-        else:
-            unget_token(tok)
+        let label_is_optional = has_parsed_question()
         parse_colon()
         let ty = parse_type()
         return ast.parameter_def(name: name_at.name, id: new_id(), label_is_optional, ty, location: name_at.location)
+    
+    fn has_parsed_question() -> bool:
+        let q = false
+        let tok = get_token()
+        case tok.kind:
+            Question:
+                q = true
+        else:
+            unget_token(tok)
+        return q
 
     fn parse_var_def(location: Location) -> ast.VariableDef except CompilationError:
         let name_at = parse_name()

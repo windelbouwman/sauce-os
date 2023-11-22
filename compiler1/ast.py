@@ -545,9 +545,9 @@ class Module(Node):
     def get_field(self, name: str) -> "Definition":
         return self.scope.lookup(name)
 
-    def add_definition(self, name: str, definition: "Definition"):
-        assert not self.scope.is_defined(name)
-        self.scope.define(name, definition)
+    def add_definition(self, definition: "Definition"):
+        assert not self.scope.is_defined(definition.id.name)
+        self.scope.define(definition.id.name, definition)
         self.definitions.append(definition)
 
 
@@ -606,12 +606,12 @@ class TypeDef(Definition):
 
 
 def class_def(
-    name: str,
+    id: Id,
     type_parameters: list[TypeParameter],
     members: list["Definition"],
     location: Location,
 ):
-    return ClassDef(name, type_parameters, members, location)
+    return ClassDef(id, type_parameters, members, location)
 
 
 class ClassDef(TypeConstructor):
@@ -1515,8 +1515,15 @@ class Variable(Definition):
 
 
 class BuiltinFunction(Definition):
-    def __init__(self, name: str, parameter_types: list[MyType], return_type: MyType):
+    def __init__(
+        self,
+        modname: str,
+        name: str,
+        parameter_types: list[MyType],
+        return_type: MyType,
+    ):
         super().__init__(Id(name, 0), Location.default())
+        self.modname = modname
         parameter_names = [None] * len(parameter_types)
         self.ty = function_type(
             parameter_names, parameter_types, return_type, void_type

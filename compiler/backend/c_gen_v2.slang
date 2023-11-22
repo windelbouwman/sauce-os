@@ -34,9 +34,6 @@ class CGenerator2:
         emit("void rt_incref(void *ptr);")
         emit("void rt_decref(void *ptr);")
 
-        # emit("char* rt_str_concat(char*, char*);")
-        # emit("int rt_str_compare(char *a, char *b);")
-
         emit("jmp_buf g_except_hook;")
         emit("void* g_except_value;")
 
@@ -56,7 +53,10 @@ class CGenerator2:
                 case definition:
                     Function(function_def):
                         let decl = gen_function_decl(function_def)
-                        emit("{decl};")
+                        let no_return = ""
+                        if function_def.no_return:
+                            no_return = " __attribute__((noreturn));"
+                        emit("{decl}{no_return};")
                     Struct(struct_def):
                         # Create struct constructor function
                         let name = gen_id(id: struct_def.id)
@@ -139,7 +139,7 @@ class CGenerator2:
             emit("")
 
     fn gen_extern_function_decl(extern_function_def: ast.ExternFunctionDef):
-        let name = extern_function_def.name
+        let name = "{extern_function_def.modname}_{extern_function_def.name}"
         let parameter_parts: List[str] = List()
         let index = 1
         for parameter_type in extern_function_def.parameter_types:
@@ -152,7 +152,10 @@ class CGenerator2:
             return_type_text = "void {name}"
         else:
             return_type_text = gen_type(ty: extern_function_def.return_type, name)
-        emit("{return_type_text}({parameter_text});")
+        let no_return = ""
+        if extern_function_def.no_return:
+            no_return = " __attribute__((noreturn))"
+        emit("{return_type_text}({parameter_text}){no_return};")
 
     fn gen_function_decl(function_def: ast.FunctionDef) -> str:
         let name = gen_id(id: function_def.id)
@@ -186,7 +189,7 @@ class CGenerator2:
             return "double {name}"
         elif ast.is_char_type(ty):
             return "char {name}"
-        elif ast.is_opaque(ty):
+        elif ast.is_opaque_type(ty):
             return "void* {name}"
         elif ast.is_struct_type(ty):
             let struct_def = ast.get_struct_def_from_type(ty)
@@ -315,6 +318,9 @@ class CGenerator2:
                 let value_txt = gen_expression(value)
                 emit("g_except_value = {value_txt};")
                 emit("longjmp(g_except_hook, 1);")
+            
+            Unreachable:
+                emit("__builtin_unreachable();")
 
             Pass:
                 pass
@@ -373,11 +379,13 @@ class CGenerator2:
                 let source = gen_expression(value)
                 if ast.is_float_type(ty):
                     return "(double)({source})"
-                elif ast.is_opaque(ty):
+                elif ast.is_opaque_type(ty):
                     return "(void*)({source})"
                 elif ast.is_str_type(ty):
                     return "(char*)({source})"
                 elif ast.is_int_type(ty):
+                    return "(intptr_t)({source})"
+                elif ast.is_bool_type(ty):
                     return "(intptr_t)({source})"
                 elif ast.is_struct_type(ty):
                     let to_type2 = gen_type(ty: ty, name: "")
@@ -388,7 +396,7 @@ class CGenerator2:
             LoadSymbol(symbol):
                 case symbol:
                     ExternFunction(extern_function):
-                        return extern_function.name
+                        return "{extern_function.modname}_{extern_function.name}"
                     Parameter(parameter_def):
                         return gen_id(id: parameter_def.id)
                 else:

@@ -3,7 +3,7 @@
 # ===================
 #
 # Generate WebAssembly from AST.
-# 
+#
 # - Pointers are mapped to i32 type
 # - floats are mapped to f64
 # - ints are mapped to i64
@@ -14,7 +14,7 @@ import ast
 from webassembly import Instruction
 from datatypes import List, Dictionary, option_unwrap, vec1
 from std import print, str_len
-from utils import panic, log_info, log_debug
+from utils import panic, log_info, log_debug, assert
 
 
 fn gen_webassembly(module_set: ast.ModuleSet):
@@ -30,20 +30,22 @@ class WasmGenerator:
     var datas: List[webassembly.Data] = List()
     var code: List[webassembly.Instruction] = List()
 
+    var n_parameters: int = 0
     var local_variables: List[webassembly.ValueType] = List()
     var index_mapping: Dictionary[int] = Dictionary()
     var literal_offset: int = 0
+    var block_stack: List[bool] = List()
 
     fn gen_module_set(modules: List[ast.Module]):
-        let malloc_def = ast.ExternFunctionDef(name: "malloc", parameter_types: vec1(ast.int_type()), return_type: ast.opaque_type())
-        gen_external_function(module_name: "js", extern_function_def: malloc_def)
+        let malloc_def = ast.extern_function_def(modname: "js", name: "malloc", parameter_types: vec1(ast.int_type()), return_type: ast.opaque_type())
+        gen_external_function(extern_function_def: malloc_def)
 
         for module in modules:
             log_info("Generating external functions {module.name}")
             for definition in module.definitions:
                 case definition:
                     ExternFunction(extern_function_def):
-                        gen_external_function(module_name: "ugh", extern_function_def)
+                        gen_external_function(extern_function_def)
                 else:
                     pass
 
@@ -64,7 +66,7 @@ class WasmGenerator:
 
         for module in modules:
             gen_module(module)
-        
+
         # Create module:
         let wasm_module = webassembly.Module:
             types
@@ -74,12 +76,12 @@ class WasmGenerator:
             datas
         webassembly.to_wat(module: wasm_module)
 
-    fn gen_external_function(module_name: str, extern_function_def: ast.ExternFunctionDef):
+    fn gen_external_function(extern_function_def: ast.ExternFunctionDef):
         # log_debug("extern function def: {extern_function_def.name}")
         let funcidx = imports.len()
         index_mapping.insert(key: extern_function_def.name, value: funcidx)
         let func_ty = reg_signature(parameter_types: extern_function_def.parameter_types, return_type: extern_function_def.return_type)
-        imports.append(webassembly.Import(module: module_name, name: extern_function_def.name, ty: func_ty))
+        imports.append(webassembly.Import(module: extern_function_def.modname, name: extern_function_def.name, ty: func_ty))
 
     fn gen_module(module: ast.Module):
         for definition in module.definitions:
@@ -96,7 +98,7 @@ class WasmGenerator:
     fn get_wasm_type(ty?: ast.Type) -> webassembly.ValueType:
         if ast.is_int_type(ty):
             return webassembly.ValueType.i64()
-        elif ast.is_opaque(ty) or ast.is_tycon_app_type(ty):
+        elif ast.is_opaque_type(ty) or ast.is_tycon_app_type(ty):
             return webassembly.ValueType.i32()
         elif ast.is_str_type(ty):
             return webassembly.ValueType.i32()
@@ -105,6 +107,8 @@ class WasmGenerator:
         elif ast.is_char_type(ty):
             return webassembly.ValueType.i32()
         elif ast.is_bool_type(ty):
+            return webassembly.ValueType.i32()
+        elif ast.is_function_type(ty):
             return webassembly.ValueType.i32()
         else:
             panic("TODO: {ast.type_to_string(ty)}!")
@@ -131,8 +135,8 @@ class WasmGenerator:
         log_info("Generating code for function: {function_def.id.name}")
         code = List()
         local_variables = List()
-        
-        local_variables = List()
+        n_parameters = 0
+
         let parameter_types: List[ast.Type] = List()
         for parameter in function_def.parameters:
             let x = create_parameter(id: parameter.id, ty: parameter.ty)
@@ -149,10 +153,12 @@ class WasmGenerator:
     fn gen_statement(statement?: ast.Statement):
         case statement.kind:
             Break:
-                panic("TODO: break")
+                let distance = get_loop()
+                emit(Instruction.ctrl_br(distance + 1))
 
             Continue:
-                panic("TODO: continue")
+                let distance = get_loop()
+                emit(Instruction.ctrl_br(distance))
 
             Compound(inner):
                 for sub_statement in inner:
@@ -160,7 +166,7 @@ class WasmGenerator:
 
             Expr(expression):
                 gen_expression(expression)
-            
+
             Assignment(target, op, value):
                 case target.kind:
                     GetAttr(base, attr):
@@ -192,18 +198,32 @@ class WasmGenerator:
 
             If(if_statement):
                 gen_expression(if_statement.condition)
+                enter_block(is_loop: false)
                 emit(Instruction.ctrl_if())
                 gen_statement(if_statement.true_block.body)
                 emit(Instruction.ctrl_else())
                 gen_statement(if_statement.false_block.body)
                 emit(Instruction.ctrl_end())
+                leave_block()
 
             While(while_statement):
+                enter_block(is_loop: true)
+                emit(Instruction.ctrl_block())
+                emit(Instruction.ctrl_loop())
                 gen_expression(while_statement.condition)
+                emit(Instruction.i32_eqz())
+                emit(Instruction.ctrl_br_if(1))
                 gen_statement(while_statement.block.body)
+                emit(Instruction.ctrl_br(0))
+                emit(Instruction.ctrl_end())
+                emit(Instruction.ctrl_end())
+                leave_block()
 
             Pass:
                 pass
+
+            Unreachable:
+                emit(Instruction.ctrl_unreachable())
 
             Return(value):
                 case value:
@@ -214,7 +234,7 @@ class WasmGenerator:
                 emit(Instruction.ctrl_return())
         else:
             panic("Not implemented: {ast.statement_to_string(statement)}")
-    
+
     fn gen_expression(expression?: ast.Expression):
         case expression.kind:
             IntLiteral(value):
@@ -267,75 +287,26 @@ class WasmGenerator:
                 emit(Instruction.local_get(ptr_index))
 
             Binop(binop):
-                gen_expression(binop.lhs)
-                gen_expression(binop.rhs)
-                if ast.is_int_type(binop.lhs.ty):
-                    case binop.op:
-                        Add:
-                            emit(Instruction.i64_add())
-                        Sub:
+                gen_binop(binop)
+
+            Unop(op, value):
+                case op:
+                    Not:
+                        assert(condition: ast.is_bool_type(value.ty), message: "'not' operator only supports booleans")
+                        gen_expression(value)
+                        emit(Instruction.i32_eqz())
+                    Minus:
+                        if ast.is_int_type(value.ty):
+                            emit(Instruction.i64_const(0))
+                            gen_expression(value)
                             emit(Instruction.i64_sub())
-                        Mul:
-                            emit(Instruction.i64_mul())
-                        Div:
-                            emit(Instruction.i64_div_s())
-                        Less:
-                            emit(Instruction.i64_lt_s())
-                        LessEquals:
-                            emit(Instruction.i64_le_s())
-                        Greater:
-                            emit(Instruction.i64_gt_s())
-                        GreaterEquals:
-                            emit(Instruction.i64_ge_s())
-                        Equals:
-                            emit(Instruction.i64_eq())
-                        NotEquals:
-                            emit(Instruction.i64_ne())
-                        And:
-                            panic("and not impl")
-                        Or:
-                            panic("or not impl")
-                elif ast.is_bool_type(binop.lhs.ty):
-                    case binop.op:
-                        And:
-                            emit(Instruction.i32_and())
-                        Or:
-                            emit(Instruction.i32_or())
-                    else:
-                        panic("Invalid bool binop")
-                elif ast.is_float_type(binop.lhs.ty):
-                    case binop.op:
-                        Add:
-                            emit(Instruction.f64_add())
-                        Sub:
-                            emit(Instruction.f64_sub())
-                        Mul:
-                            emit(Instruction.f64_mul())
-                        Div:
-                            emit(Instruction.f64_div())
-                        Less:
-                            emit(Instruction.f64_lt())
-                        LessEquals:
-                            emit(Instruction.f64_le())
-                        Greater:
-                            emit(Instruction.f64_gt())
-                        GreaterEquals:
-                            emit(Instruction.f64_ge())
-                        Equals:
-                            emit(Instruction.f64_eq())
-                        NotEquals:
-                            emit(Instruction.f64_ne())
-                        And:
-                            panic("and not impl")
-                        Or:
-                            panic("or not impl")              
-                else:
-                    panic("Binop type not supported: {ast.type_to_string(binop.lhs.ty)}")
+                        else:
+                            panic("unop(-) for {ast.type_to_string(value.ty)}")
 
             Call(call):
                 for argument in call.arguments:
                     gen_expression(argument.value)
-                
+
                 let funcidx = 0
 
                 case call.callee.kind:
@@ -343,7 +314,6 @@ class WasmGenerator:
                         case symbol:
                             ExternFunction(external_function_def):
                                 let key = external_function_def.name
-                                log_info(key)
                                 funcidx = option_unwrap(index_mapping.get(key))
                         else:
                             panic("cannot call symbol")
@@ -356,28 +326,10 @@ class WasmGenerator:
                     panic("Cannot call!")
 
                 emit(Instruction.ctrl_call(funcidx))
-            
+
             TypeCast(ty, value):
                 gen_expression(value)
-                if ast.is_float_type(ty):
-                    if ast.is_int_type(value.ty):
-                        emit(Instruction.f64_convert_i64_s())
-                    else:
-                        panic("TODO: cast {ast.type_to_string(value.ty)} to float")
-                elif ast.is_opaque(ty):
-                    if ast.is_tycon_app_type(value.ty):
-                        pass
-                    elif ast.is_opaque(value.ty):
-                        pass
-                    else:
-                        panic("TODO: cast to opaque: {ast.type_to_string(value.ty)}")
-                elif ast.is_tycon_app_type(ty):
-                    if ast.is_opaque(value.ty):
-                        pass
-                    else:
-                        panic("TODO: cast to tycon-app: {ast.type_to_string(value.ty)}")
-                else:
-                    panic("TODO: cast to {ast.type_to_string(ty)}")
+                gen_type_cast(from_type: value.ty, to_type: ty)
 
             GetAttr(base, attr):
                 let index = ast.get_struct_field_index(ty: base.ty, attr)
@@ -400,15 +352,121 @@ class WasmGenerator:
                 emit(Instruction.local_get(localidx))
 
             FunctionRef(function_def, type_args):
-                print("FN {function_def.id.name}")
+                panic("FN {function_def.id.name}")
         else:
             panic("Not implemented: {ast.expression_to_string(expression)}")
+
+    fn gen_binop(binop: ast.BinopExpression):
+        gen_expression(binop.lhs)
+        gen_expression(binop.rhs)
+        if ast.is_int_type(binop.lhs.ty):
+            case binop.op:
+                Add:
+                    emit(Instruction.i64_add())
+                Sub:
+                    emit(Instruction.i64_sub())
+                Mul:
+                    emit(Instruction.i64_mul())
+                Div:
+                    emit(Instruction.i64_div_s())
+                Less:
+                    emit(Instruction.i64_lt_s())
+                LessEquals:
+                    emit(Instruction.i64_le_s())
+                Greater:
+                    emit(Instruction.i64_gt_s())
+                GreaterEquals:
+                    emit(Instruction.i64_ge_s())
+                Equals:
+                    emit(Instruction.i64_eq())
+                NotEquals:
+                    emit(Instruction.i64_ne())
+                And:
+                    panic("i64 and not impl")
+                Or:
+                    panic("i64 or not impl")
+        elif ast.is_bool_type(binop.lhs.ty):
+            case binop.op:
+                And:
+                    emit(Instruction.i32_and())
+                Or:
+                    emit(Instruction.i32_or())
+            else:
+                panic("Invalid bool binop")
+        elif ast.is_float_type(binop.lhs.ty):
+            case binop.op:
+                Add:
+                    emit(Instruction.f64_add())
+                Sub:
+                    emit(Instruction.f64_sub())
+                Mul:
+                    emit(Instruction.f64_mul())
+                Div:
+                    emit(Instruction.f64_div())
+                Less:
+                    emit(Instruction.f64_lt())
+                LessEquals:
+                    emit(Instruction.f64_le())
+                Greater:
+                    emit(Instruction.f64_gt())
+                GreaterEquals:
+                    emit(Instruction.f64_ge())
+                Equals:
+                    emit(Instruction.f64_eq())
+                NotEquals:
+                    emit(Instruction.f64_ne())
+                And:
+                    panic("f64 and not impl")
+                Or:
+                    panic("f64 or not impl")
+        elif ast.is_char_type(binop.lhs.ty):
+            case binop.op:
+                Equals:
+                    emit(Instruction.i32_eq())
+                NotEquals:
+                    emit(Instruction.i32_ne())
+            else:
+                panic("char i32 or not impl")
+        else:
+            panic("Binop type not supported: {ast.type_to_string(binop.lhs.ty)}")
+
+    fn gen_type_cast(from_type: ast.Type, to_type: ast.Type):
+        if ast.is_float_type(to_type):
+            if ast.is_int_type(from_type):
+                emit(Instruction.f64_convert_i64_s())
+            else:
+                panic("TODO: cast {ast.type_to_string(from_type)} to float")
+        elif ast.is_str_type(to_type):
+            if ast.is_opaque_type(from_type):
+                pass
+            else:
+                panic("TODO: cast to tycon-app: {ast.type_to_string(from_type)}")
+        elif ast.is_opaque_type(to_type):
+            if ast.is_tycon_app_type(from_type):
+                pass
+            elif ast.is_opaque_type(from_type):
+                pass
+            elif ast.is_str_type(from_type):
+                pass
+            elif ast.is_int_type(from_type):
+                # integers are 64 bit, pointers 32 bit.
+                # TODO: this fails for large integers!
+                emit(Instruction.i32_wrap_i64())
+            else:
+                panic("TODO: cast to opaque: {ast.type_to_string(from_type)}")
+        elif ast.is_tycon_app_type(to_type):
+            if ast.is_opaque_type(from_type):
+                pass
+            else:
+                panic("TODO: cast to tycon-app: {ast.type_to_string(from_type)}")
+        else:
+            panic("TODO: cast to {ast.type_to_string(to_type)}")
 
     fn gen_malloc_call(size: int):
         emit(Instruction.i64_const(size))
         let funcidx = option_unwrap(index_mapping.get(key: "malloc"))
         emit(Instruction.ctrl_call(funcidx))
-    
+
     fn sizeof(ty: ast.Type) -> int:
         let layout = get_struct_layout(ty)
         return layout.size
@@ -416,7 +474,7 @@ class WasmGenerator:
     fn offsetof(ty: ast.Type, index: int) -> int:
         let layout = get_struct_layout(ty)
         return layout.offsets.get(index)
-    
+
     fn get_struct_layout(ty: ast.Type) -> StructLayout:
         # TODO: cache results.
         let struct_def = ast.get_struct_def_from_type(ty)
@@ -457,14 +515,13 @@ class WasmGenerator:
         return option_unwrap(index_mapping.get(key: ast.node_id_to_string(id)))
 
     fn create_parameter(id: ast.NodeId, ty: ast.Type) -> int:
-        let idx = local_variables.len()
-        let wasm_ty = get_wasm_type(ty)
-        local_variables.append(wasm_ty)
+        let idx = n_parameters
+        n_parameters += 1
         index_mapping.insert(key: ast.node_id_to_string(id), value: idx)
         return idx
 
     fn create_local(id: ast.NodeId, ty: ast.Type) -> int:
-        let idx = local_variables.len()
+        let idx = local_variables.len() + n_parameters
         let wasm_ty = get_wasm_type(ty)
         local_variables.append(wasm_ty)
         index_mapping.insert(key: ast.node_id_to_string(id), value: idx)
@@ -474,8 +531,23 @@ class WasmGenerator:
         # log_info("WASM INSTR> {webassembly.to_string(instruction)}")
         code.append(instruction)
 
+    fn enter_block(is_loop: bool):
+        block_stack.append(is_loop)
+
+    fn leave_block():
+        block_stack.drop_last()
+
+    fn get_loop() -> int:
+        let blocks2 = block_stack.reversed()
+        let index = 0
+        for b in blocks2:
+            if b:
+                return index
+            else:
+                index += 1
+        panic("Not in a loop!")
+
     fn add_literal(data: str) -> int:
-        # TODO!
         let offset = literal_offset
         literal_offset += str_len(data) + 3  # Some extra space for trailing zeroes
         datas.append(webassembly.Data(offset, text: data))

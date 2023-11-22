@@ -276,7 +276,7 @@ class TypeChecker:
             return true
         elif ast.is_char_type(ty1) and ast.is_char_type(ty2):
             return true
-        elif ast.is_opaque(ty1) and ast.is_opaque(ty2):
+        elif ast.is_opaque_type(ty1) and ast.is_opaque_type(ty2):
             return true
         elif ast.is_tycon_app_type(ty1) and ast.is_tycon_app_type(ty2):
             let tycon1 = ast.get_tycon(ty1)

@@ -12,7 +12,7 @@ from ir_gen import gen_bytecode
 from pygenerator import gen_python
 from basepass import IdGen
 from transforms import transform
-from builtins import get_std_module
+from builtins import get_rt_module
 from datatypes import List, Dictionary, Result, option_unwrap
 from strlib import string_compare
 from graphlib import DiGraph, topological_sort
@@ -27,7 +27,7 @@ fn main() -> int:
 
     let options = CompilationOptions:
         dump_ast: false
-        backend: "py"
+        backend: Backend.Python()
         verbosity: 0
         runtime: true
 
@@ -44,15 +44,15 @@ fn main() -> int:
         elif argument == "-v":
             options.verbosity += 1
         elif argument == "-bc":
-            options.backend = "bc"
-        elif argument == "-cv2":
-            options.backend = "c2"
+            options.backend = Backend.Bytecode()
+        elif argument == "-c":
+            options.backend = Backend.C()
         elif argument == "-py":
-            options.backend = "py"
+            options.backend = Backend.Python()
         elif argument == "-rt":
             options.runtime = false
         elif argument == "-wasm":
-            options.backend = "wasm"
+            options.backend = Backend.WebAssembly()
         else:
             # Assume source file
             filenames.append(argument)
@@ -80,7 +80,7 @@ fn print_usage():
     print("    -h : display usage information")
     print("    -bc : Spit out bytecode")
     print("    -py : Spit out python code")
-    print("    -cv2 : Spit out C code (v2)")
+    print("    -c : Spit out C code")
     print("    -wasm : Spit out WebAssembly")
     print("    -rt : Skip runtime?")
     print("")
@@ -88,18 +88,24 @@ fn print_usage():
 
 struct CompilationOptions:
     dump_ast: bool
-    backend: str
+    backend: Backend
     verbosity: int
     runtime: bool
+
+enum Backend:
+    Bytecode
+    C
+    Python
+    WebAssembly
 
 fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
     let id_gen = IdGen()
     let module_map: Dictionary[ast.Module] = Dictionary()
-    let std_module = get_std_module()
-    module_map.insert(key: "std", value: std_module)
+    let rt_module = get_rt_module()
+    module_map.insert(key: "rt", value: rt_module)
 
     let modules: List[ast.Module] = List()
-    modules.append(std_module)
+    modules.append(rt_module)
     for filename in filenames:
         log_info("Parsing: {filename}")
 
@@ -121,7 +127,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
         ast.print_ast2(module_set)
 
     type_check_modules(module_set)
-    transform(module_set, id_gen, std_module)
+    transform(module_set, id_gen, rt_module)
 
     if options.dump_ast:
         ast.print_ast2(module_set)
@@ -131,18 +137,18 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
     if options.dump_ast:
         ast.print_ast2(module_set)
  
-    if options.backend == "py":  # Python backend
-        gen_python(module_set, generate_runtime: options.runtime)
-    elif options.backend == "bc":  # Bytecode backend
-        let prog3 = gen_bytecode(module_set)
-        bc.print_bc_program(program: prog3)
-        gen_c_code(program: prog3)
-    elif options.backend == "c2":  # C backend (v2)
-        gen_c_code_v2(module_set)
-    elif options.backend == "wasm":
-        gen_webassembly(module_set)
-    else:
-        panic("Invalid backend: {options.backend}")
+    case options.backend:
+        Python:
+            gen_python(module_set, generate_runtime: options.runtime)
+        Bytecode:
+            let prog3 = gen_bytecode(module_set)
+            bc.print_bc_program(program: prog3)
+            # TODO: generate C-code via bytecode
+            # gen_c_code(program: prog3)
+        C:  # C backend (v2)
+            gen_c_code_v2(module_set)
+        WebAssembly:
+            gen_webassembly(module_set)
 
 fn topo_sort(modules: List[ast.Module]):
     # Sort modules (in-place) based on which module import the other one

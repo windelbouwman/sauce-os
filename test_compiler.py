@@ -87,7 +87,7 @@ def test_examples_c_backend(filename):
 
     # Compile example using bootstrapped compiler:
     f1 = io.StringIO()
-    global_map = builtins.get_builtins(args=["-cv2"] + [filename], stdout=f1)
+    global_map = builtins.get_builtins(args=["-c"] + [filename], stdout=f1)
     exec(slang_compiler_py_code, global_map)
     exit_code = global_map["main"]()
     program_c_code = f1.getvalue()

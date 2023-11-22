@@ -87,18 +87,14 @@ enum Instruction:
     # Control:
     ctrl_unreachable
     ctrl_nop
-    # block = 0x02
-    # loop = 0x03
-    # TODO: block, loop
+    ctrl_block
+    ctrl_loop
     ctrl_if
     ctrl_else
     ctrl_end
-    # if = 0x4
-    # else = 0x5
-    # end = 0xB
 
-    ctrl_br
-    ctrl_br_if
+    ctrl_br(labelidx: int)
+    ctrl_br_if(labelidx: int)
     ctrl_br_table
     ctrl_return
     ctrl_call(funcidx: int)
@@ -285,19 +281,27 @@ fn encode(instruction: Instruction):
         ctrl_unreachable:
             pack_byte(0x00)
         ctrl_nop:
-            pack_byte(0x00)
-
+            pack_byte(0x01)
+        ctrl_block:
+            pack_byte(0x02)
+            pack_byte(0x40)  # block type = epsilon
+        ctrl_loop:
+            pack_byte(0x03)
+            pack_byte(0x40)  # block type = epsilon
         ctrl_if:
             pack_byte(0x04)
+            pack_byte(0x40)  # block type = epsilon
         ctrl_else:
             pack_byte(0x05)
         ctrl_end:
             pack_byte(0x0B)
 
-        ctrl_br:
+        ctrl_br(labelidx):
             pack_byte(0x0C)
-        ctrl_br_if:
+            pack_u32(labelidx)
+        ctrl_br_if(labelidx):
             pack_byte(0x0D)
+            pack_u32(labelidx)
         ctrl_br_table:
             pack_byte(0x0E)
         ctrl_return:
@@ -631,7 +635,10 @@ fn to_string(instruction: Instruction) -> str:
             txt = "unreachable"
         ctrl_nop:
             txt = "nop"
-
+        ctrl_block:
+            txt = "block"
+        ctrl_loop:
+            txt = "loop"
         ctrl_if:
             txt = "if"
         ctrl_else:
@@ -639,10 +646,10 @@ fn to_string(instruction: Instruction) -> str:
         ctrl_end:
             txt = "end"
 
-        ctrl_br:
-            txt = "br"
-        ctrl_br_if:
-            txt = "br_if"
+        ctrl_br(labelidx):
+            txt = "br {labelidx}"
+        ctrl_br_if(labelidx):
+            txt = "br_if {labelidx}"
         ctrl_br_table:
             txt = "br_table"
         ctrl_return:

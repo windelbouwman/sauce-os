@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-COMPILER_SRCS="compiler/*.slang compiler/**/*.slang"
+COMPILER_SRCS="compiler/*.slang compiler/**/*.slang runtime/std.slang"
 COMPILER1="build/tmp-compiler.py"
 COMPILER2="build/tmp-compiler2.py"
 COMPILER3="build/tmp-compiler3.py"
@@ -33,11 +33,11 @@ chmod +x ${COMPILER3}
 diff ${COMPILER2} ${COMPILER3}
 
 echo "Compiling compiler4"
-python ${COMPILER3} -cv2 ${COMPILER_SRCS} | sed '/^# /d' > build/tmp-compiler4.c
+python ${COMPILER3} -c ${COMPILER_SRCS} | sed '/^# /d' > build/tmp-compiler4.c
 gcc -o build/compiler4 build/tmp-compiler4.c runtime/runtime.c
 
 echo "Compiling compiler5"
-./build/compiler4 -cv2 ${COMPILER_SRCS} | sed '/^# /d' > build/tmp-compiler5.c
+./build/compiler4 -c ${COMPILER_SRCS} | sed '/^# /d' > build/tmp-compiler5.c
 gcc -o build/compiler5 build/tmp-compiler5.c runtime/runtime.c
 
 diff build/tmp-compiler4.c build/tmp-compiler5.c

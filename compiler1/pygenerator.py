@@ -182,7 +182,8 @@ class PyCodeGenerator:
             if isinstance(obj, (ast.Variable, ast.FunctionDef, ast.Parameter)):
                 return self.gen_id(obj.id)
             elif isinstance(obj, ast.BuiltinFunction):
-                return obj.id.name
+                modname = obj.modname
+                return f"{modname}_{obj.id.name}"
             else:
                 raise NotImplementedError(str(obj))
         elif isinstance(kind, ast.TypeCast):

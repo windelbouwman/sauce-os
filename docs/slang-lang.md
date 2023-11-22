@@ -9,7 +9,7 @@ language.
 import std
 
 fn main():
-    std::print("Hello world")
+    std.print("Hello world")
 
 ```
 
@@ -37,12 +37,30 @@ Example:
 fn main():
     let x = 15
     if x < 10:
-        std::print("x is a small number")
+        std.print("x is a small number")
     else:
-        std::print("x is somewhat larger")
+        std.print("x is somewhat larger")
+```
+
+# Switch statement
+
+You can switch on integer values.
+
+```
+fn example(x: int):
+    switch x:
+        1:
+            print("One")
+        7:
+            print("Seven")
+    else:
+        print("Other value")
+
 ```
 
 # Loop statement
+
+Create a while loop like this:
 
 ```
 fn example():
@@ -50,6 +68,8 @@ fn example():
     while x < 10:
         x = x + 1
 ```
+
+Create an endless loop:
 
 ```
 fn example():
@@ -72,7 +92,6 @@ fields.
 Example:
 
 ```
-
 struct Animal:
     species: str
     weight: float
@@ -81,5 +100,23 @@ fn main():
     let tiger = Animal:
         species: "cat"
         weight: 143.2
+
+```
+
+# Classes
+
+```
+
+class X:
+    var x : int = 0
+    var y : int
+
+    fn add(value: int) -> int:
+        return x + y + value
+
+
+fn example():
+    let x = X(7)
+    let s = x.add(42)
 
 ```

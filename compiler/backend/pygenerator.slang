@@ -30,11 +30,11 @@ class PyGenerator:
         # TBD: how to handle multiline strings. Do we want this?
         emit("import sys")
         emit("std_print = print")
-        emit("std_int_to_str = str")
+        emit("rt_int_to_str = str")
         emit("std_str_to_int = int")
         emit("std_float_to_str = str")
         emit("std_str_to_float = float")
-        emit("std_char_to_str = str")
+        emit("rt_char_to_str = str")
         emit("std_str_len = len")
         emit("def std_str_get(s, i):  return s[i]")
         emit("def std_str_slice(s,b,e):   return s[b:e]")
@@ -88,7 +88,7 @@ class PyGenerator:
             Class(class_def):
                 panic("class-def not supported")
             ExternFunction(extern_function_def):
-                emit("# Using external function: {extern_function_def.name}")
+                emit("# Using external function: {extern_function_def.modname}_{extern_function_def.name}")
             Enum(enum_def):
                 panic("enum-def not supported")
             Var(variable_def):
@@ -144,6 +144,8 @@ class PyGenerator:
                     gen_statement(s)
             Expr(expr):
                 emit(gen_expression(expr, parens: true))
+            Unreachable:
+                emit("raise RuntimeError('unreachable')")
         else:
             panic("Unsupported: {ast.statement_to_string(statement)}")
 
@@ -203,7 +205,7 @@ class PyGenerator:
             LoadSymbol(symbol):
                 case symbol:
                     ExternFunction(extern_function):
-                        txt = extern_function.name
+                        txt = "{extern_function.modname}_{extern_function.name}"
                     Parameter(parameter):
                         txt = get_id(id: parameter.id)
                     Var(variable):

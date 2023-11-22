@@ -1,6 +1,5 @@
 
 from location import Location, location_to_string
-from std import int_to_str
 import std
 
 struct Token:

@@ -43,7 +43,7 @@ slang_int_t std_str_to_int(char *x)
     return value;
 }
 
-char *std_int_to_str(slang_int_t x)
+char *rt_int_to_str(slang_int_t x)
 {
     char buffer[50];
     snprintf(buffer, 50, "%d", x);
@@ -67,7 +67,7 @@ double std_str_to_float(char *x)
     return value;
 }
 
-char *std_char_to_str(char x)
+char *rt_char_to_str(char x)
 {
     char *text = rt_malloc(2);
     text[0] = x;
