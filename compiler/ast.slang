@@ -890,6 +890,10 @@ fn scoped_block(body: Statement) -> ScopedBlock:
 struct Statement:
     location: Location
     kind: StatementKind
+    is_terminator: bool
+
+fn statement(kind: StatementKind, location: Location) -> Statement:
+    return Statement(kind, location, is_terminator: false)
 
 enum StatementKind:
     If(if_statement: IfStatement)
@@ -917,7 +921,7 @@ fn if_statement(condition: Expression, body: Statement, false_body: Statement, l
         false_block: scoped_block(body: false_body)
 
     let kind = StatementKind.If(if_statement)
-    return Statement(kind, location)
+    return statement(kind, location)
 
 struct IfStatement:
     condition: Expression
@@ -933,12 +937,12 @@ fn while_statement(condition: Expression, body: Statement, location: Location) -
         condition
         block: scoped_block(body)
     let kind = StatementKind.While(while_statement)
-    return Statement(kind, location)
+    return statement(kind, location)
 
 fn loop_statement(body: Statement, location: Location) -> Statement:
     let block = scoped_block(body)
     let kind = StatementKind.Loop(loop_statement: LoopStatement(block))
-    return Statement(kind, location)
+    return statement(kind, location)
 
 struct LoopStatement:
     block: ScopedBlock
@@ -949,7 +953,7 @@ fn for_statement(iter_var: str, iter_var_id: int, iter_value: Expression, body: 
         iter_var: v
         iter_value
         block: scoped_block( body)
-    return Statement(kind: StatementKind.For(for_statement), location)
+    return statement(kind: StatementKind.For(for_statement), location)
 
 struct ForStatement:
     iter_var: Variable
@@ -961,7 +965,7 @@ fn try_statement(try_body: Statement, except_param: ParameterDef, except_body: S
         try_block: scoped_block(body: try_body)
         except_param
         except_block: scoped_block(body: except_body)
-    return Statement(kind: StatementKind.Try(try_statement), location)
+    return statement(kind: StatementKind.Try(try_statement), location)
 
 struct TryStatement:
     try_block: ScopedBlock
@@ -976,7 +980,7 @@ fn case_statement(value: Expression, arms: List[CaseArm], else_clause: Option[St
         None:
             else_block = Option.None()
     let case_statement = CaseStatement(value, arms, else_block)
-    return Statement(kind: StatementKind.Case(case_statement), location)
+    return statement(kind: StatementKind.Case(case_statement), location)
 
 struct CaseStatement:
     value: Expression
@@ -992,7 +996,7 @@ struct CaseArm:
 fn switch_statement(value: Expression, arms: List[SwitchArm], default_body: Statement, location: Location) -> Statement:
     let default_block = scoped_block(body: default_body)
     let switch_statement = SwitchStatement(value, arms, default_block)
-    return Statement(kind: StatementKind.Switch(switch_statement), location)
+    return statement(kind: StatementKind.Switch(switch_statement), location)
 
 struct SwitchStatement:
     value: Expression
@@ -1007,7 +1011,7 @@ struct SwitchArm:
 fn let_statement(variable: Variable, type_hint: Option[Type], value: Expression, location: Location) -> Statement:
     let let_statement = LetStatement(variable, type_hint, value)
     let kind = StatementKind.Let(let_statement)
-    return Statement(kind, location)
+    return statement(kind, location)
 
 struct LetStatement:
     variable: Variable
@@ -1019,33 +1023,33 @@ fn compound(inner: List[Statement], location: Location) -> Statement:
         return inner.get(index: 0)
     else:
         let kind = StatementKind.Compound(body: inner)
-        return Statement(kind, location)
+        return statement(kind, location)
 
 fn expression_statement(expr: Expression) -> Statement:
     let kind = StatementKind.Expr(expr)
-    return Statement(kind, location: expr.location)
+    return statement(kind, location: expr.location)
 
 fn assignment_statement(target: Expression, op: Option[BinaryOperator], value: Expression, location: Location) -> Statement:
     let kind = StatementKind.Assignment(target, op, value)
-    return Statement(kind, location)
+    return statement(kind, location)
 
 fn return_statement(value: Option[Expression], location: Location) -> Statement:
-    return Statement(kind: StatementKind.Return(value), location)
+    return statement(kind: StatementKind.Return(value), location)
 
 fn raise_statement(value: Expression, location: Location) -> Statement:
-    return Statement(kind: StatementKind.Raise(value), location)
+    return statement(kind: StatementKind.Raise(value), location)
 
 fn pass_statement(location: Location) -> Statement:
-    return Statement(kind: StatementKind.Pass(), location)
+    return statement(kind: StatementKind.Pass(), location)
 
 fn break_statement(location: Location) -> Statement:
-    return Statement(kind: StatementKind.Break(), location)
+    return statement(kind: StatementKind.Break(), location)
 
 fn continue_statement(location: Location) -> Statement:
-    return Statement(kind: StatementKind.Continue(), location)
+    return statement(kind: StatementKind.Continue(), location)
 
 fn unreachable_statement(location: Location) -> Statement:
-    return Statement(kind: StatementKind.Unreachable(), location)
+    return statement(kind: StatementKind.Unreachable(), location)
 
 struct Expression:
     location: Location
@@ -1357,6 +1361,9 @@ fn statement_to_string(statement: Statement) -> str:
             txt = "SWITCH"
         Unreachable:
             txt = "UNREACHABLE"
+    
+    if statement.is_terminator:
+        txt = txt + " TERMINATES"
     return txt
 
 fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPhase):
@@ -1370,7 +1377,7 @@ fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPh
     else:
         pass
 
-fn expression_to_string(expression: Expression) -> str:
+fn expression_to_string(expression?: Expression) -> str:
     let txt = "?"
     case expression.kind:
         StringLiteral(value):

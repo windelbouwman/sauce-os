@@ -261,7 +261,7 @@ class CGenerator2:
                         else:
                             panic("Unsupported assignment target: {ast.symbol_to_str(symbol)}")
                 else:
-                    panic("Unsupported assignment target: {ast.expression_to_string(expression: target)}")
+                    panic("Unsupported assignment target: {ast.expression_to_string(target)}")
 
                 let value_text = gen_expression(value)
                 emit("{target_text} {op_text} {value_text};")

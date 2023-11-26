@@ -4,6 +4,7 @@ Idea: start language server, to provide autocompletion and diagnostics in vs-cod
 """
 
 import logging
+import time
 
 from pygls.server import LanguageServer
 from lsprotocol.types import (
@@ -13,9 +14,11 @@ from lsprotocol.types import (
     Position,
     Range,
     TEXT_DOCUMENT_COMPLETION,
+    TEXT_DOCUMENT_DID_CHANGE,
     CompletionItem,
     CompletionList,
     CompletionParams,
+    DidChangeTextDocumentParams,
     TEXT_DOCUMENT_DID_OPEN,
 )
 
@@ -45,27 +48,47 @@ def completions(params: CompletionParams) -> CompletionList:
 
 @server.feature(TEXT_DOCUMENT_DID_OPEN)
 def did_open(ls: LanguageServer, params: DidOpenTextDocumentParams):
-    # ls.show_message(f"Document did open!: {params.text_document.uri}")
+    _validate(ls, params)
+
+
+@server.feature(TEXT_DOCUMENT_DID_CHANGE)
+def did_change(ls, params: DidChangeTextDocumentParams):
+    _validate(ls, params)
+
+
+def _validate(ls: LanguageServer, params):
     text_doc = ls.workspace.get_document(params.text_document.uri)
 
     options = CompilationOptions()
+    # time.sleep(2)
 
+    diagnostics = []
     try:
-        filename = params.text_document.uri.removeprefix("file://")
-        do_compile([filename], None, options)
+        filename = text_doc.uri.removeprefix("file://")
+        code = text_doc.source
+        # TODO: figure out how to deal with a folder of files.
+        do_compile([(filename, code)], None, options)
     except CompilationError as ex:
-        diagnostics = []
         for filename, location, message in ex.errors:
             diagnostic = Diagnostic(
-                range=Range(
-                    start=Position(location.row - 1, location.column - 1),
-                    end=Position(location.row - 1, location.column),
-                ),
+                range=make_range(location),
                 severity=DiagnosticSeverity.Error,
                 message=message,
             )
             diagnostics.append(diagnostic)
-        ls.publish_diagnostics(text_doc.uri, diagnostics)
+    ls.publish_diagnostics(text_doc.uri, diagnostics)
 
 
-server.start_io()
+def make_range(location) -> Range:
+    return Range(make_position(location.begin), end=make_position(location.end))
+
+
+def make_position(location) -> Position:
+    return Position(location.row - 1, location.column - 1)
+
+
+do_tcp = False
+if do_tcp:
+    server.start_tcp("127.0.0.1", 8339)
+else:
+    server.start_io()

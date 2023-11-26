@@ -53,7 +53,7 @@ ${BUILDDIR}/c/%.c: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
 # Wasm examples:
 all-examples-wasm: $(WASM_EXAMPLES)
 
-${BUILDDIR}/wasm/%.wasm: ${BUILDDIR}/wasm/%.wat | ${BUILDDIR}
+%.wasm: %.wat
 	wat2wasm $< -o $@
 
 .PRECIOUS: ${BUILDDIR}/wasm/%.wat

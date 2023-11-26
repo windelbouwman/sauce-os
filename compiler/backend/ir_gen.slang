@@ -149,7 +149,7 @@ class Generator:
                                 gen_expression(value)
                         emit(Instruction.LocalSet(index))
                 else:
-                    panic("Cannot assign: {ast.expression_to_string(expression: target)}")
+                    panic("Cannot assign: {ast.expression_to_string(target)}")
             While(while_statement):
                 let test_label = new_label()
                 let body_label = new_label()

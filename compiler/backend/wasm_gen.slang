@@ -13,8 +13,8 @@ import webassembly
 import ast
 from webassembly import Instruction
 from datatypes import List, Dictionary, option_unwrap, vec1
-from std import print, str_len
-from utils import panic, log_info, log_debug, assert
+from std import print, str_len, ord
+from utils import panic, log_info, log_debug, assert, log_error
 
 
 fn gen_webassembly(module_set: ast.ModuleSet):
@@ -144,6 +144,10 @@ class WasmGenerator:
         let func_ty = reg_signature(parameter_types, return_type: function_def.return_type)
         gen_statement(function_def.body)
 
+        # Introduce an unreachable instruction, when we cannot reach this point.
+        if function_def.body.is_terminator:
+            emit(Instruction.ctrl_unreachable())
+
         let f = webassembly.Function:
             ty: func_ty
             locals: local_variables
@@ -189,7 +193,7 @@ class WasmGenerator:
                         else:
                             panic("Unsupported assignment target: {ast.symbol_to_str(symbol)}")
                 else:
-                    panic("Unsupported assignment target: {ast.expression_to_string(expression: target)}")
+                    panic("Unsupported assignment target: {ast.expression_to_string(target)}")
 
             Let(let_statement):
                 gen_expression(let_statement.value)
@@ -232,6 +236,9 @@ class WasmGenerator:
                     Some(v2):
                         gen_expression(v2)
                 emit(Instruction.ctrl_return())
+            
+            Raise(value):
+                panic("TODO: raise!")
         else:
             panic("Not implemented: {ast.statement_to_string(statement)}")
 
@@ -249,6 +256,9 @@ class WasmGenerator:
             StringLiteral(value):
                 let offset = add_literal(data: "{value}\\00")
                 emit(Instruction.i32_const(offset))
+
+            CharLiteral(value):
+                emit(Instruction.i32_const(ord(value)))
 
             FloatLiteral(value):
                 emit(Instruction.f64_const(value))
@@ -316,14 +326,18 @@ class WasmGenerator:
                                 let key = external_function_def.name
                                 funcidx = option_unwrap(index_mapping.get(key))
                         else:
-                            panic("cannot call symbol")
+                            gen_expression(call.callee)
+                            emit(Instruction.ctrl_call_indirect(1337))
+                            panic("cannot call symbol: {ast.symbol_to_str(symbol)}")
 
                     FunctionRef(function_def, type_args):
                         # print("call {function_def.id.name}")
                         let key = ast.node_id_to_string(function_def.id)
                         funcidx = option_unwrap(index_mapping.get(key))
                 else:
-                    panic("Cannot call!")
+                    gen_expression(call.callee)
+                    emit(Instruction.ctrl_call_indirect(1337))
+                    panic("Cannot call! {ast.expression_to_string(call.callee)}")
 
                 emit(Instruction.ctrl_call(funcidx))
 
@@ -352,6 +366,8 @@ class WasmGenerator:
                 emit(Instruction.local_get(localidx))
 
             FunctionRef(function_def, type_args):
+                # TODO: figure out index?
+                emit(Instruction.i32_const(1337))
                 panic("FN {function_def.id.name}")
         else:
             panic("Not implemented: {ast.expression_to_string(expression)}")
@@ -441,6 +457,16 @@ class WasmGenerator:
                 pass
             else:
                 panic("TODO: cast to tycon-app: {ast.type_to_string(from_type)}")
+        elif ast.is_int_type(to_type):
+            if ast.is_opaque_type(from_type):
+                emit(Instruction.i64_extend_i32_s())
+            else:
+                panic("TODO: cast to int from: {ast.type_to_string(from_type)}")
+        elif ast.is_bool_type(to_type):
+            if ast.is_opaque_type(from_type):
+                pass
+            else:
+                panic("TODO: cast to bool: {ast.type_to_string(from_type)}")
         elif ast.is_opaque_type(to_type):
             if ast.is_tycon_app_type(from_type):
                 pass
@@ -452,6 +478,8 @@ class WasmGenerator:
                 # integers are 64 bit, pointers 32 bit.
                 # TODO: this fails for large integers!
                 emit(Instruction.i32_wrap_i64())
+            elif ast.is_bool_type(from_type):
+                pass
             else:
                 panic("TODO: cast to opaque: {ast.type_to_string(from_type)}")
         elif ast.is_tycon_app_type(to_type):

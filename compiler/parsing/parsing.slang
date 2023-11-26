@@ -52,6 +52,13 @@ class Parser:
             let tok = lex.next_token()
             let is_pub = false
             case tok.kind:
+                KwPub:
+                    is_pub = true
+                    tok = lex.next_token()
+            else:
+                pass
+            
+            case tok.kind:
                 Eof:
                     # We are done!
                     break
@@ -59,8 +66,6 @@ class Parser:
                     imports.append(parse_import())
                 KwFrom:
                     imports.append(parse_from_import())
-                KwPub:
-                    is_pub = true
                 KwFn:
                     let func_def = parse_func_def(location: tok.location, this_parameter: Option.None())
                     definitions.append(ast.Definition.Function(func_def))
@@ -77,7 +82,7 @@ class Parser:
                     let class_def = parse_class_def(location: tok.location)
                     definitions.append(ast.Definition.Class(class_def))
             else:
-                raise unexpected_token(tok, expected: "import, fn, enum, struct, class, extern, pub")
+                raise unexpected_token(tok, expected: "import, fn, enum, struct, class, extern")
 
         let program = ast.new_module(name, filename: this.filename, imports, definitions)
         return program
@@ -453,35 +458,34 @@ class Parser:
                 return parse_raise_statement(location: tok.location)
         else:
             unget_token(tok)
+            return parse_expression_statement()
 
-            # Try to parse an expression!
-            let expr = parse_expression()
-            let s = ast.expression_statement(expr)
+    fn parse_expression_statement() -> ast.Statement except CompilationError:
+        let expr = parse_expression()
+        let stmt = ast.expression_statement(expr)
 
-            # Maybe we have an assignment
-            let is_assign = true
-            let assign_op = Option.None()
-            let tok2 = get_token()
-            case tok2.kind:
-                Equals:
-                    pass
-                PlusEquals:  # Assignment '+='
-                    assign_op = Option.Some(ast.BinaryOperator.Add())
-                MinusEquals:
-                    assign_op = Option.Some(ast.BinaryOperator.Sub())
-            else:
-                is_assign = false
-                unget_token(tok2)
-            
-            if is_assign:
-                # Assignment!
-                let value = parse_expression()
-                s = ast.assignment_statement(target: expr, op: assign_op, value, location: tok2.location)
-            else:
-                s = ast.expression_statement(expr)
+        # Maybe we have an assignment
+        let is_assign = true
+        let assign_op = Option.None()
+        let tok2 = get_token()
+        case tok2.kind:
+            Equals:
+                pass
+            PlusEquals:  # Assignment '+='
+                assign_op = Option.Some(ast.BinaryOperator.Add())
+            MinusEquals:
+                assign_op = Option.Some(ast.BinaryOperator.Sub())
+        else:
+            is_assign = false
+            unget_token(tok2)
+        
+        if is_assign:
+            # Assignment!
+            let value = parse_expression()
+            stmt = ast.assignment_statement(target: expr, op: assign_op, value, location: tok2.location)
 
-            parse_newline()
-            return s
+        parse_newline()
+        return stmt
     
     fn parse_let_statement(location: Location) -> ast.Statement except CompilationError:
         let name_at = parse_name()

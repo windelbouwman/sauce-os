@@ -1,0 +1,18 @@
+
+
+[[language]]
+name = "slang"
+auto-format = false
+roots = []
+scope = "source.slang"
+file-types = ["slang"]
+comment-token = "#"
+indent = { tab-width = 4, unit = "    "}
+# language-servers = [ { name = "slang-lsp", only-features = ["diagnostics"] } ]
+language-servers = [ "slang-lsp" ]
+
+[language-server.slang-lsp]
+command = "python"
+args = ["language-server/slang-lang/server.py"]
+
+

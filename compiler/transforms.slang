@@ -775,7 +775,7 @@ class ClassRewriter:
                     opaq = true
 
             if opaq:
-                log_info("We need a bridge function for {ast.type_to_string(ft)} {ast.expression_to_string(expression: value)}")
+                log_info("We need a bridge function for {ast.type_to_string(ft)} {ast.expression_to_string(value)}")
                 case value.kind:
                     FunctionRef(function_def, type_arguments):
                         # TODO: check for existing bridge functions!

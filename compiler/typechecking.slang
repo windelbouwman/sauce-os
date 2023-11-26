@@ -118,10 +118,22 @@ class TypeChecker:
                 # log_trace("Let var {ast.node_id_to_string(let_statement.variable.id)} -> {ast.type_to_string(let_statement.variable.ty)} @ {location_to_string(statement.location)}")
             If(if_statement):
                 coerce(ty: ast.bool_type(), value: if_statement.condition)
+                statement.is_terminator = if_statement.true_block.body.is_terminator and if_statement.false_block.body.is_terminator
             While(while_statement):
                 coerce(ty: ast.bool_type(), value: while_statement.condition)
+                statement.is_terminator = false
             Assignment(target, op, value):
                 coerce(ty: target.ty, value)
+                statement.is_terminator = false
+            Return(value):
+                statement.is_terminator = true
+            Unreachable:
+                statement.is_terminator = true
+            Compound(x):
+                if x.is_empty():
+                    statement.is_terminator = false
+                else:
+                    statement.is_terminator = x.last().is_terminator
         else:
             pass
 

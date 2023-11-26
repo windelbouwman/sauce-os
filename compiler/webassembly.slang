@@ -98,6 +98,7 @@ enum Instruction:
     ctrl_br_table
     ctrl_return
     ctrl_call(funcidx: int)
+    ctrl_call_indirect(tableidx: int)
 
     # parametric instructions
 
@@ -309,6 +310,9 @@ fn encode(instruction: Instruction):
         ctrl_call(funcidx):
             pack_byte(0x10)
             pack_u32(funcidx)
+        ctrl_call_indirect(tableidx):
+            pack_byte(0x11)
+            pack_u32(tableidx)
 
         local_get(localidx):
             pack_byte(0x20)
@@ -656,6 +660,8 @@ fn to_string(instruction: Instruction) -> str:
             txt = "return"
         ctrl_call(funcidx):
             txt = "call {funcidx}"
+        ctrl_call_indirect(tableidx):
+            txt = "call_indirect {tableidx}"
 
         local_get(localidx):
             txt = "local.get {localidx}"

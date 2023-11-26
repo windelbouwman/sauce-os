@@ -4,7 +4,7 @@
 	"patterns": [
 		{
 			"name": "keyword.control",
-			"match": "\\b(if|while|for|return|raise|loop|else|elif|case|break|continue|pass)\\b"
+			"match": "\\b(if|while|for|return|raise|loop|else|elif|case|break|continue|pub|pass)\\b"
 		},
 		{
 			"name": "keyword.other",

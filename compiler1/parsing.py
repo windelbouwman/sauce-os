@@ -755,7 +755,7 @@ break_statement: KW_BREAK
 continue_statement: KW_CONTINUE
 pass_statement: KW_PASS
 return_statement: KW_RETURN test?
-assignment_statement: expression (EQUALS | PLUS_EQUALS | MINUS_EQUALS) expression
+assignment_statement: expression (EQUALS | PLUS_EQUALS | MINUS_EQUALS) test
 
 raise_statement: KW_RAISE expression
 try_statement: KW_TRY block KW_EXCEPT LEFT_BRACE parameter RIGHT_BRACE block

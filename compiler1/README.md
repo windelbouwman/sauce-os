@@ -1,10 +1,10 @@
-Bootstrapping compiler.
+# Slang lang bootstrapping compiler.
 
-Idea: implement a compiler in python, transforming slang source-code to python code.
+A compiler written in python, compiling slang source-code to python code.
 
 # Usage
 
-    python -m compiler1 examples/mandel.slang --backend py
+    $ python -m compiler1 examples/mandel.slang --backend py
 
 # Dependencies
 

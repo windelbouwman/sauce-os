@@ -4,6 +4,18 @@ Slang-lang compiler, implemented in slang-lang!
 
 # Usage
 
+Compile the `examples/mandel.slang` example to python code:
+
+    $ ./build/compiler4 -py examples/mandel.slang runtime/std.slang
+
+Compile the `examples/hello-world.slang` example to WebAssembly:
+
+    $ ./build/compiler4 -wasm examples/hello-world.slang runtime/std.slang
+
+Compile the `examples/hello-world.slang` example to C code:
+
+    $ ./build/compiler4 -c examples/hello-world.slang runtime/std.slang
+
 # Bootstrapping
 
 There are several compilers:
@@ -11,25 +23,21 @@ There are several compilers:
 - compiler : Slang compiler implemented in slang
 - compiler1 : Slang compiler implemented in python
 
-Use compiler1 for bootstrapping:
+Use this script to bootstrap the slang compiler:
 
-    $ python -m compiler1 compiler/*.slang --backend py
+    $ bash bootstrap2.sh
 
-This will compile the slang compiler written in slang-lang using the slang compiler written in python.
+Or, manually perform the steps in the bootstrap2.sh.
 
 Use this bootstrap script to compile compiler using compiler1:
 
     $ python bootstrap.py
 
-Now, you can use compiler to compile itself:
-
-    $ python tmp-compiler.py compiler/*.slang > tmp2.py
-
 # Design
 
 ## Lexer
 
-We use a hand written parser, which scans each character, and produces tokens.
+We use a hand written lexer, which scans each character, and produces tokens.
 To handle whitespace, the tokens are postprocessed, and indent and dedent tokens
 are inserted into the token stream.
 
@@ -42,13 +50,14 @@ We use recursive descent parser, which processes a token stream into an abstract
 We have several passes over the AST. For this we use the visitor pattern.
 
 - name binding
-- name resolve
+- name resolution
 - type evaluation
 - type checking
 - transformations
 - type checking (again)
+- code generation
 
-## Name binding
+## Name binding and resolution
 
 First, scopes are filled for the whole program.
 
@@ -59,6 +68,8 @@ In a next pass over the AST, names are resolved using the filled in symbol table
 In pass3 types are evaluated.
 
 ## Type checker
+
+Here we assign types to all expressions in the AST.
 
 # Profiling
 

@@ -1,5 +1,6 @@
 import { ExtensionContext, workspace } from "vscode";
 import * as path from "path";
+import * as net from "net";
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -10,23 +11,42 @@ import {
 let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
-  const pythonPath = workspace
-    .getConfiguration("python")
-    .get<string>("defaultInterpreterPath");
-  if (!pythonPath) {
-    throw new Error("`python.defaultInterpreterPath` is not set");
+  // Whether or not to start the python server itself
+  const devMode = true;
+
+  let serverOptions: ServerOptions;
+  if (devMode) {
+    serverOptions = () => {
+      return new Promise((resolve /*, reject */) => {
+        const clientSocket = new net.Socket();
+        const port = 8339;
+        clientSocket.connect(port, "127.0.0.1", () => {
+          resolve({
+            reader: clientSocket,
+            writer: clientSocket,
+          });
+        });
+      });
+    };
+  } else {
+    const pythonPath = workspace
+      .getConfiguration("python")
+      .get<string>("defaultInterpreterPath");
+    if (!pythonPath) {
+      throw new Error("`python.defaultInterpreterPath` is not set");
+    }
+
+    const cwd = path.join(__dirname, "..");
+
+    serverOptions = {
+      command: pythonPath,
+      args: ["server.py"],
+      options: {
+        cwd: cwd,
+      },
+      transport: TransportKind.stdio,
+    };
   }
-
-  const cwd = path.join(__dirname, "..");
-
-  const serverOptions: ServerOptions = {
-    command: pythonPath,
-    args: ["server.py"],
-    options: {
-      cwd: cwd,
-    },
-    transport: TransportKind.stdio,
-  };
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: "file", language: "slang" }],
