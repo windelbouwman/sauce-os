@@ -63,6 +63,9 @@ def do_compile(
         if options.dump_ast:
             ast.print_ast(module)
 
+    if options.backend == "null":
+        return modules
+
     transform(id_context, modules, rt_module, options)
 
     if options.dump_ast:

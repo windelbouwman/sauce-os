@@ -2,6 +2,7 @@
 
 """
 
+from .location import Location
 from . import ast
 
 
@@ -9,13 +10,19 @@ def create_rt_module() -> ast.Module:
     modname = "rt"
     mod = ast.Module(modname, [], [])
     mod.add_definition(
-        ast.BuiltinFunction(modname, "int_to_str", [ast.int_type], ast.str_type),
+        ast.BuiltinFunction(
+            modname, "int_to_str", [ast.int_type], ast.str_type, Location.default()
+        ),
     )
     mod.add_definition(
-        ast.BuiltinFunction(modname, "str_to_int", [ast.str_type], ast.int_type)
+        ast.BuiltinFunction(
+            modname, "str_to_int", [ast.str_type], ast.int_type, Location.default()
+        )
     )
     mod.add_definition(
-        ast.BuiltinFunction(modname, "char_to_str", [ast.char_type], ast.str_type)
+        ast.BuiltinFunction(
+            modname, "char_to_str", [ast.char_type], ast.str_type, Location.default()
+        )
     )
     return mod
 

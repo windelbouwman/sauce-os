@@ -1521,8 +1521,9 @@ class BuiltinFunction(Definition):
         name: str,
         parameter_types: list[MyType],
         return_type: MyType,
+        location: Location,
     ):
-        super().__init__(Id(name, 0), Location.default())
+        super().__init__(Id(name, 0), location)
         self.modname = modname
         parameter_names = [None] * len(parameter_types)
         self.ty = function_type(

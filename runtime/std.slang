@@ -15,9 +15,14 @@ extern fn str_get(value: str, index: int) -> char
 extern fn str_slice(value: str, begin: int, end: int) -> str
 
 extern fn print(message: str)
+# '?' indicates that function does not return.
+# TODO: improve syntax for noreturn functions
 extern fn exit(code: int) ?
 
 extern fn read_file(filename: str) -> str
+extern fn file_open(filename: str) -> int
+extern fn file_writeln(handle: int, line: str) -> int
+extern fn file_close(handle: int)
 
 extern fn get_n_args() -> int
 extern fn get_arg(arg: int) -> str

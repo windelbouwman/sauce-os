@@ -24,8 +24,10 @@ class ScopeFiller(BasePass):
         super().__init__()
         self._scopes: list[ast.Scope] = []
         self._modules = modules
+        self._definitions = []
 
     def fill_module(self, module: ast.Module):
+        self._definitions = []
         self.begin(module.filename, f"Filling scopes in module '{module.name}'")
 
         if module.name in self._modules:
@@ -53,6 +55,7 @@ class ScopeFiller(BasePass):
         self.visit_module(module)
         self.leave_scope()
         assert not self._scopes
+        module._definitions = self._definitions
         self.finish("Scopes filled")
 
     def visit_definition(self, definition: ast.Definition):
@@ -146,6 +149,7 @@ class ScopeFiller(BasePass):
         self._scopes.pop()
 
     def define(self, definition: ast.Definition):
+        self._definitions.append((definition.id, definition.location))
         self.define_symbol(definition.id.name, definition)
 
     def define_symbol(self, name: str, symbol: ast.Definition):
@@ -164,13 +168,16 @@ class NameBinder(BasePass):
     def __init__(self):
         super().__init__()
         self._scopes = [base_scope()]
+        self._references = []
 
     def resolve_symbols(self, module: ast.Module):
         self.begin(module.filename, f"Resolving symbols in '{module.name}'")
+        self._references = []
         self.enter_scope(module.scope)
 
         self.visit_module(module)
         self.leave_scope()
+        module._references = self._references
         self.finish("Symbols resolved")
 
     def visit_definition(self, definition: ast.Definition):
@@ -251,6 +258,8 @@ class NameBinder(BasePass):
             if scope.is_defined(name):
                 obj = scope.lookup(name)
                 assert obj
+                if hasattr(obj, "id"):
+                    self._references.append((obj.id, location))
                 if scope.has_this_context:
                     if isinstance(obj, (ast.FunctionDef, ast.VarDef)):
                         this_parameter = self.lookup2("this", location)
@@ -263,7 +272,7 @@ class NameBinder(BasePass):
         self.error(location, f"Undefined symbol: {name}")
         return ast.Undefined()
 
-    def lookup2(self, name: str, location):
+    def lookup2(self, name: str, location: Location):
         for scope in reversed(self._scopes):
             if scope.is_defined(name):
                 obj = scope.lookup(name)

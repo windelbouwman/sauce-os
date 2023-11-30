@@ -230,7 +230,7 @@ class CustomTransformer(LarkTransformer):
 
     def var_def(self, x):
         # var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
-        location = get_loc(x[0])
+        location = get_loc(x[1])
         name = x[1].value
         ty = x[3]
         if isinstance(x[4], LarkToken) and x[4].type == "EQUALS":
@@ -253,7 +253,7 @@ class CustomTransformer(LarkTransformer):
             return_type,
             except_type,
             body,
-            get_loc(x[0]),
+            location,
         )
 
     def extern_func_def(self, x):
@@ -261,7 +261,7 @@ class CustomTransformer(LarkTransformer):
         location, name, type_parameters = x[2]
         parameters, return_type, except_type, no_return = x[3]
         ptypes = [p.ty for p in parameters]
-        return ast.BuiltinFunction(self._modname, name, ptypes, return_type)
+        return ast.BuiltinFunction(self._modname, name, ptypes, return_type, location)
 
     def function_signature(self, x):
         # LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
