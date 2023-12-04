@@ -21,7 +21,7 @@ extern fn exit(code: int) ?
 
 extern fn read_file(filename: str) -> str
 extern fn file_open(filename: str) -> int
-extern fn file_writeln(handle: int, line: str) -> int
+extern fn file_writeln(handle: int, line: str)
 extern fn file_close(handle: int)
 
 extern fn get_n_args() -> int

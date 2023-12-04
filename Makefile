@@ -35,7 +35,7 @@ ${BUILDDIR}/bc/%.txt: examples/%.slang ${COMPILER6} | ${BUILDDIR}
 all-examples-python: $(PY_EXAMPLES)
 
 ${BUILDDIR}/python/%.py: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
-	python ${COMPILER6} -py $< runtime/std.slang > $@
+	python ${COMPILER6} --backend-py -o $@ $< runtime/std.slang
 
 
 # examples compiled to C code:
@@ -47,7 +47,7 @@ ${BUILDDIR}/c/%.exe: ${BUILDDIR}/c/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
 .PRECIOUS: ${BUILDDIR}/c/%.c
 
 ${BUILDDIR}/c/%.c: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
-	python ${COMPILER6} -c $< runtime/std.slang | sed '/^# /d' > $@
+	python ${COMPILER6} --backend-c -o $@ $< runtime/std.slang
 
 
 # Wasm examples:
@@ -67,30 +67,25 @@ ${BUILDDIR}/tmp-compiler.py: ${COMPILER_SRCS} compiler1/*.py | ${BUILDDIR}
 	python bootstrap.py
 
 ${COMPILER2}: ${COMPILER_SRCS} ${BUILDDIR}/tmp-compiler.py | ${BUILDDIR}
-	echo "#!/usr/bin/env python" > ${COMPILER2}
-	python ${COMPILER1} ${COMPILER_SRCS} >> ${COMPILER2}
-	chmod +x ${COMPILER2}
+	python ${COMPILER1} --backend-py -o ${COMPILER2} ${COMPILER_SRCS}
 
 ${COMPILER3}: ${COMPILER_SRCS} | ${BUILDDIR}/tmp-compiler2.py ${BUILDDIR}
-	echo "#!/usr/bin/env python" > ${COMPILER3}
-	python ${COMPILER2} ${COMPILER_SRCS} >> ${COMPILER3}
-	chmod +x ${COMPILER3}
+	python ${COMPILER2} --backend-py -o ${COMPILER3} ${COMPILER_SRCS}
 
 ${BUILDDIR}/tmp-compiler4.c: ${COMPILER_SRCS} | ${BUILDDIR} ${COMPILER3}
-	python ${COMPILER3} -c ${COMPILER_SRCS} | sed '/^# /d' > ${BUILDDIR}/tmp-compiler4.c
+	python ${COMPILER3} --backend-c -o ${BUILDDIR}/tmp-compiler4.c ${COMPILER_SRCS}
 
 ${COMPILER4}: ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/runtime.o
 	gcc ${CFLAGS} -o ${COMPILER4} ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/runtime.o
 
 ${BUILDDIR}/tmp-compiler5.c: ${COMPILER_SRCS} | ${BUILDDIR} # ${COMPILER4}
-	./${COMPILER4} -c ${COMPILER_SRCS} | sed '/^# /d' > ${BUILDDIR}/tmp-compiler5.c
+	./${COMPILER4} --backend-c -o ${BUILDDIR}/tmp-compiler5.c ${COMPILER_SRCS}
 
 ${COMPILER5}: ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
 	gcc ${CFLAGS} -o ${COMPILER5} ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/runtime.o
 
 ${COMPILER6}: ${COMPILER_SRCS} | ${BUILDDIR} #  ${COMPILER5}
-	echo "#!/usr/bin/env python" > ${COMPILER6}
-	./${COMPILER5} ${COMPILER_SRCS} >> ${COMPILER6}
+	./${COMPILER5} --backend-py -o ${COMPILER6} ${COMPILER_SRCS}
 
 ${BUILDDIR}/compiler.wat: ${COMPILER_SRCS} ${COMPILER6} | ${BUILDDIR}
 	python ${COMPILER6} -wasm ${COMPILER_SRCS}

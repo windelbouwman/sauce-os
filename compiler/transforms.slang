@@ -158,6 +158,8 @@ fn transformer_on_definition7(transformer: Transformer, definition: ast.Definiti
                     function_def.type_parameters.clear()
                 ExternFunction(extern_function_def):
                     pass
+                Var(var_def):
+                    pass
             else:
                 panic("Only structs and functions supported during type erasure!")
     else:

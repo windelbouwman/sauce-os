@@ -702,6 +702,7 @@ import2: KW_FROM ID KW_IMPORT ids NEWLINE
 
 definitions: definition*
 definition: func_def
+          | var_def
           | struct_def
           | enum_def
           | class_def

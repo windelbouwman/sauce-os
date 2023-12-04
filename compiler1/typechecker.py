@@ -297,6 +297,8 @@ class TypeChecker(BasePass):
             obj = kind.obj
             if isinstance(obj, ast.Variable):
                 expression.ty = obj.ty.clone()
+            elif isinstance(obj, ast.VarDef):
+                expression.ty = obj.ty.clone()
             elif isinstance(obj, ast.BuiltinFunction):
                 expression.ty = obj.ty
             elif isinstance(obj, ast.FunctionDef):

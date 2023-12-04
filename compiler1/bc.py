@@ -8,8 +8,9 @@ from enum import Enum
 class Program:
     """A bytecode program"""
 
-    def __init__(self, types: list["StructTyp"], functions: list["Function"]):
+    def __init__(self, types: list["StructTyp"], globals, functions: list["Function"]):
         self.types = types
+        self.globals = globals
         self.functions = functions
 
 
@@ -91,6 +92,8 @@ class OpCode(Enum):
     BUILTIN = 20
     LOADFUNC = 21
     CAST = 22
+    GLOBAL_GET = 23
+    GLOBAL_SET = 24
 
     RAISE = 26
     SETUP_EXCEPT = 27
@@ -119,8 +122,12 @@ class OpCode(Enum):
 
 
 def print_bytecode(program: Program, f=None):
+    print("===[ bytecode ]===")
     for ty in program.types:
         print(f"type: {ty}")
+    print("Globals")
+    for idx, g in enumerate(program.globals):
+        print(f"  {idx}: {g}")
     for function in program.functions:
         print(
             f"func {function.name} params={function.params} locals={function.local_vars} ret={function.return_ty}",

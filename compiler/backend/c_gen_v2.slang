@@ -3,25 +3,32 @@
 
 # Alternative to c_gen module
 
-from std import print, float_to_str, chr
+from std import print, float_to_str, chr, file_open, file_writeln, file_close
 from strlib import str_repeat, str_join
 import ast
-from datatypes import List, Dictionary, option_unwrap, Option
+from datatypes import List, Dictionary, option_unwrap, Option, option_is_some
 from utils import panic, log_info, log_debug, log_warning, assert
 
 
-fn gen_c_code_v2(module_set: ast.ModuleSet):
+fn gen_c_code_v2(module_set: ast.ModuleSet, output_filename: Option[str]):
     log_info("Generating C-code")
     let g = CGenerator2()
+    if option_is_some(output_filename):
+        g.outf = file_open(option_unwrap(output_filename))
+        g.use_file = true
 
     g.gen_header()
     g.gen_forward_declarations1(module_set)
     g.gen_forward_declarations2(module_set)
     g.gen_struct_defs(module_set)
     g.gen_function_defs(module_set)
+    if g.use_file:
+        file_close(g.outf)
 
 class CGenerator2:
     var indentation: int = 0
+    var outf: int = 0
+    var use_file: bool = false
 
     fn gen_header():
         emit("#include <setjmp.h>")
@@ -77,6 +84,11 @@ class CGenerator2:
                 case definition:
                     Struct(struct_def):
                         gen_struct(struct_def)
+                    Var(variable_def):
+                        let varname = gen_id(id: variable_def.variable.id)
+                        let typed_name = gen_type(ty: variable_def.variable.ty, name: varname)
+                        let initial_value = gen_expression(option_unwrap(variable_def.value))
+                        emit("{typed_name} = {initial_value};")
                 else:
                     pass
 
@@ -390,6 +402,8 @@ class CGenerator2:
                 elif ast.is_struct_type(ty):
                     let to_type2 = gen_type(ty: ty, name: "")
                     return "(({to_type2})({source}))"
+                elif ast.is_char_type(ty):
+                    return "(char)({source})"
                 else:
                     panic("Unsupported cast to: {ast.type_to_string(ty)}")
 
@@ -464,7 +478,11 @@ class CGenerator2:
 
     fn emit(text?: str):
         let indent = str_repeat(text: "   ", count: indentation)
-        print(indent + text)
+        let line = indent + text
+        if use_file:
+            file_writeln(outf, line)
+        else:
+            print(line)
 
 
 fn binary_op_to_str(op: ast.BinaryOperator) -> str:

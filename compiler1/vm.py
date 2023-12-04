@@ -46,28 +46,32 @@ def check_value_type(value, ty: Typ):
         raise NotImplementedError(ty)
 
 
+def frame_from_function(function: Function, arguments):
+    assert len(arguments) == len(function.params)
+    # We could type enforce here, in theory, we checked, but just an extra runtime check.
+    for arg, p_ty in zip(arguments, function.params):
+        # assert types match
+        check_value_type(arg, p_ty)
+
+    n_vars = len(function.local_vars)
+    frame = Frame(function.code)
+    frame._locals = arguments + [0] * n_vars
+    return frame
+
+
 class Frame:
     """Call frame."""
 
-    def __init__(self, function: Function, arguments):
+    def __init__(self, code):
         # value stack:
         self._stack = []
         self._except_handlers = []
-
-        assert len(arguments) == len(function.params)
-        # We could type enforce here, in theory, we checked, but just an extra runtime check.
-        for arg, p_ty in zip(arguments, function.params):
-            # assert types match
-            check_value_type(arg, p_ty)
-
-        n_vars = len(function.local_vars)
-        self._locals = arguments + [0] * n_vars
-
+        self._locals = []
         self._pc = 0
-        self._function = function
+        self._code = code
 
     def fetch(self):
-        return self._function.code[self._pc]
+        return self._code[self._pc]
 
     def push(self, value):
         self._stack.append(value)
@@ -89,10 +93,14 @@ class VirtualMachine:
         # Call stack:
         self._frames = []
         self._builtins = get_builtins(args=(), stdout=stdout)
+        self._globals = []
 
     def load(self, prog: Program):
         self.prog = prog
         self.functions_by_name = {}
+        self._globals = [
+            self.eval_code(initial_value_code) for initial_value_code in prog.globals
+        ]
         for f in prog.functions:
             if f.name in self.functions_by_name:
                 raise ValueError(f"Duplicate function name: {f.name}")
@@ -108,6 +116,14 @@ class VirtualMachine:
             for frame in self._frames:
                 print("in ", frame._function.name)
             raise
+
+    def eval_code(self, code):
+        self.push_frame(Frame(code))
+        self.dispatch()
+        # TODO: run all code?
+        value = self.pop_value()
+        self.pop_frame()
+        return value
 
     def dispatch(self):
         """Single tick"""
@@ -129,6 +145,12 @@ class VirtualMachine:
         elif opcode == OpCode.LOCAL_SET:
             value = self.pop_value()
             self.set_local(args[0], value)
+        elif opcode == OpCode.GLOBAL_GET:
+            value = self.get_global(args[0])
+            self.push_value(value)
+        elif opcode == OpCode.GLOBAL_SET:
+            value = self.pop_value()
+            self.set_global(args[0], value)
         elif opcode == OpCode.LOADFUNC:
             func = self.functions_by_name[args[0]]
             self.push_value(func)
@@ -140,7 +162,7 @@ class VirtualMachine:
 
             # ATTENTION: major hackerij:
             if isinstance(callee, Function):
-                self.push_frame(Frame(callee, arguments))
+                self.push_frame(frame_from_function(callee, arguments))
             else:
                 # Might be a python function!
                 r = callee(*arguments)
@@ -259,13 +281,19 @@ class VirtualMachine:
     def get_local(self, index: int):
         return self._frames[-1].get_local(index)
 
+    def get_global(self, index: int):
+        return self._globals[index]
+
+    def set_global(self, index: int, value):
+        self._globals[index] = value
+
     def jump(self, pc: int):
         self._frames[-1]._pc = pc
 
     def invoke(self, name: str):
         # Invoke function
         func = self.functions_by_name[name]
-        self.push_frame(Frame(func, []))
+        self.push_frame(frame_from_function(func, []))
         self.run()
 
 

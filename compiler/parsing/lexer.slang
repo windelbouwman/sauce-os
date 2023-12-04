@@ -6,7 +6,7 @@ from std import print, ord, str_slice, str_len
 from std import str_to_float, str_to_int
 from token import Token, TokenKind, token_to_string
 from location import Location, location_at, Position
-from strlib import hex_to_int
+from strlib import hex_to_int, is_digit, is_hex_digit
 from datatypes import List, Option
 
 
@@ -277,23 +277,6 @@ class Lexer:
 fn is_lf(c: char) -> bool:
     let o = ord(value: c)
     return o == 10
-
-fn is_digit(c: char) -> bool:
-    # Check if a character is a digit.
-    let o = ord(value: c)
-    return (o >= 48) and (o <= 57)
-
-fn is_hex_digit(c: char) -> bool:
-    # Check if a character is a hex digit.
-    let o = ord(value: c)
-    if (o >= 48) and (o <= 57):     # 0..9
-        return true
-    elif (o >= 65) and (o <= 70):   # A..F
-        return true
-    elif (o >= 97) and (o <= 102):  # a..f
-        return true
-    else:
-        return false
 
 fn is_id(c: char) -> bool:
     let o = ord(c)

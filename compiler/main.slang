@@ -7,13 +7,13 @@ from parsing import parse_source
 from namebinding import bind_names
 from pass3 import resolve_newops
 from typechecking import type_check_modules
-from utils import log_info, log_error, log_trace, panic, assert
+from utils import log_info, log_error, log_trace, panic, assert, set_log_level
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
 from basepass import IdGen
 from transforms import transform
 from builtins import get_rt_module
-from datatypes import List, Dictionary, Result, option_unwrap
+from datatypes import List, Dictionary, Result, option_unwrap, Option
 from strlib import string_compare
 from graphlib import DiGraph, topological_sort
 from sorting import sort_list
@@ -28,6 +28,7 @@ fn main() -> int:
     let options = CompilationOptions:
         dump_ast: false
         backend: Backend.Python()
+        output_filename: Option.None()
         verbosity: 0
         runtime: true
 
@@ -41,23 +42,32 @@ fn main() -> int:
         elif argument == "-h":
             print_usage()
             return 0
+        elif argument == "-o":
+            i += 1
+            if i < n:
+                options.output_filename = Option.Some(get_arg(i))
+            else:
+                print("Expect argument to -o")
         elif argument == "-v":
             options.verbosity += 1
         elif argument == "-bc":
             options.backend = Backend.Bytecode()
-        elif argument == "-c":
+        elif argument == "--backend-c":
             options.backend = Backend.C()
-        elif argument == "-py":
+        elif argument == "--backend-py":
             options.backend = Backend.Python()
+        elif argument == "--backend-null":
+            options.backend = Backend.Null()
         elif argument == "-rt":
             options.runtime = false
-        elif argument == "-wasm":
+        elif argument == "--backend-wasm":
             options.backend = Backend.WebAssembly()
         else:
             # Assume source file
             filenames.append(argument)
         i += 1
     
+    set_log_level(level: options.verbosity)
     # Sort filenames lexicographical
     filenames = sort_list(filenames, cmp: string_compare)
     
@@ -77,11 +87,12 @@ fn print_usage():
     print("$ compiler.exe [-d] file1.slang file2.slang ..")
     print("    -d : dump AST between compilation phases")
     print("    -v : Increase verbosity")
+    print("    -o : Write output to given filename")
     print("    -h : display usage information")
     print("    -bc : Spit out bytecode")
-    print("    -py : Spit out python code")
-    print("    -c : Spit out C code")
-    print("    -wasm : Spit out WebAssembly")
+    print("    --backend-py    : Spit out python code")
+    print("    --backend-c     : Spit out C code")
+    print("    --backend-wasm  : Spit out WebAssembly")
     print("    -rt : Skip runtime?")
     print("")
     print("Multiple source files can be passed")
@@ -89,6 +100,7 @@ fn print_usage():
 struct CompilationOptions:
     dump_ast: bool
     backend: Backend
+    output_filename: Option[str]
     verbosity: int
     runtime: bool
 
@@ -97,6 +109,7 @@ enum Backend:
     C
     Python
     WebAssembly
+    Null
 
 fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
     let id_gen = IdGen()
@@ -138,15 +151,17 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
         ast.print_ast2(module_set)
  
     case options.backend:
+        Null:  # no-op backend.
+            pass
         Python:
-            gen_python(module_set, generate_runtime: options.runtime)
+            gen_python(module_set, generate_runtime: options.runtime, output_filename: options.output_filename)
         Bytecode:
             let prog3 = gen_bytecode(module_set)
             bc.print_bc_program(program: prog3)
             # TODO: generate C-code via bytecode
             # gen_c_code(program: prog3)
         C:  # C backend (v2)
-            gen_c_code_v2(module_set)
+            gen_c_code_v2(module_set, output_filename: options.output_filename)
         WebAssembly:
             gen_webassembly(module_set)
 

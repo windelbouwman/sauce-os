@@ -15,7 +15,7 @@ def gen_bc(modules: list[ast.Module]) -> bc.Program:
     for module in modules:
         g.gen_module(module)
 
-    return bc.Program(g._types, g._functions)
+    return bc.Program(g._types, g._globals, g._functions)
 
 
 class ByteCodeGenerator:
@@ -23,6 +23,7 @@ class ByteCodeGenerator:
         self._counter = 0
         self._loops = []
         self._functions = []
+        self._globals = []
         self._types = []
         self._code = []
         self._locals = []
@@ -51,10 +52,17 @@ class ByteCodeGenerator:
     def gen_module(self, module: ast.Module):
         # Forward declare types:
         cnt = 0
+        global_count = 0
         for definition in module.definitions:
             if isinstance(definition, ast.StructDef):
                 self._type_map[id(definition)] = cnt
                 cnt += 1
+            elif isinstance(definition, ast.VarDef):
+                global_index = len(self._globals)
+                self._code = []
+                self.gen_expression(definition.value)
+                self._globals.append(self._code)
+                self._type_map[id(definition)] = global_index
 
         for definition in module.definitions:
             if isinstance(definition, ast.FunctionDef):
@@ -63,6 +71,8 @@ class ByteCodeGenerator:
                 self.gen_struct(definition)
             elif isinstance(definition, ast.BuiltinFunction):
                 # TODO: maybe generate import clause?
+                pass
+            elif isinstance(definition, ast.VarDef):
                 pass
             else:
                 raise NotImplementedError(str(definition))
@@ -206,6 +216,15 @@ class ByteCodeGenerator:
                         ty = self.get_bc_ty(kind.value.ty)
                         self.emit(self._binop_map[kind.op[:-1]], ty)
                     self.emit(OpCode.LOCAL_SET, local_index)
+                elif isinstance(obj, ast.VarDef):  # Global!
+                    global_index = self._type_map[id(obj)]
+                    if kind.op == "=":
+                        self.gen_expression(kind.value)
+                    else:
+                        self.emit(OpCode.GLOBAL_GET, global_index)
+                        self.gen_expression(kind.value)
+                        raise NotImplementedError("global +=")
+                    self.emit(OpCode.GLOBAL_SET, global_index)
                 else:
                     raise ValueError(f"Cannot assign obj: {obj}")
             elif isinstance(kind.target.kind, ast.DotOperator):
@@ -337,6 +356,9 @@ class ByteCodeGenerator:
                 self.emit(OpCode.LOCAL_GET, idx)
             elif isinstance(obj, ast.FunctionDef):
                 self.emit(OpCode.LOADFUNC, self.get_id(obj.id))
+            elif isinstance(obj, ast.VarDef):
+                global_index = self._type_map[id(obj)]
+                self.emit(OpCode.GLOBAL_GET, global_index)
             elif isinstance(obj, ast.BuiltinFunction):
                 self.emit(OpCode.BUILTIN, f"{obj.modname}_{obj.id.name}")
             else:

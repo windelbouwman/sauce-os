@@ -76,11 +76,14 @@ class Parser:
                     let enum_def = parse_enum_def(location: tok.location)
                     definitions.append(ast.Definition.Enum(enum_def))
                 KwStruct:
-                    let struct_def = parse_struct_def(location: tok.location)
+                    let struct_def = parse_struct_def()
                     definitions.append(ast.Definition.Struct(struct_def))
                 KwClass:
-                    let class_def = parse_class_def(location: tok.location)
+                    let class_def = parse_class_def()
                     definitions.append(ast.Definition.Class(class_def))
+                KwVar:
+                    let var_def = parse_var_def()
+                    definitions.append(ast.Definition.Var(var_def))
             else:
                 raise unexpected_token(tok, expected: "import, fn, enum, struct, class, extern")
 
@@ -193,8 +196,8 @@ class Parser:
             unget_token(tok)
         return type_parameters
 
-    fn parse_struct_def(location: Location) -> ast.StructDef except CompilationError:
-        let name = parse_name().name
+    fn parse_struct_def() -> ast.StructDef except CompilationError:
+        let name_at = parse_name()
         let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
         parse_colon()
         parse_newline()
@@ -202,15 +205,15 @@ class Parser:
 
         let fields: List[ast.StructField] = List()
         while not try_parse_dedent():
-            let name_at = parse_name()
+            let field_name_at = parse_name()
             parse_colon()
             let ty = parse_type()
             parse_newline()
-            fields.append(ast.StructField(name: name_at.name, ty, location: name_at.location))
+            fields.append(ast.StructField(name: field_name_at.name, ty, location: field_name_at.location))
 
-        return ast.struct_def(name, id: new_id(), type_parameters, fields, location)
+        return ast.struct_def(name: name_at.name, id: new_id(), type_parameters, fields, location: name_at.location)
 
-    fn parse_class_def(location: Location) -> ast.ClassDef except CompilationError:
+    fn parse_class_def() -> ast.ClassDef except CompilationError:
         let name_at = parse_name()
         let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
         parse_colon()
@@ -225,7 +228,7 @@ class Parser:
             let tok = get_token()
             case tok.kind:
                 KwVar:
-                    let var_def = parse_var_def(location: tok.location)
+                    let var_def = parse_var_def()
                     inner_defs.append(ast.Definition.Var(var_def))
                 KwFn:
                     let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
@@ -347,7 +350,7 @@ class Parser:
             unget_token(tok)
         return q
 
-    fn parse_var_def(location: Location) -> ast.VariableDef except CompilationError:
+    fn parse_var_def() -> ast.VariableDef except CompilationError:
         let name_at = parse_name()
         let name = name_at.name
         parse_colon()

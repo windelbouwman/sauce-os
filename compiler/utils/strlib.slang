@@ -70,6 +70,23 @@ fn hex_to_int(hextext: str) -> int:
         index += 1
     return value
 
+fn is_digit(c: char) -> bool:
+    # Check if a character is a digit.
+    let o = ord(value: c)
+    return (o >= 48) and (o <= 57)
+
+fn is_hex_digit(c: char) -> bool:
+    # Check if a character is a hex digit.
+    let o = ord(value: c)
+    if (o >= 48) and (o <= 57):     # 0..9
+        return true
+    elif (o >= 65) and (o <= 70):   # A..F
+        return true
+    elif (o >= 97) and (o <= 102):  # a..f
+        return true
+    else:
+        return false
+
 # TODO: duplicate with rt_str_compare in C
 fn str_comparison(a: str, b: str) -> int:
     let index = 0

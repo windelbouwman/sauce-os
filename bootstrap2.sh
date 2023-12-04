@@ -16,15 +16,11 @@ python bootstrap.py
 
 echo "Compiling compiler with ${COMPILER1} into ${COMPILER2}"
 
-echo "#!/usr/bin/env python" > ${COMPILER2}
-python ${COMPILER1} ${COMPILER_SRCS} >> ${COMPILER2}
-chmod +x ${COMPILER2}
+python ${COMPILER1} --backend-py -o ${COMPILER2} ${COMPILER_SRCS}
 
 echo "Bootstrap again! Compile compiler with ${COMPILER2} into ${COMPILER3}"
 
-echo "#!/usr/bin/env python" > ${COMPILER3}
-python ${COMPILER2} ${COMPILER_SRCS} >> ${COMPILER3}
-chmod +x ${COMPILER3}
+python ${COMPILER2} --backend-py -o ${COMPILER3} ${COMPILER_SRCS}
 
 # Compiler 1 and 2 are different:
 # - They are produced from the same source, but using a different compiler.
@@ -33,17 +29,16 @@ chmod +x ${COMPILER3}
 diff ${COMPILER2} ${COMPILER3}
 
 echo "Compiling compiler4"
-python ${COMPILER3} -c ${COMPILER_SRCS} | sed '/^# /d' > build/tmp-compiler4.c
+python ${COMPILER3} --backend-c -o build/tmp-compiler4.c ${COMPILER_SRCS}
 gcc -o build/compiler4 build/tmp-compiler4.c runtime/runtime.c
 
 echo "Compiling compiler5"
-./build/compiler4 -c ${COMPILER_SRCS} | sed '/^# /d' > build/tmp-compiler5.c
+./build/compiler4 --backend-c -o build/tmp-compiler5.c ${COMPILER_SRCS}
 gcc -o build/compiler5 build/tmp-compiler5.c runtime/runtime.c
 
 diff build/tmp-compiler4.c build/tmp-compiler5.c
 
 echo "Compiling compiler6"
-echo "#!/usr/bin/env python" > ${COMPILER6}
-./build/compiler5 ${COMPILER_SRCS} >> ${COMPILER6}
+./build/compiler5 --backend-py -o ${COMPILER6} ${COMPILER_SRCS}
 
 echo "OK"

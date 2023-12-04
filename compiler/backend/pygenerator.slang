@@ -2,13 +2,16 @@
 
 import ast
 from utils import panic, log_info
-from datatypes import List
-from std import print, float_to_str, chr
+from datatypes import List, option_is_some, option_unwrap, Option
+from std import print, float_to_str, chr, file_writeln, file_open, file_close
 from strlib import str_join, str_repeat
 
-fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool):
+fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_filename: Option[str]):
     log_info("Generating python code")
     let g = PyGenerator()
+    if option_is_some(output_filename):
+        g.outf = file_open(option_unwrap(output_filename))
+        g.use_file = true
     if generate_runtime:
         g.emit_runtime()
     g.emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
@@ -16,9 +19,13 @@ fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool):
         g.gen_module(module)
     if generate_runtime:
         g.emit("sys.exit(main2())")
+    if g.use_file:
+        file_close(g.outf)
 
 class PyGenerator:
     var indent_level: int = 0
+    var outf: int = 0
+    var use_file: bool = false
 
     fn gen_module(module: ast.Module):
         for definition in module.definitions:
@@ -45,12 +52,28 @@ class PyGenerator:
         emit("def std_get_n_args() -> int: return len(sys.argv) - 1")
         emit("def std_get_arg(index) -> str:  return sys.argv[index + 1]")
         emit("def std_exit(code: int): raise RuntimeError('EXIT with code: ' + str(code))")
+        
         emit("def std_read_file(filename: str) -> str:")
         indent()
         emit("with open(filename, 'r') as f:")
         indent()
         emit("return f.read()")
         dedent()
+        dedent()
+        
+        emit("def std_file_open(filename: str) -> int:")
+        indent()
+        emit("return open(filename, 'w')")
+        dedent()
+
+        emit("def std_file_writeln(handle, text: str):")
+        indent()
+        emit("print(text, file=handle)")
+        dedent()
+
+        emit("def std_file_close(handle):")
+        indent()
+        emit("handle.close()")
         dedent()
 
     fn gen_definition(definition: ast.Definition):
@@ -92,7 +115,7 @@ class PyGenerator:
             Enum(enum_def):
                 panic("enum-def not supported")
             Var(variable_def):
-                panic("var-def not supported")
+                emit("{get_id(id: variable_def.variable.id)} = {gen_expression(option_unwrap(variable_def.value), parens: false)}")
 
     fn gen_block(body?: ast.Statement):
         indent()
@@ -255,7 +278,11 @@ class PyGenerator:
 
     fn emit(txt?: str):
         let space = str_repeat(text: "    ", count: indent_level)
-        print(space + txt)
+        let line = space + txt
+        if use_file:
+            file_writeln(handle: outf, line)
+        else:
+            print(line)
     
     fn indent():
         indent_level += 1

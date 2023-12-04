@@ -130,7 +130,7 @@ char *std_read_file(char *filename)
     return buffer;
 }
 
-slang_int_t file_open(char *filename)
+slang_int_t std_file_open(char *filename)
 {
     FILE *f = fopen(filename, "w");
     if (!f)
@@ -140,7 +140,7 @@ slang_int_t file_open(char *filename)
     return (slang_int_t)f;
 }
 
-void file_writeln(slang_int_t handle, char *line)
+void std_file_writeln(slang_int_t handle, char *line)
 {
     if (handle != 0)
     {
@@ -149,7 +149,7 @@ void file_writeln(slang_int_t handle, char *line)
     }
 }
 
-void file_close(slang_int_t handle)
+void std_file_close(slang_int_t handle)
 {
     if (handle != 0)
     {

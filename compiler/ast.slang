@@ -597,19 +597,19 @@ fn new_module(name: str, filename: Option[str], imports: List[Import], definitio
 
 fn module_define_symbol(module: Module, name: str, definition: Definition):
     module.definitions.append(definition)
-    case definition:
-        Var(variable):
-            module.scope.define(name, symbol: Symbol.Var(variable: variable.variable))
-        Function(function):
-            module.scope.define(name, symbol: Symbol.Function(function))
-        ExternFunction(external_function):
-            module.scope.define(name, symbol: Symbol.ExternFunction(external_function))
-        Enum(enum_def):
-            module.scope.define(name, symbol: Symbol.TypeConstructor(tycon: TyCon.Enum(enum_def)))
-        Struct(struct_def):
-            module.scope.define(name, symbol: Symbol.TypeConstructor(tycon: TyCon.Struct(struct_def)))
-        Class(class_def):
-            module.scope.define(name, symbol: Symbol.TypeConstructor(tycon: TyCon.Class(class_def)))
+    # case definition:
+    #     Var(variable):
+    #         module.scope.define(name, symbol: Symbol.Var(variable: variable.variable))
+    #     Function(function):
+    #         module.scope.define(name, symbol: Symbol.Function(function))
+    #     ExternFunction(external_function):
+    #         module.scope.define(name, symbol: Symbol.ExternFunction(external_function))
+    #     Enum(enum_def):
+    #         module.scope.define(name, symbol: Symbol.TypeConstructor(tycon: TyCon.Enum(enum_def)))
+    #     Struct(struct_def):
+    #         module.scope.define(name, symbol: Symbol.TypeConstructor(tycon: TyCon.Struct(struct_def)))
+    #     Class(class_def):
+    #         module.scope.define(name, symbol: Symbol.TypeConstructor(tycon: TyCon.Class(class_def)))
 
 fn import_self(modname: str, location: Location) -> Import:
     let i = Import:

@@ -1,6 +1,6 @@
 
 from utils import log_info, log_trace, panic
-from location import Location
+from location import Location, location_default
 from datatypes import List, Option, Dictionary, option_unwrap
 import ast
 from errors import CompilationError, new_error, new_errors, SingleCompilationError
@@ -88,7 +88,7 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
                     filler.define(name: function_def.id.name, symbol: ast.Symbol.Function(function_def))
                     filler.enter_scope(scope: function_def.scope)
                     for type_parameter in function_def.type_parameters:
-                        filler.define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)))
+                        filler.define_type_parameter(type_parameter)
                     for parameter_def in function_def.parameters:
                         filler.define(name: parameter_def.id.name, symbol: ast.Symbol.Parameter(parameter_def))
                     case function_def.this_parameter:
@@ -102,31 +102,23 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
                     filler.define(name: enum_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)))
                     filler.enter_scope(scope: enum_def.scope)
                     for type_parameter in enum_def.type_parameters:
-                        filler.define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)))
+                        filler.define_type_parameter(type_parameter)
                     for variant in enum_def.variants:
                         filler.define(name: variant.name, symbol: ast.Symbol.Variant(variant))
                 Struct(struct_def):
                     filler.define(name: struct_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Struct(struct_def)))
                     filler.enter_scope(scope: struct_def.scope)
                     for type_parameter in struct_def.type_parameters:
-                        filler.define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)))
+                        filler.define_type_parameter(type_parameter)
                     for field in struct_def.fields:
                         filler.define(name: field.name, symbol: ast.Symbol.Field(field))
                 Class(class_def):
                     filler.define(name: class_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Class(class_def)))
                     filler.enter_scope(scope: class_def.scope)
                     for type_parameter in class_def.type_parameters:
-                        filler.define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)))
-                    for definition in class_def.definitions:
-                        case definition:
-                            Var(v):
-                                pass
-                            Function(function_def):
-                                filler.define(name: function_def.id.name, symbol: ast.Symbol.Function(function_def))
-                        else:
-                            panic("class can only contain var/func")
+                        filler.define_type_parameter(type_parameter)
                 Var(variable_def):
-                    filler.define(name: variable_def.variable.id.name, symbol: ast.Symbol.Var(variable: variable_def.variable))
+                    filler.define_variable(variable: variable_def.variable)
         Post:
             case get_scope(definition):
                 None:
@@ -144,10 +136,14 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast
         Pre:
             case statement.kind:
                 Let(letty):
-                    filler.define(name: letty.variable.id.name, symbol: ast.Symbol.Var(variable: letty.variable))
+                    filler.define_variable(variable: letty.variable)
                 For(for_statement):
                     filler.enter_scope(scope: for_statement.block.scope)
-                    filler.define(name: for_statement.iter_var.id.name, symbol: ast.Symbol.Var(variable: for_statement.iter_var))
+                    filler.define_variable(variable: for_statement.iter_var)
+                While(while_statement):
+                    filler.enter_scope(scope: while_statement.block.scope)
+                Loop(loop_statement):
+                    filler.enter_scope(scope: loop_statement.block.scope)
                 Try(try_statement):
                     # TODO: create new scope for except clause?
                     filler.define(name: try_statement.except_param.id.name, symbol: ast.Symbol.Parameter(parameter: try_statement.except_param))
@@ -156,6 +152,10 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast
         Post:
             case statement.kind:
                 For(for_statement):
+                    filler.leave_scope()
+                While(while_statement):
+                    filler.leave_scope()
+                Loop(loop_statement):
                     filler.leave_scope()
             else:
                 pass
@@ -172,7 +172,7 @@ fn filler_on_node(filler: ScopeFiller, node: ast.VisitNode, phase: ast.VisitPhas
                 Arm(arm):
                     filler.enter_scope(scope: arm.block.scope)
                     for variable in arm.variables:
-                        filler.define(name: variable.id.name, symbol: ast.Symbol.Var(variable))
+                        filler.define_variable(variable)
                 ScopeNode(scope):
                     filler.enter_scope(scope)
             else:
@@ -193,9 +193,20 @@ class ScopeFiller:
     var scopes: List[ast.Scope] = List()
     var errors: List[SingleCompilationError] = List()
 
+    fn define_variable(variable: ast.Variable):
+        define(name: variable.id.name, symbol: ast.Symbol.Var(variable))
+    
+    fn define_type_parameter(type_parameter: ast.TypeParameter):
+        define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)))
+
     fn define(name: str, symbol: ast.Symbol):
         # log_trace("DEFINE {name}")
-        scopes.last().define(name, symbol)
+        let scope = scopes.last()
+        if scope.is_defined(name):
+            let location = location_default()  # TODO!
+            add_error(location, message: "Symbol '{name}' is already defined")
+        else:
+            scope.define(name, symbol)
     
     fn enter_scope(scope: ast.Scope):
         scopes.append(scope)
@@ -234,11 +245,19 @@ fn binder_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.
             case statement.kind:
                 For(for_statement):
                     binder.enter_scope(scope: for_statement.block.scope)
+                While(while_statement):
+                    binder.enter_scope(scope: while_statement.block.scope)
+                Loop(loop_statement):
+                    binder.enter_scope(scope: loop_statement.block.scope)
             else:
                 pass
         Post:
             case statement.kind:
                 For(for_statement):
+                    binder.leave_scope()
+                While(while_statement):
+                    binder.leave_scope()
+                Loop(loop_statement):
                     binder.leave_scope()
             else:
                 pass

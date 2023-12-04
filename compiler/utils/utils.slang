@@ -11,24 +11,25 @@ fn assert(condition: bool, message: str):
     else:
         panic(message)
 
+var log_level: int = 0
+
+fn set_log_level(level: int):
+    log_level = level
+
 fn log_error(message?: str):
-    print("# ERROR: {message}")
+    print("ERROR: {message}")
 
 fn log_warning(message?: str):
-    print("# WARNING: {message}")
+    print("WARNING: {message}")
 
 fn log_info(message?: str):
-    # LOL: Hack to enable valid python code to be output, including compiler logs.
-    print("# INFO: {message}")
+    if log_level > 0:
+        print("INFO: {message}")
 
 fn log_debug(message?: str):
-    # let do_debug = true
-    let do_debug = false
-    if do_debug:
-        print("# DEBUG: {message}")
-    
+    if log_level > 1:
+        print("DEBUG: {message}")
 
 fn log_trace(message?: str):
-    let do_trace = false
-    if do_trace:
+    if log_level > 2:
         print("TRACE: {message}")

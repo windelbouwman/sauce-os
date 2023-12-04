@@ -108,4 +108,12 @@ def std_str_get(s, i):
 def std_str_slice(s,b,e):
     return s[b:e]
 
+def std_file_open(filename: str) -> int:
+    return open(filename, 'w')
+
+def std_file_writeln(handle: int, text: str):
+    print(text, file=handle)
+
+def std_file_close(handle: int):
+    handle.close()
 """
