@@ -21,8 +21,11 @@ C_EXAMPLES := $(patsubst examples/%.slang, build/c/%.exe, $(SLANG_EXAMPLES))
 BC_EXAMPLES := $(patsubst examples/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 
 
-all: build/c/hello-world.exe build/c/mandel.exe
+all: ${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/c/mandel.exe
 
+check: ${BUILDDIR}/tests/test_strlib.exe ${BUILDDIR}/tests/test_list.exe
+	${BUILDDIR}/tests/test_strlib.exe
+	${BUILDDIR}/tests/test_list.exe
 
 # Example to bytecode compilation
 all-examples-bc: $(BC_EXAMPLES)
@@ -41,14 +44,13 @@ ${BUILDDIR}/python/%.py: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUI
 # examples compiled to C code:
 all-examples-c: $(C_EXAMPLES)
 
-${BUILDDIR}/c/%.exe: ${BUILDDIR}/c/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
+${BUILDDIR}/%.exe: ${BUILDDIR}/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
 	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/runtime.o
 
 .PRECIOUS: ${BUILDDIR}/c/%.c
 
 ${BUILDDIR}/c/%.c: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
 	python ${COMPILER6} --backend-c -o $@ $< runtime/std.slang
-
 
 # Wasm examples:
 all-examples-wasm: $(WASM_EXAMPLES)
@@ -61,6 +63,11 @@ all-examples-wasm: $(WASM_EXAMPLES)
 ${BUILDDIR}/wasm/%.wat: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
 	python ${COMPILER6} -wasm $< runtime/std.slang | sed '/^# /d' > $@
 
+# Unit tests:
+${BUILDDIR}/tests/test_%.c: tests/test_%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
+	python ${COMPILER6} --backend-c -o $@ $< runtime/std.slang tests/unittest.slang compiler/utils/strlib.slang compiler/utils/utils.slang compiler/utils/datatypes.slang
+
+.PRECIOUS: ${BUILDDIR}/tests/test_%.c
 
 # Bootstrap sequence:
 ${BUILDDIR}/tmp-compiler.py: ${COMPILER_SRCS} compiler1/*.py | ${BUILDDIR}
@@ -97,6 +104,7 @@ ${BUILDDIR}:
 	mkdir -p ${BUILDDIR}/python
 	mkdir -p ${BUILDDIR}/c
 	mkdir -p ${BUILDDIR}/bc
+	mkdir -p ${BUILDDIR}/tests
 
 ${BUILDDIR}/runtime.o: runtime/runtime.c | ${BUILDDIR}
 	gcc ${CFLAGS} -c -o $@ $<

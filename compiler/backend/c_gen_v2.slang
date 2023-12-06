@@ -72,7 +72,11 @@ class CGenerator2:
                                 let arg = gen_type(ty: field.ty, name: field.name)
                                 emit("union {name}* {name}_{field.name}({arg});")
                         else:
-                            emit("struct {name}* {name}_new();")
+                            let parts: List[str] = List()
+                            for field in struct_def.fields:
+                                parts.append(gen_type(ty: field.ty, name: field.name))
+                            let args = str_join(parts, sep: ", ")
+                            emit("struct {name}* {name}_new({args});")
                     ExternFunction(extern_function_def):
                         gen_extern_function_decl(extern_function_def)
                 else:

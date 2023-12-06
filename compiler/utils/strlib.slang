@@ -1,22 +1,22 @@
 
-from datatypes import List
+from datatypes import List, Option
 from std import str_slice, str_get, str_len, ord
 from utils import assert, panic
 
-fn split_string(value: str, sep: char) -> List[str]:
-    let size = str_len(value)
+fn split_string(text: str, sep: char) -> List[str]:
+    let size = str_len(text)
     let start = 0
     let cur = 0
     let parts: List[str] = List()
     while cur < size:
-        let c = str_get(value, index: cur)
+        let c = str_get(text, index: cur)
         if c == sep:
-            parts.append(str_slice(value, begin: start, end: cur))
+            parts.append(str_slice(text, begin: start, end: cur))
             cur += 1
             start = cur
         else:
             cur += 1
-    parts.append(str_slice(value, begin: start, end: cur))
+    parts.append(str_slice(text, begin: start, end: cur))
     return parts
 
 fn string_compare(a: str, b: str) -> bool:
@@ -86,6 +86,53 @@ fn is_hex_digit(c: char) -> bool:
         return true
     else:
         return false
+
+fn is_whitespace(c: char) -> bool:
+    panic("TODO!")
+
+fn trim(text?: str) -> str:
+    # Trim spaces
+    let i = 0
+    let n = str_len(text)
+    while i < n:
+        let c = str_get(text, i)
+        if c == ' ':
+            i += 1
+        else:
+            break
+    
+    while n > i:
+        n -= 1
+        let c = str_get(text, n)
+        if c == ' ':
+            pass
+        else:
+            n += 1
+            break
+
+    return str_slice(text, i, n)
+
+fn find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
+    let i = 0
+    let n = str_len(text)
+    while i < n:
+        let c = str_get(text, i)
+        if criterium(c):
+            return Option.Some(i)
+        i += 1
+    return Option.None()
+
+
+fn reverse_find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
+    let n = str_len(text)
+    let i = n
+    while i > 0:
+        i -= 1
+        let c = str_get(text, i)
+        if criterium(c):
+            return Option.Some(i)
+    return Option.None()
+
 
 # TODO: duplicate with rt_str_compare in C
 fn str_comparison(a: str, b: str) -> int:

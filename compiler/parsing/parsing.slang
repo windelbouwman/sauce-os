@@ -14,8 +14,8 @@ import errors
 
 fn basename(path: str) -> str:
     # retrieve 'bla' from 'for/bar/bla.txt'
-    let base = split_string(value: path, sep: '/').last()
-    return split_string(value: base, sep: '.').first()
+    let base = split_string(text: path, sep: '/').last()
+    return split_string(text: base, sep: '.').first()
 
 pub fn parse_source(filename: str, id_gen: IdGen) -> ast.Module except CompilationError:
     let source = std.read_file(filename)
@@ -67,7 +67,7 @@ class Parser:
                 KwFrom:
                     imports.append(parse_from_import())
                 KwFn:
-                    let func_def = parse_func_def(location: tok.location, this_parameter: Option.None())
+                    let func_def = parse_func_def(this_parameter: Option.None())
                     definitions.append(ast.Definition.Function(func_def))
                 KwExtern:
                     let extern_func_def = parse_extern_func_def(location: tok.location)
@@ -232,7 +232,7 @@ class Parser:
                     inner_defs.append(ast.Definition.Var(var_def))
                 KwFn:
                     let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
-                    let func_def = parse_func_def(location: tok.location, this_parameter: Option.Some(this_parameter))
+                    let func_def = parse_func_def(this_parameter: Option.Some(this_parameter))
                     inner_defs.append(ast.Definition.Function(func_def))
                 Dedent:
                     break
@@ -255,9 +255,9 @@ class Parser:
         ast.change_type_to(ty: this_type, ty2: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
         return class_def
 
-    fn parse_func_def(location: Location, this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except CompilationError:
-        let name: str = parse_name().name
-        log_debug("Parsing function: {name}")
+    fn parse_func_def(this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except CompilationError:
+        let name_at = parse_name()
+        log_debug("Parsing function: {name_at.name}")
         let type_parameters = parse_type_parameters()
         let parameters = parse_parameters()
         let return_type = parse_optional_return_type()
@@ -274,7 +274,7 @@ class Parser:
 
         # Body
         let body = parse_block()
-        let function_def = ast.function_def(name, id: new_id(), type_parameters, this_parameter, parameters, return_type, except_type, body, location)
+        let function_def = ast.function_def(name: name_at.name, id: new_id(), type_parameters, this_parameter, parameters, return_type, except_type, body, location: name_at.location)
         function_def.no_return = no_return
         return function_def
     
@@ -380,6 +380,7 @@ class Parser:
                 # '('
                 parse_brace_open()
 
+                let labels: List[Option[str]] = List()
                 let parameter_types: List[ast.Type] = List()
                 # ')' or parameters and ')'
                 let tok2 = get_token()
@@ -390,6 +391,7 @@ class Parser:
                     unget_token(tok2)
                     loop:
                         let param_type = parse_type()
+                        labels.append(Option.None())
                         parameter_types.append(param_type)
 
                         let tok4 = get_token()
@@ -403,7 +405,8 @@ class Parser:
 
                 # Optional return type
                 let return_type = parse_optional_return_type()
-                return ast.function_type(parameter_types, return_type)
+
+                return ast.function_type(labels, parameter_types, return_type)
         else:
             unget_token(tok0)
             let expr = parse_expression()
@@ -1014,7 +1017,7 @@ class Parser:
                     let p1 = Position(row: location.begin.row, column: location.begin.column + begin + 1)
                     let expr_text = std.str_slice(value: literal, begin, end)
                     let to_string_expr: ast.Expression = parse_expr_from_text(source: expr_text, id_gen: id_gen, p1)
-                    to_string_expr = ast.to_string(value: to_string_expr, location)
+                    to_string_expr = ast.to_string(value: to_string_expr, location: to_string_expr.location)
                     parts.append(to_string_expr)
                 begin = index + 1
 

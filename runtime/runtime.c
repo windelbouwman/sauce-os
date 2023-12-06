@@ -38,7 +38,7 @@ void std_panic(const char *message)
 
 slang_int_t std_str_to_int(char *x)
 {
-    int value = strtol(x, NULL, 10);
+    slang_int_t value = strtoll(x, NULL, 10);
     rt_decref(x);
     return value;
 }
@@ -46,7 +46,7 @@ slang_int_t std_str_to_int(char *x)
 char *rt_int_to_str(slang_int_t x)
 {
     char buffer[50];
-    snprintf(buffer, 50, "%d", x);
+    snprintf(buffer, 50, "%lld", x);
     char *text = rt_malloc(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;

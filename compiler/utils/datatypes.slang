@@ -152,6 +152,7 @@ class List[T]:
                                     # Slide to next item
                                     element = next_element
                                     next_element = next_next_element
+                        panic("pop_last: Should not get here.")
 
     fn last() -> T:
         # Retrieve last element

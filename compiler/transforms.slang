@@ -9,6 +9,7 @@
 # - Transform try/except into something else
 
 from location import Location
+# from std import print
 from utils import panic, log_info, log_debug, assert
 from basepass import IdGen
 from typechecking import type_check_modules
@@ -769,24 +770,27 @@ class ClassRewriter:
             ast.change_expression_to(expression: value, to: new_value)
         elif ast.is_function_type(ft):
             let parameter_types = ast.get_parameter_types_from_type(ft)
+            let return_type = ast.get_return_type_from_type(ft)
 
             # Check if we need a bridge function:
             let opaq = false
             for pt in parameter_types:
                 if needs_opaque_cast(pt):
                     opaq = true
+            if needs_opaque_cast(return_type):
+                opaq = true
 
             if opaq:
                 log_info("We need a bridge function for {ast.type_to_string(ft)} {ast.expression_to_string(value)}")
                 case value.kind:
                     FunctionRef(function_def, type_arguments):
                         # TODO: check for existing bridge functions!
-                        let bridge_function = create_bridge_function(function_def, parameter_types)
+                        let bridge_function = create_bridge_function(function_def, parameter_types, return_type)
                         value.kind = ast.ExpressionKind.FunctionRef(bridge_function, type_arguments: List())
                 else:
                     panic("Can only bridge a function reference")
 
-    fn create_bridge_function(function_def: ast.FunctionDef, parameter_types: List[ast.Type]) -> ast.FunctionDef:
+    fn create_bridge_function(function_def: ast.FunctionDef, parameter_types: List[ast.Type], return_type: ast.Type) -> ast.FunctionDef:
         # Create a bridge function which takes potential opaque parameters
         # and calls the specific function with opaque types casted.
         let location = function_def.location
@@ -794,8 +798,7 @@ class ClassRewriter:
         let type_parameters: List[ast.TypeParameter] = List()
         let parameters: List[ast.ParameterDef] = List()
         let arguments: List[ast.LabeledExpression] = List()
-        assert(condition: not function_def.return_type.was_generic, message: "Bridge function only supports non generic returning functions")
-        let return_type = function_def.return_type
+        let return_type2 = function_def.return_type
         assert(condition: ast.is_void_type(function_def.except_type), message: "Bridge function only supports non-throwing functions")
         let except_type = ast.void_type()
         let pti = parameter_types.iter()
@@ -821,12 +824,17 @@ class ClassRewriter:
         let function_ref = ast.function_ref(function_def, type_arguments: List(), location)
         let function_call = ast.call(callee: function_ref, arguments, ty: ast.void_type(), location)
         let body = ast.pass_statement(location)
-        if ast.is_void_type(return_type):
+        if ast.is_void_type(return_type2):
             body = ast.expression_statement(expr: function_call)
         else:
-            body = ast.return_statement(value: Option.Some(function_call), location)
+            # Check if we need to introduce a cast to opaque value
+            let value = function_call
+            if needs_opaque_cast(return_type):
+                return_type2 = ast.opaque_type()
+                value = ast.cast(value, to_type: return_type2, location)
+            body = ast.return_statement(value: Option.Some(value), location)
 
-        let bridge_function = ast.function_def(name: bridge_function_name, id: get_unique_id(), type_parameters, this_parameter: Option.None(), parameters, return_type, except_type, body, location)
+        let bridge_function = ast.function_def(name: bridge_function_name, id: get_unique_id(), type_parameters, this_parameter: Option.None(), parameters, return_type: return_type2, except_type, body, location)
         # TODO: we could insert duplicate bridge functions.
         # TODO: check for duplicate bridge functions.
         new_definitions.append(ast.Definition.Function(bridge_function))

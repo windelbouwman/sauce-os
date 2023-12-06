@@ -29,7 +29,22 @@ fn type_check(module: ast.Module) except CompilationError:
         raise new_errors(filename: module.filename, errors: checker.errors)
 
 fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase: ast.VisitPhase):
-    pass
+    case phase:
+        Pre:
+            case definition:
+                Function(function_def):
+                    checker.current_function = Option.Some(function_def)
+            else:
+                pass
+        Post:
+            case definition:
+                Function(function_def):
+                    checker.check_function_def(function_def)
+                    checker.current_function = Option.None()
+            else:
+                pass
+    else:
+        pass
 
 fn checker_on_type(checker: TypeChecker, ty: ast.Type, phase: ast.VisitPhase):
     pass
@@ -66,6 +81,13 @@ fn checker_on_node(checker: TypeChecker, node: ast.VisitNode, phase: ast.VisitPh
 class TypeChecker:
     var errors: List[SingleCompilationError] = List()
     var was_errors: bool = false
+    var current_function: Option[ast.FunctionDef] = Option.None()
+
+    fn check_function_def(function_def: ast.FunctionDef):
+        # Check if we return a value, if we need to return a value
+        if not ast.is_void_type(function_def.return_type):
+            if not function_def.body.is_terminator:
+                add_error(location: function_def.location, message: "Control reaches end of non-void function")
 
     fn check_statement_mid(statement: ast.Statement):
         case statement.kind:
@@ -116,6 +138,31 @@ class TypeChecker:
                     None:
                         let_statement.variable.ty = let_statement.value.ty
                 # log_trace("Let var {ast.node_id_to_string(let_statement.variable.id)} -> {ast.type_to_string(let_statement.variable.ty)} @ {location_to_string(statement.location)}")
+            Case(case_statement):
+                statement.is_terminator = true
+                for arm in case_statement.arms:
+                    if not arm.block.body.is_terminator:
+                        statement.is_terminator = false
+                case case_statement.else_block:
+                    Some(block):
+                        if not block.body.is_terminator:
+                            statement.is_terminator = false
+                    None:
+                        pass
+            Expr(expression):
+                # Check we are of void type.
+                if not ast.is_void_type(expression.ty):
+                    add_error(location: expression.location, message: "Non-void expression")
+
+                case expression.kind:
+                    Call(call):
+                        case call.callee.kind:
+                            FunctionRef(function_def, type_arguments):
+                                statement.is_terminator = function_def.no_return
+                        else:
+                            statement.is_terminator = false
+                else:
+                    statement.is_terminator = false
             If(if_statement):
                 coerce(ty: ast.bool_type(), value: if_statement.condition)
                 statement.is_terminator = if_statement.true_block.body.is_terminator and if_statement.false_block.body.is_terminator
@@ -126,6 +173,15 @@ class TypeChecker:
                 coerce(ty: target.ty, value)
                 statement.is_terminator = false
             Return(value):
+                let func = option_unwrap(current_function)
+                case value:
+                    Some(value):
+                        coerce(ty: func.return_type, value)
+                    None:
+                        if not ast.is_void_type(func.return_type):
+                            add_error(location: statement.location, message: "Expected a value")
+                statement.is_terminator = true
+            Raise(value):
                 statement.is_terminator = true
             Unreachable:
                 statement.is_terminator = true
@@ -134,6 +190,13 @@ class TypeChecker:
                     statement.is_terminator = false
                 else:
                     statement.is_terminator = x.last().is_terminator
+            Try(try_statement):
+                if not try_statement.try_block.body.is_terminator:
+                    statement.is_terminator = false
+                elif not try_statement.except_block.body.is_terminator:
+                    statement.is_terminator = false
+                else:
+                    statement.is_terminator = true
         else:
             pass
 
@@ -151,6 +214,24 @@ class TypeChecker:
                         arguments.append(argument.value)
                     check_arguments(location: expression.location, parameter_types, arguments)
                     expression.ty = ast.deref_type_var(return_type)
+
+                    # Check named arguments: TODO
+                    let labels = ast.get_parameter_labels_from_type(call.callee.ty)
+                    let label_iter = labels.iter()
+                    for argument in call.arguments:
+                        let label = option_unwrap(label_iter.next())
+                        case label:
+                            Some(label):
+                                case argument.name:
+                                    Some(name):
+                                        if not (label == name):
+                                            add_error(location: argument.location, message: "Got label '{name}', expected label '{label}'")
+                                    None:
+                                        add_error(location: argument.location, message: "Expected a labeled argument '{label}'")
+                            None:
+                                pass
+
+                    # Check exception raising: TODO
                 else:
                     add_error(location: expression.location, message: "Cannot call non-function type {ast.type_to_string(call.callee.ty)}")
             LoadSymbol(symbol):
@@ -173,7 +254,8 @@ class TypeChecker:
             TypeCast(ty, value):
                 expression.ty = ty
             ToString(value):
-                # TODO: Check for int / str?
+                if not (ast.is_int_type(value.ty) or ast.is_str_type(value.ty) or ast.is_char_type(value.ty)):
+                    add_error(location: expression.location, message: "Cannot convert to-string automatically")
                 expression.ty = ast.str_type()
             Typ(t):
                 panic("TODO: type")
