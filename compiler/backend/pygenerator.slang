@@ -317,4 +317,15 @@ fn binary_operator_to_str(op: ast.BinaryOperator) -> str:
             op_txt = "*"
         Div:
             op_txt = "/"
+        BitAnd:
+            op_txt = "&"
+        BitXor:
+            op_txt = "^"
+        BitOr:
+            op_txt = "|"
+        ShiftLeft:
+            op_txt = "<<"
+        ShiftRight:
+            op_txt = ">>"
+
     return op_txt

@@ -1191,6 +1191,11 @@ enum BinaryOperator:
     GreaterEquals
     Equals
     NotEquals
+    BitAnd
+    BitXor
+    BitOr
+    ShiftLeft
+    ShiftRight
     Add
     Sub
     Mul
@@ -1474,7 +1479,7 @@ fn print_ast_expression(printer: AstPrinter, expression: Expression, phase: Visi
 fn print_ast_node(printer: AstPrinter, node: VisitNode, phase: VisitPhase):
     pass
 
-fn binary_op_to_str(op: BinaryOperator) -> str:
+fn binary_op_to_str(op?: BinaryOperator) -> str:
     let op_txt = "?"
     case op:
         And:
@@ -1493,6 +1498,16 @@ fn binary_op_to_str(op: BinaryOperator) -> str:
             op_txt = "="
         NotEquals:
             op_txt = "!="
+        BitAnd:
+            op_txt = "bitand"
+        BitXor:
+            op_txt = "bitxor"
+        BitOr:
+            op_txt = "bitor"
+        ShiftLeft:
+            op_txt = "shl"
+        ShiftRight:
+            op_txt = "shr"
         Add:
             op_txt = "+"
         Sub:

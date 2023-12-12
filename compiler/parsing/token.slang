@@ -68,6 +68,11 @@ enum TokenKind:
     GreaterEquals
     Equals
     EqualsEquals
+    ShiftRight
+    ShiftLeft
+    BitOr
+    BitAnd
+    BitXor
     NotEquals
     PlusEquals
     MinusEquals
@@ -205,6 +210,16 @@ fn token_to_string(tok: Token) -> str:
             txt = ">"
         GreaterEquals:
             txt = ">="
+        ShiftRight:
+            txt = "shr"
+        ShiftLeft:
+            txt = "shl"
+        BitOr:
+            txt = "bitor"
+        BitAnd:
+            txt = "bitand"
+        BitXor:
+            txt = "bitxor"
         BraceOpen:
             txt = "BRACE_OPEN"
         BraceClose:

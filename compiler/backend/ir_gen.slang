@@ -319,6 +319,8 @@ class Generator:
                             panic("unreachable: and")
                         Or:
                             panic("unreachable: or")
+                    else:
+                        panic("TODO: binop: {ast.binary_op_to_str(binop.op)}")
 
             Unop(op, value):
                 gen_expression(value)

@@ -7,6 +7,8 @@ import logging
 import time
 import argparse
 import glob
+import rich.text
+from asyncio import Queue
 
 from pygls.server import LanguageServer
 from lsprotocol import types
@@ -169,56 +171,128 @@ def definition(ls: LanguageServer, params: types.DefinitionParams):
 
 
 @server.feature(types.TEXT_DOCUMENT_DID_OPEN)
-def did_open(ls: LanguageServer, params: types.DidOpenTextDocumentParams):
-    _validate(ls, params)
+async def did_open(ls: LanguageServer, params: types.DidOpenTextDocumentParams):
+    await _validate(ls, params)
 
 
 @server.feature(types.TEXT_DOCUMENT_DID_CHANGE)
-def did_change(ls, params: types.DidChangeTextDocumentParams):
-    _validate(ls, params)
+async def did_change(ls: LanguageServer, params: types.DidChangeTextDocumentParams):
+    await _validate(ls, params)
 
 
-def _validate(ls: LanguageServer, params):
+work_q = Queue()
+
+
+async def _validate(ls: LanguageServer, params):
+    """Validate source code by compiling it using the null backend.
+
+    This is time consuming cpu bound work,
+    so must be handled in a seperate thread.
+    """
+
+    # Debounce!
+    logger.info("validate! Might debounce?")
+
     text_doc = ls.workspace.get_document(params.text_document.uri)
-
-    options = CompilationOptions(backend="null")
-
-    # Heuristics to detect a 'project'
-    # TODO: figure out how to deal with a folder of files.
     filename = text_doc.uri.removeprefix("file://")
     code = text_doc.source
-    std_filename = os.path.abspath("runtime/std.slang")
-    project_root = find_project(filename)
+    await work_q.put((filename, code))
+    # logger.info("Validation completed")
+
+
+async def validator_task(ls: LanguageServer, q: Queue):
+    logger.info("Entering work task")
+    while True:
+        item = await q.get()
+        if q.empty():
+            filename, code = item
+            result = await ls.loop.run_in_executor(None, _cpu_validate, filename, code)
+
+            if result:
+                ex = result
+                diagnostic_per_file = {}
+                for filename, location, message in ex.errors:
+                    message = str(rich.text.Text.from_markup(message))
+                    diagnostic = types.Diagnostic(
+                        range=make_lsp_range(location),
+                        severity=types.DiagnosticSeverity.Error,
+                        message=message,
+                    )
+                    uri = "file://" + filename
+                    if uri in diagnostic_per_file:
+                        diagnostic_per_file[uri].append(diagnostic)
+                    else:
+                        diagnostic_per_file[uri] = [diagnostic]
+
+                for uri, diagnostics in diagnostic_per_file.items():
+                    ls.publish_diagnostics(uri, diagnostics)
+            else:
+                uri = "file://" + filename
+                ls.publish_diagnostics(uri, [])
+        else:
+            # Skipping, newer data available!
+            logger.info("Skipping task!")
+        q.task_done()
+
+
+def _cpu_validate(filename, code):
+    """Potential CPU intensive operation"""
+    options = CompilationOptions(backend="null")
+
+    # Determine the source files
+    # Heuristics to detect a 'slang-project.txt'
+    logger.info(f"Compiling {filename}")
+    # time.sleep(2)  # Artificial delay
     filenames = [(filename, code)]
-    if project_root:
-        filenames.extend(glob.glob(f"{project_root}/**/*.slang", recursive=True))
-        filenames.remove(filename)
-    filenames.append(std_filename)
+    project_filename = find_project(filename)
+    if project_filename:
+        project_files = get_project_sources(project_filename)
+        project_files.remove(filename)  # Skip this file itself
+        filenames.extend(project_files)
 
     try:
         modules = do_compile(filenames, None, options)
         db.fill_infos(modules)
     except CompilationError as ex:
-        for filename, location, message in ex.errors:
-            diagnostics = []
-            diagnostic = types.Diagnostic(
-                range=make_lsp_range(location),
-                severity=types.DiagnosticSeverity.Error,
-                message=message,
-            )
-            diagnostics.append(diagnostic)
-            uri = "file://" + filename
-            ls.publish_diagnostics(uri, diagnostics)
+        result = ex
     else:
-        ls.publish_diagnostics(text_doc.uri, [])
+        result = None
+    logger.info(f"Compiling {filename} done!")
+    return result
+
+
+def get_project_sources(project_filename: str):
+    filenames = []
+    # Add all files in the project:
+    project_root = os.path.dirname(os.path.abspath(project_filename))
+    project_sources = glob.glob(f"{project_root}/**/*.slang", recursive=True)
+    filenames.extend(project_sources)
+
+    # Add files listed in project file:
+    with open(project_filename, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("#"):
+                continue
+            if not line:
+                continue
+            path = os.path.normpath(os.path.join(project_root, line))
+            if os.path.isdir(path):
+                filenames.extend(glob.glob(f"{path}/**/*.slang", recursive=True))
+            elif os.path.exists(path):
+                filenames.append(path)
+            else:
+                logger.error(f"Invalid path: {path}")
+    return filenames
 
 
 def find_project(filename: str):
     """Search for slang-project.txt in some parent folders."""
     parent_folder = os.path.dirname(os.path.abspath(filename))
     while os.path.isdir(parent_folder):
-        if os.path.exists(os.path.join(parent_folder, "slang-project.txt")):
-            return parent_folder
+        project_filename = os.path.join(parent_folder, "slang-project.txt")
+        if os.path.exists(project_filename):
+            return project_filename
         new_parent_folder = os.path.dirname(parent_folder)
         if new_parent_folder == parent_folder:
             break
@@ -244,9 +318,16 @@ def main():
     parser.add_argument("--tcp", help="Start a TCP server", action="store_true")
     args = parser.parse_args()
 
+    # TODO: kill tasks gently:
+    task = server.loop.create_task(validator_task(server, work_q))
+
     if args.tcp:
         logging.getLogger("pygls.protocol").setLevel(logging.WARNING)
-        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger("namebinding").setLevel(logging.INFO)
+        logging.getLogger("parser").setLevel(logging.INFO)
+        logging.getLogger("basepass").setLevel(logging.INFO)
+        logformat = "%(asctime)s | %(levelname)8s | %(name)10.10s | %(message)s"
+        logging.basicConfig(level=logging.DEBUG, format=logformat)
         server.start_tcp("127.0.0.1", args.port)
     else:
         server.start_io()

@@ -744,6 +744,21 @@ class Parser:
                 NotEquals:
                     op = ast.BinaryOperator.NotEquals()
                     prec = 30
+                BitOr:
+                    op = ast.BinaryOperator.BitOr()
+                    prec = 51
+                BitXor:
+                    op = ast.BinaryOperator.BitXor()
+                    prec = 52
+                BitAnd:
+                    op = ast.BinaryOperator.BitAnd()
+                    prec = 53
+                ShiftLeft:
+                    op = ast.BinaryOperator.ShiftLeft()
+                    prec = 55
+                ShiftRight:
+                    op = ast.BinaryOperator.ShiftRight()
+                    prec = 55
                 Plus:
                     op = ast.BinaryOperator.Add()
                     prec = 60

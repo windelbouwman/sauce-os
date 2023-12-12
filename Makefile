@@ -6,6 +6,7 @@ BUILDDIR=build
 COMPILER_SRCS := $(wildcard compiler/*/*.slang)
 COMPILER_SRCS += $(wildcard compiler/*.slang)
 COMPILER_SRCS += runtime/std.slang
+TEST_LIB_SRCS=runtime/std.slang Libs/hashlib.slang tests/unittest.slang compiler/utils/strlib.slang compiler/utils/utils.slang compiler/utils/datatypes.slang
 COMPILER1=${BUILDDIR}/tmp-compiler.py
 COMPILER2=${BUILDDIR}/tmp-compiler2.py
 COMPILER3=${BUILDDIR}/tmp-compiler3.py
@@ -23,9 +24,10 @@ BC_EXAMPLES := $(patsubst examples/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 
 all: ${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/c/mandel.exe
 
-check: ${BUILDDIR}/tests/test_strlib.exe ${BUILDDIR}/tests/test_list.exe
+check: ${BUILDDIR}/tests/test_strlib.exe ${BUILDDIR}/tests/test_list.exe ${BUILDDIR}/tests/test_hash.exe
 	${BUILDDIR}/tests/test_strlib.exe
 	${BUILDDIR}/tests/test_list.exe
+	${BUILDDIR}/tests/test_hash.exe
 
 # Example to bytecode compilation
 all-examples-bc: $(BC_EXAMPLES)
@@ -64,8 +66,8 @@ ${BUILDDIR}/wasm/%.wat: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUIL
 	python ${COMPILER6} -wasm $< runtime/std.slang | sed '/^# /d' > $@
 
 # Unit tests:
-${BUILDDIR}/tests/test_%.c: tests/test_%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
-	python ${COMPILER6} --backend-c -o $@ $< runtime/std.slang tests/unittest.slang compiler/utils/strlib.slang compiler/utils/utils.slang compiler/utils/datatypes.slang
+${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${TEST_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}
+	python ${COMPILER6} --backend-c -o $@ $< ${TEST_LIB_SRCS} 
 
 .PRECIOUS: ${BUILDDIR}/tests/test_%.c
 

@@ -397,10 +397,19 @@ class WasmGenerator:
                     emit(Instruction.i64_eq())
                 NotEquals:
                     emit(Instruction.i64_ne())
-                And:
-                    panic("i64 and not impl")
-                Or:
-                    panic("i64 or not impl")
+                BitAnd:
+                    emit(Instruction.i64_and())
+                BitXor:
+                    emit(Instruction.i64_xor())
+                BitOr:
+                    emit(Instruction.i64_or())
+                ShiftLeft:
+                    emit(Instruction.i64_shl())
+                ShiftRight:
+                    # TBD: unsigned or signed shift right?
+                    emit(Instruction.i64_shr_u())
+            else:
+                panic("Invalid int binop: {ast.binary_op_to_str(binop.op)}")
         elif ast.is_bool_type(binop.lhs.ty):
             case binop.op:
                 And:
@@ -408,7 +417,7 @@ class WasmGenerator:
                 Or:
                     emit(Instruction.i32_or())
             else:
-                panic("Invalid bool binop")
+                panic("Invalid bool binop: {ast.binary_op_to_str(binop.op)}")
         elif ast.is_float_type(binop.lhs.ty):
             case binop.op:
                 Add:
@@ -431,10 +440,8 @@ class WasmGenerator:
                     emit(Instruction.f64_eq())
                 NotEquals:
                     emit(Instruction.f64_ne())
-                And:
-                    panic("f64 and not impl")
-                Or:
-                    panic("f64 or not impl")
+            else:
+                panic("Invalid str binop: {ast.binary_op_to_str(binop.op)}")
         elif ast.is_char_type(binop.lhs.ty):
             case binop.op:
                 Equals:
@@ -442,7 +449,7 @@ class WasmGenerator:
                 NotEquals:
                     emit(Instruction.i32_ne())
             else:
-                panic("char i32 or not impl")
+                panic("Invalid char binop: {ast.binary_op_to_str(binop.op)}")
         else:
             panic("Binop type not supported: {ast.type_to_string(binop.lhs.ty)}")
 

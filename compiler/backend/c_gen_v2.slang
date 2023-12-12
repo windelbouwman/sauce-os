@@ -516,5 +516,16 @@ fn binary_op_to_str(op: ast.BinaryOperator) -> str:
             op_text = "=="
         NotEquals:
             op_text = "!="
+        BitAnd:
+            op_text = "&"
+        BitXor:
+            op_text = "^"
+        BitOr:
+            op_text = "|"
+        ShiftLeft:
+            op_text = "<<"
+        ShiftRight:
+            op_text = ">>"
+
     return op_text
 

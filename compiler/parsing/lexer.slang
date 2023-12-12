@@ -216,11 +216,15 @@ class Lexer:
             elif c == '<':
                 if match(txt: '='):
                     kind = TokenKind.LessEquals()
+                elif match(txt: '<'):
+                    kind = TokenKind.ShiftLeft()
                 else:
                     kind = TokenKind.Less()
             elif c == '>':
                 if match(txt: '='):
                     kind = TokenKind.GreaterEquals()
+                elif match(txt: '>'):
+                    kind = TokenKind.ShiftRight()
                 else:
                     kind = TokenKind.Greater()
             elif c == '=':
@@ -231,6 +235,12 @@ class Lexer:
             elif c == '!':
                 if match(txt: '='):
                     kind = TokenKind.NotEquals()
+            elif c == '|':
+                kind = TokenKind.BitOr()
+            elif c == '&':
+                kind = TokenKind.BitAnd()
+            elif c == '^':
+                kind = TokenKind.BitXor()
 
             let end_column = offset - 1
             end_column = end_column - col_start + start_col
