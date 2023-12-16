@@ -12,7 +12,11 @@ let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
   // Whether or not to start the python server itself
-  const devMode = true;
+
+  // context.workspaceState.
+  const devMode: boolean = workspace
+    .getConfiguration("slang-lang")
+    .get("language-server-dev-mode");
 
   let serverOptions: ServerOptions;
   if (devMode) {

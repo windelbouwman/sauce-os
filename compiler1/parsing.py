@@ -140,6 +140,11 @@ class CustomLarkLexer(LarkLexer):
             "+": "PLUS",
             "*": "ASTERIX",
             "/": "SLASH",
+            ">>": "SHR",
+            "<<": "SHL",
+            "|": "BITOR",
+            "^": "BITXOR",
+            "&": "BITAND",
             ":": "COLON",
             ",": "COMMA",
             ".": "DOT",
@@ -575,6 +580,34 @@ class CustomTransformer(LarkTransformer):
             lhs, op, rhs = x
             return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
 
+    def bitor(self, x):
+        if len(x) == 1:
+            return x[0]
+        else:
+            lhs, op, rhs = x
+            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+
+    def bitxor(self, x):
+        if len(x) == 1:
+            return x[0]
+        else:
+            lhs, op, rhs = x
+            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+
+    def bitand(self, x):
+        if len(x) == 1:
+            return x[0]
+        else:
+            lhs, op, rhs = x
+            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+
+    def bitshift(self, x):
+        if len(x) == 1:
+            return x[0]
+        else:
+            lhs, op, rhs = x
+            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+
     def sum(self, x):
         if len(x) == 1:
             return x[0]
@@ -784,7 +817,16 @@ comparison: expression cmpop expression
           | expression
 cmpop: LESS_THAN | GREATER_THAN | EQUALS_EQUALS | LESS_EQUALS | GREATER_EQUALS | NOT_EQUALS
 
-expression: sum
+expression: bitor
+bitor: bitor BITOR bitxor
+     | bitxor
+bitxor: bitxor BITXOR bitand
+      | bitand
+bitand: bitand BITAND bitshift
+      | bitshift
+bitshift: bitshift SHR sum
+        | bitshift SHL sum
+        | sum
 sum: sum addop term
    | term
 addop: PLUS | MINUS
@@ -829,6 +871,7 @@ labeled_expression: test
 %declare MINUS PLUS ASTERIX SLASH
 %declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS NOT_EQUALS
 %declare EQUALS PLUS_EQUALS MINUS_EQUALS
+%declare BITAND BITOR BITXOR SHR SHL
 
 %declare INDENT DEDENT NEWLINE
 %declare NUMBER STRING FNUMBER BOOL CHAR ID

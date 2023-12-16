@@ -1,9 +1,8 @@
 {
-    "editor.formatOnSave": true,
-    "python.autoComplete.extraPaths": [
-        "${workspaceFolder}"
-    ],
-    "python.formatting.provider": "black"
-
-
+  "editor.formatOnSave": true,
+  "python.autoComplete.extraPaths": ["${workspaceFolder}"],
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  }
 }

@@ -32,7 +32,22 @@
         "scopeName": "source.slang",
         "path": "./syntaxes/slang.tmLanguage.json"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Slang Lang",
+      "properties": {
+        "slang-lang.language-server-dev-mode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Connect to language server via TCP (useful for debugging)"
+        },
+        "slang-lang.language-server-address": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Language server address (only used when using dev language server)"
+        }
+      }
+    }
   },
   "scripts": {
     "compile": "tsc -b",

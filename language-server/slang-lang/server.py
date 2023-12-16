@@ -7,8 +7,8 @@ import logging
 import time
 import argparse
 import glob
+import asyncio
 import rich.text
-from asyncio import Queue
 
 from pygls.server import LanguageServer
 from lsprotocol import types
@@ -23,8 +23,6 @@ from compiler1.location import Location as SlangLocation, Position as SlangPosit
 from compiler1 import ast
 
 logger = logging.getLogger("Slang-Lang-LSP")
-
-server = LanguageServer("Slang-Lang-Server", "v0.1")
 
 
 class DataBase:
@@ -41,6 +39,8 @@ class DataBase:
 
         # Map from filename to module:
         self._file_modules = {}
+
+        self._validation_task = None
 
     def fill_infos(self, modules):
         """Fill symbol info after compilation."""
@@ -73,8 +73,40 @@ class DataBase:
                         return filename, loc
                     break
 
+    async def validate(self, ls: LanguageServer, params, delay=0):
+        """Validate source code by compiling it using the 'null' backend.
+
+        This is time consuming cpu bound work,
+        so must be handled in a seperate thread.
+        """
+
+        # Debounce!
+        logger.info("validate! Might debounce?")
+        await self.stop_validation()
+
+        text_doc = ls.workspace.get_text_document(params.text_document.uri)
+        filename = text_doc.uri.removeprefix("file://")
+        code = text_doc.source
+
+        # Spawn a long running validation task:
+        self._validation_task = asyncio.create_task(
+            validator_task(ls, filename, code, delay)
+        )
+
+    async def stop_validation(self):
+        if self._validation_task and not self._validation_task.done():
+            logger.info("Cancelling validation task")
+            self._validation_task.cancel()
+            try:
+                await self._validation_task
+            except asyncio.CancelledError:
+                logger.info("task cancelled")
+
 
 db = DataBase()
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+server = LanguageServer("Slang-Lang-Server", "v0.1", loop=loop)
 
 
 @server.feature(types.TEXT_DOCUMENT_COMPLETION)
@@ -91,21 +123,21 @@ def completions(params: types.CompletionParams) -> types.CompletionList:
     return types.CompletionList(is_incomplete=False, items=items)
 
 
-@server.feature(types.TEXT_DOCUMENT_INLAY_HINT)
-def inlay_hints(params: types.InlayHintParams):
-    print("GET INLAY HINTS", params)
-    items = []
-    for row in range(params.range.start.line, params.range.end.line):
-        items.append(
-            types.InlayHint(
-                label="W))T",
-                kind=types.InlayHintKind.Type,
-                padding_left=False,
-                padding_right=True,
-                position=types.Position(line=row, character=0),
-            )
-        )
-    return items
+# @server.feature(types.TEXT_DOCUMENT_INLAY_HINT)
+# def inlay_hints(params: types.InlayHintParams):
+#     print("GET INLAY HINTS", params)
+#     items = []
+#     for row in range(params.range.start.line, params.range.end.line):
+#         items.append(
+#             types.InlayHint(
+#                 label="W))T",
+#                 kind=types.InlayHintKind.Type,
+#                 padding_left=False,
+#                 padding_right=True,
+#                 position=types.Position(line=row, character=0),
+#             )
+#         )
+#     return items
 
 
 @server.feature(types.TEXT_DOCUMENT_DOCUMENT_SYMBOL)
@@ -159,7 +191,7 @@ def definition_to_symbol(definition: ast.Definition):
 
 @server.feature(types.TEXT_DOCUMENT_DEFINITION)
 def definition(ls: LanguageServer, params: types.DefinitionParams):
-    text_doc = ls.workspace.get_document(params.text_document.uri)
+    text_doc = ls.workspace.get_text_document(params.text_document.uri)
     filename = text_doc.uri.removeprefix("file://")
     row = params.position.line + 1
     column = params.position.character + 1
@@ -172,67 +204,46 @@ def definition(ls: LanguageServer, params: types.DefinitionParams):
 
 @server.feature(types.TEXT_DOCUMENT_DID_OPEN)
 async def did_open(ls: LanguageServer, params: types.DidOpenTextDocumentParams):
-    await _validate(ls, params)
+    await db.validate(ls, params, delay=0)
 
 
 @server.feature(types.TEXT_DOCUMENT_DID_CHANGE)
 async def did_change(ls: LanguageServer, params: types.DidChangeTextDocumentParams):
-    await _validate(ls, params)
+    await db.validate(ls, params, delay=1)
 
 
-work_q = Queue()
+async def validator_task(ls: LanguageServer, filename, code, delay):
+    if delay:
+        logger.info(f"Waiting {delay} seconds for additional changes")
+        await asyncio.sleep(delay)
+    logger.info("Start compilation!")
+    filenames, ex = await ls.loop.run_in_executor(None, _cpu_validate, filename, code)
 
+    diagnostic_per_file = {}
+    # Create empty diagnostic lists per file:
+    for filename in filenames:
+        if isinstance(filename, tuple):
+            filename = filename[0]
+        uri = f"file://{filename}"
+        if uri not in diagnostic_per_file:
+            diagnostic_per_file[uri] = []
 
-async def _validate(ls: LanguageServer, params):
-    """Validate source code by compiling it using the null backend.
-
-    This is time consuming cpu bound work,
-    so must be handled in a seperate thread.
-    """
-
-    # Debounce!
-    logger.info("validate! Might debounce?")
-
-    text_doc = ls.workspace.get_document(params.text_document.uri)
-    filename = text_doc.uri.removeprefix("file://")
-    code = text_doc.source
-    await work_q.put((filename, code))
-    # logger.info("Validation completed")
-
-
-async def validator_task(ls: LanguageServer, q: Queue):
-    logger.info("Entering work task")
-    while True:
-        item = await q.get()
-        if q.empty():
-            filename, code = item
-            result = await ls.loop.run_in_executor(None, _cpu_validate, filename, code)
-
-            if result:
-                ex = result
-                diagnostic_per_file = {}
-                for filename, location, message in ex.errors:
-                    message = str(rich.text.Text.from_markup(message))
-                    diagnostic = types.Diagnostic(
-                        range=make_lsp_range(location),
-                        severity=types.DiagnosticSeverity.Error,
-                        message=message,
-                    )
-                    uri = "file://" + filename
-                    if uri in diagnostic_per_file:
-                        diagnostic_per_file[uri].append(diagnostic)
-                    else:
-                        diagnostic_per_file[uri] = [diagnostic]
-
-                for uri, diagnostics in diagnostic_per_file.items():
-                    ls.publish_diagnostics(uri, diagnostics)
+    if ex:
+        for filename, location, message in ex.errors:
+            message = str(rich.text.Text.from_markup(message))
+            diagnostic = types.Diagnostic(
+                range=make_lsp_range(location),
+                severity=types.DiagnosticSeverity.Error,
+                message=message,
+            )
+            uri = "file://" + filename
+            if uri in diagnostic_per_file:
+                diagnostic_per_file[uri].append(diagnostic)
             else:
-                uri = "file://" + filename
-                ls.publish_diagnostics(uri, [])
-        else:
-            # Skipping, newer data available!
-            logger.info("Skipping task!")
-        q.task_done()
+                diagnostic_per_file[uri] = [diagnostic]
+
+    for uri, diagnostics in diagnostic_per_file.items():
+        ls.publish_diagnostics(uri, diagnostics)
 
 
 def _cpu_validate(filename, code):
@@ -258,7 +269,7 @@ def _cpu_validate(filename, code):
     else:
         result = None
     logger.info(f"Compiling {filename} done!")
-    return result
+    return filenames, result
 
 
 def get_project_sources(project_filename: str):
@@ -311,15 +322,13 @@ def make_lsp_position(location: SlangPosition) -> types.Position:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Start LSP server for Slang-Lang. Default start on stdio."
-    )
+    parser = argparse.ArgumentParser(description="Language server for Slang-Lang.")
     parser.add_argument("--port", type=int, default=8339)
     parser.add_argument("--tcp", help="Start a TCP server", action="store_true")
+    parser.add_argument(
+        "--stdio", help="Start a STDIO server (default)", action="store_true"
+    )
     args = parser.parse_args()
-
-    # TODO: kill tasks gently:
-    task = server.loop.create_task(validator_task(server, work_q))
 
     if args.tcp:
         logging.getLogger("pygls.protocol").setLevel(logging.WARNING)
@@ -331,6 +340,8 @@ def main():
         server.start_tcp("127.0.0.1", args.port)
     else:
         server.start_io()
+
+    loop.run_until_complete(db.stop_validation())
 
 
 main()
