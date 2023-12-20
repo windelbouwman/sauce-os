@@ -6,7 +6,12 @@ BUILDDIR=build
 COMPILER_SRCS := $(wildcard compiler/*/*.slang)
 COMPILER_SRCS += $(wildcard compiler/*.slang)
 COMPILER_SRCS += runtime/std.slang
-TEST_LIB_SRCS=runtime/std.slang Libs/hashlib.slang tests/unittest.slang compiler/utils/strlib.slang compiler/utils/utils.slang compiler/utils/datatypes.slang
+COMPILER_LIB_SRCS := compiler/utils/strlib.slang compiler/utils/utils.slang compiler/utils/datatypes.slang
+BASE_LIB_SRCS := $(wildcard Libs/base/*.slang)
+BASE_LIB_SRCS += ${COMPILER_LIB_SRCS}
+BASE_LIB_SRCS += runtime/std.slang
+TEST_LIB_SRCS := tests/unittest.slang
+REGEX_LIB_SRCS := Libs/regex/regex.slang Libs/regex/integersetlib.slang Libs/regex/rangelib.slang
 COMPILER1=${BUILDDIR}/tmp-compiler.py
 COMPILER2=${BUILDDIR}/tmp-compiler2.py
 COMPILER3=${BUILDDIR}/tmp-compiler3.py
@@ -20,14 +25,19 @@ WASM_EXAMPLES := $(patsubst examples/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLE
 PY_EXAMPLES := $(patsubst examples/%.slang, build/python/%.py, $(SLANG_EXAMPLES))
 C_EXAMPLES := $(patsubst examples/%.slang, build/c/%.exe, $(SLANG_EXAMPLES))
 BC_EXAMPLES := $(patsubst examples/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
+TESTS := $(wildcard tests/test_*.slang)
+TEST_EXES := $(patsubst tests/test_%.slang, ${BUILDDIR}/tests/test_%.exe, $(TESTS))
 
 
-all: ${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/c/mandel.exe
+all: ${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/c/mandel.exe ${BUILDDIR}/regex.exe
 
-check: ${BUILDDIR}/tests/test_strlib.exe ${BUILDDIR}/tests/test_list.exe ${BUILDDIR}/tests/test_hash.exe
+check: ${TEST_EXES}
 	${BUILDDIR}/tests/test_strlib.exe
 	${BUILDDIR}/tests/test_list.exe
 	${BUILDDIR}/tests/test_hash.exe
+	${BUILDDIR}/tests/test_math.exe
+	${BUILDDIR}/tests/test_integer_set.exe
+	${BUILDDIR}/tests/test_geometries.exe
 
 # Example to bytecode compilation
 all-examples-bc: $(BC_EXAMPLES)
@@ -66,10 +76,14 @@ ${BUILDDIR}/wasm/%.wat: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUIL
 	python ${COMPILER6} -wasm $< runtime/std.slang | sed '/^# /d' > $@
 
 # Unit tests:
-${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${TEST_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}
-	python ${COMPILER6} --backend-c -o $@ $< ${TEST_LIB_SRCS} 
+${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}
+	python ${COMPILER6} --backend-c -o $@ $< ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
 
 .PRECIOUS: ${BUILDDIR}/tests/test_%.c
+
+# Libs demos
+${BUILDDIR}/regex.c: Libs/regex/main.slang ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}
+	python ${COMPILER6} --backend-c -o $@ Libs/regex/main.slang ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
 
 # Bootstrap sequence:
 ${BUILDDIR}/tmp-compiler.py: ${COMPILER_SRCS} compiler1/*.py | ${BUILDDIR}

@@ -49,6 +49,23 @@ fn vec3[T](v1?: T, v2?: T, v3?: T) -> List[T]:
     vec.append(v3)
     return vec
 
+fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> List[T]:
+    let vec: List[T] = List()
+    vec.append(v1)
+    vec.append(v2)
+    vec.append(v3)
+    vec.append(v4)
+    return vec
+
+fn vec5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> List[T]:
+    let vec: List[T] = List()
+    vec.append(v1)
+    vec.append(v2)
+    vec.append(v3)
+    vec.append(v4)
+    vec.append(v5)
+    return vec
+
 class List[T]:
     # Linked list based on a linked list of elements with next pointers.
 
