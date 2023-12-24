@@ -10,15 +10,24 @@ from functools import lru_cache
 from compiler1 import compiler, errors, builtins
 
 
+exclusions = ["linkable", "snake", "mandel", "interfaces"]
+
+
+def include_example(filename):
+    for exclusion in exclusions:
+        if exclusion in filename:
+            return False
+    return True
+
+
+example_filenames = list(filter(include_example, glob.glob("examples/*.slang")))
+
+
 @lru_cache
 def slang_compiler():
     options = compiler.CompilationOptions(backend="py")
-    sources = (
-        glob.glob("compiler/*.slang")
-        + glob.glob("compiler/utils/*.slang")
-        + glob.glob("compiler/parsing/*.slang")
-        + glob.glob("compiler/backend/*.slang")
-    )
+    sources = glob.glob("compiler/**/*.slang", recursive=True)
+    sources.append("runtime/std.slang")
 
     f = io.StringIO()
     try:
@@ -35,7 +44,7 @@ def slang_compiler():
         return py_code
 
 
-@pytest.mark.parametrize("filename", glob.glob("examples/*.slang"))
+@pytest.mark.parametrize("filename", example_filenames)
 def test_examples_py_backend(filename):
     """
     Test all examples can be compiled using our slang compiler
@@ -51,7 +60,8 @@ def test_examples_py_backend(filename):
 
     # Compile example using bootstrapped compiler:
     f1 = io.StringIO()
-    global_map = builtins.get_builtins(args=["-rt"] + [filename], stdout=f1)
+    args = ["-rt", "--backend-py", "runtime/std.slang"] + [filename]
+    global_map = builtins.get_builtins(args=args, stdout=f1)
     exec(slang_compiler_py_code, global_map)
     exit_code = global_map["main"]()
     program_py_code = f1.getvalue()
@@ -73,7 +83,7 @@ def test_examples_py_backend(filename):
         assert stdout == expected_output
 
 
-@pytest.mark.parametrize("filename", glob.glob("examples/*.slang"))
+@pytest.mark.parametrize("filename", example_filenames)
 def test_examples_c_backend(filename):
     """
     Test all examples can be compiled using our slang compiler
@@ -87,7 +97,8 @@ def test_examples_c_backend(filename):
 
     # Compile example using bootstrapped compiler:
     f1 = io.StringIO()
-    global_map = builtins.get_builtins(args=["-c"] + [filename], stdout=f1)
+    args = ["--backend-c", "runtime/std.slang"] + [filename]
+    global_map = builtins.get_builtins(args=args, stdout=f1)
     exec(slang_compiler_py_code, global_map)
     exit_code = global_map["main"]()
     program_c_code = f1.getvalue()

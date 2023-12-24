@@ -33,3 +33,13 @@ fn all[T](values: List[T], check: fn(T) -> bool) -> bool:
         if not check(value):
             return false
     return true
+
+# fn pairs[L,R](left: List[L], right: List[R]) -> List[Pair[L, R]]:
+    # return zip(left, right, merger: make_pair)
+
+fn make_pair[L,R](left: L, right: R) -> Pair[L, R]:
+    return Pair(left, right)
+
+struct Pair[L,R]:
+    left: L
+    right: R

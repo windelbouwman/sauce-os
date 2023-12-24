@@ -367,8 +367,8 @@ class Parser:
             unget_token(tok)
 
         parse_newline()
-        let variable = ast.variable(name, id: new_id(), ty)
-        let var_def = ast.VariableDef(location: name_at.location, variable, value: var_init)
+        let variable = ast.variable(name, id: new_id(), ty, location: name_at.location)
+        let var_def = ast.VariableDef(variable, value: var_init)
         return var_def
 
     fn parse_type() -> ast.Type except CompilationError:
@@ -497,7 +497,7 @@ class Parser:
         let name_at = parse_name()
         let var_name = name_at.name
         let var_type = ast.undefined_type()
-        let variable = ast.variable(name: var_name, id: new_id(), ty: var_type)
+        let variable = ast.variable(name: var_name, id: new_id(), ty: var_type, location: name_at.location)
         
         let type_hint: Option[ast.Type] = Option.None()
 
@@ -586,7 +586,7 @@ class Parser:
         return ast.while_statement(condition, body, location)
 
     fn parse_for_statement(location: Location) -> ast.Statement except CompilationError:
-        let iter_var = parse_name().name
+        let name_at = parse_name()
 
         # 'in'
         let tok2 = get_token()
@@ -600,7 +600,8 @@ class Parser:
 
         # ':' + indented block:
         let body = parse_block()
-        return ast.for_statement(iter_var, iter_var_id: new_id(), iter_value, body, location)
+        let iter_var = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
+        return ast.for_statement(iter_var, iter_value, body, location)
 
     fn parse_try_statement(location: Location) -> ast.Statement except CompilationError:
         let try_body = parse_block()
@@ -651,7 +652,8 @@ class Parser:
             BraceOpen:
                 loop:
                     let name_at = parse_name()
-                    variables.append(ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type()))
+                    let variable = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
+                    variables.append(variable)
                     
                     let tok5 = get_token()
                     case tok5.kind:
@@ -894,7 +896,8 @@ class Parser:
     fn parse_array_literal(location: Location) -> ast.Expression except CompilationError:
         let values: List[ast.Expression] = List()
         loop:
-            values.append(parse_expression())
+            let value = parse_expression()
+            values.append(value)
             
             let tok5 = get_token()
             case tok5.kind:
@@ -902,9 +905,22 @@ class Parser:
                     break
                 Comma:
                     continue
+                Colon:
+                    return parse_array_literal2(value, location)
             else:
-                raise unexpected_token(tok: tok5, expected: "',' or ']'")
+                raise unexpected_token(tok: tok5, expected: "',', ':' or ']'")
         return ast.array_literal(values, location)
+    
+    fn parse_array_literal2(value: ast.Expression, location: Location) -> ast.Expression except CompilationError:
+        let size = parse_expression()
+        let tok5 = get_token()
+        case tok5.kind:
+            BracketClose:
+                pass
+        else:
+            raise unexpected_token(tok: tok5, expected: "']'")
+
+        return ast.array_literal2(value, size, location)
 
     fn parse_name() -> NameAtLocation except CompilationError:
         let tok = get_token()

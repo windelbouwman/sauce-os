@@ -353,10 +353,6 @@ class Generator:
                         emit(Instruction.ParameterGet(parameter_index))
                 else:
                     panic("Cannot load symbol {ast.symbol_to_str(symbol)}")
-            NameRef(name):
-                panic("Names must be resolved: {name}")
-            Undefined:
-                panic("Undefined value!")
             StructLiteral(ty, values):
                 for value in values:
                     gen_expression(value)
@@ -379,18 +375,8 @@ class Generator:
                     emit(Instruction.IntToFloat())
                 else:
                     panic("TODO: unsupported type-casting")
-            ClassLiteral(ty, arguments):
-                print("Not supported: class literal")
-            ToString(value):
-                panic("ToString not supported, rewrite language construct")
-            Typ(ty):
-                panic("Invalid expression: TYPE")
-            TypeConstructor(ty):
-                panic("Invalid expression: TYPE-CONSTRUCTOR")
-            Variant(ty, v):
-                panic("Invalid expression: Variant")
-            EnumLiteral(ty, v, values):
-                panic("Invalid expression: EnumLiteral")
+        else:
+            panic("Unsupported: {ast.expression_to_string(expression)}")
 
     fn new_label() -> int:
         return gen_id()

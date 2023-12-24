@@ -165,6 +165,15 @@ class NewOp:
             TypeConstructor(tycon):
                 let ty2 = turn_tycon_to_type(tycon)
                 return Option.Some(ty2)
+            ArrayLiteral(values):
+                if values.len() == 1:
+                    case try_as_type(expression: values.first()):
+                        Some(element_type):
+                            return Option.Some(ast.array_type(element_type, size: 0))
+                        None:
+                            return Option.None()
+                else:
+                    return Option.None()
         else:
             return Option.None()
 

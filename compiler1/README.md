@@ -2,15 +2,21 @@
 
 A compiler written in python, compiling slang source-code to python code.
 
-# Usage
+# Installation
 
-    $ python -m compiler1 examples/mandel.slang --backend py
-
-# Dependencies
+Dependencies:
 
 - lark -> parsing
 - networkx -> graph algorithms
 - rich -> fancy logging
+
+Install dependencies from requirements.txt file:
+
+    $ pip install --requirement compiler1/requirements.txt
+
+# Usage
+
+    $ python -m compiler1 examples/mandel.slang --backend py
 
 # Profiling
 

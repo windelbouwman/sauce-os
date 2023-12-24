@@ -38,7 +38,7 @@ class IntegerSet:
         for range in ranges:
             return range.begin
         panic("Empty integer set!")
-    
+
 
 fn new_int_set(begin: int, end: int) -> IntegerSet:
     # Create a new integer set with a single range

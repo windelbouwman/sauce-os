@@ -451,7 +451,7 @@ class ClassRewriter:
             case definition:
                 Var(var_def):
                     let ty = ast.subst(ty: var_def.variable.ty, m)
-                    builder.add_field(name: var_def.variable.id.name, ty, location: var_def.location)
+                    builder.add_field(name: var_def.variable.id.name, ty, location: var_def.variable.location)
                     case var_def.value:
                         Some(iv2):
                             init_values.append(iv2)
@@ -525,10 +525,10 @@ class ClassRewriter:
     fn get_unique_id() -> int:
         return id_gen.new_id()
     
-    fn new_variable(name: str, ty: ast.Type) -> ast.Variable:
+    fn new_variable(name: str, ty: ast.Type, location: Location) -> ast.Variable:
         # Create a new variable with unique id
         let id = get_unique_id()
-        return ast.variable(name, id, ty)
+        return ast.variable(name, id, ty, location)
 
     fn get_struct_def_for_id(id: ast.NodeId) -> ast.StructDef:
         return option_unwrap(struct_map.get(key: ast.node_id_to_string(id)))
@@ -552,12 +552,12 @@ class ClassRewriter:
             # Implement loop over 'iter' method:
             # log_info(".... {ast.type_to_string(for_statement.iter_value.ty)}")
             let iter_val = ast.call_method(base: for_statement.iter_value, method: "iter", location)
-            let iter_var = new_variable(name: "it", ty: iter_val.ty)
+            let iter_var = new_variable(name: "it", ty: iter_val.ty, location)
             let let_it_var = ast.let_statement(variable: iter_var, type_hint: Option.None(), value: iter_val, location)
 
             # log_info("....>>> {ast.type_to_string(iter_var.ty)}")
             let opt_val = ast.call_method(base: ast.var_ref(variable: iter_var, location), method: "next", location)
-            let opt_var = new_variable(name: "opt", ty: opt_val.ty)
+            let opt_var = new_variable(name: "opt", ty: opt_val.ty, location)
             let let_opt_var = ast.let_statement(variable: opt_var, type_hint: Option.None(), value: opt_val, location)
 
             let arm1 = ast.CaseArm:
@@ -584,11 +584,11 @@ class ClassRewriter:
         let array_type = for_statement.iter_value.ty
 
         # let arr = iter_value
-        let x_var = new_variable(name: "x", ty: array_type)
+        let x_var = new_variable(name: "x", ty: array_type, location)
         let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: for_statement.iter_value, location)
 
         # index = 0
-        let index_var = new_variable(name: "index", ty: ast.int_type())
+        let index_var = new_variable(name: "index", ty: ast.int_type(), location)
         let zero = ast.integer_literal(value: 0, location)
         let let_index = ast.let_statement(variable: index_var, type_hint: Option.None(), value: zero, location)
 
@@ -618,7 +618,7 @@ class ClassRewriter:
 
     fn transform_switch(switch_statement: ast.SwitchStatement, location: Location) -> ast.StatementKind:
         # Turn switch into sequence of if-else
-        let x_var = new_variable(name: "x", ty: ast.int_type())
+        let x_var = new_variable(name: "x", ty: ast.int_type(), location)
         let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: switch_statement.value, location)
 
         let else_clause = switch_statement.default_block.body
@@ -694,7 +694,7 @@ class ClassRewriter:
         let type_arguments = ast.get_type_arguments_from_type(case_statement.value.ty)
         let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
 
-        let x_var = new_variable(name: "x", ty: struct_type)
+        let x_var = new_variable(name: "x", ty: struct_type, location)
         let store_tagged_union = ast.let_statement(variable: x_var, type_hint: Option.None(), value: case_statement.value, location)
 
         let switch_arms: List[ast.SwitchArm] = List()

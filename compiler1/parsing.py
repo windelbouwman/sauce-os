@@ -171,6 +171,13 @@ def get_loc(tok: LarkToken) -> Location:
     )
 
 
+def get_loc2(tok1: LarkToken, tok2: LarkToken) -> Location:
+    """Get Location from two lark tokens."""
+    return Location(
+        Position(tok1.line, tok1.column), Position(tok2.end_line, tok2.end_column)
+    )
+
+
 def get_span(loc1: Location, loc2: Location):
     return Location(loc1.begin, loc2.end)
 
@@ -302,6 +309,20 @@ class CustomTransformer(LarkTransformer):
             return x
         else:
             return x[0] + [x[2]]
+
+    def interface_def(self, x):
+        # KW_INTERFACE id_and_type_parameters COLON NEWLINE INDENT func_decl+ DEDENT
+        location, name, type_parameters = x[1]
+        functions = x[-2]
+        return ast.InterfaceDef(self.new_id(name), type_parameters, functions, location)
+
+    def func_decl(self, x):
+        # KW_FN id_and_type_parameters function_signature NEWLINE
+        location, name, type_parameters = x[1]
+        function_signature = x[2]
+        return ast.FunctionDecl(
+            self.new_id(name), type_parameters, function_signature, location
+        )
 
     def struct_def(self, x):
         # struct_def: KW_STRUCT id_and_type_parameters COLON NEWLINE INDENT struct_field+ DEDENT
@@ -694,7 +715,13 @@ class CustomTransformer(LarkTransformer):
             raise NotImplementedError(f"Literal: {x}")
 
     def array_literal(self, x):
-        return ast.array_literal(x[1], get_loc(x[0]))
+        return ast.array_literal(x[1], get_loc2(x[0], x[-1]))
+
+    def array_literal2(self, x):
+        #  LEFT_BRACKET test COLON test RIGHT_BRACKET
+        value = x[1]
+        size = x[3]
+        return ast.array_literal2(value, size, get_loc2(x[0], x[-1]))
 
     def obj_init(self, x):
         "obj_init: expr COLON NEWLINE INDENT field_init+ DEDENT"
@@ -741,11 +768,15 @@ definition: func_def
           | class_def
           | type_def
           | extern_func_def
+          | interface_def
 
 class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
 var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
 func_def: KW_PUB? KW_FN id_and_type_parameters function_signature block
 extern_func_def: KW_EXTERN KW_FN id_and_type_parameters function_signature NEWLINE
+func_decl: KW_FN id_and_type_parameters function_signature NEWLINE
+interface_def: KW_INTERFACE id_and_type_parameters COLON NEWLINE INDENT func_decl+ DEDENT
+
 function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? (KW_EXCEPT typ)? QUESTION?
 parameters: parameter
           | parameters COMMA parameter
@@ -758,6 +789,7 @@ enum_variant: ID NEWLINE
 type_def: KW_TYPE ID EQUALS typ NEWLINE
 id_and_type_parameters: ID type_parameters?
 type_parameters: LEFT_BRACKET ids RIGHT_BRACKET
+# type_parameter: ID (COLON ID)
 types: typ
      | types COMMA typ
 typ: expression
@@ -839,6 +871,7 @@ factor: atom
 atom: obj_ref
     | literal
     | array_literal
+    | array_literal2
     | atom LEFT_BRACE arguments? RIGHT_BRACE
     | LEFT_BRACE test RIGHT_BRACE
     | atom LEFT_BRACKET tests RIGHT_BRACKET
@@ -852,6 +885,7 @@ arguments: labeled_expression
 
 literal: STRING | NUMBER | FNUMBER | BOOL | CHAR
 array_literal: LEFT_BRACKET tests RIGHT_BRACKET
+array_literal2: LEFT_BRACKET test COLON test RIGHT_BRACKET
 obj_ref: ID
 
 obj_init: expression COLON NEWLINE INDENT field_init+ DEDENT
@@ -865,6 +899,7 @@ labeled_expression: test
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
 %declare KW_RETURN KW_STRUCT KW_SWITCH KW_TYPE KW_VAR KW_WHILE
 %declare KW_RAISE KW_TRY KW_EXCEPT KW_EXTERN
+%declare KW_INTERFACE
 
 %declare LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON COMMA DOT ARROW QUESTION

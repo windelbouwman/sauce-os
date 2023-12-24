@@ -52,13 +52,13 @@ fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: Scope
         Some(m):
             case imp.kind:
                 Self:
-                    filler.define(name: m.name, symbol: ast.Symbol.Mod(m))
+                    filler.define(name: m.name, symbol: ast.Symbol.Mod(m), location: imp.location)
                 Names(names):
                     for name in names:
                         log_trace("Importing {name} from {imp.modname}")
                         case m.scope.lookup(name):
                             Some(symbol):
-                                filler.define(name, symbol)
+                                filler.define(name, symbol, location: imp.location)
                             None:
                                 filler.add_error(location: imp.location, message: "Error, module {m.name} has no symbol: {name}")
         None:
@@ -85,35 +85,36 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
         Pre:
             case definition:
                 Function(function_def):
-                    filler.define(name: function_def.id.name, symbol: ast.Symbol.Function(function_def))
+                    filler.define(name: function_def.id.name, symbol: ast.Symbol.Function(function_def), location: function_def.location)
                     filler.enter_scope(scope: function_def.scope)
                     for type_parameter in function_def.type_parameters:
                         filler.define_type_parameter(type_parameter)
                     for parameter_def in function_def.parameters:
-                        filler.define(name: parameter_def.id.name, symbol: ast.Symbol.Parameter(parameter_def))
+                        filler.define_parameter(parameter_def)
                     case function_def.this_parameter:
                         Some(this_parameter2):
-                            filler.define(name: this_parameter2.id.name, symbol: ast.Symbol.Parameter(this_parameter2))
+                            filler.define_parameter(parameter_def: this_parameter2)
                         None:
                             pass
                 ExternFunction(extern_function_def):
-                    filler.define(name: extern_function_def.name, symbol: ast.Symbol.ExternFunction(extern_function_def))
+                    let location = location_default()  # TODO?
+                    filler.define(name: extern_function_def.name, symbol: ast.Symbol.ExternFunction(extern_function_def), location)
                 Enum(enum_def):
-                    filler.define(name: enum_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)))
+                    filler.define(name: enum_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)), location: enum_def.location)
                     filler.enter_scope(scope: enum_def.scope)
                     for type_parameter in enum_def.type_parameters:
                         filler.define_type_parameter(type_parameter)
                     for variant in enum_def.variants:
-                        filler.define(name: variant.name, symbol: ast.Symbol.Variant(variant))
+                        filler.define(name: variant.name, symbol: ast.Symbol.Variant(variant), location: variant.location)
                 Struct(struct_def):
-                    filler.define(name: struct_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Struct(struct_def)))
+                    filler.define(name: struct_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Struct(struct_def)), location: struct_def.location)
                     filler.enter_scope(scope: struct_def.scope)
                     for type_parameter in struct_def.type_parameters:
                         filler.define_type_parameter(type_parameter)
                     for field in struct_def.fields:
-                        filler.define(name: field.name, symbol: ast.Symbol.Field(field))
+                        filler.define(name: field.name, symbol: ast.Symbol.Field(field), location: field.location)
                 Class(class_def):
-                    filler.define(name: class_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Class(class_def)))
+                    filler.define(name: class_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Class(class_def)), location: class_def.location)
                     filler.enter_scope(scope: class_def.scope)
                     for type_parameter in class_def.type_parameters:
                         filler.define_type_parameter(type_parameter)
@@ -146,7 +147,7 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast
                     filler.enter_scope(scope: loop_statement.block.scope)
                 Try(try_statement):
                     # TODO: create new scope for except clause?
-                    filler.define(name: try_statement.except_param.id.name, symbol: ast.Symbol.Parameter(parameter: try_statement.except_param))
+                    filler.define_parameter(parameter_def: try_statement.except_param)
             else:
                 pass
         Post:
@@ -194,16 +195,19 @@ class ScopeFiller:
     var errors: List[SingleCompilationError] = List()
 
     fn define_variable(variable: ast.Variable):
-        define(name: variable.id.name, symbol: ast.Symbol.Var(variable))
+        define(name: variable.id.name, symbol: ast.Symbol.Var(variable), location: variable.location)
     
     fn define_type_parameter(type_parameter: ast.TypeParameter):
-        define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)))
+        define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)), location: type_parameter.location)
+    
+    fn define_parameter(parameter_def: ast.ParameterDef):
+        define(name: parameter_def.id.name, symbol: ast.Symbol.Parameter(parameter_def), location: parameter_def.location)
 
-    fn define(name: str, symbol: ast.Symbol):
+    fn define(name: str, symbol: ast.Symbol, location: Location):
         # log_trace("DEFINE {name}")
         let scope = scopes.last()
         if scope.is_defined(name):
-            let location = location_default()  # TODO!
+            # let location = location_default()  # TODO!
             add_error(location, message: "Symbol '{name}' is already defined")
         else:
             scope.define(name, symbol)

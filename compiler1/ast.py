@@ -1322,6 +1322,22 @@ class ArrayLiteral(ExpressionKind):
         return f"ArrayLiteral({len(self.values)})"
 
 
+def array_literal2(value: Expression, size: Expression, location: Location):
+    kind = ArrayLiteral2(value, size)
+    ty = void_type
+    return Expression(kind, ty, location)
+
+
+class ArrayLiteral2(ExpressionKind):
+    def __init__(self, value: Expression, size: Expression):
+        super().__init__()
+        self.value = value
+        self.size = size
+
+    def __repr__(self):
+        return f"ArrayLiteral2"
+
+
 def struct_literal(
     ty: MyType, values: list[Expression], location: Location
 ) -> Expression:
@@ -1663,6 +1679,9 @@ class AstVisitor:
         elif isinstance(kind, ArrayLiteral):
             for value in kind.values:
                 self.visit_expression(value)
+        elif isinstance(kind, ArrayLiteral2):
+            self.visit_expression(kind.value)
+            self.visit_expression(kind.size)
         elif isinstance(kind, StructLiteral):
             self.visit_type(kind.ty)
             for value in kind.values:

@@ -326,6 +326,9 @@ class TypeChecker:
                         coerce(ty: element_type, value)
 
                 expression.ty = ast.array_type(element_type, size: values.len())
+            ArrayLiteral2(value, size):
+                let element_type = value.ty
+                expression.ty = ast.array_type(element_type, size: 0)
             StringLiteral(s):
                 expression.ty = ast.str_type()
             CharLiteral(s):
@@ -414,6 +417,8 @@ class TypeChecker:
                     return unify(ty1, ty2)
         elif ast.is_type_var_type(ty2):
             return unify(ty1: ty2, ty2: ty1)
+        elif ast.is_array_type(ty1) and ast.is_array_type(ty2):
+            return unify(ty1: ast.get_element_type_from_type(ty1), ty2: ast.get_element_type_from_type(ty2))
         else:
             return false
     

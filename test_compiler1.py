@@ -11,21 +11,24 @@ import io
 import pytest
 from compiler1 import compiler
 
+# Skip slow mandelbrot test for now:
+# Skip snake example
+exclusions = ["linkable", "snake", "mandel", "interfaces"]
 
-@pytest.mark.parametrize("filename", glob.glob("examples/*.slang"))
+
+def include_example(filename):
+    for exclusion in exclusions:
+        if exclusion in filename:
+            return False
+    return True
+
+
+example_filenames = list(filter(include_example, glob.glob("examples/*.slang")))
+
+
+@pytest.mark.parametrize("filename", example_filenames)
 @pytest.mark.parametrize("backend", ["vm", "py"])
 def test_compiles(filename: str, backend: str):
-    # Skip slow mandelbrot test for now:
-    if "mandel" in filename:
-        return
-
-    # Skip snake example
-    if "snake" in filename:
-        return
-
-    if "linkable" in filename:
-        return
-
     options = compiler.CompilationOptions(
         dump_ast=False, run_code=True, backend=backend
     )

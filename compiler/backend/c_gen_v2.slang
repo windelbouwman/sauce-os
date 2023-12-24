@@ -223,6 +223,11 @@ class CGenerator2:
             return gen_type(ty: ret_ty, name: "(*{name})({param_text})")
         elif ast.is_void_type(ty):
             return "void {name}"
+        elif ast.is_array_type(ty):
+            let ety = ast.get_element_type_from_type(ty)
+            # return gen_type(ty: ety, name: "*{name}")
+            let ety2 = gen_type(ty: ety, name)
+            return "{ety2}[]"
         else:
             panic("Type: {ast.type_to_string(ty)} not supported")
 
@@ -268,6 +273,10 @@ class CGenerator2:
                     GetAttr(base, attr):
                         let base_txt = gen_expression(base)
                         target_text = "{base_txt}->{attr}"
+                    GetIndex(base, indici):
+                        let base_txt = gen_expression(base)
+                        let args = gen_expression_list(values: indici)
+                        target_text = "{base_txt}[{args}]"
                     VarRef(variable):
                         target_text = gen_id(id: variable.id)
                     LoadSymbol(symbol):
@@ -451,7 +460,16 @@ class CGenerator2:
                 return "{name}_new({args})"
             
             ArrayLiteral(values):
-                panic("TODO: array literal")
+                let args = gen_expression_list(values)
+                return "{chr(123)} {args} {chr(125)}"
+                #panic("TODO: array literal")
+
+            ArrayLiteral2(value, size):
+                let value_2 = gen_expression(value)
+                let size_2 = gen_expression(size)
+                # return "{chr(34)} {args} {chr(34)} * {size_2}"
+                return "calloc({size_2}, sizeof({value_2}))"
+                # panic("TODO: array literal2")
 
             UnionLiteral(ty, field, value):
                 let struct_def = ast.get_struct_def_from_type(ty)

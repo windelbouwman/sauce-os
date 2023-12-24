@@ -3,7 +3,7 @@
 import ast
 from utils import panic, log_info
 from datatypes import List, option_is_some, option_unwrap, Option
-from std import print, float_to_str, chr, file_writeln, file_open, file_close
+from std import print, float_to_str, chr, file_writeln, file_open, file_close, str_len
 from strlib import str_join, str_repeat
 
 fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_filename: Option[str]):
@@ -26,8 +26,22 @@ class PyGenerator:
     var indent_level: int = 0
     var outf: int = 0
     var use_file: bool = false
+    var global_header: str = ""
 
     fn gen_module(module: ast.Module):
+        let global_names: List[str] = List()
+        for definition in module.definitions:
+            case definition:
+                Var(variable_def):
+                    global_names.append(get_id(id: variable_def.variable.id))
+            else:
+                pass
+        if global_names.len() > 0:
+            let names = str_join(parts: global_names, sep: ", ")
+            global_header = "global {names}"
+        else:
+            global_header = ""
+
         for definition in module.definitions:
             gen_definition(definition)
 
@@ -84,6 +98,10 @@ class PyGenerator:
                     parameter_names.append(get_id(id: parameter.id))
                 let params = str_join(parts: parameter_names, sep: ", ")
                 emit("def {get_id(id: function_def.id)}({params}):")
+                if str_len(global_header) > 0:
+                    indent()
+                    emit(global_header)
+                    dedent()
                 gen_block(function_def.body)
                 emit("")
                 emit("")
@@ -215,6 +233,10 @@ class PyGenerator:
             ArrayLiteral(values):
                 let args = gen_expression_list(expressions: values)
                 txt = "[{args}]"
+            ArrayLiteral2(value, size):
+                let value_txt = gen_expression(value, parens: false)
+                let size_txt = gen_expression(size, parens: false)
+                txt = "[{value_txt}] * {size_txt}"
             GetAttr(base, attr):
                 let b = gen_expression(base, parens: true)
                 txt = "{b}.{attr}"

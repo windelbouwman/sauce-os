@@ -1,56 +1,125 @@
 
 # Regex library
 
-from std import str_get, str_len, ord, print, chr
+from std import str_get, str_len, ord, print, chr, str_slice
 from integersetlib import IntegerSet, new_int_set
-from datatypes import List, vec1, vec2, vec3
-from rangelib import Range, range_to_string
+from datatypes import List, vec1, vec2, vec3, Option
+from rangelib import Range, range_to_string, range_contains
 from strlib import str_repeat
 from utils import panic, assert
 
-fn compile(text: str) -> Machine:
+fn find(pattern: str, text: str) -> Option[str]:
+    let matches = find_all(pattern, text)
+    if matches.len() > 0:
+        return Option.Some(matches.first())
+    else:
+        return Option.None()
+
+fn find_all(pattern: str, text: str) -> List[str]:
+    # Find all regular expression in the given text.
+    let machine = compile(pattern)
+    return machine_find_all(machine, text)
+
+fn machine_find_all(machine: Machine, text: str) -> List[str]:
+    let matches: List[str] = List()
+
+    # Matching state machine:
+    let state_nr = machine.start_state
+    let index = 0
+    let accept = false
+    let begin = 0
+    let end = 0
+    let n = str_len(text)
+    while index < n:
+        # Check if we are in an accepting state:
+        if machine.accepts(state_nr):
+            accept = true
+            end = index
+
+        # Determine the next state:
+        let c = str_get(text, index)
+        # print("Index={index} c={c} state={state_nr}")
+        state_nr = machine.next_state(state_nr, c)
+        # print("   > state={state_nr}")
+
+        # If we are in error state, we got past valid characters.
+        # Lookup last valid match (if any)
+        if state_nr == machine.error_state:
+            if accept:
+                let part = str_slice(text, begin, end)
+                # print("Found: {part}")
+                matches.append(part)
+                # Set index back to character after last match:
+                index = end
+            else:
+                index = begin + 1
+
+            begin = index
+            state_nr = 0
+            accept = false
+        else:
+            index += 1
+
+    # Add last match
+    #if accept:
+    #    let part = str_slice(text, begin, end)
+        # print("Found: {part}")
+    #    matches.append(part)
+
+    return matches
+
+fn compile(pattern: str) -> Machine:
     # Turn regular expression into matching machine
-    print("Compiling regex: {text}")
-    let rx = parse(text)
-    print_regex(rx, level: 0)
+    # print("Compiling regex: {pattern}")
+    let rx = parse(pattern)
+    # print_regex(rx, level: 0)
     let machine = create_machine(rx)
-    print_machine(machine)
+    # print_machine(machine)
     return machine
 
 fn create_machine(rx: Regex) -> Machine:
     # Compile regex into state machine
-    print("Creating FSM!")
+    # print("Creating FSM!")
     let states: List[State] = List()
-
     let states2: List[Regex] = List()
+    let worklist: List[Regex] = List()
+
+    worklist.append(rx)
     states2.append(rx)
 
-    let worklist: List[Regex] = List()
-    worklist.append(rx)
-
-    # let chars: List[int] = vec3(ord('0'), ord('a'), ord('b'))
+    let nr = 0
+    let error_state = -1
     while worklist.len() > 0:
         let rx2 = worklist.pop_front()
-        print("Considering")
-        print_regex(rx: rx2, level: 0)
+        # print("Considering")
+        # print_regex(rx: rx2, level: 0)
         let transitions: List[Transition] = List()
         for s in rx2.derivative_classes():
             let i = s.first()
-            print("Derive to '{chr(i)}' ({i}) ")
+            # print("Derive to '{chr(i)}' ({i}) ")
             let rx3 = rx2.derivative(c: i)
-            print_regex(rx: rx3, level: 0)
+            # print_regex(rx: rx3, level: 0)
             
             let to_state = contains_regex(lst: states2, rx: rx3)
             if to_state < 0:
                 states2.append(rx3)
                 worklist.append(rx3)
-                to_state = states2.len()
+                to_state = states2.len() - 1
             
             # Append transitions:
             for range in s.ranges:
                 transitions.append(Transition(range, to_state))
-        states.append(State(transitions))
-    return Machine(states)
+        let state = State(transitions, accepts: rx2.is_nullable())
+        states.append(state)
+        if rx2.is_null():
+            if error_state < 0:
+                error_state = nr
+            else:
+                panic("Multiple error states!")
+        nr += 1
+    let machine = Machine(states)
+    machine.error_state = error_state
+    return machine
 
 fn contains_regex(lst: List[Regex], rx: Regex) -> int:
     let index = 0
@@ -63,17 +132,34 @@ fn contains_regex(lst: List[Regex], rx: Regex) -> int:
 
 class Machine:
     # Regex matching machine
+    var start_state: int = 0
+    var error_state: int = 0
     var states: List[State]
+
+    fn next_state(state_nr: int, c: char) -> int:
+        # Given a character, what would be the next state?
+        let state = states.get(index: state_nr)
+        let value = ord(c)
+        for transition in state.transitions:
+            if range_contains(self: transition.range, value):
+                return transition.to_state
+        return -1
+    
+    fn accepts(state_nr: int) -> bool:
+        let state = states.get(index: state_nr)
+        return state.accepts
 
 struct State:
     transitions: List[Transition]
+    accepts: bool
 
 struct Transition:
     range: Range
     to_state: int
 
-fn parse(text: str) -> Regex:
-    let p = Parser(text)
+fn parse(pattern: str) -> Regex:
+    # Parse a pattern into a regex
+    let p = Parser(text: pattern)
     return p.parse()
 
 fn print_machine(machine: Machine):
@@ -250,6 +336,8 @@ fn concat_regex(left: Regex, right: Regex) -> Regex:
 fn logical_and_regex(left: Regex, right: Regex) -> Regex:
     if left.is_null():
         return left
+    elif right.is_null():
+        return right
     return Regex(kind: PartKind.LogicalAnd(left, right))
 
 fn logical_or_regex(left: Regex, right: Regex) -> Regex:

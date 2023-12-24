@@ -154,6 +154,15 @@ def try_as_type(expression: ast.Expression):
         ty = expression.kind.tycon.apply2()
         # else:
         #    ty = None
+    elif isinstance(expression.kind, ast.ArrayLiteral):
+        if len(expression.kind.values) == 1:
+            element_type = try_as_type(expression.kind.values[0])
+            if element_type:
+                ty = ast.array_type(None, element_type)
+            else:
+                ty = None
+        else:
+            ty = None
     else:
         ty = None
     return ty

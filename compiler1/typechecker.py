@@ -174,6 +174,9 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.ArrayLiteral):
             assert len(kind.values) > 0
             expression.ty = ast.array_type(len(kind.values), kind.values[0].ty)
+        elif isinstance(kind, ast.ArrayLiteral2):
+            expression.ty = ast.array_type(None, kind.value.ty)
+            self.assert_type(kind.size, ast.int_type)
         elif isinstance(kind, ast.Binop):
             # Introduce some heuristics...
             if kind.lhs.ty.is_int() and kind.rhs.ty.is_float():
@@ -419,6 +422,8 @@ class TypeChecker(BasePass):
         elif isinstance(b.kind, ast.Meta):
             # Simply swap comparison
             return self.unify(b, a)
+        elif isinstance(a.kind, ast.ArrayType) and isinstance(b.kind, ast.ArrayType):
+            return self.unify(a.kind.element_type, b.kind.element_type)
         else:
             return False
 

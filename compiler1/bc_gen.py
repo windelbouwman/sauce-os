@@ -303,6 +303,10 @@ class ByteCodeGenerator:
             for value in kind.values:
                 self.gen_expression(value)
             self.emit(OpCode.ARRAY_LITERAL, len(kind.values))
+        elif isinstance(kind, ast.ArrayLiteral2):
+            self.gen_expression(kind.value)
+            self.gen_expression(kind.size)
+            self.emit(OpCode.ARRAY_LITERAL2)
         elif isinstance(kind, ast.ArrayIndex):
             self.gen_expression(kind.base)
             assert len(kind.indici) == 1

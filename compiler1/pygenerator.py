@@ -164,6 +164,10 @@ class PyCodeGenerator:
         elif isinstance(kind, ast.ArrayLiteral):
             values = self.gen_expressions(kind.values)
             return f"[{values}]"
+        elif isinstance(kind, ast.ArrayLiteral2):
+            value = self.gen_expression(kind.value)
+            size = self.gen_expression(kind.size)
+            return f"[{value}] * {size}"
         elif isinstance(kind, ast.ArrayIndex):
             assert len(kind.indici) == 1
             base = self.gen_expression(kind.base)
@@ -183,7 +187,11 @@ class PyCodeGenerator:
         elif isinstance(kind, ast.Binop):
             lhs = self.gen_expression(kind.lhs)
             rhs = self.gen_expression(kind.rhs)
-            res = f"{lhs} {kind.op} {rhs}"
+            if expression.ty.is_int() and kind.op == "/":
+                op = "//"
+            else:
+                op = kind.op
+            res = f"{lhs} {op} {rhs}"
             return f"({res})" if parens else res
         elif isinstance(kind, ast.Unop):
             rhs = self.gen_expression(kind.rhs)

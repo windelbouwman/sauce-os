@@ -37,6 +37,7 @@ check: ${TEST_EXES}
 	${BUILDDIR}/tests/test_hash.exe
 	${BUILDDIR}/tests/test_math.exe
 	${BUILDDIR}/tests/test_integer_set.exe
+	${BUILDDIR}/tests/test_regex.exe
 	${BUILDDIR}/tests/test_geometries.exe
 
 # Example to bytecode compilation

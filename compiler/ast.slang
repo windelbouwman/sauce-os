@@ -718,7 +718,6 @@ enum Definition:
     Var(var_def: VariableDef)
 
 struct VariableDef:
-    location: Location
     variable: Variable
     value: Option[Expression]
     
@@ -894,12 +893,13 @@ struct ParameterDef:
     ty: Type
     location: Location
 
-fn variable(name: str, id: int, ty: Type) -> Variable:
-    return Variable(id: NodeId(name, id), ty)
+fn variable(name: str, id: int, ty: Type, location: Location) -> Variable:
+    return Variable(id: NodeId(name, id), ty, location)
 
 struct Variable:
     id: NodeId
     ty: Type
+    location: Location
 
 struct ScopedBlock:
     scope: Scope
@@ -968,12 +968,11 @@ fn loop_statement(body: Statement, location: Location) -> Statement:
 struct LoopStatement:
     block: ScopedBlock
 
-fn for_statement(iter_var: str, iter_var_id: int, iter_value: Expression, body: Statement, location: Location) -> Statement:
-    let v = variable(name: iter_var, id: iter_var_id, ty: undefined_type())
+fn for_statement(iter_var: Variable, iter_value: Expression, body: Statement, location: Location) -> Statement:
     let for_statement = ForStatement:
-        iter_var: v
+        iter_var
         iter_value
-        block: scoped_block( body)
+        block: scoped_block(body)
     return statement(kind: StatementKind.For(for_statement), location)
 
 struct ForStatement:
@@ -1103,6 +1102,7 @@ enum ExpressionKind:
     UnionLiteral(ty: Type, field: str, value: Expression)
     ClassLiteral(typ: Type, arguments: List[LabeledExpression])
     ArrayLiteral(values: List[Expression])
+    ArrayLiteral2(value: Expression, size: Expression)
     TypeCast(typ: Type, value: Expression)
     ToString(value: Expression)
     Typ(ty: Type)
@@ -1124,6 +1124,9 @@ fn union_literal(ty: Type, field: str, value: Expression, location: Location) ->
 
 fn array_literal(values: List[Expression], location: Location) -> Expression:
     return Expression(kind: ExpressionKind.ArrayLiteral(values), ty: undefined_type(), location)
+
+fn array_literal2(value: Expression, size: Expression, location: Location) -> Expression:
+    return Expression(kind: ExpressionKind.ArrayLiteral2(value, size), ty: undefined_type(), location)
 
 fn load_symbol(symbol: Symbol, ty: Type, location: Location) -> Expression:
     return Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
@@ -1451,6 +1454,8 @@ fn expression_to_string(expression?: Expression) -> str:
             txt = "CLASS-LITERAL"
         ArrayLiteral(values):
             txt = "ARRAY-LITERAL"
+        ArrayLiteral2(value, size):
+            txt = "ARRAY-LITERAL2"
         TypeCast(ty, value):
             txt = "TYPE-CAST"
         ToString(value):
@@ -1717,6 +1722,9 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         ArrayLiteral(values):
             for value in values:
                 visit_expression(visitor, expression: value)
+        ArrayLiteral2(value, size):
+            visit_expression(visitor, expression: value)
+            visit_expression(visitor, expression: size)
         ClassLiteral(ty, arguments):
             visit_type(visitor, ty)
             for arg in arguments:

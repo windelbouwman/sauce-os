@@ -39,6 +39,8 @@ def check_value_type(value, ty: Typ):
             raise NotImplementedError(str(ty.type_id))
     elif isinstance(ty, bc.StructTyp):
         assert isinstance(value, list)
+    elif isinstance(ty, bc.ArrayTyp):
+        assert isinstance(value, list)
     elif isinstance(ty, bc.FunctionType):
         # Assume fine!
         pass
@@ -55,6 +57,7 @@ def frame_from_function(function: Function, arguments):
 
     n_vars = len(function.local_vars)
     frame = Frame(function.code)
+    frame._function = function
     frame._locals = arguments + [0] * n_vars
     return frame
 
@@ -69,6 +72,7 @@ class Frame:
         self._locals = []
         self._pc = 0
         self._code = code
+        self._function = None
 
     def fetch(self):
         return self._code[self._pc]
@@ -114,7 +118,8 @@ class VirtualMachine:
         except (IndexError, RuntimeError):
             print("traceback:")
             for frame in self._frames:
-                print("in ", frame._function.name)
+                if frame._function:
+                    print("in ", frame._function.name)
             raise
 
     def eval_code(self, code):
@@ -225,6 +230,12 @@ class VirtualMachine:
             # Contrapt a list of values:
             arguments = self.pop_n(args[0])
             self.push_value(arguments)
+        elif opcode == OpCode.ARRAY_LITERAL2:
+            # Contrapt a list of values:
+            size = self.pop_value()
+            value = self.pop_value()
+            value = [value] * size
+            self.push_value(value)
         elif opcode == OpCode.STRUCT_LITERAL:
             # Treat struct as list of values? Might work!
             arguments = self.pop_n(args[0])

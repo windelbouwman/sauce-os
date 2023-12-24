@@ -119,6 +119,7 @@ class OpCode(Enum):
     STRUCT_LITERAL = 70
     UNION_LITERAL = 71
     ARRAY_LITERAL = 72
+    ARRAY_LITERAL2 = 73
 
 
 def print_bytecode(program: Program, f=None):

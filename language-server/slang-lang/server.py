@@ -212,6 +212,12 @@ async def did_change(ls: LanguageServer, params: types.DidChangeTextDocumentPara
     await db.validate(ls, params, delay=1)
 
 
+@server.feature(types.TEXT_DOCUMENT_DID_CLOSE)
+async def did_close(ls: LanguageServer, params: types.DidOpenTextDocumentParams):
+    uri = params.text_document.uri
+    ls.publish_diagnostics(uri, [])
+
+
 async def validator_task(ls: LanguageServer, filename, code, delay):
     if delay:
         logger.info(f"Waiting {delay} seconds for additional changes")
