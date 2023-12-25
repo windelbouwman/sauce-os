@@ -828,7 +828,7 @@ try_statement: KW_TRY block KW_EXCEPT LEFT_BRACE parameter RIGHT_BRACE block
 if_statement: KW_IF test block elif_clause* else_clause?
 elif_clause: KW_ELIF test block
 else_clause: KW_ELSE block
-let_statement: KW_LET ID (COLON typ)? EQUALS expression NEWLINE
+let_statement: KW_LET ID (COLON typ)? EQUALS test NEWLINE
              | KW_LET ID (COLON typ)? EQUALS obj_init
 while_statement: KW_WHILE test block
 loop_statement: KW_LOOP block

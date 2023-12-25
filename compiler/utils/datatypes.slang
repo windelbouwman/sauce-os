@@ -27,6 +27,13 @@ fn option_is_some[T](opt?: Option[T]) -> bool:
         None:
             return false
 
+fn option_is_none[T](opt?: Option[T]) -> bool:
+    case opt:
+        Some(v):
+            return false
+        None:
+            return true
+
 enum Result[O,E]:
     Ok(value: O)
     Error(value: E)

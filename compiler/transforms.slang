@@ -338,7 +338,7 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                                 ast.change_expression_to(expression, to: call)
 
                         else:
-                            panic("Can only add str types.")
+                            panic("Can only add or compare str types.")
             else:
                 pass
     else:
@@ -487,6 +487,7 @@ class ClassRewriter:
         let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
         method.id.name = "{class_def.id.name}_{method.id.name}"
         let this_parameter = option_unwrap(method.this_parameter)
+        method.this_parameter = Option.None()
         # ast.change_type_to(ty: this_parameter.ty, ty2: struct_type)
         method.parameters.prepend(this_parameter)
         new_definitions.append(ast.Definition.Function(method))
@@ -549,35 +550,38 @@ class ClassRewriter:
         if ast.is_array_type(for_statement.iter_value.ty):
             return transform_for_loop_over_array(for_statement, location)
         else:
-            # Implement loop over 'iter' method:
-            # log_info(".... {ast.type_to_string(for_statement.iter_value.ty)}")
-            let iter_val = ast.call_method(base: for_statement.iter_value, method: "iter", location)
-            let iter_var = new_variable(name: "it", ty: iter_val.ty, location)
-            let let_it_var = ast.let_statement(variable: iter_var, type_hint: Option.None(), value: iter_val, location)
+            return transform_for_loop_over_iterator(for_statement, location)
 
-            # log_info("....>>> {ast.type_to_string(iter_var.ty)}")
-            let opt_val = ast.call_method(base: ast.var_ref(variable: iter_var, location), method: "next", location)
-            let opt_var = new_variable(name: "opt", ty: opt_val.ty, location)
-            let let_opt_var = ast.let_statement(variable: opt_var, type_hint: Option.None(), value: opt_val, location)
+    fn transform_for_loop_over_iterator(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
+        # Implement loop over 'iter' method:
+        # log_info(".... {ast.type_to_string(for_statement.iter_value.ty)}")
+        let iter_val = ast.call_method(base: for_statement.iter_value, method: "iter", location)
+        let iter_var = new_variable(name: "it", ty: iter_val.ty, location)
+        let let_it_var = ast.let_statement(variable: iter_var, type_hint: Option.None(), value: iter_val, location)
 
-            let arm1 = ast.CaseArm:
-                location
-                name: "None"
-                variables: List()
-                block: ast.scoped_block(body: ast.break_statement(location))
-            let arm2 = ast.CaseArm:
-                location
-                name: "Some"
-                variables: vec1(for_statement.iter_var)
-                block: for_statement.block
-            let arms: List[ast.CaseArm] = vec2(arm1, arm2)
+        # log_info("....>>> {ast.type_to_string(iter_var.ty)}")
+        let opt_val = ast.call_method(base: ast.var_ref(variable: iter_var, location), method: "next", location)
+        let opt_var = new_variable(name: "opt", ty: opt_val.ty, location)
+        let let_opt_var = ast.let_statement(variable: opt_var, type_hint: Option.None(), value: opt_val, location)
 
-            let case_statement = ast.case_statement(value: ast.var_ref(variable: opt_var, location), arms, else_clause: Option.None(), location)
-            let true_value = ast.bool_literal(value: true, location)
-            let loop_body = ast.compound(inner: vec2(let_opt_var, case_statement), location)
-            let loop_statement = ast.while_statement(condition: true_value, body: loop_body, location)
+        let arm1 = ast.CaseArm:
+            location
+            name: "None"
+            variables: List()
+            block: ast.scoped_block(body: ast.break_statement(location))
+        let arm2 = ast.CaseArm:
+            location
+            name: "Some"
+            variables: vec1(for_statement.iter_var)
+            block: for_statement.block
+        let arms: List[ast.CaseArm] = vec2(arm1, arm2)
 
-            return ast.compound(inner: vec2(let_it_var, loop_statement), location)
+        let case_statement = ast.case_statement(value: ast.var_ref(variable: opt_var, location), arms, else_clause: Option.None(), location)
+        let true_value = ast.bool_literal(value: true, location)
+        let loop_body = ast.compound(inner: vec2(let_opt_var, case_statement), location)
+        let loop_statement = ast.while_statement(condition: true_value, body: loop_body, location)
+
+        return ast.compound(inner: vec2(let_it_var, loop_statement), location)
 
     fn transform_for_loop_over_array(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
         # Turn for loop into index / while loop

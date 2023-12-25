@@ -12,6 +12,8 @@ import bc
 fn gen_c_code(program: bc.Program):
     let g = CGenerator()
     g.structs = program.structs
+    g.extern_functions = program.extern_functions
+    g.functions = program.functions
 
     # Runtime function prototypes:
     g.emit_runtime()
@@ -66,6 +68,8 @@ class CGenerator:
     var local_variables: List[Value] = List()
     var local_parameters: List[Value] = List()
     var structs: List[bc.Struct] = List()
+    var functions: List[bc.Function] = List()
+    var extern_functions: List[bc.ExternFunction] = List()
 
     fn emit_runtime():
         emit("// runtime functions:")
@@ -157,6 +161,8 @@ class CGenerator:
                             push(Value(name: "1", ty: bc.Type.Int()))
                         else:
                             push(Value(name: "0", ty: bc.Type.Int()))
+                    Char(value):
+                        push(Value(name: "'{value}'", ty: bc.Type.Char()))
 
             Jump(label):
                 emit("goto {get_label_str(label)};")
@@ -190,6 +196,26 @@ class CGenerator:
                         ty = lhs.ty
                     Divide:
                         ty = lhs.ty
+
+                let typed_var = get_type_txt(ty, name: varname)
+                case op:
+                    Add:
+                        emit("const {typed_var} = {lhs.name} + {rhs.name};")
+                    Sub:
+                        emit("const {typed_var} = {lhs.name} - {rhs.name};")
+                    Multiply:
+                        emit("const {typed_var} = {lhs.name} * {rhs.name};")
+                    Divide:
+                        emit("const {typed_var} = {lhs.name} / {rhs.name};")
+
+                push(Value(name: varname, ty))
+            
+            Comparison(op):
+                let rhs = pop()
+                let lhs = pop()
+                let varname = new_local_var()
+                let ty = lhs.ty
+                case op:
                     Less:
                         ty = bc.Type.Int()
                     LessEquals:
@@ -205,15 +231,6 @@ class CGenerator:
 
                 let typed_var = get_type_txt(ty, name: varname)
                 case op:
-                    Add:
-                        emit("const {typed_var} = {lhs.name} + {rhs.name};")
-                    Sub:
-                        emit("const {typed_var} = {lhs.name} - {rhs.name};")
-                    Multiply:
-                        emit("const {typed_var} = {lhs.name} * {rhs.name};")
-                    Divide:
-                        emit("const {typed_var} = {lhs.name} / {rhs.name};")
-
                     Less:
                         emit("const {typed_var} = ({lhs.name} < {rhs.name});")
                     LessEquals:
@@ -227,6 +244,9 @@ class CGenerator:
                     NotEquals:
                         emit("const {typed_var} = ({lhs.name} != {rhs.name});")
                 push(Value(name: varname, ty))
+            
+            Bitop(op):
+                panic("TODO: bit-op")
 
             IntToFloat:
                 let value = pop()
@@ -235,14 +255,32 @@ class CGenerator:
                 let typed_var = get_type_txt(ty, name: varname)
                 emit("{typed_var} = (double)({value.name});")
                 push(Value(name: varname, ty))
-            Call(n_args, result_type):
-                let args = pop_n(count: n_args)
-                let callee = pop().name
+            Call(index):
+                let function = functions.get(index)
+                let callee = function.name
+                let args = pop_n(count: function.parameters.len())
                 let args2: List[str] = List()
                 for arg in args:
                     args2.append(arg.name)
                 let arg_text = str_join(parts: args2, sep: ", ")
-                case result_type:
+                case function.return_type:
+                    Some(ty):
+                        let varname = new_local_var()
+                        let typed_var = get_type_txt(ty, name: varname)
+                        emit("{typed_var} = {callee}({arg_text});")
+                        push(Value(name: varname, ty))
+                    None:
+                        emit("{callee}({arg_text});")
+
+            CallExtern(index):
+                let function = extern_functions.get(index)
+                let callee = function.name
+                let args = pop_n(count: function.parameters.len())
+                let args2: List[str] = List()
+                for arg in args:
+                    args2.append(arg.name)
+                let arg_text = str_join(parts: args2, sep: ", ")
+                case function.return_type:
                     Some(ty):
                         let varname = new_local_var()
                         let typed_var = get_type_txt(ty, name: varname)
@@ -259,10 +297,22 @@ class CGenerator:
                 let value = pop()
                 let varname = local_variables.get(index)
                 emit("{varname.name} = {value.name};")
+            
+            GlobalGet(index):
+                panic("TODO: GlobalGet")
+
+            GlobalSet(index):
+                let value = pop()
+                panic("TODO: GlobalSet")
 
             ParameterGet(index):
                 let varname = local_parameters.get(index)
                 push(varname)
+
+            ParameterSet(index):
+                let value = pop()
+                let varname = local_parameters.get(index)
+                emit("{varname.name} = {value.name};")
 
             GetAttr(index, ty):
                 let base = pop()
@@ -282,6 +332,9 @@ class CGenerator:
                     emit("return {value.name};")
                 else:
                     emit("return;")
+            
+            Unreachable:
+                emit("__builtin_unreachable();")
 
             LoadFunc(name):
                 push(Value(name, ty: bc.Type.Ptr()))
@@ -328,6 +381,8 @@ class CGenerator:
                 return "int {name}"
             Str:
                 return "char* {name}"
+            Char:
+                return "char {name}"
             Float:
                 return "double {name}"
             Ptr:

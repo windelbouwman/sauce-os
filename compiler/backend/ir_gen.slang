@@ -2,71 +2,99 @@
 
 import ast
 from std import print
-from datatypes import List, Dictionary, option_unwrap, Option
-from utils import panic, log_info, log_debug
-from bc import Instruction, instruction_to_string
+from datatypes import List, Dictionary, option_unwrap, Option, option_is_some
+from utils import panic, log_info, log_debug, assert
+from bc import Instruction
 import bc
 
 
 fn gen_bytecode(module_set: ast.ModuleSet) -> bc.Program:
-    let g = Generator()
+    let g = BytecodeGenerator()
+    g.forward_declarations(module_set)
     for module in module_set.modules:
-        log_info("Generating bytecode for {module.name}")
         g.gen_prog(module)
-    return bc.Program(functions: g.functions, structs: g.structs)
+    return bc.Program(functions: g.functions, structs: g.structs, globals: g.global_variables, extern_functions: g.extern_functions)
 
 struct Loop:
     continue_label: int
     break_label: int
 
-class Generator:
+class BytecodeGenerator:
     var id_counter: int = 1
     var is_reachable: bool = true
     var code: List[Instruction] = List()
 
+    var global_variables: List[bc.Type] = List()
+    var global_var_mapping: Dictionary[int] = Dictionary()
     var local_variables: List[bc.Type] = List()
     var local_var_mapping: Dictionary[int] = Dictionary()
     var label_mapping: Dictionary[int] = Dictionary()
     var struct_mapping: Dictionary[int] = Dictionary()
+    var extern_functions: List[bc.ExternFunction] = List()
 
     var structs: List[bc.Struct] = List()
     var functions: List[bc.Function] = List()
+    var function_map: Dictionary[int] = Dictionary()
     var loop_stack: List[Loop] = List()
 
+    fn forward_declarations(module_set: ast.ModuleSet):
+        for module in module_set.modules:
+            let index = 0
+            let func_index = 0
+            for definition1 in module.definitions:
+                case definition1:
+                    Struct(struct_def):
+                        struct_mapping.insert(key: ast.node_id_to_string(struct_def.id), value: index)
+                        index += 1
+                    Function(function_def):
+                        function_map.insert(key: ast.node_id_to_string(function_def.id), value: func_index)
+                        func_index += 1
+                else:
+                    pass
+
+        for module in module_set.modules:
+            for definition2 in module.definitions:
+                case definition2:
+                    Struct(struct_def):
+                        let fields2: List[bc.Type] = List()
+                        for field1 in struct_def.fields:
+                            fields2.append(get_bc_type(field1.ty))
+                        structs.append(bc.Struct(fields: fields2, is_union: struct_def.is_union))
+                    Var(variable_def):
+                        let global_index = global_variables.len()
+                        let global_variable = get_bc_type(variable_def.variable.ty)
+                        global_variables.append(global_variable)
+                        global_var_mapping.insert(key: ast.node_id_to_string(variable_def.variable.id), value: global_index)
+                    ExternFunction(extern_function_def):
+                        let func_index = extern_functions.len()
+                        let name = extern_function_def.name
+
+                        let parameters: List[bc.Type] = List()
+                        for parameter in extern_function_def.parameter_types:
+                            parameters.append(get_bc_type(parameter))
+
+                        let return_type = Option.None()
+                        if not ast.is_void_type(extern_function_def.return_type):
+                            return_type = Option.Some(get_bc_type(extern_function_def.return_type))
+
+                        let extern_function = bc.ExternFunction(name, parameters, return_type)
+                        extern_functions.append(extern_function)
+                        function_map.insert(key: name, value: func_index)
+                else:
+                    pass
+
     fn gen_prog(module: ast.Module):
-        let index = 0
-        for definition1 in module.definitions:
-            case definition1:
-                Struct(struct_def):
-                    struct_mapping.insert(key: ast.node_id_to_string(struct_def.id), value: index)
-                    index += 1
-            else:
-                pass
-
-        for definition2 in module.definitions:
-            case definition2:
-                Struct(struct_def):
-                    let fields2: List[bc.Type] = List()
-                    for field1 in struct_def.fields:
-                        fields2.append(get_bc_type(field1.ty))
-                    structs.append(bc.Struct(fields: fields2, is_union: struct_def.is_union))
-            else:
-                pass
-
+        log_info("Generating bytecode for {module.name}")
         for definition in module.definitions:
             case definition:
                 Function(function_def):
                     gen_func(function_def)
-                ExternFunction(e):
-                    pass
-                Enum(e):
+                Enum(enum_def):
                     panic("Enum not supported, please rewrite")
-                Struct(s):
-                    pass
-                Class(c):
+                Class(class_def):
                     panic("Classes are not supported, please rewrite into structs with functions.")
-                Var(v):
-                    panic("VAR def not impl.")
+            else:
+                pass
 
     fn gen_func(function_def: ast.FunctionDef):
         log_debug("generate bytecode for {function_def.id.name}")
@@ -106,81 +134,13 @@ class Generator:
                 jump(target: inner_most_loop.continue_label)
             Expr(expr):
                 gen_expression(expr)
-                if not ast.is_void_type(expr.ty):
-                    panic("Expression must be void!")
+                assert(condition: ast.is_void_type(expr.ty), message: "Expression must be void!")
             Assignment(target, op, value):
-                case target.kind:
-                    GetAttr(base, attr):
-                        gen_expression(base)
-                        let index = get_attr_index(ty: base.ty, attr)
-                        case op:
-                            Some(binop):
-                                emit(Instruction.GetAttr(index, ty: get_bc_type(target.ty)))
-                                gen_expression(value)
-                                case binop:
-                                    Add:
-                                        emit(Instruction.Binop(op: bc.BinaryOperator.Add()))
-                                    Sub:
-                                        emit(Instruction.Binop(op: bc.BinaryOperator.Sub()))
-                                else:
-                                    panic("Can only += and -=")
-                            None:
-                                gen_expression(value)
-                        emit(Instruction.SetAttr(index))
-                    GetIndex(base, indici):
-                        gen_expression(base)
-                        gen_expression(value)
-                        # TODO: handle optional operator, like += and -=
-                        panic("TODO assign x[y] =")
-                    VarRef(variable):
-                        let index = get_local_index(variable)
-                        case op:
-                            Some(binop):
-                                emit(Instruction.LocalGet(index))
-                                gen_expression(value)
-                                case binop:
-                                    Add:
-                                        emit(Instruction.Binop(op: bc.BinaryOperator.Add()))
-                                    Sub:
-                                        emit(Instruction.Binop(op: bc.BinaryOperator.Sub()))
-                                else:
-                                    panic("Can only += and -=")
-                            None:
-                                gen_expression(value)
-                        emit(Instruction.LocalSet(index))
-                else:
-                    panic("Cannot assign: {ast.expression_to_string(target)}")
+                gen_assignment(target, op, value)
             While(while_statement):
-                let test_label = new_label()
-                let body_label = new_label()
-                let final_label = new_label()
-                loop_stack.append(Loop(continue_label: test_label, break_label: final_label))
-
-                set_label(test_label)
-                gen_condition(condition: while_statement.condition, true_label: body_label, false_label: final_label)
-
-                set_label(body_label)
-                gen_statement(while_statement.block.body)
-                jump(test_label)
-
-                loop_stack.drop_last()
-                set_label(final_label)
+                gen_while_statement(while_statement)
             If(if_statement):
-                let true_label = new_label()
-                let false_label = new_label()
-                let final_label = new_label()
-
-                gen_condition(condition: if_statement.condition, true_label, false_label)
-                
-                set_label(true_label)
-                gen_statement(if_statement.true_block.body)
-                jump(final_label)
-
-                set_label(false_label)
-                gen_statement(if_statement.false_block.body)
-                jump(final_label)
-
-                set_label(final_label)
+                gen_if_statement(if_statement)
             Loop(loop_statement):
                 panic("Loop not implemented")
             For(for_statement):
@@ -199,7 +159,7 @@ class Generator:
             Switch(switch_statement):
                 panic("Switch not implemented")
             Unreachable:
-                panic("TODO: unreachable")
+                emit(Instruction.Unreachable())
             Return(opt_val):
                 case opt_val:
                     Some(val):
@@ -211,6 +171,96 @@ class Generator:
             Raise(val):
                 panic("Raise not implemented")
     
+    fn gen_assignment(target: ast.Expression, op: Option[ast.BinaryOperator], value: ast.Expression):
+        case target.kind:
+            GetAttr(base, attr):
+                gen_expression(base)
+                let index = get_attr_index(ty: base.ty, attr)
+                case op:
+                    Some(op):
+                        emit(Instruction.GetAttr(index, ty: get_bc_type(target.ty)))
+                        gen_expression(value)
+                        gen_binop(op)
+                    None:
+                        gen_expression(value)
+                emit(Instruction.SetAttr(index))
+            GetIndex(base, indici):
+                gen_expression(base)
+                gen_expression(value)
+                # TODO: handle optional operator, like += and -=
+                panic("TODO assign x[y] =")
+            VarRef(variable):
+                if is_local_variable(variable):
+                    let index = get_local_index(variable)
+                    case op:
+                        Some(op):
+                            emit(Instruction.LocalGet(index))
+                            gen_expression(value)
+                            gen_binop(op)
+                        None:
+                            gen_expression(value)
+                    emit(Instruction.LocalSet(index))
+                else:
+                    let index = get_global_index(variable)
+                    case op:
+                        Some(op):
+                            emit(Instruction.GlobalGet(index))
+                            gen_expression(value)
+                            gen_binop(op)
+                        None:
+                            gen_expression(value)
+                    emit(Instruction.GlobalSet(index))
+            LoadSymbol(symbol):
+                case symbol:
+                    Parameter(parameter_def):
+                        let parameter_index = get_parameter_index(parameter_def)
+                        case op:
+                            Some(op):
+                                emit(Instruction.ParameterGet(parameter_index))
+                                gen_expression(value)
+                                gen_binop(op)
+                            None:
+                                gen_expression(value)
+                        emit(Instruction.ParameterSet(parameter_index))
+                else:
+                    panic("Cannot assign symbol: {ast.symbol_to_str(symbol)}")
+
+        else:
+            panic("Cannot assign: {ast.expression_to_string(target)}")
+
+    fn gen_while_statement(while_statement: ast.WhileStatement):
+        let test_label = new_label()
+        let body_label = new_label()
+        let final_label = new_label()
+        loop_stack.append(Loop(continue_label: test_label, break_label: final_label))
+
+        set_label(test_label)
+        gen_condition(condition: while_statement.condition, true_label: body_label, false_label: final_label)
+
+        set_label(body_label)
+        gen_statement(while_statement.block.body)
+        jump(test_label)
+
+        loop_stack.drop_last()
+        set_label(final_label)
+
+    fn gen_if_statement(if_statement: ast.IfStatement):
+        let true_label = new_label()
+        let false_label = new_label()
+        let final_label = new_label()
+
+        gen_condition(condition: if_statement.condition, true_label, false_label)
+        
+        set_label(true_label)
+        gen_statement(if_statement.true_block.body)
+        jump(final_label)
+
+        set_label(false_label)
+        gen_statement(if_statement.false_block.body)
+        jump(final_label)
+
+        set_label(final_label)
+
     fn gen_condition(condition: ast.Expression, true_label: int, false_label: int):
         # Generate short circuit logic for 'and' and 'or' conditions
         # Otherwise, evaluate the condition, and use jump-if
@@ -244,8 +294,7 @@ class Generator:
 
         # Create a local variable for the result:
         let ty = bc.Type.Int()
-        let index = local_variables.len()
-        local_variables.append(ty)
+        let index = new_local(ty)
 
         # Evaluate the condition, and branch:
         let true_label = new_label()
@@ -269,14 +318,7 @@ class Generator:
     fn gen_expression(expression?: ast.Expression):
         case expression.kind:
             Call(call):
-                gen_expression(call.callee)
-                for argument in call.arguments:
-                    gen_expression(argument.value)
-                let return_type = ast.get_return_type_from_type(call.callee.ty)
-                let result_type: Option[bc.Type] = Option.None()
-                if not ast.is_void_type(return_type):
-                    result_type = Option.Some(get_bc_type(return_type))
-                emit(Instruction.Call(n_args: call.arguments.len(), result_type))
+                gen_call(call)
             GetAttr(base, attr):
                 gen_expression(base)
                 # TODO: optionally cast from void to type (type erasure)
@@ -292,36 +334,7 @@ class Generator:
                     Or:
                         condition_as_value(condition: expression)
                 else:
-                    gen_expression(binop.lhs)
-                    gen_expression(binop.rhs)
-                    case binop.op:
-                        Add:
-                            emit(Instruction.Binop(op: bc.BinaryOperator.Add()))
-                        Sub:
-                            emit(Instruction.Binop(op: bc.BinaryOperator.Sub()))
-                        Mul:
-                            emit(Instruction.Binop(op: bc.BinaryOperator.Multiply()))
-                        Div:
-                            emit(Instruction.Binop(op: bc.BinaryOperator.Divide()))
-                        NotEquals:
-                            emit(Instruction.Binop(op: bc.BinaryOperator.NotEquals()))
-                        Equals:
-                            emit(Instruction.Binop(op: bc.BinaryOperator.Equals()))
-                        Greater:
-                            emit(Instruction.Binop(op: bc.BinaryOperator.Greater()))
-                        GreaterEquals:
-                            emit(Instruction.Binop(op: bc.BinaryOperator.GreaterEquals()))
-                        Less:
-                            emit(Instruction.Binop(op: bc.BinaryOperator.Less()))
-                        LessEquals:
-                            emit(Instruction.Binop(op: bc.BinaryOperator.LessEquals()))
-                        And:
-                            panic("unreachable: and")
-                        Or:
-                            panic("unreachable: or")
-                    else:
-                        panic("TODO: binop: {ast.binary_op_to_str(binop.op)}")
-
+                    gen_binop_expr(binop)
             Unop(op, value):
                 gen_expression(value)
                 case op:
@@ -336,12 +349,16 @@ class Generator:
             StringLiteral(value):
                 emit(Instruction.Literal(bc.LiteralValue.Str(value)))
             CharLiteral(value):
-                panic("TODO: char literal")
+                emit(Instruction.Literal(bc.LiteralValue.Char(value)))
             BoolLiteral(value):
                 emit(Instruction.Literal(bc.LiteralValue.Bool(value)))
             VarRef(variable):
-                let var_index = get_local_index(variable)
-                emit(Instruction.LocalGet(var_index))
+                if is_local_variable(variable):
+                    let var_index = get_local_index(variable)
+                    emit(Instruction.LocalGet(var_index))
+                else:
+                    let var_index = get_global_index(variable)
+                    emit(Instruction.GlobalGet(var_index))
             FunctionRef(function_def, type_arguments):
                 emit(Instruction.LoadFunc(name: function_def.id.name))
             LoadSymbol(symbol):
@@ -369,14 +386,105 @@ class Generator:
                 for value in values:
                     gen_expression(value)
                 emit(Instruction.ArrayLiteral(n_values: values.len()))
+            ArrayLiteral2(value, size):
+                panic("TODO: ArrayLiteral2!")
             TypeCast(ty, value):
                 gen_expression(value)
                 if ast.is_int_type(value.ty) and ast.is_float_type(ty):
                     emit(Instruction.IntToFloat())
+                elif ast.is_opaque_type(value.ty) and ast.is_opaque_type(ty):
+                    pass
+                elif ast.is_opaque_type(value.ty) and ast.is_struct_type(ty):
+                    # TODO: we might require a cast here?
+                    pass
+                elif ast.is_struct_type(value.ty) and ast.is_opaque_type(ty):
+                    # TODO: we might require a cast here?
+                    pass
+                elif ast.is_opaque_type(ty):
+                    # Assume all values can be opaque?
+                    # TBD: is this a valid assumption?
+                    pass
+                elif ast.is_opaque_type(value.ty):
+                    # Assume casting from opaque is trouble-less
+                    pass
                 else:
-                    panic("TODO: unsupported type-casting")
+                    panic("TODO: unsupported type-casting from {ast.type_to_string(value.ty)} to {ast.type_to_string(ty)}")
         else:
             panic("Unsupported: {ast.expression_to_string(expression)}")
+
+    fn gen_call(call: ast.FunctionCall):
+        for argument in call.arguments:
+            gen_expression(argument.value)
+
+        #let return_type = ast.get_return_type_from_type(call.callee.ty)
+        #let result_type: Option[bc.Type] = Option.None()
+        #if not ast.is_void_type(return_type):
+        #    result_type = Option.Some(get_bc_type(return_type))
+        #emit(Instruction.Call(n_args: call.arguments.len(), result_type))
+
+        case call.callee.kind:
+            LoadSymbol(symbol):
+                case symbol:
+                    ExternFunction(external_function_def):
+                        let key = external_function_def.name
+                        log_debug("Calling extern function: {key}")
+                        let funcidx = option_unwrap(function_map.get(key))
+                        emit(Instruction.CallExtern(funcidx))
+                else:
+                    gen_indirect_call(callee: call.callee)
+
+            FunctionRef(function_def, type_args):
+                # print("call {function_def.id.name}")
+                let key = ast.node_id_to_string(function_def.id)
+                let funcidx = option_unwrap(function_map.get(key))
+                emit(Instruction.Call(funcidx))
+        else:
+            gen_indirect_call(callee: call.callee)
+
+    fn gen_indirect_call(callee: ast.Expression):
+        panic("TODO: gen_indirect_call")
+
+    fn gen_binop_expr(binop: ast.BinopExpression):
+        gen_expression(binop.lhs)
+        gen_expression(binop.rhs)
+        gen_binop(op: binop.op)
+    
+    fn gen_binop(op: ast.BinaryOperator):
+        case op:
+            Add:
+                emit(Instruction.Binop(op: bc.BinaryOperator.Add()))
+            Sub:
+                emit(Instruction.Binop(op: bc.BinaryOperator.Sub()))
+            Mul:
+                emit(Instruction.Binop(op: bc.BinaryOperator.Multiply()))
+            Div:
+                emit(Instruction.Binop(op: bc.BinaryOperator.Divide()))
+            NotEquals:
+                emit(Instruction.Comparison(op: bc.ComparisonOperator.NotEquals()))
+            Equals:
+                emit(Instruction.Comparison(op: bc.ComparisonOperator.Equals()))
+            Greater:
+                emit(Instruction.Comparison(op: bc.ComparisonOperator.Greater()))
+            GreaterEquals:
+                emit(Instruction.Comparison(op: bc.ComparisonOperator.GreaterEquals()))
+            Less:
+                emit(Instruction.Comparison(op: bc.ComparisonOperator.Less()))
+            LessEquals:
+                emit(Instruction.Comparison(op: bc.ComparisonOperator.LessEquals()))
+            And:
+                panic("unreachable: and")
+            Or:
+                panic("unreachable: or")
+            BitAnd:
+                emit(Instruction.Bitop(op: bc.BitOperator.And()))
+            BitXor:
+                emit(Instruction.Bitop(op: bc.BitOperator.Xor()))
+            BitOr:
+                emit(Instruction.Bitop(op: bc.BitOperator.Or()))
+            ShiftLeft:
+                emit(Instruction.Bitop(op: bc.BitOperator.Shl()))
+            ShiftRight:
+                emit(Instruction.Bitop(op: bc.BitOperator.Shr()))
 
     fn new_label() -> int:
         return gen_id()
@@ -416,13 +524,23 @@ class Generator:
     fn add_local(variable: ast.Variable) -> int:
         # Add a local variable!
         let ty = get_bc_type(variable.ty)
-        let index = local_variables.len()
-        local_variables.append(ty)
+        let index = new_local(ty)
         local_var_mapping.insert(key: ast.node_id_to_string(variable.id), value: index)
         return index
     
+    fn new_local(ty: bc.Type) -> int:
+        let index = local_variables.len()
+        local_variables.append(ty)
+        return index
+    
+    fn is_local_variable(variable: ast.Variable) -> bool:
+        return option_is_some(local_var_mapping.get(key: ast.node_id_to_string(variable.id)))
+
     fn get_local_index(variable: ast.Variable) -> int:
         return option_unwrap(local_var_mapping.get(key: ast.node_id_to_string(variable.id)))
+
+    fn get_global_index(variable: ast.Variable) -> int:
+        return option_unwrap(global_var_mapping.get(key: ast.node_id_to_string(variable.id)))
 
     fn get_parameter_index(parameter_def: ast.ParameterDef) -> int:
         return option_unwrap(local_var_mapping.get(key: ast.node_id_to_string(parameter_def.id)))
@@ -450,12 +568,16 @@ class Generator:
             ty = bc.Type.Ptr()
         elif ast.is_bool_type(ty2):
             ty = bc.Type.Int()
+        elif ast.is_char_type(ty2):
+            ty = bc.Type.Char()
+        elif ast.is_opaque_type(ty2):
+            ty = bc.Type.Ptr()
         else:
             panic("Type: {ast.type_to_string(ty2)} not supported")
         return ty
 
     fn emit(instruction?: Instruction):
-        # print("Inst: {instruction_to_string(instruction)}")
+        # print("Inst: {bc.instruction_to_string(instruction)}")
         if is_reachable:
             code.append(instruction)
 

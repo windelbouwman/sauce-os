@@ -3,7 +3,7 @@
 
 import ast
 from std import print
-from datatypes import Option, List, option_unwrap
+from datatypes import Option, List, option_unwrap, Set, option_is_none
 from location import Location, location_to_string
 from utils import log_info, panic, log_error
 from errors import CompilationError, new_errors, new_error, display_error, SingleCompilationError
@@ -93,17 +93,28 @@ class TypeChecker:
         case statement.kind:
             Case(case_statement):
                 if ast.is_enum_type(case_statement.value.ty):
+                    let variant_names = ast.get_enum_variant_names_from_type(case_statement.value.ty)
+                    let uncovered_arms = Set()
+                    for variant_name in variant_names:
+                        uncovered_arms.add(variant_name)
                     for arm in case_statement.arms:
                         case ast.get_enum_variant_from_type(ty: case_statement.value.ty, attr: arm.name):
                             Some(variant):
-                                let payload_types = ast.get_variant_payload_types(ty: case_statement.value.ty, variant)
-                                if payload_types.len() == arm.variables.len():
-                                    assign_types(variables: arm.variables, types: payload_types)
+                                if uncovered_arms.contains(arm.name):
+                                    uncovered_arms.remove(arm.name)
+                                    let payload_types = ast.get_variant_payload_types(ty: case_statement.value.ty, variant)
+                                    if payload_types.len() == arm.variables.len():
+                                        assign_types(variables: arm.variables, types: payload_types)
+                                    else:
+                                        add_error(location: arm.location, message: "Got {arm.variables.len()}, expected {payload_types.len()} values")
+                                    # expression.kind = ast.ExpressionKind.Variant(ty3, variant)
                                 else:
-                                    add_error(location: arm.location, message: "Got {arm.variables.len()}, expected {payload_types.len()} values")
-                                # expression.kind = ast.ExpressionKind.Variant(ty3, variant)
+                                    add_error(location: arm.location, message: "Enum case covered twice")
                             None:
                                 add_error(location: arm.location, message: "No such enum variant: {arm.name}")
+                    if option_is_none(case_statement.else_block):
+                        for uncovered_arm in uncovered_arms:
+                            add_error(location: statement.location, message: "Enum case not covered: {uncovered_arm}")
                 else:
                     add_error(location: case_statement.value.location, message: "Got {ast.type_to_string(case_statement.value.ty)}, expected enum")
             For(for_statement):

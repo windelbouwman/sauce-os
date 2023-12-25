@@ -1,47 +1,276 @@
 
-from datatypes import List
-from utils import panic
-from bc import Instruction
+# Virtual machine for bytecode.
+
+from datatypes import List, Option, Dictionary, option_unwrap
+from utils import panic, log_debug, log_info, assert
+from bc import Instruction, Program, Function, instruction_to_string
+from bc import BinaryOperator, ComparisonOperator, type_to_string
+from std import print, float_to_str
+import std
+import bc
+import rt
 
 enum Value:
     Int(value: int)
     Str(value: str)
+    Char(value: char)
     Float(value: float)
     Bool(value: bool)
+    Undefined
 
+fn value_to_string(value?: Value) -> str:
+    case value:
+        Int(value):
+            return "int({value})"
+        Str(value):
+            return "str({value})"
+        Char(value):
+            return "char({value})"
+        Float(value):
+            return "float({float_to_str(value)})"
+        Bool(value):
+            if value:
+                return "bool(true)"
+            else:
+                return "bool(false)"
+        Undefined:
+            return "undefined"
+
+fn bool_from_value(value?: Value) -> bool:
+    case value:
+        Bool(value):
+            return value
+    else:
+        panic("bool_from_value: no boolean")
+
+fn str_from_value(value?: Value) -> str:
+    case value:
+        Str(value):
+            return value
+    else:
+        panic("str_from_value: no str")
+
+fn int_from_value(value?: Value) -> int:
+    case value:
+        Int(value):
+            return value
+    else:
+        panic("int_from_value: no int")
+
+fn char_from_value(value?: Value) -> char:
+    case value:
+        Char(value):
+            return value
+    else:
+        panic("char_from_value: no char")
+
+fn float_from_value(value?: Value) -> float:
+    case value:
+        Float(value):
+            return value
+    else:
+        panic("float_from_value: no float")
+
+struct ExternFunctionImpl:
+    f: fn(List[Value]) -> Option[Value]
+    n: int
+
+fn efi_std_ord(arguments: List[Value]) -> Option[Value]:
+    let value = std.ord(char_from_value(arguments.first()))
+    return Option.Some(Value.Int(value))
+
+fn efi_std_chr(arguments: List[Value]) -> Option[Value]:
+    let value = std.chr(int_from_value(arguments.first()))
+    return Option.Some(Value.Char(value))
+
+fn efi_std_float_to_str(arguments: List[Value]) -> Option[Value]:
+    let value = std.float_to_str(float_from_value(arguments.first()))
+    return Option.Some(Value.Str(value))
+
+fn efi_std_str_to_float(arguments: List[Value]) -> Option[Value]:
+    let value = std.str_to_float(str_from_value(arguments.first()))
+    return Option.Some(Value.Float(value))
+
+fn efi_std_str_to_int(arguments: List[Value]) -> Option[Value]:
+    let value = std.str_to_int(str_from_value(arguments.first()))
+    return Option.Some(Value.Int(value))
+
+fn efi_std_str_len(arguments: List[Value]) -> Option[Value]:
+    let text = str_from_value(arguments.first())
+    let value = std.str_len(text)
+    return Option.Some(Value.Int(value))
+
+fn efi_std_str_get(arguments: List[Value]) -> Option[Value]:
+    let text = str_from_value(arguments.first())
+    let index = int_from_value(arguments.get(index: 1))
+    let value = std.str_get(text, index)
+    return Option.Some(Value.Char(value))
+
+fn efi_std_str_slice(arguments: List[Value]) -> Option[Value]:
+    let text = str_from_value(arguments.first())
+    let begin = int_from_value(arguments.get(index: 1))
+    let end = int_from_value(arguments.get(index: 2))
+    let value = std.str_slice(text, begin, end)
+    return Option.Some(Value.Str(value))
+
+fn efi_std_print(arguments: List[Value]) -> Option[Value]:
+    std.print(str_from_value(arguments.first()))
+    return Option.None()
+
+fn efi_default(arguments: List[Value]) -> Option[Value]:
+    panic("Not impl EFI")
+    return Option.None()
+
+fn efi_rt_int_to_str(arguments: List[Value]) -> Option[Value]:
+    let value = rt.int_to_str(int_from_value(arguments.first()))
+    return Option.Some(Value.Str(value))
+
+fn efi_rt_char_to_str(arguments: List[Value]) -> Option[Value]:
+    let value = rt.char_to_str(char_from_value(arguments.first()))
+    return Option.Some(Value.Str(value))
+
+fn efi_rt_str_concat(arguments: List[Value]) -> Option[Value]:
+    let a = str_from_value(arguments.first())
+    let b = str_from_value(arguments.get(index: 1))
+    # let value = rt.str_concat(a, b)
+    let value = a + b
+    return Option.Some(Value.Str(value))
+
+fn efi_rt_str_compare(arguments: List[Value]) -> Option[Value]:
+    let a = str_from_value(arguments.first())
+    let b = str_from_value(arguments.get(index: 1))
+    # let value = rt.str_compare(a, b)
+    let value = a == b
+    return Option.Some(Value.Bool(value))
+
+fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
+    # Link in external functions:
+    let efi_db: Dictionary[ExternFunctionImpl] = Dictionary()
+
+    # std:
+    efi_db.insert(key: "ord", value: ExternFunctionImpl(f: efi_std_ord, n: 1))
+    efi_db.insert(key: "chr", value: ExternFunctionImpl(f: efi_std_chr, n: 1))
+    efi_db.insert(key: "float_to_str", value: ExternFunctionImpl(f: efi_std_float_to_str, n: 1))
+    efi_db.insert(key: "str_to_float", value: ExternFunctionImpl(f: efi_std_str_to_float, n: 1))
+    efi_db.insert(key: "str_to_int", value: ExternFunctionImpl(f: efi_std_str_to_int, n: 1))
+    efi_db.insert(key: "str_len", value: ExternFunctionImpl(f: efi_std_str_len, n: 1))
+    efi_db.insert(key: "str_get", value: ExternFunctionImpl(f: efi_std_str_get, n: 2))
+    efi_db.insert(key: "str_slice", value: ExternFunctionImpl(f: efi_std_str_slice, n: 3))
+    efi_db.insert(key: "print", value: ExternFunctionImpl(f: efi_std_print, n: 1))
+    efi_db.insert(key: "exit", value: ExternFunctionImpl(f: efi_default, n: 1))
+    efi_db.insert(key: "read_file", value: ExternFunctionImpl(f: efi_default, n: 1))
+    efi_db.insert(key: "file_open", value: ExternFunctionImpl(f: efi_default, n: 1))
+    efi_db.insert(key: "file_writeln", value: ExternFunctionImpl(f: efi_default, n: 2))
+    efi_db.insert(key: "file_close", value: ExternFunctionImpl(f: efi_default, n: 1))
+    efi_db.insert(key: "get_n_args", value: ExternFunctionImpl(f: efi_default, n: 0))
+    efi_db.insert(key: "get_arg", value: ExternFunctionImpl(f: efi_default, n: 1))
+    
+    # rt:
+    efi_db.insert(key: "int_to_str", value: ExternFunctionImpl(f: efi_rt_int_to_str, n: 1))
+    efi_db.insert(key: "char_to_str", value: ExternFunctionImpl(f: efi_rt_char_to_str, n: 1))
+    efi_db.insert(key: "str_concat", value: ExternFunctionImpl(f: efi_rt_str_concat, n: 2))
+    efi_db.insert(key: "str_compare", value: ExternFunctionImpl(f: efi_rt_str_compare, n: 2))
+    return efi_db
+
+fn run_bytecode(program: Program, entry_function: str):
+    let vm = VirtualMachine(program)
+    let efi_db = get_efi_db()
+    for e in program.extern_functions:
+        if efi_db.contains(key: e.name):
+            let efi = option_unwrap(efi_db.get(key: e.name))
+            assert(condition: e.parameters.len() == efi.n, message: "n should match len(parameters)")
+            vm.efi_table.append(efi)
+        else:
+            panic("Missing extern function: {e.name}")
+
+    let top_frame = Frame(code: List())
+    vm.push_frame(frame: top_frame)
+
+    let function_name_to_index: Dictionary[int] = Dictionary()
+    let index = 0
+    for function in program.functions:
+        function_name_to_index.insert(key: function.name, value: index)
+        index += 1
+    let entry_function_index = option_unwrap(function_name_to_index.get(key: entry_function))
+
+    let function = program.functions.get(index: entry_function_index)
+    let arguments: List[Value] = List()
+    let frame = frame_from_function(function, arguments)
+    vm.push_frame(frame)
+    while vm.frames.len() > 1:
+        let instruction = vm.fetch()
+        vm.execute(instruction)
+
+fn frame_from_function(function: Function, arguments: List[Value]) -> Frame:
+    let frame = Frame(code: function.instructions)
+    for x in function.parameters:
+        pass
+    
+    for x in arguments:
+        frame.arguments.append(x)
+
+    # Fill space for local variables:
+    for x in function.locals:
+        frame.locals.append(Value.Undefined())
+    return frame
 
 class Frame:
+    var arguments: List[Value] = List()
     var locals: List[Value] = List()
     var stack: List[Value] = List()
+    var pc: int = 0
+    var code: List[Instruction]
 
-class VM:
+    fn fetch() -> Instruction:
+        let instruction = code.get(index: pc)
+        pc += 1
+        return instruction
+
+class VirtualMachine:
+    var efi_table: List[ExternFunctionImpl] = List()
     var frames: List[Frame] = List()
+    var globals: List[Value] = List()
+    var program: Program
 
-    fn tick(instruction: Instruction):
+    fn fetch() -> Instruction:
+        return frames.last().fetch()
+
+    fn execute(instruction: Instruction):
+        log_debug("Executing: {instruction_to_string(instruction)}")
         case instruction:
             Nop:
                 pass
             Dup:
-                let val = pop()
-                push(val)
-                push(val)
+                let value = pop()
+                push(value)
+                push(value)
             Literal(literal):
                 case literal:
                     Int(val):
                         push(Value.Int(val))
                     Str(val):
                         push(Value.Str(val))
+                    Char(value):
+                        push(Value.Char(value))
                     Bool(val):
                         push(Value.Bool(val))
                     Float(val):
                         push(Value.Float(val))
             LocalGet(index):
-                let val = frames.last().locals.get(index)
-                push(val)
+                let value = get_local(index)
+                push(value)
             LocalSet(index):
-                panic("TODO")
+                set_local(index, value: pop())
+            GlobalGet(index):
+                let value = get_global(index)
+                push(value)
+            GlobalSet(index):
+                set_global(index, value: pop())
             ParameterGet(index):
-                panic("TODO: parameter-get")
+                let value = get_parameter(index)
+                push(value)
+            ParameterSet(index):
+                set_parameter(index, value: pop())
             GetAttr(index, ty):
                 let base = pop()
                 panic("TODO")
@@ -55,45 +284,84 @@ class VM:
                 push(value)
             Neg:
                 panic("TODO: neg")
+            Comparison(op):
+                let rhs = pop()
+                let lhs = pop()
+                case lhs:
+                    Int(lhs_value):
+                        case rhs:
+                            Int(rhs_value):
+                                let value = eval_comparison_int(op, lhs: lhs_value, rhs: rhs_value)
+                                push(Value.Bool(value))
+                        else:
+                            panic("rhs must be int")
+                    Float(lhs_value):
+                        case rhs:
+                            Float(rhs_value):
+                                let value = eval_comparison_float(op, lhs: lhs_value, rhs: rhs_value)
+                                push(Value.Bool(value))
+                        else:
+                            panic("rhs must be int")
+                else:
+                    panic("Cannot Comparison {value_to_string(lhs)}")
             Binop(op):
-                case op:
-                    Add:
-                        let rhs = pop()
-                        let lhs = pop()
-                        let value = rhs
-                        push(value)
-                    Sub:
-                        panic("TODO: sub")
-                    Divide:
-                        panic("TODO: div")
-                    Multiply:
-                        panic("TODO: mul")
-                    Less:
-                        panic("TODO: lt")
-                    LessEquals:
-                        panic("TODO: lte")
-                    Greater:
-                        panic("TODO: gt")
-                    GreaterEquals:
-                        panic("TODO: gte")
-                    Equals:
-                        panic("TODO: eq")
-                    NotEquals:
-                        panic("TODO: ne")
+                let rhs = pop()
+                let lhs = pop()
+                case lhs:
+                    Int(lhs_value):
+                        case rhs:
+                            Int(rhs_value):
+                                let value = eval_binop_int(op, lhs: lhs_value, rhs: rhs_value)
+                                push(Value.Int(value))
+                        else:
+                            panic("rhs must be int")
+                    Float(lhs_value):
+                        case rhs:
+                            Float(rhs_value):
+                                let value = eval_binop_float(op, lhs: lhs_value, rhs: rhs_value)
+                                push(Value.Float(value))
+                        else:
+                            panic("rhs must be int")
+                else:
+                    panic("Cannot binop")
+            Bitop(op):
+                panic("TODO: bitop")
             IntToFloat:
-                panic("TODO int-to-float")
+                let value = int_from_value(value: pop())
+                let f = float(value)
+                push(Value.Float(f))
             Jump(target):
-                panic("TODO")
+                jump(target)
             JumpIf(target, target2):
-                panic("TODO: jump-if")
-            Call(n, result_type):
+                let value = pop()
+                if bool_from_value(value):
+                    jump(target)
+                else:
+                    jump(target2)
+            Call(index):
+                log_info("Call function!")
+                let function = program.functions.get(index)
+                let n = function.parameters.len()
                 let arguments = pop_n(count: n)
-                let callee = pop()
-                panic("TODO: call")
+                let frame = frame_from_function(function, arguments)
+                push_frame(frame)
+            CallExtern(index):
+                let efi = efi_table.get(index)
+                let arguments = pop_n(count: efi.n)
+                case efi.f(arguments):
+                    Some(value):
+                        push(value)
+                    None:
+                        pass
             Return(amount):
                 if amount == 1:
-                    let val = pop()
-                panic("Return not impl")
+                    let value = pop()
+                    pop_frame()
+                    push(value)
+                else:
+                    pop_frame()
+            Unreachable:
+                panic("Reached unreachable")
             LoadFunc(name):
                 panic("TODO: load func")
             StructLiteral(struct_index):
@@ -118,4 +386,84 @@ class VM:
             let val = pop()
             values.append(val)
             count -= 1
-        return values
+        return values.reversed()
+    
+    fn jump(pc?: int):
+        frames.last().pc = pc
+
+    fn get_local(index: int) -> Value:
+        return frames.last().locals.get(index)
+    
+    fn set_local(index: int, value: Value):
+        frames.last().locals.set(index, value)
+    
+    fn get_parameter(index: int) -> Value:
+        return frames.last().arguments.get(index)
+
+    fn set_parameter(index: int, value: Value):
+        frames.last().arguments.set(index, value)
+
+    fn get_global(index: int) -> Value:
+        return globals.get(index)
+
+    fn set_global(index: int, value: Value):
+        globals.set(index, value)
+
+    fn pop_frame():
+        let stub_frame = frames.pop_last()
+
+    fn push_frame(frame: Frame):
+        frames.append(frame)
+
+
+fn eval_binop_int(op: BinaryOperator, lhs: int, rhs: int) -> int:
+    case op:
+        Add:
+            return lhs + rhs
+        Sub:
+            return lhs - rhs
+        Divide:
+            return lhs / rhs
+        Multiply:
+            return lhs * rhs
+
+fn eval_comparison_int(op: ComparisonOperator, lhs: int, rhs: int) -> bool:
+    case op:
+        Less:
+            return lhs < rhs
+        LessEquals:
+            return lhs <= rhs
+        Greater:
+            return lhs > rhs
+        GreaterEquals:
+            return lhs >= rhs
+        Equals:
+            return lhs == rhs
+        NotEquals:
+            return lhs != rhs
+
+fn eval_binop_float(op: BinaryOperator, lhs: float, rhs: float) -> float:
+    case op:
+        Add:
+            return lhs + rhs
+        Sub:
+            return lhs - rhs
+        Divide:
+            return lhs / rhs
+        Multiply:
+            return lhs * rhs
+
+fn eval_comparison_float(op: ComparisonOperator, lhs: float, rhs: float) -> bool:
+    case op:
+        Less:
+            return lhs < rhs
+        LessEquals:
+            return lhs <= rhs
+        Greater:
+            return lhs > rhs
+        GreaterEquals:
+            return lhs >= rhs
+        Equals:
+            return lhs == rhs
+        NotEquals:
+            return lhs != rhs

@@ -20,6 +20,7 @@ from sorting import sort_list
 from c_gen import gen_c_code
 from c_gen_v2 import gen_c_code_v2
 from wasm_gen import gen_webassembly
+from vm import run_bytecode
 
 
 fn main() -> int:
@@ -31,6 +32,7 @@ fn main() -> int:
         output_filename: Option.None()
         verbosity: 0
         runtime: true
+        run_code: false
 
     # Argument processing
     let n = get_n_args()
@@ -50,7 +52,7 @@ fn main() -> int:
                 print("Expect argument to -o")
         elif argument == "-v":
             options.verbosity += 1
-        elif argument == "-bc":
+        elif argument == "--backend-bc":
             options.backend = Backend.Bytecode()
         elif argument == "--backend-c":
             options.backend = Backend.C()
@@ -62,6 +64,8 @@ fn main() -> int:
             options.runtime = false
         elif argument == "--backend-wasm":
             options.backend = Backend.WebAssembly()
+        elif argument == "--run":
+            options.run_code = true
         else:
             # Assume source file
             filenames.append(argument)
@@ -89,11 +93,12 @@ fn print_usage():
     print("    -v : Increase verbosity")
     print("    -o : Write output to given filename")
     print("    -h : display usage information")
-    print("    -bc : Spit out bytecode")
+    print("    --backend-bc    : Spit out bytecode")
     print("    --backend-py    : Spit out python code")
     print("    --backend-c     : Spit out C code")
     print("    --backend-wasm  : Spit out WebAssembly")
     print("    -rt : Skip runtime?")
+    print("    --run : Run code!")
     print("")
     print("Multiple source files can be passed")
 
@@ -103,6 +108,7 @@ struct CompilationOptions:
     output_filename: Option[str]
     verbosity: int
     runtime: bool
+    run_code: bool
 
 enum Backend:
     Bytecode
@@ -156,17 +162,31 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
         Python:
             gen_python(module_set, generate_runtime: options.runtime, output_filename: options.output_filename)
         Bytecode:
-            let prog3 = gen_bytecode(module_set)
-            bc.print_bc_program(program: prog3)
-            # TODO: generate C-code via bytecode
-            # gen_c_code(program: prog3)
-        C:  # C backend (v2)
-            gen_c_code_v2(module_set, output_filename: options.output_filename)
+            let program = gen_bytecode(module_set)
+            if options.run_code:
+                if options.verbosity > 0:
+                    bc.print_bc_program(program)
+                log_info("Now running code")
+                run_bytecode(program, entry_function: "main")
+            else:
+                bc.print_bc_program(program)
+        C:
+            let use_v2 = true
+            if use_v2:
+                # Generate C-code straight from AST:
+                gen_c_code_v2(module_set, output_filename: options.output_filename)
+            else:
+                # Generate C-code via bytecode:
+                let program = gen_bytecode(module_set)
+                if options.verbosity > 0:
+                    bc.print_bc_program(program)
+                gen_c_code(program)
         WebAssembly:
             gen_webassembly(module_set)
 
 fn topo_sort(modules: List[ast.Module]):
     # Sort modules (in-place) based on which module import the other one
+    # TBD: implicitly, all modules depend upon the 'rt' module. Add this as edge?
     let g: DiGraph = DiGraph()
     let mapping: Dictionary[ast.Module] = Dictionary()
     for m in modules:

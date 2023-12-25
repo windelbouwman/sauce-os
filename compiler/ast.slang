@@ -321,6 +321,13 @@ fn get_enum_variant(enum_def: EnumDef, attr: str) -> Option[EnumVariant]:
         None:
             return Option.None()
 
+fn get_enum_variant_names_from_type(ty?: Type) -> List[str]:
+    let enum_def = get_enum_def_from_type(ty)
+    let names: List[str] = List()
+    for variant in enum_def.variants:
+        names.append(variant.name)
+    return names
+
 fn get_enum_def_from_type(ty?: Type) -> EnumDef:
     case ty.kind:
         App(tycon, type_arguments):
