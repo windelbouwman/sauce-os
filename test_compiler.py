@@ -44,6 +44,29 @@ def slang_compiler():
         return py_code
 
 
+def run_compiler(args):
+    slang_compiler_py_code = slang_compiler()
+
+    f1 = io.StringIO()
+    global_map = builtins.get_builtins(args=args, stdout=f1)
+    exec(slang_compiler_py_code, global_map)
+    exit_code = global_map["main"]()
+    compiler_output = f1.getvalue()
+    if exit_code == 0:
+        return compiler_output
+    else:
+        print(compiler_output)
+        raise ValueError(f"Compiler failed: {exit_code}")
+
+
+def get_reference_output(example_filename):
+    reference_output_filename = os.path.splitext(example_filename)[0] + ".stdout"
+    if os.path.exists(reference_output_filename):
+        with open(reference_output_filename) as f:
+            expected_output = f.read()
+            return expected_output
+
+
 @pytest.mark.parametrize("filename", example_filenames)
 def test_examples_py_backend(filename):
     """
@@ -56,18 +79,10 @@ def test_examples_py_backend(filename):
     4. compare example output with reference output
 
     """
-    slang_compiler_py_code = slang_compiler()
 
     # Compile example using bootstrapped compiler:
-    f1 = io.StringIO()
     args = ["-rt", "--backend-py", "runtime/std.slang"] + [filename]
-    global_map = builtins.get_builtins(args=args, stdout=f1)
-    exec(slang_compiler_py_code, global_map)
-    exit_code = global_map["main"]()
-    program_py_code = f1.getvalue()
-    if exit_code != 0:
-        print(program_py_code)
-        raise ValueError(f"Compiler failed: {exit_code}")
+    program_py_code = run_compiler(args)
 
     # Execute produced python code:
     f2 = io.StringIO()
@@ -76,11 +91,9 @@ def test_examples_py_backend(filename):
     program_global_map["main2"]()
     stdout = f2.getvalue()
 
-    reference_output_filename = os.path.splitext(filename)[0] + ".stdout"
-    if os.path.exists(reference_output_filename):
-        with open(reference_output_filename) as f:
-            expected_output = f.read()
-        assert stdout == expected_output
+    reference_output = get_reference_output(filename)
+    if reference_output:
+        assert stdout == reference_output
 
 
 @pytest.mark.parametrize("filename", example_filenames)
@@ -93,16 +106,27 @@ def test_examples_c_backend(filename):
     2. invoke slang compiler on the example, to produce C code
 
     """
-    slang_compiler_py_code = slang_compiler()
 
     # Compile example using bootstrapped compiler:
-    f1 = io.StringIO()
     args = ["--backend-c", "runtime/std.slang"] + [filename]
-    global_map = builtins.get_builtins(args=args, stdout=f1)
-    exec(slang_compiler_py_code, global_map)
-    exit_code = global_map["main"]()
-    program_c_code = f1.getvalue()
-    print(program_c_code)
-    if exit_code != 0:
-        print(program_c_code)
-        raise ValueError(f"Compiler failed: {exit_code}")
+    run_compiler(args)
+
+
+@pytest.mark.parametrize("filename", example_filenames)
+def test_examples_bc_backend(filename):
+    """
+    Test all examples can be compiled to bytecode.
+
+    Recipe:
+    1. compile slang compiler to python
+    2. invoke slang compiler on the example, to produce bytecode, and run this bytecode
+    3. compare example output with reference output
+
+    """
+
+    args = ["--run", "--backend-bc", "runtime/std.slang"] + [filename]
+    stdout = run_compiler(args)
+
+    reference_output = get_reference_output(filename)
+    if reference_output:
+        assert stdout == reference_output

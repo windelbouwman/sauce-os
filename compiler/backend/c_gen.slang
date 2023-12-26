@@ -5,7 +5,7 @@
 from std import float_to_str, print, chr
 from rt import int_to_str
 from utils import panic
-from datatypes import List, Set
+from datatypes import List, Set, Option
 from strlib import str_repeat, str_join
 import bc
 
@@ -37,6 +37,11 @@ fn gen_c_code(program: bc.Program):
     for function0 in program.functions:
         let decl = g.get_function_decl(function: function0, fill_param: false)
         g.emit("{decl};")
+    
+    # Globals!
+    for global in program.globals:
+        pass
+        # TODO
 
     # Function definitions:
     for function in program.functions:
@@ -172,9 +177,15 @@ class CGenerator:
                 emit("if ({condition.name}) goto {get_label_str(label1)};")
                 emit("  else goto {get_label_str(label2)};")
 
-            # Raise
-                # let value = pop()
-                # emit("longjmp(jmpbuf, {value.name});")
+            SetupTry(try_label, except_label):
+                emit("if (setjmp(g_except_hook) == 0) goto {get_label_str(try_label)} else goto {get_label_str(except_label)};")
+                # TODO: restore except hook?
+                # TODO: store exception value
+
+            Raise:
+                let value = pop()
+                emit("g_except_value = {value.name};")
+                emit("longjmp(g_except_hook, 1);")
 
             Not:
                 panic("TODO: not")
@@ -187,26 +198,18 @@ class CGenerator:
                 let lhs = pop()
                 let varname = new_local_var()
                 let ty = lhs.ty
-                case op:
-                    Add:
-                        ty = lhs.ty
-                    Sub:
-                        ty = lhs.ty
-                    Multiply:
-                        ty = lhs.ty
-                    Divide:
-                        ty = lhs.ty
-
                 let typed_var = get_type_txt(ty, name: varname)
+                let op_txt = "$"
                 case op:
                     Add:
-                        emit("const {typed_var} = {lhs.name} + {rhs.name};")
+                        op_txt = "+"
                     Sub:
-                        emit("const {typed_var} = {lhs.name} - {rhs.name};")
+                        op_txt = "-"
                     Multiply:
-                        emit("const {typed_var} = {lhs.name} * {rhs.name};")
+                        op_txt = "*"
                     Divide:
-                        emit("const {typed_var} = {lhs.name} / {rhs.name};")
+                        op_txt = "/"
+                emit("const {typed_var} = {lhs.name} {op_txt} {rhs.name};")
 
                 push(Value(name: varname, ty))
             
@@ -214,35 +217,23 @@ class CGenerator:
                 let rhs = pop()
                 let lhs = pop()
                 let varname = new_local_var()
-                let ty = lhs.ty
-                case op:
-                    Less:
-                        ty = bc.Type.Int()
-                    LessEquals:
-                        ty = bc.Type.Int()
-                    Greater:
-                        ty = bc.Type.Int()
-                    GreaterEquals:
-                        ty = bc.Type.Int()
-                    Equals:
-                        ty = bc.Type.Int()
-                    NotEquals:
-                        ty = bc.Type.Int()
-
+                let ty = bc.Type.Int()
                 let typed_var = get_type_txt(ty, name: varname)
+                let op_txt = "$"
                 case op:
                     Less:
-                        emit("const {typed_var} = ({lhs.name} < {rhs.name});")
+                        op_txt = "<"
                     LessEquals:
-                        emit("const {typed_var} = ({lhs.name} <= {rhs.name});")
+                        op_txt = "<="
                     Greater:
-                        emit("const {typed_var} = ({lhs.name} > {rhs.name});")
+                        op_txt = ">"
                     GreaterEquals:
-                        emit("const {typed_var} = ({lhs.name} >= {rhs.name});")
+                        op_txt = ">="
                     Equals:
-                        emit("const {typed_var} = ({lhs.name} == {rhs.name});")
+                        op_txt = "=="
                     NotEquals:
-                        emit("const {typed_var} = ({lhs.name} != {rhs.name});")
+                        op_txt = "!="
+                emit("const {typed_var} = ({lhs.name} {op_txt} {rhs.name});")
                 push(Value(name: varname, ty))
             
             Bitop(op):
@@ -255,39 +246,16 @@ class CGenerator:
                 let typed_var = get_type_txt(ty, name: varname)
                 emit("{typed_var} = (double)({value.name});")
                 push(Value(name: varname, ty))
+
             Call(index):
                 let function = functions.get(index)
                 let callee = function.name
-                let args = pop_n(count: function.parameters.len())
-                let args2: List[str] = List()
-                for arg in args:
-                    args2.append(arg.name)
-                let arg_text = str_join(parts: args2, sep: ", ")
-                case function.return_type:
-                    Some(ty):
-                        let varname = new_local_var()
-                        let typed_var = get_type_txt(ty, name: varname)
-                        emit("{typed_var} = {callee}({arg_text});")
-                        push(Value(name: varname, ty))
-                    None:
-                        emit("{callee}({arg_text});")
+                gen_call(callee, parameter_types: function.parameters, return_type: function.return_type)
 
             CallExtern(index):
                 let function = extern_functions.get(index)
                 let callee = function.name
-                let args = pop_n(count: function.parameters.len())
-                let args2: List[str] = List()
-                for arg in args:
-                    args2.append(arg.name)
-                let arg_text = str_join(parts: args2, sep: ", ")
-                case function.return_type:
-                    Some(ty):
-                        let varname = new_local_var()
-                        let typed_var = get_type_txt(ty, name: varname)
-                        emit("{typed_var} = {callee}({arg_text});")
-                        push(Value(name: varname, ty))
-                    None:
-                        emit("{callee}({arg_text});")
+                gen_call(callee, parameter_types: function.parameters, return_type: function.return_type)
 
             LocalGet(index):
                 let varname = local_variables.get(index)
@@ -325,6 +293,21 @@ class CGenerator:
                 let value = pop()
                 let base = pop()
                 emit("{base.name}->field{index} = {value.name};")
+
+            GetIndex:
+                let index = pop()
+                let base = pop()
+                let varname = new_local_var()
+                let ty = bc.get_element_type_from_type(base.ty)
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("{typed_var} {base.name}[{index.name}];")
+                push(Value(name: varname, ty))
+                
+            SetIndex:
+                let value = pop()
+                let index = pop()
+                let base = pop()
+                emit("{base.name}[{index.name}] = {value.name};")
 
             Return(amount):
                 if amount == 1:
@@ -375,6 +358,24 @@ class CGenerator:
                 emit("const int {varname} [{size}] = | {arg_text} |;")
                 push(Value(name: varname, ty: bc.Type.Int()))
 
+            ArrayLiteral2:
+                panic("TODO!")
+
+    fn gen_call(callee: str, parameter_types: List[bc.Type], return_type: Option[bc.Type]):
+        let args = pop_n(count: parameter_types.len())
+        let args2: List[str] = List()
+        for arg in args:
+            args2.append(arg.name)
+        let arg_text = str_join(parts: args2, sep: ", ")
+        case return_type:
+            Some(ty):
+                let varname = new_local_var()
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("{typed_var} = {callee}({arg_text});")
+                push(Value(name: varname, ty))
+            None:
+                emit("{callee}({arg_text});")
+
     fn get_type_txt(ty: bc.Type, name: str) -> str:
         case ty:
             Int:
@@ -398,6 +399,8 @@ class CGenerator:
                     parts.append(get_type_txt(ty: p, name: ""))
                 let param_text = str_join(parts, sep: ", ")
                 return "void (*{name})({param_text})"
+            Array(element_type):
+                panic("TODO: array type")
 
     fn push(value?: Value):
         stack.append(value)

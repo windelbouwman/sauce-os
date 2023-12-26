@@ -1,12 +1,18 @@
 
 from std import print, float_to_str
 from datatypes import List, Option
+from utils import panic
 
 struct Program:
     extern_functions: List[ExternFunction]
-    globals: List[Type]
+    globals: List[Global]
     structs: List[Struct]
     functions: List[Function]
+
+struct Global:
+    name: str
+    ty: Type
+    value: List[Instruction]
 
 struct Struct:
     is_union: bool
@@ -31,7 +37,15 @@ enum Type:
     Char
     Ptr
     StructRef(index: int)
+    Array(element_type: Type)
     Function(parameter_types: List[Type])
+
+fn get_element_type_from_type(ty?: Type) -> Type:
+    case ty:
+        Array(element_type):
+            return element_type
+    else:
+        panic("get_element_type_from_type: No array type")
 
 enum Instruction:
     Nop
@@ -53,6 +67,8 @@ enum Instruction:
     Call(index: int)
     CallExtern(index: int)
     Return(n_values: int)
+    SetupTry(try_label: int, except_label: int)
+    Raise
     Unreachable
 
     LocalGet(index: int)
@@ -61,6 +77,8 @@ enum Instruction:
     ParameterSet(index: int)
     GetAttr(index: int, ty: Type)  # TODO: in theory we can derive type from the value on the stack + index?
     SetAttr(index: int)
+    GetIndex
+    SetIndex
 
     GlobalGet(index: int)
     GlobalSet(index: int)
@@ -70,6 +88,7 @@ enum Instruction:
     StructLiteral(struct_index: int)
     UnionLiteral(struct_index: int, field_index: int)
     ArrayLiteral(size: int)
+    ArrayLiteral2
 
 enum LiteralValue:
     Int(value: int)
@@ -148,6 +167,10 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "return({v})"
         Unreachable:
             return "unreachable"
+        SetupTry(try_label, except_label):
+            return "setup-try(try: {try_label}, except: {except_label})"
+        Raise:
+            return "raise"
         LocalGet(index):
             return "local-get({index})"
         LocalSet(index):
@@ -164,6 +187,10 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "get-attr({index}) -> {type_to_string(ty)}"
         SetAttr(index):
             return "set-attr({index})"
+        GetIndex:
+            return "get-index"
+        SetIndex:
+            return "set-index"
         LoadFunc(name):
             return "load-func({name})"
         StructLiteral(struct_index):
@@ -172,6 +199,8 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "union-literal(index={struct_index}, field={field_index})"
         ArrayLiteral(count):
             return "array-literal({count})"
+        ArrayLiteral2:
+            return "array-literal2"
 
 fn binop_to_string(op: BinaryOperator) -> str:
     case op:
@@ -228,7 +257,11 @@ fn print_bc_program(program: Program):
         index += 1
 
     for global in program.globals:
-        print("  GLOBAL {type_to_string(global)}")
+        print("  GLOBAL {global.name} {type_to_string(global.ty)}")
+        index = 0
+        for instruction in global.value:
+            print("      {index}: {instruction_to_string(instruction)}")
+            index += 1
 
     func_index = 0
     for function in program.functions:
@@ -267,3 +300,5 @@ fn type_to_string(ty?: Type) -> str:
             return "struct-ref({index})"
         Function(parameter_types):
             return "func-ptr()"
+        Array(element_type):
+            return "array({type_to_string(element_type)})"

@@ -72,6 +72,11 @@ fn main() -> int:
         i += 1
     
     set_log_level(level: options.verbosity)
+
+    if filenames.is_empty():
+        log_error("No input")
+        return 2
+
     # Sort filenames lexicographical
     filenames = sort_list(filenames, cmp: string_compare)
     

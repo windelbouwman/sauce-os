@@ -3,7 +3,7 @@
 import ast
 from std import print
 from datatypes import List, Dictionary, option_unwrap, Option, option_is_some
-from utils import panic, log_info, log_debug, assert
+from utils import panic, log_info, log_debug, assert, log_trace
 from bc import Instruction
 import bc
 
@@ -24,7 +24,7 @@ class BytecodeGenerator:
     var is_reachable: bool = true
     var code: List[Instruction] = List()
 
-    var global_variables: List[bc.Type] = List()
+    var global_variables: List[bc.Global] = List()
     var global_var_mapping: Dictionary[int] = Dictionary()
     var local_variables: List[bc.Type] = List()
     var local_var_mapping: Dictionary[int] = Dictionary()
@@ -62,9 +62,13 @@ class BytecodeGenerator:
                         structs.append(bc.Struct(fields: fields2, is_union: struct_def.is_union))
                     Var(variable_def):
                         let global_index = global_variables.len()
-                        let global_variable = get_bc_type(variable_def.variable.ty)
+                        let name = ast.node_id_to_string(variable_def.variable.id)
+                        begin_code()
+                        gen_expression(option_unwrap(variable_def.value))
+                        let value = get_relocated_instructions()
+                        let global_variable = bc.Global(name, ty: get_bc_type(variable_def.variable.ty), value)
                         global_variables.append(global_variable)
-                        global_var_mapping.insert(key: ast.node_id_to_string(variable_def.variable.id), value: global_index)
+                        global_var_mapping.insert(key: name, value: global_index)
                     ExternFunction(extern_function_def):
                         let func_index = extern_functions.len()
                         let name = extern_function_def.name
@@ -107,10 +111,8 @@ class BytecodeGenerator:
         let return_type = Option.None()
         if not ast.is_void_type(function_def.return_type):
             return_type = Option.Some(get_bc_type(function_def.return_type))
-        label_mapping = Dictionary()
-        code = List()
+        begin_code()
         local_variables = List()
-        is_reachable = true
 
         gen_statement(function_def.body)
 
@@ -146,7 +148,7 @@ class BytecodeGenerator:
             For(for_statement):
                 panic("For-statement not supported")
             Try(try_statement):
-                panic("For-statement not supported")
+                gen_try_statement(try_statement)
             Case(case_statement):
                 panic("Case-statement not supported")
             Let(let_statement):
@@ -169,7 +171,8 @@ class BytecodeGenerator:
                         emit(Instruction.Return(n_args: 0))
                 is_reachable = false
             Raise(val):
-                panic("Raise not implemented")
+                gen_expression(val)
+                emit(Instruction.Raise())
     
     fn gen_assignment(target: ast.Expression, op: Option[ast.BinaryOperator], value: ast.Expression):
         case target.kind:
@@ -186,9 +189,20 @@ class BytecodeGenerator:
                 emit(Instruction.SetAttr(index))
             GetIndex(base, indici):
                 gen_expression(base)
-                gen_expression(value)
-                # TODO: handle optional operator, like += and -=
-                panic("TODO assign x[y] =")
+                assert(condition: indici.len() == 1, message: "Unsupported: multi-indexing")
+                let index = indici.first()
+                gen_expression(index)
+                case op:
+                    Some(op):
+                        emit(Instruction.GetIndex())
+                        gen_expression(value)
+                        gen_binop(op)
+                        # TBD: we do want to duplicate base and index here
+                        panic("x[y] += not implemented")
+                        # TODO: handle optional operator, like += and -=
+                    None:
+                        gen_expression(value)
+                emit(Instruction.SetIndex())
             VarRef(variable):
                 if is_local_variable(variable):
                     let index = get_local_index(variable)
@@ -227,8 +241,30 @@ class BytecodeGenerator:
 
         else:
             panic("Cannot assign: {ast.expression_to_string(target)}")
+    
+    fn gen_try_statement(try_statement: ast.TryStatement):
+        log_trace("gen_try_statement")
+        let try_label = new_label()
+        let except_label = new_label()
+        let final_label = new_label()
+
+        emit(Instruction.SetupTry(try_label, except_label))
+
+        set_label(try_label)
+        gen_statement(try_statement.try_block.body)
+        jump(final_label)
+
+        set_label(except_label)
+        # Set local from top of stack
+        gen_statement(try_statement.except_block.body)
+        jump(final_label)
+
+        set_label(final_label)
+        
+        panic("Try-statement not supported")
 
     fn gen_while_statement(while_statement: ast.WhileStatement):
+        log_trace("gen_while_statement")
         let test_label = new_label()
         let body_label = new_label()
         let final_label = new_label()
@@ -326,7 +362,10 @@ class BytecodeGenerator:
                 emit(Instruction.GetAttr(index, ty: get_bc_type(expression.ty)))
             GetIndex(base, indici):
                 gen_expression(base)
-                panic("TODO: get-index")
+                assert(condition: indici.len() == 1, message: "Unsupported: multi-indexing")
+                let index = indici.first()
+                gen_expression(index)
+                emit(Instruction.GetIndex())
             Binop(binop):
                 case binop.op:
                     And:
@@ -387,7 +426,9 @@ class BytecodeGenerator:
                     gen_expression(value)
                 emit(Instruction.ArrayLiteral(n_values: values.len()))
             ArrayLiteral2(value, size):
-                panic("TODO: ArrayLiteral2!")
+                gen_expression(value)
+                gen_expression(size)
+                emit(Instruction.ArrayLiteral2())
             TypeCast(ty, value):
                 gen_expression(value)
                 if ast.is_int_type(value.ty) and ast.is_float_type(ty):
@@ -497,6 +538,11 @@ class BytecodeGenerator:
     fn translate_label(label?: int) -> int:
         return option_unwrap(label_mapping.get(key: "{label}"))
 
+    fn begin_code():
+        label_mapping = Dictionary()
+        code = List()
+        is_reachable = true
+
     fn get_relocated_instructions() -> List[Instruction]:
         # Apply relocations to labels
         let instructions: List[Instruction] = List()
@@ -572,6 +618,9 @@ class BytecodeGenerator:
             ty = bc.Type.Char()
         elif ast.is_opaque_type(ty2):
             ty = bc.Type.Ptr()
+        elif ast.is_array_type(ty2):
+            let element_type2 = ast.get_element_type_from_type(ty2)
+            ty = bc.Type.Array(get_bc_type(element_type2))
         else:
             panic("Type: {ast.type_to_string(ty2)} not supported")
         return ty

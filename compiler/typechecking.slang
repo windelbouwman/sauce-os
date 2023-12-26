@@ -119,7 +119,11 @@ class TypeChecker:
                     add_error(location: case_statement.value.location, message: "Got {ast.type_to_string(case_statement.value.ty)}, expected enum")
             For(for_statement):
                 if ast.is_array_type(for_statement.iter_value.ty):
-                    for_statement.iter_var.ty = ast.get_element_type_from_type(for_statement.iter_value.ty)
+                    let size = ast.get_array_size_from_type(for_statement.iter_value.ty)
+                    if size > 0:
+                        for_statement.iter_var.ty = ast.get_element_type_from_type(for_statement.iter_value.ty)
+                    else:
+                        add_error(location: for_statement.iter_value.location, message: "Array size unknown")
                 elif ast.has_field(ty: for_statement.iter_value.ty, attr: "iter"):
                     # TODO: we have a few assumptions here, which panic. Should be proper warning:
                     # print("FORRRRRR")

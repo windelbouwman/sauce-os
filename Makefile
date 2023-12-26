@@ -39,6 +39,8 @@ check: ${TEST_EXES}
 	${BUILDDIR}/tests/test_integer_set.exe
 	${BUILDDIR}/tests/test_regex.exe
 	${BUILDDIR}/tests/test_geometries.exe
+	${BUILDDIR}/tests/test_set.exe
+	${BUILDDIR}/tests/test_json.exe
 
 # Example to bytecode compilation
 all-examples-bc: $(BC_EXAMPLES)

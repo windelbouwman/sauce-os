@@ -4,7 +4,6 @@
 from datatypes import List, Option, Dictionary, option_unwrap
 from utils import panic, log_debug, log_info, assert
 from bc import Instruction, Program, Function, instruction_to_string
-from bc import BinaryOperator, ComparisonOperator, type_to_string
 from std import print, float_to_str
 import std
 import bc
@@ -16,7 +15,11 @@ enum Value:
     Char(value: char)
     Float(value: float)
     Bool(value: bool)
+    List(list: ListValue)
     Undefined
+
+struct ListValue:
+    values: List[Value]
 
 fn value_to_string(value?: Value) -> str:
     case value:
@@ -33,6 +36,8 @@ fn value_to_string(value?: Value) -> str:
                 return "bool(true)"
             else:
                 return "bool(false)"
+        List(values):
+            return "List(..)"
         Undefined:
             return "undefined"
 
@@ -70,6 +75,13 @@ fn float_from_value(value?: Value) -> float:
             return value
     else:
         panic("float_from_value: no float")
+
+fn list_from_value(value?: Value) -> ListValue:
+    case value:
+        List(list):
+            return list
+    else:
+        panic("list_from_value: no list")
 
 struct ExternFunctionImpl:
     f: fn(List[Value]) -> Option[Value]
@@ -174,6 +186,8 @@ fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
 
 fn run_bytecode(program: Program, entry_function: str):
     let vm = VirtualMachine(program)
+
+    # Link external functions:
     let efi_db = get_efi_db()
     for e in program.extern_functions:
         if efi_db.contains(key: e.name):
@@ -183,9 +197,14 @@ fn run_bytecode(program: Program, entry_function: str):
         else:
             panic("Missing extern function: {e.name}")
 
+    # Initialize global variables:
+    for g in program.globals:
+        vm.globals.append(eval_code(vm, code: g.value))
+
     let top_frame = Frame(code: List())
     vm.push_frame(frame: top_frame)
 
+    # Create mapping from names to index:
     let function_name_to_index: Dictionary[int] = Dictionary()
     let index = 0
     for function in program.functions:
@@ -198,8 +217,17 @@ fn run_bytecode(program: Program, entry_function: str):
     let frame = frame_from_function(function, arguments)
     vm.push_frame(frame)
     while vm.frames.len() > 1:
-        let instruction = vm.fetch()
-        vm.execute(instruction)
+        vm.step()
+
+fn eval_code(vm: VirtualMachine, code: List[Instruction]) -> Value:
+    # Evaluate a bytecode expression
+    let frame = Frame(code)
+    vm.push_frame(frame)
+    while frame.pc < code.len():
+        vm.step()
+    vm.pop_frame()
+    return frame.stack.last()
+
 
 fn frame_from_function(function: Function, arguments: List[Value]) -> Frame:
     let frame = Frame(code: function.instructions)
@@ -218,6 +246,7 @@ class Frame:
     var arguments: List[Value] = List()
     var locals: List[Value] = List()
     var stack: List[Value] = List()
+    var exception_handlers: List[int] = List()
     var pc: int = 0
     var code: List[Instruction]
 
@@ -231,6 +260,10 @@ class VirtualMachine:
     var frames: List[Frame] = List()
     var globals: List[Value] = List()
     var program: Program
+
+    fn step():
+        let instruction = fetch()
+        execute(instruction)
 
     fn fetch() -> Instruction:
         return frames.last().fetch()
@@ -273,11 +306,28 @@ class VirtualMachine:
                 set_parameter(index, value: pop())
             GetAttr(index, ty):
                 let base = pop()
-                panic("TODO")
+                let list = list_from_value(base)
+                let value = list.values.get(index)
+                push(value)
             SetAttr(index):
                 let value = pop()
                 let base = pop()
-                panic("TODO")
+                let list = list_from_value(base)
+                list.values.set(index, value)
+            GetIndex:
+                let index = pop()
+                let base = pop()
+                let list = list_from_value(base)
+                let index2 = int_from_value(index)
+                let value = list.values.get(index: index2)
+                push(value)
+            SetIndex:
+                let value = pop()
+                let index = pop()
+                let base = pop()
+                let list = list_from_value(base)
+                let index2 = int_from_value(index)
+                list.values.set(index: index2, value)
             Not:
                 let value = pop()
                 # TODO!
@@ -289,19 +339,13 @@ class VirtualMachine:
                 let lhs = pop()
                 case lhs:
                     Int(lhs_value):
-                        case rhs:
-                            Int(rhs_value):
-                                let value = eval_comparison_int(op, lhs: lhs_value, rhs: rhs_value)
-                                push(Value.Bool(value))
-                        else:
-                            panic("rhs must be int")
+                        let rhs_value = int_from_value(rhs)
+                        let value = eval_comparison_int(op, lhs: lhs_value, rhs: rhs_value)
+                        push(Value.Bool(value))
                     Float(lhs_value):
-                        case rhs:
-                            Float(rhs_value):
-                                let value = eval_comparison_float(op, lhs: lhs_value, rhs: rhs_value)
-                                push(Value.Bool(value))
-                        else:
-                            panic("rhs must be int")
+                        let rhs_value = float_from_value(rhs)
+                        let value = eval_comparison_float(op, lhs: lhs_value, rhs: rhs_value)
+                        push(Value.Bool(value))
                 else:
                     panic("Cannot Comparison {value_to_string(lhs)}")
             Binop(op):
@@ -309,19 +353,13 @@ class VirtualMachine:
                 let lhs = pop()
                 case lhs:
                     Int(lhs_value):
-                        case rhs:
-                            Int(rhs_value):
-                                let value = eval_binop_int(op, lhs: lhs_value, rhs: rhs_value)
-                                push(Value.Int(value))
-                        else:
-                            panic("rhs must be int")
+                        let rhs_value = int_from_value(rhs)
+                        let value = eval_binop_int(op, lhs: lhs_value, rhs: rhs_value)
+                        push(Value.Int(value))
                     Float(lhs_value):
-                        case rhs:
-                            Float(rhs_value):
-                                let value = eval_binop_float(op, lhs: lhs_value, rhs: rhs_value)
-                                push(Value.Float(value))
-                        else:
-                            panic("rhs must be int")
+                        let rhs_value = float_from_value(rhs)
+                        let value = eval_binop_float(op, lhs: lhs_value, rhs: rhs_value)
+                        push(Value.Float(value))
                 else:
                     panic("Cannot binop")
             Bitop(op):
@@ -339,7 +377,7 @@ class VirtualMachine:
                 else:
                     jump(target2)
             Call(index):
-                log_info("Call function!")
+                log_debug("Call function!")
                 let function = program.functions.get(index)
                 let n = function.parameters.len()
                 let arguments = pop_n(count: n)
@@ -362,17 +400,55 @@ class VirtualMachine:
                     pop_frame()
             Unreachable:
                 panic("Reached unreachable")
+            SetupTry(try_label, except_label):
+                frames.last().exception_handlers.append(except_label)
+                jump(try_label)
+            Raise:
+                # Find matching exception handler in inner most frame!
+                let value = pop()
+                loop:
+                    if frames.is_empty():
+                        panic("No exception handler found!")
+                    else:
+                        let frame = frames.last()
+                        if frame.exception_handlers.is_empty():
+                            frames.drop_last()
+                        else:
+                            let handler = frame.exception_handlers.last()
+                            jump(handler)
+                            break
+
             LoadFunc(name):
                 panic("TODO: load func")
             StructLiteral(struct_index):
-                let count = 13333  # TODO: retrieve from struct def array
+                let struc = program.structs.get(index: struct_index)
+                let count = struc.fields.len()
                 let values = pop_n(count)
-                panic("TODO: struct literal")
+                let list = ListValue(values)
+                push(Value.List(list))
             UnionLiteral(struct_index, field_index):
-                panic("TODO: union literal")
+                let struc = program.structs.get(index: struct_index)
+                let values: List[Value] = List()
+                for x in struc.fields:
+                    values.append(Value.Undefined())
+                let value = pop()
+                values.set(index: field_index, value)
+                let list = ListValue(values)
+                push(Value.List(list))
             ArrayLiteral(count):
                 let values = pop_n(count)
-                panic("TODO: array literal")
+                let list = ListValue(values)
+                push(Value.List(list))
+            ArrayLiteral2:
+                let size = pop()
+                let value = pop()
+                let size2 = int_from_value(size)
+                let values: List[Value] = List()
+                while size2 > 0:
+                    size2 -= 1
+                    values.append(value)
+                let list = ListValue(values)
+                push(Value.List(list))
     
     fn push(value?: Value):
         frames.last().stack.append(value)
@@ -416,7 +492,7 @@ class VirtualMachine:
         frames.append(frame)
 
 
-fn eval_binop_int(op: BinaryOperator, lhs: int, rhs: int) -> int:
+fn eval_binop_int(op: bc.BinaryOperator, lhs: int, rhs: int) -> int:
     case op:
         Add:
             return lhs + rhs
@@ -427,7 +503,7 @@ fn eval_binop_int(op: BinaryOperator, lhs: int, rhs: int) -> int:
         Multiply:
             return lhs * rhs
 
-fn eval_comparison_int(op: ComparisonOperator, lhs: int, rhs: int) -> bool:
+fn eval_comparison_int(op: bc.ComparisonOperator, lhs: int, rhs: int) -> bool:
     case op:
         Less:
             return lhs < rhs
@@ -442,7 +518,7 @@ fn eval_comparison_int(op: ComparisonOperator, lhs: int, rhs: int) -> bool:
         NotEquals:
             return lhs != rhs
 
-fn eval_binop_float(op: BinaryOperator, lhs: float, rhs: float) -> float:
+fn eval_binop_float(op: bc.BinaryOperator, lhs: float, rhs: float) -> float:
     case op:
         Add:
             return lhs + rhs
@@ -453,7 +529,7 @@ fn eval_binop_float(op: BinaryOperator, lhs: float, rhs: float) -> float:
         Multiply:
             return lhs * rhs
 
-fn eval_comparison_float(op: ComparisonOperator, lhs: float, rhs: float) -> bool:
+fn eval_comparison_float(op: bc.ComparisonOperator, lhs: float, rhs: float) -> bool:
     case op:
         Less:
             return lhs < rhs
