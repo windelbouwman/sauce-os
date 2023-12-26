@@ -4,11 +4,11 @@
 	"patterns": [
 		{
 			"name": "keyword.control",
-			"match": "\\b(if|while|for|in|return|raise|loop|else|elif|case|break|continue|pass)\\b"
+			"match": "\\b(if|while|for|in|return|raise|loop|else|elif|case|break|continue|pass|try|except)\\b"
 		},
 		{
 			"name": "keyword.other",
-			"match": "\\b(var|let|fn|struct|class|enum|from|and|or|not|import|except|extern|pub)\\b"
+			"match": "\\b(var|let|fn|struct|class|enum|from|and|or|not|import|extern|pub)\\b"
 		},
 		{
 			"name": "keyword.operator",

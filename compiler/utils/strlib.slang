@@ -87,9 +87,6 @@ fn is_hex_digit(c: char) -> bool:
     else:
         return false
 
-fn is_whitespace(c: char) -> bool:
-    panic("TODO!")
-
 fn trim(text?: str) -> str:
     # Trim spaces
     let i = 0

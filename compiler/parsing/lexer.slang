@@ -208,10 +208,12 @@ class Lexer:
 
             elif ord(c) == 39:
                 # Char literal
-                offset += 2
-                # TODO: check closing '
-                let char_value = std.str_get(value: get_lexeme(), index: 1)
-                kind = TokenKind.Char(char_value)
+                offset += 1
+                if offset < n and ord(peek()) == 39:
+                    offset += 1
+                    if offset < n:
+                        let char_value = std.str_get(value: get_lexeme(), index: 1)
+                        kind = TokenKind.Char(char_value)
 
             elif c == '<':
                 if match(txt: '='):

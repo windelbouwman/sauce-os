@@ -137,6 +137,10 @@ class NewOpPass(BasePass):
                     value = expression.kind.args[0].value
                     expression.kind = ast.TypeCast(ty, value)
 
+                elif ty.is_int():
+                    value = expression.kind.args[0].value
+                    expression.kind = ast.TypeCast(ty, value)
+
                 else:
                     self.error(
                         expression.location,

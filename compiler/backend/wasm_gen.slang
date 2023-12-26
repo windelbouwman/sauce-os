@@ -13,6 +13,7 @@ import webassembly
 import ast
 from webassembly import Instruction
 from datatypes import List, Dictionary, option_unwrap, vec1
+from location import location_default
 from std import print, str_len, ord
 from utils import panic, log_info, log_debug, assert, log_error
 
@@ -37,7 +38,7 @@ class WasmGenerator:
     var block_stack: List[bool] = List()
 
     fn gen_module_set(modules: List[ast.Module]):
-        let malloc_def = ast.extern_function_def(modname: "js", name: "malloc", parameter_types: vec1(ast.int_type()), return_type: ast.opaque_type())
+        let malloc_def = ast.extern_function_def(modname: "js", name: "malloc", parameter_types: vec1(ast.int_type()), return_type: ast.opaque_type(), location: location_default())
         gen_external_function(extern_function_def: malloc_def)
 
         for module in modules:

@@ -199,7 +199,6 @@ class BytecodeGenerator:
                         gen_binop(op)
                         # TBD: we do want to duplicate base and index here
                         panic("x[y] += not implemented")
-                        # TODO: handle optional operator, like += and -=
                     None:
                         gen_expression(value)
                 emit(Instruction.SetIndex())
@@ -248,20 +247,20 @@ class BytecodeGenerator:
         let except_label = new_label()
         let final_label = new_label()
 
-        emit(Instruction.SetupTry(try_label, except_label))
+        let except_var_index = add_local(variable: try_statement.except_var)
+        emit(Instruction.SetupTry(try_label, except_var_index, except_label))
 
         set_label(try_label)
         gen_statement(try_statement.try_block.body)
+        emit(Instruction.PopTry())
         jump(final_label)
 
         set_label(except_label)
-        # Set local from top of stack
+        emit(Instruction.PopTry())
         gen_statement(try_statement.except_block.body)
         jump(final_label)
 
         set_label(final_label)
-        
-        panic("Try-statement not supported")
 
     fn gen_while_statement(while_statement: ast.WhileStatement):
         log_trace("gen_while_statement")
@@ -320,7 +319,13 @@ class BytecodeGenerator:
                 else:
                     gen_expression(condition)
                     jump_if(label: true_label, label2: false_label)
-            # TODO: unop -> not 
+            Unop(op, rhs):
+                case op:
+                    Not:
+                        gen_condition(condition: rhs, true_label: false_label, false_label: true_label)
+                else:
+                    gen_expression(condition)
+                    jump_if(label: true_label, label2: false_label)
         else:
             gen_expression(condition)
             jump_if(label: true_label, label2: false_label)
@@ -431,23 +436,27 @@ class BytecodeGenerator:
                 emit(Instruction.ArrayLiteral2())
             TypeCast(ty, value):
                 gen_expression(value)
-                if ast.is_int_type(value.ty) and ast.is_float_type(ty):
-                    emit(Instruction.IntToFloat())
-                elif ast.is_opaque_type(value.ty) and ast.is_opaque_type(ty):
-                    pass
-                elif ast.is_opaque_type(value.ty) and ast.is_struct_type(ty):
-                    # TODO: we might require a cast here?
-                    pass
-                elif ast.is_struct_type(value.ty) and ast.is_opaque_type(ty):
-                    # TODO: we might require a cast here?
-                    pass
+                if ast.is_float_type(ty):
+                    if ast.is_int_type(value.ty):
+                        emit(Instruction.IntToFloat())
+                    elif ast.is_opaque_type(value.ty):
+                        emit(Instruction.FromOpaque(get_bc_type(ty)))
+                    else:
+                        panic("cannot cast to float: {ast.type_to_string(value.ty)}")
+                elif ast.is_int_type(ty):
+                    if ast.is_float_type(value.ty):
+                        emit(Instruction.FloatToInt())
+                    elif ast.is_opaque_type(value.ty):
+                        emit(Instruction.FromOpaque(get_bc_type(ty)))
+                    else:
+                        panic("cannot cast to float: {ast.type_to_string(value.ty)}")
                 elif ast.is_opaque_type(ty):
-                    # Assume all values can be opaque?
-                    # TBD: is this a valid assumption?
-                    pass
+                    if ast.is_opaque_type(value.ty):
+                        pass
+                    else:
+                        emit(Instruction.ToOpaque(get_bc_type(value.ty)))
                 elif ast.is_opaque_type(value.ty):
-                    # Assume casting from opaque is trouble-less
-                    pass
+                    emit(Instruction.FromOpaque(get_bc_type(ty)))
                 else:
                     panic("TODO: unsupported type-casting from {ast.type_to_string(value.ty)} to {ast.type_to_string(ty)}")
         else:
@@ -555,6 +564,10 @@ class BytecodeGenerator:
                     label1 = translate_label(label1)
                     label2 = translate_label(label2)
                     instructions.append(Instruction.JumpIf(label1, label2))
+                SetupTry(try_label, except_var_index, except_label):
+                    try_label = translate_label(try_label)
+                    except_label = translate_label(except_label)
+                    instructions.append(Instruction.SetupTry(try_label, except_var_index, except_label))
             else:
                 instructions.append(instruction)
         return instructions

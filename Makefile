@@ -26,27 +26,18 @@ PY_EXAMPLES := $(patsubst examples/%.slang, build/python/%.py, $(SLANG_EXAMPLES)
 C_EXAMPLES := $(patsubst examples/%.slang, build/c/%.exe, $(SLANG_EXAMPLES))
 BC_EXAMPLES := $(patsubst examples/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
-TEST_EXES := $(patsubst tests/test_%.slang, ${BUILDDIR}/tests/test_%.exe, $(TESTS))
+ALL_TEST_RUNS := $(patsubst tests/test_%.slang, run-test-%, $(TESTS))
 
-
+.PHONY: all check
 all: ${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/c/mandel.exe ${BUILDDIR}/regex.exe
 
-check: ${TEST_EXES}
-	${BUILDDIR}/tests/test_strlib.exe
-	${BUILDDIR}/tests/test_list.exe
-	${BUILDDIR}/tests/test_hash.exe
-	${BUILDDIR}/tests/test_math.exe
-	${BUILDDIR}/tests/test_integer_set.exe
-	${BUILDDIR}/tests/test_regex.exe
-	${BUILDDIR}/tests/test_geometries.exe
-	${BUILDDIR}/tests/test_set.exe
-	${BUILDDIR}/tests/test_json.exe
+check: ${ALL_TEST_RUNS}
 
 # Example to bytecode compilation
 all-examples-bc: $(BC_EXAMPLES)
 
 ${BUILDDIR}/bc/%.txt: examples/%.slang ${COMPILER6} | ${BUILDDIR}
-	python ${COMPILER6} -bc $< > $@
+	python ${COMPILER6} --backend-bc $< runtime/std.slang > $@
 
 
 # Example compiled to Python code:
@@ -54,7 +45,6 @@ all-examples-python: $(PY_EXAMPLES)
 
 ${BUILDDIR}/python/%.py: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
 	python ${COMPILER6} --backend-py -o $@ $< runtime/std.slang
-
 
 # examples compiled to C code:
 all-examples-c: $(C_EXAMPLES)
@@ -79,6 +69,10 @@ ${BUILDDIR}/wasm/%.wat: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUIL
 	python ${COMPILER6} -wasm $< runtime/std.slang | sed '/^# /d' > $@
 
 # Unit tests:
+.PHONY: run_test_%
+run-test-%: ${BUILDDIR}/tests/test_%.exe
+	$<
+
 ${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}
 	python ${COMPILER6} --backend-c -o $@ $< ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
 
@@ -128,6 +122,7 @@ ${BUILDDIR}:
 ${BUILDDIR}/runtime.o: runtime/runtime.c | ${BUILDDIR}
 	gcc ${CFLAGS} -c -o $@ $<
 
+.PHONY: clean
 clean:
 	rm -rf ${BUILDDIR}
 

@@ -61,14 +61,19 @@ enum Instruction:
     Bitop(op: BitOperator)
 
     IntToFloat
+    FloatToInt
+
+    ToOpaque(ty: Type)
+    FromOpaque(ty: Type)
 
     Jump(label: int)  # Unconditional jump
     JumpIf(label1: int, label2: int)
     Call(index: int)
     CallExtern(index: int)
     Return(n_values: int)
-    SetupTry(try_label: int, except_label: int)
+    SetupTry(try_label: int, except_var_index: int, except_label: int)
     Raise
+    PopTry
     Unreachable
 
     LocalGet(index: int)
@@ -157,8 +162,17 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return comparison_to_string(op)
         Bitop(op):
             return bitop_to_string(op)
+
         IntToFloat:
             return "int-to-float"
+        FloatToInt:
+            return "float-to-int"
+
+        ToOpaque(t):
+            return "?-to-opaque"
+        FromOpaque(t):
+            return "opaque-to-?"
+
         Call(index):
             return "call({index})"
         CallExtern(index):
@@ -167,10 +181,12 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "return({v})"
         Unreachable:
             return "unreachable"
-        SetupTry(try_label, except_label):
-            return "setup-try(try: {try_label}, except: {except_label})"
+        SetupTry(try_label, except_var_index, except_label):
+            return "setup-try(try: {try_label}, except_local: {except_var_index}, except: {except_label})"
         Raise:
             return "raise"
+        PopTry:
+            return "pop-try"
         LocalGet(index):
             return "local-get({index})"
         LocalSet(index):

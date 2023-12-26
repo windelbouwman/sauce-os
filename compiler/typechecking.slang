@@ -34,6 +34,8 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
             case definition:
                 Function(function_def):
                     checker.current_function = Option.Some(function_def)
+                    if not ast.is_void_type(function_def.except_type):
+                        checker.exception_handlers.append(function_def.except_type)
             else:
                 pass
         Post:
@@ -41,6 +43,8 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
                 Function(function_def):
                     checker.check_function_def(function_def)
                     checker.current_function = Option.None()
+                    if not ast.is_void_type(function_def.except_type):
+                        checker.exception_handlers.drop_last()
             else:
                 pass
     else:
@@ -60,10 +64,19 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
     case phase:
         Pre:
             checker.was_errors = false
+            if ast.is_breakable(statement):
+                checker.loops += 1
+            case statement.kind:
+                Try(try_statement):
+                    checker.exception_handlers.append(try_statement.except_type)
+            else:
+                pass
         Mid:
             checker.check_statement_mid(statement)
         Post:
             checker.check_statement(statement)
+            if ast.is_breakable(statement):
+                checker.loops -= 1
     else:
         pass
 
@@ -82,6 +95,8 @@ class TypeChecker:
     var errors: List[SingleCompilationError] = List()
     var was_errors: bool = false
     var current_function: Option[ast.FunctionDef] = Option.None()
+    var loops: int = 0
+    var exception_handlers: List[ast.Type] = List()
 
     fn check_function_def(function_def: ast.FunctionDef):
         # Check if we return a value, if we need to return a value
@@ -137,6 +152,9 @@ class TypeChecker:
                     for_statement.iter_var.ty = val_ty
                 else:
                     add_error(location: for_statement.iter_value.location, message: "Value cannot be iterated: {ast.type_to_string(for_statement.iter_value.ty)}")
+            Try(try_statement):
+                exception_handlers.drop_last()
+                try_statement.except_var.ty = try_statement.except_type
         else:
             pass
 
@@ -197,6 +215,7 @@ class TypeChecker:
                             add_error(location: statement.location, message: "Expected a value")
                 statement.is_terminator = true
             Raise(value):
+                check_may_raise_exception(ty: value.ty, location: statement.location)
                 statement.is_terminator = true
             Unreachable:
                 statement.is_terminator = true
@@ -212,6 +231,12 @@ class TypeChecker:
                     statement.is_terminator = false
                 else:
                     statement.is_terminator = true
+            Break:
+                if loops == 0:
+                    add_error(location: statement.location, message: "Connot use break outside of a loop")
+            Continue:
+                if loops == 0:
+                    add_error(location: statement.location, message: "Connot use continue outside of a loop")
         else:
             pass
 
@@ -229,8 +254,9 @@ class TypeChecker:
                         arguments.append(argument.value)
                     check_arguments(location: expression.location, parameter_types, arguments)
                     expression.ty = ast.deref_type_var(return_type)
+                    # print("Call: {ast.type_to_string(expression.ty)}")
 
-                    # Check named arguments: TODO
+                    # Check named arguments:
                     let labels = ast.get_parameter_labels_from_type(call.callee.ty)
                     let label_iter = labels.iter()
                     for argument in call.arguments:
@@ -246,7 +272,10 @@ class TypeChecker:
                             None:
                                 pass
 
-                    # Check exception raising: TODO
+                    # Check exception raising:
+                    let except_type = ast.get_except_type_from_type(call.callee.ty)
+                    if not ast.is_void_type(except_type):
+                        check_may_raise_exception(ty: except_type, location: expression.location)
                 else:
                     add_error(location: expression.location, message: "Cannot call non-function type {ast.type_to_string(call.callee.ty)}")
             LoadSymbol(symbol):
@@ -265,15 +294,15 @@ class TypeChecker:
             FunctionRef(function_def, type_arguments):
                 expression.ty = ast.get_function_type2(function_def, type_arguments)
             TypeConstructor(tycon):
-                panic("checker: TODO: tycon")
+                add_error(location: expression.location, message: "Cannot use a type constructor here")
             TypeCast(ty, value):
                 expression.ty = ty
             ToString(value):
                 if not (ast.is_int_type(value.ty) or ast.is_str_type(value.ty) or ast.is_char_type(value.ty)):
-                    add_error(location: expression.location, message: "Cannot convert to-string automatically")
+                    add_error(location: expression.location, message: "Cannot convert {ast.type_to_string(value.ty)} to string automatically")
                 expression.ty = ast.str_type()
             Typ(t):
-                panic("TODO: type")
+                add_error(location: expression.location, message: "Cannot use a type here")
             Binop(b):
                 # Heuristics ahead...
                 let ty = b.lhs.ty
@@ -287,16 +316,25 @@ class TypeChecker:
                 else:
                     expression.ty = ty
             Unop(op, rhs):
-                let ty = rhs.ty
-                # panic("TODO: unop")
-                # TODO: some checking might be nice
-                expression.ty = ty
+                case op:
+                    Minus:
+                        let ty = rhs.ty
+                        if ast.is_float_type(ty) or ast.is_int_type(ty):
+                            expression.ty = ty
+                        else:
+                            add_error(location: expression.location, message: "Got {ast.type_to_string(ty)}, but unary '-' requires numeric type")
+                    Not:
+                        let ty = rhs.ty
+                        if ast.is_bool_type(ty):
+                            expression.ty = ty
+                        else:
+                            add_error(location: expression.location, message: "Got {ast.type_to_string(ty)}, but 'not' operator requires bool type")
             NameRef(name):
                 panic("names must be resolved: {name}")
             Variant(ty, v):
                 panic("variants must be literals")
             Undefined:
-                panic("TODO: undefined")
+                panic("undefined")
             GetAttr(base, attr):
                 case ast.get_field_type(ty: base.ty, attr):
                     Some(ty):
@@ -319,6 +357,7 @@ class TypeChecker:
                 check_arguments(location: expression.location, parameter_types: payload_types, arguments: values)
                 expression.ty = ty
             ClassLiteral(ty, arguments):
+                # TODO: check arguments
                 expression.ty = ty
             StructLiteral(ty, values):
                 let field_types = ast.get_field_types(ty)
@@ -363,6 +402,14 @@ class TypeChecker:
                 coerce(ty: p_ty, value: argument)
         else:
             add_error(location, message: "got {arguments.len()} arguments, expected {parameter_types.len()}")
+
+    fn check_may_raise_exception(ty: ast.Type, location: Location):
+        if exception_handlers.is_empty():
+            add_error(location, message: "Cannot raise exception here")
+        else:
+            let expected_exception_type = exception_handlers.last()
+            if not unify(ty1: ty, ty2: expected_exception_type):
+                add_error(location, message: "Raised {ast.type_to_string(ty)}, expected: {ast.type_to_string(expected_exception_type)}")
 
     fn coerce(ty: ast.Type, value: ast.Expression):
         # Try to auto-convert before check:

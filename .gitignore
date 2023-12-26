@@ -8,6 +8,7 @@ build/
 .benchmarks/
 
 callgrind.out.*
+profiled.out
 
 __pycache__
 

@@ -242,11 +242,15 @@ fn frame_from_function(function: Function, arguments: List[Value]) -> Frame:
         frame.locals.append(Value.Undefined())
     return frame
 
+struct ExceptionHandler:
+    except_label: int
+    except_local_index: int
+
 class Frame:
     var arguments: List[Value] = List()
     var locals: List[Value] = List()
     var stack: List[Value] = List()
-    var exception_handlers: List[int] = List()
+    var exception_handlers: List[ExceptionHandler] = List()
     var pc: int = 0
     var code: List[Instruction]
 
@@ -330,10 +334,19 @@ class VirtualMachine:
                 list.values.set(index: index2, value)
             Not:
                 let value = pop()
-                # TODO!
-                push(value)
+                if bool_from_value(value):
+                    push(Value.Bool(false))
+                else:
+                    push(Value.Bool(true))
             Neg:
-                panic("TODO: neg")
+                let value = pop()
+                case value:
+                    Int(v):
+                        push(Value.Int(-v))
+                    Float(v):
+                        push(Value.Float(-v))
+                else:
+                    panic("Cannot negate: {value_to_string(value)}")
             Comparison(op):
                 let rhs = pop()
                 let lhs = pop()
@@ -347,7 +360,7 @@ class VirtualMachine:
                         let value = eval_comparison_float(op, lhs: lhs_value, rhs: rhs_value)
                         push(Value.Bool(value))
                 else:
-                    panic("Cannot Comparison {value_to_string(lhs)}")
+                    panic("Cannot compare: {value_to_string(lhs)}")
             Binop(op):
                 let rhs = pop()
                 let lhs = pop()
@@ -363,11 +376,24 @@ class VirtualMachine:
                 else:
                     panic("Cannot binop")
             Bitop(op):
-                panic("TODO: bitop")
+                let rhs = pop()
+                let lhs = pop()
+                let lhs_value = int_from_value(lhs)
+                let rhs_value = int_from_value(rhs)
+                let value = eval_bitop(op, lhs: lhs_value, rhs: rhs_value)
+                push(Value.Int(value))
             IntToFloat:
                 let value = int_from_value(value: pop())
                 let f = float(value)
                 push(Value.Float(f))
+            FloatToInt:
+                let value = float_from_value(value: pop())
+                let f = int(value)
+                push(Value.Int(f))
+            FromOpaque(ty):
+                pass  # VM values are all opaque
+            ToOpaque(ty):
+                pass  # VM values are all opaque
             Jump(target):
                 jump(target)
             JumpIf(target, target2):
@@ -400,8 +426,8 @@ class VirtualMachine:
                     pop_frame()
             Unreachable:
                 panic("Reached unreachable")
-            SetupTry(try_label, except_label):
-                frames.last().exception_handlers.append(except_label)
+            SetupTry(try_label, except_local_index, except_label):
+                frames.last().exception_handlers.append(ExceptionHandler(except_local_index, except_label))
                 jump(try_label)
             Raise:
                 # Find matching exception handler in inner most frame!
@@ -415,9 +441,11 @@ class VirtualMachine:
                             frames.drop_last()
                         else:
                             let handler = frame.exception_handlers.last()
-                            jump(handler)
+                            set_local(index: handler.except_local_index, value)
+                            jump(handler.except_label)
                             break
-
+            PopTry:
+                frames.last().exception_handlers.drop_last()
             LoadFunc(name):
                 panic("TODO: load func")
             StructLiteral(struct_index):
@@ -543,3 +571,16 @@ fn eval_comparison_float(op: bc.ComparisonOperator, lhs: float, rhs: float) -> b
             return lhs == rhs
         NotEquals:
             return lhs != rhs
+
+fn eval_bitop(op: bc.BitOperator, lhs: int, rhs: int) -> int:
+    case op:
+        Shr:
+            return lhs >> rhs
+        Shl:
+            return lhs << rhs
+        And:
+            return lhs & rhs
+        Or:
+            return lhs | rhs
+        Xor:
+            return lhs ^ rhs

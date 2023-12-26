@@ -5,7 +5,14 @@ from std import print
 fn main():
     try:
         let y: int = foo(x: false)
-        print("y1 = {y}")
+        try:
+            raise "Ai"
+        except (ex2: str):
+            print("Inner raise = {ex2}!")
+        try:
+            print("y1 = {y}")
+        except (ex3: str):
+            print("Inner raise 2 = {ex3}!")
         y = foo(x: true)
         print("y2 = {y}")
     except(err_val: str):
@@ -22,3 +29,4 @@ fn may_bork(do_bork: bool) -> int except str:
         raise "Oh noes"
     else:
         return 42
+

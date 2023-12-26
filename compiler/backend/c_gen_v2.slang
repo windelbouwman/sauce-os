@@ -41,7 +41,7 @@ class CGenerator2:
         emit("void rt_incref(void *ptr);")
         emit("void rt_decref(void *ptr);")
 
-        emit("jmp_buf g_except_hook;")
+        emit("jmp_buf* g_except_hook;")
         emit("void* g_except_value;")
 
     fn gen_forward_declarations1(module_set: ast.ModuleSet):
@@ -318,14 +318,23 @@ class CGenerator2:
                 panic("case-statement not supported")
 
             Try(try_statement):
-                # emit("jmpbuf buf1;")
-                log_warning("try-catch C logic is probably wrong.")
-                emit("if (setjmp(g_except_hook) == 0) {chr(123)}")
+                let param_name = gen_id(id: try_statement.except_var.id)
+                # Create a local variable with jmp_buf
+                # Also store a backup of the global exception handler.
+                let jmp_buf_backup = "jmp_buf_backup_{param_name}"
+                let jmp_buf = "jmp_buf_{param_name}"
+                emit("jmp_buf {jmp_buf};")
+                emit("jmp_buf* {jmp_buf_backup} = g_except_hook;")
+                emit("g_except_hook = &{jmp_buf};")
+                emit("if (setjmp(*g_except_hook) == 0) {chr(123)}")
                 gen_block(try_statement.try_block.body)
-                emit("{chr(125)} else {chr(123)}")
-                let param_name = gen_id(id: try_statement.except_param.id)
-                let typed_var = gen_type(ty: try_statement.except_param.ty, name: param_name)
                 indent()
+                emit("g_except_hook = {jmp_buf_backup};")
+                dedent()
+                emit("{chr(125)} else {chr(123)}")
+                indent()
+                emit("g_except_hook = {jmp_buf_backup};")
+                let typed_var = gen_type(ty: try_statement.except_type, name: param_name)
                 emit("{typed_var} = g_except_value;")
                 gen_statement(try_statement.except_block.body)
                 dedent()
@@ -342,7 +351,7 @@ class CGenerator2:
             Raise(value):
                 let value_txt = gen_expression(value)
                 emit("g_except_value = {value_txt};")
-                emit("longjmp(g_except_hook, 1);")
+                emit("longjmp(*g_except_hook, 1);")
             
             Unreachable:
                 emit("__builtin_unreachable();")

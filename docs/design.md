@@ -98,3 +98,25 @@ fn Hashable_int_equal(one: int, other: int) -> bool:
     return one == other
 
 ```
+
+# Tips for compiler writers
+
+- Use more passes. Do not do everything in one pass.
+- Highlight syntax (strings, comments, keywords is enough)
+- bootstrap using a VM or python
+
+# Notes about LLVM backed implementation
+
+See also:
+
+https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-constructs/structures.html
+
+# Implementation notes
+
+Manual lexing:
+
+https://craftinginterpreters.com/scanning.html
+
+precedence climbing:
+
+https://eli.thegreenplace.net/2012/08/02/parsing-expressions-by-precedence-climbing

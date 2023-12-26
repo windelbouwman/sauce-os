@@ -1,6 +1,6 @@
 
 from utils import log_info, log_trace, panic
-from location import Location, location_default
+from location import Location
 from datatypes import List, Option, Dictionary, option_unwrap
 import ast
 from errors import CompilationError, new_error, new_errors, SingleCompilationError
@@ -97,8 +97,7 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
                         None:
                             pass
                 ExternFunction(extern_function_def):
-                    let location = location_default()  # TODO?
-                    filler.define(name: extern_function_def.name, symbol: ast.Symbol.ExternFunction(extern_function_def), location)
+                    filler.define(name: extern_function_def.name, symbol: ast.Symbol.ExternFunction(extern_function_def), location: extern_function_def.location)
                 Enum(enum_def):
                     filler.define(name: enum_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)), location: enum_def.location)
                     filler.enter_scope(scope: enum_def.scope)
@@ -147,7 +146,7 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast
                     filler.enter_scope(scope: loop_statement.block.scope)
                 Try(try_statement):
                     # TODO: create new scope for except clause?
-                    filler.define_parameter(parameter_def: try_statement.except_param)
+                    filler.define_variable(variable: try_statement.except_var)
             else:
                 pass
         Post:
@@ -207,7 +206,6 @@ class ScopeFiller:
         # log_trace("DEFINE {name}")
         let scope = scopes.last()
         if scope.is_defined(name):
-            # let location = location_default()  # TODO!
             add_error(location, message: "Symbol '{name}' is already defined")
         else:
             scope.define(name, symbol)

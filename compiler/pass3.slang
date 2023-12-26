@@ -114,15 +114,23 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                                                 expression.kind = ast.ExpressionKind.StructLiteral(ty, values)
                                             Class(class_def):
                                                 ok = true
-                                                # TODO: check arguments
                                                 expression.kind = ast.ExpressionKind.ClassLiteral(ty, arguments: call.arguments)
                                         else:
                                             pass
                                     Float:
                                         ok = true
-                                        # TODO: check arguments
-                                        let value = call.arguments.first().value
-                                        expression.kind = ast.ExpressionKind.TypeCast(ty, value)
+                                        if call.arguments.len() == 1:
+                                            let value = call.arguments.first().value
+                                            expression.kind = ast.ExpressionKind.TypeCast(ty, value)
+                                        else:
+                                            newop.add_error(location: expression.location, message: "Expect exactly 1 argument to type cast")
+                                    Int:
+                                        ok = true
+                                        if call.arguments.len() == 1:
+                                            let value = call.arguments.first().value
+                                            expression.kind = ast.ExpressionKind.TypeCast(ty, value)
+                                        else:
+                                            newop.add_error(location: expression.location, message: "Expect exactly 1 argument to type cast")
                                 else:
                                     pass
 

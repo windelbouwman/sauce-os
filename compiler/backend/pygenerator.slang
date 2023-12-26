@@ -158,10 +158,10 @@ class PyGenerator:
             Try(try_statement):
                 emit("try:")
                 gen_block(try_statement.try_block.body)
-                let ex_name = "ex_{get_id(id: try_statement.except_param.id)}"
+                let ex_name = "ex_{get_id(id: try_statement.except_var.id)}"
                 emit("except ValueError as {ex_name}:")
                 indent()
-                emit("{get_id(id: try_statement.except_param.id)} = {ex_name}.args[0]")
+                emit("{get_id(id: try_statement.except_var.id)} = {ex_name}.args[0]")
                 gen_statement(try_statement.except_block.body)
                 dedent()
             Assignment(target, op, value):
@@ -245,8 +245,11 @@ class PyGenerator:
                 let i = gen_expression_list(expressions: indici)
                 txt = "{b}[{i}]"
             TypeCast(ty, value):
-                # TODO
                 txt = gen_expression(value, parens: true)
+                if ast.is_float_type(ty):
+                    txt = "float({txt})"
+                elif ast.is_int_type(ty):
+                    txt = "int({txt})"
             LoadSymbol(symbol):
                 case symbol:
                     ExternFunction(extern_function):

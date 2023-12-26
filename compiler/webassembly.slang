@@ -276,6 +276,10 @@ fn pack_u32(value?: int):
 fn pack_byte(opcode?: int):
     pass
 
+fn pack_memarg(align: int, offset: int):
+    pack_u32(align)
+    pack_u32(offset)
+
 fn encode(instruction: Instruction):
     case instruction:
 
@@ -332,29 +336,29 @@ fn encode(instruction: Instruction):
 
         i32_load(align, offset):
             pack_byte(0x28)
-            panic("TODO")
+            pack_memarg(align, offset)
         i64_load(align, offset):
             pack_byte(0x29)
-            panic("TODO")
+            pack_memarg(align, offset)
         f32_load(align, offset):
             pack_byte(0x2A)
-            panic("TODO")
+            pack_memarg(align, offset)
         f64_load(align, offset):
             pack_byte(0x2B)
-            panic("TODO")
+            pack_memarg(align, offset)
 
         i32_store(align, offset):
             pack_byte(0x36)
-            panic("TODO")
+            pack_memarg(align, offset)
         i64_store(align, offset):
             pack_byte(0x37)
-            panic("TODO")
+            pack_memarg(align, offset)
         f32_store(align, offset):
             pack_byte(0x38)
-            panic("TODO")
+            pack_memarg(align, offset)
         f64_store(align, offset):
             pack_byte(0x39)
-            panic("TODO")
+            pack_memarg(align, offset)
 
         i32_const(value):
             pack_byte(0x41)

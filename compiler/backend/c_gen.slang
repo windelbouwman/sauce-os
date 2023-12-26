@@ -177,8 +177,11 @@ class CGenerator:
                 emit("if ({condition.name}) goto {get_label_str(label1)};")
                 emit("  else goto {get_label_str(label2)};")
 
-            SetupTry(try_label, except_label):
-                emit("if (setjmp(g_except_hook) == 0) goto {get_label_str(try_label)} else goto {get_label_str(except_label)};")
+            SetupTry(try_label, except_var_index, except_label):
+                emit("if (setjmp(g_except_hook) == 0)")
+                emit("  goto {get_label_str(try_label)}")
+                emit("else")
+                emit("  goto {get_label_str(except_label)};")
                 # TODO: restore except hook?
                 # TODO: store exception value
 
@@ -186,6 +189,9 @@ class CGenerator:
                 let value = pop()
                 emit("g_except_value = {value.name};")
                 emit("longjmp(g_except_hook, 1);")
+            
+            PopTry:
+                panic("TODO: Restore global except hook")
 
             Not:
                 panic("TODO: not")
@@ -237,7 +243,25 @@ class CGenerator:
                 push(Value(name: varname, ty))
             
             Bitop(op):
-                panic("TODO: bit-op")
+                let rhs = pop()
+                let lhs = pop()
+                let op_txt = "$"
+                case op:
+                    And:
+                        op_txt = "&"
+                    Or:
+                        op_txt = "|"
+                    Xor:
+                        op_txt = "^"
+                    Shr:
+                        op_txt = ">>"
+                    Shl:
+                        op_txt = "<<"
+                let ty = lhs.ty
+                let varname = new_local_var()
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("const {typed_var} = ({lhs.name} {op_txt} {rhs.name});")
+                push(Value(name: varname, ty))
 
             IntToFloat:
                 let value = pop()
@@ -245,6 +269,29 @@ class CGenerator:
                 let ty = bc.Type.Float()
                 let typed_var = get_type_txt(ty, name: varname)
                 emit("{typed_var} = (double)({value.name});")
+                push(Value(name: varname, ty))
+
+            FloatToInt:
+                let value = pop()
+                let varname = new_local_var()
+                let ty = bc.Type.Int()
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("{typed_var} = (double)({value.name});")
+                push(Value(name: varname, ty))
+
+            ToOpaque(t):
+                let value = pop()
+                let varname = new_local_var()
+                let ty = bc.Type.Ptr()
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("{typed_var} = (void*)({value.name});")
+                push(Value(name: varname, ty))
+
+            FromOpaque(ty):
+                let value = pop()
+                let varname = new_local_var()
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("{typed_var} = (todo-void*)({value.name});")
                 push(Value(name: varname, ty))
 
             Call(index):

@@ -60,8 +60,8 @@ fn type_to_string(ty?: Type) -> str:
             txt = "TYPE-EXPR"
         Array(element_type, size):
             txt = "ARRAY({type_to_string(element_type)} x {size})"
-        Function(labels, parameter_types, return_type):
-            txt = "FUNC-TYPE({types_to_string(typs: parameter_types)},{type_to_string(return_type)})"
+        Function(labels, parameter_types, return_type, except_type):
+            txt = "FUNC-TYPE({types_to_string(typs: parameter_types)},{type_to_string(return_type)},{type_to_string(except_type)})"
         Undefined:
             txt = "UNDEFINED"
         TypeParam(param):
@@ -108,8 +108,11 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
                     return ty4
                 None:
                     return ty
-        Function(labels, parameter_types, return_type):
-            return function_type(labels, parameter_types: subst_many(typs: parameter_types, m), return_type: subst(ty: return_type, m))
+        Function(labels, parameter_types, return_type, except_type):
+            parameter_types = subst_many(typs: parameter_types, m)
+            return_type = subst(ty: return_type, m)
+            except_type = subst(ty: except_type, m)
+            return function_type(labels, parameter_types, return_type, except_type)
         App(tycon, type_arguments):
             return apply_tycon(tycon, type_arguments: subst_many(typs: type_arguments, m))
     else:
@@ -279,29 +282,36 @@ fn get_type_parameter_from_type(ty?: Type) -> TypeParameter:
 
 fn is_function_type(ty?: Type) -> bool:
     case ty.kind:
-        Function(labels, p, r):
+        Function(labels, p, r, e):
             return true
     else:
         return false
 
 fn get_parameter_labels_from_type(ty?: Type) -> List[Option[str]]:
     case ty.kind:
-        Function(labels, p, r):
+        Function(labels, p, r, e):
             return labels
     else:
         panic("Type must be function type")
 
 fn get_parameter_types_from_type(ty?: Type) -> List[Type]:
     case ty.kind:
-        Function(labels, p, r):
+        Function(labels, p, r, e):
             return p
     else:
         panic("Type must be function type")
 
 fn get_return_type_from_type(ty?: Type) -> Type:
     case ty.kind:
-        Function(labels, p, r):
+        Function(labels, p, r, e):
             return r
+    else:
+        panic("Type must be function type")
+
+fn get_except_type_from_type(ty?: Type) -> Type:
+    case ty.kind:
+        Function(labels, p, r, e):
+            return e
     else:
         panic("Type must be function type")
 
@@ -488,7 +498,7 @@ enum TypeKind:
     Opaque
     Void
     TypeExpression(expression: Expression)
-    Function(labels: List[Option[str]], parameter_types: List[Type], return_type: Type)
+    Function(labels: List[Option[str]], parameter_types: List[Type], return_type: Type, except_type: Type)
     TypeParam(type_parameter: TypeParameter)
     TypeVar(type_variable: TypeVariable)
     Array(element_type: Type, size: int)
@@ -575,9 +585,9 @@ fn array_type(element_type: Type, size: int) -> Type:
 fn type_expression(expr: Expression) -> Type:
     return new_type(kind: TypeKind.TypeExpression(expr))
 
-fn function_type(labels: List[Option[str]], parameter_types: List[Type], return_type: Type) -> Type:
+fn function_type(labels: List[Option[str]], parameter_types: List[Type], return_type: Type, except_type: Type) -> Type:
     assert(condition: labels.len() == parameter_types.len(), message: "Expect equal length labels and parameter types")
-    return new_type(kind: TypeKind.Function(labels, parameter_types, return_type))
+    return new_type(kind: TypeKind.Function(labels, parameter_types, return_type, except_type))
 
 fn type_parameter_ref(type_parameter: TypeParameter) -> Type:
     return new_type(kind: TypeKind.TypeParam(type_parameter))
@@ -655,15 +665,16 @@ struct ExternFunctionDef:
     parameter_types: List[Type]
     return_type: Type
     no_return: bool
+    location: Location
 
-fn extern_function_def(modname: str, name: str, parameter_types: List[Type], return_type: Type) -> ExternFunctionDef:
-    return ExternFunctionDef(modname, name, parameter_types, return_type, no_return: false)
+fn extern_function_def(modname: str, name: str, parameter_types: List[Type], return_type: Type, location: Location) -> ExternFunctionDef:
+    return ExternFunctionDef(modname, name, parameter_types, return_type, no_return: false, location)
 
 fn extern_function_type(func: ExternFunctionDef) -> Type:
     let labels: List[Option[str]] = List()
     for p in func.parameter_types:
         labels.append(Option.None())
-    return function_type(labels, parameter_types: func.parameter_types, return_type: func.return_type)
+    return function_type(labels, parameter_types: func.parameter_types, return_type: func.return_type, except_type: void_type())
 
 class Scope:
     var symbols: Dictionary[Symbol] = Dictionary()
@@ -871,7 +882,8 @@ fn get_function_type(function_def: FunctionDef) -> Type:
             labels.append(Option.Some(parameter.id.name))
         parameter_types.append(parameter.ty)
     let return_type = function_def.return_type
-    return function_type(labels, parameter_types, return_type)
+    let except_type = function_def.except_type
+    return function_type(labels, parameter_types, return_type, except_type)
 
 fn get_function_type2(function_def: FunctionDef, type_arguments: List[Type]) -> Type:
     assert(condition: function_def.type_parameters.len() == type_arguments.len(), message: "{node_id_to_string(function_def.id)} -> Amount of type arguments must match amount of type parameters")
@@ -889,7 +901,8 @@ fn get_function_type2(function_def: FunctionDef, type_arguments: List[Type]) -> 
             labels.append(Option.Some(parameter.id.name))
         parameter_types.append(subst(ty: parameter.ty, m))
     let return_type = subst(ty: function_def.return_type, m)
-    return function_type(labels, parameter_types, return_type)
+    let except_type = subst(ty: function_def.except_type, m)
+    return function_type(labels, parameter_types, return_type, except_type)
 
 fn parameter_def(name: str, id: int, label_is_optional: bool, ty: Type, location: Location) -> ParameterDef:
     return ParameterDef(id: NodeId(name, id), label_is_optional, ty, location)
@@ -942,6 +955,18 @@ enum StatementKind:
     Break
     Continue
 
+fn is_breakable(statement: Statement) -> bool:
+    # Can we use break / continue within this statement?
+    case statement.kind:
+        While(x):
+            return true
+        Loop(x):
+            return true
+        For(x):
+            return true
+    else:
+        return false
+
 fn if_statement(condition: Expression, body: Statement, false_body: Statement, location: Location) -> Statement:
     let if_statement = IfStatement:
         condition: condition
@@ -987,16 +1012,18 @@ struct ForStatement:
     iter_value: Expression
     block: ScopedBlock
 
-fn try_statement(try_body: Statement, except_param: ParameterDef, except_body: Statement, location: Location) -> Statement:
+fn try_statement(try_body: Statement, except_var: Variable, except_type: Type, except_body: Statement, location: Location) -> Statement:
     let try_statement = TryStatement:
         try_block: scoped_block(body: try_body)
-        except_param
+        except_var
+        except_type
         except_block: scoped_block(body: except_body)
     return statement(kind: StatementKind.Try(try_statement), location)
 
 struct TryStatement:
     try_block: ScopedBlock
-    except_param: ParameterDef
+    except_var: Variable
+    except_type: Type
     except_block: ScopedBlock
 
 fn case_statement(value: Expression, arms: List[CaseArm], else_clause: Option[Statement], location: Location) -> Statement:
@@ -1576,7 +1603,7 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
             for parameter in function_def.parameters:
                 visit_type(visitor, ty: parameter.ty)
             visit_type(visitor, ty: function_def.return_type)
-            # visit_type(visitor, ty: function_def.except_type)
+            visit_type(visitor, ty: function_def.except_type)
             visit_statement(visitor, statement: function_def.body)
         ExternFunction(extern_function_def):
             for parameter_type in extern_function_def.parameter_types:
@@ -1611,10 +1638,11 @@ fn visit_type[T](visitor: Visitor[T], ty: Type):
         App(tycon, type_arguments):
             for type_argument in type_arguments:
                 visit_type(visitor, ty: type_argument)
-        Function(labels, parameter_types, return_type):
+        Function(labels, parameter_types, return_type, except_type):
             for parameter_type in parameter_types:
                 visit_type(visitor, ty: parameter_type)
             visit_type(visitor, ty: return_type)
+            visit_type(visitor, ty: except_type)
         TypeVar(type_variable):
             case type_variable.ty:
                 Some(ty2):
@@ -1662,7 +1690,8 @@ fn visit_statement[T](visitor: Visitor[T], statement: Statement):
             visit_statement(visitor, statement: for_statement.block.body)
         Try(try_statement):
             visit_statement(visitor, statement: try_statement.try_block.body)
-            visit_type(visitor, ty: try_statement.except_param.ty)
+            visit_type(visitor, ty: try_statement.except_type)
+            visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Mid())
             visit_statement(visitor, statement: try_statement.except_block.body)
         Case(case_statement):
             visit_expression(visitor, expression: case_statement.value)

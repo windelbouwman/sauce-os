@@ -1,59 +1,23 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "LLDB compiler2",
-            "program": "${workspaceFolder}/compiler2/target/debug/compiler2",
-            // "args": ["--help"],
-            "args": ["-vv", "examples/list-generic.slang"],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "cwd": "${workspaceFolder}/compiler2",
-            "name": "Cargo launch",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--lib"
-                ]
-            },
-            "args": ["--help"]
-        },
-        {
-            "name": "GDB compiler2",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/compiler2/target/debug/compiler2",
-            // "args": ["-vv", "examples/list-generic.slang"],
-            // "args": ["-vv", "examples/hello-world.slang"],
-            "args": ["-vv", "examples/classy.slang"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "Slang Lang VS-code Extension",
-            "type": "extensionHost",
-            "request": "launch",
-            "args": [
-                "--extensionDevelopmentPath=${workspaceFolder}/language-server"
-            ]
-        }
-    ]
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: tmp-compiler",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/tmp-compiler.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": ["${file}", "-d"]
+    },
+    {
+      "name": "Slang Lang VS-code Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/language-server"]
+    }
+  ]
 }

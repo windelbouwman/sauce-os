@@ -3,7 +3,7 @@ import ast
 import std
 from lexer import Lexer
 from token import token_to_string, Token
-from location import Location, location_default, Position
+from location import Location, Position
 from datatypes import List, Result, Option, vec1, option_unwrap
 from strlib import split_string
 from basepass import IdGen
@@ -70,7 +70,7 @@ class Parser:
                     let func_def = parse_func_def(this_parameter: Option.None())
                     definitions.append(ast.Definition.Function(func_def))
                 KwExtern:
-                    let extern_func_def = parse_extern_func_def(location: tok.location)
+                    let extern_func_def = parse_extern_func_def()
                     definitions.append(ast.Definition.ExternFunction(extern_func_def))
                 KwEnum:
                     let enum_def = parse_enum_def(location: tok.location)
@@ -278,14 +278,15 @@ class Parser:
         function_def.no_return = no_return
         return function_def
     
-    fn parse_extern_func_def(location: Location) -> ast.ExternFunctionDef except CompilationError:
+    fn parse_extern_func_def() -> ast.ExternFunctionDef except CompilationError:
         let tok = get_token()
         case tok.kind:
             KwFn:
                 pass
         else:
             raise unexpected_token(tok, expected: "'fn'")
-        let name: str = parse_name().name
+        let name_at = parse_name()
+        let name: str = name_at.name
         let parameters = parse_parameters()
         let return_type = parse_optional_return_type()
         let no_return = has_parsed_question()
@@ -295,7 +296,7 @@ class Parser:
         for parameter in parameters:
             parameter_types.append(parameter.ty)
 
-        let extern_function_def = ast.extern_function_def(modname: option_unwrap(modname), name, parameter_types, return_type)
+        let extern_function_def = ast.extern_function_def(modname: option_unwrap(modname), name, parameter_types, return_type, location: name_at.location)
         extern_function_def.no_return = no_return
         return extern_function_def
 
@@ -405,8 +406,9 @@ class Parser:
 
                 # Optional return type
                 let return_type = parse_optional_return_type()
+                let except_type = ast.void_type()
 
-                return ast.function_type(labels, parameter_types, return_type)
+                return ast.function_type(labels, parameter_types, return_type, except_type)
         else:
             unget_token(tok0)
             let expr = parse_expression()
@@ -415,7 +417,6 @@ class Parser:
     fn parse_block() -> ast.Statement except CompilationError:
         # parse block of statements.
         log_trace("parsing block")
-        let location = location_default()
 
         parse_colon()
         parse_newline()
@@ -425,7 +426,7 @@ class Parser:
         while not try_parse_dedent():
             let statement = parse_statement()
             inner.append(statement)
-
+        let location = inner.first().location
         return ast.compound(inner, location)
     
     fn parse_statement() -> ast.Statement except CompilationError:
@@ -615,11 +616,14 @@ class Parser:
             raise unexpected_token(tok, expected: "'except'")
 
         parse_brace_open()
-        let except_param = parse_parameter_def()
+        let name_at = parse_name()
+        parse_colon()
+        let except_type = parse_type()
         parse_brace_close()
+        let except_var = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
 
         let except_body = parse_block()
-        return ast.try_statement(try_body, except_param, except_body, location)
+        return ast.try_statement(try_body, except_var, except_type, except_body, location)
 
     fn parse_case_statement(location: Location) -> ast.Statement except CompilationError:
         # Value
