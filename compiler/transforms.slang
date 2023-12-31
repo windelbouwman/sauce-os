@@ -461,7 +461,7 @@ class ClassRewriter:
                             # log_info("c-tor param")
                             let ctor_param = ast.parameter_def(name: var_def.variable.id.name, id: get_unique_id(), label_is_optional: false, ty, location: class_def.location)
                             ctor_parameters.append(ctor_param)
-                            let iv2 = ast.parameter_ref(parameter: ctor_param, location: class_def.location)
+                            let iv2 = ast.parameter_ref(parameter_def: ctor_param, location: class_def.location)
                             init_values.append(iv2)
                 Function(function_def):
                     methods.append(function_def)
@@ -818,7 +818,7 @@ class ClassRewriter:
             let bridge_function_parameter = ast.parameter_def(name: parameter.id.name, id: get_unique_id(), label_is_optional: true, ty, location)
             parameters.append(bridge_function_parameter)
 
-            let parameter_ref = ast.parameter_ref(parameter: bridge_function_parameter, location)
+            let parameter_ref = ast.parameter_ref(parameter_def: bridge_function_parameter, location)
             let argument = ast.LabeledExpression(name: Option.Some(parameter.id.name), value: parameter_ref, location)
             if needs_cast:
                 # Introduce cast from opaque to specific type here.

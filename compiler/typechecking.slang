@@ -278,16 +278,12 @@ class TypeChecker:
                         check_may_raise_exception(ty: except_type, location: expression.location)
                 else:
                     add_error(location: expression.location, message: "Cannot call non-function type {ast.type_to_string(call.callee.ty)}")
-            LoadSymbol(symbol):
-                case symbol:
-                    ExternFunction(func):
-                        expression.ty = ast.extern_function_type(func)
-                    Parameter(parameter):
-                        # TODO: clone type?
-                        # log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {ast.type_to_string(parameter.ty)}")
-                        expression.ty = parameter.ty
-                else:
-                    panic("Must not happen: {ast.symbol_to_str(symbol)}")
+            ExternFunctionRef(extern_function_def):
+                expression.ty = ast.extern_function_type(extern_function_def)
+            ParameterRef(parameter_def):
+                # TODO: clone type?
+                # log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {ast.type_to_string(parameter.ty)}")
+                expression.ty = parameter_def.ty
             VarRef(variable):
                 # log_trace("Var ref {ast.node_id_to_string(variable.id)}: {ast.type_to_string(variable.ty)}")
                 expression.ty = variable.ty
@@ -331,6 +327,8 @@ class TypeChecker:
                             add_error(location: expression.location, message: "Got {ast.type_to_string(ty)}, but 'not' operator requires bool type")
             NameRef(name):
                 panic("names must be resolved: {name}")
+            LoadSymbol(symbol):
+                panic("symbols should be resolved: {ast.symbol_to_str(symbol)}")
             Variant(ty, v):
                 panic("variants must be literals")
             Undefined:

@@ -18,6 +18,7 @@ COMPILER3=${BUILDDIR}/tmp-compiler3.py
 COMPILER4=${BUILDDIR}/compiler4
 COMPILER5=${BUILDDIR}/compiler5
 COMPILER6=${BUILDDIR}/tmp-compiler6.py
+DEMOS=${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/c/mandel.exe ${BUILDDIR}/regex.exe
 
 CFLAGS=-Wfatal-errors -Werror -Wreturn-type
 SLANG_EXAMPLES := $(wildcard examples/*.slang)
@@ -28,8 +29,9 @@ BC_EXAMPLES := $(patsubst examples/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
 ALL_TEST_RUNS := $(patsubst tests/test_%.slang, run-test-%, $(TESTS))
 
-.PHONY: all check
-all: ${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/c/mandel.exe ${BUILDDIR}/regex.exe
+.PHONY: all check all-examples all-examples-bc all-examples-c all-examples-python
+all: ${DEMOS} all-examples
+all-examples: all-examples-bc all-examples-c all-examples-python
 
 check: ${ALL_TEST_RUNS}
 

@@ -23,13 +23,13 @@ fn main():
     #    value: i
     #    x: 2
 
-    let bla_i = new_bla(v2: i, x2: 3)
+    let bla_i: Bla[I] = new_bla(v2: i, x2: 3)
 
     #let bla_s = Bla[S]:
     #    value: s
     #    x: 3
     
-    let bla_s = new_bla(v2: s, x2: 3)
+    let bla_s: Bla[S] = new_bla(v2: s, x2: 3)
 
     print("{bla_i.value.i}")
     print(get_v(v: bla_s).s)

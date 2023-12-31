@@ -2,16 +2,19 @@
 # C code backend
 # Translate bytecode into C code.
 
-from std import float_to_str, print, chr
+from std import float_to_str, chr
 from rt import int_to_str
 from utils import panic
-from datatypes import List, Set, Option
+from datatypes import List, Set, Option, option_is_some, option_unwrap
 from strlib import str_repeat, str_join
 import bc
+from text_gen import TextGenerator
 
-fn gen_c_code(program: bc.Program):
+fn gen_c_code(program: bc.Program, output_filename: Option[str]):
     let g = CGenerator()
+    g.out.begin(output_filename)
     g.structs = program.structs
+    g.globals = program.globals
     g.extern_functions = program.extern_functions
     g.functions = program.functions
 
@@ -32,20 +35,23 @@ fn gen_c_code(program: bc.Program):
     for struct_def in program.structs:
         g.gen_struct_def(sidx: index, struct_def)
         index += 1
+    
+    for extern_function in g.extern_functions:
+        g.gen_extern_function_decl(extern_function)
 
     # Forward declarations:
-    for function0 in program.functions:
-        let decl = g.get_function_decl(function: function0, fill_param: false)
-        g.emit("{decl};")
+    for function in program.functions:
+        g.gen_function_decl(function)
     
     # Globals!
     for global in program.globals:
-        pass
-        # TODO
+        g.gen_global(global)
 
     # Function definitions:
     for function in program.functions:
         g.gen_function(function)
+
+    g.out.end()
 
 fn get_target_labels(instructions: List[bc.Instruction]) -> Set:
     # Get a set of labels to which is being jumped
@@ -57,6 +63,9 @@ fn get_target_labels(instructions: List[bc.Instruction]) -> Set:
             JumpIf(index1, index2):
                 target_labels.add(int_to_str(index1))
                 target_labels.add(int_to_str(index2))
+            SetupTry(try_label, except_var_index, except_label):
+                target_labels.add(int_to_str(try_label))
+                target_labels.add(int_to_str(except_label))
         else:
             pass
     return target_labels
@@ -67,20 +76,33 @@ struct Value:
 
 class CGenerator:
     # Generate C from bytecode
-    var indentation: int = 0
+    var out: TextGenerator = TextGenerator()
+
     var stack: List[Value] = List()
     var next_id: int = 1
     var local_variables: List[Value] = List()
     var local_parameters: List[Value] = List()
     var structs: List[bc.Struct] = List()
+    var globals: List[bc.Global] = List()
     var functions: List[bc.Function] = List()
     var extern_functions: List[bc.ExternFunction] = List()
 
     fn emit_runtime():
+        emit("#include <stdint.h>")
+        emit("#include <setjmp.h>")
+        emit("#include <stdlib.h>")
+
         emit("// runtime functions:")
         emit("void* rt_malloc(int size);")
         emit("void rt_incref(void *ptr);")
         emit("void rt_decref(void *ptr);")
+        emit("typedef intptr_t slang_int_t;")
+        emit("typedef intptr_t slang_bool_t;")
+        emit("typedef double slang_float_t;")
+        emit("typedef struct {chr(123)} jmp_buf buf; void* prev; {chr(125)} slang_exception_handler_t;")
+
+        emit("slang_exception_handler_t* g_except_hook;")
+        emit("void* g_except_value;")
 
     fn gen_struct_def(sidx: int, struct_def: bc.Struct):
         if struct_def.is_union:
@@ -96,6 +118,40 @@ class CGenerator:
         dedent()
         emit("{chr(125)};")
         emit("")
+
+    fn gen_extern_function_decl(extern_function: bc.ExternFunction):
+        let parameters2: List[str] = List()
+        let index = 0
+        for parameter_type in extern_function.parameters:
+            let pname = "P{index}"
+            let typed_var = get_type_txt(ty: parameter_type, name: pname)
+            parameters2.append(typed_var)
+            index += 1
+        let param_txt = str_join(parts: parameters2, sep: ", ")
+
+        let return_type = "void"
+        case extern_function.return_type:
+            Some(ty):
+                return_type = get_type_txt(ty, name: "")
+            None:
+                return_type = "void"
+
+        let decl = "{return_type} {extern_function.name}({param_txt})"
+        if extern_function.no_return:
+            decl = decl + " __attribute__((noreturn))"
+
+        emit("extern {decl};")
+    
+    fn gen_global(global: bc.Global):
+        let value = 0  # TODO!
+        let typed_name = get_type_txt(ty: global.ty, name: global.name)
+        emit("{typed_name} = {value};")
+
+    fn gen_function_decl(function: bc.Function):
+        let decl = get_function_decl(function, fill_param: false)
+        if function.no_return:
+            decl = decl + " __attribute__((noreturn))"
+        emit("{decl};")
 
     fn get_function_decl(function: bc.Function, fill_param: bool) -> str:
         let parameters2: List[str] = List()
@@ -115,6 +171,7 @@ class CGenerator:
                 return_type = get_type_txt(ty, name: "")
             None:
                 return_type = "void"
+
         return "{return_type} {function.name}({param_txt})"
 
     fn gen_function(function: bc.Function):
@@ -174,30 +231,45 @@ class CGenerator:
 
             JumpIf(label1, label2):
                 let condition = pop()
-                emit("if ({condition.name}) goto {get_label_str(label1)};")
-                emit("  else goto {get_label_str(label2)};")
+                emit("if ({condition.name})")
+                emit("   goto {get_label_str(label1)};")
+                emit("else")
+                emit("   goto {get_label_str(label2)};")
 
             SetupTry(try_label, except_var_index, except_label):
-                emit("if (setjmp(g_except_hook) == 0)")
-                emit("  goto {get_label_str(try_label)}")
+                let bufname = "ebuf{try_label}"
+                emit("slang_exception_handler_t {bufname};")
+                emit("{bufname}.prev = g_except_hook;")
+                emit("g_except_hook = &{bufname};")
+                emit("if (setjmp(g_except_hook->buf) == 0)")
+                emit("   goto {get_label_str(try_label)};")
                 emit("else")
-                emit("  goto {get_label_str(except_label)};")
-                # TODO: restore except hook?
+                emit("   goto {get_label_str(except_label)};")
                 # TODO: store exception value
 
             Raise:
                 let value = pop()
                 emit("g_except_value = {value.name};")
-                emit("longjmp(g_except_hook, 1);")
-            
+                emit("longjmp(g_except_hook->buf, 1);")
+
             PopTry:
-                panic("TODO: Restore global except hook")
+                emit("g_except_hook = g_except_hook->prev;")
 
             Not:
-                panic("TODO: not")
+                let rhs = pop()
+                let varname = new_local_var()
+                let ty = rhs.ty
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("const {typed_var} = {rhs.name} ? 0 : 1;")
+                push(Value(name: varname, ty))
 
             Neg:
-                panic("TODO: neg")
+                let rhs = pop()
+                let varname = new_local_var()
+                let ty = rhs.ty
+                let typed_var = get_type_txt(ty, name: varname)
+                emit("const {typed_var} = -{rhs.name};")
+                push(Value(name: varname, ty))
 
             Binop(op):
                 let rhs = pop()
@@ -268,7 +340,7 @@ class CGenerator:
                 let varname = new_local_var()
                 let ty = bc.Type.Float()
                 let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} = (double)({value.name});")
+                emit("{typed_var} = (slang_float_t)({value.name});")
                 push(Value(name: varname, ty))
 
             FloatToInt:
@@ -276,7 +348,7 @@ class CGenerator:
                 let varname = new_local_var()
                 let ty = bc.Type.Int()
                 let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} = (double)({value.name});")
+                emit("{typed_var} = (slang_int_t)({value.name});")
                 push(Value(name: varname, ty))
 
             ToOpaque(t):
@@ -288,10 +360,28 @@ class CGenerator:
                 push(Value(name: varname, ty))
 
             FromOpaque(ty):
+                # Unbox value from opaque pointer type
                 let value = pop()
                 let varname = new_local_var()
                 let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} = (todo-void*)({value.name});")
+                case ty:
+                    Int:
+                        emit("{typed_var} = (slang_int_t)({value.name});")
+                    Float:
+                        emit("{typed_var} = (slang_float_t)({value.name});")
+                    Str:
+                        emit("{typed_var} = (char*)({value.name});")
+                    Char:
+                        emit("{typed_var} = (char)({value.name});")
+                    Function(parameter_types, return_type):
+                        panic("Cannot unbox ptr to function")
+                    Array(element_type):
+                        panic("Cannot unbox ptr to array")
+                    Ptr:
+                        panic("Cannot unbox ptr to ptr")
+                    StructRef(index):
+                        let to_type = get_type_txt(ty, name: "")
+                        emit("{typed_var} = ({to_type})({value.name});")
                 push(Value(name: varname, ty))
 
             Call(index):
@@ -304,6 +394,11 @@ class CGenerator:
                 let callee = function.name
                 gen_call(callee, parameter_types: function.parameters, return_type: function.return_type)
 
+            CallIndirect(parameter_types, return_type):
+                let target = pop()
+                let callee = "{target.name}"
+                gen_call(callee, parameter_types, return_type)
+
             LocalGet(index):
                 let varname = local_variables.get(index)
                 push(varname)
@@ -314,20 +409,25 @@ class CGenerator:
                 emit("{varname.name} = {value.name};")
             
             GlobalGet(index):
-                panic("TODO: GlobalGet")
+                let global = globals.get(index)
+                let name = global.name
+                let ty = global.ty
+                let value = Value(name, ty)
+                push(value)
 
             GlobalSet(index):
                 let value = pop()
-                panic("TODO: GlobalSet")
+                let name = globals.get(index).name
+                emit("{name} = {value.name};")
 
             ParameterGet(index):
-                let varname = local_parameters.get(index)
-                push(varname)
+                let param = local_parameters.get(index)
+                push(param)
 
             ParameterSet(index):
                 let value = pop()
-                let varname = local_parameters.get(index)
-                emit("{varname.name} = {value.name};")
+                let param = local_parameters.get(index)
+                emit("{param.name} = {value.name};")
 
             GetAttr(index, ty):
                 let base = pop()
@@ -347,7 +447,7 @@ class CGenerator:
                 let varname = new_local_var()
                 let ty = bc.get_element_type_from_type(base.ty)
                 let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} {base.name}[{index.name}];")
+                emit("{typed_var} = {base.name}[{index.name}];")
                 push(Value(name: varname, ty))
                 
             SetIndex:
@@ -362,12 +462,14 @@ class CGenerator:
                     emit("return {value.name};")
                 else:
                     emit("return;")
-            
+
             Unreachable:
                 emit("__builtin_unreachable();")
 
-            LoadFunc(name):
-                push(Value(name, ty: bc.Type.Ptr()))
+            LoadFunc(index):
+                let function = functions.get(index)
+                let callee = function.name
+                push(Value(name: callee, ty: bc.Type.Ptr()))
 
             StructLiteral(index):
                 # we can derive count from struct type:
@@ -401,12 +503,32 @@ class CGenerator:
                 let parts: List[str] = List()
                 for value in values:
                     parts.append(value.name)
-                let arg_text = str_join(parts, sep: ",")
-                emit("const int {varname} [{size}] = | {arg_text} |;")
-                push(Value(name: varname, ty: bc.Type.Int()))
+                let arg_text = str_join(parts, sep: ", ")
+                let ety = values.first().ty
+                let element_type_text = get_type_txt(ty: ety, name: "")
+                let ty = bc.Type.Array(ty: ety)
+                let typed_var = get_type_txt(ty, name: varname)
+                # emit("{typed_var}[{size}] = {chr(123)} {arg_text} {chr(125)};")
+                emit("{typed_var} = rt_malloc({size} * sizeof({element_type_text}));")
+                let index = 0
+                for value in values:
+                    emit("{varname}[{index}] = {value.name};")
+                    index += 1
+                push(Value(name: varname, ty))
 
             ArrayLiteral2:
-                panic("TODO!")
+                let size = pop()
+                let value = pop()
+                let varname = new_local_var()
+                let ty = bc.Type.Array(ty: value.ty)
+                let typed_var = get_type_txt(ty, name: varname)
+                let element_type_text = get_type_txt(ty: value.ty, name: "")
+                emit("{typed_var} = rt_malloc({size.name} * sizeof({element_type_text}));")
+                # TODO: copy value to all elements
+                emit("{varname}[0] = {value.name};")
+                emit("for (int i = 1; i < {size.name}; i++)")
+                emit("  {varname}[i] = {varname}[0];")
+                push(Value(name: varname, ty))
 
     fn gen_call(callee: str, parameter_types: List[bc.Type], return_type: Option[bc.Type]):
         let args = pop_n(count: parameter_types.len())
@@ -426,13 +548,13 @@ class CGenerator:
     fn get_type_txt(ty: bc.Type, name: str) -> str:
         case ty:
             Int:
-                return "int {name}"
+                return "slang_int_t {name}"
             Str:
                 return "char* {name}"
             Char:
                 return "char {name}"
             Float:
-                return "double {name}"
+                return "slang_float_t {name}"
             Ptr:
                 return "void* {name}"
             StructRef(index):
@@ -440,14 +562,21 @@ class CGenerator:
                     return "union U{index}* {name}"
                 else:
                     return "struct S{index}* {name}"
-            Function(parameter_types):
+            Function(parameter_types, return_type):
                 let parts: List[str] = List()
                 for p in parameter_types:
                     parts.append(get_type_txt(ty: p, name: ""))
                 let param_text = str_join(parts, sep: ", ")
-                return "void (*{name})({param_text})"
+                let return_text = "void"
+                case return_type:
+                    Some(ty):
+                        return_text = get_type_txt(ty, name: "")
+                    None:
+                        return_text = "void"
+                return "{return_text} (*{name})({param_text})"
             Array(element_type):
-                panic("TODO: array type")
+                let e = get_type_txt(ty: element_type, name: "")
+                return "{e}* {name}"
 
     fn push(value?: Value):
         stack.append(value)
@@ -472,11 +601,10 @@ class CGenerator:
         return "VAR{id}"
 
     fn indent():
-        indentation += 1
+        out.indent()
 
     fn dedent():
-        indentation -= 1
+        out.dedent()
 
     fn emit(text?: str):
-        let indent = str_repeat(text: "   ", count: indentation)
-        print(indent + text)
+        out.emit(text)

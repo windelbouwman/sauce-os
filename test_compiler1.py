@@ -12,8 +12,7 @@ import pytest
 from compiler1 import compiler
 
 # Skip slow mandelbrot test for now:
-# Skip snake example
-exclusions = ["linkable", "snake", "mandel", "interfaces"]
+exclusions = ["mandel"]
 
 
 def include_example(filename):

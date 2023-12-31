@@ -22,11 +22,13 @@ struct ExternFunction:
     name: str
     parameters: List[Type]
     return_type: Option[Type]
+    no_return: bool
 
 struct Function:
     name: str
     parameters: List[Type]
     return_type: Option[Type]
+    no_return: bool
     locals: List[Type]
     instructions: List[Instruction]
 
@@ -38,7 +40,7 @@ enum Type:
     Ptr
     StructRef(index: int)
     Array(element_type: Type)
-    Function(parameter_types: List[Type])
+    Function(parameter_types: List[Type], return_type: Option[Type])
 
 fn get_element_type_from_type(ty?: Type) -> Type:
     case ty:
@@ -70,6 +72,7 @@ enum Instruction:
     JumpIf(label1: int, label2: int)
     Call(index: int)
     CallExtern(index: int)
+    CallIndirect(parameter_types: List[Type], return_type: Option[Type])  # Call function pointer, on top of stack
     Return(n_values: int)
     SetupTry(try_label: int, except_var_index: int, except_label: int)
     Raise
@@ -88,7 +91,7 @@ enum Instruction:
     GlobalGet(index: int)
     GlobalSet(index: int)
 
-    LoadFunc(name: str)
+    LoadFunc(index: int)
 
     StructLiteral(struct_index: int)
     UnionLiteral(struct_index: int, field_index: int)
@@ -177,6 +180,8 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "call({index})"
         CallExtern(index):
             return "call-extern({index})"
+        CallIndirect(parameter_types, return_type):
+            return "call-indirect({parameter_types.len()})"
         Return(v):
             return "return({v})"
         Unreachable:
@@ -207,8 +212,8 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "get-index"
         SetIndex:
             return "set-index"
-        LoadFunc(name):
-            return "load-func({name})"
+        LoadFunc(index):
+            return "load-func({index})"
         StructLiteral(struct_index):
             return "struct-literal(index={struct_index})"
         UnionLiteral(struct_index, field_index):
@@ -314,7 +319,7 @@ fn type_to_string(ty?: Type) -> str:
             return "char"
         StructRef(index):
             return "struct-ref({index})"
-        Function(parameter_types):
-            return "func-ptr()"
+        Function(parameter_types, return_type):
+            return "func-ptr(...)"
         Array(element_type):
             return "array({type_to_string(element_type)})"

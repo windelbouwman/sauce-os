@@ -10,7 +10,7 @@ from functools import lru_cache
 from compiler1 import compiler, errors, builtins
 
 
-exclusions = ["linkable", "snake", "mandel", "interfaces"]
+exclusions = ["mandel"]
 
 
 def include_example(filename):

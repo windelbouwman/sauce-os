@@ -84,9 +84,9 @@ fn main():
     list_append(this: x, value: new_integer(88))
     list_append(this: x, value: new_integer(1337))
     std.print("Iter integers")
-    let x_iter = list_iter_new(this: x)
+    let x_iter: ListIter[Integer] = list_iter_new(this: x)
     loop:
-        let maybe_value2 = list_iter_next(this: x_iter)
+        let maybe_value2: Option[Integer] = list_iter_next(this: x_iter)
         case maybe_value2:
             None:
                 break
@@ -101,9 +101,9 @@ fn main():
     list_append(this: y, value: new_string("Fu"))
     list_append(this: y, value: new_string("Baz"))
     std.print("Walk strings")
-    let y_iter = list_iter_new(this: y)
+    let y_iter: ListIter[String] = list_iter_new(this: y)
     loop:
-        let maybe_value = list_iter_next(this: y_iter)
+        let maybe_value: Option[String] = list_iter_next(this: y_iter)
         case maybe_value:
             None:
                 break

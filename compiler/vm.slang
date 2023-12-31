@@ -160,28 +160,28 @@ fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
     let efi_db: Dictionary[ExternFunctionImpl] = Dictionary()
 
     # std:
-    efi_db.insert(key: "ord", value: ExternFunctionImpl(f: efi_std_ord, n: 1))
-    efi_db.insert(key: "chr", value: ExternFunctionImpl(f: efi_std_chr, n: 1))
-    efi_db.insert(key: "float_to_str", value: ExternFunctionImpl(f: efi_std_float_to_str, n: 1))
-    efi_db.insert(key: "str_to_float", value: ExternFunctionImpl(f: efi_std_str_to_float, n: 1))
-    efi_db.insert(key: "str_to_int", value: ExternFunctionImpl(f: efi_std_str_to_int, n: 1))
-    efi_db.insert(key: "str_len", value: ExternFunctionImpl(f: efi_std_str_len, n: 1))
-    efi_db.insert(key: "str_get", value: ExternFunctionImpl(f: efi_std_str_get, n: 2))
-    efi_db.insert(key: "str_slice", value: ExternFunctionImpl(f: efi_std_str_slice, n: 3))
-    efi_db.insert(key: "print", value: ExternFunctionImpl(f: efi_std_print, n: 1))
-    efi_db.insert(key: "exit", value: ExternFunctionImpl(f: efi_default, n: 1))
-    efi_db.insert(key: "read_file", value: ExternFunctionImpl(f: efi_default, n: 1))
-    efi_db.insert(key: "file_open", value: ExternFunctionImpl(f: efi_default, n: 1))
-    efi_db.insert(key: "file_writeln", value: ExternFunctionImpl(f: efi_default, n: 2))
-    efi_db.insert(key: "file_close", value: ExternFunctionImpl(f: efi_default, n: 1))
-    efi_db.insert(key: "get_n_args", value: ExternFunctionImpl(f: efi_default, n: 0))
-    efi_db.insert(key: "get_arg", value: ExternFunctionImpl(f: efi_default, n: 1))
+    efi_db.insert(key: "std_ord", value: ExternFunctionImpl(f: efi_std_ord, n: 1))
+    efi_db.insert(key: "std_chr", value: ExternFunctionImpl(f: efi_std_chr, n: 1))
+    efi_db.insert(key: "std_float_to_str", value: ExternFunctionImpl(f: efi_std_float_to_str, n: 1))
+    efi_db.insert(key: "std_str_to_float", value: ExternFunctionImpl(f: efi_std_str_to_float, n: 1))
+    efi_db.insert(key: "std_str_to_int", value: ExternFunctionImpl(f: efi_std_str_to_int, n: 1))
+    efi_db.insert(key: "std_str_len", value: ExternFunctionImpl(f: efi_std_str_len, n: 1))
+    efi_db.insert(key: "std_str_get", value: ExternFunctionImpl(f: efi_std_str_get, n: 2))
+    efi_db.insert(key: "std_str_slice", value: ExternFunctionImpl(f: efi_std_str_slice, n: 3))
+    efi_db.insert(key: "std_print", value: ExternFunctionImpl(f: efi_std_print, n: 1))
+    efi_db.insert(key: "std_exit", value: ExternFunctionImpl(f: efi_default, n: 1))
+    efi_db.insert(key: "std_read_file", value: ExternFunctionImpl(f: efi_default, n: 1))
+    efi_db.insert(key: "std_file_open", value: ExternFunctionImpl(f: efi_default, n: 1))
+    efi_db.insert(key: "std_file_writeln", value: ExternFunctionImpl(f: efi_default, n: 2))
+    efi_db.insert(key: "std_file_close", value: ExternFunctionImpl(f: efi_default, n: 1))
+    efi_db.insert(key: "std_get_n_args", value: ExternFunctionImpl(f: efi_default, n: 0))
+    efi_db.insert(key: "std_get_arg", value: ExternFunctionImpl(f: efi_default, n: 1))
     
     # rt:
-    efi_db.insert(key: "int_to_str", value: ExternFunctionImpl(f: efi_rt_int_to_str, n: 1))
-    efi_db.insert(key: "char_to_str", value: ExternFunctionImpl(f: efi_rt_char_to_str, n: 1))
-    efi_db.insert(key: "str_concat", value: ExternFunctionImpl(f: efi_rt_str_concat, n: 2))
-    efi_db.insert(key: "str_compare", value: ExternFunctionImpl(f: efi_rt_str_compare, n: 2))
+    efi_db.insert(key: "rt_int_to_str", value: ExternFunctionImpl(f: efi_rt_int_to_str, n: 1))
+    efi_db.insert(key: "rt_char_to_str", value: ExternFunctionImpl(f: efi_rt_char_to_str, n: 1))
+    efi_db.insert(key: "rt_str_concat", value: ExternFunctionImpl(f: efi_rt_str_concat, n: 2))
+    efi_db.insert(key: "rt_str_compare", value: ExternFunctionImpl(f: efi_rt_str_compare, n: 2))
     return efi_db
 
 fn run_bytecode(program: Program, entry_function: str):
@@ -417,6 +417,14 @@ class VirtualMachine:
                         push(value)
                     None:
                         pass
+            CallIndirect(parameter_types, return_type):
+                let func_pointer = pop()
+                let index = int_from_value(func_pointer)
+                let n = parameter_types.len()
+                let arguments = pop_n(count: n)
+                let function = program.functions.get(index)
+                let frame = frame_from_function(function, arguments)
+                push_frame(frame)
             Return(amount):
                 if amount == 1:
                     let value = pop()
@@ -446,8 +454,8 @@ class VirtualMachine:
                             break
             PopTry:
                 frames.last().exception_handlers.drop_last()
-            LoadFunc(name):
-                panic("TODO: load func")
+            LoadFunc(index):
+                push(Value.Int(index))
             StructLiteral(struct_index):
                 let struc = program.structs.get(index: struct_index)
                 let count = struc.fields.len()

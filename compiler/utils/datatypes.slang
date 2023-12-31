@@ -288,6 +288,9 @@ class Dictionary[T]:
     
     fn is_empty() -> bool:
         return items.is_empty()
+    
+    fn clear():
+        items.clear()
 
     fn contains(key: str) -> bool:
         case get(key):

@@ -3,32 +3,27 @@
 
 # Alternative to c_gen module
 
-from std import print, float_to_str, chr, file_open, file_writeln, file_close
+from std import float_to_str, chr
 from strlib import str_repeat, str_join
 import ast
 from datatypes import List, Dictionary, option_unwrap, Option, option_is_some
 from utils import panic, log_info, log_debug, log_warning, assert
+from text_gen import TextGenerator
 
 
 fn gen_c_code_v2(module_set: ast.ModuleSet, output_filename: Option[str]):
     log_info("Generating C-code")
     let g = CGenerator2()
-    if option_is_some(output_filename):
-        g.outf = file_open(option_unwrap(output_filename))
-        g.use_file = true
-
+    g.out.begin(output_filename)
     g.gen_header()
     g.gen_forward_declarations1(module_set)
     g.gen_forward_declarations2(module_set)
     g.gen_struct_defs(module_set)
     g.gen_function_defs(module_set)
-    if g.use_file:
-        file_close(g.outf)
+    g.out.end()
 
 class CGenerator2:
-    var indentation: int = 0
-    var outf: int = 0
-    var use_file: bool = false
+    var out: TextGenerator = TextGenerator()
 
     fn gen_header():
         emit("#include <setjmp.h>")
@@ -279,12 +274,8 @@ class CGenerator2:
                         target_text = "{base_txt}[{args}]"
                     VarRef(variable):
                         target_text = gen_id(id: variable.id)
-                    LoadSymbol(symbol):
-                        case symbol:
-                            Parameter(parameter_def):
-                                target_text = gen_id(id: parameter_def.id)
-                        else:
-                            panic("Unsupported assignment target: {ast.symbol_to_str(symbol)}")
+                    ParameterRef(parameter_def):
+                        target_text = gen_id(id: parameter_def.id)
                 else:
                     panic("Unsupported assignment target: {ast.expression_to_string(target)}")
 
@@ -429,14 +420,11 @@ class CGenerator2:
                 else:
                     panic("Unsupported cast to: {ast.type_to_string(ty)}")
 
-            LoadSymbol(symbol):
-                case symbol:
-                    ExternFunction(extern_function):
-                        return "{extern_function.modname}_{extern_function.name}"
-                    Parameter(parameter_def):
-                        return gen_id(id: parameter_def.id)
-                else:
-                    panic("todo-symbol: {ast.symbol_to_str(symbol)}")
+            ExternFunctionRef(extern_function_def):
+                return "{extern_function_def.modname}_{extern_function_def.name}"
+
+            ParameterRef(parameter_def):
+                return gen_id(id: parameter_def.id)
             
             FunctionRef(function_def, type_arguments):
                 return gen_id(id: function_def.id)
@@ -502,18 +490,13 @@ class CGenerator2:
             return "X{id.id}_{id.name}"
 
     fn indent():
-        indentation += 1
+        out.indent()
 
     fn dedent():
-        indentation -= 1
+        out.dedent()
 
     fn emit(text?: str):
-        let indent = str_repeat(text: "   ", count: indentation)
-        let line = indent + text
-        if use_file:
-            file_writeln(outf, line)
-        else:
-            print(line)
+        out.emit(text)
 
 
 fn binary_op_to_str(op: ast.BinaryOperator) -> str:

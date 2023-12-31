@@ -670,11 +670,11 @@ struct ExternFunctionDef:
 fn extern_function_def(modname: str, name: str, parameter_types: List[Type], return_type: Type, location: Location) -> ExternFunctionDef:
     return ExternFunctionDef(modname, name, parameter_types, return_type, no_return: false, location)
 
-fn extern_function_type(func: ExternFunctionDef) -> Type:
+fn extern_function_type(extern_function_def: ExternFunctionDef) -> Type:
     let labels: List[Option[str]] = List()
-    for p in func.parameter_types:
+    for p in extern_function_def.parameter_types:
         labels.append(Option.None())
-    return function_type(labels, parameter_types: func.parameter_types, return_type: func.return_type, except_type: void_type())
+    return function_type(labels, parameter_types: extern_function_def.parameter_types, return_type: extern_function_def.return_type, except_type: void_type())
 
 class Scope:
     var symbols: Dictionary[Symbol] = Dictionary()
@@ -1126,6 +1126,8 @@ enum ExpressionKind:
     NameRef(name: str)
     VarRef(variable: Variable)
     FunctionRef(function: FunctionDef, type_arguments: List[Type])
+    ParameterRef(parameter: ParameterDef)
+    ExternFunctionRef(extern_function: ExternFunctionDef)
     LoadSymbol(symbol: Symbol)
     IntLiteral(value: int)
     FloatLiteral(value: float)
@@ -1163,12 +1165,15 @@ fn array_literal2(value: Expression, size: Expression, location: Location) -> Ex
     return Expression(kind: ExpressionKind.ArrayLiteral2(value, size), ty: undefined_type(), location)
 
 fn load_symbol(symbol: Symbol, ty: Type, location: Location) -> Expression:
-    return Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
+    case symbol:
+        ExternFunction(extern_function_def):
+            return Expression(kind: ExpressionKind.ExternFunctionRef(extern_function_def), ty, location)
+    else:
+        return Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
 
-fn parameter_ref(parameter: ParameterDef, location: Location) -> Expression:
-    let symbol = Symbol.Parameter(parameter)
-    let ty = parameter.ty
-    return load_symbol(symbol, ty, location)
+fn parameter_ref(parameter_def: ParameterDef, location: Location) -> Expression:
+    let ty = parameter_def.ty
+    return Expression(kind: ExpressionKind.ParameterRef(parameter_def), ty, location)
 
 fn call(callee: Expression, arguments: List[LabeledExpression], ty: Type, location: Location) -> Expression:
     let c = FunctionCall(callee, arguments)
@@ -1480,6 +1485,10 @@ fn expression_to_string(expression?: Expression) -> str:
             txt = "FN-{node_id_to_string(function.id)}"
             if not type_arguments.is_empty():
                 txt = txt + types_to_string(typs: type_arguments)
+        ExternFunctionRef(extern_function_def):
+            txt = "extern-function:{extern_function_def.name}"
+        ParameterRef(parameter_def):
+            txt = "parameter:{node_id_to_string(parameter_def.id)}"
         StructLiteral(ty, values):
             txt = "STRUCT-LITERAL"
         UnionLiteral(ty, field, value):

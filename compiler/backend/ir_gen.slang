@@ -38,9 +38,9 @@ class BytecodeGenerator:
     var loop_stack: List[Loop] = List()
 
     fn forward_declarations(module_set: ast.ModuleSet):
+        let index = 0
+        let func_index = 0
         for module in module_set.modules:
-            let index = 0
-            let func_index = 0
             for definition1 in module.definitions:
                 case definition1:
                     Struct(struct_def):
@@ -61,29 +61,9 @@ class BytecodeGenerator:
                             fields2.append(get_bc_type(field1.ty))
                         structs.append(bc.Struct(fields: fields2, is_union: struct_def.is_union))
                     Var(variable_def):
-                        let global_index = global_variables.len()
-                        let name = ast.node_id_to_string(variable_def.variable.id)
-                        begin_code()
-                        gen_expression(option_unwrap(variable_def.value))
-                        let value = get_relocated_instructions()
-                        let global_variable = bc.Global(name, ty: get_bc_type(variable_def.variable.ty), value)
-                        global_variables.append(global_variable)
-                        global_var_mapping.insert(key: name, value: global_index)
+                        gen_global_variable(variable_def)
                     ExternFunction(extern_function_def):
-                        let func_index = extern_functions.len()
-                        let name = extern_function_def.name
-
-                        let parameters: List[bc.Type] = List()
-                        for parameter in extern_function_def.parameter_types:
-                            parameters.append(get_bc_type(parameter))
-
-                        let return_type = Option.None()
-                        if not ast.is_void_type(extern_function_def.return_type):
-                            return_type = Option.Some(get_bc_type(extern_function_def.return_type))
-
-                        let extern_function = bc.ExternFunction(name, parameters, return_type)
-                        extern_functions.append(extern_function)
-                        function_map.insert(key: name, value: func_index)
+                        gen_extern_function(extern_function_def)
                 else:
                     pass
 
@@ -99,9 +79,38 @@ class BytecodeGenerator:
                     panic("Classes are not supported, please rewrite into structs with functions.")
             else:
                 pass
+    
+    fn gen_global_variable(variable_def: ast.VariableDef):
+        let global_index = global_variables.len()
+        let key = ast.node_id_to_string(variable_def.variable.id)
+        let name = get_name(variable_def.variable.id)
+        begin_code()
+        gen_expression(option_unwrap(variable_def.value))
+        let value = get_relocated_instructions()
+        let global_variable = bc.Global(name, ty: get_bc_type(variable_def.variable.ty), value)
+        global_variables.append(global_variable)
+        global_var_mapping.insert(key, value: global_index)
+
+    fn gen_extern_function(extern_function_def: ast.ExternFunctionDef):
+        let func_index = extern_functions.len()
+        let name = "{extern_function_def.modname}_{extern_function_def.name}"
+
+        let parameters: List[bc.Type] = List()
+        for parameter in extern_function_def.parameter_types:
+            parameters.append(get_bc_type(parameter))
+
+        let return_type = Option.None()
+        if not ast.is_void_type(extern_function_def.return_type):
+            return_type = Option.Some(get_bc_type(extern_function_def.return_type))
+        let no_return = extern_function_def.no_return
+
+        let extern_function = bc.ExternFunction(name, parameters, return_type, no_return)
+        extern_functions.append(extern_function)
+        function_map.insert(key: name, value: func_index)
 
     fn gen_func(function_def: ast.FunctionDef):
         log_debug("generate bytecode for {function_def.id.name}")
+        local_var_mapping.clear()
         let parameters: List[bc.Type] = List()
         for parameter in function_def.parameters:
             let p2 = get_bc_type(parameter.ty)
@@ -116,13 +125,19 @@ class BytecodeGenerator:
 
         gen_statement(function_def.body)
 
-        if is_reachable:
-            # Emit return to void function
-            emit(Instruction.Return(n_arg: 0))
+        # Emit return to void function, or unreachable
+        if function_def.body.is_terminator:
+            is_reachable = true
+            emit(Instruction.Unreachable())
+        else:
+            if is_reachable:
+                emit(Instruction.Return(n_arg: 0))
 
         let instructions = get_relocated_instructions()
         let locals = local_variables
-        functions.append(bc.Function(name: function_def.id.name, parameters, return_type, locals, instructions))
+        let name = get_name(function_def.id)
+        let no_return = function_def.no_return
+        functions.append(bc.Function(name, parameters, return_type, no_return, locals, instructions))
 
     fn gen_statement(statement?: ast.Statement):
         case statement.kind:
@@ -173,6 +188,7 @@ class BytecodeGenerator:
             Raise(val):
                 gen_expression(val)
                 emit(Instruction.Raise())
+                is_reachable = false
     
     fn gen_assignment(target: ast.Expression, op: Option[ast.BinaryOperator], value: ast.Expression):
         case target.kind:
@@ -181,6 +197,7 @@ class BytecodeGenerator:
                 let index = get_attr_index(ty: base.ty, attr)
                 case op:
                     Some(op):
+                        emit(Instruction.Dup())
                         emit(Instruction.GetAttr(index, ty: get_bc_type(target.ty)))
                         gen_expression(value)
                         gen_binop(op)
@@ -223,20 +240,16 @@ class BytecodeGenerator:
                         None:
                             gen_expression(value)
                     emit(Instruction.GlobalSet(index))
-            LoadSymbol(symbol):
-                case symbol:
-                    Parameter(parameter_def):
-                        let parameter_index = get_parameter_index(parameter_def)
-                        case op:
-                            Some(op):
-                                emit(Instruction.ParameterGet(parameter_index))
-                                gen_expression(value)
-                                gen_binop(op)
-                            None:
-                                gen_expression(value)
-                        emit(Instruction.ParameterSet(parameter_index))
-                else:
-                    panic("Cannot assign symbol: {ast.symbol_to_str(symbol)}")
+            ParameterRef(parameter_def):
+                let parameter_index = get_parameter_index(parameter_def)
+                case op:
+                    Some(op):
+                        emit(Instruction.ParameterGet(parameter_index))
+                        gen_expression(value)
+                        gen_binop(op)
+                    None:
+                        gen_expression(value)
+                emit(Instruction.ParameterSet(parameter_index))
 
         else:
             panic("Cannot assign: {ast.expression_to_string(target)}")
@@ -404,16 +417,14 @@ class BytecodeGenerator:
                     let var_index = get_global_index(variable)
                     emit(Instruction.GlobalGet(var_index))
             FunctionRef(function_def, type_arguments):
-                emit(Instruction.LoadFunc(name: function_def.id.name))
-            LoadSymbol(symbol):
-                case symbol:
-                    ExternFunction(e):
-                        emit(Instruction.LoadFunc(name: e.name))
-                    Parameter(parameter_def):
-                        let parameter_index = get_parameter_index(parameter_def)
-                        emit(Instruction.ParameterGet(parameter_index))
-                else:
-                    panic("Cannot load symbol {ast.symbol_to_str(symbol)}")
+                let key = ast.node_id_to_string(function_def.id)
+                let funcidx = option_unwrap(function_map.get(key))
+                emit(Instruction.LoadFunc(funcidx))
+            ExternFunctionRef(extern_function_def):
+                panic("Extern function pointer to {extern_function_def.name} not supported")
+            ParameterRef(parameter_def):
+                let parameter_index = get_parameter_index(parameter_def)
+                emit(Instruction.ParameterGet(parameter_index))
             StructLiteral(ty, values):
                 for value in values:
                     gen_expression(value)
@@ -473,26 +484,36 @@ class BytecodeGenerator:
         #emit(Instruction.Call(n_args: call.arguments.len(), result_type))
 
         case call.callee.kind:
-            LoadSymbol(symbol):
-                case symbol:
-                    ExternFunction(external_function_def):
-                        let key = external_function_def.name
-                        log_debug("Calling extern function: {key}")
-                        let funcidx = option_unwrap(function_map.get(key))
-                        emit(Instruction.CallExtern(funcidx))
-                else:
-                    gen_indirect_call(callee: call.callee)
+            ExternFunctionRef(external_function_def):
+                let key = "{external_function_def.modname}_{external_function_def.name}"
+                log_debug("Calling extern function: {key}")
+                let funcidx = option_unwrap(function_map.get(key))
+                emit(Instruction.CallExtern(funcidx))
+                if external_function_def.no_return:
+                    is_reachable = false
 
             FunctionRef(function_def, type_args):
                 # print("call {function_def.id.name}")
                 let key = ast.node_id_to_string(function_def.id)
                 let funcidx = option_unwrap(function_map.get(key))
                 emit(Instruction.Call(funcidx))
+                if function_def.no_return:
+                    is_reachable = false
         else:
             gen_indirect_call(callee: call.callee)
 
     fn gen_indirect_call(callee: ast.Expression):
-        panic("TODO: gen_indirect_call")
+        gen_expression(callee)
+        let parameter_types: List[bc.Type] = List()
+        for p2 in ast.get_parameter_types_from_type(callee.ty):
+            parameter_types.append(get_bc_type(p2))
+        let return_type: Option[bc.Type] = Option.None()
+        let return_type2 = ast.get_return_type_from_type(callee.ty)
+        if ast.is_void_type(return_type2):
+            return_type = Option.None()
+        else:
+            return_type = Option.Some(get_bc_type(return_type2))
+        emit(Instruction.CallIndirect(parameter_types, return_type))
 
     fn gen_binop_expr(binop: ast.BinopExpression):
         gen_expression(binop.lhs)
@@ -596,10 +617,12 @@ class BytecodeGenerator:
         return option_is_some(local_var_mapping.get(key: ast.node_id_to_string(variable.id)))
 
     fn get_local_index(variable: ast.Variable) -> int:
-        return option_unwrap(local_var_mapping.get(key: ast.node_id_to_string(variable.id)))
+        let key = ast.node_id_to_string(variable.id)
+        return option_unwrap(local_var_mapping.get(key))
 
     fn get_global_index(variable: ast.Variable) -> int:
-        return option_unwrap(global_var_mapping.get(key: ast.node_id_to_string(variable.id)))
+        let key = ast.node_id_to_string(variable.id)
+        return option_unwrap(global_var_mapping.get(key))
 
     fn get_parameter_index(parameter_def: ast.ParameterDef) -> int:
         return option_unwrap(local_var_mapping.get(key: ast.node_id_to_string(parameter_def.id)))
@@ -619,10 +642,16 @@ class BytecodeGenerator:
             ty = bc.Type.StructRef(index)
         elif ast.is_function_type(ty2):
             let parameter_types2 = ast.get_parameter_types_from_type(ty2)
+            let return_type2 = ast.get_return_type_from_type(ty2)
             let parameter_types: List[bc.Type] = List()
             for p2 in parameter_types2:
                 parameter_types.append(get_bc_type(p2))
-            ty = bc.Type.Function(parameter_types)
+            let return_type: Option[bc.Type] = Option.None()
+            if ast.is_void_type(return_type2):
+                return_type = Option.None()
+            else:
+                return_type = Option.Some(get_bc_type(return_type2))
+            ty = bc.Type.Function(parameter_types, return_type)
         elif ast.is_type_parameter_type(ty2):
             ty = bc.Type.Ptr()
         elif ast.is_bool_type(ty2):
@@ -642,6 +671,12 @@ class BytecodeGenerator:
         # print("Inst: {bc.instruction_to_string(instruction)}")
         if is_reachable:
             code.append(instruction)
+
+    fn get_name(id?: ast.NodeId) -> str:
+        if id.name == "main":
+            return "main2"
+        else:
+            return "X{id.id}_{id.name}"
 
     fn gen_id() -> int:
         let x = id_counter

@@ -3,15 +3,14 @@
 import ast
 from utils import panic, log_info
 from datatypes import List, option_is_some, option_unwrap, Option
-from std import print, float_to_str, chr, file_writeln, file_open, file_close, str_len
+from std import float_to_str, chr, str_len
 from strlib import str_join, str_repeat
+from text_gen import TextGenerator
 
 fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_filename: Option[str]):
     log_info("Generating python code")
     let g = PyGenerator()
-    if option_is_some(output_filename):
-        g.outf = file_open(option_unwrap(output_filename))
-        g.use_file = true
+    g.out.begin(output_filename)
     if generate_runtime:
         g.emit_runtime()
     g.emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
@@ -19,13 +18,10 @@ fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_filename
         g.gen_module(module)
     if generate_runtime:
         g.emit("sys.exit(main2())")
-    if g.use_file:
-        file_close(g.outf)
+    g.out.end()
 
 class PyGenerator:
-    var indent_level: int = 0
-    var outf: int = 0
-    var use_file: bool = false
+    var out: TextGenerator = TextGenerator()
     var global_header: str = ""
 
     fn gen_module(module: ast.Module):
@@ -250,16 +246,10 @@ class PyGenerator:
                     txt = "float({txt})"
                 elif ast.is_int_type(ty):
                     txt = "int({txt})"
-            LoadSymbol(symbol):
-                case symbol:
-                    ExternFunction(extern_function):
-                        txt = "{extern_function.modname}_{extern_function.name}"
-                    Parameter(parameter):
-                        txt = get_id(id: parameter.id)
-                    Var(variable):
-                        txt = get_id(id: variable.id)
-                else:
-                    panic("Unsupported: {ast.symbol_to_str(symbol)}")
+            ExternFunctionRef(extern_function_def):
+                txt = "{extern_function_def.modname}_{extern_function_def.name}"
+            ParameterRef(parameter_def):
+                txt = get_id(id: parameter_def.id)
             VarRef(variable):
                 txt = get_id(id: variable.id)
             FunctionRef(function_def, type_parameters):
@@ -302,18 +292,13 @@ class PyGenerator:
             return "X{id.id}_{id.name}"
 
     fn emit(txt?: str):
-        let space = str_repeat(text: "    ", count: indent_level)
-        let line = space + txt
-        if use_file:
-            file_writeln(handle: outf, line)
-        else:
-            print(line)
+        out.emit(txt)
     
     fn indent():
-        indent_level += 1
+        out.indent()
     
     fn dedent():
-        indent_level -= 1
+        out.dedent()
 
 fn binary_operator_to_str(op: ast.BinaryOperator) -> str:
     let op_txt = "?"

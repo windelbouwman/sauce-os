@@ -186,13 +186,9 @@ class WasmGenerator:
                         let localidx = get_local_index(id: variable.id)
                         emit(Instruction.local_set(localidx))
 
-                    LoadSymbol(symbol):
-                        case symbol:
-                            Parameter(parameter_def):
-                                let localidx = get_local_index(id: parameter_def.id)
-                                emit(Instruction.local_set(localidx))
-                        else:
-                            panic("Unsupported assignment target: {ast.symbol_to_str(symbol)}")
+                    ParameterRef(parameter_def):
+                        let localidx = get_local_index(id: parameter_def.id)
+                        emit(Instruction.local_set(localidx))
                 else:
                     panic("Unsupported assignment target: {ast.expression_to_string(target)}")
 
@@ -321,15 +317,9 @@ class WasmGenerator:
                 let funcidx = 0
 
                 case call.callee.kind:
-                    LoadSymbol(symbol):
-                        case symbol:
-                            ExternFunction(external_function_def):
-                                let key = external_function_def.name
-                                funcidx = option_unwrap(index_mapping.get(key))
-                        else:
-                            gen_expression(call.callee)
-                            emit(Instruction.ctrl_call_indirect(1337))
-                            panic("cannot call symbol: {ast.symbol_to_str(symbol)}")
+                    ExternFunctionRef(external_function_def):
+                        let key = external_function_def.name
+                        funcidx = option_unwrap(index_mapping.get(key))
 
                     FunctionRef(function_def, type_args):
                         # print("call {function_def.id.name}")
@@ -352,15 +342,12 @@ class WasmGenerator:
                 gen_expression(base)
                 gen_load(offset, ty: expression.ty)
 
-            LoadSymbol(symbol):
-                case symbol:
-                    ExternFunction(external_function):
-                        panic("ext -> {external_function.name}")
-                    Parameter(parameter_def):
-                        let localidx = get_local_index(id: parameter_def.id)
-                        emit(Instruction.local_get(localidx))
-                else:
-                    panic("Not impl symbol")
+            ExternFunctionRef(external_function):
+                panic("ext -> {external_function.name}")
+
+            ParameterRef(parameter_def):
+                let localidx = get_local_index(id: parameter_def.id)
+                emit(Instruction.local_get(localidx))
 
             VarRef(variable):
                 let localidx = get_local_index(id: variable.id)

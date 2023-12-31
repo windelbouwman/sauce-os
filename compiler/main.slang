@@ -172,11 +172,11 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
                 if options.verbosity > 0:
                     bc.print_bc_program(program)
                 log_info("Now running code")
-                run_bytecode(program, entry_function: "main")
+                run_bytecode(program, entry_function: "main2")
             else:
                 bc.print_bc_program(program)
         C:
-            let use_v2 = true
+            let use_v2 = false
             if use_v2:
                 # Generate C-code straight from AST:
                 gen_c_code_v2(module_set, output_filename: options.output_filename)
@@ -185,7 +185,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
                 let program = gen_bytecode(module_set)
                 if options.verbosity > 0:
                     bc.print_bc_program(program)
-                gen_c_code(program)
+                gen_c_code(program, output_filename: options.output_filename)
         WebAssembly:
             gen_webassembly(module_set)
 

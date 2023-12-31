@@ -151,6 +151,12 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                                 type_arguments.append(type_arg)
 
                             expression.kind = ast.ExpressionKind.FunctionRef(function_def, type_arguments)
+
+                        Parameter(parameter_def):
+                            expression.kind = ast.ExpressionKind.ParameterRef(parameter_def)
+
+                        ExternFunction(extern_function_def):
+                            expression.kind = ast.ExpressionKind.ExternFunctionRef(extern_function_def)
                     else:
                         pass
             else:
