@@ -1,0 +1,12 @@
+Walk 1
+Item[0]=13
+Item[1]=12
+Iter integers
+Iter value: 13
+Iter value: 12
+Iter value: 88
+Iter value: 1337
+Walk strings
+Iter value: Bla
+Iter value: Fu
+Iter value: Baz

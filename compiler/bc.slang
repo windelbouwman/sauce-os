@@ -74,9 +74,10 @@ enum Instruction:
     CallExtern(index: int)
     CallIndirect(parameter_types: List[Type], return_type: Option[Type])  # Call function pointer, on top of stack
     Return(n_values: int)
-    SetupTry(try_label: int, except_var_index: int, except_label: int)
+    SetupTry(try_label: int, except_label: int)
     Raise
     PopTry
+    GetExceptionValue
     Unreachable
 
     LocalGet(index: int)
@@ -186,12 +187,14 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "return({v})"
         Unreachable:
             return "unreachable"
-        SetupTry(try_label, except_var_index, except_label):
-            return "setup-try(try: {try_label}, except_local: {except_var_index}, except: {except_label})"
+        SetupTry(try_label, except_label):
+            return "setup-try(try: {try_label}, except: {except_label})"
         Raise:
             return "raise"
         PopTry:
             return "pop-try"
+        GetExceptionValue:
+            return "get-exception-value"
         LocalGet(index):
             return "local-get({index})"
         LocalSet(index):

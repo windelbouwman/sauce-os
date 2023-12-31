@@ -7,6 +7,7 @@ from rt import int_to_str
 from utils import panic
 from datatypes import List, Set, Option, option_is_some, option_unwrap
 from strlib import str_repeat, str_join
+import vm
 import bc
 from text_gen import TextGenerator
 
@@ -63,7 +64,7 @@ fn get_target_labels(instructions: List[bc.Instruction]) -> Set:
             JumpIf(index1, index2):
                 target_labels.add(int_to_str(index1))
                 target_labels.add(int_to_str(index2))
-            SetupTry(try_label, except_var_index, except_label):
+            SetupTry(try_label, except_label):
                 target_labels.add(int_to_str(try_label))
                 target_labels.add(int_to_str(except_label))
         else:
@@ -143,7 +144,7 @@ class CGenerator:
         emit("extern {decl};")
     
     fn gen_global(global: bc.Global):
-        let value = 0  # TODO!
+        let value = eval_code_sequence(code: global.value)
         let typed_name = get_type_txt(ty: global.ty, name: global.name)
         emit("{typed_name} = {value};")
 
@@ -236,7 +237,7 @@ class CGenerator:
                 emit("else")
                 emit("   goto {get_label_str(label2)};")
 
-            SetupTry(try_label, except_var_index, except_label):
+            SetupTry(try_label, except_label):
                 let bufname = "ebuf{try_label}"
                 emit("slang_exception_handler_t {bufname};")
                 emit("{bufname}.prev = g_except_hook;")
@@ -245,7 +246,6 @@ class CGenerator:
                 emit("   goto {get_label_str(try_label)};")
                 emit("else")
                 emit("   goto {get_label_str(except_label)};")
-                # TODO: store exception value
 
             Raise:
                 let value = pop()
@@ -254,6 +254,10 @@ class CGenerator:
 
             PopTry:
                 emit("g_except_hook = g_except_hook->prev;")
+
+            GetExceptionValue:
+                let value = Value(name: "g_except_value", ty: bc.Type.Ptr())
+                push(value)
 
             Not:
                 let rhs = pop()
@@ -608,3 +612,24 @@ class CGenerator:
 
     fn emit(text?: str):
         out.emit(text)
+
+fn eval_code_sequence(code: List[bc.Instruction]) -> str:
+    let m = vm.VirtualMachine()
+    let value = vm.eval_code(vm: m, code)
+    case value:
+        Int(v):
+            return "{v}"
+        Bool(v):
+            if v:
+                return "1"
+            else:
+                return "0"
+        Float(v):
+            return float_to_str(v)
+        Str(v):
+            let quote = chr(34)
+            return "{quote}{v}{quote}"
+        Char(v):
+            return "'{v}'"
+    else:
+        panic("Unsupported initial value")

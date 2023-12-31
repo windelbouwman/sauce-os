@@ -8,13 +8,14 @@ enum Option:
     Money(a: int, b: float)
 
 
-fn main():
+fn main() -> int:
     let val: Option = Option.Some(txt: "TXT")
     foo(val)
     let val2 = Option.None()
     foo(val: val2)
     let val3: Option = Option.Money(a: 5, b: 2.3)
     foo(val: val3)
+    return 0
 
 
 fn foo(val: Option):

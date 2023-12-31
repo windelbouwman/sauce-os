@@ -2,7 +2,7 @@
 # Ideas about exceptions
 from std import print
 
-fn main():
+fn main() -> int:
     try:
         let y: int = foo(x: false)
         try:
@@ -17,6 +17,7 @@ fn main():
         print("y2 = {y}")
     except(err_val: str):
         print("ERROR: {err_val}")
+    return 0
 
 fn foo(x: bool) -> int except str:
     let x1 = may_bork(do_bork: false)

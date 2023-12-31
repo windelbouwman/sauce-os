@@ -55,7 +55,7 @@ char *rt_int_to_str(slang_int_t x)
 char *std_float_to_str(double x)
 {
     char buffer[50];
-    snprintf(buffer, 50, "%f", x);
+    snprintf(buffer, 50, "%g", x);
     char *text = rt_malloc(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;

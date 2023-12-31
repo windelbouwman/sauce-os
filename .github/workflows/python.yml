@@ -7,9 +7,20 @@ on:
     branches: [main]
 
 jobs:
+  check-python-formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'black>=20'
+      - name: Run black formatting checker
+        run: python -m black compiler1 --check
+
   linux-build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v3
@@ -26,7 +37,6 @@ jobs:
 
   windows-build:
     runs-on: windows-latest
-
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v3

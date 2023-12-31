@@ -4,13 +4,14 @@
 
 from std import print
 
-fn main():
+fn main() -> int:
     let i = new_integer(23)
     let value1: Option[Integer] = Option[Integer].None()
     let value2 = Option[Integer].Some(i)
 
     display(value: value1)
     display(value: value2)
+    return 0
 
 
 fn display(value: Option[Integer]):

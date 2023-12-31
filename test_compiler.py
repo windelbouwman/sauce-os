@@ -3,6 +3,7 @@ Build compiler, and test snippets.
 """
 
 import os
+import subprocess
 import pytest
 import glob
 import io
@@ -126,6 +127,25 @@ def test_examples_bc_backend(filename):
 
     args = ["--run", "--backend-bc", "runtime/std.slang"] + [filename]
     stdout = run_compiler(args)
+
+    reference_output = get_reference_output(filename)
+    if reference_output:
+        assert stdout == reference_output
+
+
+@pytest.mark.parametrize("filename", example_filenames)
+def test_examples_exe(filename):
+    """
+    Test compiled executable against expected output.
+
+    """
+
+    exe_filename = os.path.splitext(os.path.basename(filename))[0] + ".exe"
+    exe_path = os.path.join("build", "c", exe_filename)
+
+    result = subprocess.run([exe_path], capture_output=True)
+    stdout = result.stdout.decode("ascii")
+    assert result.returncode == 0
 
     reference_output = get_reference_output(filename)
     if reference_output:

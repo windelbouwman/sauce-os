@@ -69,7 +69,7 @@ fn list_walk(x: List[Integer]):
                 mabye_element = element.next
         i = i + 1
 
-fn main():
+fn main() -> int:
     let x: List[Integer] = list_new()
     # TODO: the below could work?
     # let x = list_new()
@@ -109,6 +109,7 @@ fn main():
                 break
             Some(value):
                 std.print("Iter value: " + value.value)
+    return 0
 
 
 struct Integer:

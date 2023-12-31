@@ -60,7 +60,7 @@ class ListIter[T]:
                 return x
         # return Option.None()
 
-fn main():
+fn main() -> int:
     let x: List[Integer] = List()
     # Hmm, below does not infer that well..
     # let x = List()
@@ -86,3 +86,5 @@ fn main():
     for e in x:
         print("Item[{n}]= {e.value}")
         n = n + 1
+    
+    return 0

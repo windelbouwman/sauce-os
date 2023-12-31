@@ -61,7 +61,7 @@ fn list_walk(x: List):
                 mabye_element = element.next
         i = i + 1
 
-fn main():
+fn main() -> int:
     let x = list_new()
 
     std.print("Walk 1")
@@ -87,6 +87,7 @@ fn main():
                 break
             Some(element):
                 std.print("Item[" + int_to_str(n) + "]=" + int_to_str(element.data))
+    return 0
 
 
 fn list_new() -> List:

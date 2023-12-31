@@ -1,10 +1,11 @@
 
 from std import print
 
-fn main():
+fn main() -> int:
     display()
     modify()
     display()
+    return 0
 
 
 var x : int = 3

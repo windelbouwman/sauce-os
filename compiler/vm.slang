@@ -185,7 +185,9 @@ fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
     return efi_db
 
 fn run_bytecode(program: Program, entry_function: str):
-    let vm = VirtualMachine(program)
+    let vm = VirtualMachine()
+    vm.functions = program.functions
+    vm.structs = program.structs
 
     # Link external functions:
     let efi_db = get_efi_db()
@@ -244,7 +246,6 @@ fn frame_from_function(function: Function, arguments: List[Value]) -> Frame:
 
 struct ExceptionHandler:
     except_label: int
-    except_local_index: int
 
 class Frame:
     var arguments: List[Value] = List()
@@ -263,7 +264,9 @@ class VirtualMachine:
     var efi_table: List[ExternFunctionImpl] = List()
     var frames: List[Frame] = List()
     var globals: List[Value] = List()
-    var program: Program
+    var exception_value: Value = Value.Undefined()
+    var functions: List[bc.Function] = List()
+    var structs: List[bc.Struct] = List()
 
     fn step():
         let instruction = fetch()
@@ -404,7 +407,7 @@ class VirtualMachine:
                     jump(target2)
             Call(index):
                 log_debug("Call function!")
-                let function = program.functions.get(index)
+                let function = functions.get(index)
                 let n = function.parameters.len()
                 let arguments = pop_n(count: n)
                 let frame = frame_from_function(function, arguments)
@@ -422,7 +425,7 @@ class VirtualMachine:
                 let index = int_from_value(func_pointer)
                 let n = parameter_types.len()
                 let arguments = pop_n(count: n)
-                let function = program.functions.get(index)
+                let function = functions.get(index)
                 let frame = frame_from_function(function, arguments)
                 push_frame(frame)
             Return(amount):
@@ -434,12 +437,12 @@ class VirtualMachine:
                     pop_frame()
             Unreachable:
                 panic("Reached unreachable")
-            SetupTry(try_label, except_local_index, except_label):
-                frames.last().exception_handlers.append(ExceptionHandler(except_local_index, except_label))
+            SetupTry(try_label, except_label):
+                frames.last().exception_handlers.append(ExceptionHandler(except_label))
                 jump(try_label)
             Raise:
                 # Find matching exception handler in inner most frame!
-                let value = pop()
+                exception_value = pop()
                 loop:
                     if frames.is_empty():
                         panic("No exception handler found!")
@@ -449,21 +452,22 @@ class VirtualMachine:
                             frames.drop_last()
                         else:
                             let handler = frame.exception_handlers.last()
-                            set_local(index: handler.except_local_index, value)
                             jump(handler.except_label)
                             break
             PopTry:
                 frames.last().exception_handlers.drop_last()
+            GetExceptionValue:
+                push(exception_value)
             LoadFunc(index):
                 push(Value.Int(index))
             StructLiteral(struct_index):
-                let struc = program.structs.get(index: struct_index)
+                let struc = structs.get(index: struct_index)
                 let count = struc.fields.len()
                 let values = pop_n(count)
                 let list = ListValue(values)
                 push(Value.List(list))
             UnionLiteral(struct_index, field_index):
-                let struc = program.structs.get(index: struct_index)
+                let struc = structs.get(index: struct_index)
                 let values: List[Value] = List()
                 for x in struc.fields:
                     values.append(Value.Undefined())

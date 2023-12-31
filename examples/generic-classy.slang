@@ -11,7 +11,7 @@ class Bar[V]:
         return v
 
 
-fn main():
+fn main() -> int:
     let bar: Bar[Integer] = Bar()
     bar.val3 = "Woei!"
     bar.val1 = 1337
@@ -22,6 +22,7 @@ fn main():
     baz.val3 = "Hello world"
     let y = baz.info(v: String())
     std.print("String:" + y.v)
+    return 0
 
 class Integer:
     var v: int = 0

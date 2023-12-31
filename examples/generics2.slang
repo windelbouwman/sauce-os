@@ -11,7 +11,7 @@ struct I:
 struct S:
     s: str
 
-fn main():
+fn main() -> int:
     
     let i = I:
         i: 12
@@ -37,6 +37,7 @@ fn main():
     let bla_i2 = new_bla(v2: 2, x2: 3)
     print("{get_v(v: bla_i2)}")
     # print(bla_s2.value.s)
+    return 0
 
 fn new_bla[T](v2: T, x2: int) -> Bla[T]:
     let b2 = Bla[T]:

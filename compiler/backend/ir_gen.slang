@@ -261,7 +261,7 @@ class BytecodeGenerator:
         let final_label = new_label()
 
         let except_var_index = add_local(variable: try_statement.except_var)
-        emit(Instruction.SetupTry(try_label, except_var_index, except_label))
+        emit(Instruction.SetupTry(try_label, except_label))
 
         set_label(try_label)
         gen_statement(try_statement.try_block.body)
@@ -270,6 +270,8 @@ class BytecodeGenerator:
 
         set_label(except_label)
         emit(Instruction.PopTry())
+        emit(Instruction.GetExceptionValue())
+        emit(Instruction.LocalSet(index: except_var_index))
         gen_statement(try_statement.except_block.body)
         jump(final_label)
 
@@ -585,10 +587,10 @@ class BytecodeGenerator:
                     label1 = translate_label(label1)
                     label2 = translate_label(label2)
                     instructions.append(Instruction.JumpIf(label1, label2))
-                SetupTry(try_label, except_var_index, except_label):
+                SetupTry(try_label, except_label):
                     try_label = translate_label(try_label)
                     except_label = translate_label(except_label)
-                    instructions.append(Instruction.SetupTry(try_label, except_var_index, except_label))
+                    instructions.append(Instruction.SetupTry(try_label, except_label))
             else:
                 instructions.append(instruction)
         return instructions

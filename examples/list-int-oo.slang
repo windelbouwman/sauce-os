@@ -64,7 +64,7 @@ class ListIter:
         return opt
 
 
-fn main():
+fn main() -> int:
     let x = List()
 
     std.print("Walk 1")
@@ -91,3 +91,4 @@ fn main():
             Some(element):
                 std.print("Item[" + int_to_str(n) + "]=" + int_to_str(element.data))
         n = n + 1
+    return 0
