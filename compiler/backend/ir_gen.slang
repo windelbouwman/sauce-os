@@ -2,7 +2,8 @@
 
 import ast
 from std import print
-from datatypes import List, Dictionary, option_unwrap, Option, option_is_some
+from datatypes import List, option_unwrap, Option, option_is_some
+from dicttype import Dictionary
 from utils import panic, log_info, log_debug, assert, log_trace
 from bc import Instruction
 import bc
@@ -377,7 +378,6 @@ class BytecodeGenerator:
                 gen_call(call)
             GetAttr(base, attr):
                 gen_expression(base)
-                # TODO: optionally cast from void to type (type erasure)
                 let index = get_attr_index(ty: base.ty, attr)
                 emit(Instruction.GetAttr(index, ty: get_bc_type(expression.ty)))
             GetIndex(base, indici):
@@ -420,7 +420,7 @@ class BytecodeGenerator:
                     emit(Instruction.GlobalGet(var_index))
             FunctionRef(function_def, type_arguments):
                 let key = ast.node_id_to_string(function_def.id)
-                let funcidx = option_unwrap(function_map.get(key))
+                let funcidx = function_map.get(key)
                 emit(Instruction.LoadFunc(funcidx))
             ExternFunctionRef(extern_function_def):
                 panic("Extern function pointer to {extern_function_def.name} not supported")
@@ -431,12 +431,12 @@ class BytecodeGenerator:
                 for value in values:
                     gen_expression(value)
                 let struct_def = ast.get_struct_def_from_type(ty)
-                let struct_index = option_unwrap(struct_mapping.get(key: ast.node_id_to_string(struct_def.id)))
+                let struct_index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
                 emit(Instruction.StructLiteral(struct_index))
             UnionLiteral(ty, field, value):
                 gen_expression(value)
                 let struct_def = ast.get_struct_def_from_type(ty)
-                let struct_index = option_unwrap(struct_mapping.get(key: ast.node_id_to_string(struct_def.id)))
+                let struct_index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
                 let field_index = get_attr_index(ty, attr: field)
                 emit(Instruction.UnionLiteral(struct_index, field_index))
             ArrayLiteral(values):
@@ -471,7 +471,7 @@ class BytecodeGenerator:
                 elif ast.is_opaque_type(value.ty):
                     emit(Instruction.FromOpaque(get_bc_type(ty)))
                 else:
-                    panic("TODO: unsupported type-casting from {ast.type_to_string(value.ty)} to {ast.type_to_string(ty)}")
+                    panic("unsupported type-casting from {ast.type_to_string(value.ty)} to {ast.type_to_string(ty)}")
         else:
             panic("Unsupported: {ast.expression_to_string(expression)}")
 
@@ -489,7 +489,7 @@ class BytecodeGenerator:
             ExternFunctionRef(external_function_def):
                 let key = "{external_function_def.modname}_{external_function_def.name}"
                 log_debug("Calling extern function: {key}")
-                let funcidx = option_unwrap(function_map.get(key))
+                let funcidx = function_map.get(key)
                 emit(Instruction.CallExtern(funcidx))
                 if external_function_def.no_return:
                     is_reachable = false
@@ -497,7 +497,7 @@ class BytecodeGenerator:
             FunctionRef(function_def, type_args):
                 # print("call {function_def.id.name}")
                 let key = ast.node_id_to_string(function_def.id)
-                let funcidx = option_unwrap(function_map.get(key))
+                let funcidx = function_map.get(key)
                 emit(Instruction.Call(funcidx))
                 if function_def.no_return:
                     is_reachable = false
@@ -568,7 +568,7 @@ class BytecodeGenerator:
         is_reachable = true
     
     fn translate_label(label?: int) -> int:
-        return option_unwrap(label_mapping.get(key: "{label}"))
+        return label_mapping.get(key: "{label}")
 
     fn begin_code():
         label_mapping = Dictionary()
@@ -616,18 +616,18 @@ class BytecodeGenerator:
         return index
     
     fn is_local_variable(variable: ast.Variable) -> bool:
-        return option_is_some(local_var_mapping.get(key: ast.node_id_to_string(variable.id)))
+        return local_var_mapping.contains(key: ast.node_id_to_string(variable.id))
 
     fn get_local_index(variable: ast.Variable) -> int:
         let key = ast.node_id_to_string(variable.id)
-        return option_unwrap(local_var_mapping.get(key))
+        return local_var_mapping.get(key)
 
     fn get_global_index(variable: ast.Variable) -> int:
         let key = ast.node_id_to_string(variable.id)
-        return option_unwrap(global_var_mapping.get(key))
+        return global_var_mapping.get(key)
 
     fn get_parameter_index(parameter_def: ast.ParameterDef) -> int:
-        return option_unwrap(local_var_mapping.get(key: ast.node_id_to_string(parameter_def.id)))
+        return local_var_mapping.get(key: ast.node_id_to_string(parameter_def.id))
 
     fn get_bc_type(ty2?: ast.Type) -> bc.Type:
         # Determine the bytecode type for the given ast type
@@ -640,7 +640,7 @@ class BytecodeGenerator:
             ty = bc.Type.Str()
         elif ast.is_struct_type(ty2):
             let struct_def = ast.get_struct_def_from_type(ty2)
-            let index = option_unwrap(struct_mapping.get(key: ast.node_id_to_string(struct_def.id)))
+            let index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
             ty = bc.Type.StructRef(index)
         elif ast.is_function_type(ty2):
             let parameter_types2 = ast.get_parameter_types_from_type(ty2)

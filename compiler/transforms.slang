@@ -13,7 +13,8 @@ from location import Location
 from utils import panic, log_info, log_debug, assert
 from basepass import IdGen
 from typechecking import type_check_modules
-from datatypes import Dictionary, List, vec1, vec2, vec3, Option, option_unwrap_or, option_unwrap
+from datatypes import List, vec1, vec2, vec3, Option, option_unwrap_or, option_unwrap
+from dicttype import Dictionary
 from errors import CompilationError
 import ast
 
@@ -176,10 +177,10 @@ fn transformer_on_type5(transformer: Transformer, ty: ast.Type, phase: ast.Visit
                 App(tycon, type_arguments):
                     case tycon:
                         Class(class_def):
-                            let struct_def = option_unwrap(transformer.class_rewriter.struct_map.get(key: ast.node_id_to_string(class_def.id)))
+                            let struct_def = transformer.class_rewriter.struct_map.get(key: ast.node_id_to_string(class_def.id))
                             ty.kind = ast.TypeKind.App(ast.TyCon.Struct(struct_def), type_arguments)
                         Enum(enum_def):
-                            let struct_def = option_unwrap(transformer.class_rewriter.struct_map.get(key: ast.node_id_to_string(enum_def.id)))
+                            let struct_def = transformer.class_rewriter.struct_map.get(key: ast.node_id_to_string(enum_def.id))
                             ty.kind = ast.TypeKind.App(ast.TyCon.Struct(struct_def), type_arguments)
                     else:
                         pass
@@ -434,8 +435,6 @@ class ClassRewriter:
 
     fn rewrite_class_def(class_def: ast.ClassDef):
         log_info("Rewriting class def {class_def.id.name}")
-        let ctor_parameters: List[ast.ParameterDef] = List()
-        let init_values: List[ast.Expression] = List()
         let methods: List[ast.FunctionDef] = List()
         let builder = ast.StructBuilder()
         builder.set_name(name: class_def.id.name)
@@ -452,17 +451,6 @@ class ClassRewriter:
                 Var(var_def):
                     let ty = ast.subst(ty: var_def.variable.ty, m)
                     builder.add_field(name: var_def.variable.id.name, ty, location: var_def.variable.location)
-                    case var_def.value:
-                        Some(iv2):
-                            init_values.append(iv2)
-                            # log_info("Init val")
-                        None:
-                            # Create a c-tor parameter
-                            # log_info("c-tor param")
-                            let ctor_param = ast.parameter_def(name: var_def.variable.id.name, id: get_unique_id(), label_is_optional: false, ty, location: class_def.location)
-                            ctor_parameters.append(ctor_param)
-                            let iv2 = ast.parameter_ref(parameter_def: ctor_param, location: class_def.location)
-                            init_values.append(iv2)
                 Function(function_def):
                     methods.append(function_def)
             else:
@@ -476,7 +464,7 @@ class ClassRewriter:
         for method in methods:
             lift_method(method, class_def, struct_def)
 
-        create_constructor(class_def, struct_def, parameters: ctor_parameters, init_values)
+        create_constructor(class_def, struct_def)
 
     fn lift_method(method: ast.FunctionDef, class_def: ast.ClassDef, struct_def: ast.StructDef):
         let type_arguments: List[ast.Type] = List()
@@ -488,11 +476,12 @@ class ClassRewriter:
         method.id.name = "{class_def.id.name}_{method.id.name}"
         let this_parameter = option_unwrap(method.this_parameter)
         method.this_parameter = Option.None()
+        # TODO: why does the below cause trouble?
         # ast.change_type_to(ty: this_parameter.ty, ty2: struct_type)
         method.parameters.prepend(this_parameter)
         new_definitions.append(ast.Definition.Function(method))
 
-    fn create_constructor(class_def: ast.ClassDef, struct_def: ast.StructDef, parameters: List[ast.ParameterDef], init_values: List[ast.Expression]):
+    fn create_constructor(class_def: ast.ClassDef, struct_def: ast.StructDef):
         # Create constructor function
         let ctor_name = "{class_def.id.name}_ctor"
         let type_parameters: List[ast.TypeParameter] = List()
@@ -503,6 +492,26 @@ class ClassRewriter:
             type_parameters.append(type_parameter)
             type_arguments.append(ast.type_parameter_ref(type_parameter))
         let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
+
+        let m = ast.create_subst_mapping(type_parameters: class_def.type_parameters, type_arguments)
+        let parameters: List[ast.ParameterDef] = List()
+        let init_values: List[ast.Expression] = List()
+        for definition in class_def.definitions:
+            case definition:
+                Var(var_def):
+                    case var_def.value:
+                        Some(iv2):
+                            init_values.append(iv2)
+                        None:
+                            # Create a c-tor parameter
+                            let ty = ast.subst(ty: var_def.variable.ty, m)
+                            let ctor_param = ast.parameter_def(name: var_def.variable.id.name, id: get_unique_id(), label_is_optional: false, ty, location: class_def.location)
+                            parameters.append(ctor_param)
+                            let iv2 = ast.parameter_ref(parameter_def: ctor_param, location: class_def.location)
+                            init_values.append(iv2)
+            else:
+                pass
+
         let init_literal = ast.struct_literal(ty: struct_type, values: init_values, location: class_def.location)
         let body = ast.return_statement(value: Option.Some(init_literal), location: class_def.location)
         let ctor_func = ast.function_def(name: ctor_name, id: get_unique_id(), type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
@@ -511,12 +520,9 @@ class ClassRewriter:
         ctor_map.insert(key: ast.node_id_to_string(class_def.id), value: ctor_func)
         new_definitions.append(ast.Definition.Function(ctor_func))
 
-    #fn rewrite_method_call():
-    #    pass
-
     fn rewrite_class_literal(ty: ast.Type, arguments: List[ast.LabeledExpression], location: Location) -> ast.Expression:
         let class_def = ast.get_class_def_from_type(ty)
-        let ctor_func_def: ast.FunctionDef = option_unwrap(ctor_map.get(key: ast.node_id_to_string(class_def.id)))
+        let ctor_func_def: ast.FunctionDef = ctor_map.get(key: ast.node_id_to_string(class_def.id))
         let type_arguments = ast.get_type_arguments_from_type(ty)
         let ctor_func_ref = ast.function_ref(function_def: ctor_func_def, type_arguments, location)
         let struct_ty: ast.Type = ast.undefined_type()
@@ -532,7 +538,7 @@ class ClassRewriter:
         return ast.variable(name, id, ty, location)
 
     fn get_struct_def_for_id(id: ast.NodeId) -> ast.StructDef:
-        return option_unwrap(struct_map.get(key: ast.node_id_to_string(id)))
+        return struct_map.get(key: ast.node_id_to_string(id))
     
     fn get_struct_type_for_id(id: ast.NodeId, type_arguments: List[ast.Type]) -> ast.Type:
         let struct_def = get_struct_def_for_id(id)

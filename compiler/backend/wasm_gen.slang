@@ -12,7 +12,8 @@
 import webassembly
 import ast
 from webassembly import Instruction
-from datatypes import List, Dictionary, option_unwrap, vec1
+from datatypes import List, vec1
+from dicttype import Dictionary
 from location import location_default
 from std import print, str_len, ord
 from utils import panic, log_info, log_debug, assert, log_error
@@ -125,7 +126,7 @@ class WasmGenerator:
         let key = webassembly.type_to_string(ft)
         let index = 0
         if index_mapping.contains(key):
-            index = option_unwrap(index_mapping.get(key))
+            index = index_mapping.get(key)
         else:
             index = types.len()
             index_mapping.insert(key, value: index)
@@ -319,12 +320,12 @@ class WasmGenerator:
                 case call.callee.kind:
                     ExternFunctionRef(external_function_def):
                         let key = external_function_def.name
-                        funcidx = option_unwrap(index_mapping.get(key))
+                        funcidx = index_mapping.get(key)
 
                     FunctionRef(function_def, type_args):
                         # print("call {function_def.id.name}")
                         let key = ast.node_id_to_string(function_def.id)
-                        funcidx = option_unwrap(index_mapping.get(key))
+                        funcidx = index_mapping.get(key)
                 else:
                     gen_expression(call.callee)
                     emit(Instruction.ctrl_call_indirect(1337))
@@ -487,7 +488,7 @@ class WasmGenerator:
 
     fn gen_malloc_call(size: int):
         emit(Instruction.i64_const(size))
-        let funcidx = option_unwrap(index_mapping.get(key: "malloc"))
+        let funcidx = index_mapping.get(key: "malloc")
         emit(Instruction.ctrl_call(funcidx))
 
     fn sizeof(ty: ast.Type) -> int:
@@ -535,7 +536,7 @@ class WasmGenerator:
                 emit(Instruction.f64_load(align: 8, offset))
 
     fn get_local_index(id: ast.NodeId) -> int:
-        return option_unwrap(index_mapping.get(key: ast.node_id_to_string(id)))
+        return index_mapping.get(key: ast.node_id_to_string(id))
 
     fn create_parameter(id: ast.NodeId, ty: ast.Type) -> int:
         let idx = n_parameters

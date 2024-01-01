@@ -166,7 +166,8 @@ class PyGenerator:
                     None:
                         op_txt = "="
                     Some(op3):
-                        op_txt = "{binary_operator_to_str(op: op3)}="
+                        let float_division = ast.is_float_type(value.ty)
+                        op_txt = "{binary_operator_to_str(op: op3, float_division)}="
                 emit("{gen_expression(target, parens: true)} {op_txt} {gen_expression(value, parens: false)}")
             Return(value):
                 case value:
@@ -271,7 +272,8 @@ class PyGenerator:
                 if parens:
                     txt = "({txt})"
             Binop(binop):
-                let op = binary_operator_to_str(op: binop.op)
+                let float_division = ast.is_float_type(binop.lhs.ty)
+                let op = binary_operator_to_str(op: binop.op, float_division)
                 txt = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
                 if parens:
                     txt = "({txt})"
@@ -300,7 +302,7 @@ class PyGenerator:
     fn dedent():
         out.dedent()
 
-fn binary_operator_to_str(op: ast.BinaryOperator) -> str:
+fn binary_operator_to_str(op: ast.BinaryOperator, float_division: bool) -> str:
     let op_txt = "?"
     case op:
         And:
@@ -326,7 +328,10 @@ fn binary_operator_to_str(op: ast.BinaryOperator) -> str:
         Mul:
             op_txt = "*"
         Div:
-            op_txt = "/"
+            if float_division:
+                op_txt = "/"
+            else:
+                op_txt = "//"
         BitAnd:
             op_txt = "&"
         BitXor:

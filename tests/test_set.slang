@@ -1,7 +1,7 @@
 
 
 from std import print
-from datatypes import Set
+from settype import Set
 from unittest import assert_str_equals, assert_int_equals, assert_true, assert_false
 
 

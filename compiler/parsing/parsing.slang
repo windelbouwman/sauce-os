@@ -362,7 +362,6 @@ class Parser:
         let tok = get_token()
         case tok.kind:
             Equals:
-                # TODO/TBD: using let var_init here should be a programming error?
                 var_init = Option.Some(parse_expression())
         else:
             unget_token(tok)

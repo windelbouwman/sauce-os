@@ -26,6 +26,7 @@ from compiler1 import compiler, errors, builtins
 logging.basicConfig(level=loglevel)
 options = compiler.CompilationOptions(backend="py")
 sources = glob.glob("compiler/**/*.slang", recursive=True)
+sources.extend(glob.glob("Libs/base/*.slang"))
 sources.append("runtime/std.slang")
 
 output_filename = "build/tmp-compiler.py"

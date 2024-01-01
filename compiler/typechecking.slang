@@ -3,7 +3,8 @@
 
 import ast
 from std import print
-from datatypes import Option, List, option_unwrap, Set, option_is_none
+from datatypes import Option, List, option_unwrap, option_is_none
+from settype import Set
 from location import Location, location_to_string
 from utils import log_info, panic, log_error
 from errors import CompilationError, new_errors, new_error, display_error, SingleCompilationError
@@ -54,7 +55,6 @@ fn checker_on_type(checker: TypeChecker, ty: ast.Type, phase: ast.VisitPhase):
     pass
 
 fn assign_types(variables: List[ast.Variable], types: List[ast.Type]):
-    # TODO: this double for loops requires its own scope .. (only in python backend)
     let pi = types.iter()
     for v in variables:
         let ty = option_unwrap(pi.next())
@@ -253,6 +253,8 @@ class TypeChecker:
                     for argument in call.arguments:
                         arguments.append(argument.value)
                     check_arguments(location: expression.location, parameter_types, arguments)
+                    if was_errors:
+                        return
                     expression.ty = ast.deref_type_var(return_type)
                     # print("Call: {ast.type_to_string(expression.ty)}")
 

@@ -403,8 +403,6 @@ class ClassRewriter(BaseTransformer):
 
     def rewrite_class_def(self, class_def: ast.ClassDef):
         # Create a struct instead of a class:
-        init_values = []
-        ctor_parameters = []
         methods = []
         type_args = []
         builder = ast.StructBuilder(
@@ -418,18 +416,8 @@ class ClassRewriter(BaseTransformer):
         m = dict(zip(class_def.type_parameters, type_args))
         for member in class_def.members:
             if isinstance(member, ast.VarDef):
-                id = self.new_id(member.id.name)
                 ty = ast.subst(member.ty, m)
-                builder.add_field(id.name, ty, member.location)
-                if member.value:
-                    init_values.append(member.value)
-                else:
-                    # Create ctor parameter
-                    ctor_parameter = ast.Parameter(id, True, ty, class_def.location)
-                    ctor_parameters.append(ctor_parameter)
-                    init_values.append(
-                        ast.obj_ref(ctor_parameter, ty, class_def.location)
-                    )
+                builder.add_field(member.id.name, ty, member.location)
             elif isinstance(member, ast.FunctionDef):
                 methods.append(member)
             else:
@@ -442,7 +430,7 @@ class ClassRewriter(BaseTransformer):
         for method in methods:
             self.lift_method(method, class_def, struct_def)
 
-        self.create_constructor(class_def, struct_def, init_values, ctor_parameters)
+        self.create_constructor(class_def, struct_def)
 
     def lift_method(
         self,
@@ -472,21 +460,38 @@ class ClassRewriter(BaseTransformer):
         replace_goo(method, m7)
         self.new_defs.append(method)
 
-    def create_constructor(
-        self,
-        class_def: ast.ClassDef,
-        struct_def: ast.StructDef,
-        init_values,
-        ctor_parameters,
-    ):
+    def create_constructor(self, class_def: ast.ClassDef, struct_def: ast.StructDef):
         """Create constructor function"""
-        type_parameters = []  # TODO!
+        type_parameters = []
         type_args = []
         for tp in class_def.type_parameters:
             tp = ast.TypeParameter(self.new_id(tp.id.name), tp.location)
             type_parameters.append(tp)
             type_args.append(tp.get_ref())
         struct_type = struct_def.apply(type_args)
+
+        # Add parameters and init values
+        m = dict(zip(class_def.type_parameters, type_args))
+        ctor_parameters = []
+        init_values = []
+        for member in class_def.members:
+            if isinstance(member, ast.VarDef):
+                if member.value:
+                    init_values.append(member.value)
+                else:
+                    # Create ctor parameter
+                    new_id = self.new_id(member.id.name)
+                    ty = ast.subst(member.ty, m)
+                    ctor_parameter = ast.Parameter(new_id, True, ty, class_def.location)
+                    ctor_parameters.append(ctor_parameter)
+                    init_values.append(
+                        ast.obj_ref(ctor_parameter, ty, class_def.location)
+                    )
+            elif isinstance(member, ast.FunctionDef):
+                pass
+            else:
+                raise NotImplementedError(str(member))
+
         init_literal = ast.struct_literal(struct_type, init_values, class_def.location)
         ctor_code = ast.return_statement(init_literal, class_def.location)
         except_type = ast.void_type

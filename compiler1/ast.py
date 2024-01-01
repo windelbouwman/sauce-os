@@ -240,6 +240,10 @@ def subst(t: MyType, m: dict["TypeParameter", MyType]) -> MyType:
         return_type = subst(t.kind.return_type, m)
         except_type = subst(t.kind.except_type, m)
         return function_type(parameter_names, new_args, return_type, except_type)
+    elif isinstance(t.kind, ArrayType):
+        size = t.kind.size
+        element_type = subst(t.kind.element_type, m)
+        return array_type(size, element_type)
     else:
         return t
 

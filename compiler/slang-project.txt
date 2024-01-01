@@ -3,4 +3,5 @@
 # Store included files outside this folder here:
 
 ../runtime/std.slang
+../Libs/base
 

@@ -5,7 +5,8 @@ from location import Location
 from basepass import IdGen
 from utils import log_info, panic
 from errors import new_error, new_errors, CompilationError, SingleCompilationError
-from datatypes import Dictionary, List, Option
+from datatypes import List, Option
+from dicttype import Dictionary
 
 
 fn resolve_newops(module: ast.Module, id_gen: IdGen) except CompilationError:

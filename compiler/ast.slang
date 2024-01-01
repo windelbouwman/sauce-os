@@ -3,7 +3,8 @@ from std import print, float_to_str
 from strlib import str_repeat, str_join
 from utils import panic, assert, log_info, log_error
 from location import Location, location_default
-from datatypes import List, Option, Dictionary, option_unwrap, option_is_some
+from datatypes import List, Option, option_unwrap, option_is_some
+from dicttype import Dictionary
 
 # Name coupled with global unique ID:
 struct NodeId:
@@ -100,7 +101,7 @@ fn apply_tycon(tycon: TyCon, type_arguments: List[Type]) -> Type:
 fn subst(ty: Type, m: Dictionary[Type]) -> Type:
     case ty.kind:
         TypeParam(p):
-            case m.get(key: p.id.name):
+            case m.maybe_get(key: p.id.name):
                 Some(ty3):
                     # Idea is to record if we once were a type-parameter:
                     let ty4 = clone_type(ty3)
@@ -113,6 +114,9 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
             return_type = subst(ty: return_type, m)
             except_type = subst(ty: except_type, m)
             return function_type(labels, parameter_types, return_type, except_type)
+        Array(element_type, size):
+            element_type = subst(ty: element_type, m)
+            return array_type(element_type, size)
         App(tycon, type_arguments):
             return apply_tycon(tycon, type_arguments: subst_many(typs: type_arguments, m))
     else:
@@ -688,7 +692,7 @@ class Scope:
         return option_is_some(lookup(name))
 
     fn lookup(name: str) -> Option[Symbol]:
-        return symbols.get(key: name)
+        return symbols.maybe_get(key: name)
     
     fn dump():
         log_info("Scope:")
@@ -1366,8 +1370,12 @@ fn print_ast_definition(printer: AstPrinter, definition: Definition, phase: Visi
                         printer.print2(txt: "- FIELD {field.name}")
                 Enum(enum_def):
                     printer.print2(txt: "Enum: {node_id_to_string(enum_def.id)}")
+                    for type_parameter in enum_def.type_parameters:
+                        printer.print2(txt: "- TP {node_id_to_string(type_parameter.id)}")
                 Class(class_def):
                     printer.print2(txt: "Class: {node_id_to_string(class_def.id)}")
+                    for type_parameter in class_def.type_parameters:
+                        printer.print2(txt: "- TP {node_id_to_string(type_parameter.id)}")
                 Var(variable_def):
                     printer.print2(txt: "Var: {node_id_to_string(variable_def.variable.id)}")
             printer.indent()
@@ -1611,6 +1619,11 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
             # print("VISIT {func.name}")
             for parameter in function_def.parameters:
                 visit_type(visitor, ty: parameter.ty)
+            case function_def.this_parameter:
+                Some(p):
+                    visit_type(visitor, ty: p.ty)
+                None:
+                    pass
             visit_type(visitor, ty: function_def.return_type)
             visit_type(visitor, ty: function_def.except_type)
             visit_statement(visitor, statement: function_def.body)
@@ -1658,6 +1671,8 @@ fn visit_type[T](visitor: Visitor[T], ty: Type):
                     visit_type(visitor, ty: ty2)
                 None:
                     pass
+        Array(element_type, size):
+            visit_type(visitor, ty: element_type)
     else:
         pass
     visitor.on_type(data: visitor.data, ty, phase: VisitPhase.Post())

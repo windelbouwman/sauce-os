@@ -1,7 +1,8 @@
 
 from utils import log_info, log_trace, panic
 from location import Location
-from datatypes import List, Option, Dictionary, option_unwrap
+from datatypes import List, Option, option_unwrap
+from dicttype import Dictionary
 import ast
 from errors import CompilationError, new_error, new_errors, SingleCompilationError
 
@@ -48,7 +49,7 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) except Com
 
 fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: ScopeFiller):
     log_trace("Import {imp.modname}")
-    case module_map.get(key: imp.modname):
+    case module_map.maybe_get(key: imp.modname):
         Some(m):
             case imp.kind:
                 Self:
@@ -62,7 +63,7 @@ fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: Scope
                             None:
                                 filler.add_error(location: imp.location, message: "Error, module {m.name} has no symbol: {name}")
         None:
-            filler.add_error(location: imp.location, message: "Error, no mod: {imp.modname}")
+            filler.add_error(location: imp.location, message: "Error, no module named: {imp.modname}")
 
 fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
     # try to retrieve a scope, if we have one

@@ -28,6 +28,7 @@ example_filenames = list(filter(include_example, glob.glob("examples/*.slang")))
 def slang_compiler():
     options = compiler.CompilationOptions(backend="py")
     sources = glob.glob("compiler/**/*.slang", recursive=True)
+    sources.extend(glob.glob("Libs/base/*.slang"))
     sources.append("runtime/std.slang")
 
     f = io.StringIO()

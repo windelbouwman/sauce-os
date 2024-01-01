@@ -13,7 +13,8 @@ from pygenerator import gen_python
 from basepass import IdGen
 from transforms import transform
 from builtins import get_rt_module
-from datatypes import List, Dictionary, Result, option_unwrap, Option
+from datatypes import List, Result, option_unwrap, Option
+from dicttype import Dictionary
 from strlib import string_compare
 from graphlib import DiGraph, topological_sort
 from sorting import sort_list

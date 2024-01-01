@@ -5,7 +5,8 @@
 from std import float_to_str, chr
 from rt import int_to_str
 from utils import panic
-from datatypes import List, Set, Option, option_is_some, option_unwrap
+from datatypes import List, Option, option_is_some, option_unwrap
+from settype import Set
 from strlib import str_repeat, str_join
 import vm
 import bc
@@ -512,7 +513,6 @@ class CGenerator:
                 let element_type_text = get_type_txt(ty: ety, name: "")
                 let ty = bc.Type.Array(ty: ety)
                 let typed_var = get_type_txt(ty, name: varname)
-                # emit("{typed_var}[{size}] = {chr(123)} {arg_text} {chr(125)};")
                 emit("{typed_var} = rt_malloc({size} * sizeof({element_type_text}));")
                 let index = 0
                 for value in values:
@@ -528,8 +528,8 @@ class CGenerator:
                 let typed_var = get_type_txt(ty, name: varname)
                 let element_type_text = get_type_txt(ty: value.ty, name: "")
                 emit("{typed_var} = rt_malloc({size.name} * sizeof({element_type_text}));")
-                # TODO: copy value to all elements
                 emit("{varname}[0] = {value.name};")
+                # Copy value to all elements:
                 emit("for (int i = 1; i < {size.name}; i++)")
                 emit("  {varname}[i] = {varname}[0];")
                 push(Value(name: varname, ty))

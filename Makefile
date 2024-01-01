@@ -6,11 +6,9 @@ BUILDDIR=build
 COMPILER_SRCS := $(wildcard compiler/*/*.slang)
 COMPILER_SRCS += $(wildcard compiler/*.slang)
 COMPILER_SRCS += runtime/std.slang
-COMPILER_LIB_SRCS := compiler/utils/strlib.slang compiler/utils/utils.slang compiler/utils/datatypes.slang
 BASE_LIB_SRCS := $(wildcard Libs/base/*.slang)
-BASE_LIB_SRCS += ${COMPILER_LIB_SRCS}
+COMPILER_SRCS += ${BASE_LIB_SRCS}
 BASE_LIB_SRCS += runtime/std.slang
-TEST_LIB_SRCS := tests/unittest.slang
 REGEX_LIB_SRCS := Libs/regex/regex.slang Libs/regex/integersetlib.slang Libs/regex/rangelib.slang
 COMPILER1=${BUILDDIR}/tmp-compiler.py
 COMPILER2=${BUILDDIR}/tmp-compiler2.py
@@ -51,6 +49,7 @@ ${BUILDDIR}/python/%.py: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUI
 # examples compiled to C code:
 all-examples-c: $(C_EXAMPLES)
 
+.PRECIOUS: ${BUILDDIR}/%.exe
 ${BUILDDIR}/%.exe: ${BUILDDIR}/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
 	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/runtime.o
 
@@ -72,13 +71,13 @@ ${BUILDDIR}/wasm/%.wat: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUIL
 
 # Unit tests:
 .PHONY: run_test_%
+.PRECIOUS: ${BUILDDIR}/tests/test_%.c
 run-test-%: ${BUILDDIR}/tests/test_%.exe
 	$<
 
 ${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}
 	python ${COMPILER6} --backend-c -o $@ $< ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
 
-.PRECIOUS: ${BUILDDIR}/tests/test_%.c
 
 # Libs demos
 ${BUILDDIR}/regex.c: Libs/regex/main.slang ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}

@@ -3,7 +3,9 @@
 # There are directed and undirected graph types.
 
 from std import print
-from datatypes import List, Dictionary, Set, option_unwrap, Option
+from datatypes import List, Option
+from settype import Set
+from dicttype import Dictionary
 
 class DiGraph:
     # A directed graph
@@ -21,23 +23,23 @@ class DiGraph:
     fn add_edge(src: str, dst: str):
         add_node(src)
         add_node(dst)
-        option_unwrap(succ.get(key: src)).add(dst)
-        option_unwrap(pred.get(key: dst)).add(src)
+        succ.get(key: src).add(dst)
+        pred.get(key: dst).add(src)
     
     fn remove_edge(src: str, dst: str):
         # Remove edge from src to dst
-        option_unwrap(succ.get(key: src)).remove(dst)
-        option_unwrap(pred.get(key: dst)).remove(src)
+        succ.get(key: src).remove(dst)
+        pred.get(key: dst).remove(src)
 
     fn has_edge(src: str, dst: str) -> bool:
-        case succ.get(key: src):
+        case succ.maybe_get(key: src):
             Some(s):
                 return s.contains(dst)
             None:
                 return false
     
     fn has_preds(n?: str) -> bool:
-        case pred.get(key: n):
+        case pred.maybe_get(key: n):
             Some(p):
                 return not p.is_empty()
             None:
@@ -45,7 +47,7 @@ class DiGraph:
     
     fn has_edges() -> bool:
         for n in nodes:
-            let pred2 = option_unwrap(pred.get(key: n))
+            let pred2 = pred.get(key: n)
             if not pred2.is_empty():
                 #for p in pred2:
                 #    print("{n} has pred: {p}")

@@ -1,7 +1,8 @@
 
 # Virtual machine for bytecode.
 
-from datatypes import List, Option, Dictionary, option_unwrap
+from datatypes import List, Option
+from dicttype import Dictionary
 from utils import panic, log_debug, log_info, assert
 from bc import Instruction, Program, Function, instruction_to_string
 from std import print, float_to_str
@@ -193,7 +194,7 @@ fn run_bytecode(program: Program, entry_function: str):
     let efi_db = get_efi_db()
     for e in program.extern_functions:
         if efi_db.contains(key: e.name):
-            let efi = option_unwrap(efi_db.get(key: e.name))
+            let efi = efi_db.get(key: e.name)
             assert(condition: e.parameters.len() == efi.n, message: "n should match len(parameters)")
             vm.efi_table.append(efi)
         else:
@@ -212,7 +213,7 @@ fn run_bytecode(program: Program, entry_function: str):
     for function in program.functions:
         function_name_to_index.insert(key: function.name, value: index)
         index += 1
-    let entry_function_index = option_unwrap(function_name_to_index.get(key: entry_function))
+    let entry_function_index = function_name_to_index.get(key: entry_function)
 
     let function = program.functions.get(index: entry_function_index)
     let arguments: List[Value] = List()
