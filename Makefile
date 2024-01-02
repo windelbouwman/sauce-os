@@ -3,12 +3,11 @@
 BUILDDIR=build
 
 # Variables:
+BASE_LIB_SRCS := $(wildcard Libs/base/*.slang)
+BASE_LIB_SRCS += runtime/std.slang
 COMPILER_SRCS := $(wildcard compiler/*/*.slang)
 COMPILER_SRCS += $(wildcard compiler/*.slang)
-COMPILER_SRCS += runtime/std.slang
-BASE_LIB_SRCS := $(wildcard Libs/base/*.slang)
 COMPILER_SRCS += ${BASE_LIB_SRCS}
-BASE_LIB_SRCS += runtime/std.slang
 REGEX_LIB_SRCS := Libs/regex/regex.slang Libs/regex/integersetlib.slang Libs/regex/rangelib.slang
 COMPILER1=${BUILDDIR}/tmp-compiler.py
 COMPILER2=${BUILDDIR}/tmp-compiler2.py
@@ -36,14 +35,13 @@ check: ${ALL_TEST_RUNS}
 # Example to bytecode compilation
 all-examples-bc: $(BC_EXAMPLES)
 
-${BUILDDIR}/bc/%.txt: examples/%.slang ${COMPILER6} | ${BUILDDIR}
+${BUILDDIR}/bc/%.txt: examples/%.slang ${COMPILER6} | ${BUILDDIR}/bc
 	python ${COMPILER6} --backend-bc $< runtime/std.slang > $@
-
 
 # Example compiled to Python code:
 all-examples-python: $(PY_EXAMPLES)
 
-${BUILDDIR}/python/%.py: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
+${BUILDDIR}/python/%.py: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/python
 	python ${COMPILER6} --backend-py -o $@ $< runtime/std.slang
 
 # examples compiled to C code:
@@ -55,7 +53,7 @@ ${BUILDDIR}/%.exe: ${BUILDDIR}/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
 
 .PRECIOUS: ${BUILDDIR}/c/%.c
 
-${BUILDDIR}/c/%.c: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
+${BUILDDIR}/c/%.c: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/c
 	python ${COMPILER6} --backend-c -o $@ $< runtime/std.slang
 
 # Wasm examples:
@@ -66,7 +64,7 @@ all-examples-wasm: $(WASM_EXAMPLES)
 
 .PRECIOUS: ${BUILDDIR}/wasm/%.wat
 
-${BUILDDIR}/wasm/%.wat: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}
+${BUILDDIR}/wasm/%.wat: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/wasm
 	python ${COMPILER6} -wasm $< runtime/std.slang | sed '/^# /d' > $@
 
 # Unit tests:
@@ -75,7 +73,7 @@ ${BUILDDIR}/wasm/%.wat: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUIL
 run-test-%: ${BUILDDIR}/tests/test_%.exe
 	$<
 
-${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}
+${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/tests
 	python ${COMPILER6} --backend-c -o $@ $< ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
 
 
@@ -84,28 +82,28 @@ ${BUILDDIR}/regex.c: Libs/regex/main.slang ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${
 	python ${COMPILER6} --backend-c -o $@ Libs/regex/main.slang ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
 
 # Bootstrap sequence:
-${BUILDDIR}/tmp-compiler.py: ${COMPILER_SRCS} compiler1/*.py | ${BUILDDIR}
+${BUILDDIR}/tmp-compiler.py: | ${COMPILER_SRCS} compiler1/*.py ${BUILDDIR}
 	python bootstrap.py
 
-${COMPILER2}: ${COMPILER_SRCS} ${BUILDDIR}/tmp-compiler.py | ${BUILDDIR}
+${COMPILER2}: | ${COMPILER_SRCS} ${BUILDDIR}/tmp-compiler.py ${BUILDDIR}
 	python ${COMPILER1} --backend-py -o ${COMPILER2} ${COMPILER_SRCS}
 
-${COMPILER3}: ${COMPILER_SRCS} | ${BUILDDIR}/tmp-compiler2.py ${BUILDDIR}
+${COMPILER3}: | ${COMPILER_SRCS} ${BUILDDIR}/tmp-compiler2.py ${BUILDDIR}
 	python ${COMPILER2} --backend-py -o ${COMPILER3} ${COMPILER_SRCS}
 
-${BUILDDIR}/tmp-compiler4.c: ${COMPILER_SRCS} | ${BUILDDIR} ${COMPILER3}
+${BUILDDIR}/tmp-compiler4.c: | ${COMPILER_SRCS} ${BUILDDIR} ${COMPILER3}
 	python ${COMPILER3} --backend-c -o ${BUILDDIR}/tmp-compiler4.c ${COMPILER_SRCS}
 
 ${COMPILER4}: ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/runtime.o
 	gcc ${CFLAGS} -o ${COMPILER4} ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/runtime.o
 
-${BUILDDIR}/tmp-compiler5.c: ${COMPILER_SRCS} | ${BUILDDIR} # ${COMPILER4}
+${BUILDDIR}/tmp-compiler5.c: | ${COMPILER_SRCS} ${BUILDDIR} ${COMPILER4}
 	./${COMPILER4} --backend-c -o ${BUILDDIR}/tmp-compiler5.c ${COMPILER_SRCS}
 
 ${COMPILER5}: ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
 	gcc ${CFLAGS} -o ${COMPILER5} ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/runtime.o
 
-${COMPILER6}: ${COMPILER_SRCS} | ${BUILDDIR} #  ${COMPILER5}
+${COMPILER6}: ${COMPILER_SRCS} | ${BUILDDIR} ${COMPILER5}
 	./${COMPILER5} --backend-py -o ${COMPILER6} ${COMPILER_SRCS}
 
 ${BUILDDIR}/compiler.wat: ${COMPILER_SRCS} ${COMPILER6} | ${BUILDDIR}
@@ -114,11 +112,22 @@ ${BUILDDIR}/compiler.wat: ${COMPILER_SRCS} ${COMPILER6} | ${BUILDDIR}
 # Helper targets:
 ${BUILDDIR}:
 	mkdir -p ${BUILDDIR}
-	mkdir -p ${BUILDDIR}/wasm
-	mkdir -p ${BUILDDIR}/python
+
+${BUILDDIR}/c:
 	mkdir -p ${BUILDDIR}/c
+
+${BUILDDIR}/python:
+	mkdir -p ${BUILDDIR}/python
+
+${BUILDDIR}/wasm:
+	mkdir -p ${BUILDDIR}/wasm
+
+${BUILDDIR}/bc:
 	mkdir -p ${BUILDDIR}/bc
+
+${BUILDDIR}/tests:
 	mkdir -p ${BUILDDIR}/tests
+
 
 ${BUILDDIR}/runtime.o: runtime/runtime.c | ${BUILDDIR}
 	gcc ${CFLAGS} -c -o $@ $<
