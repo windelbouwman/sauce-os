@@ -32,8 +32,10 @@ jobs:
         run: pytest test_compiler1.py -v
       - name: Bootstrap
         run: bash bootstrap2.sh
-      # - name: Check slang unit tests
-      # run: make check
+      - name: Build all
+        run: make
+      - name: Check slang unit tests
+        run: make check
 
   windows-build:
     runs-on: windows-latest

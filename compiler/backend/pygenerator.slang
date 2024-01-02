@@ -45,11 +45,14 @@ class PyGenerator:
         # Print out runtime functions required
         # TODO: figure out multiline string support?
         # TBD: how to handle multiline strings. Do we want this?
+        let quote = chr(34)
+        let left_brace = chr(123)
+        let right_brace = chr(125)
         emit("import sys")
         emit("std_print = print")
         emit("rt_int_to_str = str")
         emit("std_str_to_int = int")
-        emit("std_float_to_str = str")
+        emit("std_float_to_str = lambda x: f{quote}{left_brace}x:f{right_brace}{quote}")
         emit("std_str_to_float = float")
         emit("rt_char_to_str = str")
         emit("std_str_len = len")

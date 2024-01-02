@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 // Config:
 // #define DEBUG_REFCOUNTING
@@ -46,7 +47,7 @@ slang_int_t std_str_to_int(char *x)
 char *rt_int_to_str(slang_int_t x)
 {
     char buffer[50];
-    snprintf(buffer, 50, "%lld", x);
+    snprintf(buffer, 50, "%" PRIdPTR, x);
     char *text = rt_malloc(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;
@@ -55,7 +56,7 @@ char *rt_int_to_str(slang_int_t x)
 char *std_float_to_str(double x)
 {
     char buffer[50];
-    snprintf(buffer, 50, "%g", x);
+    snprintf(buffer, 50, "%f", x);
     char *text = rt_malloc(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;

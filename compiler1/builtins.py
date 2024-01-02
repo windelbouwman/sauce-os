@@ -59,7 +59,7 @@ def get_builtins(args=(), stdout=None):
         "std_read_file": std_read_file,
         "rt_int_to_str": str,
         "std_str_to_int": int,
-        "std_float_to_str": str,
+        "std_float_to_str": lambda x: f"{x:f}",
         "std_str_to_float": float,
         "rt_char_to_str": str,
         "std_str_len": len,
@@ -94,7 +94,7 @@ def std_exit(code: int):
 std_print = print
 rt_int_to_str = str
 std_str_to_int = int
-std_float_to_str = str
+std_float_to_str = lambda x: f"{x:f}"
 std_str_to_float = float
 std_str_len = len
 std_ord = ord
