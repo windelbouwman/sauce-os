@@ -6,6 +6,7 @@ from std import float_to_str, chr
 from rt import int_to_str
 from utils import panic
 from datatypes import List, Option, option_is_some, option_unwrap
+from vectype import Vector
 from settype import Set
 from strlib import str_repeat, str_join
 import vm
@@ -55,7 +56,7 @@ fn gen_c_code(program: bc.Program, output_filename: Option[str]):
 
     g.out.end()
 
-fn get_target_labels(instructions: List[bc.Instruction]) -> Set:
+fn get_target_labels(instructions: Vector[bc.Instruction]) -> Set:
     # Get a set of labels to which is being jumped
     let target_labels = Set()
     for instruction in instructions:
@@ -613,7 +614,7 @@ class CGenerator:
     fn emit(text?: str):
         out.emit(text)
 
-fn eval_code_sequence(code: List[bc.Instruction]) -> str:
+fn eval_code_sequence(code: Vector[bc.Instruction]) -> str:
     let m = vm.VirtualMachine()
     let value = vm.eval_code(vm: m, code)
     case value:

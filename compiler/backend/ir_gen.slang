@@ -4,6 +4,7 @@ import ast
 from std import print
 from datatypes import List, option_unwrap, Option, option_is_some
 from dicttype import Dictionary
+from vectype import Vector, new_vector
 from utils import panic, log_info, log_debug, assert, log_trace
 from bc import Instruction
 import bc
@@ -23,7 +24,7 @@ struct Loop:
 class BytecodeGenerator:
     var id_counter: int = 1
     var is_reachable: bool = true
-    var code: List[Instruction] = List()
+    var code: Vector[Instruction] = new_vector(default: Instruction.Nop())
 
     var global_variables: List[bc.Global] = List()
     var global_var_mapping: Dictionary[int] = Dictionary()
@@ -572,12 +573,12 @@ class BytecodeGenerator:
 
     fn begin_code():
         label_mapping = Dictionary()
-        code = List()
+        code = new_vector(default: Instruction.Nop())
         is_reachable = true
 
-    fn get_relocated_instructions() -> List[Instruction]:
+    fn get_relocated_instructions() -> Vector[Instruction]:
         # Apply relocations to labels
-        let instructions: List[Instruction] = List()
+        let instructions: Vector[Instruction] = new_vector(default: Instruction.Nop())
         for instruction in code:
             case instruction:
                 Jump(label):

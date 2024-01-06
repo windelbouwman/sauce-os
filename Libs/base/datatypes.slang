@@ -77,28 +77,37 @@ class List[T]:
     # Linked list based on a linked list of elements with next pointers.
 
     var head_element: Option[ListElement[T]] = Option.None()
+    var tail_element: Option[ListElement[T]] = Option.None()
+    var length: int = 0
 
     fn append(val?: T):
-        let new_tail_element = ListElement[T]:
+        # Create new linked list element:
+        let new_element = ListElement[T]:
             next: Option.None()
             data: val
-
-        case head_element:
+        
+        # Adjust head and tail pointers
+        case tail_element:
             None:
-                head_element = Option.Some(new_tail_element)
+                head_element = Option.Some(new_element)
+                tail_element = Option.Some(new_element)
             Some(element):
-                loop:
-                    case element.next:
-                        None:
-                            break
-                        Some(nxt_element):
-                            element = nxt_element
-                element.next = Option.Some(new_tail_element)
+                element.next = Option.Some(new_element)
+                tail_element = Option.Some(new_element)
+        length += 1
 
     fn prepend(val?: T):
         # Prepend value in front of list
-        let new_head_element = ListElement[T](next: head_element, data: val)
-        head_element = Option.Some(new_head_element)
+        let new_element = ListElement[T](next: head_element, data: val)
+
+        # Adjust head and tail pointers
+        head_element = Option.Some(new_element)
+        case tail_element:
+            None:
+                tail_element = Option.Some(new_element)
+        else:
+            pass
+        length += 1
 
     fn is_empty() -> bool:
         case head_element:
@@ -109,19 +118,7 @@ class List[T]:
 
     fn len() -> int:
         # Retrieve length of the list
-        case head_element:
-            None:
-                return 0
-            Some(element):
-                let n = 1
-                loop:
-                    case element.next:
-                        None:
-                            break
-                        Some(nxt_element2):
-                            element = nxt_element2
-                            n += 1
-                return n
+        return length
 
     fn clear():
         while not is_empty():
@@ -132,7 +129,13 @@ class List[T]:
             None:
                 panic("List.pop_front from empty list!")
             Some(element):
+                length -= 1
                 head_element = element.next
+                case head_element:
+                    None:
+                        tail_element = Option.None()
+                else:
+                    pass
                 return element.data
 
     fn iter() -> ListIter[T]:
@@ -158,10 +161,12 @@ class List[T]:
             None:
                 panic("List.pop_last from empty list!")
             Some(element):
+                length -= 1
                 case element.next:
                     None:
                         # single item in list!
                         head_element = Option.None()
+                        tail_element = Option.None()
                         return element.data
                     Some(next_element):
                         # More than 1 item in the list
@@ -171,6 +176,7 @@ class List[T]:
                                 None:
                                     # This is the last item!
                                     element.next = Option.None()
+                                    tail_element = Option.Some(element)
                                     return next_element.data
                                 Some(next_next_element):
                                     # Slide to next item
@@ -180,16 +186,10 @@ class List[T]:
 
     fn last() -> T:
         # Retrieve last element
-        case head_element:
+        case tail_element:
             None:
                 panic("List.last on empty list!")
             Some(element):
-                loop:
-                    case element.next:
-                        None:
-                            break
-                        Some(nxt_element2):
-                            element = nxt_element2
                 return element.data
     
     fn get(index: int) -> T:
@@ -235,6 +235,16 @@ class List[T]:
                                 pe.next = element.next
                             None:
                                 head_element = element.next
+                        
+                        # Check if we delete the last item:
+                        case element.next:
+                            None:
+                                tail_element = prev_element
+                        else:
+                            pass
+                        
+                        length -= 1
+
                         return
 
                     case element.next:

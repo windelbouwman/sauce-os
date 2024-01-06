@@ -1,6 +1,7 @@
 
 from std import print, float_to_str
 from datatypes import List, Option
+from vectype import Vector
 from utils import panic
 
 struct Program:
@@ -12,7 +13,7 @@ struct Program:
 struct Global:
     name: str
     ty: Type
-    value: List[Instruction]
+    value: Vector[Instruction]
 
 struct Struct:
     is_union: bool
@@ -30,7 +31,7 @@ struct Function:
     return_type: Option[Type]
     no_return: bool
     locals: List[Type]
-    instructions: List[Instruction]
+    instructions: Vector[Instruction]
 
 enum Type:
     Int

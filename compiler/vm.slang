@@ -3,6 +3,7 @@
 
 from datatypes import List, Option
 from dicttype import Dictionary
+from vectype import Vector, new_vector
 from utils import panic, log_debug, log_info, assert
 from bc import Instruction, Program, Function, instruction_to_string
 from std import print, float_to_str
@@ -204,7 +205,7 @@ fn run_bytecode(program: Program, entry_function: str):
     for g in program.globals:
         vm.globals.append(eval_code(vm, code: g.value))
 
-    let top_frame = Frame(code: List())
+    let top_frame = Frame(code: new_vector(default: Instruction.Nop()))
     vm.push_frame(frame: top_frame)
 
     # Create mapping from names to index:
@@ -222,7 +223,7 @@ fn run_bytecode(program: Program, entry_function: str):
     while vm.frames.len() > 1:
         vm.step()
 
-fn eval_code(vm: VirtualMachine, code: List[Instruction]) -> Value:
+fn eval_code(vm: VirtualMachine, code: Vector[Instruction]) -> Value:
     # Evaluate a bytecode expression
     let frame = Frame(code)
     vm.push_frame(frame)
@@ -254,7 +255,7 @@ class Frame:
     var stack: List[Value] = List()
     var exception_handlers: List[ExceptionHandler] = List()
     var pc: int = 0
-    var code: List[Instruction]
+    var code: Vector[Instruction]
 
     fn fetch() -> Instruction:
         let instruction = code.get(index: pc)
