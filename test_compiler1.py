@@ -11,18 +11,8 @@ import io
 import pytest
 from compiler1 import compiler
 
-# Skip slow mandelbrot test for now:
-exclusions = ["mandel"]
 
-
-def include_example(filename):
-    for exclusion in exclusions:
-        if exclusion in filename:
-            return False
-    return True
-
-
-example_filenames = list(filter(include_example, glob.glob("examples/*.slang")))
+example_filenames = list(glob.glob("examples/snippets/*.slang"))
 
 
 @pytest.mark.parametrize("filename", example_filenames)

@@ -6,7 +6,7 @@ from std import print, ord, str_slice, str_len
 from std import str_to_float, str_to_int
 from token import Token, TokenKind, token_to_string
 from location import Location, location_at, Position
-from strlib import hex_to_int, is_digit, is_hex_digit
+from strlib import hex_to_int, bin_to_int, is_digit, is_hex_digit, is_bin_digit
 from datatypes import List, Option
 
 
@@ -169,11 +169,14 @@ class Lexer:
                 col_start = offset
             elif is_digit(c):
                 let is_hex = false
+                let is_bin = false
                 if c == '0' and offset < n:
                     if peek() == 'x':
                         is_hex = true
                     elif peek() == 'X':
                         is_hex = true
+                    elif peek() == 'b':
+                        is_bin = true
 
                 if is_hex:
                     offset += 1
@@ -183,6 +186,15 @@ class Lexer:
                     let hextext = get_lexeme()
                     hextext = str_slice(value: hextext, begin: 2, end: str_len(hextext))
                     let int_value = hex_to_int(hextext)
+                    kind = TokenKind.Integer(int_value)
+                elif is_bin:
+                    offset += 1
+                    # Binary number!
+                    while offset < n and is_bin_digit(c: peek()):
+                        offset += 1
+                    let bintext = get_lexeme()
+                    bintext = str_slice(value: bintext, begin: 2, end: str_len(bintext))
+                    let int_value = bin_to_int(bintext)
                     kind = TokenKind.Integer(int_value)
                 else:
                     while offset < n and is_digit(c: peek()):

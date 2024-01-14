@@ -220,6 +220,10 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.ArrayIndex):
             if isinstance(kind.base.ty.kind, ast.ArrayType):
                 expression.ty = kind.base.ty.kind.element_type
+            elif kind.base.ty.has_field("get"):
+                # If it quacks lite an get/set... it must be an get/set interface!
+                val_ty: ast.MyType = kind.base.ty.get_field_type("get").kind.return_type
+                expression.ty = val_ty
             else:
                 self.error(
                     expression.location,

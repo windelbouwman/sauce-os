@@ -11,17 +11,7 @@ from functools import lru_cache
 from compiler1 import compiler, errors, builtins
 
 
-exclusions = ["mandel"]
-
-
-def include_example(filename):
-    for exclusion in exclusions:
-        if exclusion in filename:
-            return False
-    return True
-
-
-example_filenames = list(filter(include_example, glob.glob("examples/*.slang")))
+example_filenames = list(glob.glob("examples/snippets/*.slang"))
 
 
 @lru_cache

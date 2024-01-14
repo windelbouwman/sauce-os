@@ -35,6 +35,7 @@ fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module) ex
     # - Rewrite for-loops into while loops
     # - Rewrite loops into while loops
     # - Rewrite ToString contraptions
+    # - Rewrite base[x] into base.get(index: x) if base has a 'get' method.
     visitor.on_definition = transformer_on_definition0
     visitor.on_type = transformer_on_type0
     visitor.on_statement = transformer_on_statement1
@@ -43,11 +44,8 @@ fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module) ex
     ast.visit_module_set(visitor, module_set)
 
     # Phase 1-b:
-    # - Rewrite for-loops into while loops
-    # - Rewrite loops into while loops
     # - Rewrite enum definitions into struct definitions
     # - Rewrite classes into structs with functions
-    # - Rewrite ToString contraptions
     visitor.on_definition = transformer_on_definition1
     visitor.on_type = transformer_on_type0
     visitor.on_statement = transformer_on_statement0
@@ -294,6 +292,14 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                         ast.change_expression_to(expression, to: call)
                     else:
                         panic("Invalid type for to-string")
+                GetIndex(base, indici):
+                    if ast.has_field(ty: base.ty, attr: "get"):
+                        assert(condition: indici.len() == 1, message: "Only support single indexing.")
+                        let index = indici.first()
+                        let arg1 = ast.LabeledExpression(name: Option.Some("index"), value: index, location: index.location)
+                        let arguments = vec1(arg1)
+                        let call_get = ast.call_method(base, method: "get", arguments, location: expression.location)
+                        ast.change_expression_to(expression, to: call_get)
             else:
                 pass
     else:
@@ -561,12 +567,14 @@ class ClassRewriter:
     fn transform_for_loop_over_iterator(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
         # Implement loop over 'iter' method:
         # log_info(".... {ast.type_to_string(for_statement.iter_value.ty)}")
-        let iter_val = ast.call_method(base: for_statement.iter_value, method: "iter", location)
+        let arguments: List[ast.LabeledExpression] = List()
+        let iter_val = ast.call_method(base: for_statement.iter_value, method: "iter", arguments, location)
         let iter_var = new_variable(name: "it", ty: iter_val.ty, location)
         let let_it_var = ast.let_statement(variable: iter_var, type_hint: Option.None(), value: iter_val, location)
 
         # log_info("....>>> {ast.type_to_string(iter_var.ty)}")
-        let opt_val = ast.call_method(base: ast.var_ref(variable: iter_var, location), method: "next", location)
+        arguments = List()
+        let opt_val = ast.call_method(base: ast.var_ref(variable: iter_var, location), method: "next", arguments, location)
         let opt_var = new_variable(name: "opt", ty: opt_val.ty, location)
         let let_opt_var = ast.let_statement(variable: opt_var, type_hint: Option.None(), value: opt_val, location)
 

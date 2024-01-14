@@ -345,13 +345,19 @@ class TypeChecker:
             GetIndex(base, indici):
                 if ast.is_array_type(ty: base.ty):
                     expression.ty = ast.get_element_type_from_type(ty: base.ty)
-                    if indici.len() == 1:
-                        let index: ast.Expression = indici.first()
-                        coerce(ty: ast.int_type(), value: index)
-                    else:
-                        add_error(location: expression.location, message: "Only 1 dimensional indexing supported (for now)")
+                elif ast.has_field(ty: base.ty, attr: "get"):
+                    # Maybe we try to access an object with get/set interface
+                    # TODO: we have a few assumptions here, which panic. Should be proper warning:
+                    let val_ty: ast.Type = ast.get_return_type_from_type(option_unwrap(ast.get_field_type(ty: base.ty, attr: "get")))
+                    expression.ty = val_ty
                 else:
-                    add_error(location: expression.location, message: "Expected array type")
+                    add_error(location: expression.location, message: "Got {ast.type_to_string(base.ty)}, expected array or indexable type")
+
+                if indici.len() == 1:
+                    let index: ast.Expression = indici.first()
+                    coerce(ty: ast.int_type(), value: index)
+                else:
+                    add_error(location: expression.location, message: "Only 1 dimensional indexing supported.")
             EnumLiteral(ty, variant, values):
                 let payload_types = ast.get_variant_payload_types(ty, variant)
                 check_arguments(location: expression.location, parameter_types: payload_types, arguments: values)

@@ -1192,10 +1192,10 @@ fn get_attr_typed(value: Expression, attr: str, location: Location) -> Expressio
     let attr_ty = option_unwrap(get_field_type(ty: value.ty, attr))
     return get_attr(base: value, field: attr, ty: attr_ty, location)
 
-fn call_method(base: Expression, method: str, location: Location) -> Expression:
+fn call_method(base: Expression, method: str, arguments: List[LabeledExpression], location: Location) -> Expression:
     let callee = get_attr_typed(value: base, attr: method, location)
     let result_ty: Type = get_return_type_from_type(callee.ty)
-    return call(callee, arguments: List(), ty: result_ty, location)
+    return call(callee, arguments, ty: result_ty, location)
 
 struct FunctionCall:
     callee: Expression

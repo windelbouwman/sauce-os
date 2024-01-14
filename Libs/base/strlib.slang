@@ -1,6 +1,6 @@
 
 from datatypes import List, Option
-from std import str_slice, str_get, str_len, ord
+from std import str_slice, str_get, str_len, ord, chr
 from utils import assert, panic
 
 fn split_string(text: str, sep: char) -> List[str]:
@@ -70,6 +70,26 @@ fn hex_to_int(hextext: str) -> int:
         index += 1
     return value
 
+fn bin_to_int(bintext: str) -> int:
+    # Convert bin text to integer value
+    # For example, convert 101 to 5
+    let n = str_len(bintext)
+    assert(condition: n > 0, message: "Binary string must be at least a single digit.")
+    let index = 0
+    let value = 0
+    while index < n:
+        let c = str_get(bintext, index)
+        let o = ord(c)
+
+        let cval = 0
+        if (o >= 48) and (o <= 49):     # 0..1
+            cval = o - 48
+        else:
+            panic("Invalid binary char: {c}")
+        value = value * 2 + cval
+        index += 1
+    return value
+
 fn is_digit(c: char) -> bool:
     # Check if a character is a digit.
     let o = ord(value: c)
@@ -83,6 +103,32 @@ fn is_hex_digit(c: char) -> bool:
     elif (o >= 65) and (o <= 70):   # A..F
         return true
     elif (o >= 97) and (o <= 102):  # a..f
+        return true
+    else:
+        return false
+
+fn int_to_hex_string(value?: int) -> str:
+    let text = ""
+    let n = 8
+    while n > 0:
+        let c = hex_char(value & 0xF)
+        value = value / 16
+        text = "{c}{text}"
+        n -= 1
+    return text
+
+fn hex_char(value?: int) -> char:
+    if value < 10:
+        return chr(value + 48)
+    elif value < 16:
+        return chr(value + 55)
+    else:
+        return '?'
+
+fn is_bin_digit(c: char) -> bool:
+    # Check if a character is a binary digit.
+    let o = ord(value: c)
+    if (o >= 48) and (o <= 49):     # 0..1
         return true
     else:
         return false

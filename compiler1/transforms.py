@@ -194,6 +194,14 @@ class LoopRewriter(BaseTransformer):
                 raise ValueError(
                     f"Cannot resolve to-string for {ast.str_ty(kind.expr.ty)}"
                 )
+        elif isinstance(kind, ast.ArrayIndex):
+            if kind.base.ty.has_field("get"):
+                # If it quacks lite an get/set... it must be an get/set interface!
+                assert len(kind.indici) == 1
+                index = kind.indici[0]
+                args = [ast.LabeledExpression("index", index, index.location)]
+                call_get = kind.base.call_method("get", args)
+                expression.kind = call_get.kind
 
     def get_rt_function(self, name: str):
         return self._rt_module.get_field(name)

@@ -258,7 +258,7 @@ class Frame:
     var code: Vector[Instruction]
 
     fn fetch() -> Instruction:
-        let instruction = code.get(index: pc)
+        let instruction = code[pc]
         pc += 1
         return instruction
 

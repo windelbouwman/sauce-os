@@ -21,6 +21,7 @@ from sorting import sort_list
 from c_gen import gen_c_code
 from c_gen_v2 import gen_c_code_v2
 from wasm_gen import gen_webassembly
+from riscv_gen import gen_riscv
 from vm import run_bytecode
 
 
@@ -61,6 +62,8 @@ fn main() -> int:
             options.backend = Backend.Python()
         elif argument == "--backend-null":
             options.backend = Backend.Null()
+        elif argument == "--backend-riscv":
+            options.backend = Backend.Riscv()
         elif argument == "-rt":
             options.runtime = false
         elif argument == "--backend-wasm":
@@ -103,6 +106,7 @@ fn print_usage():
     print("    --backend-py    : Spit out python code")
     print("    --backend-c     : Spit out C code")
     print("    --backend-wasm  : Spit out WebAssembly")
+    print("    --backend-riscv : Spit out RiscV code")
     print("    -rt : Skip runtime?")
     print("    --run : Run code!")
     print("")
@@ -122,6 +126,7 @@ enum Backend:
     Python
     WebAssembly
     Null
+    Riscv
 
 fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
     let id_gen = IdGen()
@@ -189,6 +194,9 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
                 gen_c_code(program, output_filename: options.output_filename)
         WebAssembly:
             gen_webassembly(module_set)
+        Riscv:
+            let program = gen_bytecode(module_set)
+            gen_riscv(program)
 
 fn topo_sort(modules: List[ast.Module]):
     # Sort modules (in-place) based on which module import the other one

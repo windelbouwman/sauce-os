@@ -3,7 +3,8 @@
 
 from std import print, str_to_int
 from rt import int_to_str
-from strlib import trim, hex_to_int, find_char, is_digit
+from strlib import trim, hex_to_int, bin_to_int, find_char, is_digit
+from strlib import int_to_hex_string
 from datatypes import option_unwrap
 from unittest import assert_str_equals, assert_int_equals
 from utils import assert
@@ -11,6 +12,7 @@ from utils import assert
 fn main() -> int:
     test_trim()
     test_hex_to_int()
+    test_bin_to_int()
     test_find_char()
     test_int_to_str()
     print("OK")
@@ -26,6 +28,14 @@ fn test_trim():
 fn test_hex_to_int():
     assert_int_equals(hex_to_int(hextext: "AABB"), 0xAABB)
     assert_int_equals(hex_to_int(hextext: "123456"), 0x123456)
+    assert_str_equals(int_to_hex_string(0xAABB), "0000AABB")
+    assert_str_equals(int_to_hex_string(0x123456), "00123456")
+
+fn test_bin_to_int():
+    assert_int_equals(bin_to_int(bintext: "101"), 5)
+    assert_int_equals(bin_to_int(bintext: "1100"), 12)
+    assert_int_equals(0b101, 5)
+    assert_int_equals(0b1100, 12)
 
 fn test_find_char():
     let index = option_unwrap(find_char(text: "blaat5", criterium: is_digit))
