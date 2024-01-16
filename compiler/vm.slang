@@ -90,40 +90,40 @@ struct ExternFunctionImpl:
     n: int
 
 fn efi_std_ord(arguments: List[Value]) -> Option[Value]:
-    let value = std.ord(char_from_value(arguments.first()))
+    let value = std.ord(char_from_value(arguments[0]))
     return Option.Some(Value.Int(value))
 
 fn efi_std_chr(arguments: List[Value]) -> Option[Value]:
-    let value = std.chr(int_from_value(arguments.first()))
+    let value = std.chr(int_from_value(arguments[0]))
     return Option.Some(Value.Char(value))
 
 fn efi_std_float_to_str(arguments: List[Value]) -> Option[Value]:
-    let value = std.float_to_str(float_from_value(arguments.first()))
+    let value = std.float_to_str(float_from_value(arguments[0]))
     return Option.Some(Value.Str(value))
 
 fn efi_std_str_to_float(arguments: List[Value]) -> Option[Value]:
-    let value = std.str_to_float(str_from_value(arguments.first()))
+    let value = std.str_to_float(str_from_value(arguments[0]))
     return Option.Some(Value.Float(value))
 
 fn efi_std_str_to_int(arguments: List[Value]) -> Option[Value]:
-    let value = std.str_to_int(str_from_value(arguments.first()))
+    let value = std.str_to_int(str_from_value(arguments[0]))
     return Option.Some(Value.Int(value))
 
 fn efi_std_str_len(arguments: List[Value]) -> Option[Value]:
-    let text = str_from_value(arguments.first())
+    let text = str_from_value(arguments[0])
     let value = std.str_len(text)
     return Option.Some(Value.Int(value))
 
 fn efi_std_str_get(arguments: List[Value]) -> Option[Value]:
-    let text = str_from_value(arguments.first())
-    let index = int_from_value(arguments.get(index: 1))
+    let text = str_from_value(arguments[0])
+    let index = int_from_value(arguments[1])
     let value = std.str_get(text, index)
     return Option.Some(Value.Char(value))
 
 fn efi_std_str_slice(arguments: List[Value]) -> Option[Value]:
-    let text = str_from_value(arguments.first())
-    let begin = int_from_value(arguments.get(index: 1))
-    let end = int_from_value(arguments.get(index: 2))
+    let text = str_from_value(arguments[0])
+    let begin = int_from_value(arguments[1])
+    let end = int_from_value(arguments[2])
     let value = std.str_slice(text, begin, end)
     return Option.Some(Value.Str(value))
 
@@ -136,23 +136,23 @@ fn efi_default(arguments: List[Value]) -> Option[Value]:
     return Option.None()
 
 fn efi_rt_int_to_str(arguments: List[Value]) -> Option[Value]:
-    let value = rt.int_to_str(int_from_value(arguments.first()))
+    let value = rt.int_to_str(int_from_value(arguments[0]))
     return Option.Some(Value.Str(value))
 
 fn efi_rt_char_to_str(arguments: List[Value]) -> Option[Value]:
-    let value = rt.char_to_str(char_from_value(arguments.first()))
+    let value = rt.char_to_str(char_from_value(arguments[0]))
     return Option.Some(Value.Str(value))
 
 fn efi_rt_str_concat(arguments: List[Value]) -> Option[Value]:
-    let a = str_from_value(arguments.first())
-    let b = str_from_value(arguments.get(index: 1))
+    let a = str_from_value(arguments[0])
+    let b = str_from_value(arguments[1])
     # let value = rt.str_concat(a, b)
     let value = a + b
     return Option.Some(Value.Str(value))
 
 fn efi_rt_str_compare(arguments: List[Value]) -> Option[Value]:
-    let a = str_from_value(arguments.first())
-    let b = str_from_value(arguments.get(index: 1))
+    let a = str_from_value(arguments[0])
+    let b = str_from_value(arguments[1])
     # let value = rt.str_compare(a, b)
     let value = a == b
     return Option.Some(Value.Bool(value))
@@ -216,7 +216,7 @@ fn run_bytecode(program: Program, entry_function: str):
         index += 1
     let entry_function_index = function_name_to_index.get(key: entry_function)
 
-    let function = program.functions.get(index: entry_function_index)
+    let function = program.functions[entry_function_index]
     let arguments: List[Value] = List()
     let frame = frame_from_function(function, arguments)
     vm.push_frame(frame)
@@ -463,13 +463,13 @@ class VirtualMachine:
             LoadFunc(index):
                 push(Value.Int(index))
             StructLiteral(struct_index):
-                let struc = structs.get(index: struct_index)
+                let struc = structs[struct_index]
                 let count = struc.fields.len()
                 let values = pop_n(count)
                 let list = ListValue(values)
                 push(Value.List(list))
             UnionLiteral(struct_index, field_index):
-                let struc = structs.get(index: struct_index)
+                let struc = structs[struct_index]
                 let values: List[Value] = List()
                 for x in struc.fields:
                     values.append(Value.Undefined())

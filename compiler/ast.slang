@@ -1078,7 +1078,7 @@ struct LetStatement:
 
 fn compound(inner: List[Statement], location: Location) -> Statement:
     if inner.len() == 1:
-        return inner.get(index: 0)
+        return inner[0]
     else:
         let kind = StatementKind.Compound(body: inner)
         return statement(kind, location)

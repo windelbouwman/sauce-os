@@ -18,11 +18,11 @@ COMPILER6=${BUILDDIR}/tmp-compiler6.py
 DEMOS=${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/c/mandel.exe ${BUILDDIR}/regex.exe
 
 CFLAGS=-Wfatal-errors -Werror -Wreturn-type
-SLANG_EXAMPLES := $(wildcard examples/*.slang)
-WASM_EXAMPLES := $(patsubst examples/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
-PY_EXAMPLES := $(patsubst examples/%.slang, build/python/%.py, $(SLANG_EXAMPLES))
-C_EXAMPLES := $(patsubst examples/%.slang, build/c/%.exe, $(SLANG_EXAMPLES))
-BC_EXAMPLES := $(patsubst examples/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
+SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
+WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
+PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/%.py, $(SLANG_EXAMPLES))
+C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/%.exe, $(SLANG_EXAMPLES))
+BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
 ALL_TEST_RUNS := $(patsubst tests/test_%.slang, run-test-%, $(TESTS))
 
@@ -35,13 +35,13 @@ check: ${ALL_TEST_RUNS}
 # Example to bytecode compilation
 all-examples-bc: $(BC_EXAMPLES)
 
-${BUILDDIR}/bc/%.txt: examples/%.slang ${COMPILER6} | ${BUILDDIR}/bc
+${BUILDDIR}/bc/%.txt: examples/snippets/%.slang ${COMPILER6} | ${BUILDDIR}/bc
 	python ${COMPILER6} --backend-bc $< runtime/std.slang > $@
 
 # Example compiled to Python code:
 all-examples-python: $(PY_EXAMPLES)
 
-${BUILDDIR}/python/%.py: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/python
+${BUILDDIR}/python/%.py: examples/snippets/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/python
 	python ${COMPILER6} --backend-py -o $@ $< runtime/std.slang
 
 # examples compiled to C code:
@@ -53,7 +53,7 @@ ${BUILDDIR}/%.exe: ${BUILDDIR}/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
 
 .PRECIOUS: ${BUILDDIR}/c/%.c
 
-${BUILDDIR}/c/%.c: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/c
+${BUILDDIR}/c/%.c: examples/snippets/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/c
 	python ${COMPILER6} --backend-c -o $@ $< runtime/std.slang
 
 # Wasm examples:
@@ -64,7 +64,7 @@ all-examples-wasm: $(WASM_EXAMPLES)
 
 .PRECIOUS: ${BUILDDIR}/wasm/%.wat
 
-${BUILDDIR}/wasm/%.wat: examples/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/wasm
+${BUILDDIR}/wasm/%.wat: examples/snippets/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/wasm
 	python ${COMPILER6} -wasm $< runtime/std.slang | sed '/^# /d' > $@
 
 # Unit tests:

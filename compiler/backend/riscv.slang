@@ -6,10 +6,6 @@
 from std import print
 from utils import panic
 
-fn emit(opcode: int):
-    # Emit a 32 bit opcode.
-    print("OP: {opcode}")
-
 
 fn encode_R_type(funct7: int, rs2: int, rs1: int, funct3: int, rd: int, opcode: int) -> int:
     # funct7[31-25]

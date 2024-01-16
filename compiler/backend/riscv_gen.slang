@@ -13,6 +13,12 @@
 # x18-x27 -> s2-11 -> saved registers (callee)
 # x28-31 -> t3-6 -> temporaries (caller)
 
+# Pseudo instructions:
+# NOP  > ADDI x0, x0, 0
+# RET  > JALR x0, 0(ra)
+# J offset  > JAL x0, offset
+# MV rd, rs  > ADDI rd, rs, 0
+
 import bc
 from std import print, chr, ord
 import riscv
@@ -54,7 +60,7 @@ class RiscvGen:
     fn gen_instruction(instruction: bc.Instruction):
             case instruction:
                 Nop:
-                    pass
+                    emit(riscv.Instruction.ADDI(rd: 0, rs1: 0, imm: 0))
                 Dup:
                     # Allocate new register, and move value of top of stack:
                     emit(riscv.Instruction.ADDI(rd: reg + 1, rs1: reg, imm: 0))
