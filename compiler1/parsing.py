@@ -5,13 +5,15 @@ import logging
 import os
 import re
 
+
 # try lark as parser
 from lark import Lark, Transformer as LarkTransformer
 from lark.lexer import Lexer as LarkLexer, Token as LarkToken
 from lark.exceptions import UnexpectedInput, VisitError
 
 from . import ast
-from .lexer import detect_indentations, tokenize, Location, Position
+from .lexer import detect_indentations, tokenize
+from .location import Location, Span, Position
 from .errors import ParseError, CompilationError
 
 logger = logging.getLogger("parser")
@@ -166,19 +168,21 @@ class CustomLarkLexer(LarkLexer):
 
 def get_loc(tok: LarkToken) -> Location:
     """Get Location from lark token."""
-    return Location(
-        Position(tok.line, tok.column), Position(tok.end_line, tok.end_column)
-    )
+    return get_loc2(tok, tok)
 
 
 def get_loc2(tok1: LarkToken, tok2: LarkToken) -> Location:
     """Get Location from two lark tokens."""
+    assert isinstance(tok1, LarkToken)
+    assert isinstance(tok2, LarkToken)
     return Location(
         Position(tok1.line, tok1.column), Position(tok2.end_line, tok2.end_column)
     )
 
 
 def get_span(loc1: Location, loc2: Location):
+    assert isinstance(loc1, Location)
+    assert isinstance(loc2, Location)
     return Location(loc1.begin, loc2.end)
 
 
@@ -193,8 +197,9 @@ class CustomTransformer(LarkTransformer):
 
     def module(self, x):
         name = self._modname
-        imports, definitions = x
-        return ast.Module(name, imports, definitions)
+        imports, definitions, eof = x
+        span = get_span(Location.default(), get_loc(eof))
+        return ast.Module(name, imports, definitions, span)
 
     def eval_expr(self, x):
         return x[0]
@@ -231,7 +236,10 @@ class CustomTransformer(LarkTransformer):
                     self.new_id("this"), False, this_type, member.location
                 )
                 member.this_parameter = this_parameter
-        class_def = ast.class_def(self.new_id(name), type_parameters, members, location)
+        span = get_loc2(x[4], x[-1])
+        class_def = ast.class_def(
+            self.new_id(name), type_parameters, members, location, span
+        )
 
         # Update the type of the 'this' parameter
         type_args = [t.get_ref().clone() for t in type_parameters]
@@ -257,15 +265,16 @@ class CustomTransformer(LarkTransformer):
             x = x[1:]
         location, name, type_parameters = x[1]
         parameters, return_type, except_type, no_return = x[2]
-        body = x[-1]
+        block = x[-1]
         return ast.function_def(
             self.new_id(name),
             type_parameters,
             parameters,
             return_type,
             except_type,
-            body,
+            block.body,
             location,
+            block.scope.span,
         )
 
     def extern_func_def(self, x):
@@ -330,8 +339,9 @@ class CustomTransformer(LarkTransformer):
         location, name, type_parameters = x[1]
         fields = x[5:-1]
         is_union = False
+        span = get_loc2(x[4], x[-1])
         return ast.StructDef(
-            self.new_id(name), type_parameters, is_union, fields, location
+            self.new_id(name), type_parameters, is_union, fields, location, span
         )
 
     def struct_field(self, x):
@@ -342,7 +352,8 @@ class CustomTransformer(LarkTransformer):
         assert isinstance(x[2], LarkToken) and x[2].type == "COLON"
         location, name, type_parameters = x[1]
         variants = x[5:-1]
-        return ast.EnumDef(self.new_id(name), type_parameters, variants, location)
+        span = get_loc2(x[4], x[-1])
+        return ast.EnumDef(self.new_id(name), type_parameters, variants, location, span)
 
     def enum_variant(self, x):
         name = x[0].value
@@ -416,10 +427,12 @@ class CustomTransformer(LarkTransformer):
     def block(self, x):
         # COLON NEWLINE INDENT statement+ DEDENT
         statements = x[3:-1]
+        span = get_loc2(x[0], x[-1])
         if len(statements) == 1:
-            return statements[0]
+            statement = statements[0]
         else:
-            return ast.compound_statement(statements, get_loc(x[2]))
+            statement = ast.compound_statement(statements, get_loc(x[2]))
+        return ast.ScopedBlock(statement, span)
 
     def statement(self, x):
         return x[0]
@@ -465,36 +478,36 @@ class CustomTransformer(LarkTransformer):
     def if_statement(self, x):
         # KW_IF test block elif_clause* else_clause?
         condition = x[1]
-        true_statement = x[2]
-        elif_tail = x[3:]
+        true_block = x[2]
+        if_tail = x[3:]
 
-        # Assume no else clause:
-        false_statement = ast.pass_statement(get_loc(x[0]))
+        # Create else clause if not provided:
+        if if_tail and isinstance(if_tail[-1], ast.ScopedBlock):
+            false_block = if_tail.pop()
+        else:
+            false_block = ast.ScopedBlock(
+                ast.pass_statement(get_loc(x[0])), true_block.scope.span
+            )
 
-        for tail in reversed(elif_tail):
-            if isinstance(tail, ast.Statement):
-                false_statement = tail
-            else:
-                test, body = tail
-                false_statement = ast.if_statement(
-                    test, body, false_statement, body.location
-                )
+        for test, block in reversed(if_tail):
+            span = get_span(block.scope.span, false_block.scope.span)
+            false_block = ast.ScopedBlock(
+                ast.if_statement(test, block, false_block, block.body.location), span
+            )
 
-        return ast.if_statement(
-            condition, true_statement, false_statement, get_loc(x[0])
-        )
+        return ast.if_statement(condition, true_block, false_block, get_loc(x[0]))
 
     def case_statement(self, x):
         # case_statement: KW_CASE expression COLON NEWLINE INDENT case_arm+ DEDENT else_clause?
         value = x[1]
         if isinstance(x[-1], LarkToken) and x[-1].type == "DEDENT":
             arms = x[5:-1]
-            else_clause = None
+            else_block = None
         else:
             assert x[-2].type == "DEDENT"
-            else_clause = x[-1]
+            else_block = x[-1]
             arms = x[5:-2]
-        return ast.case_statement(value, arms, else_clause, get_loc(x[0]))
+        return ast.case_statement(value, arms, else_block, get_loc(x[0]))
 
     def case_arm(self, x):
         # case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? block
@@ -753,8 +766,8 @@ class CustomTransformer(LarkTransformer):
 
 
 grammar = r"""
-module: imports definitions
-eval_expr: expression NEWLINE
+module: imports definitions EOF
+eval_expr: expression NEWLINE EOF
 
 imports: (import1|import2)*
 import1: KW_IMPORT ID NEWLINE
@@ -908,7 +921,7 @@ labeled_expression: test
 %declare EQUALS PLUS_EQUALS MINUS_EQUALS
 %declare BITAND BITOR BITXOR SHR SHL
 
-%declare INDENT DEDENT NEWLINE
+%declare INDENT DEDENT NEWLINE EOF
 %declare NUMBER STRING FNUMBER BOOL CHAR ID
 
 """

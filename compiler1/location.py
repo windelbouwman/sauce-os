@@ -25,6 +25,9 @@ class Location:
         return cls(begin, end)
 
 
+Span = Location
+
+
 class Position:
     def __init__(self, row: int, column: int):
         self.row = row

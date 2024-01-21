@@ -15,7 +15,7 @@ COMPILER3=${BUILDDIR}/tmp-compiler3.py
 COMPILER4=${BUILDDIR}/compiler4
 COMPILER5=${BUILDDIR}/compiler5
 COMPILER6=${BUILDDIR}/tmp-compiler6.py
-DEMOS=${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/c/mandel.exe ${BUILDDIR}/regex.exe
+DEMOS=${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/regex.exe
 
 CFLAGS=-Wfatal-errors -Werror -Wreturn-type
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)

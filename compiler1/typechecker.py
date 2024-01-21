@@ -86,7 +86,7 @@ class TypeChecker(BasePass):
                 self.visit_node(arm)
 
             if kind.else_clause:
-                self.visit_statement(kind.else_clause)
+                self.visit_statement(kind.else_clause.body)
 
         elif isinstance(kind, ast.ForStatement):
             self.visit_expression(kind.values)

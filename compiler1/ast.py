@@ -6,7 +6,7 @@ import rich.tree
 import rich.markup
 from typing import Optional
 from lark.load_grammar import Definition
-from .location import Location
+from .location import Location, Span
 
 logger = logging.getLogger("ast")
 
@@ -37,11 +37,17 @@ class Definition(Node):
         super().__init__(location)
         assert isinstance(id, Id)
         self.id = id
-        self.scope = Scope()
+
+
+class ScopedDefinition(Definition):
+    def __init__(self, id: Id, location: Location, span: Span):
+        super().__init__(id, location)
+        self.scope = Scope(span)
 
 
 class Scope:
-    def __init__(self):
+    def __init__(self, span: Span):
+        self.span = span
         self.symbols: dict[str, "Definition"] = {}
         self.has_this_context = False
 
@@ -248,7 +254,7 @@ def subst(t: MyType, m: dict["TypeParameter", MyType]) -> MyType:
         return t
 
 
-class TypeConstructor(Definition):
+class TypeConstructor(ScopedDefinition):
     """A type constructor.
 
     Apply actual types to create a type.
@@ -257,9 +263,9 @@ class TypeConstructor(Definition):
     """
 
     def __init__(
-        self, id: Id, location: Location, type_parameters: list["TypeParameter"]
+        self, id: Id, location: Location, type_parameters: list["TypeParameter"], span
     ):
-        super().__init__(id, location)
+        super().__init__(id, location, span)
         self.type_parameters = type_parameters
 
     def apply(self, type_arguments: list["MyType"]) -> MyType:
@@ -526,7 +532,11 @@ class Expression(Node):
 
 class Module(Node):
     def __init__(
-        self, name: str, imports: list["BaseImport"], definitions: list["Definition"]
+        self,
+        name: str,
+        imports: list["BaseImport"],
+        definitions: list["Definition"],
+        span: Span,
     ):
         super().__init__(Location.default())
         assert isinstance(name, str)
@@ -535,7 +545,7 @@ class Module(Node):
         self.imports = list(imports)
         self.definitions = list(definitions)
         self.types = []
-        self.scope: Scope = Scope()
+        self.scope: Scope = Scope(span)
 
     def __repr__(self):
         return f"Module({self.name})"
@@ -614,8 +624,9 @@ def class_def(
     type_parameters: list[TypeParameter],
     members: list["Definition"],
     location: Location,
+    span: Span,
 ):
-    return ClassDef(id, type_parameters, members, location)
+    return ClassDef(id, type_parameters, members, location, span)
 
 
 class ClassDef(TypeConstructor):
@@ -625,8 +636,9 @@ class ClassDef(TypeConstructor):
         type_parameters: list[TypeParameter],
         members: list["Definition"],
         location: Location,
+        span: Span,
     ):
-        super().__init__(id, location, type_parameters)
+        super().__init__(id, location, type_parameters, span)
         self.members = members
         self.scope.has_this_context = True
 
@@ -685,13 +697,21 @@ def function_def(
     except_type: MyType,
     statements: "Statement",
     location: Location,
+    span: Span,
 ):
     return FunctionDef(
-        id, type_parameters, parameters, return_ty, except_type, statements, location
+        id,
+        type_parameters,
+        parameters,
+        return_ty,
+        except_type,
+        statements,
+        location,
+        span,
     )
 
 
-class FunctionDef(Definition):
+class FunctionDef(ScopedDefinition):
     def __init__(
         self,
         id: Id,
@@ -701,8 +721,10 @@ class FunctionDef(Definition):
         except_type: MyType,
         statements: "Statement",
         location: Location,
+        span: Span,
     ):
-        super().__init__(id, location)
+        super().__init__(id, location, span)
+        assert isinstance(statements, Statement)
         self.type_parameters = type_parameters
         self.parameters: list[Parameter] = parameters
         self.return_ty = return_ty
@@ -752,8 +774,9 @@ class StructDef(TypeConstructor):
         is_union: bool,
         fields: list["StructFieldDef"],
         location: Location,
+        span: Span,
     ):
-        super().__init__(id, location, type_parameters)
+        super().__init__(id, location, type_parameters, span)
         self.is_union = is_union
         for index, field in enumerate(fields):
             field.index = index
@@ -813,7 +836,12 @@ class StructBuilder:
 
     def finish(self) -> StructDef:
         struct_def = StructDef(
-            self.id, self.type_parameters, self.is_union, self.fields, self.location
+            self.id,
+            self.type_parameters,
+            self.is_union,
+            self.fields,
+            self.location,
+            Span.default(),
         )
         for definition in struct_def.fields:
             assert not struct_def.scope.is_defined(definition.id.name)
@@ -828,8 +856,9 @@ class EnumDef(TypeConstructor):
         type_parameters: list[TypeParameter],
         variants: list["EnumVariant"],
         location: Location,
+        span: Span,
     ):
-        super().__init__(id, location, type_parameters)
+        super().__init__(id, location, type_parameters, span)
 
         # Assign index to variants:
         for idx, variant in enumerate(variants):
@@ -923,15 +952,16 @@ class LetStatement(StatementKind):
             return f"Let({self.variable})"
 
 
-def loop_statement(inner: Statement, location: Location) -> Statement:
-    kind = LoopStatement(inner)
+def loop_statement(block: "ScopedBlock", location: Location) -> Statement:
+    kind = LoopStatement(block)
     return Statement(kind, location)
 
 
 class LoopStatement(StatementKind):
-    def __init__(self, inner: Statement):
+    def __init__(self, block: "ScopedBlock"):
         super().__init__()
-        self.block = ScopedBlock(inner)
+        assert isinstance(block, ScopedBlock)
+        self.block = block
 
     def __repr__(self):
         return "Loop"
@@ -943,10 +973,12 @@ def while_statement(condition: Expression, inner: Statement, location: Location)
 
 
 class WhileStatement(StatementKind):
-    def __init__(self, condition: Expression, inner: Statement):
+    def __init__(self, condition: Expression, block: "ScopedBlock"):
         super().__init__()
+        assert isinstance(condition, Expression)
+        assert isinstance(block, ScopedBlock)
         self.condition = condition
-        self.block = ScopedBlock(inner)
+        self.block = block
 
     def __repr__(self):
         return "While"
@@ -954,11 +986,11 @@ class WhileStatement(StatementKind):
 
 def if_statement(
     condition: Expression,
-    true_statement: Statement,
-    false_statement: Statement,
+    true_block: "ScopedBlock",
+    false_block: "ScopedBlock",
     location: Location,
 ) -> Statement:
-    kind = IfStatement(condition, true_statement, false_statement)
+    kind = IfStatement(condition, true_block, false_block)
     return Statement(kind, location)
 
 
@@ -966,33 +998,41 @@ class IfStatement(StatementKind):
     def __init__(
         self,
         condition: Expression,
-        true_statement: Statement,
-        false_statement: Statement,
+        true_block: "ScopedBlock",
+        false_block: "ScopedBlock",
     ):
         super().__init__()
+        assert isinstance(condition, Expression)
+        assert isinstance(true_block, ScopedBlock)
+        assert isinstance(false_block, ScopedBlock)
         self.condition = condition
-        self.true_block = ScopedBlock(true_statement)
-        self.false_block = ScopedBlock(false_statement)
+        self.true_block = true_block
+        self.false_block = false_block
 
     def __repr__(self):
         return "IfStatement"
 
 
 def case_statement(
-    value: Expression, arms: list["CaseArm"], else_clause: Statement, location: Location
+    value: Expression,
+    arms: list["CaseArm"],
+    else_block: "ScopedBlock",
+    location: Location,
 ) -> Statement:
-    kind = CaseStatement(value, arms, else_clause)
+    kind = CaseStatement(value, arms, else_block)
     return Statement(kind, location)
 
 
 class CaseStatement(StatementKind):
     def __init__(
-        self, value: Expression, arms: list["CaseArm"], else_clause: Statement
+        self, value: Expression, arms: list["CaseArm"], else_block: "ScopedBlock"
     ):
         assert isinstance(value, Expression)
+        if else_block:
+            assert isinstance(else_block, ScopedBlock)
         self.value = value
         self.arms = arms
-        self.else_clause = else_clause
+        self.else_clause = else_block
 
     def __repr__(self):
         return f"CaseStatement"
@@ -1001,10 +1041,14 @@ class CaseStatement(StatementKind):
 class ScopedBlock:
     """A code block with its own scope"""
 
-    def __init__(self, body: "Statement"):
+    def __init__(self, body: "Statement", span: Span = None):
         assert isinstance(body, Statement)
+        if span is None:
+            span = Span.default()
+        else:
+            assert isinstance(span, Span)
         self.body = body
-        self.scope = Scope()
+        self.scope = Scope(span)
 
 
 class CaseArm(Node):
@@ -1012,86 +1056,90 @@ class CaseArm(Node):
         self,
         name: str,
         variables: list["Variable"],
-        body: Statement,
+        block: ScopedBlock,
         location: Location,
     ):
         super().__init__(location)
         assert isinstance(name, str)
         self.name = name
         self.variables = variables
-        assert isinstance(body, Statement)
-        self.block = ScopedBlock(body)
+        assert isinstance(block, ScopedBlock)
+        self.block = block
 
 
 def switch_statement(
     value: Expression,
     arms: list["SwitchArm"],
-    default_body: Statement,
+    default_block: ScopedBlock,
     location: Location,
 ) -> Statement:
-    kind = SwitchStatement(value, arms, default_body)
+    kind = SwitchStatement(value, arms, default_block)
     return Statement(kind, location)
 
 
 class SwitchStatement(StatementKind):
     def __init__(
-        self, value: Expression, arms: list["SwitchArm"], default_body: Statement
+        self, value: Expression, arms: list["SwitchArm"], default_block: ScopedBlock
     ):
         assert isinstance(value, Expression)
+        assert isinstance(default_block, ScopedBlock)
         self.value = value
         self.arms = arms
-        self.default_block = ScopedBlock(default_body)
+        self.default_block = default_block
 
     def __repr__(self):
         return f"SwitchStatement"
 
 
 class SwitchArm(Node):
-    def __init__(self, value: Expression, body: Statement, location: Location):
+    def __init__(self, value: Expression, block: ScopedBlock, location: Location):
         super().__init__(location)
         assert isinstance(value, Expression)
+        assert isinstance(block, ScopedBlock)
         self.value = value
-        assert isinstance(body, Statement)
-        self.block = ScopedBlock(body)
+        self.block = block
 
 
 def for_statement(
-    variable: "Variable", values: Expression, inner: Statement, location: Location
+    variable: "Variable", values: Expression, block: ScopedBlock, location: Location
 ) -> Statement:
-    kind = ForStatement(variable, values, inner)
+    kind = ForStatement(variable, values, block)
     return Statement(kind, location)
 
 
 class ForStatement(StatementKind):
-    def __init__(self, variable: "Variable", values: Expression, inner: Statement):
+    def __init__(self, variable: "Variable", values: Expression, block: ScopedBlock):
         super().__init__()
         assert isinstance(variable, Variable)
+        assert isinstance(block, ScopedBlock)
         self.variable = variable
         self.values = values
-        self.block = ScopedBlock(inner)
+        self.block = block
 
     def __repr__(self):
         return f"ForStatement({self.variable})"
 
 
 def try_statement(
-    try_code: Statement,
+    try_block: ScopedBlock,
     parameter: Parameter,
-    except_code: Statement,
+    except_block: ScopedBlock,
     location: Location,
 ) -> Statement:
-    kind = TryStatement(try_code, parameter, except_code)
+    kind = TryStatement(try_block, parameter, except_block)
     return Statement(kind, location)
 
 
 class TryStatement(StatementKind):
     def __init__(
-        self, try_code: Statement, parameter: Parameter, except_code: Statement
+        self, try_block: ScopedBlock, parameter: Parameter, except_block: ScopedBlock
     ):
         super().__init__()
-        self.try_block = ScopedBlock(try_code)
+        assert isinstance(try_block, ScopedBlock)
+        assert isinstance(except_block, ScopedBlock)
+        self.try_block = try_block
         self.parameter = parameter
-        self.except_block = ScopedBlock(except_code)
+        self.except_block = except_block
 
 
 def break_statement(location: Location) -> Statement:
@@ -1592,10 +1640,10 @@ class AstVisitor:
 
     def visit_node(self, node: Node):
         if isinstance(node, CaseArm):
-            self.visit_statement(node.block.body)
+            self.visit_block(node.block)
         elif isinstance(node, SwitchArm):
             self.visit_expression(node.value)
-            self.visit_statement(node.block.body)
+            self.visit_block(node.block)
         else:
             raise NotImplementedError(str(node))
 
@@ -1619,19 +1667,19 @@ class AstVisitor:
         kind = statement.kind
         if isinstance(kind, IfStatement):
             self.visit_expression(kind.condition)
-            self.visit_statement(kind.true_block.body)
-            self.visit_statement(kind.false_block.body)
+            self.visit_block(kind.true_block)
+            self.visit_block(kind.false_block)
         elif isinstance(kind, CaseStatement):
             self.visit_expression(kind.value)
             for arm in kind.arms:
                 self.visit_node(arm)
             if kind.else_clause:
-                self.visit_statement(kind.else_clause)
+                self.visit_block(kind.else_clause)
         elif isinstance(kind, SwitchStatement):
             self.visit_expression(kind.value)
             for arm in kind.arms:
                 self.visit_node(arm)
-            self.visit_statement(kind.default_block.body)
+            self.visit_block(kind.default_block)
         elif isinstance(kind, LetStatement):
             if kind.ty:
                 self.visit_type(kind.ty)
@@ -1644,16 +1692,16 @@ class AstVisitor:
             self.visit_expression(kind.value)
         elif isinstance(kind, WhileStatement):
             self.visit_expression(kind.condition)
-            self.visit_statement(kind.block.body)
+            self.visit_block(kind.block)
         elif isinstance(kind, LoopStatement):
-            self.visit_statement(kind.block.body)
+            self.visit_block(kind.block)
         elif isinstance(kind, ForStatement):
             self.visit_expression(kind.values)
-            self.visit_statement(kind.block.body)
+            self.visit_block(kind.block)
         elif isinstance(kind, TryStatement):
-            self.visit_statement(kind.try_block.body)
+            self.visit_block(kind.try_block)
             self.visit_type(kind.parameter.ty)
-            self.visit_statement(kind.except_block.body)
+            self.visit_block(kind.except_block)
         elif isinstance(kind, RaiseStatement):
             self.visit_expression(kind.value)
         elif isinstance(kind, AssignmentStatement):
@@ -1666,6 +1714,10 @@ class AstVisitor:
             pass
         else:
             raise NotImplementedError(str(kind))
+
+    def visit_block(self, block: ScopedBlock):
+        assert isinstance(block, ScopedBlock)
+        self.visit_statement(block.body)
 
     def visit_expression(self, expression: Expression):
         kind = expression.kind

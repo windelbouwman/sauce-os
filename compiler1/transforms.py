@@ -9,7 +9,7 @@ import logging
 
 
 from . import ast
-from .location import Location
+from .location import Location, Span
 
 logger = logging.getLogger("transforms")
 
@@ -55,7 +55,7 @@ class LoopRewriter(BaseTransformer):
         if isinstance(kind, ast.LoopStatement):
             # Turn loop into a while-true clause
             yes_value = ast.bool_constant(True, statement.location)
-            statement.kind = ast.WhileStatement(yes_value, kind.block.body)
+            statement.kind = ast.WhileStatement(yes_value, kind.block)
         elif isinstance(kind, ast.ForStatement):
             if kind.values.ty.is_array():
                 # Turn for loop into while loop.
@@ -113,8 +113,9 @@ class LoopRewriter(BaseTransformer):
                 loop_body = ast.compound_statement(
                     [let_v, kind.block.body, inc_i], kind.block.body.location
                 )
+                loop_block = ast.ScopedBlock(loop_body)
                 while_loop = ast.while_statement(
-                    loop_condition, loop_body, statement.location
+                    loop_condition, loop_block, statement.location
                 )
                 statements = [let_x, let_i0, while_loop]
                 statement.kind = ast.CompoundStatement(statements)
@@ -153,12 +154,11 @@ class LoopRewriter(BaseTransformer):
                     it_var.ref_expr(location).call_method("next", []),
                     location,
                 )
-                none_arm = ast.CaseArm(
-                    "None", [], ast.break_statement(location), location
+                beak_block = break_block = ast.ScopedBlock(
+                    ast.break_statement(location)
                 )
-                some_arm = ast.CaseArm(
-                    "Some", [kind.variable], kind.block.body, location
-                )
+                none_arm = ast.CaseArm("None", [], break_block, location)
+                some_arm = ast.CaseArm("Some", [kind.variable], kind.block, location)
                 arms = [none_arm, some_arm]
                 case_statement = ast.case_statement(
                     opt_var.ref_expr(location), arms, None, location
@@ -167,7 +167,8 @@ class LoopRewriter(BaseTransformer):
                 loop_body = ast.compound_statement(
                     [let_opt_var, case_statement], location
                 )
-                loop_statement = ast.while_statement(yes_value, loop_body, location)
+                loop_block = ast.ScopedBlock(loop_body)
+                loop_statement = ast.while_statement(yes_value, loop_block, location)
                 statement.kind = ast.CompoundStatement([let_it_var, loop_statement])
 
     def visit_expression(self, expression: ast.Expression):
@@ -340,14 +341,15 @@ class EnumRewriter(BaseTransformer):
                         body.append(let_v)
                 body.append(arm.block.body)
                 body = ast.compound_statement(body, arm.location)
+                block = ast.ScopedBlock(body)
                 tag_val = ast.numeric_constant(variant_idx, arm.location)
-                arms.append(ast.SwitchArm(tag_val, body, arm.location))
+                arms.append(ast.SwitchArm(tag_val, block, arm.location))
 
             if kind.else_clause:
                 default_body = kind.else_clause
             else:
                 # Maybe insert panic instruction?
-                default_body = ast.pass_statement(statement.location)
+                default_body = ast.ScopedBlock(ast.pass_statement(statement.location))
 
             # switch x.tag
             switch_1 = ast.switch_statement(
@@ -511,6 +513,7 @@ class ClassRewriter(BaseTransformer):
             except_type,
             ctor_code,
             class_def.location,
+            Span.default(),
         )
         m7 = dict(zip(class_def.type_parameters, type_args))
 
@@ -593,14 +596,15 @@ class SwitchRewriter(BaseTransformer):
             let_x = ast.let_statement(x_var, None, kind.value, statement.location)
 
             # Create if-then tree
-            else_clause = kind.default_block.body
+            else_block = kind.default_block
             for arm in kind.arms:
                 condition = x_var.ref_expr(arm.location).binop("==", arm.value)
-                else_clause = ast.if_statement(
-                    condition, arm.block.body, else_clause, arm.location
+                new_if = ast.if_statement(
+                    condition, arm.block, else_block, arm.location
                 )
+                else_block = ast.ScopedBlock(new_if)
 
-            statement.kind = ast.CompoundStatement([let_x, else_clause])
+            statement.kind = ast.CompoundStatement([let_x, else_block.body])
 
 
 def constant_folding(id_context, modules):

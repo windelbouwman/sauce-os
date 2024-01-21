@@ -34,6 +34,16 @@ def detect_indentations(tokens: Iterable[Token]):
                 yield token
             new_indentation = 0
             bol = True
+        elif token.ty == "EOF":
+            end_loc = token.location
+            if not bol:
+                yield Token("NEWLINE", "NEWLINE", end_loc)
+
+            while len(level_stack) > 1:
+                level_stack.pop()
+                yield Token("DEDENT", "", end_loc)
+
+            yield token
         else:
             bol = False
             loc = token.location
@@ -50,14 +60,6 @@ def detect_indentations(tokens: Iterable[Token]):
                 yield Token("INDENT", "", loc)
                 level_stack.append(new_indentation)
             yield token
-
-    end_loc = Location.default()
-    if not bol:
-        yield Token("NEWLINE", "NEWLINE", end_loc)
-
-    while len(level_stack) > 1:
-        level_stack.pop()
-        yield Token("DEDENT", "", end_loc)
 
 
 def tokenize(code: str | tuple[Location, str]):
@@ -174,6 +176,9 @@ def tokenize(code: str | tuple[Location, str]):
 
         # logger.debug(f'Got token: {tok}')
         yield tok
+
+    end_loc = Location(Position(row, 1), Position(row, 1))
+    yield Token("EOF", "EOF", end_loc)
 
 
 def lex_error(location: Location, message: str):

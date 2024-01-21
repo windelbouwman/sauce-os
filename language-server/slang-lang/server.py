@@ -40,6 +40,9 @@ class DataBase:
         # Map from filename to module:
         self._file_modules = {}
 
+        # Map from filename to scope-tree
+        self._file_scopes = {}
+
         self._validation_task = None
 
     def fill_infos(self, modules):
@@ -59,6 +62,8 @@ class DataBase:
                 self._references[key].append((r_loc, r_id))
 
             self._file_modules[filename] = module
+
+            self._file_scopes[filename] = module_to_scope_tree(module)
 
     def get_definition(self, filename: str, position: SlangPosition):
         """Given a cursor, try to jump to definition."""
@@ -103,6 +108,84 @@ class DataBase:
                 logger.info("task cancelled")
 
 
+class ScopeCrawler(ast.AstVisitor):
+    def __init__(self):
+        super().__init__()
+        self.scope_stack = []
+
+    def visit_module(self, module):
+        logger.debug(f"Filling scopes for {module.name}")
+        self.enter_scope(module.scope)
+        super().visit_module(module)
+        return self.leave_scope()
+
+    def visit_definition(self, definition):
+        if isinstance(definition, ast.ScopedDefinition):
+            self.enter_scope(definition.scope)
+        super().visit_definition(definition)
+        if isinstance(definition, ast.ScopedDefinition):
+            self.leave_scope()
+
+    def visit_block(self, block):
+        self.enter_scope(block.scope)
+        super().visit_block(block)
+        self.leave_scope()
+
+    def enter_scope(self, scope):
+        # logger.debug(f"Enter scope {scope.span}")
+        item = ScopeTreeItem(scope)
+        if self.scope_stack:
+            self.scope_stack[-1].add_sub_scope(item)
+        self.scope_stack.append(item)
+
+    def leave_scope(self):
+        # logger.debug("Leave scope")
+        return self.scope_stack.pop()
+
+
+class ScopeTreeItem:
+    """A single scope level."""
+
+    def __init__(self, scope):
+        self.scope = scope
+        self._m = RangeMap()
+
+    def add_sub_scope(self, s: "ScopeTreeItem"):
+        self._m.insert(s.scope.span.begin.row, s.scope.span.end.row, s)
+
+    def get_definitions_for_line(self, row):
+        definitions = []
+        definitions.extend(list(self.scope.symbols.values()))
+        sub_item = self._m.get(row)
+        if sub_item:
+            definitions.extend(sub_item.get_definitions_for_line(row))
+        return definitions
+
+
+class RangeMap:
+    """A class mapping from"""
+
+    def __init__(self):
+        self._ranges = []
+
+    def insert(self, key_begin, key_end, value):
+        self._ranges.append((key_begin, key_end, value))
+
+    def get(self, key):
+        # TODO: replace linear scan with
+        # a sorted heap
+        for begin, end, value in self._ranges:
+            if begin <= key < end:
+                return value
+
+
+def module_to_scope_tree(module: ast.Module) -> "ScopeTreeItem":
+    """Create a tree of scopes"""
+    logger.info(f"Create scope tree for {module.name}")
+    crawler = ScopeCrawler()
+    return crawler.visit_module(module)
+
+
 db = DataBase()
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
@@ -110,17 +193,48 @@ server = LanguageServer("Slang-Lang-Server", "v0.1", loop=loop)
 
 
 @server.feature(types.TEXT_DOCUMENT_COMPLETION)
-def completions(params: types.CompletionParams) -> types.CompletionList:
-    # items = []
-    # document = server.workspace.get_document(params.text_document.uri)
+def completions(
+    ls: LanguageServer, params: types.CompletionParams
+) -> types.CompletionList:
+    text_doc = ls.workspace.get_text_document(params.text_document.uri)
+    filename = text_doc.uri.removeprefix("file://")
+    row = params.position.line + 1
+
+    # print("Document", document)
     # current_line = document.lines[params.position.line].strip()
-    # if current_line.endswith("hello."):
-    items = [
-        types.CompletionItem(label="world"),
-        types.CompletionItem(label="hello"),
-        types.CompletionItem(label="TODO"),
-    ]
+    items = []
+
+    if filename in db._file_scopes:
+        # Get all accessible definitions from the scope tree
+        scope_tree = db._file_scopes[filename]
+        # if current_line.endswith("hello."):
+        # module = db._file_modules[filename]
+        for definition in scope_tree.get_definitions_for_line(row):
+            items.append(definition_to_completion_item(definition))
+
     return types.CompletionList(is_incomplete=False, items=items)
+
+
+def definition_to_completion_item(definition: ast.Definition):
+    return types.CompletionItem(
+        label=definition.id.name, kind=get_completion_item_type(definition)
+    )
+
+
+def get_completion_item_type(definition: ast.Definition):
+    if isinstance(definition, ast.FunctionDef):
+        kind = types.CompletionItemKind.Function
+    elif isinstance(definition, ast.EnumDef):
+        kind = types.CompletionItemKind.Enum
+    elif isinstance(definition, ast.StructDef):
+        kind = types.CompletionItemKind.Struct
+    elif isinstance(definition, ast.ClassDef):
+        kind = types.CompletionItemKind.Class
+    elif isinstance(definition, ast.VarDef):
+        kind = types.CompletionItemKind.Variable
+    else:
+        kind = types.CompletionItemKind.Variable
+    return kind
 
 
 # @server.feature(types.TEXT_DOCUMENT_INLAY_HINT)

@@ -2,13 +2,14 @@
 
 """
 
-from .location import Location
+from .location import Location, Span
 from . import ast
 
 
 def create_rt_module() -> ast.Module:
     modname = "rt"
-    mod = ast.Module(modname, [], [])
+    span = Span.default()
+    mod = ast.Module(modname, [], [], span)
     mod.add_definition(
         ast.BuiltinFunction(
             modname, "int_to_str", [ast.int_type], ast.str_type, Location.default()

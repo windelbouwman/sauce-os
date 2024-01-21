@@ -3,14 +3,14 @@
 
 import logging
 from . import ast
-from .location import Location
+from .location import Location, Span
 from .basepass import BasePass
 
 logger = logging.getLogger("namebinding")
 
 
 def base_scope() -> ast.Scope:
-    top_scope = ast.Scope()
+    top_scope = ast.Scope(Span.default())
     top_scope.define("str", ast.str_type)
     top_scope.define("char", ast.char_type)
     top_scope.define("int", ast.int_type)
@@ -60,34 +60,34 @@ class ScopeFiller(BasePass):
 
     def visit_definition(self, definition: ast.Definition):
         self.define(definition)
-        self.enter_scope(definition.scope)
-        if isinstance(definition, ast.StructDef):
-            for type_parameter in definition.type_parameters:
-                self.define(type_parameter)
-            for field in definition.fields:
-                self.define(field)
-        elif isinstance(definition, ast.EnumDef):
-            for type_parameter in definition.type_parameters:
-                self.define(type_parameter)
-            for variant in definition.variants:
-                self.define(variant)
-        elif isinstance(definition, ast.FunctionDef):
-            for type_parameter in definition.type_parameters:
-                self.define(type_parameter)
-            if definition.this_parameter:
-                self.define(definition.this_parameter)
-            for parameter in definition.parameters:
-                self.define(parameter)
-        elif isinstance(definition, ast.ClassDef):
-            for type_parameter in definition.type_parameters:
-                self.define(type_parameter)
-        elif isinstance(definition, (ast.VarDef, ast.TypeDef, ast.BuiltinFunction)):
-            pass
-        else:
-            raise NotImplementedError(str(definition))
+        if isinstance(definition, ast.ScopedDefinition):
+            self.enter_scope(definition.scope)
+            if isinstance(definition, ast.StructDef):
+                for type_parameter in definition.type_parameters:
+                    self.define(type_parameter)
+                for field in definition.fields:
+                    self.define(field)
+            elif isinstance(definition, ast.EnumDef):
+                for type_parameter in definition.type_parameters:
+                    self.define(type_parameter)
+                for variant in definition.variants:
+                    self.define(variant)
+            elif isinstance(definition, ast.FunctionDef):
+                for type_parameter in definition.type_parameters:
+                    self.define(type_parameter)
+                if definition.this_parameter:
+                    self.define(definition.this_parameter)
+                for parameter in definition.parameters:
+                    self.define(parameter)
+            elif isinstance(definition, ast.ClassDef):
+                for type_parameter in definition.type_parameters:
+                    self.define(type_parameter)
+            else:
+                raise NotImplementedError(str(definition))
 
         super().visit_definition(definition)
-        self.leave_scope()
+        if isinstance(definition, ast.ScopedDefinition):
+            self.leave_scope()
 
     def visit_node(self, node: ast.Node):
         if isinstance(node, ast.CaseArm):
@@ -181,9 +181,11 @@ class NameBinder(BasePass):
         self.finish("Symbols resolved")
 
     def visit_definition(self, definition: ast.Definition):
-        self.enter_scope(definition.scope)
+        if isinstance(definition, ast.ScopedDefinition):
+            self.enter_scope(definition.scope)
         super().visit_definition(definition)
-        self.leave_scope()
+        if isinstance(definition, ast.ScopedDefinition):
+            self.leave_scope()
 
     def visit_statement(self, statement: ast.Statement):
         kind = statement.kind
