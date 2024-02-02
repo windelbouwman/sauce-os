@@ -170,7 +170,11 @@ def tokenize(code: str | tuple[Location, str]):
             col_start = mo.end()
             row += 1
         elif kind == "OTHER":
-            lex_error(loc, f"Lexing exception at {loc}: {value}")
+            if value.isprintable():
+                c = value
+            else:
+                c = str(value.encode(encoding="utf-8", errors="replace"))
+            lex_error(loc, f"Unexpected character: {c}")
         else:
             raise NotImplementedError(kind)
 

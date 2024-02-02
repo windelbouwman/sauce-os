@@ -9,8 +9,8 @@ import argparse
 import glob
 import asyncio
 import rich.text
-
 from pygls.server import LanguageServer
+from pygls.uris import to_fs_path, from_fs_path
 from lsprotocol import types
 
 import sys, os
@@ -50,6 +50,7 @@ class DataBase:
         for module in modules:
             filename = module.filename
             if not os.path.exists(filename):
+                logger.error(f"File not found: {filename}")
                 continue
 
             for d_id, d_loc in module._definitions:
@@ -90,7 +91,7 @@ class DataBase:
         await self.stop_validation()
 
         text_doc = ls.workspace.get_text_document(params.text_document.uri)
-        filename = text_doc.uri.removeprefix("file://")
+        filename = to_fs_path(text_doc.uri)
         code = text_doc.source
 
         # Spawn a long running validation task:
@@ -197,7 +198,7 @@ def completions(
     ls: LanguageServer, params: types.CompletionParams
 ) -> types.CompletionList:
     text_doc = ls.workspace.get_text_document(params.text_document.uri)
-    filename = text_doc.uri.removeprefix("file://")
+    filename = to_fs_path(text_doc.uri)
     row = params.position.line + 1
 
     # print("Document", document)
@@ -257,7 +258,7 @@ def get_completion_item_type(definition: ast.Definition):
 @server.feature(types.TEXT_DOCUMENT_DOCUMENT_SYMBOL)
 def document_symbols(params: types.DocumentSymbolParams):
     document_uri = params.text_document.uri
-    filename = document_uri.removeprefix("file://")
+    filename = to_fs_path(document_uri)
     symbols = []
     if filename in db._file_modules:
         module = db._file_modules[filename]
@@ -306,13 +307,13 @@ def definition_to_symbol(definition: ast.Definition):
 @server.feature(types.TEXT_DOCUMENT_DEFINITION)
 def definition(ls: LanguageServer, params: types.DefinitionParams):
     text_doc = ls.workspace.get_text_document(params.text_document.uri)
-    filename = text_doc.uri.removeprefix("file://")
+    filename = to_fs_path(text_doc.uri)
     row = params.position.line + 1
     column = params.position.character + 1
     pos = db.get_definition(filename, SlangPosition(row, column))
     if pos:
         filename, loc = pos
-        loc2 = types.Location(uri=f"file://{filename}", range=make_lsp_range(loc))
+        loc2 = types.Location(uri=from_fs_path(filename), range=make_lsp_range(loc))
         return loc2
 
 
@@ -344,7 +345,7 @@ async def validator_task(ls: LanguageServer, filename, code, delay):
     for filename in filenames:
         if isinstance(filename, tuple):
             filename = filename[0]
-        uri = f"file://{filename}"
+        uri = from_fs_path(filename)
         if uri not in diagnostic_per_file:
             diagnostic_per_file[uri] = []
 
@@ -356,7 +357,7 @@ async def validator_task(ls: LanguageServer, filename, code, delay):
                 severity=types.DiagnosticSeverity.Error,
                 message=message,
             )
-            uri = "file://" + filename
+            uri = from_fs_path(filename)
             if uri in diagnostic_per_file:
                 diagnostic_per_file[uri].append(diagnostic)
             else:
