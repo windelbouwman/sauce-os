@@ -1,4 +1,5 @@
 
 ../Libs/base
 ../Libs/regex
+../Libs/gfx
 ../runtime/std.slang
