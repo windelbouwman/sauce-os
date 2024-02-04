@@ -17,3 +17,5 @@ fn main() -> int:
                 std.print(line)
             None:
                 pass
+
+    return 0

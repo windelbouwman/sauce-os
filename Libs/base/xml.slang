@@ -1,46 +1,104 @@
 
 # XML parsing routines.
 
-from std import print
+from std import print, chr, str_len
+from std import file_writeln, file_open, file_close
 from utils import panic
 from datatypes import List
-from strlib import str_join
+from datatypes import Option, option_unwrap, option_is_some
+from strlib import str_join, str_repeat
 
 class Node:
     # An xml node!
     var tag: str
-    var m_child_nodes: List[Node] = List()
     var m_attributes: List[Attribute] = List()
+    var m_child_nodes: List[Node] = List()
+    var m_content: str = ""
 
     fn add_attribute(name: str, value: str):
         m_attributes.append(Attribute(name, value))
 
     fn add_child(node?: Node):
         m_child_nodes.append(node)
+    
+    fn add_content(text: str):
+        m_content = m_content + text
 
 struct Attribute:
     # XML attribute
     name: str
     value: str
 
-fn emit_xml(node: Node):
+fn emit_xml(node: Node, filename: Option[str]):
     let writer = XmlWriter()
-    print("<?xml version='1.0' encoding='UTF-8'?>")
+    writer.begin(output_filename: filename)
+    writer.write_header()
     writer.write_node(node)
+    writer.end()
 
 class XmlWriter:
-    var indent: int = 0
+    var indentation: int = 0
+    var use_file: bool = false
+    var outf: int = 0
+
+    fn begin(output_filename: Option[str]):
+        # See also: 'text_gen.slang'
+        # TODO: de-duplicate by means of dynamic dispatch/traits
+        if option_is_some(output_filename):
+            outf = file_open(option_unwrap(output_filename))
+            use_file = true
+
+    fn end():
+        if use_file:
+            file_close(outf)
+
+    fn write_header():
+        let attributes: List[Attribute] = List()
+        attributes.append(Attribute(name: "version", value: "1.0"))
+        attributes.append(Attribute(name: "encoding", value: "UTF-8"))
+        # version={q}1.0{q} encoding={q}UTF-8{q}
+        let attrs_text = attributes_to_string(attributes)
+        emit("<?xml {attrs_text} ?>")
 
     fn write_node(node: Node):
-        let parts: List[str] = List()
-        for attribute in node.m_attributes:
-            parts.append("{attribute.name}={attribute.value}")
-        let attrs_text = str_join(parts, sep: " ")
-        print("<{node.tag} {attrs_text}>")
-        for child_node in node.m_child_nodes:
-            write_node(node: child_node)
-        print("</{node.tag}>")
+        let attrs_text = attributes_to_string(attributes: node.m_attributes)
+        if str_len(attrs_text) > 0:
+            attrs_text = " " + attrs_text
+        if node.m_child_nodes.is_empty() and str_len(node.m_content) == 0:
+            emit("<{node.tag}{attrs_text}/>")
+        else:
+            emit("<{node.tag}{attrs_text}>")
+            indent()
+            for child_node in node.m_child_nodes:
+                write_node(node: child_node)
+            emit(node.m_content)
+            dedent()
+            emit("</{node.tag}>")
 
+    fn attributes_to_string(attributes: List[Attribute]) -> str:
+        let parts: List[str] = List()
+        for attribute in attributes:
+            parts.append(attribute_to_string(attribute))
+        let attrs_text = str_join(parts, sep: " ")
+        return attrs_text
+    
+    fn attribute_to_string(attribute: Attribute) -> str:
+        let q = chr(34)
+        return "{attribute.name}={q}{attribute.value}{q}"
+
+    fn indent():
+        indentation += 1
+    
+    fn dedent():
+        indentation -= 1
+
+    fn emit(text?: str):
+        let indent_spaces = str_repeat(text: "   ", count: indentation)
+        let line = indent_spaces + text
+        if use_file:
+            file_writeln(outf, line)
+        else:
+            print(line)
 
 fn read_xml() -> Node:
     panic("TODO: read_xml")

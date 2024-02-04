@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -9,10 +10,21 @@
 // #define DEBUG_REFCOUNTING
 
 typedef intptr_t slang_int_t;
+typedef double slang_float_t;
 extern slang_int_t main2();
 void *rt_malloc(int size);
 void rt_incref(void *ptr);
 void rt_decref(void *ptr);
+
+slang_float_t math_powf(slang_float_t a, slang_float_t b)
+{
+    return powf(a, b);
+}
+
+slang_float_t math_log10(slang_float_t value)
+{
+    return log10(value);
+}
 
 void std_print(char *message)
 {
@@ -53,7 +65,7 @@ char *rt_int_to_str(slang_int_t x)
     return text;
 }
 
-char *std_float_to_str(double x)
+char *std_float_to_str(slang_float_t x)
 {
     char buffer[50];
     snprintf(buffer, 50, "%f", x);
@@ -62,7 +74,16 @@ char *std_float_to_str(double x)
     return text;
 }
 
-double std_str_to_float(char *x)
+char *std_float_to_str2(slang_float_t x, slang_int_t digits)
+{
+    char buffer[50];
+    snprintf(buffer, 50, "%.*f", digits, x);
+    char *text = rt_malloc(strlen(buffer) + 1);
+    strcpy(text, buffer);
+    return text;
+}
+
+slang_float_t std_str_to_float(char *x)
 {
     double value = strtod(x, NULL);
     return value;

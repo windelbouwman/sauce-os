@@ -24,6 +24,12 @@ std_print = print
 rt_int_to_str = str
 std_str_to_int = int
 std_float_to_str = str
+
+
+def std_float_to_str2(value: float, digits: int) -> str:
+    return f"{value:.{digits}f}"
+
+
 std_str_to_float = float
 std_str_len = len
 std_ord = ord

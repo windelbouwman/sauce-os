@@ -5,6 +5,7 @@ extern fn ord(value: char) -> int
 extern fn chr(value: int) -> char
 
 extern fn float_to_str(value: float) -> str
+extern fn float_to_str2(value: float, digits: int) -> str
 extern fn str_to_float(value: str) -> float
 
 # extern fn int_to_str(value: int) -> str

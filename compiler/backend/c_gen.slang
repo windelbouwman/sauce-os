@@ -357,12 +357,16 @@ class CGenerator:
                 emit("{typed_var} = (slang_int_t)({value.name});")
                 push(Value(name: varname, ty))
 
-            ToOpaque(t):
+            ToOpaque(ty3):
                 let value = pop()
                 let varname = new_local_var()
                 let ty = bc.Type.Ptr()
                 let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} = (void*)({value.name});")
+                case ty3:
+                    Float:
+                        emit("{typed_var} = bit_cast<void*>({value.name});")
+                else:
+                    emit("{typed_var} = (void*)({value.name});")
                 push(Value(name: varname, ty))
 
             FromOpaque(ty):

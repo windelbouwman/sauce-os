@@ -1,7 +1,6 @@
 """ Type checker.
 """
 
-
 import logging
 
 from . import ast

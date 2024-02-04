@@ -1,5 +1,6 @@
 """ AST (abstract syntax tree) nodes to represent code.
 """
+
 import logging
 import rich
 import rich.tree

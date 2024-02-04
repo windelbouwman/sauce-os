@@ -101,6 +101,10 @@ fn efi_std_float_to_str(arguments: List[Value]) -> Option[Value]:
     let value = std.float_to_str(float_from_value(arguments[0]))
     return Option.Some(Value.Str(value))
 
+fn efi_std_float_to_str2(arguments: List[Value]) -> Option[Value]:
+    let value = std.float_to_str2(float_from_value(arguments[0]), int_from_value(arguments[1]))
+    return Option.Some(Value.Str(value))
+
 fn efi_std_str_to_float(arguments: List[Value]) -> Option[Value]:
     let value = std.str_to_float(str_from_value(arguments[0]))
     return Option.Some(Value.Float(value))
@@ -165,6 +169,7 @@ fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
     efi_db.insert(key: "std_ord", value: ExternFunctionImpl(f: efi_std_ord, n: 1))
     efi_db.insert(key: "std_chr", value: ExternFunctionImpl(f: efi_std_chr, n: 1))
     efi_db.insert(key: "std_float_to_str", value: ExternFunctionImpl(f: efi_std_float_to_str, n: 1))
+    efi_db.insert(key: "std_float_to_str2", value: ExternFunctionImpl(f: efi_std_float_to_str2, n: 2))
     efi_db.insert(key: "std_str_to_float", value: ExternFunctionImpl(f: efi_std_str_to_float, n: 1))
     efi_db.insert(key: "std_str_to_int", value: ExternFunctionImpl(f: efi_std_str_to_int, n: 1))
     efi_db.insert(key: "std_str_len", value: ExternFunctionImpl(f: efi_std_str_len, n: 1))

@@ -8,26 +8,29 @@ BASE_LIB_SRCS += runtime/std.slang
 COMPILER_SRCS := $(wildcard compiler/*/*.slang)
 COMPILER_SRCS += $(wildcard compiler/*.slang)
 COMPILER_SRCS += ${BASE_LIB_SRCS}
-REGEX_LIB_SRCS := Libs/regex/regex.slang Libs/regex/integersetlib.slang Libs/regex/rangelib.slang
+REGEX_LIB_SRCS := $(wildcard Libs/regex/*.slang)
+GFX_LIB_SRCS := $(wildcard Libs/gfx/*.slang)
 COMPILER1=${BUILDDIR}/tmp-compiler.py
 COMPILER2=${BUILDDIR}/tmp-compiler2.py
 COMPILER3=${BUILDDIR}/tmp-compiler3.py
 COMPILER4=${BUILDDIR}/compiler4
 COMPILER5=${BUILDDIR}/compiler5
 COMPILER6=${BUILDDIR}/tmp-compiler6.py
-DEMOS=${BUILDDIR}/c/hello-world.exe ${BUILDDIR}/regex.exe
+SLANG_APPS := $(wildcard Apps/*.slang)
 
 CFLAGS=-Wfatal-errors -Werror -Wreturn-type
+LDFLAGS=-lm
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/%.py, $(SLANG_EXAMPLES))
 C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/%.exe, $(SLANG_EXAMPLES))
+C_APPS := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
 ALL_TEST_RUNS := $(patsubst tests/test_%.slang, run-test-%, $(TESTS))
 
 .PHONY: all check all-examples all-examples-bc all-examples-c all-examples-python
-all: ${DEMOS} all-examples
+all: ${C_APPS} all-examples
 all-examples: all-examples-bc all-examples-c all-examples-python
 
 check: ${ALL_TEST_RUNS}
@@ -49,7 +52,7 @@ all-examples-c: $(C_EXAMPLES)
 
 .PRECIOUS: ${BUILDDIR}/%.exe
 ${BUILDDIR}/%.exe: ${BUILDDIR}/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
-	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/runtime.o
+	gcc ${CFLAGS} ${LDFLAGS} -o $@ $< ${BUILDDIR}/runtime.o
 
 .PRECIOUS: ${BUILDDIR}/c/%.c
 
@@ -68,7 +71,7 @@ ${BUILDDIR}/wasm/%.wat: examples/snippets/%.slang runtime/std.slang ${COMPILER6}
 	python ${COMPILER6} -wasm $< runtime/std.slang | sed '/^# /d' > $@
 
 # Unit tests:
-.PHONY: run_test_%
+.PHONY: run-test-%
 .PRECIOUS: ${BUILDDIR}/tests/test_%.c
 run-test-%: ${BUILDDIR}/tests/test_%.exe
 	$<
@@ -77,9 +80,9 @@ ${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS
 	python ${COMPILER6} --backend-c -o $@ $< ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
 
 
-# Libs demos
-${BUILDDIR}/regex.c: Libs/regex/main.slang ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}
-	python ${COMPILER6} --backend-c -o $@ Libs/regex/main.slang ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
+# Apps
+${BUILDDIR}/c/apps/%.c: Apps/%.slang ${GFX_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c/apps
+	python ${COMPILER6} --backend-c -o $@ $< ${GFX_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
 
 # Bootstrap sequence:
 ${BUILDDIR}/tmp-compiler.py: | ${COMPILER_SRCS} compiler1/*.py ${BUILDDIR}
@@ -95,13 +98,13 @@ ${BUILDDIR}/tmp-compiler4.c: | ${COMPILER_SRCS} ${BUILDDIR} ${COMPILER3}
 	python ${COMPILER3} --backend-c -o ${BUILDDIR}/tmp-compiler4.c ${COMPILER_SRCS}
 
 ${COMPILER4}: ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/runtime.o
-	gcc ${CFLAGS} -o ${COMPILER4} ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/runtime.o
+	gcc ${CFLAGS} ${LDFLAGS} -o ${COMPILER4} ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/runtime.o
 
 ${BUILDDIR}/tmp-compiler5.c: | ${COMPILER_SRCS} ${BUILDDIR} ${COMPILER4}
 	./${COMPILER4} --backend-c -o ${BUILDDIR}/tmp-compiler5.c ${COMPILER_SRCS}
 
 ${COMPILER5}: ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
-	gcc ${CFLAGS} -o ${COMPILER5} ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/runtime.o
+	gcc ${CFLAGS} ${LDFLAGS} -o ${COMPILER5} ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/runtime.o
 
 ${COMPILER6}: ${COMPILER_SRCS} | ${BUILDDIR} ${COMPILER5}
 	./${COMPILER5} --backend-py -o ${COMPILER6} ${COMPILER_SRCS}
@@ -128,6 +131,8 @@ ${BUILDDIR}/bc:
 ${BUILDDIR}/tests:
 	mkdir -p ${BUILDDIR}/tests
 
+${BUILDDIR}/c/apps:
+	mkdir -p ${BUILDDIR}/c/apps
 
 ${BUILDDIR}/runtime.o: runtime/runtime.c | ${BUILDDIR}
 	gcc ${CFLAGS} -c -o $@ $<

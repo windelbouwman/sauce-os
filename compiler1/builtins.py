@@ -54,6 +54,9 @@ def get_builtins(args=(), stdout=None):
     def get_arg(index):
         return args[index]
 
+    def std_float_to_str2(value: float, digits: int) -> str:
+        return f"{value:.{digits}f}"
+
     return {
         "std_print": std_print,
         "std_exit": std_exit,
@@ -61,6 +64,7 @@ def get_builtins(args=(), stdout=None):
         "rt_int_to_str": str,
         "std_str_to_int": int,
         "std_float_to_str": lambda x: f"{x:f}",
+        "std_float_to_str2": std_float_to_str2,
         "std_str_to_float": float,
         "rt_char_to_str": str,
         "std_str_len": len,
@@ -96,6 +100,10 @@ std_print = print
 rt_int_to_str = str
 std_str_to_int = int
 std_float_to_str = lambda x: f"{x:f}"
+
+def std_float_to_str2(value: float, digits: int) -> str:
+    return f"{value:.{digits}f}"
+
 std_str_to_float = float
 std_str_len = len
 std_ord = ord

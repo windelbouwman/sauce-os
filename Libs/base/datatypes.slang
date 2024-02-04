@@ -73,6 +73,16 @@ fn vec5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> List[T]:
     vec.append(v5)
     return vec
 
+fn vec6[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T) -> List[T]:
+    let vec: List[T] = List()
+    vec.append(v1)
+    vec.append(v2)
+    vec.append(v3)
+    vec.append(v4)
+    vec.append(v5)
+    vec.append(v6)
+    return vec
+
 class List[T]:
     # Linked list based on a linked list of elements with next pointers.
 
@@ -266,8 +276,6 @@ class List[T]:
     fn extend(other?: List[T]):
         while not other.is_empty():
             append(other.pop_front())
-    #fn filter():
-    #    pass
 
 struct ListElement[T]:
     next: Option[ListElement[T]]

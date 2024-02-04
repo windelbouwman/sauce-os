@@ -1,6 +1,14 @@
 
 from datatypes import List
 
+fn find_min_value[T](values: List[T], cmp: fn(T, T) -> bool) -> T:
+    let sorted = sort_list(values, cmp)
+    return sorted.first()
+
+fn find_max_value[T](values: List[T], cmp: fn(T, T) -> bool) -> T:
+    let sorted = sort_list(values, cmp)
+    return sorted.last()
+
 fn sort_list[T](x?: List[T], cmp: fn(T, T) -> bool) -> List[T]:
     # Return a sorted list
     # API/proxy function, choose implementation here.
