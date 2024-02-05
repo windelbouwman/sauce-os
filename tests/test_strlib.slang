@@ -1,7 +1,7 @@
 
 # Unit tests for strlib
 
-from std import print, str_to_int
+from std import print, str_to_int, float_to_str2
 from rt import int_to_str
 from strlib import trim, hex_to_int, bin_to_int, find_char, is_digit
 from strlib import int_to_hex_string
@@ -15,6 +15,7 @@ fn main() -> int:
     test_bin_to_int()
     test_find_char()
     test_int_to_str()
+    test_float_to_str()
     print("OK")
     return 0
 
@@ -36,6 +37,13 @@ fn test_bin_to_int():
     assert_int_equals(bin_to_int(bintext: "1100"), 12)
     assert_int_equals(0b101, 5)
     assert_int_equals(0b1100, 12)
+
+fn test_float_to_str():
+    let value = 3.14159265
+    assert_str_equals(float_to_str2(value, digits: 0), "3")
+    assert_str_equals(float_to_str2(value, digits: 1), "3.1")
+    assert_str_equals(float_to_str2(value, digits: 2), "3.14")
+    assert_str_equals(float_to_str2(value, digits: 3), "3.142")
 
 fn test_find_char():
     let index = option_unwrap(find_char(text: "blaat5", criterium: is_digit))

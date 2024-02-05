@@ -30,11 +30,11 @@ diff ${COMPILER2} ${COMPILER3}
 
 echo "Compiling compiler4"
 python ${COMPILER3} --backend-c -o build/tmp-compiler4.c ${COMPILER_SRCS}
-gcc -o build/compiler4 build/tmp-compiler4.c runtime/runtime.c
+gcc -o build/compiler4 build/tmp-compiler4.c runtime/runtime.c -lm
 
 echo "Compiling compiler5"
 ./build/compiler4 --backend-c -o build/tmp-compiler5.c ${COMPILER_SRCS}
-gcc -o build/compiler5 build/tmp-compiler5.c runtime/runtime.c
+gcc -o build/compiler5 build/tmp-compiler5.c runtime/runtime.c -lm 
 
 diff build/tmp-compiler4.c build/tmp-compiler5.c
 

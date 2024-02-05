@@ -13,6 +13,19 @@ fn max(a: int, b: int) -> int:
     else:
         return b
 
+# TODO: do something clever with traits / interfaces / generics
+fn fmin(a?: float, b?: float) -> float:
+    if a < b:
+        return a
+    else:
+        return b
+
+fn fmax(a?: float, b?: float) -> float:
+    if a > b:
+        return a
+    else:
+        return b
+
 fn abs(a?: int) -> int:
     if a < 0:
         return -a
@@ -38,10 +51,14 @@ extern fn log10(value?: float) -> float
 # fn log10(value?: float) -> float:
 #     panic("TODO: log10")
 
-fn floor(value?: float) -> float:
-    return float(value: int(value))
+extern fn floor(value?: float) -> float
+# fn floor(value?: float) -> float:
+# TODO!
+#     return float(value: int(value))
 
-fn ceil(value?: float) -> float:
-    return float(value: int(value) + 1)
+extern fn ceil(value?: float) -> float
+# fn ceil(value?: float) -> float:
+# TODO!
+#     return float(value: int(value) + 1)
 
 

@@ -26,6 +26,16 @@ slang_float_t math_log10(slang_float_t value)
     return log10(value);
 }
 
+slang_float_t math_floor(slang_float_t value)
+{
+    return floor(value);
+}
+
+slang_float_t math_ceil(slang_float_t value)
+{
+    return ceil(value);
+}
+
 void std_print(char *message)
 {
     puts(message);
@@ -77,7 +87,7 @@ char *std_float_to_str(slang_float_t x)
 char *std_float_to_str2(slang_float_t x, slang_int_t digits)
 {
     char buffer[50];
-    snprintf(buffer, 50, "%.*f", digits, x);
+    snprintf(buffer, 50, "%.*f", (int)digits, x);
     char *text = rt_malloc(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;

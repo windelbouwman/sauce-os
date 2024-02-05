@@ -15,6 +15,19 @@ fn zip[L,R,P](left: List[L], right: List[R], merger: fn(L, R) -> P) -> List[P]:
     
     return pairs
 
+fn add_int(left: int, right: int) -> int:
+    return left + right
+
+fn sum_integers(values: List[int]) -> int:
+    return reduce(values, f: add_int)
+
+fn reduce[T](values: List[T], f: fn(T, T) -> T) -> T:
+    # Apply a function on pairs to reduce to a single item.
+    let res = values.pop_front()
+    for other in values:
+        res = f(res, other)
+    return res
+
 fn map[T,V](values: List[T], function: fn(T) -> V) -> List[V]:
     let mapped: List[V] = List()
     for value in values:

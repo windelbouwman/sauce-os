@@ -2,11 +2,12 @@
 # Functionality to charts and plotting.
 
 from std import float_to_str, float_to_str2
-from math import floor, log10, powf, fabs
+from math import floor, log10, powf, fabs, fmin, fmax
 from datatypes import List, Option
 from sorting import find_min_value
 from utils import log_info, panic, assert
 from canvas import Canvas, HorizontalAnchor, VerticalAnchor
+from functools import reduce
 from shapelib import Point, Path
 
 class Chart:
@@ -28,17 +29,53 @@ class Chart:
         m_curves.append(c)
         return c
     
+    fn get_data_bounds() -> Option[FRange]:
+        # Retrieve bounds of the data in this chart.
+        let rects: List[FRange] = List()
+        for curve in m_curves:
+            case curve.get_data_bounds():
+                None:
+                    pass
+                Some(span):
+                    rects.append(span)
+
+        if rects.is_empty():
+            return Option.None()
+        else:
+            let rect = reduce(values: rects, f: containing_rect)
+            return Option.Some(rect)
+
     fn autoscale():
         # adjust axis to view all data!
-        panic("TODO: autoscale")
+        log_info("Autoscale")
+        case get_data_bounds():
+            None:
+                pass
+            Some(span):
+                m_x_axis.lower = span.x_min
+                m_x_axis.upper = span.x_max
+                m_y_axis.lower = span.y_min
+                m_y_axis.upper = span.y_max
     
     fn autoscale_x():
         # Adjust x-axis to fit all data
-        panic("TODO: autoscale_x")
+        log_info("Autoscale-x")
+        case get_data_bounds():
+            None:
+                pass
+            Some(span):
+                m_x_axis.lower = span.x_min
+                m_x_axis.upper = span.x_max
 
     fn autoscale_y():
         # Adjust y-axis to fit all data
-        panic("TODO: autoscale_y")
+        log_info("Autoscale-y")
+        case get_data_bounds():
+            None:
+                pass
+            Some(span):
+                m_y_axis.lower = span.y_min
+                m_y_axis.upper = span.y_max
 
     fn zoom(factor: float):
         m_x_axis.scale(factor)
@@ -50,6 +87,12 @@ class Chart:
     fn zoom_out():
         zoom(factor: 1.5)
 
+    fn pan_x(delta: float):
+        m_x_axis.pan(delta)
+
+    fn pan_y(delta: float):
+        m_y_axis.pan(delta)
+
 class Axis:
     var lower: float = -10.0
     var upper: float = 10.0
@@ -60,6 +103,10 @@ class Axis:
     fn scale(factor: float):
         lower = lower * factor
         upper = upper * factor
+    
+    fn pan(delta: float):
+        lower = lower + delta
+        upper = upper + delta
 
 class Curve:
     var points: List[DataPoint]
@@ -68,9 +115,43 @@ class Curve:
     fn add_point(x: float, y: float):
         points.append(DataPoint(x, y))
 
+    fn get_data_bounds() -> Option[FRange]:
+        if points.is_empty():
+            return Option.None()
+        else:
+            let p1 = points.first()
+            let x_min = p1.x
+            let x_max = x_min
+            let y_min = p1.y
+            let y_max = y_min
+            for point in points:
+                if point.x > x_max:
+                    x_max = point.x
+                if point.x < x_min:
+                    x_min = point.x
+                if point.y > y_max:
+                    y_max = point.y
+                if point.y < y_min:
+                    y_min = point.y
+            return Option.Some(FRange(x_min, x_max, y_min, y_max))
+
 struct DataPoint:
     x: float
     y: float
+
+struct FRange:
+    # Bounding rectangle
+    x_min: float
+    x_max: float
+    y_min: float
+    y_max: float
+
+fn containing_rect(left: FRange, right: FRange) -> FRange:
+    let x_min = fmin(left.x_min, right.x_min)
+    let x_max = fmax(left.x_max, right.x_max)
+    let y_min = fmin(left.y_min, right.y_min)
+    let y_max = fmax(left.y_max, right.y_max)
+    return FRange(x_min, x_max, y_min, y_max)
 
 class ColorWheel:
     var m_index: int = 0
@@ -141,7 +222,9 @@ fn calc_tick_values(axis: Axis, n_ticks: int) -> List[TickValue]:
         x += tick_width
     
     let digits = 0
-    if scale < 0:
+    if scale > 0:
+        digits = 0
+    else:
         digits = int(value: -scale + 1)
     let tick_values: List[TickValue] = List()
     while x < axis.upper:
