@@ -10,6 +10,7 @@ COMPILER_SRCS += $(wildcard compiler/*.slang)
 COMPILER_SRCS += ${BASE_LIB_SRCS}
 REGEX_LIB_SRCS := $(wildcard Libs/regex/*.slang)
 GFX_LIB_SRCS := $(wildcard Libs/gfx/*.slang)
+IMAGE_LIB_SRCS := $(wildcard Libs/image/*.slang)
 COMPILER1=${BUILDDIR}/tmp-compiler.py
 COMPILER2=${BUILDDIR}/tmp-compiler2.py
 COMPILER3=${BUILDDIR}/tmp-compiler3.py
@@ -81,8 +82,8 @@ ${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS
 
 
 # Apps
-${BUILDDIR}/c/apps/%.c: Apps/%.slang ${GFX_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c/apps
-	python ${COMPILER6} --backend-c -o $@ $< ${GFX_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
+${BUILDDIR}/c/apps/%.c: Apps/%.slang ${GFX_LIB_SRCS} ${IMAGE_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c/apps
+	python ${COMPILER6} --backend-c -o $@ $< ${GFX_LIB_SRCS} ${IMAGE_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
 
 # Bootstrap sequence:
 ${BUILDDIR}/tmp-compiler.py: | ${COMPILER_SRCS} compiler1/*.py ${BUILDDIR}

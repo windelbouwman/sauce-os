@@ -1,8 +1,10 @@
 
 # Data types for bytes
 
+from std import str_len, str_slice
+from utils import assert
 from vectype import Vector, new_vector, VectorIter
-from strlib import hex_char
+from strlib import hex_char, hex_to_int
 
 class Bytes:
     # Immutable bytes
@@ -14,6 +16,9 @@ class Bytes:
     fn len() -> int:
         return m_bytes.len()
     
+    fn get(index: int) -> int:
+        return m_bytes[index]
+
     fn as_hex() -> str:
         # Return bytes as hexadecimal text
         let txt = ""
@@ -21,13 +26,39 @@ class Bytes:
             txt = txt + byte_as_hex(b)
         return txt
 
+class ByteReader:
+    # read byte at a time
+    var m_bytes: Bytes
+    var m_index: int = 0
+
+    fn read_byte() -> int:
+        assert(condition: m_index < m_bytes.m_bytes.len(), message: "Cannot read past end of bytes")
+        let value = m_bytes[m_index]
+        m_index += 1
+        return value
+
+    fn read_u32_be() -> int:
+        let b1 = read_byte()
+        let b2 = read_byte()
+        let b3 = read_byte()
+        let b4 = read_byte()
+        return (b1 << 24) | (b2 << 16) | (b3 << 8) | b4
+
+    fn read_u16_be() -> int:
+        let b1 = read_byte()
+        let b2 = read_byte()
+        return (b1 << 8) | b2
+
 class ByteArray:
     # Mutable bytes
     var m_bytes: Vector[int] = new_vector(default: 0)
 
     fn append(byte?: int):
         m_bytes.append(byte)
-    
+
+    fn get(index: int) -> int:
+        return m_bytes[index]
+
     fn extend(bytes?: Bytes):
         for b in bytes.m_bytes:
             append(b)
@@ -58,3 +89,21 @@ fn byte_as_hex(byte?: int) -> str:
     let c1 = hex_char(byte & 0xF)
     let c2 = hex_char((byte & 0xF0) >> 4)
     return "{c2}{c1}"
+
+fn from_hex_text(text: str) -> Bytes:
+    let output = ByteArray()
+    let n = str_len(text)
+    let i = 0
+    while i < n:
+        assert(condition: i + 1 < n, message: "Hexadecimal text must contain whole bytes")
+        let part = str_slice(text, begin: i, end: i + 2)
+        output.append(hex_to_int(hextext: part))
+        i += 2
+    return output.to_bytes()
+
+fn fill_bytes(n: int, fill: int) -> Bytes:
+    let output = ByteArray()
+    while n > 0:
+        output.append(fill)
+        n -= 1
+    return output.to_bytes()

@@ -5,6 +5,9 @@ fn panic(message?: str) ?:
     print("PANIC: {message}")
     exit(1)
 
+fn unimplemented(message?: str) ?:
+    panic("UNIMPLEMENTED: {message}")
+
 fn assert(condition: bool, message: str):
     if condition:
         pass

@@ -3,7 +3,7 @@
 
 from std import print, chr, str_len
 from std import file_writeln, file_open, file_close
-from utils import panic
+from utils import panic, unimplemented
 from datatypes import List
 from datatypes import Option, option_unwrap, option_is_some
 from strlib import str_join, str_repeat
@@ -101,7 +101,7 @@ class XmlWriter:
             print(line)
 
 fn read_xml() -> Node:
-    panic("TODO: read_xml")
+    unimplemented("read_xml")
 
 #class XmlReader:
 #    pass

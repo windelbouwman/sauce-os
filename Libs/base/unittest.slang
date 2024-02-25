@@ -5,6 +5,7 @@ from utils import assert
 from datatypes import List, option_unwrap
 from std import float_to_str
 from math import fabs
+from bytes import Bytes
 # from functools import pairs
 
 pub fn assert_str_equals(a?: str, b?: str):
@@ -34,6 +35,11 @@ fn assert_list_equals(a?: List[str], b?: List[str]):
                 assert_str_equals(ii, jj)
             None:
                 break
+
+fn assert_bytes_equals(a?: Bytes, b?: Bytes):
+    let a_hex = a.as_hex()
+    let b_hex = b.as_hex()
+    assert_str_equals(a_hex, b_hex)
 
 pub fn assert_true(condition?: bool):
     assert(condition, message: "Expected true, got false")

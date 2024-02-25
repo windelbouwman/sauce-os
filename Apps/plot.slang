@@ -5,6 +5,7 @@ import std
 from utils import log_info, set_log_level
 from strlib import split_lines
 from chart import Chart
+from lttb import lttb
 
 fn main() -> int:
     set_log_level(level: 2)
@@ -12,7 +13,12 @@ fn main() -> int:
     let c = Chart()
     plot_function(chart: c, name: "y = x", x_min: -10.0, x_max: 10.0, dx: 0.7, f: f_linear)
     plot_function(chart: c, name: "parabole", x_min: -20.0, x_max: 20.0, dx: 0.2, f: f_parabola)
-    plot_function(chart: c, name: "y = x^3", x_min: -10.0, x_max: 10.0, dx: 0.7, f: f_cubic)
+    plot_function(chart: c, name: "y = x^3", x_min: -10.0, x_max: 10.0, dx: 0.1, f: f_cubic)
+
+    # Resample the last curve using the LTTB algorithm:
+    let sampled = lttb(values: c.m_curves.last().points, threshold: 6)
+    c.add_curve(name: "sampled", points: sampled)
+
     c.autoscale()
     # c.zoom_out()
     # c.zoom(factor: 0.001)

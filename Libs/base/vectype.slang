@@ -5,13 +5,20 @@
 # and when appendingwe might need to re-allocate the array and copy
 # the old values.
 
-from utils import panic, assert
+from utils import panic, assert, unimplemented
 from datatypes import Option
 
 fn new_vector[T](default: T) -> Vector[T]:
     let m_capacity = 2
     let m_elements = [default : m_capacity]
     let v: Vector[T] = Vector(m_capacity, m_elements, m_default: default)
+    return v
+
+fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
+    let m_capacity = size
+    let m_elements = [default : m_capacity]
+    let v: Vector[T] = Vector(m_capacity, m_elements, m_default: default)
+    v.m_size = size
     return v
 
 class Vector[T]:
@@ -47,9 +54,21 @@ class Vector[T]:
     fn set(index: int, value: T):
         # " Set value at index. "
         m_elements[index] = value
+    
+    fn last() -> T:
+        return m_elements[m_size - 1]
 
     fn iter() -> VectorIter[T]:
         return VectorIter(m_vector: this)
+
+    fn take(amount?: int) -> Vector:
+        # Create a new vector with the given amount of items
+        unimplemented("take")
+
+    fn skip(amount?: int) -> Vector:
+        # Create a new vector with the given amount of items
+        unimplemented("skip")
+
 
 class VectorIter[T]:
     var m_vector: Vector[T]

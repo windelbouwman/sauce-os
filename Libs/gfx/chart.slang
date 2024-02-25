@@ -22,13 +22,21 @@ class Chart:
         drawer.draw()
         c.save_svg(filename)
 
+    fn new_color() -> str:
+        return m_color_wheel.get_color()
+
     fn new_curve(name: str) -> Curve:
         let points: List[DataPoint] = List()
-        let color = m_color_wheel.get_color()
+        let color = new_color()
         let c = Curve(points, color)
         m_curves.append(c)
         return c
     
+    fn add_curve(name: str, points: List[DataPoint]):
+        let color = new_color()
+        let c = Curve(points, color)
+        m_curves.append(c)
+
     fn get_data_bounds() -> Option[FRange]:
         # Retrieve bounds of the data in this chart.
         let rects: List[FRange] = List()
@@ -43,6 +51,7 @@ class Chart:
             return Option.None()
         else:
             let rect = reduce(values: rects, f: containing_rect)
+            rect = grow_rect(source: rect, percent: 0.05)
             return Option.Some(rect)
 
     fn autoscale():
@@ -151,6 +160,15 @@ fn containing_rect(left: FRange, right: FRange) -> FRange:
     let x_max = fmax(left.x_max, right.x_max)
     let y_min = fmin(left.y_min, right.y_min)
     let y_max = fmax(left.y_max, right.y_max)
+    return FRange(x_min, x_max, y_min, y_max)
+
+fn grow_rect(source: FRange, percent: float) -> FRange:
+    let dx = (source.x_max - source.x_min) * percent
+    let dy = (source.y_max - source.y_min) * percent
+    let x_min = source.x_min - dx
+    let x_max = source.x_max + dx
+    let y_min = source.y_min - dy
+    let y_max = source.y_max + dy
     return FRange(x_min, x_max, y_min, y_max)
 
 class ColorWheel:
