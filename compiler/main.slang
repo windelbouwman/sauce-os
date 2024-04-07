@@ -7,7 +7,8 @@ from parsing import parse_source
 from namebinding import bind_names
 from pass3 import resolve_newops
 from typechecking import type_check_modules
-from utils import log_info, log_error, log_trace, panic, assert, set_log_level
+from typedb import store_symbol_table, load_symbol_table
+from utils import log_info, log_error, log_trace, panic, assert, set_log_level, unimplemented
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
 from basepass import IdGen
@@ -31,6 +32,7 @@ fn main() -> int:
     let options = CompilationOptions:
         dump_ast: false
         backend: Backend.Python()
+        add_imports: List()
         output_filename: Option.None()
         verbosity: 0
         runtime: true
@@ -54,6 +56,12 @@ fn main() -> int:
                 print("Expect argument to -o")
         elif argument == "-v":
             options.verbosity += 1
+        elif argument == "--add-import":
+            i += 1
+            if i < n:
+                options.add_imports.append(get_arg(i))
+            else:
+                print("Expect argument to --add-import")
         elif argument == "--backend-bc":
             options.backend = Backend.Bytecode()
         elif argument == "--backend-c":
@@ -97,11 +105,12 @@ fn print_usage():
     print("Slang compiler written in slang!")
     print("")
     print("Usage:")
-    print("$ compiler.exe [-d] file1.slang file2.slang ..")
+    print("$ compiler.exe [-d] [-v] file1.slang file2.slang ..")
     print("    -d : dump AST between compilation phases")
     print("    -v : Increase verbosity")
     print("    -o : Write output to given filename")
     print("    -h : display usage information")
+    print("    --add-import filename.json   : Additional importable modules in JSON")
     print("    --backend-bc    : Spit out bytecode")
     print("    --backend-py    : Spit out python code")
     print("    --backend-c     : Spit out C code")
@@ -115,6 +124,7 @@ fn print_usage():
 struct CompilationOptions:
     dump_ast: bool
     backend: Backend
+    add_imports: List[str]
     output_filename: Option[str]
     verbosity: int
     runtime: bool
@@ -130,12 +140,19 @@ enum Backend:
 
 fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
     let id_gen = IdGen()
+    let modules: List[ast.Module] = List()
     let module_map: Dictionary[ast.Module] = Dictionary()
+
     let rt_module = get_rt_module()
+    modules.append(rt_module)
     module_map.insert(key: "rt", value: rt_module)
 
-    let modules: List[ast.Module] = List()
-    modules.append(rt_module)
+    for filename in options.add_imports:
+        let imported_modules = load_symbol_table(filename)
+        for module in imported_modules:
+            modules.append(module)
+            module_map.insert(key: module.name, value: module)
+
     for filename in filenames:
         log_info("Parsing: {filename}")
 
@@ -157,6 +174,14 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
         ast.print_ast2(module_set)
 
     type_check_modules(module_set)
+
+    case options.output_filename:
+        Some(filename):
+            let db_filename = filename + ".json"
+            store_symbol_table(module_set, filename: db_filename)
+        None:
+            pass
+
     transform(module_set, id_gen, rt_module)
 
     if options.dump_ast:

@@ -2,4 +2,5 @@
 ../Libs/base
 ../Libs/regex
 ../Libs/gfx
+../Libs/image
 ../runtime/std.slang

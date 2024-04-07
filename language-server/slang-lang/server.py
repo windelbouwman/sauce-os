@@ -156,7 +156,9 @@ class ScopeTreeItem:
 
     def get_definitions_for_line(self, row):
         definitions = []
-        definitions.extend(list(self.scope.symbols.values()))
+        for symbol in list(self.scope.symbols.values()):
+            if isinstance(symbol, ast.Definition):
+                definitions.append(symbol)
         sub_item = self._m.get(row)
         if sub_item:
             definitions.extend(sub_item.get_definitions_for_line(row))

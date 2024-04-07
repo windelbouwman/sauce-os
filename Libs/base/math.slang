@@ -1,5 +1,5 @@
 
-from utils import panic
+from utils import panic, unimplemented
 
 fn min(a: int, b: int) -> int:
     if a < b:
@@ -38,6 +38,16 @@ fn fabs(a?: float) -> float:
     else:
         return a
 
+fn sin(value?: float) -> float:
+    unimplemented("sin")
+
+fn cos(value?: float) -> float:
+    unimplemented("cos")
+
+fn tan(value?: float) -> float:
+    # TODO: check division by 0
+    return sin(value) / cos(value)
+
 fn modulo(value: int, divisor: int) -> int:
     let x = value / divisor
     return value - (divisor * x)
@@ -51,10 +61,12 @@ extern fn log10(value?: float) -> float
 # fn log10(value?: float) -> float:
 #     panic("TODO: log10")
 
-extern fn floor(value?: float) -> float
-# fn floor(value?: float) -> float:
-# TODO!
-#     return float(value: int(value))
+# extern fn floor(value?: float) -> float
+fn floor(value?: float) -> float:
+    let result = float(value: int(value))
+    if value < 0:
+        result = result - 1.0
+    return result
 
 extern fn ceil(value?: float) -> float
 # fn ceil(value?: float) -> float:

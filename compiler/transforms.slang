@@ -19,7 +19,7 @@ from errors import CompilationError
 import ast
 
 fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module) except CompilationError:
-    # log_info("Transforming {module.name}")
+    log_debug("Transforming modules")
     let transformer = Transformer:
         class_rewriter: ClassRewriter(id_gen, rt_module)
 

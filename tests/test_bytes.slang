@@ -1,5 +1,5 @@
 
-from bytes import ByteArray, from_hex_text
+from bytes import ByteArray, bytes_from_hex_text
 from std import print
 from unittest import assert_str_equals
 
@@ -11,7 +11,7 @@ fn main() -> int:
 
 fn test_hex_text_conversion():
     let hex_text = "112233BCF2"
-    let data = from_hex_text(text: hex_text)
+    let data = bytes_from_hex_text(text: hex_text)
     assert_str_equals(hex_text, data.as_hex())
 
 fn test_pack():

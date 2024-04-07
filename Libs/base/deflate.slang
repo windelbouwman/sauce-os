@@ -6,64 +6,17 @@ from std import print
 from utils import panic, unimplemented, assert
 from bytes import Bytes, ByteArray, ByteReader
 from vectype import Vector, new_vector, new_vector_of_size
-from datetime import unix_to_str
-
-fn gzip_decompress(data?: Bytes) -> Bytes:
-    # Handle the gzip header.
-    let bit_reader = BitReader(m_data: data)
-    let id1 = bit_reader.read_byte()
-    let id2 = bit_reader.read_byte()
-    assert(condition: id1 == 0x1f, message: "Expect ID1: 0x1F")
-    assert(condition: id2 == 0x8B, message: "Expect ID1: 0x8B")
-    let cm = bit_reader.read_byte()
-    assert(condition: cm == 8, message: "Expect only DEFLATE (8) as compression")
-    let flg = bit_reader.read_byte()
-    let mtime = bit_reader.read_u32_le()
-    let xfl = bit_reader.read_byte()
-    let os = bit_reader.read_byte()
-    print("OS = {os} mtime={unix_to_str(seconds: mtime)}")
-
-    # bit 0   FTEXT
-    # bit 1   FHCRC
-    # bit 2   FEXTRA
-    # bit 3   FNAME
-    # bit 4   FCOMMENT
-
-    if (flg >> 2) & 1 == 1:  # FEXTRA
-        unimplemented("FEXTRA")
-
-    if (flg >> 3) & 1 == 1:  # FNAME
-        unimplemented("FNAME")
-
-    if (flg >> 4) & 1 == 1:  # FCOMMENT
-        unimplemented("FCOMMENT")
-
-    if (flg >> 1) & 1 == 1:  # FHCRC
-        unimplemented("FHCRC")
-
-    # Invoke deflate here
-    let decoder = new_deflate_decoder(bit_reader)
-    decoder.deflate()
-    let decompressed = decoder.m_output.to_bytes()
-
-    let crc32 = bit_reader.read_u32_le()
-    let isize = bit_reader.read_u32_le()
-    assert(condition: isize == decompressed.len(), message: "Invalid length: {isize} != {decompressed.len()}")
-    print("isize = {isize}, crc32 = {crc32}")
-    return decompressed
-
-fn crc32(data: Bytes) -> int:
-    unimplemented("crc32")
 
 fn deflate_decompress(data?: Bytes) -> Bytes:
     # Decompress the given data using deflate
     # See: RFC 1951
-    let bit_reader = BitReader(m_data: data)
-    let decoder = new_deflate_decoder(bit_reader)
+    let reader = data.into_reader()
+    let decoder = new_deflate_decoder(reader)
     decoder.deflate()
     return decoder.m_output.to_bytes()
 
-fn new_deflate_decoder(bit_reader: BitReader) -> DeflateDecoder:
+fn new_deflate_decoder(reader: ByteReader) -> DeflateDecoder:
+    let bit_reader = BitReader(m_reader: reader)
     let decoder = DeflateDecoder(m_bit_reader: bit_reader)
     return decoder
 
@@ -213,12 +166,12 @@ class DeflateDecoder:
 
     fn read_bits(n?: int) -> int:
         return m_bit_reader.read_bits(n)
-    
+
     fn read_byte() -> int:
-        return m_bit_reader.read_byte()
+        return m_bit_reader.m_reader.read_byte()
 
     fn read_u16_le() -> int:
-        return m_bit_reader.read_u16_le()
+        return m_bit_reader.m_reader.read_u16_le()
 
     fn emit_byte(b?: int):
         assert(condition: b < 256, message: "Byte values must be smaller than 256")
@@ -226,44 +179,14 @@ class DeflateDecoder:
 
 
 class BitReader:
-    var m_index: int = 0
     var m_bitbuf: int = 0
     var m_bitcnt: int = 0
-    var m_data: Bytes
-
-    fn read_u32_be() -> int:
-        let b1 = read_byte()
-        let b2 = read_byte()
-        let b3 = read_byte()
-        let b4 = read_byte()
-        return (b1 << 24) | (b2 << 16) | (b3 << 8) | b4
-
-    fn read_u32_le() -> int:
-        let b1 = read_byte()
-        let b2 = read_byte()
-        let b3 = read_byte()
-        let b4 = read_byte()
-        return (b4 << 24) | (b3 << 16) | (b2 << 8) | b1
-
-    fn read_u16_be() -> int:
-        let b1 = read_byte()
-        let b2 = read_byte()
-        return (b1 << 8) | b2
-
-    fn read_u16_le() -> int:
-        let b1 = read_byte()
-        let b2 = read_byte()
-        return (b2 << 8) | b1
-
-    fn read_byte() -> int:
-        let byte = m_data[m_index]
-        m_index += 1
-        return byte
+    var m_reader: ByteReader
 
     fn read_bits(n?: int) -> int:
         let value = m_bitbuf
         while m_bitcnt < n:
-            let byte = read_byte()
+            let byte = m_reader.read_byte()
             value = (byte << m_bitcnt) | value
             m_bitcnt += 8
         m_bitbuf = value >> n

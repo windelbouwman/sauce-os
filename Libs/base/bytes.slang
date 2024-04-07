@@ -1,7 +1,7 @@
 
 # Data types for bytes
 
-from std import str_len, str_slice
+from std import str_len, str_slice, ord, chr, str_get
 from utils import assert
 from vectype import Vector, new_vector, VectorIter
 from strlib import hex_char, hex_to_int
@@ -25,6 +25,10 @@ class Bytes:
         for b in m_bytes:
             txt = txt + byte_as_hex(b)
         return txt
+    
+    fn into_reader() -> ByteReader:
+        return ByteReader(m_bytes: this)
+
 
 class ByteReader:
     # read byte at a time
@@ -37,6 +41,16 @@ class ByteReader:
         m_index += 1
         return value
 
+    fn read_u16_be() -> int:
+        let b1 = read_byte()
+        let b2 = read_byte()
+        return (b1 << 8) | b2
+
+    fn read_u16_le() -> int:
+        let b1 = read_byte()
+        let b2 = read_byte()
+        return (b2 << 8) | b1
+
     fn read_u32_be() -> int:
         let b1 = read_byte()
         let b2 = read_byte()
@@ -44,10 +58,12 @@ class ByteReader:
         let b4 = read_byte()
         return (b1 << 24) | (b2 << 16) | (b3 << 8) | b4
 
-    fn read_u16_be() -> int:
+    fn read_u32_le() -> int:
         let b1 = read_byte()
         let b2 = read_byte()
-        return (b1 << 8) | b2
+        let b3 = read_byte()
+        let b4 = read_byte()
+        return (b4 << 24) | (b3 << 16) | (b2 << 8) | b1
 
 class ByteArray:
     # Mutable bytes
@@ -90,7 +106,7 @@ fn byte_as_hex(byte?: int) -> str:
     let c2 = hex_char((byte & 0xF0) >> 4)
     return "{c2}{c1}"
 
-fn from_hex_text(text: str) -> Bytes:
+fn bytes_from_hex_text(text: str) -> Bytes:
     let output = ByteArray()
     let n = str_len(text)
     let i = 0
@@ -107,3 +123,20 @@ fn fill_bytes(n: int, fill: int) -> Bytes:
         output.append(fill)
         n -= 1
     return output.to_bytes()
+
+fn bytes_from_ascii(text: str) -> Bytes:
+    let output = ByteArray()
+    let n = str_len(text)
+    let i = 0
+    while i < n:
+        let c = str_get(text, index: i)
+        output.append(ord(c))
+        i += 1
+    return output.to_bytes()
+
+fn bytes_to_ascii(data: Bytes) -> str:
+    # Interpret bytes as ascii data
+    let result = ""
+    for b in data:
+        result = result + "{chr(b)}"
+    return result

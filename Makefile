@@ -24,7 +24,7 @@ LDFLAGS=-lm
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/%.py, $(SLANG_EXAMPLES))
-C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/%.exe, $(SLANG_EXAMPLES))
+C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/snippets/%.exe, $(SLANG_EXAMPLES))
 C_APPS := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
@@ -55,10 +55,25 @@ all-examples-c: $(C_EXAMPLES)
 ${BUILDDIR}/%.exe: ${BUILDDIR}/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
 	gcc ${CFLAGS} ${LDFLAGS} -o $@ $< ${BUILDDIR}/runtime.o
 
-.PRECIOUS: ${BUILDDIR}/c/%.c
+.PRECIOUS: ${BUILDDIR}/c/snippets/%.c
 
-${BUILDDIR}/c/%.c: examples/snippets/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/c
+${BUILDDIR}/c/snippets/%.c: examples/snippets/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/c/snippets
 	python ${COMPILER6} --backend-c -o $@ $< runtime/std.slang
+
+# linkage-example: ${BUILDDIR}/c/linkage-main.exe
+${BUILDDIR}/c/linkage/libfancy.c ${BUILDDIR}/c/linkage/libfancy.c.json: examples/linkage/fancy.slang ${COMPILER6} | ${BUILDDIR}/c/linkage
+	python ${COMPILER6} --backend-c -v -o ${BUILDDIR}/c/linkage/libfancy.c $<
+
+${BUILDDIR}/c/linkage/main.c: examples/linkage/main.slang ${BUILDDIR}/c/linkage/libfancy.c.json ${COMPILER6} | ${BUILDDIR}/c/linkage
+	python ${COMPILER6} --backend-c -v -v -v --add-import ${BUILDDIR}/c/linkage/libfancy.c.json -o $@ $< runtime/std.slang
+
+${BUILDDIR}/c/linkage/libfancy.so: ${BUILDDIR}/c/linkage/libfancy.c
+	gcc ${CFLAGS} ${LDFLAGS} -shared -o $@ $<
+
+${BUILDDIR}/c/linkage/main.exe: ${BUILDDIR}/c/linkage/main.c ${BUILDDIR}/c/linkage/libfancy.so
+	gcc ${CFLAGS} ${LDFLAGS} -o $@ $< -L${BUILDDIR}/c/linkage -l:libfancy.so ${BUILDDIR}/runtime.o
+
+linkage: ${BUILDDIR}/c/linkage/main.exe
 
 # Wasm examples:
 all-examples-wasm: $(WASM_EXAMPLES)
@@ -119,6 +134,12 @@ ${BUILDDIR}:
 
 ${BUILDDIR}/c:
 	mkdir -p ${BUILDDIR}/c
+
+${BUILDDIR}/c/snippets:
+	mkdir -p ${BUILDDIR}/c/snippets
+
+${BUILDDIR}/c/linkage:
+	mkdir -p ${BUILDDIR}/c/linkage
 
 ${BUILDDIR}/python:
 	mkdir -p ${BUILDDIR}/python

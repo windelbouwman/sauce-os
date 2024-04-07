@@ -47,7 +47,6 @@ fn print_error(filename: str, location: Location, message: str):
                 let indent2 = indent + str_repeat(text: " ", count: lexeme_width / 2)
                 print("{indent}{pointer}")
                 print("{indent2}|")
-                print("{indent2}|")
                 print("{indent2}+-----< {message}")
                 print("{pre_text}")
 

@@ -4,7 +4,7 @@
 
 from std import float_to_str, chr
 from rt import int_to_str
-from utils import panic
+from utils import panic, log_info
 from datatypes import List, Option, option_is_some, option_unwrap
 from vectype import Vector
 from settype import Set
@@ -14,6 +14,7 @@ import bc
 from text_gen import TextGenerator
 
 fn gen_c_code(program: bc.Program, output_filename: Option[str]):
+    log_info("Generating C-code from bytecode")
     let g = CGenerator()
     g.out.begin(output_filename)
     g.structs = program.structs

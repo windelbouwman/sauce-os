@@ -186,6 +186,12 @@ def get_span(loc1: Location, loc2: Location):
     return Location(loc1.begin, loc2.end)
 
 
+def binop(lhs: ast.Expression, op: str, rhs: ast.Expression) -> ast.Expression:
+    assert isinstance(lhs, ast.Expression)
+    assert isinstance(rhs, ast.Expression)
+    return ast.binop(lhs, op, rhs, get_span(lhs.location, rhs.location))
+
+
 class CustomTransformer(LarkTransformer):
     def __init__(self, id_context, modname):
         super().__init__()
@@ -579,7 +585,7 @@ class CustomTransformer(LarkTransformer):
         else:
             assert len(x) == 3
             lhs, op, rhs = x
-            return ast.binop(lhs, op, rhs, get_loc(x[1]))
+            return binop(lhs, op, rhs)
 
     def conjunction(self, x):
         if len(x) == 1:
@@ -587,7 +593,7 @@ class CustomTransformer(LarkTransformer):
         else:
             assert len(x) == 3
             lhs, op, rhs = x
-            return ast.binop(lhs, op, rhs, get_loc(x[1]))
+            return binop(lhs, op, rhs)
 
     def inversion(self, x):
         if len(x) == 1:
@@ -602,7 +608,7 @@ class CustomTransformer(LarkTransformer):
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+            return binop(lhs, op.value, rhs)
 
     def cmpop(self, x):
         return x[0]
@@ -612,42 +618,42 @@ class CustomTransformer(LarkTransformer):
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+            return binop(lhs, op.value, rhs)
 
     def bitor(self, x):
         if len(x) == 1:
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+            return binop(lhs, op.value, rhs)
 
     def bitxor(self, x):
         if len(x) == 1:
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+            return binop(lhs, op.value, rhs)
 
     def bitand(self, x):
         if len(x) == 1:
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+            return binop(lhs, op.value, rhs)
 
     def bitshift(self, x):
         if len(x) == 1:
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+            return binop(lhs, op.value, rhs)
 
     def sum(self, x):
         if len(x) == 1:
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+            return binop(lhs, op.value, rhs)
 
     def addop(self, x):
         return x[0]
@@ -657,7 +663,7 @@ class CustomTransformer(LarkTransformer):
             return x[0]
         else:
             lhs, op, rhs = x
-            return ast.binop(lhs, op.value, rhs, get_loc(x[1]))
+            return binop(lhs, op.value, rhs)
 
     def mulop(self, x):
         return x[0]

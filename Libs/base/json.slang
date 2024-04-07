@@ -3,6 +3,8 @@
 
 from utils import panic
 from std import str_len, str_get, ord, chr, str_slice, str_to_int
+from std import read_file
+from std import file_writeln, file_open, file_close
 from strlib import str_join, is_digit
 from datatypes import List
 
@@ -17,6 +19,19 @@ enum JsonValue:
 struct KeyValue:
     key: str
     value: JsonValue
+
+
+fn write_json_to_file(filename: str, obj: JsonValue):
+    let json_txt = json_to_string(obj)
+    # print("JSON: {json_txt}")
+    let handle = file_open(filename)
+    file_writeln(handle, json_txt)
+    file_close(handle)
+
+fn read_json_from_file(filename: str) -> JsonValue except JsonException:
+    let text = read_file(filename)
+    return parse_json(text)
+
 
 pub fn parse_json(text: str) -> JsonValue except JsonException:
     let lexer = Lexer(text)
@@ -50,17 +65,143 @@ pub fn json_to_string(value?: JsonValue) -> str:
         Null:
             return "null"
 
-
 struct JsonException:
     message: str
+    pos: int
+
+
+class JsonBrowser:
+    # A helper class to help navigate JSON structures.
+    var m_value: JsonValue = JsonValue.Null()
+    var m_stack: List[JsonValue] = List()
+
+    fn push_value(value: JsonValue):
+        m_stack.append(m_value)
+        m_value = value
+
+    fn pop_value():
+        m_value = m_stack.pop_last()
+
+    fn get_attribute(name: str) -> JsonValue:
+        case m_value:
+            Object(items):
+                for item in items:
+                    if item.key == name:
+                        return item.value
+                panic("No key: {name}")
+        else:
+            panic("Not a JSON object")
+
+    fn get_array_values() -> List[JsonValue]:
+        case m_value:
+            Array(values):
+                return values
+        else:
+            panic("Not a JSON array")
+
+    fn get_array_attribute(name: str) -> List[JsonValue]:
+        enter_attribute(name)
+        let values = get_array_values()
+        pop_value()
+        return values
+
+    fn get_text_attribute(name: str) -> str:
+        enter_attribute(name)
+        let text = get_text()
+        pop_value()
+        return text
+
+    fn get_integer_attribute(name: str) -> int:
+        enter_attribute(name)
+        let value = get_integer()
+        pop_value()
+        return value
+
+    fn get_text() -> str:
+        # Get text from current node
+        case m_value:
+            String(text):
+                return text
+        else:
+            panic("Not a JSON text")
+
+    fn get_integer() -> int:
+        # Get text from current node
+        case m_value:
+            Integer(value):
+                return value
+        else:
+            panic("Not a JSON integer")
+
+    fn enter_attribute(name: str):
+        push_value(value: get_attribute(name))
+
+class JsonBuilder:
+    var m_object_stack: List[JsonObjectBuilder] = List()
+    var m_array_stack: List[JsonArrayBuilder] = List()
+
+    fn begin_object():
+        m_object_stack.append(JsonObjectBuilder())
+    
+    fn add_attribute(name: str, value: JsonValue):
+        m_object_stack.last().add_attribute(name, value)
+
+    fn add_text_attribute(name: str, text: str):
+        add_attribute(name, value: JsonValue.String(text))
+
+    fn add_integer_attribute(name: str, value: int):
+        add_attribute(name, value: JsonValue.Integer(value))
+
+    fn end_object() -> JsonValue:
+        let builder = m_object_stack.pop_last()
+        return builder.finish()
+
+    fn end_object_as_element():
+        # Complete object creation, and append to current array
+        let value = end_object()
+        add_element(value)
+
+    fn begin_array():
+        m_array_stack.append(JsonArrayBuilder())
+
+    fn add_element(value: JsonValue):
+        m_array_stack.last().add_element(value)
+
+    fn end_array() -> JsonValue:
+        let builder = m_array_stack.pop_last()
+        return builder.finish()
+
+    fn end_array_as_attribute(name: str):
+        let array_obj = end_array()
+        add_attribute(name, value: array_obj)
+
+
+class JsonObjectBuilder:
+    var m_attributes: List[KeyValue] = List()
+
+    fn add_attribute(name: str, value: JsonValue):
+        m_attributes.append(KeyValue(key: name, value))
+
+    fn finish() -> JsonValue:
+        return JsonValue.Object(m_attributes)
+
+
+class JsonArrayBuilder:
+    var m_values: List[JsonValue] = List()
+
+    fn add_element(value: JsonValue):
+        m_values.append(value)
+
+    fn finish() -> JsonValue:
+        return JsonValue.Array(m_values)
 
 class Parser:
-    var buffer: List[JsonToken] = List()
+    var m_buffer: List[JsonToken] = List()
     var lexer : Lexer
 
     fn parse_value() -> JsonValue except JsonException:
         let token = get_token()
-        case token:
+        case token.kind:
             BracketLeft:
                 return parse_array()
             BraceLeft:
@@ -77,7 +218,7 @@ class Parser:
                 elif text == "null":
                     return JsonValue.Null()
                 else:
-                    raise JsonException(message: "Invalid id: {text}")
+                    raise JsonException(message: "Invalid id: {text}", pos: token.pos)
         else:
             raise unexpected(token, expected: "[ or number")
 
@@ -90,7 +231,7 @@ class Parser:
             items.append(KeyValue(key, value))
             
             let token = get_token()
-            case token:
+            case token.kind:
                 Comma:
                     pass
                 BraceRight:
@@ -101,24 +242,31 @@ class Parser:
 
     fn parse_array() -> JsonValue except JsonException:
         let values: List[JsonValue] = List()
-        loop:
-            let value = parse_value()
-            values.append(value)
+        # Check for empty array:
+        let token = get_token()
+        case token.kind:
+            BracketRight:
+                pass
+        else:
+            unget_token(token)
+            loop:
+                let value = parse_value()
+                values.append(value)
 
-            let token = get_token()
-            case token:
-                Comma:
-                    pass
-                BracketRight:
-                    break
-            else:
-                raise unexpected(token, expected: ", or ]")
+                let token = get_token()
+                case token.kind:
+                    Comma:
+                        pass
+                    BracketRight:
+                        break
+                else:
+                    raise unexpected(token, expected: ", or ]")
 
         return JsonValue.Array(values)
     
     fn parse_string() -> str except JsonException:
         let token = get_token()
-        case token:
+        case token.kind:
             String(value):
                 return value
         else:
@@ -126,19 +274,29 @@ class Parser:
 
     fn parse_colon() except JsonException:
         let token = get_token()
-        case token:
+        case token.kind:
             Colon:
                 pass
         else:
             raise unexpected(token, expected: ":")
 
     fn get_token() -> JsonToken:
-        return lexer.lex()
+        if m_buffer.is_empty():
+            return lexer.lex()
+        else:
+            return m_buffer.pop_front()
+
+    fn unget_token(token: JsonToken):
+        m_buffer.prepend(token)
     
     fn unexpected(token: JsonToken, expected: str) -> JsonException:
-        return JsonException(message: "Unexpected token, expected {expected}")
+        return JsonException(message: "Unexpected token {token_to_str(token)}, expected {expected}", pos: token.pos)
 
-enum JsonToken:
+struct JsonToken:
+    kind: JsonTokenKind
+    pos: int
+
+enum JsonTokenKind:
     BracketLeft
     BracketRight
     BraceLeft
@@ -150,6 +308,31 @@ enum JsonToken:
     Id(text: str)
     Eof
     Error
+
+fn token_to_str(token: JsonToken) -> str:
+    case token.kind:
+        BracketLeft:
+            return "BracketLeft"
+        BracketRight:
+            return "BracketRight"
+        BraceLeft:
+            return "BraceLeft"
+        BraceRight:
+            return "BraceRight"
+        Comma:
+            return "Comma"
+        Colon:
+            return "Colon"
+        Integer(value):
+            return "Integer({value})"
+        String(text):
+            return "String({text})"
+        Id(text):
+            return "Id({text})"
+        Eof:
+            return "Eof"
+        Error:
+            return "Error"
 
 class Lexer:
     var text: str
@@ -167,17 +350,17 @@ class Lexer:
             let c = str_get(text, index)
             index += 1
             if c == ',':
-                return JsonToken.Comma()
+                return create_token(JsonTokenKind.Comma())
             elif c == ':':
-                return JsonToken.Colon()
+                return create_token(JsonTokenKind.Colon())
             elif c == '[':
-                return JsonToken.BracketLeft()
+                return create_token(JsonTokenKind.BracketLeft())
             elif c == ']':
-                return JsonToken.BracketRight()
+                return create_token(JsonTokenKind.BracketRight())
             elif c == '{':
-                return JsonToken.BraceLeft()
+                return create_token(JsonTokenKind.BraceLeft())
             elif c == '}':
-                return JsonToken.BraceRight()
+                return create_token(JsonTokenKind.BraceRight())
             elif c == quote:
                 loop:
                     c = str_get(text, index)
@@ -185,12 +368,12 @@ class Lexer:
                     if c == quote:
                         break
                     if index >= n:
-                        return JsonToken.Error()
+                        return create_token(JsonTokenKind.Error())
                 let end = index
                 begin += 1
                 end -= 1
                 let slice = str_slice(text, begin, end)
-                return JsonToken.String(slice)
+                return create_token(JsonTokenKind.String(slice))
             elif is_digit(c):
                 while is_digit(c: str_get(text, index)):
                     index += 1
@@ -198,7 +381,7 @@ class Lexer:
                         break
                 let end = index
                 let slice = str_slice(text, begin, end)
-                return JsonToken.Integer(str_to_int(slice))
+                return create_token(JsonTokenKind.Integer(str_to_int(slice)))
             elif is_id(c):
                 while is_id(c: str_get(text, index)):
                     index += 1
@@ -206,12 +389,15 @@ class Lexer:
                         break
                 let end = index
                 let slice = str_slice(text, begin, end)
-                return JsonToken.Id(slice)
+                return create_token(JsonTokenKind.Id(slice))
             elif c == ' ':
                 pass
             else:
-                return JsonToken.Error()
+                return create_token(JsonTokenKind.Error())
         panic("Unreachable")
+    
+    fn create_token(kind?: JsonTokenKind) -> JsonToken:
+        return JsonToken(kind, pos: index)
 
 fn is_id(c: char) -> bool:
     let o = ord(c)
