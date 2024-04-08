@@ -20,7 +20,6 @@ COMPILER6=${BUILDDIR}/tmp-compiler6.py
 SLANG_APPS := $(wildcard Apps/*.slang)
 
 CFLAGS=-Wfatal-errors -Werror -Wreturn-type
-LDFLAGS=-lm
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/%.py, $(SLANG_EXAMPLES))
@@ -53,7 +52,7 @@ all-examples-c: $(C_EXAMPLES)
 
 .PRECIOUS: ${BUILDDIR}/%.exe
 ${BUILDDIR}/%.exe: ${BUILDDIR}/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
-	gcc ${CFLAGS} ${LDFLAGS} -o $@ $< ${BUILDDIR}/runtime.o
+	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/runtime.o -lm
 
 .PRECIOUS: ${BUILDDIR}/c/snippets/%.c
 
@@ -65,13 +64,13 @@ ${BUILDDIR}/c/linkage/libfancy.c ${BUILDDIR}/c/linkage/libfancy.c.json: examples
 	python ${COMPILER6} --backend-c -v -o ${BUILDDIR}/c/linkage/libfancy.c $<
 
 ${BUILDDIR}/c/linkage/main.c: examples/linkage/main.slang ${BUILDDIR}/c/linkage/libfancy.c.json ${COMPILER6} | ${BUILDDIR}/c/linkage
-	python ${COMPILER6} --backend-c -v -v -v --add-import ${BUILDDIR}/c/linkage/libfancy.c.json -o $@ $< runtime/std.slang
+	python ${COMPILER6} --backend-c -v --add-import ${BUILDDIR}/c/linkage/libfancy.c.json -o $@ $< runtime/std.slang
 
 ${BUILDDIR}/c/linkage/libfancy.so: ${BUILDDIR}/c/linkage/libfancy.c
-	gcc ${CFLAGS} ${LDFLAGS} -shared -o $@ $<
+	gcc ${CFLAGS} -shared -o $@ $<
 
 ${BUILDDIR}/c/linkage/main.exe: ${BUILDDIR}/c/linkage/main.c ${BUILDDIR}/c/linkage/libfancy.so
-	gcc ${CFLAGS} ${LDFLAGS} -o $@ $< -L${BUILDDIR}/c/linkage -l:libfancy.so ${BUILDDIR}/runtime.o
+	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c/linkage -l:libfancy.so ${BUILDDIR}/runtime.o -lm
 
 linkage: ${BUILDDIR}/c/linkage/main.exe
 
@@ -114,13 +113,13 @@ ${BUILDDIR}/tmp-compiler4.c: | ${COMPILER_SRCS} ${BUILDDIR} ${COMPILER3}
 	python ${COMPILER3} --backend-c -o ${BUILDDIR}/tmp-compiler4.c ${COMPILER_SRCS}
 
 ${COMPILER4}: ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/runtime.o
-	gcc ${CFLAGS} ${LDFLAGS} -o ${COMPILER4} ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/runtime.o
+	gcc ${CFLAGS} -o ${COMPILER4} ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/runtime.o -lm
 
 ${BUILDDIR}/tmp-compiler5.c: | ${COMPILER_SRCS} ${BUILDDIR} ${COMPILER4}
 	./${COMPILER4} --backend-c -o ${BUILDDIR}/tmp-compiler5.c ${COMPILER_SRCS}
 
 ${COMPILER5}: ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
-	gcc ${CFLAGS} ${LDFLAGS} -o ${COMPILER5} ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/runtime.o
+	gcc ${CFLAGS} -o ${COMPILER5} ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/runtime.o -lm
 
 ${COMPILER6}: ${COMPILER_SRCS} | ${BUILDDIR} ${COMPILER5}
 	./${COMPILER5} --backend-py -o ${COMPILER6} ${COMPILER_SRCS}
