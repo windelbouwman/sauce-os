@@ -34,6 +34,7 @@ fn main() -> int:
         backend: Backend.Python()
         add_imports: List()
         output_filename: Option.None()
+        gen_export: Option.None()
         verbosity: 0
         runtime: true
         run_code: false
@@ -62,6 +63,12 @@ fn main() -> int:
                 options.add_imports.append(get_arg(i))
             else:
                 print("Expect argument to --add-import")
+        elif argument == "--gen-export":
+            i += 1
+            if i < n:
+                options.gen_export = Option.Some(get_arg(i))
+            else:
+                print("Expect argument to --gen-export")
         elif argument == "--backend-bc":
             options.backend = Backend.Bytecode()
         elif argument == "--backend-c":
@@ -111,6 +118,7 @@ fn print_usage():
     print("    -o : Write output to given filename")
     print("    -h : display usage information")
     print("    --add-import filename.json   : Additional importable modules in JSON")
+    print("    --gen-export filename.json   : Create a JSON file for later importing")
     print("    --backend-bc    : Spit out bytecode")
     print("    --backend-py    : Spit out python code")
     print("    --backend-c     : Spit out C code")
@@ -126,6 +134,7 @@ struct CompilationOptions:
     backend: Backend
     add_imports: List[str]
     output_filename: Option[str]
+    gen_export: Option[str]
     verbosity: int
     runtime: bool
     run_code: bool
@@ -175,10 +184,9 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 
     type_check_modules(module_set)
 
-    case options.output_filename:
+    case options.gen_export:
         Some(filename):
-            let db_filename = filename + ".json"
-            store_symbol_table(module_set, filename: db_filename)
+            store_symbol_table(module_set, filename)
         None:
             pass
 
@@ -200,7 +208,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
         Bytecode:
             let program = gen_bytecode(module_set)
             if options.run_code:
-                if options.verbosity > 0:
+                if options.verbosity > 1:
                     bc.print_bc_program(program)
                 log_info("Now running code")
                 run_bytecode(program, entry_function: "main2")
@@ -214,7 +222,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
             else:
                 # Generate C-code via bytecode:
                 let program = gen_bytecode(module_set)
-                if options.verbosity > 0:
+                if options.verbosity > 1:
                     bc.print_bc_program(program)
                 gen_c_code(program, output_filename: options.output_filename)
         WebAssembly:

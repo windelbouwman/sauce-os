@@ -444,8 +444,8 @@ class TypeChecker:
         elif ast.is_opaque_type(ty1) and ast.is_opaque_type(ty2):
             return true
         elif ast.is_tycon_app_type(ty1) and ast.is_tycon_app_type(ty2):
-            let tycon1 = ast.get_tycon(ty1)
-            let tycon2 = ast.get_tycon(ty2)
+            let tycon1 = ast.get_tycon_from_type(ty1)
+            let tycon2 = ast.get_tycon_from_type(ty2)
             if ast.tycon_equal(tycon1, tycon2):
                 let type_arguments1 = ast.get_type_arguments_from_type(ty1)
                 let type_arguments2 = ast.get_type_arguments_from_type(ty2)

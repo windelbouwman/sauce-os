@@ -161,6 +161,11 @@ class JsonBuilder:
         let value = end_object()
         add_element(value)
 
+    fn end_object_as_attribute(name: str):
+        # Complete object creation, and append to current array
+        let value = end_object()
+        add_attribute(name, value)
+
     fn begin_array():
         m_array_stack.append(JsonArrayBuilder())
 
@@ -391,6 +396,8 @@ class Lexer:
                 let slice = str_slice(text, begin, end)
                 return create_token(JsonTokenKind.Id(slice))
             elif c == ' ':
+                pass
+            elif ord(c) == 13:
                 pass
             else:
                 return create_token(JsonTokenKind.Error())

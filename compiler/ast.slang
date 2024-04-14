@@ -43,16 +43,18 @@ fn types_to_string(typs: List[Type]) -> str:
 fn type_to_string(ty?: Type) -> str:
     let txt = "?"
     case ty.kind:
-        Str:
-            txt = "STR"
-        Char:
-            txt = "CHAR"
-        Int:
-            txt = "INT"
-        Bool:
-            txt = "BOOL"
-        Float:
-            txt = "FLOAT"
+        Base(base):
+            case base:
+                Str:
+                    txt = "STR"
+                Char:
+                    txt = "CHAR"
+                Int:
+                    txt = "INT"
+                Bool:
+                    txt = "BOOL"
+                Float:
+                    txt = "FLOAT"
         Opaque:
             txt = "OPAQUE"
         Void:
@@ -174,36 +176,56 @@ fn is_void_type(ty?: Type) -> bool:
 
 fn is_int_type(ty?: Type) -> bool:
     case ty.kind:
-        Int:
-            return true
+        Base(base):
+            case base:
+                Int:
+                    return true
+            else:
+                return false
     else:
         return false
 
 fn is_str_type(ty?: Type) -> bool:
     case ty.kind:
-        Str:
-            return true
+        Base(base):
+            case base:
+                Str:
+                    return true
+            else:
+                return false
     else:
         return false
 
 fn is_char_type(ty?: Type) -> bool:
     case ty.kind:
-        Char:
-            return true
+        Base(base):
+            case base:
+                Char:
+                    return true
+            else:
+                return false
     else:
         return false
 
 fn is_bool_type(ty?: Type) -> bool:
     case ty.kind:
-        Bool:
-            return true
+        Base(base):
+            case base:
+                Bool:
+                    return true
+            else:
+                return false
     else:
         return false
 
 fn is_float_type(ty?: Type) -> bool:
     case ty.kind:
-        Float:
-            return true
+        Base(base):
+            case base:
+                Float:
+                    return true
+            else:
+                return false
     else:
         return false
 
@@ -478,7 +500,7 @@ fn get_class_def_from_type(ty: Type) -> ClassDef:
     else:
         panic("No class type")
 
-fn get_tycon(ty?: Type) -> TyCon:
+fn get_tycon_from_type(ty?: Type) -> TyCon:
     case ty.kind:
         App(tycon, args):
             return tycon
@@ -493,12 +515,8 @@ fn get_type_arguments_from_type(ty?: Type) -> List[Type]:
         panic("Must be App type")
 
 enum TypeKind:
+    Base(base: BaseType)
     Undefined
-    Bool
-    Int
-    Str
-    Char
-    Float
     Opaque
     Void
     TypeExpression(expression: Expression)
@@ -509,6 +527,13 @@ enum TypeKind:
     
     # Application of a type-constructor:
     App(tycon: TyCon, type_arguments: List[Type])
+
+enum BaseType:
+    Bool
+    Int
+    Str
+    Char
+    Float
 
 struct TypeVariable:
     unique: int
@@ -561,20 +586,23 @@ fn tycon_get_type_parameters(tycon: TyCon) -> List[TypeParameter]:
 fn void_type() -> Type:
     return new_type(kind: TypeKind.Void())
 
+fn new_base_type(base: BaseType) -> Type:
+    return new_type(kind: TypeKind.Base(base))
+
 fn bool_type() -> Type:
-    return new_type(kind: TypeKind.Bool())
+    return new_base_type(base: BaseType.Bool())
 
 fn int_type() -> Type:
-    return new_type(kind: TypeKind.Int())
+    return new_base_type(base: BaseType.Int())
 
 fn float_type() -> Type:
-    return new_type(kind: TypeKind.Float())
+    return new_base_type(base: BaseType.Float())
 
 fn str_type() -> Type:
-    return new_type(kind: TypeKind.Str())
+    return new_base_type(base: BaseType.Str())
 
 fn char_type() -> Type:
-    return new_type(kind: TypeKind.Char())
+    return new_base_type(base: BaseType.Char())
 
 # Opaque type, void*
 fn opaque_type() -> Type:
@@ -856,6 +884,11 @@ fn function_def(name: str, id: int, type_parameters: List[TypeParameter], this_p
         scope: Scope()
         body
     return f
+
+struct FunctionInfo:
+    no_return: bool  # no_return attribute
+    return_type: Type
+    except_type: Type
 
 struct FunctionDef:
     id: NodeId

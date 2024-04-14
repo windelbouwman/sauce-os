@@ -36,6 +36,12 @@ fn str_pad_right(text: str, length: int, fill: str) -> str:
         result = result + fill
     return result
 
+fn str_pad_left(text: str, length: int, fill: str) -> str:
+    let result = text
+    while str_len(result) < length:
+        result = fill + result
+    return result
+
 fn str_join(parts: List[str], sep: str) -> str:
     let x = ""
     let counter = parts.len()

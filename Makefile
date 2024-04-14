@@ -59,18 +59,22 @@ ${BUILDDIR}/%.exe: ${BUILDDIR}/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
 ${BUILDDIR}/c/snippets/%.c: examples/snippets/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/c/snippets
 	python ${COMPILER6} --backend-c -o $@ $< runtime/std.slang
 
-# linkage-example: ${BUILDDIR}/c/linkage-main.exe
-${BUILDDIR}/c/linkage/libfancy.c ${BUILDDIR}/c/linkage/libfancy.c.json: examples/linkage/fancy.slang ${COMPILER6} | ${BUILDDIR}/c/linkage
-	python ${COMPILER6} --backend-c -v -o ${BUILDDIR}/c/linkage/libfancy.c $<
+# Base lib as DLL:
+${BUILDDIR}/c/libbase.c ${BUILDDIR}/c/libbase.json: ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c/linkage
+	python ${COMPILER6} --backend-c -v --gen-export ${BUILDDIR}/c/libbase.json -o ${BUILDDIR}/c/libbase.c ${BASE_LIB_SRCS}
 
-${BUILDDIR}/c/linkage/main.c: examples/linkage/main.slang ${BUILDDIR}/c/linkage/libfancy.c.json ${COMPILER6} | ${BUILDDIR}/c/linkage
-	python ${COMPILER6} --backend-c -v --add-import ${BUILDDIR}/c/linkage/libfancy.c.json -o $@ $< runtime/std.slang
+# linkage-example: ${BUILDDIR}/c/linkage-main.exe
+${BUILDDIR}/c/linkage/libfancy.c ${BUILDDIR}/c/linkage/libfancy.json: examples/linkage/fancy.slang ${COMPILER6} | ${BUILDDIR}/c/linkage
+	python ${COMPILER6} --backend-c -v --gen-export ${BUILDDIR}/c/linkage/libfancy.json -o ${BUILDDIR}/c/linkage/libfancy.c examples/linkage/fancy.slang runtime/std.slang
+
+${BUILDDIR}/c/linkage/main.c: examples/linkage/main.slang ${BUILDDIR}/c/linkage/libfancy.json ${COMPILER6} | ${BUILDDIR}/c/linkage
+	python ${COMPILER6} --backend-c -v --add-import ${BUILDDIR}/c/linkage/libfancy.json -o $@ examples/linkage/main.slang runtime/std.slang
 
 ${BUILDDIR}/c/linkage/libfancy.so: ${BUILDDIR}/c/linkage/libfancy.c
 	gcc ${CFLAGS} -shared -o $@ $<
 
 ${BUILDDIR}/c/linkage/main.exe: ${BUILDDIR}/c/linkage/main.c ${BUILDDIR}/c/linkage/libfancy.so
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c/linkage -l:libfancy.so ${BUILDDIR}/runtime.o -lm
+	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c/linkage -Wl,-rpath=`pwd`/${BUILDDIR}/c/linkage -l:libfancy.so ${BUILDDIR}/runtime.o -lm
 
 linkage: ${BUILDDIR}/c/linkage/main.exe
 
