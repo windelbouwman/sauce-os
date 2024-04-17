@@ -43,7 +43,7 @@ fn main() -> int:
     let n = get_n_args()
     let i = 0
     while i < n:
-        let argument = get_arg(i)
+        let argument = get_arg(arg: i)
         if argument == "-d":
             options.dump_ast = true
         elif argument == "-h":
@@ -52,7 +52,7 @@ fn main() -> int:
         elif argument == "-o":
             i += 1
             if i < n:
-                options.output_filename = Option.Some(get_arg(i))
+                options.output_filename = Option.Some(get_arg(arg: i))
             else:
                 print("Expect argument to -o")
         elif argument == "-v":
@@ -60,13 +60,13 @@ fn main() -> int:
         elif argument == "--add-import":
             i += 1
             if i < n:
-                options.add_imports.append(get_arg(i))
+                options.add_imports.append(get_arg(arg: i))
             else:
                 print("Expect argument to --add-import")
         elif argument == "--gen-export":
             i += 1
             if i < n:
-                options.gen_export = Option.Some(get_arg(i))
+                options.gen_export = Option.Some(get_arg(arg: i))
             else:
                 print("Expect argument to --gen-export")
         elif argument == "--backend-bc":

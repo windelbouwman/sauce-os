@@ -5,6 +5,7 @@ from std import print
 from utils import unimplemented, panic
 from utils import log_error, log_info, log_debug
 from datatypes import List, Option
+from hashmap import HashMap
 from json import JsonBuilder, JsonException, write_json_to_file, read_json_from_file
 from json import JsonValue, JsonBrowser
 from location import location_default
@@ -54,8 +55,10 @@ class SymbolSaver:
                     save_class_def(class_def)
                 Enum(enum_def):
                     save_enum_def(enum_def)
-            else:
-                log_error("Unsupp def")
+                ExternFunction(extern_function_def):
+                    save_extern_function_def(extern_function_def)
+                Var(var_def):
+                    log_error("TODO: var def")
         ser.end_array_as_attribute(name: "definitions")
         ser.end_object_as_element()
 
@@ -88,10 +91,34 @@ class SymbolSaver:
             save_type(name: "type", ty: parameter_def.ty)
             ser.end_object_as_element()
         ser.end_array_as_attribute(name: "parameters")
-        save_type(name: "return-type", ty: function_def.return_type)
+        save_type(name: "return-type", ty: function_def.info.return_type)
+        save_type(name: "except-type", ty: function_def.info.except_type)
 
         ser.end_object_as_element()
-    
+
+    fn save_extern_function_def(extern_function_def: ast.ExternFunctionDef):
+        log_debug("Saving meta-info for extern-func-def: {extern_function_def.name}")
+        ser.begin_object()
+
+        # Name:
+        ser.add_text_attribute(name: "kind", text: "extern-function")
+        ser.add_text_attribute(name: "modname", text: extern_function_def.modname)
+        ser.add_text_attribute(name: "name", text: extern_function_def.name)
+        ser.add_integer_attribute(name: "id", value: 0)
+
+        # Parameters
+        ser.begin_array()
+        for parameter_type in extern_function_def.parameter_types:
+            ser.begin_object()
+            # ser.add_text_attribute(name: "name", "?")
+            save_type(name: "type", ty: parameter_type.ty)
+            ser.end_object_as_element()
+        ser.end_array_as_attribute(name: "parameters")
+        save_type(name: "return-type", ty: extern_function_def.return_type)
+        # save_type(name: "except-type", ty: extern_function_def.info.except_type)
+
+        ser.end_object_as_element()
+
     fn save_struct_def(struct_def: ast.StructDef):
         log_debug("Saving meta-info for struct-def: {ast.node_id_to_string(struct_def.id)}")
         ser.begin_object()
@@ -142,7 +169,13 @@ class SymbolSaver:
             let tycon = ast.get_tycon_from_type(ty)
             let type_arguments = ast.get_type_arguments_from_type(ty)
 
-            ser.add_text_attribute(name: "tycon", text: "todo")
+            case ast.get_tycon_from_type(ty):
+                Struct(struct_def):
+                    save_id(id: struct_def.id)
+                Enum(enum_def):
+                    save_id(id: enum_def.id)
+                Class(class_def):
+                    save_id(id: class_def.id)
 
             ser.begin_array()
             for type_argument in type_arguments:
@@ -152,13 +185,13 @@ class SymbolSaver:
             ser.end_array_as_attribute(name: "type-arguments")
         elif ast.is_function_type(ty):
             ser.add_text_attribute(name: "type", text: "function")
-            let argument_types = ast.get_parameter_types_from_type(ty)
+            let parameter_types = ast.get_parameter_types_from_type(ty)
             let return_type = ast.get_return_type_from_type(ty)
             let except_type = ast.get_except_type_from_type(ty)
             ser.begin_array()
-            for argument_type in argument_types:
+            for parameter_type in parameter_types:
                 ser.begin_object()
-                save_type(name: "type", ty: argument_type)
+                save_type(name: "type", ty: parameter_type.ty)
                 ser.end_object_as_element()
             ser.end_array_as_attribute(name: "argument-types")
             save_type(name: "return-type", ty: return_type)
@@ -195,6 +228,8 @@ fn load_symbol_table(filename: str) -> List[ast.Module]:
 
 class SymbolLoader:
     var m_des: JsonBrowser = JsonBrowser()
+    var m_to_resolve: List[ToResolve] = List()
+    var m_tycon_map: HashMap[ast.TyCon] = HashMap()
 
     fn push_json(value: JsonValue):
         m_des.push_value(value)
@@ -214,40 +249,68 @@ class SymbolLoader:
         return module
 
     fn load_definition() -> ast.Definition:
+        let def_kind = m_des.get_text_attribute(name: "kind")
         let def_name = m_des.get_text_attribute(name: "name")
         let def_id = m_des.get_integer_attribute(name: "id")
-        let def_kind = m_des.get_text_attribute(name: "kind")
         log_debug("  --> DEF-{def_kind}: {def_name} / {def_id}")
         if def_kind == "function":
-            let parameter_types: List[ast.Type] = List()
-            for parameter_obj in m_des.get_array_attribute(name: "parameters"):
-                m_des.push_value(value: parameter_obj)
-                parameter_types.append(load_type(attr: "type"))
-                m_des.pop_value()
-
-            let return_type = load_type(attr: "return-type")
-            let exten_function_def = ast.extern_function_def:
-                modname: "X{def_id}"  # Some sort of hack to be able to call external function
-                name: def_name
-                parameter_types
-                return_type
-                location: location_default()
+            let exten_function_def = load_function(def_name, def_id)
+            return ast.Definition.ExternFunction(exten_function_def)
+        elif def_kind == "extern-function":
+            let exten_function_def = load_extern_function(def_name)
             return ast.Definition.ExternFunction(exten_function_def)
         elif def_kind == "struct":
-            let builder = ast.StructBuilder()
-            builder.set_name(name: def_name)
-            builder.set_id(id: def_id)
-            for field_obj in m_des.get_array_attribute(name: "fields"):
-                m_des.push_value(value: field_obj)
-                let field_name = m_des.get_text_attribute(name: "name")
-                let field_type = load_type(attr: "type")
-                builder.add_field(name: field_name, ty: field_type, location: location_default())
-                m_des.pop_value()
-
-            let struct_def = builder.finish()
+            let struct_def = load_struct_def(def_name, def_id)
+            m_tycon_map.insert(key: "{struct_def.id.id}", value: ast.TyCon.Struct(struct_def))
             return ast.Definition.Struct(struct_def)
         else:
             panic("Not implemented definition kind: {def_kind}")
+
+    fn load_function(def_name: str, def_id: int) -> ast.ExternFunctionDef:
+        let parameter_types = load_parameter_types()
+        let return_type = load_type(attr: "return-type")
+        let f = ast.extern_function_def:
+            modname: "X{def_id}"  # Some sort of hack to be able to call external function
+            name: def_name
+            parameter_types
+            return_type
+            location: location_default()
+        return f
+
+    fn load_extern_function(def_name: str) -> ast.ExternFunctionDef:
+        let parameter_types = load_parameter_types()
+        let modname = m_des.get_text_attribute(name: "modname")
+        let return_type = load_type(attr: "return-type")
+        let f = ast.extern_function_def:
+            modname
+            name: def_name
+            parameter_types
+            return_type
+            location: location_default()
+        return f
+    
+    fn load_parameter_types() -> List[ast.ParameterType]:
+        let parameter_types: List[ast.ParameterType] = List()
+        for parameter_obj in m_des.get_array_attribute(name: "parameters"):
+            m_des.push_value(value: parameter_obj)
+            let label: Option[str] = Option.None()
+            if m_des.has_attribute(name: "name"):
+                label = Option.Some(m_des.get_text_attribute(name: "name"))
+            parameter_types.append(ast.ParameterType(label, ty: load_type(attr: "type")))
+            m_des.pop_value()
+        return parameter_types
+
+    fn load_struct_def(def_name: str, def_id: int) -> ast.StructDef:
+        let builder = ast.StructBuilder()
+        builder.set_name(name: def_name)
+        builder.set_id(id: def_id)
+        for field_obj in m_des.get_array_attribute(name: "fields"):
+            m_des.push_value(value: field_obj)
+            let field_name = m_des.get_text_attribute(name: "name")
+            let field_type = load_type(attr: "type")
+            builder.add_field(name: field_name, ty: field_type, location: location_default())
+            m_des.pop_value()
+        return builder.finish()
 
     fn load_type(attr: str) -> ast.Type:
         let ty = ast.undefined_type()
@@ -261,6 +324,8 @@ class SymbolLoader:
             ty = ast.bool_type()
         elif type_name == "float":
             ty = ast.float_type()
+        elif type_name == "char":
+            ty = ast.char_type()
         elif type_name == "void":
             ty = ast.void_type()
         elif type_name == "app":
@@ -269,7 +334,15 @@ class SymbolLoader:
             # let tycon = ast.TyCon.Struct()
             # ty = ast.apply_tycon(tycon, type_arguments)
             let ty = ast.undefined_type()
+            let id = m_des.get_integer_attribute(name: "id")
+            fixup_later(ToResolve.App(ty, id))
         else:
             panic("Unsupported: {type_name}")
         m_des.pop_value()
         return ty
+
+    fn fixup_later(r?: ToResolve):
+        m_to_resolve.append(r)
+
+enum ToResolve:
+    App(ty: ast.Type, id: int)

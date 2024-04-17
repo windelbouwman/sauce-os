@@ -6,7 +6,7 @@ from std import str_len, str_get, ord, chr, str_slice, str_to_int
 from std import read_file
 from std import file_writeln, file_open, file_close
 from strlib import str_join, is_digit
-from datatypes import List
+from datatypes import List, Option, option_is_some
 
 enum JsonValue:
     Integer(value: int)
@@ -25,7 +25,7 @@ fn write_json_to_file(filename: str, obj: JsonValue):
     let json_txt = json_to_string(obj)
     # print("JSON: {json_txt}")
     let handle = file_open(filename)
-    file_writeln(handle, json_txt)
+    file_writeln(handle, line: json_txt)
     file_close(handle)
 
 fn read_json_from_file(filename: str) -> JsonValue except JsonException:
@@ -89,6 +89,19 @@ class JsonBrowser:
                     if item.key == name:
                         return item.value
                 panic("No key: {name}")
+        else:
+            panic("Not a JSON object")
+
+    fn has_attribute(name: str) -> bool:
+        return option_is_some(find_attribute(name))
+
+    fn find_attribute(name: str) -> Option[JsonValue]:
+        case m_value:
+            Object(items):
+                for item in items:
+                    if item.key == name:
+                        return Option.Some(item.value)
+                return Option.None()
         else:
             panic("Not a JSON object")
 
@@ -312,7 +325,8 @@ enum JsonTokenKind:
     String(text: str)
     Id(text: str)
     Eof
-    Error
+    UnexpectedEof
+    Error(c: char)
 
 fn token_to_str(token: JsonToken) -> str:
     case token.kind:
@@ -336,8 +350,10 @@ fn token_to_str(token: JsonToken) -> str:
             return "Id({text})"
         Eof:
             return "Eof"
-        Error:
-            return "Error"
+        UnexpectedEof:
+            return "UnexpectedEof"
+        Error(c):
+            return "Error({ord(c)})"
 
 class Lexer:
     var text: str
@@ -373,7 +389,7 @@ class Lexer:
                     if c == quote:
                         break
                     if index >= n:
-                        return create_token(JsonTokenKind.Error())
+                        return create_token(JsonTokenKind.UnexpectedEof())
                 let end = index
                 begin += 1
                 end -= 1
@@ -397,10 +413,10 @@ class Lexer:
                 return create_token(JsonTokenKind.Id(slice))
             elif c == ' ':
                 pass
-            elif ord(c) == 13:
+            elif ord(c) == 13 or ord(c) == 10:
                 pass
             else:
-                return create_token(JsonTokenKind.Error())
+                return create_token(JsonTokenKind.Error(c))
         panic("Unreachable")
     
     fn create_token(kind?: JsonTokenKind) -> JsonToken:

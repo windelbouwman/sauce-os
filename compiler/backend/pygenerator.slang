@@ -97,7 +97,7 @@ class PyGenerator:
                     parameter_names.append(get_id(id: parameter.id))
                 let params = str_join(parts: parameter_names, sep: ", ")
                 emit("def {get_id(id: function_def.id)}({params}):")
-                if str_len(global_header) > 0:
+                if str_len(text: global_header) > 0:
                     indent()
                     emit(global_header)
                     dedent()

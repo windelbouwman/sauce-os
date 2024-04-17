@@ -1,21 +1,21 @@
 
 # Header file for std runtime module
 
-extern fn ord(value: char) -> int
-extern fn chr(value: int) -> char
+extern fn ord(value?: char) -> int
+extern fn chr(value?: int) -> char
 
-extern fn float_to_str(value: float) -> str
+extern fn float_to_str(value?: float) -> str
 extern fn float_to_str2(value: float, digits: int) -> str
-extern fn str_to_float(value: str) -> float
+extern fn str_to_float(value?: str) -> float
 
 # extern fn int_to_str(value: int) -> str
-extern fn str_to_int(value: str) -> int
+extern fn str_to_int(value?: str) -> int
 
-extern fn str_len(value: str) -> int
-extern fn str_get(value: str, index: int) -> char
-extern fn str_slice(value: str, begin: int, end: int) -> str
+extern fn str_len(text: str) -> int
+extern fn str_get(text: str, index: int) -> char
+extern fn str_slice(text: str, begin: int, end: int) -> str
 
-extern fn print(message: str)
+extern fn print(message?: str)
 # '?' indicates that function does not return.
 # TODO: improve syntax for noreturn functions
 extern fn exit(code: int) ?

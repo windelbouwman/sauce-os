@@ -247,7 +247,7 @@ fn calc_tick_values(axis: Axis, n_ticks: int) -> List[TickValue]:
     let tick_values: List[TickValue] = List()
     while x < axis.upper:
         # TODO: use scale to limit amount of decimals
-        tick_values.append(TickValue(value: x, text: "{float_to_str2(x, digits)}"))
+        tick_values.append(TickValue(value: x, text: "{float_to_str2(value: x, digits)}"))
         x += tick_width
 
     return tick_values

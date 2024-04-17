@@ -63,8 +63,9 @@ fn type_to_string(ty?: Type) -> str:
             txt = "TYPE-EXPR"
         Array(element_type, size):
             txt = "ARRAY({type_to_string(element_type)} x {size})"
-        Function(labels, parameter_types, return_type, except_type):
-            txt = "FUNC-TYPE({types_to_string(typs: parameter_types)},{type_to_string(return_type)},{type_to_string(except_type)})"
+        Function(parameter_types, info):
+            let typs = get_types_from_parameter_types(parameter_types)
+            txt = "FUNC-TYPE({types_to_string(typs)},{type_to_string(info.return_type)},{type_to_string(info.except_type)})"
         Undefined:
             txt = "UNDEFINED"
         TypeParam(param):
@@ -111,11 +112,15 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
                     return ty4
                 None:
                     return ty
-        Function(labels, parameter_types, return_type, except_type):
-            parameter_types = subst_many(typs: parameter_types, m)
-            return_type = subst(ty: return_type, m)
-            except_type = subst(ty: except_type, m)
-            return function_type(labels, parameter_types, return_type, except_type)
+        Function(parameter_types, info):
+            let parameter_types2: List[ParameterType] = List()
+            for p in parameter_types:
+                parameter_types2.append(ParameterType(label: p.label, ty: subst(ty: p.ty, m)))
+            let info2 = FunctionInfo:
+                no_return: info.no_return
+                return_type: subst(ty: info.return_type, m)
+                except_type: subst(ty: info.except_type, m)
+            return function_type(parameter_types: parameter_types2, info: info2)
         Array(element_type, size):
             element_type = subst(ty: element_type, m)
             return array_type(element_type, size)
@@ -308,36 +313,35 @@ fn get_type_parameter_from_type(ty?: Type) -> TypeParameter:
 
 fn is_function_type(ty?: Type) -> bool:
     case ty.kind:
-        Function(labels, p, r, e):
+        Function(p, i):
             return true
     else:
         return false
 
-fn get_parameter_labels_from_type(ty?: Type) -> List[Option[str]]:
+fn get_parameter_types_from_type(ty?: Type) -> List[ParameterType]:
     case ty.kind:
-        Function(labels, p, r, e):
-            return labels
-    else:
-        panic("Type must be function type")
-
-fn get_parameter_types_from_type(ty?: Type) -> List[Type]:
-    case ty.kind:
-        Function(labels, p, r, e):
+        Function(p, i):
             return p
     else:
         panic("Type must be function type")
 
+fn get_types_from_parameter_types(p2?: List[ParameterType]) -> List[Type]:
+    let t: List[Type] = List()
+    for p in p2:
+        t.append(p.ty)
+    return t
+
 fn get_return_type_from_type(ty?: Type) -> Type:
     case ty.kind:
-        Function(labels, p, r, e):
-            return r
+        Function(p, i):
+            return i.return_type
     else:
         panic("Type must be function type")
 
 fn get_except_type_from_type(ty?: Type) -> Type:
     case ty.kind:
-        Function(labels, p, r, e):
-            return e
+        Function(p, i):
+            return i.except_type
     else:
         panic("Type must be function type")
 
@@ -520,13 +524,17 @@ enum TypeKind:
     Opaque
     Void
     TypeExpression(expression: Expression)
-    Function(labels: List[Option[str]], parameter_types: List[Type], return_type: Type, except_type: Type)
+    Function(parameter_types: List[ParameterType], info: FunctionInfo)
     TypeParam(type_parameter: TypeParameter)
     TypeVar(type_variable: TypeVariable)
     Array(element_type: Type, size: int)
     
     # Application of a type-constructor:
     App(tycon: TyCon, type_arguments: List[Type])
+
+struct ParameterType:
+    label: Option[str]
+    ty: Type
 
 enum BaseType:
     Bool
@@ -617,9 +625,9 @@ fn array_type(element_type: Type, size: int) -> Type:
 fn type_expression(expr: Expression) -> Type:
     return new_type(kind: TypeKind.TypeExpression(expr))
 
-fn function_type(labels: List[Option[str]], parameter_types: List[Type], return_type: Type, except_type: Type) -> Type:
-    assert(condition: labels.len() == parameter_types.len(), message: "Expect equal length labels and parameter types")
-    return new_type(kind: TypeKind.Function(labels, parameter_types, return_type, except_type))
+
+fn function_type(parameter_types: List[ParameterType], info: FunctionInfo) -> Type:
+    return new_type(kind: TypeKind.Function(parameter_types, info))
 
 fn type_parameter_ref(type_parameter: TypeParameter) -> Type:
     return new_type(kind: TypeKind.TypeParam(type_parameter))
@@ -694,19 +702,20 @@ enum ImportKind:
 struct ExternFunctionDef:
     modname: str
     name: str
-    parameter_types: List[Type]
+    parameter_types: List[ParameterType]
     return_type: Type
     no_return: bool
     location: Location
 
-fn extern_function_def(modname: str, name: str, parameter_types: List[Type], return_type: Type, location: Location) -> ExternFunctionDef:
+fn extern_function_def(modname: str, name: str, parameter_types: List[ParameterType], return_type: Type, location: Location) -> ExternFunctionDef:
     return ExternFunctionDef(modname, name, parameter_types, return_type, no_return: false, location)
 
 fn extern_function_type(extern_function_def: ExternFunctionDef) -> Type:
-    let labels: List[Option[str]] = List()
-    for p in extern_function_def.parameter_types:
-        labels.append(Option.None())
-    return function_type(labels, parameter_types: extern_function_def.parameter_types, return_type: extern_function_def.return_type, except_type: void_type())
+    let info = FunctionInfo:
+        no_return: extern_function_def.no_return
+        return_type: extern_function_def.return_type
+        except_type: void_type()
+    return function_type(parameter_types: extern_function_def.parameter_types, info)
 
 class Scope:
     var symbols: Dictionary[Symbol] = Dictionary()
@@ -871,15 +880,18 @@ struct ClassDef:
     scope: Scope
 
 fn function_def(name: str, id: int, type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
+    let info = FunctionInfo:
+        no_return: false
+        return_type
+        except_type
+
     let f = FunctionDef:
         id: NodeId(name, id)
         is_pub: true
-        no_return: false
+        info
         type_parameters
         this_parameter
         parameters
-        return_type
-        except_type
         location
         scope: Scope()
         body
@@ -893,12 +905,10 @@ struct FunctionInfo:
 struct FunctionDef:
     id: NodeId
     is_pub: bool
-    no_return: bool  # no_return attribute
+    info: FunctionInfo
     type_parameters: List[TypeParameter]
     this_parameter: Option[ParameterDef]
     parameters: List[ParameterDef]
-    return_type: Type
-    except_type: Type
     scope: Scope
     body: Statement
     location: Location
@@ -910,17 +920,16 @@ fn function_ref(function_def: FunctionDef, type_arguments: List[Type], location:
 
 fn get_function_type(function_def: FunctionDef) -> Type:
     assert(condition: function_def.type_parameters.is_empty(), message: "Get function type can only be used on a non-generic function")
-    let labels: List[Option[str]] = List()
-    let parameter_types: List[Type] = List()
+    let parameter_types: List[ParameterType] = List()
     for parameter in function_def.parameters:
+        let label: Option[str] = Option.None()
         if parameter.label_is_optional:
-            labels.append(Option.None())
+            label = Option.None()
         else:
-            labels.append(Option.Some(parameter.id.name))
-        parameter_types.append(parameter.ty)
-    let return_type = function_def.return_type
-    let except_type = function_def.except_type
-    return function_type(labels, parameter_types, return_type, except_type)
+            label = Option.Some(parameter.id.name)
+        parameter_types.append(ParameterType(label, ty: parameter.ty))
+    let info = function_def.info
+    return function_type(parameter_types, info)
 
 fn get_function_type2(function_def: FunctionDef, type_arguments: List[Type]) -> Type:
     assert(condition: function_def.type_parameters.len() == type_arguments.len(), message: "{node_id_to_string(function_def.id)} -> Amount of type arguments must match amount of type parameters")
@@ -929,17 +938,19 @@ fn get_function_type2(function_def: FunctionDef, type_arguments: List[Type]) -> 
     for tp in function_def.type_parameters:
         let ta = option_unwrap(tai.next())
         m.insert(key: tp.id.name, value: ta)
-    let labels: List[Option[str]] = List()
-    let parameter_types: List[Type] = List()
+    let parameter_types: List[ParameterType] = List()
     for parameter in function_def.parameters:
+        let label: Option[str] = Option.None()
         if parameter.label_is_optional:
-            labels.append(Option.None())
+            label = Option.None()
         else:
-            labels.append(Option.Some(parameter.id.name))
-        parameter_types.append(subst(ty: parameter.ty, m))
-    let return_type = subst(ty: function_def.return_type, m)
-    let except_type = subst(ty: function_def.except_type, m)
-    return function_type(labels, parameter_types, return_type, except_type)
+            label = Option.Some(parameter.id.name)
+        parameter_types.append(ParameterType(label, ty: subst(ty: parameter.ty, m)))
+    let info = FunctionInfo:
+        no_return: false
+        return_type: subst(ty: function_def.info.return_type, m)
+        except_type: subst(ty: function_def.info.except_type, m)
+    return function_type(parameter_types, info)
 
 fn parameter_def(name: str, id: int, label_is_optional: bool, ty: Type, location: Location) -> ParameterDef:
     return ParameterDef(id: NodeId(name, id), label_is_optional, ty, location)
@@ -1657,12 +1668,12 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
                     visit_type(visitor, ty: p.ty)
                 None:
                     pass
-            visit_type(visitor, ty: function_def.return_type)
-            visit_type(visitor, ty: function_def.except_type)
+            visit_type(visitor, ty: function_def.info.return_type)
+            visit_type(visitor, ty: function_def.info.except_type)
             visit_statement(visitor, statement: function_def.body)
         ExternFunction(extern_function_def):
             for parameter_type in extern_function_def.parameter_types:
-                visit_type(visitor, ty: parameter_type)
+                visit_type(visitor, ty: parameter_type.ty)
             visit_type(visitor, ty: extern_function_def.return_type)
         Enum(enum_def):
             for variant in enum_def.variants:
@@ -1693,11 +1704,11 @@ fn visit_type[T](visitor: Visitor[T], ty: Type):
         App(tycon, type_arguments):
             for type_argument in type_arguments:
                 visit_type(visitor, ty: type_argument)
-        Function(labels, parameter_types, return_type, except_type):
+        Function(parameter_types, info):
             for parameter_type in parameter_types:
-                visit_type(visitor, ty: parameter_type)
-            visit_type(visitor, ty: return_type)
-            visit_type(visitor, ty: except_type)
+                visit_type(visitor, ty: parameter_type.ty)
+            visit_type(visitor, ty: info.return_type)
+            visit_type(visitor, ty: info.except_type)
         TypeVar(type_variable):
             case type_variable.ty:
                 Some(ty2):

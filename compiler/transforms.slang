@@ -379,7 +379,7 @@ fn transformer_on_expression7(transformer: Transformer, expression: ast.Expressi
                     let pti = parameter_types.iter()
                     for argument in call.arguments:
                         let pt = option_unwrap(pti.next())
-                        transformer.class_rewriter.erase_type(ft: pt, value: argument.value, assign: false)
+                        transformer.class_rewriter.erase_type(ft: pt.ty, value: argument.value, assign: false)
 
                     upcast_type(expression)
 
@@ -787,7 +787,7 @@ class ClassRewriter:
             let new_value = ast.cast(value: old_value, to_type: ast.opaque_type(), location: value.location)
             ast.change_expression_to(expression: value, to: new_value)
         elif ast.is_function_type(ft):
-            let parameter_types = ast.get_parameter_types_from_type(ft)
+            let parameter_types = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ft))
             let return_type = ast.get_return_type_from_type(ft)
 
             # Check if we need a bridge function:
@@ -816,8 +816,8 @@ class ClassRewriter:
         let type_parameters: List[ast.TypeParameter] = List()
         let parameters: List[ast.ParameterDef] = List()
         let arguments: List[ast.LabeledExpression] = List()
-        let return_type2 = function_def.return_type
-        assert(condition: ast.is_void_type(function_def.except_type), message: "Bridge function only supports non-throwing functions")
+        let return_type2 = function_def.info.return_type
+        assert(condition: ast.is_void_type(function_def.info.except_type), message: "Bridge function only supports non-throwing functions")
         let except_type = ast.void_type()
         let pti = parameter_types.iter()
         for parameter in function_def.parameters:

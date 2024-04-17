@@ -45,12 +45,12 @@ class XmlWriter:
         # See also: 'text_gen.slang'
         # TODO: de-duplicate by means of dynamic dispatch/traits
         if option_is_some(output_filename):
-            outf = file_open(option_unwrap(output_filename))
+            outf = file_open(filename: option_unwrap(output_filename))
             use_file = true
 
     fn end():
         if use_file:
-            file_close(outf)
+            file_close(handle: outf)
 
     fn write_header():
         let attributes: List[Attribute] = List()
@@ -62,9 +62,9 @@ class XmlWriter:
 
     fn write_node(node: Node):
         let attrs_text = attributes_to_string(attributes: node.m_attributes)
-        if str_len(attrs_text) > 0:
+        if str_len(text: attrs_text) > 0:
             attrs_text = " " + attrs_text
-        if node.m_child_nodes.is_empty() and str_len(node.m_content) == 0:
+        if node.m_child_nodes.is_empty() and str_len(text: node.m_content) == 0:
             emit("<{node.tag}{attrs_text}/>")
         else:
             emit("<{node.tag}{attrs_text}>")
@@ -96,7 +96,7 @@ class XmlWriter:
         let indent_spaces = str_repeat(text: "   ", count: indentation)
         let line = indent_spaces + text
         if use_file:
-            file_writeln(outf, line)
+            file_writeln(handle: outf, line)
         else:
             print(line)
 

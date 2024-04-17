@@ -12,12 +12,12 @@ class TextGenerator:
 
     fn begin(output_filename: Option[str]):
         if option_is_some(output_filename):
-            outf = file_open(option_unwrap(output_filename))
+            outf = file_open(filename: option_unwrap(output_filename))
             use_file = true
 
     fn end():
         if use_file:
-            file_close(outf)
+            file_close(handle: outf)
 
     fn indent():
         indentation += 1
@@ -29,7 +29,7 @@ class TextGenerator:
         let indent = str_repeat(text: "   ", count: indentation)
         let line = indent + text
         if use_file:
-            file_writeln(outf, line)
+            file_writeln(handle: outf, line)
         else:
             print(line)
 

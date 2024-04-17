@@ -35,8 +35,8 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
             case definition:
                 Function(function_def):
                     checker.current_function = Option.Some(function_def)
-                    if not ast.is_void_type(function_def.except_type):
-                        checker.exception_handlers.append(function_def.except_type)
+                    if not ast.is_void_type(function_def.info.except_type):
+                        checker.exception_handlers.append(function_def.info.except_type)
             else:
                 pass
         Post:
@@ -44,7 +44,7 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
                 Function(function_def):
                     checker.check_function_def(function_def)
                     checker.current_function = Option.None()
-                    if not ast.is_void_type(function_def.except_type):
+                    if not ast.is_void_type(function_def.info.except_type):
                         checker.exception_handlers.drop_last()
             else:
                 pass
@@ -100,7 +100,7 @@ class TypeChecker:
 
     fn check_function_def(function_def: ast.FunctionDef):
         # Check if we return a value, if we need to return a value
-        if not ast.is_void_type(function_def.return_type):
+        if not ast.is_void_type(function_def.info.return_type):
             if not function_def.body.is_terminator:
                 add_error(location: function_def.location, message: "Control reaches end of non-void function")
 
@@ -191,7 +191,7 @@ class TypeChecker:
                     Call(call):
                         case call.callee.kind:
                             FunctionRef(function_def, type_arguments):
-                                statement.is_terminator = function_def.no_return
+                                statement.is_terminator = function_def.info.no_return
                         else:
                             statement.is_terminator = false
                 else:
@@ -209,9 +209,9 @@ class TypeChecker:
                 let func = option_unwrap(current_function)
                 case value:
                     Some(value):
-                        coerce(ty: func.return_type, value)
+                        coerce(ty: func.info.return_type, value)
                     None:
-                        if not ast.is_void_type(func.return_type):
+                        if not ast.is_void_type(func.info.return_type):
                             add_error(location: statement.location, message: "Expected a value")
                 statement.is_terminator = true
             Raise(value):
@@ -249,30 +249,33 @@ class TypeChecker:
                 if ast.is_function_type(call.callee.ty):
                     let parameter_types = ast.get_parameter_types_from_type(call.callee.ty)
                     let return_type = ast.get_return_type_from_type(call.callee.ty)
-                    let arguments: List[ast.Expression] = List()
-                    for argument in call.arguments:
-                        arguments.append(argument.value)
-                    check_arguments(location: expression.location, parameter_types, arguments)
+
+                    if parameter_types.len() == call.arguments.len():
+                        let p_iter = parameter_types.iter()
+                        for argument in call.arguments:
+                            let p_ty = option_unwrap(p_iter.next())
+                            coerce(ty: p_ty.ty, value: argument.value)
+
+                            # Check named arguments:
+                            case p_ty.label:
+                                Some(label):
+                                    case argument.name:
+                                        Some(name):
+                                            if not (label == name):
+                                                add_error(location: argument.location, message: "Got label '{name}', expected label '{label}'")
+                                        None:
+                                            add_error(location: argument.location, message: "Expected a labeled argument '{label}'")
+                                None:
+                                    pass
+
+                    else:
+                        add_error(location: expression.location, message: "got {call.arguments.len()} arguments, expected {parameter_types.len()}")
+
                     if was_errors:
                         return
+
                     expression.ty = ast.deref_type_var(return_type)
                     # print("Call: {ast.type_to_string(expression.ty)}")
-
-                    # Check named arguments:
-                    let labels = ast.get_parameter_labels_from_type(call.callee.ty)
-                    let label_iter = labels.iter()
-                    for argument in call.arguments:
-                        let label = option_unwrap(label_iter.next())
-                        case label:
-                            Some(label):
-                                case argument.name:
-                                    Some(name):
-                                        if not (label == name):
-                                            add_error(location: argument.location, message: "Got label '{name}', expected label '{label}'")
-                                    None:
-                                        add_error(location: argument.location, message: "Expected a labeled argument '{label}'")
-                            None:
-                                pass
 
                     # Check exception raising:
                     let except_type = ast.get_except_type_from_type(call.callee.ty)
@@ -457,8 +460,8 @@ class TypeChecker:
             let tp2 = ast.get_type_parameter_from_type(ty2)
             return ast.type_parameter_equals(tp1, tp2)
         elif ast.is_function_type(ty1) and ast.is_function_type(ty2):
-            let ptys1 = ast.get_parameter_types_from_type(ty1)
-            let ptys2 = ast.get_parameter_types_from_type(ty2)
+            let ptys1 = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ty1))
+            let ptys2 = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ty2))
 
             if not unify_many(typs1: ptys1, typs2: ptys2):
                 return false
@@ -507,3 +510,4 @@ class TypeChecker:
         let err = new_error(location, message)
         errors.append(err)
         was_errors = true
+

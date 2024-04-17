@@ -102,7 +102,7 @@ fn efi_std_float_to_str(arguments: List[Value]) -> Option[Value]:
     return Option.Some(Value.Str(value))
 
 fn efi_std_float_to_str2(arguments: List[Value]) -> Option[Value]:
-    let value = std.float_to_str2(float_from_value(arguments[0]), int_from_value(arguments[1]))
+    let value = std.float_to_str2(value: float_from_value(arguments[0]), digits: int_from_value(arguments[1]))
     return Option.Some(Value.Str(value))
 
 fn efi_std_str_to_float(arguments: List[Value]) -> Option[Value]:

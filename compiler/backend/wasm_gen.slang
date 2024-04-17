@@ -12,7 +12,7 @@
 import webassembly
 import ast
 from webassembly import Instruction
-from datatypes import List, vec1
+from datatypes import List, vec1, Option
 from dicttype import Dictionary
 from location import location_default
 from std import print, str_len, ord
@@ -39,7 +39,7 @@ class WasmGenerator:
     var block_stack: List[bool] = List()
 
     fn gen_module_set(modules: List[ast.Module]):
-        let malloc_def = ast.extern_function_def(modname: "js", name: "malloc", parameter_types: vec1(ast.int_type()), return_type: ast.opaque_type(), location: location_default())
+        let malloc_def = ast.extern_function_def(modname: "js", name: "malloc", parameter_types: vec1(ast.ParameterType(label: Option.None(), ty: ast.int_type())), return_type: ast.opaque_type(), location: location_default())
         gen_external_function(extern_function_def: malloc_def)
 
         for module in modules:
@@ -82,7 +82,8 @@ class WasmGenerator:
         # log_debug("extern function def: {extern_function_def.name}")
         let funcidx = imports.len()
         index_mapping.insert(key: extern_function_def.name, value: funcidx)
-        let func_ty = reg_signature(parameter_types: extern_function_def.parameter_types, return_type: extern_function_def.return_type)
+        let parameter_types = ast.get_types_from_parameter_types(extern_function_def.parameter_types)
+        let func_ty = reg_signature(parameter_types, return_type: extern_function_def.return_type)
         imports.append(webassembly.Import(module: extern_function_def.modname, name: extern_function_def.name, ty: func_ty))
 
     fn gen_module(module: ast.Module):
@@ -143,7 +144,7 @@ class WasmGenerator:
         for parameter in function_def.parameters:
             let x = create_parameter(id: parameter.id, ty: parameter.ty)
             parameter_types.append(parameter.ty)
-        let func_ty = reg_signature(parameter_types, return_type: function_def.return_type)
+        let func_ty = reg_signature(parameter_types, return_type: function_def.info.return_type)
         gen_statement(function_def.body)
 
         # Introduce an unreachable instruction, when we cannot reach this point.
@@ -573,7 +574,7 @@ class WasmGenerator:
 
     fn add_literal(data: str) -> int:
         let offset = literal_offset
-        literal_offset += str_len(data) + 3  # Some extra space for trailing zeroes
+        literal_offset += str_len(text: data) + 3  # Some extra space for trailing zeroes
         datas.append(webassembly.Data(offset, text: data))
         log_debug("STRING LITERAL> {data}")
         return offset

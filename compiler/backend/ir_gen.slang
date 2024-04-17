@@ -99,7 +99,7 @@ class BytecodeGenerator:
 
         let parameters: List[bc.Type] = List()
         for parameter in extern_function_def.parameter_types:
-            parameters.append(get_bc_type(parameter))
+            parameters.append(get_bc_type(parameter.ty))
 
         let return_type = Option.None()
         if not ast.is_void_type(extern_function_def.return_type):
@@ -120,8 +120,8 @@ class BytecodeGenerator:
             local_var_mapping.insert(key: ast.node_id_to_string(parameter.id), value: parameter_index)
             parameters.append(p2)
         let return_type = Option.None()
-        if not ast.is_void_type(function_def.return_type):
-            return_type = Option.Some(get_bc_type(function_def.return_type))
+        if not ast.is_void_type(function_def.info.return_type):
+            return_type = Option.Some(get_bc_type(function_def.info.return_type))
         begin_code()
         local_variables = List()
 
@@ -138,7 +138,7 @@ class BytecodeGenerator:
         let instructions = get_relocated_instructions()
         let locals = local_variables
         let name = get_name(function_def.id)
-        let no_return = function_def.no_return
+        let no_return = function_def.info.no_return
         functions.append(bc.Function(name, parameters, return_type, no_return, locals, instructions))
 
     fn gen_statement(statement?: ast.Statement):
@@ -500,7 +500,7 @@ class BytecodeGenerator:
                 let key = ast.node_id_to_string(function_def.id)
                 let funcidx = function_map.get(key)
                 emit(Instruction.Call(funcidx))
-                if function_def.no_return:
+                if function_def.info.no_return:
                     is_reachable = false
         else:
             gen_indirect_call(callee: call.callee)
@@ -509,7 +509,7 @@ class BytecodeGenerator:
         gen_expression(callee)
         let parameter_types: List[bc.Type] = List()
         for p2 in ast.get_parameter_types_from_type(callee.ty):
-            parameter_types.append(get_bc_type(p2))
+            parameter_types.append(get_bc_type(p2.ty))
         let return_type: Option[bc.Type] = Option.None()
         let return_type2 = ast.get_return_type_from_type(callee.ty)
         if ast.is_void_type(return_type2):
@@ -648,7 +648,7 @@ class BytecodeGenerator:
             let return_type2 = ast.get_return_type_from_type(ty2)
             let parameter_types: List[bc.Type] = List()
             for p2 in parameter_types2:
-                parameter_types.append(get_bc_type(p2))
+                parameter_types.append(get_bc_type(p2.ty))
             let return_type: Option[bc.Type] = Option.None()
             if ast.is_void_type(return_type2):
                 return_type = Option.None()

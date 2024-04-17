@@ -28,11 +28,11 @@ fn base64_encode(data: Bytes) -> str:
         let n1 = (n >> 12) & 63
         let n2 = (n >> 6) & 63
         let n3 = n & 63
-        result = result + "{str_get(base64chars, index: n0)}{str_get(base64chars, index: n1)}"
+        result = result + "{str_get(text: base64chars, index: n0)}{str_get(text: base64chars, index: n1)}"
         if i + 1 < data_length:
-            result = result + "{str_get(base64chars, index: n2)}"
+            result = result + "{str_get(text: base64chars, index: n2)}"
         if i + 2 < data_length:
-            result = result + "{str_get(base64chars, index: n3)}"
+            result = result + "{str_get(text: base64chars, index: n3)}"
 
         i += 3
 
@@ -54,7 +54,7 @@ fn base64_decode(text: str) -> Bytes:
     let n = str_len(text)
     while i < n:
         # Get character:
-        let c = ord(str_get(text, i))
+        let c = ord(str_get(text, index: i))
         i += 1
 
         let v = 0

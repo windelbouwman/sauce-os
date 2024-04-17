@@ -3,7 +3,7 @@ from std import print, exit
 
 fn panic(message?: str) ?:
     print("PANIC: {message}")
-    exit(1)
+    exit(code: 1)
 
 fn unimplemented(message?: str) ?:
     panic("UNIMPLEMENTED: {message}")

@@ -57,7 +57,7 @@ class CGenerator2:
                     Function(function_def):
                         let decl = gen_function_decl(function_def)
                         let no_return = ""
-                        if function_def.no_return:
+                        if function_def.info.no_return:
                             no_return = " __attribute__((noreturn));"
                         emit("{decl}{no_return};")
                     Struct(struct_def):
@@ -156,7 +156,7 @@ class CGenerator2:
         let index = 1
         for parameter_type in extern_function_def.parameter_types:
             let parameter_name = "param{index}"
-            parameter_parts.append(gen_type(ty: parameter_type, name: parameter_name))
+            parameter_parts.append(gen_type(ty: parameter_type.ty, name: parameter_name))
             index += 1
         let parameter_text = str_join(parts: parameter_parts, sep: ", ")
         let return_type_text = "void"
@@ -177,10 +177,10 @@ class CGenerator2:
             parameter_parts.append(gen_type(ty: parameter_def.ty, name: parameter_name))
         let parameter_text = str_join(parts: parameter_parts, sep: ", ")
         let return_type_text = "void"
-        if ast.is_void_type(function_def.return_type):
+        if ast.is_void_type(function_def.info.return_type):
             return_type_text = "void {name}"
         else:
-            return_type_text = gen_type(ty: function_def.return_type, name)
+            return_type_text = gen_type(ty: function_def.info.return_type, name)
         return "{return_type_text}({parameter_text})"
 
     fn gen_function(function_def: ast.FunctionDef):
@@ -214,7 +214,7 @@ class CGenerator2:
             let ret_ty = ast.get_return_type_from_type(ty)
             let parts: List[str] = List()
             for param_ty in ast.get_parameter_types_from_type(ty):
-                parts.append(gen_type(ty: param_ty, name: ""))
+                parts.append(gen_type(ty: param_ty.ty, name: ""))
             let param_text = str_join(parts, sep: ", ")
             return gen_type(ty: ret_ty, name: "(*{name})({param_text})")
         elif ast.is_void_type(ty):
@@ -386,7 +386,6 @@ class CGenerator2:
             Call(call):
                 let callee = gen_expression(call.callee)
                 let values: List[ast.Expression] = List()
-                let parameter_types = ast.get_parameter_types_from_type(call.callee.ty)
                 for argument in call.arguments:
                     values.append(argument.value)
                 let args = gen_expression_list(values)

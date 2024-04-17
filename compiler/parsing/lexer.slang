@@ -27,7 +27,7 @@ class Lexer:
 
     fn init(source: str):
         this.source = source
-        source_length = str_len(source)
+        source_length = str_len(text: source)
         at_end = false
         at_bol = true
         row = 1
@@ -130,7 +130,7 @@ class Lexer:
             elif c == ' ':
                 while match(txt: ' '):
                     pass
-                kind = TokenKind.Space(amount: std.str_len(get_lexeme()))
+                kind = TokenKind.Space(amount: std.str_len(text: get_lexeme()))
             elif c == '#':
                 # Line comment
                 while offset < n and not is_lf(c: peek()):
@@ -144,7 +144,7 @@ class Lexer:
                 offset += 1
                 # String
                 let txt: str = get_lexeme()
-                txt = str_slice(value: txt, begin: 1, end: str_len(txt) - 1)
+                txt = str_slice(text: txt, begin: 1, end: str_len(text: txt) - 1)
                 kind = TokenKind.String(txt)
             elif c == '-':
                 if match(txt: '>'):
@@ -184,7 +184,7 @@ class Lexer:
                     while offset < n and is_hex_digit(c: peek()):
                         offset += 1
                     let hextext = get_lexeme()
-                    hextext = str_slice(value: hextext, begin: 2, end: str_len(hextext))
+                    hextext = str_slice(text: hextext, begin: 2, end: str_len(text: hextext))
                     let int_value = hex_to_int(hextext)
                     kind = TokenKind.Integer(int_value)
                 elif is_bin:
@@ -193,7 +193,7 @@ class Lexer:
                     while offset < n and is_bin_digit(c: peek()):
                         offset += 1
                     let bintext = get_lexeme()
-                    bintext = str_slice(value: bintext, begin: 2, end: str_len(bintext))
+                    bintext = str_slice(text: bintext, begin: 2, end: str_len(text: bintext))
                     let int_value = bin_to_int(bintext)
                     kind = TokenKind.Integer(int_value)
                 else:
@@ -224,7 +224,7 @@ class Lexer:
                 if offset < n and ord(peek()) == 39:
                     offset += 1
                     if offset < n:
-                        let char_value = std.str_get(value: get_lexeme(), index: 1)
+                        let char_value = std.str_get(text: get_lexeme(), index: 1)
                         kind = TokenKind.Char(char_value)
 
             elif c == '<':
@@ -296,7 +296,7 @@ class Lexer:
             return false
     
     fn get_lexeme() -> str:
-        return std.str_slice(value: source, begin: tok_begin, end: offset)
+        return std.str_slice(text: source, begin: tok_begin, end: offset)
 
 fn is_lf(c: char) -> bool:
     let o = ord(value: c)

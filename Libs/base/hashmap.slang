@@ -129,7 +129,7 @@ class HashMap[T]:
 fn hash_key(key: str) -> int:
     let hash = 0
     let i = 0
-    let n = str_len(key)
+    let n = str_len(text: key)
     while i < n:
         hash += ord(str_get(text: key, index: i))
         i += 1

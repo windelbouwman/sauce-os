@@ -32,13 +32,13 @@ fn str_repeat(text: str, count: int) -> str:
 
 fn str_pad_right(text: str, length: int, fill: str) -> str:
     let result = text
-    while str_len(result) < length:
+    while str_len(text: result) < length:
         result = result + fill
     return result
 
 fn str_pad_left(text: str, length: int, fill: str) -> str:
     let result = text
-    while str_len(result) < length:
+    while str_len(text: result) < length:
         result = fill + result
     return result
 
@@ -55,12 +55,12 @@ fn str_join(parts: List[str], sep: str) -> str:
 
 fn hex_to_int(hextext: str) -> int:
     # Convert hex text
-    let n = str_len(hextext)
+    let n = str_len(text: hextext)
     assert(condition: n > 0, message: "Hex string must be at least a single digit.")
     let index = 0
     let value = 0
     while index < n:
-        let c = str_get(hextext, index)
+        let c = str_get(text: hextext, index)
         let o = ord(c)
 
         let cval = 0
@@ -79,12 +79,12 @@ fn hex_to_int(hextext: str) -> int:
 fn bin_to_int(bintext: str) -> int:
     # Convert bin text to integer value
     # For example, convert 101 to 5
-    let n = str_len(bintext)
+    let n = str_len(text: bintext)
     assert(condition: n > 0, message: "Binary string must be at least a single digit.")
     let index = 0
     let value = 0
     while index < n:
-        let c = str_get(bintext, index)
+        let c = str_get(text: bintext, index)
         let o = ord(c)
 
         let cval = 0
@@ -144,7 +144,7 @@ fn trim(text?: str) -> str:
     let i = 0
     let n = str_len(text)
     while i < n:
-        let c = str_get(text, i)
+        let c = str_get(text, index: i)
         if c == ' ':
             i += 1
         else:
@@ -152,20 +152,20 @@ fn trim(text?: str) -> str:
     
     while n > i:
         n -= 1
-        let c = str_get(text, n)
+        let c = str_get(text, index: n)
         if c == ' ':
             pass
         else:
             n += 1
             break
 
-    return str_slice(text, i, n)
+    return str_slice(text, begin: i, end: n)
 
 fn find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
     let i = 0
     let n = str_len(text)
     while i < n:
-        let c = str_get(text, i)
+        let c = str_get(text, index: i)
         if criterium(c):
             return Option.Some(i)
         i += 1
@@ -177,7 +177,7 @@ fn reverse_find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
     let i = n
     while i > 0:
         i -= 1
-        let c = str_get(text, i)
+        let c = str_get(text, index: i)
         if criterium(c):
             return Option.Some(i)
     return Option.None()
@@ -186,15 +186,15 @@ fn reverse_find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
 # TODO: duplicate with rt_str_compare in C
 fn str_comparison(a: str, b: str) -> int:
     let index = 0
-    let n_a = str_len(a)
-    let n_b = str_len(b)
+    let n_a = str_len(text: a)
+    let n_b = str_len(text: b)
     let n = n_a
     if n_b < n:
         n = n_b
     while index < n:
         index += 1
-        let c_a = ord(str_get(a, index))
-        let c_b = ord(str_get(b, index))
+        let c_a = ord(str_get(text: a, index))
+        let c_b = ord(str_get(text: b, index))
         if c_a < c_b:
             return -1
         elif c_a > c_b:
@@ -211,11 +211,11 @@ fn split_lines(text: str) -> List[str]:
         if ord(str_get(text, index)) == 10:
             # New line!
             if line_start < index:
-                lines.append(str_slice(value: text, begin: line_start, end: index))
+                lines.append(str_slice(text, begin: line_start, end: index))
             else:
                 lines.append("")
             line_start = index + 1
         index += 1
     if index > line_start:
-        lines.append(str_slice(value: text, begin: line_start, end: index))
+        lines.append(str_slice(text, begin: line_start, end: index))
     return lines

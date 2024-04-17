@@ -274,8 +274,9 @@ class Parser:
 
         # Body
         let body = parse_block()
+
         let function_def = ast.function_def(name: name_at.name, id: new_id(), type_parameters, this_parameter, parameters, return_type, except_type, body, location: name_at.location)
-        function_def.no_return = no_return
+        function_def.info.no_return = no_return
         return function_def
     
     fn parse_extern_func_def() -> ast.ExternFunctionDef except CompilationError:
@@ -292,9 +293,14 @@ class Parser:
         let no_return = has_parsed_question()
         parse_newline()
 
-        let parameter_types: List[ast.Type] = List()
+        let parameter_types: List[ast.ParameterType] = List()
         for parameter in parameters:
-            parameter_types.append(parameter.ty)
+            let label: Option[str] = Option.None()
+            if parameter.label_is_optional:
+                label = Option.None()
+            else:
+                label = Option.Some(parameter.id.name)
+            parameter_types.append(ast.ParameterType(label, ty: parameter.ty))
 
         let extern_function_def = ast.extern_function_def(modname: option_unwrap(modname), name, parameter_types, return_type, location: name_at.location)
         extern_function_def.no_return = no_return
@@ -380,8 +386,7 @@ class Parser:
                 # '('
                 parse_brace_open()
 
-                let labels: List[Option[str]] = List()
-                let parameter_types: List[ast.Type] = List()
+                let parameter_types: List[ast.ParameterType] = List()
                 # ')' or parameters and ')'
                 let tok2 = get_token()
                 case tok2.kind:
@@ -390,9 +395,9 @@ class Parser:
                 else:
                     unget_token(tok2)
                     loop:
+                        let label: Option[str] = Option.None()
                         let param_type = parse_type()
-                        labels.append(Option.None())
-                        parameter_types.append(param_type)
+                        parameter_types.append(ast.ParameterType(label, ty: param_type))
 
                         let tok4 = get_token()
                         case tok4.kind:
@@ -407,7 +412,12 @@ class Parser:
                 let return_type = parse_optional_return_type()
                 let except_type = ast.void_type()
 
-                return ast.function_type(labels, parameter_types, return_type, except_type)
+                let info = ast.FunctionInfo:
+                    no_return: false
+                    return_type
+                    except_type
+
+                return ast.function_type(parameter_types, info)
         else:
             unget_token(tok0)
             let expr = parse_expression()
@@ -1018,7 +1028,7 @@ class Parser:
 
     fn process_fstring(literal: str, location: Location) -> ast.Expression except CompilationError:
         # Check strings for parts surrounded by '{' and '}'
-        let txt_length = std.str_len(literal)
+        let txt_length = std.str_len(text: literal)
         if txt_length == 0:
             return ast.string_literal(value: "", location)
 
@@ -1030,14 +1040,14 @@ class Parser:
         let in_braces = false
 
         while index < txt_length:
-            let c = std.str_get(literal, index)
+            let c = std.str_get(text: literal, index)
             if not in_braces and std.ord(c) == 123:  # { -> 123
                 in_braces = true
 
                 # Raw string part
                 end = index
                 if begin < end:
-                    let raw_string_value = std.str_slice(value: literal, begin, end)
+                    let raw_string_value = std.str_slice(text: literal, begin, end)
                     let raw_string_expr = ast.string_literal(value: raw_string_value, location)
                     parts.append(raw_string_expr)
                 begin = index + 1
@@ -1049,7 +1059,7 @@ class Parser:
                 if begin < end:
                     # Skip past first " of string:
                     let p1 = Position(row: location.begin.row, column: location.begin.column + begin + 1)
-                    let expr_text = std.str_slice(value: literal, begin, end)
+                    let expr_text = std.str_slice(text: literal, begin, end)
                     let to_string_expr: ast.Expression = parse_expr_from_text(source: expr_text, id_gen: id_gen, p1)
                     to_string_expr = ast.to_string(value: to_string_expr, location: to_string_expr.location)
                     parts.append(to_string_expr)
@@ -1063,7 +1073,7 @@ class Parser:
         # Last part:
         end = index
         if begin < end:
-            let raw_string_value2 = std.str_slice(value: literal, begin, end)
+            let raw_string_value2 = std.str_slice(text: literal, begin, end)
             let raw_string_expr2 = ast.string_literal(value: raw_string_value2, location)
             parts.append(raw_string_expr2)
         
