@@ -159,6 +159,9 @@ class JsonBuilder:
     fn add_attribute(name: str, value: JsonValue):
         m_object_stack.last().add_attribute(name, value)
 
+    fn add_boolean_attribute(name: str, value: bool):
+        add_attribute(name, value: JsonValue.Bool(value))
+
     fn add_text_attribute(name: str, text: str):
         add_attribute(name, value: JsonValue.String(text))
 

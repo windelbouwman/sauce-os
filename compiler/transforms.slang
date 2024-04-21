@@ -553,7 +553,11 @@ class ClassRewriter:
     fn load_std_function(name: str, location: Location) -> ast.Expression:
         # Get expression that loads a builtin runtime function.
         let symbol = option_unwrap(rt_module.scope.lookup(name))
-        return ast.load_symbol(symbol, ty: ast.undefined_type(), location)
+        case symbol:
+            ExternFunction(extern_function_def):
+                return ast.extern_function_ref(extern_function_def, location)
+        else:
+            panic("{name} must be external function")
 
     fn transform_for_loop(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
         log_debug("Rewrite for loop")

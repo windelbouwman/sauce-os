@@ -39,7 +39,8 @@ class WasmGenerator:
     var block_stack: List[bool] = List()
 
     fn gen_module_set(modules: List[ast.Module]):
-        let malloc_def = ast.extern_function_def(modname: "js", name: "malloc", parameter_types: vec1(ast.ParameterType(label: Option.None(), ty: ast.int_type())), return_type: ast.opaque_type(), location: location_default())
+        let type_parameters: List[ast.TypeParameter] = List()
+        let malloc_def = ast.extern_function_def(modname: "js", name: "malloc", type_parameters, parameter_types: vec1(ast.ParameterType(label: Option.None(), ty: ast.int_type())), return_type: ast.opaque_type(), location: location_default())
         gen_external_function(extern_function_def: malloc_def)
 
         for module in modules:
@@ -83,7 +84,7 @@ class WasmGenerator:
         let funcidx = imports.len()
         index_mapping.insert(key: extern_function_def.name, value: funcidx)
         let parameter_types = ast.get_types_from_parameter_types(extern_function_def.parameter_types)
-        let func_ty = reg_signature(parameter_types, return_type: extern_function_def.return_type)
+        let func_ty = reg_signature(parameter_types, return_type: extern_function_def.info.return_type)
         imports.append(webassembly.Import(module: extern_function_def.modname, name: extern_function_def.name, ty: func_ty))
 
     fn gen_module(module: ast.Module):
@@ -319,11 +320,11 @@ class WasmGenerator:
                 let funcidx = 0
 
                 case call.callee.kind:
-                    ExternFunctionRef(external_function_def):
+                    ExternFunctionRef(external_function_def, type_arguments):
                         let key = external_function_def.name
                         funcidx = index_mapping.get(key)
 
-                    FunctionRef(function_def, type_args):
+                    FunctionRef(function_def, type_arguments):
                         # print("call {function_def.id.name}")
                         let key = ast.node_id_to_string(function_def.id)
                         funcidx = index_mapping.get(key)
@@ -344,7 +345,7 @@ class WasmGenerator:
                 gen_expression(base)
                 gen_load(offset, ty: expression.ty)
 
-            ExternFunctionRef(external_function):
+            ExternFunctionRef(external_function, type_arguments):
                 panic("ext -> {external_function.name}")
 
             ParameterRef(parameter_def):

@@ -283,8 +283,8 @@ class TypeChecker:
                         check_may_raise_exception(ty: except_type, location: expression.location)
                 else:
                     add_error(location: expression.location, message: "Cannot call non-function type {ast.type_to_string(call.callee.ty)}")
-            ExternFunctionRef(extern_function_def):
-                expression.ty = ast.extern_function_type(extern_function_def)
+            ExternFunctionRef(extern_function_def, type_arguments):
+                expression.ty = ast.get_extern_function_type(extern_function_def, type_arguments)
             ParameterRef(parameter_def):
                 # TODO: clone type?
                 # log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {ast.type_to_string(parameter.ty)}")

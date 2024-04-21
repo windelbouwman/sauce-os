@@ -160,12 +160,12 @@ class CGenerator2:
             index += 1
         let parameter_text = str_join(parts: parameter_parts, sep: ", ")
         let return_type_text = "void"
-        if ast.is_void_type(extern_function_def.return_type):
+        if ast.is_void_type(extern_function_def.info.return_type):
             return_type_text = "void {name}"
         else:
-            return_type_text = gen_type(ty: extern_function_def.return_type, name)
+            return_type_text = gen_type(ty: extern_function_def.info.return_type, name)
         let no_return = ""
-        if extern_function_def.no_return:
+        if extern_function_def.info.no_return:
             no_return = " __attribute__((noreturn))"
         emit("{return_type_text}({parameter_text}){no_return};")
 
@@ -420,7 +420,7 @@ class CGenerator2:
                 else:
                     panic("Unsupported cast to: {ast.type_to_string(ty)}")
 
-            ExternFunctionRef(extern_function_def):
+            ExternFunctionRef(extern_function_def, type_arguments):
                 return "{extern_function_def.modname}_{extern_function_def.name}"
 
             ParameterRef(parameter_def):

@@ -260,23 +260,13 @@ class Parser:
         log_debug("Parsing function: {name_at.name}")
         let type_parameters = parse_type_parameters()
         let parameters = parse_parameters()
-        let return_type = parse_optional_return_type()
-
-        # Optional except type
-        let except_type: ast.Type = ast.void_type()
-        let tok = get_token()
-        case tok.kind:
-            KwExcept:
-                except_type = parse_type()
-        else:
-            unget_token(tok)
-        let no_return = has_parsed_question()
+        let info = parse_function_info()
 
         # Body
         let body = parse_block()
 
-        let function_def = ast.function_def(name: name_at.name, id: new_id(), type_parameters, this_parameter, parameters, return_type, except_type, body, location: name_at.location)
-        function_def.info.no_return = no_return
+        let function_def = ast.function_def(name: name_at.name, id: new_id(), type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
+        function_def.info.no_return = info.no_return
         return function_def
     
     fn parse_extern_func_def() -> ast.ExternFunctionDef except CompilationError:
@@ -288,22 +278,15 @@ class Parser:
             raise unexpected_token(tok, expected: "'fn'")
         let name_at = parse_name()
         let name: str = name_at.name
+        let type_parameters = parse_type_parameters()
         let parameters = parse_parameters()
-        let return_type = parse_optional_return_type()
-        let no_return = has_parsed_question()
+        let info = parse_function_info()
         parse_newline()
 
-        let parameter_types: List[ast.ParameterType] = List()
-        for parameter in parameters:
-            let label: Option[str] = Option.None()
-            if parameter.label_is_optional:
-                label = Option.None()
-            else:
-                label = Option.Some(parameter.id.name)
-            parameter_types.append(ast.ParameterType(label, ty: parameter.ty))
+        let parameter_types = ast.get_parameter_types_from_parameters(parameters)
 
-        let extern_function_def = ast.extern_function_def(modname: option_unwrap(modname), name, parameter_types, return_type, location: name_at.location)
-        extern_function_def.no_return = no_return
+        let extern_function_def = ast.extern_function_def(modname: option_unwrap(modname), name, type_parameters, parameter_types, return_type: info.return_type, location: name_at.location)
+        extern_function_def.info.no_return = info.no_return
         return extern_function_def
 
     fn parse_parameters() -> List[ast.ParameterDef] except CompilationError:
@@ -327,6 +310,20 @@ class Parser:
                 else:
                     raise unexpected_token(tok: tok4, expected: "')' or ','")
         return parameters
+
+    fn parse_function_info() -> ast.FunctionInfo except CompilationError:
+        let return_type = parse_optional_return_type()
+
+        # Optional except type
+        let except_type: ast.Type = ast.void_type()
+        let tok = get_token()
+        case tok.kind:
+            KwExcept:
+                except_type = parse_type()
+        else:
+            unget_token(tok)
+        let no_return = has_parsed_question()
+        return ast.FunctionInfo(no_return, return_type, except_type)
 
     fn parse_optional_return_type() -> ast.Type except CompilationError:
         # Optional return type

@@ -102,9 +102,9 @@ class BytecodeGenerator:
             parameters.append(get_bc_type(parameter.ty))
 
         let return_type = Option.None()
-        if not ast.is_void_type(extern_function_def.return_type):
-            return_type = Option.Some(get_bc_type(extern_function_def.return_type))
-        let no_return = extern_function_def.no_return
+        if not ast.is_void_type(extern_function_def.info.return_type):
+            return_type = Option.Some(get_bc_type(extern_function_def.info.return_type))
+        let no_return = extern_function_def.info.no_return
 
         let extern_function = bc.ExternFunction(name, parameters, return_type, no_return)
         extern_functions.append(extern_function)
@@ -423,7 +423,7 @@ class BytecodeGenerator:
                 let key = ast.node_id_to_string(function_def.id)
                 let funcidx = function_map.get(key)
                 emit(Instruction.LoadFunc(funcidx))
-            ExternFunctionRef(extern_function_def):
+            ExternFunctionRef(extern_function_def, type_arguments):
                 panic("Extern function pointer to {extern_function_def.name} not supported")
             ParameterRef(parameter_def):
                 let parameter_index = get_parameter_index(parameter_def)
@@ -487,12 +487,12 @@ class BytecodeGenerator:
         #emit(Instruction.Call(n_args: call.arguments.len(), result_type))
 
         case call.callee.kind:
-            ExternFunctionRef(external_function_def):
+            ExternFunctionRef(external_function_def, type_args):
                 let key = "{external_function_def.modname}_{external_function_def.name}"
                 log_debug("Calling extern function: {key}")
                 let funcidx = function_map.get(key)
                 emit(Instruction.CallExtern(funcidx))
-                if external_function_def.no_return:
+                if external_function_def.info.no_return:
                     is_reachable = false
 
             FunctionRef(function_def, type_args):

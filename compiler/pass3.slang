@@ -45,8 +45,6 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
     case phase:
         Post:
             case expression.kind:
-                #ObjInit(ty, labeled_fields):
-                    
                 GetIndex(base, indici):
                     case base.kind:
                         TypeConstructor(tycon):
@@ -146,24 +144,15 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                 LoadSymbol(symbol):
                     case symbol:
                         Function(function_def):
-
                             # Ha, create type variables!
-                            let type_arguments: List[ast.Type] = List()
-                            for tp in function_def.type_parameters:
-                                let type_var = ast.new_type_var(unique: newop.new_id())
-                                let type_arg = ast.new_type_var_ref(type_var)
-                                type_arg.was_generic = true
-                                type_arguments.append(type_arg)
-
+                            let type_arguments = newop.new_type_arguments(type_parameters: function_def.type_parameters)
                             expression.kind = ast.ExpressionKind.FunctionRef(function_def, type_arguments)
 
-                        Parameter(parameter_def):
-                            expression.kind = ast.ExpressionKind.ParameterRef(parameter_def)
-
                         ExternFunction(extern_function_def):
-                            expression.kind = ast.ExpressionKind.ExternFunctionRef(extern_function_def)
+                            let type_arguments = newop.new_type_arguments(type_parameters: extern_function_def.type_parameters)
+                            expression.kind = ast.ExpressionKind.ExternFunctionRef(extern_function_def, type_arguments)
                     else:
-                        pass
+                        panic("All symbols must be handled by now.")
             else:
                 pass
     else:
@@ -216,5 +205,14 @@ class NewOp:
             type_arguments.append(ast.new_type_var_ref(type_var))
         return ast.apply_tycon(tycon, type_arguments)
     
+    fn new_type_arguments(type_parameters: List[ast.TypeParameter]) -> List[ast.Type]:
+        let type_arguments: List[ast.Type] = List()
+        for tp in type_parameters:
+            let type_var = ast.new_type_var(unique: new_id())
+            let type_arg = ast.new_type_var_ref(type_var)
+            type_arg.was_generic = true
+            type_arguments.append(type_arg)
+        return type_arguments
+
     fn new_id() -> int:
         return id_gen.new_id()

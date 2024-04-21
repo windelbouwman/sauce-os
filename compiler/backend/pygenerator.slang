@@ -250,13 +250,13 @@ class PyGenerator:
                     txt = "float({txt})"
                 elif ast.is_int_type(ty):
                     txt = "int({txt})"
-            ExternFunctionRef(extern_function_def):
+            ExternFunctionRef(extern_function_def, type_args):
                 txt = "{extern_function_def.modname}_{extern_function_def.name}"
             ParameterRef(parameter_def):
                 txt = get_id(id: parameter_def.id)
             VarRef(variable):
                 txt = get_id(id: variable.id)
-            FunctionRef(function_def, type_parameters):
+            FunctionRef(function_def, type_arguments):
                 txt = get_id(id: function_def.id)
             Call(call):
                 let expressions: List[ast.Expression] = List()

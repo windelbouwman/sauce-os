@@ -702,20 +702,17 @@ enum ImportKind:
 struct ExternFunctionDef:
     modname: str
     name: str
+    type_parameters: List[TypeParameter]
     parameter_types: List[ParameterType]
-    return_type: Type
-    no_return: bool
+    info: FunctionInfo
     location: Location
 
-fn extern_function_def(modname: str, name: str, parameter_types: List[ParameterType], return_type: Type, location: Location) -> ExternFunctionDef:
-    return ExternFunctionDef(modname, name, parameter_types, return_type, no_return: false, location)
+fn extern_function_def(modname: str, name: str, type_parameters: List[TypeParameter], parameter_types: List[ParameterType], return_type: Type, location: Location) -> ExternFunctionDef:
+    let info = FunctionInfo(no_return: false, return_type, except_type: void_type())
+    return ExternFunctionDef(modname, name, type_parameters, parameter_types, info, location)
 
-fn extern_function_type(extern_function_def: ExternFunctionDef) -> Type:
-    let info = FunctionInfo:
-        no_return: extern_function_def.no_return
-        return_type: extern_function_def.return_type
-        except_type: void_type()
-    return function_type(parameter_types: extern_function_def.parameter_types, info)
+fn get_extern_function_type(extern_function_def: ExternFunctionDef, type_arguments: List[Type]) -> Type:
+    return get_function_type3(type_parameters: extern_function_def.type_parameters, type_arguments, parameter_types: extern_function_def.parameter_types, info: extern_function_def.info)
 
 class Scope:
     var symbols: Dictionary[Symbol] = Dictionary()
@@ -918,39 +915,38 @@ fn function_ref(function_def: FunctionDef, type_arguments: List[Type], location:
     let ty = get_function_type2(function_def, type_arguments)
     return Expression(kind, ty, location)
 
-fn get_function_type(function_def: FunctionDef) -> Type:
-    assert(condition: function_def.type_parameters.is_empty(), message: "Get function type can only be used on a non-generic function")
+fn get_parameter_types_from_parameters(parameters: List[ParameterDef]) -> List[ParameterType]:
     let parameter_types: List[ParameterType] = List()
-    for parameter in function_def.parameters:
+    for parameter in parameters:
         let label: Option[str] = Option.None()
         if parameter.label_is_optional:
             label = Option.None()
         else:
             label = Option.Some(parameter.id.name)
         parameter_types.append(ParameterType(label, ty: parameter.ty))
-    let info = function_def.info
-    return function_type(parameter_types, info)
+    return parameter_types
+
+fn get_function_type(function_def: FunctionDef) -> Type:
+    assert(condition: function_def.type_parameters.is_empty(), message: "Get function type can only be used on a non-generic function")
+    let parameter_types = get_parameter_types_from_parameters(parameters: function_def.parameters)
+    return function_type(parameter_types, info: function_def.info)
 
 fn get_function_type2(function_def: FunctionDef, type_arguments: List[Type]) -> Type:
-    assert(condition: function_def.type_parameters.len() == type_arguments.len(), message: "{node_id_to_string(function_def.id)} -> Amount of type arguments must match amount of type parameters")
-    let m: Dictionary[Type] = Dictionary()
-    let tai = type_arguments.iter()
-    for tp in function_def.type_parameters:
-        let ta = option_unwrap(tai.next())
-        m.insert(key: tp.id.name, value: ta)
-    let parameter_types: List[ParameterType] = List()
-    for parameter in function_def.parameters:
-        let label: Option[str] = Option.None()
-        if parameter.label_is_optional:
-            label = Option.None()
-        else:
-            label = Option.Some(parameter.id.name)
-        parameter_types.append(ParameterType(label, ty: subst(ty: parameter.ty, m)))
-    let info = FunctionInfo:
-        no_return: false
-        return_type: subst(ty: function_def.info.return_type, m)
-        except_type: subst(ty: function_def.info.except_type, m)
-    return function_type(parameter_types, info)
+    let parameter_types = get_parameter_types_from_parameters(parameters: function_def.parameters)
+    return get_function_type3(type_parameters: function_def.type_parameters, type_arguments, parameter_types, info: function_def.info)
+
+fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: List[Type], parameter_types: List[ParameterType], info: FunctionInfo) -> Type:
+    let m = create_subst_mapping(type_parameters, type_arguments)
+
+    let parameter_types2: List[ParameterType] = List()
+    for pt in parameter_types:
+        parameter_types2.append(ParameterType(label: pt.label, ty: subst(ty: pt.ty, m)))
+
+    let info2 = FunctionInfo:
+        no_return: info.no_return
+        return_type: subst(ty: info.return_type, m)
+        except_type: subst(ty: info.except_type, m)
+    return function_type(parameter_types: parameter_types2, info: info2)
 
 fn parameter_def(name: str, id: int, label_is_optional: bool, ty: Type, location: Location) -> ParameterDef:
     return ParameterDef(id: NodeId(name, id), label_is_optional, ty, location)
@@ -1175,7 +1171,7 @@ enum ExpressionKind:
     VarRef(variable: Variable)
     FunctionRef(function: FunctionDef, type_arguments: List[Type])
     ParameterRef(parameter: ParameterDef)
-    ExternFunctionRef(extern_function: ExternFunctionDef)
+    ExternFunctionRef(extern_function: ExternFunctionDef, type_arguments: List[Type])
     LoadSymbol(symbol: Symbol)
     IntLiteral(value: int)
     FloatLiteral(value: float)
@@ -1212,12 +1208,12 @@ fn array_literal(values: List[Expression], location: Location) -> Expression:
 fn array_literal2(value: Expression, size: Expression, location: Location) -> Expression:
     return Expression(kind: ExpressionKind.ArrayLiteral2(value, size), ty: undefined_type(), location)
 
+fn extern_function_ref(extern_function_def: ExternFunctionDef, location: Location) -> Expression:
+    let type_arguments: List[Type] = List()
+    return Expression(kind: ExpressionKind.ExternFunctionRef(extern_function_def, type_arguments), ty: undefined_type(), location)
+
 fn load_symbol(symbol: Symbol, ty: Type, location: Location) -> Expression:
-    case symbol:
-        ExternFunction(extern_function_def):
-            return Expression(kind: ExpressionKind.ExternFunctionRef(extern_function_def), ty, location)
-    else:
-        return Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
+    return Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
 
 fn parameter_ref(parameter_def: ParameterDef, location: Location) -> Expression:
     let ty = parameter_def.ty
@@ -1537,8 +1533,10 @@ fn expression_to_string(expression?: Expression) -> str:
             txt = "FN-{node_id_to_string(function.id)}"
             if not type_arguments.is_empty():
                 txt = txt + types_to_string(typs: type_arguments)
-        ExternFunctionRef(extern_function_def):
+        ExternFunctionRef(extern_function_def, type_arguments):
             txt = "extern-function:{extern_function_def.name}"
+            if not type_arguments.is_empty():
+                txt = txt + types_to_string(typs: type_arguments)
         ParameterRef(parameter_def):
             txt = "parameter:{node_id_to_string(parameter_def.id)}"
         StructLiteral(ty, values):
@@ -1674,7 +1672,8 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
         ExternFunction(extern_function_def):
             for parameter_type in extern_function_def.parameter_types:
                 visit_type(visitor, ty: parameter_type.ty)
-            visit_type(visitor, ty: extern_function_def.return_type)
+            visit_type(visitor, ty: extern_function_def.info.return_type)
+            visit_type(visitor, ty: extern_function_def.info.except_type)
         Enum(enum_def):
             for variant in enum_def.variants:
                 for p in variant.payload:

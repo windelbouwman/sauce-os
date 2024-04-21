@@ -275,6 +275,9 @@ fn symbol_to_kind(symbol: ast.Symbol) -> ast.ExpressionKind:
             return ast.ExpressionKind.TypeConstructor(tycon)
         Var(variable):
             return ast.ExpressionKind.VarRef(variable)
+        Parameter(parameter_def):
+            return ast.ExpressionKind.ParameterRef(parameter_def)
+
     else:
         return ast.ExpressionKind.LoadSymbol(symbol)
 
