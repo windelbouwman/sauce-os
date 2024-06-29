@@ -315,12 +315,11 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                             if ast.is_class_type(base.ty):
                                 # Rewrite method call
                                 # log_info("Rewrite method call")
-                                let function_def: ast.FunctionDef = ast.get_method_from_type(ty: base.ty, attr: name)
+                                let function_ref: ast.Expression = ast.get_method_ref_from_type(ty: base.ty, attr: name, location: expression.location)
                                 let this_arg = ast.LabeledExpression(location: base.location, name: Option.Some("this"), value: base)
                                 let arguments = call.arguments
                                 arguments.prepend(this_arg)
-                                let type_arguments = ast.get_type_arguments_from_type(base.ty)
-                                call.callee = ast.function_ref(function_def, type_arguments, location: expression.location)
+                                call.callee = function_ref
                     else:
                         pass
                 Binop(op):
@@ -442,6 +441,7 @@ class ClassRewriter:
     fn rewrite_class_def(class_def: ast.ClassDef):
         log_info("Rewriting class def {class_def.id.name}")
         let methods: List[ast.FunctionDef] = List()
+        let extern_methods: List[ast.ExternFunctionDef] = List()
         let builder = ast.StructBuilder()
         builder.set_name(name: class_def.id.name)
         builder.set_id(id: get_unique_id())
@@ -459,8 +459,10 @@ class ClassRewriter:
                     builder.add_field(name: var_def.variable.id.name, ty, location: var_def.variable.location)
                 Function(function_def):
                     methods.append(function_def)
+                ExternFunction(extern_function_def):
+                    extern_methods.append(extern_function_def)
             else:
-                panic("only fields and functions expected")
+                panic("only fields and functions expected, not {ast.definition_to_str(definition)}")
 
         let struct_def = builder.finish()
         new_definitions.append(ast.Definition.Struct(struct_def))
@@ -469,8 +471,14 @@ class ClassRewriter:
         # Lift methods:
         for method in methods:
             lift_method(method, class_def, struct_def)
+        
+        for extern_method in extern_methods:
+            lift_extern_method(extern_method, class_def, struct_def)
 
-        create_constructor(class_def, struct_def)
+        if class_def.is_extern:
+            pass
+        else:
+            create_constructor(class_def, struct_def)
 
     fn lift_method(method: ast.FunctionDef, class_def: ast.ClassDef, struct_def: ast.StructDef):
         let type_arguments: List[ast.Type] = List()
@@ -486,6 +494,20 @@ class ClassRewriter:
         # ast.change_type_to(ty: this_parameter.ty, ty2: struct_type)
         method.parameters.prepend(this_parameter)
         new_definitions.append(ast.Definition.Function(method))
+
+    fn lift_extern_method(extern_method: ast.ExternFunctionDef, class_def: ast.ClassDef, struct_def: ast.StructDef):
+        let type_arguments: List[ast.Type] = List()
+        for type_parameter in class_def.type_parameters:
+            type_parameter = ast.new_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
+            extern_method.type_parameters.append(type_parameter)
+            type_arguments.append(ast.type_parameter_ref(type_parameter))
+
+        let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
+        let this_parameter_type = ast.ParameterType(label: Option.None(), ty: struct_type)
+
+        extern_method.parameter_types.prepend(this_parameter_type)
+
+        new_definitions.append(ast.Definition.ExternFunction(extern_method))
 
     fn create_constructor(class_def: ast.ClassDef, struct_def: ast.StructDef):
         # Create constructor function
@@ -555,7 +577,8 @@ class ClassRewriter:
         let symbol = option_unwrap(rt_module.scope.lookup(name))
         case symbol:
             ExternFunction(extern_function_def):
-                return ast.extern_function_ref(extern_function_def, location)
+                let type_arguments: List[ast.Type] = List()
+                return ast.extern_function_ref(extern_function_def, type_arguments, location)
         else:
             panic("{name} must be external function")
 

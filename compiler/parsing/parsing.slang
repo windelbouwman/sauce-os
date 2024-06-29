@@ -242,6 +242,7 @@ class Parser:
         let class_def = ast.ClassDef:
             id: ast.NodeId(name: name_at.name, id: new_id())
             location: name_at.location
+            is_extern: false
             type_parameters
             definitions: inner_defs
             scope: ast.Scope()

@@ -44,17 +44,7 @@ fn type_to_string(ty?: Type) -> str:
     let txt = "?"
     case ty.kind:
         Base(base):
-            case base:
-                Str:
-                    txt = "STR"
-                Char:
-                    txt = "CHAR"
-                Int:
-                    txt = "INT"
-                Bool:
-                    txt = "BOOL"
-                Float:
-                    txt = "FLOAT"
+            txt = base_type_to_str(base)
         Opaque:
             txt = "OPAQUE"
         Void:
@@ -457,6 +447,8 @@ fn get_field_type(ty: Type, attr: str) -> Option[Type]:
                             case sym:
                                 Function(function_def):
                                     return Option.Some(subst(ty: get_function_type(function_def), m))
+                                ExternFunction(extern_function_def):
+                                    return Option.Some(subst(ty: get_extern_function_type5(extern_function_def), m))
                                 Var(v):
                                     return Option.Some(subst(ty: v.ty, m))
                             else:
@@ -477,7 +469,7 @@ fn get_struct_field_index(ty: Type, attr: str) -> int:
         index += 1
     panic("No attr: {attr}")
 
-fn get_method_from_type(ty: Type, attr: str) -> FunctionDef:
+fn get_method_ref_from_type(ty: Type, attr: str, location: Location) -> Expression:
     case ty.kind:
         App(tycon, type_arguments):
             case tycon:
@@ -485,13 +477,15 @@ fn get_method_from_type(ty: Type, attr: str) -> FunctionDef:
                     let sym = option_unwrap(c.scope.lookup(name: attr))
                     case sym:
                         Function(function_def):
-                            return function_def
+                            return function_ref(function_def, type_arguments, location)
+                        ExternFunction(extern_function_def):
+                            return extern_function_ref(extern_function_def, type_arguments, location)
                     else:
-                        panic("class must contain func/vars")
+                        panic("get_method_ref_from_type: class must contain func/vars")
             else:
-                panic("No class: {type_to_string(ty)}")
+                panic("get_method_ref_from_type: No class: {type_to_string(ty)}")
     else:
-        panic("No class: {type_to_string(ty)}")
+        panic("get_method_ref_from_type: No class: {type_to_string(ty)}")
 
 fn get_class_def_from_type(ty: Type) -> ClassDef:
     case ty.kind:
@@ -543,6 +537,21 @@ enum BaseType:
     Char
     Float
 
+fn base_type_to_str(base: BaseType) -> str:
+    let txt = "?"
+    case base:
+        Str:
+            txt = "STR"
+        Char:
+            txt = "CHAR"
+        Int:
+            txt = "INT"
+        Bool:
+            txt = "BOOL"
+        Float:
+            txt = "FLOAT"
+    return txt
+
 struct TypeVariable:
     unique: int
     ty: Option[Type]  # assigned type
@@ -555,11 +564,11 @@ enum TyCon:
 fn tycon_to_str(tycon: TyCon) -> str:
     case tycon:
         Struct(struct_def):
-            return "struct({node_id_to_string(struct_def.id)})"
+            return struct_def_to_str(struct_def)
         Enum(enum_def):
-            return "enum({node_id_to_string(enum_def.id)})"
+            return enum_def_to_str(enum_def)
         Class(class_def):
-            return "class({node_id_to_string(class_def.id)})"
+            return class_def_to_str(class_def)
 
 fn tycon_equal(tycon1: TyCon, tycon2: TyCon) -> bool:
     case tycon1:
@@ -662,19 +671,6 @@ fn new_module(name: str, filename: Option[str], imports: List[Import], definitio
 
 fn module_define_symbol(module: Module, name: str, definition: Definition):
     module.definitions.append(definition)
-    # case definition:
-    #     Var(variable):
-    #         module.scope.define(name, symbol: Symbol.Var(variable: variable.variable))
-    #     Function(function):
-    #         module.scope.define(name, symbol: Symbol.Function(function))
-    #     ExternFunction(external_function):
-    #         module.scope.define(name, symbol: Symbol.ExternFunction(external_function))
-    #     Enum(enum_def):
-    #         module.scope.define(name, symbol: Symbol.TypeConstructor(tycon: TyCon.Enum(enum_def)))
-    #     Struct(struct_def):
-    #         module.scope.define(name, symbol: Symbol.TypeConstructor(tycon: TyCon.Struct(struct_def)))
-    #     Class(class_def):
-    #         module.scope.define(name, symbol: Symbol.TypeConstructor(tycon: TyCon.Class(class_def)))
 
 fn import_self(modname: str, location: Location) -> Import:
     let i = Import:
@@ -707,12 +703,18 @@ struct ExternFunctionDef:
     info: FunctionInfo
     location: Location
 
+fn extern_function_def_to_str(extern_function_def: ExternFunctionDef) -> str:
+    return "extern-function:{extern_function_def.name}"
+
 fn extern_function_def(modname: str, name: str, type_parameters: List[TypeParameter], parameter_types: List[ParameterType], return_type: Type, location: Location) -> ExternFunctionDef:
     let info = FunctionInfo(no_return: false, return_type, except_type: void_type())
     return ExternFunctionDef(modname, name, type_parameters, parameter_types, info, location)
 
 fn get_extern_function_type(extern_function_def: ExternFunctionDef, type_arguments: List[Type]) -> Type:
     return get_function_type3(type_parameters: extern_function_def.type_parameters, type_arguments, parameter_types: extern_function_def.parameter_types, info: extern_function_def.info)
+
+fn get_extern_function_type5(extern_function_def: ExternFunctionDef) -> Type:
+    return function_type(parameter_types: extern_function_def.parameter_types, info: extern_function_def.info)
 
 class Scope:
     var symbols: Dictionary[Symbol] = Dictionary()
@@ -748,15 +750,15 @@ fn symbol_to_str(symbol: Symbol) -> str:
     case symbol:
         Mod(m):
             return "mod:{m.name}"
-        Function(f):
-            return "function:{node_id_to_string(f.id)}"
-        ExternFunction(f):
-            return "extern-function:{f.name}"
+        Function(function_def):
+            return function_def_to_str(function_def)
+        ExternFunction(extern_function_def):
+            return extern_function_def_to_str(extern_function_def)
         Parameter(p):
             return "parameter:{node_id_to_string(p.id)}"
         Var(v):
             return "var:{node_id_to_string(v.id)}"
-        TypeConstructor(v):
+        TypeConstructor(t):
             return "tycon"
         Typ(t):
             return "typ"
@@ -773,10 +775,28 @@ enum Definition:
     Class(class_def: ClassDef)
     Var(var_def: VariableDef)
 
+fn definition_to_str(definition: Definition) -> str:
+    case definition:
+        Function(function_def):
+            return function_def_to_str(function_def)
+        ExternFunction(extern_function_def):
+            return extern_function_def_to_str(extern_function_def)
+        Enum(enum_def):
+            return enum_def_to_str(enum_def)
+        Struct(struct_def):
+            return struct_def_to_str(struct_def)
+        Class(class_def):
+            return class_def_to_str(class_def)
+        Var(variable_def):
+            return variable_def_to_str(variable_def)
+
 struct VariableDef:
     variable: Variable
     value: Option[Expression]
-    
+
+fn variable_def_to_str(variable_def: VariableDef) -> str:
+    return "var-def:{node_id_to_string(variable_def.variable.id)}"
+
 fn new_type_parameter(name: str, id: int, location: Location) -> TypeParameter:
     return TypeParameter(id: NodeId(name, id), location)
 
@@ -804,6 +824,12 @@ struct StructDef:
     fields: List[StructField]
     location: Location
     scope: Scope
+
+fn struct_def_to_str(struct_def: StructDef) -> str:
+    let t = "Struct"
+    if struct_def.is_union:
+        t = "Union"
+    return "{t}({node_id_to_string(struct_def.id)})"
 
 class StructBuilder:
     var nodeId: NodeId = NodeId(name: "", id: 0)
@@ -863,18 +889,35 @@ struct EnumDef:
     variants: List[EnumVariant]
     scope: Scope
 
+fn enum_def_to_str(enum_def: EnumDef) -> str:
+    return "enum({node_id_to_string(enum_def.id)})"
+
 struct EnumVariant:
     name: str
     tag_value: int
     location: Location
     payload: List[Type]
 
+fn new_class_def(id: NodeId, location: Location, type_parameters: List[TypeParameter], definitions: List[Definition]) -> ClassDef:
+    let c = ClassDef:
+        id
+        location
+        is_extern: false
+        type_parameters
+        definitions
+        scope: Scope()
+    return c
+
 struct ClassDef:
     id: NodeId
     location: Location
+    is_extern: bool
     type_parameters: List[TypeParameter]
     definitions: List[Definition]
     scope: Scope
+
+fn class_def_to_str(class_def: ClassDef) -> str:
+    return "class({node_id_to_string(class_def.id)})"
 
 fn function_def(name: str, id: int, type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
     let info = FunctionInfo:
@@ -909,6 +952,9 @@ struct FunctionDef:
     scope: Scope
     body: Statement
     location: Location
+
+fn function_def_to_str(function_def: FunctionDef) -> str:
+    return "function:{node_id_to_string(function_def.id)}"
 
 fn function_ref(function_def: FunctionDef, type_arguments: List[Type], location: Location) -> Expression:
     let kind = ExpressionKind.FunctionRef(function_def, type_arguments)
@@ -1208,8 +1254,7 @@ fn array_literal(values: List[Expression], location: Location) -> Expression:
 fn array_literal2(value: Expression, size: Expression, location: Location) -> Expression:
     return Expression(kind: ExpressionKind.ArrayLiteral2(value, size), ty: undefined_type(), location)
 
-fn extern_function_ref(extern_function_def: ExternFunctionDef, location: Location) -> Expression:
-    let type_arguments: List[Type] = List()
+fn extern_function_ref(extern_function_def: ExternFunctionDef, type_arguments: List[Type], location: Location) -> Expression:
     return Expression(kind: ExpressionKind.ExternFunctionRef(extern_function_def, type_arguments), ty: undefined_type(), location)
 
 fn load_symbol(symbol: Symbol, ty: Type, location: Location) -> Expression:
@@ -1394,30 +1439,21 @@ class AstPrinter:
 fn print_ast_definition(printer: AstPrinter, definition: Definition, phase: VisitPhase):
     case phase:
         Pre:
+            printer.print2(txt: definition_to_str(definition))
             case definition:
-                Function(func):
-                    printer.print2(txt: "Func: {node_id_to_string(func.id)}")
-                ExternFunction(efunc):
-                    printer.print2(txt: "Extern func: {efunc.name}")
                 Struct(struct_def):
-                    let t = "Struct"
-                    if struct_def.is_union:
-                        t = "Union"
-                    printer.print2(txt: "{t}: {node_id_to_string(struct_def.id)}")
                     for type_parameter in struct_def.type_parameters:
                         printer.print2(txt: "- TP {node_id_to_string(type_parameter.id)}")
                     for field in struct_def.fields:
                         printer.print2(txt: "- FIELD {field.name}")
                 Enum(enum_def):
-                    printer.print2(txt: "Enum: {node_id_to_string(enum_def.id)}")
                     for type_parameter in enum_def.type_parameters:
                         printer.print2(txt: "- TP {node_id_to_string(type_parameter.id)}")
                 Class(class_def):
-                    printer.print2(txt: "Class: {node_id_to_string(class_def.id)}")
                     for type_parameter in class_def.type_parameters:
                         printer.print2(txt: "- TP {node_id_to_string(type_parameter.id)}")
-                Var(variable_def):
-                    printer.print2(txt: "Var: {node_id_to_string(variable_def.variable.id)}")
+            else:
+                pass
             printer.indent()
         Post:
             printer.dedent()

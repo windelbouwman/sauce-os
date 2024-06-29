@@ -156,17 +156,17 @@ class JsonBuilder:
     fn begin_object():
         m_object_stack.append(JsonObjectBuilder())
     
-    fn add_attribute(name: str, value: JsonValue):
-        m_object_stack.last().add_attribute(name, value)
+    fn add_attribute(attr: str, value: JsonValue):
+        m_object_stack.last().add_attribute(attr, value)
 
-    fn add_boolean_attribute(name: str, value: bool):
-        add_attribute(name, value: JsonValue.Bool(value))
+    fn add_boolean_attribute(attr: str, value: bool):
+        add_attribute(attr, value: JsonValue.Bool(value))
 
-    fn add_text_attribute(name: str, text: str):
-        add_attribute(name, value: JsonValue.String(text))
+    fn add_text_attribute(attr: str, text: str):
+        add_attribute(attr, value: JsonValue.String(text))
 
-    fn add_integer_attribute(name: str, value: int):
-        add_attribute(name, value: JsonValue.Integer(value))
+    fn add_integer_attribute(attr: str, value: int):
+        add_attribute(attr, value: JsonValue.Integer(value))
 
     fn end_object() -> JsonValue:
         let builder = m_object_stack.pop_last()
@@ -177,10 +177,10 @@ class JsonBuilder:
         let value = end_object()
         add_element(value)
 
-    fn end_object_as_attribute(name: str):
+    fn end_object_as_attribute(attr: str):
         # Complete object creation, and append to current array
         let value = end_object()
-        add_attribute(name, value)
+        add_attribute(attr, value)
 
     fn begin_array():
         m_array_stack.append(JsonArrayBuilder())
@@ -192,16 +192,16 @@ class JsonBuilder:
         let builder = m_array_stack.pop_last()
         return builder.finish()
 
-    fn end_array_as_attribute(name: str):
+    fn end_array_as_attribute(attr: str):
         let array_obj = end_array()
-        add_attribute(name, value: array_obj)
+        add_attribute(attr, value: array_obj)
 
 
 class JsonObjectBuilder:
     var m_attributes: List[KeyValue] = List()
 
-    fn add_attribute(name: str, value: JsonValue):
-        m_attributes.append(KeyValue(key: name, value))
+    fn add_attribute(attr: str, value: JsonValue):
+        m_attributes.append(KeyValue(key: attr, value))
 
     fn finish() -> JsonValue:
         return JsonValue.Object(m_attributes)

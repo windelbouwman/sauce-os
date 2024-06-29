@@ -1,7 +1,8 @@
 """ Lexical analysis.
 """
 
-from typing import Iterable
+from typing import Iterable, Any
+from dataclasses import dataclass
 from .errors import ParseError
 from .location import Location, Position
 import logging
@@ -10,14 +11,11 @@ import re
 logger = logging.getLogger("lexer")
 
 
+@dataclass
 class Token:
-    def __init__(self, ty: str, value, location: Location):
-        self.ty = ty
-        self.value = value
-        self.location = location
-
-    def __repr__(self):
-        return f"TOK(ty={self.ty}, val={self.value},loc={self.location})"
+    ty: str
+    value: Any
+    location: "Location"
 
 
 def detect_indentations(tokens: Iterable[Token]):
@@ -80,37 +78,37 @@ def tokenize(code: str | tuple[Location, str]):
     ]
 
     keywords = {
-        "and": "KW_AND",
-        "break": "KW_BREAK",
-        "case": "KW_CASE",
-        "class": "KW_CLASS",
-        "continue": "KW_CONTINUE",
-        "else": "KW_ELSE",
-        "elif": "KW_ELIF",
-        "enum": "KW_ENUM",
-        "except": "KW_EXCEPT",
-        "extern": "KW_EXTERN",
-        "fn": "KW_FN",
-        "for": "KW_FOR",
-        "from": "KW_FROM",
-        "if": "KW_IF",
-        "import": "KW_IMPORT",
-        "in": "KW_IN",
-        "let": "KW_LET",
-        "loop": "KW_LOOP",
-        "mut": "KW_MUT",
-        "not": "KW_NOT",
-        "or": "KW_OR",
-        "pass": "KW_PASS",
-        "pub": "KW_PUB",
-        "raise": "KW_RAISE",
-        "return": "KW_RETURN",
-        "struct": "KW_STRUCT",
-        "switch": "KW_SWITCH",
-        "try": "KW_TRY",
-        "type": "KW_TYPE",
-        "var": "KW_VAR",
-        "while": "KW_WHILE",
+        "and",
+        "break",
+        "case",
+        "class",
+        "continue",
+        "else",
+        "elif",
+        "enum",
+        "except",
+        "extern",
+        "fn",
+        "for",
+        "from",
+        "if",
+        "import",
+        "in",
+        "let",
+        "loop",
+        "mut",
+        "not",
+        "or",
+        "pass",
+        "pub",
+        "raise",
+        "return",
+        "struct",
+        "switch",
+        "try",
+        "type",
+        "var",
+        "while",
     }
 
     regex = "|".join(f"(?P<{name}>{pattern})" for name, pattern in token_spec)
@@ -131,42 +129,38 @@ def tokenize(code: str | tuple[Location, str]):
         col2 = mo.end() - col_start + start_col
         loc = Location(Position(row, col), Position(row, col2))
         if kind == "OP" or kind == "OP2":
-            tok = Token(value, value, loc)
+            kind = value
         elif kind == "ID":
             if value in keywords:
-                kind = keywords[value]
+                kind = "KW_" + value.upper()
             elif value == "true":
                 kind = "BOOL"
                 value = True
             elif value == "false":
                 kind = "BOOL"
                 value = False
-            tok = Token(kind, value, loc)
         elif kind == "STRING":
-            tok = Token(kind, value[1:-1], loc)
+            value = value[1:-1]
         elif kind == "CHAR":
-            tok = Token(kind, value[1:-1], loc)
+            value = value[1:-1]
         elif kind == "NUMBER":
             value = int(value)
-            tok = Token(kind, value, loc)
         elif kind == "HEXNUMBER":
+            kind = "NUMBER"
             value = int(value, 16)
-            tok = Token("NUMBER", value, loc)
         elif kind == "BINNUMBER":
+            kind = "NUMBER"
             value = int(value, 2)
-            tok = Token("NUMBER", value, loc)
         elif kind == "FNUMBER":
             value = float(value)
-            tok = Token(kind, value, loc)
         elif kind == "SPACE":
-            tok = Token(kind, value, loc)
+            pass
         elif kind == "NEWLINE":
-            tok = Token(kind, value, loc)
             col_start = mo.end()
             row += 1
         elif kind == "COMMENT":
             # Register line comment as newline!
-            tok = Token("NEWLINE", value, loc)
+            kind = "NEWLINE"
             col_start = mo.end()
             row += 1
         elif kind == "OTHER":
@@ -179,6 +173,7 @@ def tokenize(code: str | tuple[Location, str]):
             raise NotImplementedError(kind)
 
         # logger.debug(f'Got token: {tok}')
+        tok = Token(kind, value, loc)
         yield tok
 
     end_loc = Location(Position(row, 1), Position(row, 1))

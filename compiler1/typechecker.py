@@ -23,6 +23,8 @@ class TypeChecker(BasePass):
         self.finish("Type check OK.")
 
     def visit_definition(self, definition: ast.Definition):
+        self._was_error = False
+
         if isinstance(definition, ast.FunctionDef):
             logger.debug(f"Checking function '{definition.id}'")
             assert not self._function
@@ -48,8 +50,10 @@ class TypeChecker(BasePass):
                 raise NotImplementedError(str(definition))
 
     def visit_statement(self, statement: ast.Statement):
+        if self._was_error:
+            return
+
         kind = statement.kind
-        self._was_error = False
 
         # Handle special cases:
         if isinstance(kind, ast.CaseStatement):
@@ -299,6 +303,8 @@ class TypeChecker(BasePass):
             self.error(expression.location, "Unexpected type")
         elif isinstance(kind, ast.GenericLiteral):
             self.error(expression.location, "Unexpected generic")
+        elif isinstance(kind, ast.SemiEnumLiteral):
+            self.error(expression.location, "Unexpected enum variant constructor")
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
             if isinstance(obj, ast.Variable):

@@ -24,7 +24,7 @@ fn store_symbol_table(module_set: ast.ModuleSet, filename: str):
     let saver = SymbolSaver()
 
     saver.ser.begin_object()
-    saver.ser.add_text_attribute(name: "compiler-version", text: "2024")
+    saver.ser.add_text_attribute(attr: "compiler-version", text: "2024")
     saver.ser.begin_array()
     for module in module_set.modules:
         # ast.visit_module(visitor, module)
@@ -34,7 +34,7 @@ fn store_symbol_table(module_set: ast.ModuleSet, filename: str):
         
         saver.save_module(module)
     
-    saver.ser.end_array_as_attribute(name: "modules")
+    saver.ser.end_array_as_attribute(attr: "modules")
     let obj = saver.ser.end_object()
     write_json_to_file(filename, obj)
 
@@ -43,59 +43,69 @@ class SymbolSaver:
 
     fn save_module(module: ast.Module):
         ser.begin_object()
-        ser.add_text_attribute(name: "name", text: module.name)
+        ser.add_text_attribute(attr: "name", text: module.name)
         ser.begin_array()
         for definition in module.definitions:
-            case definition:
-                Function(function_def):
-                    save_function_def(function_def)
-                Struct(struct_def):
-                    save_struct_def(struct_def)
-                Class(class_def):
-                    save_class_def(class_def)
-                Enum(enum_def):
-                    save_enum_def(enum_def)
-                ExternFunction(extern_function_def):
-                    save_extern_function_def(extern_function_def)
-                Var(var_def):
-                    log_error("TODO: var def")
-        ser.end_array_as_attribute(name: "definitions")
+            save_definition(definition)
+        ser.end_array_as_attribute(attr: "definitions")
         ser.end_object_as_element()
+    
+    fn save_definition(definition: ast.Definition):
+        ser.begin_object()
+        case definition:
+            Function(function_def):
+                save_function_def(function_def)
+            Struct(struct_def):
+                save_struct_def(struct_def)
+            Class(class_def):
+                save_class_def(class_def)
+            Enum(enum_def):
+                save_enum_def(enum_def)
+            ExternFunction(extern_function_def):
+                save_extern_function_def(extern_function_def)
+            Var(var_def):
+                save_var_def(var_def)
+        ser.end_object_as_element()
+
+    fn save_var_def(var_def: ast.VariableDef):
+        log_debug("var-def: {ast.node_id_to_string(var_def.variable.id)}")
+        ser.add_text_attribute(attr: "kind", text: "variable")
+        save_id(id: var_def.variable.id)
+        save_type(attr: "type", ty: var_def.variable.ty)
 
     fn save_enum_def(enum_def: ast.EnumDef):
         log_debug("enum-def: {ast.node_id_to_string(enum_def.id)}")
-        ser.begin_object()
-        ser.add_text_attribute(name: "kind", text: "enum")
+        ser.add_text_attribute(attr: "kind", text: "enum")
         save_id(id: enum_def.id)
         save_type_parameters(type_parameters: enum_def.type_parameters)
 
         ser.begin_array()
         for variant in enum_def.variants:
             ser.begin_object()
-            ser.add_text_attribute(name: "name", text: variant.name)
+            ser.add_text_attribute(attr: "name", text: variant.name)
             ser.begin_array()
             for payload in variant.payload:
                 ser.begin_object()
-                save_type(name: "type", ty: payload)
+                save_type(attr: "type", ty: payload)
                 ser.end_object_as_element()
-            ser.end_array_as_attribute(name: "payload")
+            ser.end_array_as_attribute(attr: "payload")
             ser.end_object_as_element()
-        ser.end_array_as_attribute(name: "variants")
-
-        ser.end_object_as_element()
+        ser.end_array_as_attribute(attr: "variants")
 
     fn save_class_def(class_def: ast.ClassDef):
-        log_debug("   class-def: {ast.node_id_to_string(class_def.id)}")
-        ser.begin_object()
-        ser.add_text_attribute(name: "kind", text: "class")
+        log_debug("Saving meta-info for class-def: {ast.node_id_to_string(class_def.id)}")
+        ser.add_text_attribute(attr: "kind", text: "class")
         save_id(id: class_def.id)
         save_type_parameters(type_parameters: class_def.type_parameters)
-        ser.end_object_as_element()
+
+        ser.begin_array()
+        for definition in class_def.definitions:
+            save_definition(definition)
+        ser.end_array_as_attribute(attr: "definitions")
 
     fn save_function_def(function_def: ast.FunctionDef):
         log_debug("Saving meta-info for func-def: {ast.node_id_to_string(function_def.id)}")
-        ser.begin_object()
-        ser.add_text_attribute(name: "kind", text: "function")
+        ser.add_text_attribute(attr: "kind", text: "function")
         save_id(id: function_def.id)
         save_type_parameters(type_parameters: function_def.type_parameters)
 
@@ -103,20 +113,18 @@ class SymbolSaver:
         ser.begin_array()
         for parameter_def in function_def.parameters:
             ser.begin_object()
-            ser.add_text_attribute(name: "name", text: parameter_def.id.name)
-            save_type(name: "type", ty: parameter_def.ty)
+            ser.add_text_attribute(attr: "name", text: parameter_def.id.name)
+            save_type(attr: "type", ty: parameter_def.ty)
             ser.end_object_as_element()
-        ser.end_array_as_attribute(name: "parameters")
+        ser.end_array_as_attribute(attr: "parameters")
         save_function_info(info: function_def.info)
-        ser.end_object_as_element()
 
     fn save_extern_function_def(extern_function_def: ast.ExternFunctionDef):
         log_debug("Saving meta-info for extern-func-def: {extern_function_def.name}")
-        ser.begin_object()
-        ser.add_text_attribute(name: "kind", text: "extern-function")
-        ser.add_text_attribute(name: "modname", text: extern_function_def.modname)
-        ser.add_text_attribute(name: "name", text: extern_function_def.name)
-        ser.add_integer_attribute(name: "id", value: 0)
+        ser.add_text_attribute(attr: "kind", text: "extern-function")
+        ser.add_text_attribute(attr: "modname", text: extern_function_def.modname)
+        ser.add_text_attribute(attr: "name", text: extern_function_def.name)
+        ser.add_integer_attribute(attr: "id", value: 0)
         save_type_parameters(type_parameters: extern_function_def.type_parameters)
 
         # Parameters
@@ -125,26 +133,22 @@ class SymbolSaver:
             ser.begin_object()
             case parameter_type.label:
                 Some(text):
-                    ser.add_text_attribute(name: "name", text)
+                    ser.add_text_attribute(attr: "name", text)
                 None:
                     pass
-            save_type(name: "type", ty: parameter_type.ty)
+            save_type(attr: "type", ty: parameter_type.ty)
             ser.end_object_as_element()
-        ser.end_array_as_attribute(name: "parameters")
+        ser.end_array_as_attribute(attr: "parameters")
         save_function_info(info: extern_function_def.info)
-        ser.end_object_as_element()
-    
+
     fn save_function_info(info: ast.FunctionInfo):
-        save_type(name: "return-type", ty: info.return_type)
-        save_type(name: "except-type", ty: info.except_type)
-        ser.add_boolean_attribute(name: "no-return", value: info.no_return)
+        save_type(attr: "return-type", ty: info.return_type)
+        save_type(attr: "except-type", ty: info.except_type)
+        ser.add_boolean_attribute(attr: "no-return", value: info.no_return)
 
     fn save_struct_def(struct_def: ast.StructDef):
         log_debug("Saving meta-info for struct-def: {ast.node_id_to_string(struct_def.id)}")
-        ser.begin_object()
-
-        # Name:
-        ser.add_text_attribute(name: "kind", text: "struct")
+        ser.add_text_attribute(attr: "kind", text: "struct")
         save_id(id: struct_def.id)
         save_type_parameters(type_parameters: struct_def.type_parameters)
 
@@ -152,13 +156,11 @@ class SymbolSaver:
         ser.begin_array()
         for field in struct_def.fields:
             ser.begin_object()
-            ser.add_text_attribute(name: "name", text: field.name)
-            save_type(name: "type", ty: field.ty)
+            ser.add_text_attribute(attr: "name", text: field.name)
+            save_type(attr: "type", ty: field.ty)
             ser.end_object_as_element()
             
-        ser.end_array_as_attribute(name: "fields")
-
-        ser.end_object_as_element()
+        ser.end_array_as_attribute(attr: "fields")
 
     fn save_type_parameters(type_parameters: List[ast.TypeParameter]):
         ser.begin_array()
@@ -166,35 +168,35 @@ class SymbolSaver:
             ser.begin_object()
             save_id(id: type_parameter.id)
             ser.end_object_as_element()
-        ser.end_array_as_attribute(name: "type-parameters")
+        ser.end_array_as_attribute(attr: "type-parameters")
 
-    fn save_type(name: str, ty: ast.Type):
+    fn save_type(attr: str, ty: ast.Type):
         ser.begin_object()
         if ast.is_int_type(ty):
-            ser.add_text_attribute(name: "kind", text: "int")
+            ser.add_text_attribute(attr: "kind", text: "int")
         elif ast.is_str_type(ty):
-            ser.add_text_attribute(name: "kind", text: "str")
+            ser.add_text_attribute(attr: "kind", text: "str")
         elif ast.is_float_type(ty):
-            ser.add_text_attribute(name: "kind", text: "float")
+            ser.add_text_attribute(attr: "kind", text: "float")
         elif ast.is_bool_type(ty):
-            ser.add_text_attribute(name: "kind", text: "bool")
+            ser.add_text_attribute(attr: "kind", text: "bool")
         elif ast.is_char_type(ty):
-            ser.add_text_attribute(name: "kind", text: "char")
+            ser.add_text_attribute(attr: "kind", text: "char")
         elif ast.is_void_type(ty):
-            ser.add_text_attribute(name: "kind", text: "void")
+            ser.add_text_attribute(attr: "kind", text: "void")
         elif ast.is_array_type(ty):
-            ser.add_text_attribute(name: "kind", text: "array")
+            ser.add_text_attribute(attr: "kind", text: "array")
             let element_type = ast.get_element_type_from_type(ty)
-            save_type(name: "element_type", ty: element_type)
+            save_type(attr: "element_type", ty: element_type)
             # TODO: size
             let size = 0
-            ser.add_integer_attribute(name: "size", value: size)
+            ser.add_integer_attribute(attr: "size", value: size)
         elif ast.is_type_parameter_type(ty):
-            ser.add_text_attribute(name: "kind", text: "type-parameter")
+            ser.add_text_attribute(attr: "kind", text: "type-parameter")
             let type_parameter = ast.get_type_parameter_from_type(ty)
             save_id(id: type_parameter.id)
         elif ast.is_tycon_app_type(ty):
-            ser.add_text_attribute(name: "kind", text: "app")
+            ser.add_text_attribute(attr: "kind", text: "app")
             let tycon = ast.get_tycon_from_type(ty)
             let type_arguments = ast.get_type_arguments_from_type(ty)
 
@@ -209,30 +211,30 @@ class SymbolSaver:
             ser.begin_array()
             for type_argument in type_arguments:
                 ser.begin_object()
-                save_type(name: "type", ty: type_argument)
+                save_type(attr: "type", ty: type_argument)
                 ser.end_object_as_element()
-            ser.end_array_as_attribute(name: "type-arguments")
+            ser.end_array_as_attribute(attr: "type-arguments")
         elif ast.is_function_type(ty):
-            ser.add_text_attribute(name: "kind", text: "function")
+            ser.add_text_attribute(attr: "kind", text: "function")
             let parameter_types = ast.get_parameter_types_from_type(ty)
             let return_type = ast.get_return_type_from_type(ty)
             let except_type = ast.get_except_type_from_type(ty)
             ser.begin_array()
             for parameter_type in parameter_types:
                 ser.begin_object()
-                save_type(name: "type", ty: parameter_type.ty)
+                save_type(attr: "type", ty: parameter_type.ty)
                 ser.end_object_as_element()
-            ser.end_array_as_attribute(name: "argument-types")
-            save_type(name: "return-type", ty: return_type)
-            save_type(name: "except-type", ty: except_type)
+            ser.end_array_as_attribute(attr: "argument-types")
+            save_type(attr: "return-type", ty: return_type)
+            save_type(attr: "except-type", ty: except_type)
         else:
             panic("Not-impl: {ast.type_to_string(ty)}")
             # ser.add_text_attribute(name, text: "todo")
-        ser.end_object_as_attribute(name)
+        ser.end_object_as_attribute(attr)
 
     fn save_id(id: ast.NodeId):
-        ser.add_text_attribute(name: "name", text: id.name)
-        ser.add_integer_attribute(name: "id", value: id.id)
+        ser.add_text_attribute(attr: "name", text: id.name)
+        ser.add_integer_attribute(attr: "id", value: id.id)
 
 
 fn load_symbol_table(filename: str) -> List[ast.Module]:
@@ -298,8 +300,23 @@ class SymbolLoader:
             let enum_def = load_enum_def(def_name, def_id)
             m_tycon_map.insert(key: "{enum_def.id.id}", value: ast.TyCon.Enum(enum_def))
             return ast.Definition.Enum(enum_def)
+        elif def_kind == "class":
+            let class_def = load_class_def(def_name, def_id)
+            m_tycon_map.insert(key: "{class_def.id.id}", value: ast.TyCon.Class(class_def))
+            return ast.Definition.Class(class_def)
+        elif def_kind == "variable":
+            let variable_def = load_variable_def(def_name, def_id)
+            return ast.Definition.Var(variable_def)
         else:
             panic("Not implemented definition kind: {def_kind}")
+
+    fn load_variable_def(def_name: str, def_id: int) -> ast.VariableDef:
+        let id = ast.NodeId(name: def_name, id: def_id)
+        let ty = load_type(attr: "type")
+        let location = location_default()
+        let variable = ast.Variable(id, ty, location)
+        let value = Option.None()
+        return ast.VariableDef(variable, value)
 
     fn load_function(def_name: str, def_id: int) -> ast.ExternFunctionDef:
         let type_parameters = load_type_parameters()
@@ -367,6 +384,20 @@ class SymbolLoader:
             m_des.pop_value()
 
         return ast.enum_def(name: def_name, id: def_id, location, type_parameters, variants)
+
+    fn load_class_def(def_name: str, def_id: int) -> ast.ClassDef:
+        let id = ast.NodeId(name: def_name, id: def_id)
+        let location = location_default()
+        let type_parameters = load_type_parameters()
+
+        let definitions: List[ast.Definition] = List()
+        for definition_obj in m_des.get_array_attribute(name: "definitions"):
+            m_des.push_value(value: definition_obj)
+            let definition = load_definition()
+            definitions.append(definition)
+            m_des.pop_value()
+
+        return ast.ClassDef(id, location, is_extern: true, type_parameters, definitions, scope: ast.Scope())
 
     fn load_type_parameters() -> List[ast.TypeParameter]:
         let type_parameters: List[ast.TypeParameter] = List()

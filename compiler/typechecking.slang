@@ -335,7 +335,7 @@ class TypeChecker:
             LoadSymbol(symbol):
                 panic("symbols should be resolved: {ast.symbol_to_str(symbol)}")
             Variant(ty, v):
-                panic("variants must be literals")
+                add_error(location: expression.location, message: "variants must be literals")
             Undefined:
                 panic("undefined")
             GetAttr(base, attr):
