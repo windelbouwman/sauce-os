@@ -60,6 +60,7 @@ class CGenerator2:
                         if function_def.info.no_return:
                             no_return = " __attribute__((noreturn));"
                         emit("{decl}{no_return};")
+
                     Struct(struct_def):
                         # Create struct constructor function
                         let name = gen_id(id: struct_def.id)
@@ -73,8 +74,6 @@ class CGenerator2:
                                 parts.append(gen_type(ty: field.ty, name: field.name))
                             let args = str_join(parts, sep: ", ")
                             emit("struct {name}* {name}_new({args});")
-                    ExternFunction(extern_function_def):
-                        gen_extern_function_decl(extern_function_def)
                 else:
                     pass
 
@@ -97,7 +96,8 @@ class CGenerator2:
             for definition in module.definitions:
                 case definition:
                     Function(function_def):
-                        gen_function(function_def)
+                        if option_is_some(function_def.body):
+                            gen_function(function_def)
                     Struct(struct_def):
                         gen_struct_ctors(struct_def)
                 else:
@@ -150,27 +150,8 @@ class CGenerator2:
             emit("{chr(125)}")
             emit("")
 
-    fn gen_extern_function_decl(extern_function_def: ast.ExternFunctionDef):
-        let name = "{extern_function_def.modname}_{extern_function_def.name}"
-        let parameter_parts: List[str] = List()
-        let index = 1
-        for parameter_type in extern_function_def.parameter_types:
-            let parameter_name = "param{index}"
-            parameter_parts.append(gen_type(ty: parameter_type.ty, name: parameter_name))
-            index += 1
-        let parameter_text = str_join(parts: parameter_parts, sep: ", ")
-        let return_type_text = "void"
-        if ast.is_void_type(extern_function_def.info.return_type):
-            return_type_text = "void {name}"
-        else:
-            return_type_text = gen_type(ty: extern_function_def.info.return_type, name)
-        let no_return = ""
-        if extern_function_def.info.no_return:
-            no_return = " __attribute__((noreturn))"
-        emit("{return_type_text}({parameter_text}){no_return};")
-
     fn gen_function_decl(function_def: ast.FunctionDef) -> str:
-        let name = gen_id(id: function_def.id)
+        let name = function_def.name
         let parameter_parts: List[str] = List()
         for parameter_def in function_def.parameters:
             let parameter_name = gen_id(id: parameter_def.id)
@@ -186,7 +167,7 @@ class CGenerator2:
     fn gen_function(function_def: ast.FunctionDef):
         let decl = gen_function_decl(function_def)
         emit("{decl} {chr(123)}")
-        gen_block(function_def.body)
+        gen_block(option_unwrap(function_def.body).body)
         emit("{chr(125)}")
         emit("")
     
@@ -420,14 +401,11 @@ class CGenerator2:
                 else:
                     panic("Unsupported cast to: {ast.type_to_string(ty)}")
 
-            ExternFunctionRef(extern_function_def, type_arguments):
-                return "{extern_function_def.modname}_{extern_function_def.name}"
-
             ParameterRef(parameter_def):
                 return gen_id(id: parameter_def.id)
             
             FunctionRef(function_def, type_arguments):
-                return gen_id(id: function_def.id)
+                return function_def.name
 
             VarRef(variable):
                 return gen_id(id: variable.id)

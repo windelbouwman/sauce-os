@@ -19,7 +19,9 @@ fn main() -> int:
 
     let dev: Device[int] = Device()
     let a = dev.exe()
+    print("a={a}")
     let b = dev.exe()
+    print("b={b}")
 
     return 0
 

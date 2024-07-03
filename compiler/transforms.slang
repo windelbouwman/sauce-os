@@ -22,6 +22,7 @@ fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module) ex
     log_debug("Transforming modules")
     let transformer = Transformer:
         class_rewriter: ClassRewriter(id_gen, rt_module)
+        modname: "?"
 
     let visitor = ast.Visitor[Transformer]:
         data: transformer
@@ -120,16 +121,18 @@ fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module) ex
     # Phase 7b: apply type erasure (part 2), this involves:
     # - Remove type parameters from structs and functions
     # - Remove type arguments from type applications
-    visitor.on_definition = transformer_on_definition7
+    # - Prefix names of definitions with module names
+    visitor.on_definition = transformer_on_definition7b
     visitor.on_type = transformer_on_type7
     visitor.on_statement = transformer_on_statement0
     visitor.on_expression = transformer_on_expression0
-    visitor.on_node = transformer_on_node0
+    visitor.on_node = transformer_on_node7b
     ast.visit_module_set(visitor, module_set)
 
 
 struct Transformer:
     class_rewriter: ClassRewriter
+    modname: str
 
 fn transformer_on_definition0(transformer: Transformer, definition: ast.Definition, phase: ast.VisitPhase):
     pass
@@ -147,19 +150,23 @@ fn transformer_on_definition1(transformer: Transformer, definition: ast.Definiti
     else:
         pass
 
-fn transformer_on_definition7(transformer: Transformer, definition: ast.Definition, phase: ast.VisitPhase):
+fn transformer_on_definition7b(transformer: Transformer, definition: ast.Definition, phase: ast.VisitPhase):
     case phase:
         Post:
             # Remove type parameters. They are all opaque pointers now.
             case definition:
                 Struct(struct_def):
                     struct_def.type_parameters.clear()
+                    struct_def.id.name = transformer.modname + "_" + struct_def.id.name
                 Function(function_def):
                     function_def.type_parameters.clear()
-                ExternFunction(extern_function_def):
-                    pass
+                    # Special case for main, to be able to call entry point!
+                    if function_def.name == "main":
+                        function_def.name = "main2"
+                    else:
+                        function_def.name = transformer.modname + "_" + function_def.name
                 Var(var_def):
-                    pass
+                    var_def.variable.id.name = transformer.modname + "_" + var_def.variable.id.name
             else:
                 panic("Only structs and functions supported during type erasure!")
     else:
@@ -430,6 +437,16 @@ fn transformer_on_node7(transformer: Transformer, node: ast.VisitNode, phase: as
     else:
         pass
 
+fn transformer_on_node7b(transformer: Transformer, node: ast.VisitNode, phase: ast.VisitPhase):
+    case phase:
+        Pre:
+            case node:
+                ModuleNode(module):
+                    transformer.modname = module.name
+            else:
+                pass
+    else:
+        pass
 
 class ClassRewriter:
     var ctor_map: Dictionary[ast.FunctionDef] = Dictionary()
@@ -441,7 +458,6 @@ class ClassRewriter:
     fn rewrite_class_def(class_def: ast.ClassDef):
         log_info("Rewriting class def {class_def.id.name}")
         let methods: List[ast.FunctionDef] = List()
-        let extern_methods: List[ast.ExternFunctionDef] = List()
         let builder = ast.StructBuilder()
         builder.set_name(name: class_def.id.name)
         builder.set_id(id: get_unique_id())
@@ -459,8 +475,6 @@ class ClassRewriter:
                     builder.add_field(name: var_def.variable.id.name, ty, location: var_def.variable.location)
                 Function(function_def):
                     methods.append(function_def)
-                ExternFunction(extern_function_def):
-                    extern_methods.append(extern_function_def)
             else:
                 panic("only fields and functions expected, not {ast.definition_to_str(definition)}")
 
@@ -472,9 +486,6 @@ class ClassRewriter:
         for method in methods:
             lift_method(method, class_def, struct_def)
         
-        for extern_method in extern_methods:
-            lift_extern_method(extern_method, class_def, struct_def)
-
         if class_def.is_extern:
             pass
         else:
@@ -487,27 +498,13 @@ class ClassRewriter:
             method.type_parameters.append(type_parameter)
             type_arguments.append(ast.type_parameter_ref(type_parameter))
         let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
-        method.id.name = "{class_def.id.name}_{method.id.name}"
+        method.name = "{class_def.id.name}_{method.name}"
         let this_parameter = option_unwrap(method.this_parameter)
         method.this_parameter = Option.None()
         # TODO: why does the below cause trouble?
         # ast.change_type_to(ty: this_parameter.ty, ty2: struct_type)
         method.parameters.prepend(this_parameter)
         new_definitions.append(ast.Definition.Function(method))
-
-    fn lift_extern_method(extern_method: ast.ExternFunctionDef, class_def: ast.ClassDef, struct_def: ast.StructDef):
-        let type_arguments: List[ast.Type] = List()
-        for type_parameter in class_def.type_parameters:
-            type_parameter = ast.new_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
-            extern_method.type_parameters.append(type_parameter)
-            type_arguments.append(ast.type_parameter_ref(type_parameter))
-
-        let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
-        let this_parameter_type = ast.ParameterType(label: Option.None(), ty: struct_type)
-
-        extern_method.parameter_types.prepend(this_parameter_type)
-
-        new_definitions.append(ast.Definition.ExternFunction(extern_method))
 
     fn create_constructor(class_def: ast.ClassDef, struct_def: ast.StructDef):
         # Create constructor function
@@ -542,7 +539,7 @@ class ClassRewriter:
 
         let init_literal = ast.struct_literal(ty: struct_type, values: init_values, location: class_def.location)
         let body = ast.return_statement(value: Option.Some(init_literal), location: class_def.location)
-        let ctor_func = ast.function_def(name: ctor_name, id: get_unique_id(), type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
+        let ctor_func = ast.function_def(name: ctor_name, type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
 
         # Use node-id to store constructor:
         ctor_map.insert(key: ast.node_id_to_string(class_def.id), value: ctor_func)
@@ -576,9 +573,9 @@ class ClassRewriter:
         # Get expression that loads a builtin runtime function.
         let symbol = option_unwrap(rt_module.scope.lookup(name))
         case symbol:
-            ExternFunction(extern_function_def):
+            Function(function_def):
                 let type_arguments: List[ast.Type] = List()
-                return ast.extern_function_ref(extern_function_def, type_arguments, location)
+                return ast.function_ref(function_def, type_arguments, location)
         else:
             panic("{name} must be external function")
 
@@ -839,7 +836,7 @@ class ClassRewriter:
         # Create a bridge function which takes potential opaque parameters
         # and calls the specific function with opaque types casted.
         let location = function_def.location
-        let bridge_function_name = "bridge_to_{function_def.id.name}"
+        let bridge_function_name = "X{get_unique_id()}_bridge_to_{function_def.name}"
         let type_parameters: List[ast.TypeParameter] = List()
         let parameters: List[ast.ParameterDef] = List()
         let arguments: List[ast.LabeledExpression] = List()
@@ -879,7 +876,7 @@ class ClassRewriter:
                 value = ast.cast(value, to_type: return_type2, location)
             body = ast.return_statement(value: Option.Some(value), location)
 
-        let bridge_function = ast.function_def(name: bridge_function_name, id: get_unique_id(), type_parameters, this_parameter: Option.None(), parameters, return_type: return_type2, except_type, body, location)
+        let bridge_function = ast.function_def(name: bridge_function_name, type_parameters, this_parameter: Option.None(), parameters, return_type: return_type2, except_type, body, location)
         # TODO: we could insert duplicate bridge functions.
         # TODO: check for duplicate bridge functions.
         new_definitions.append(ast.Definition.Function(bridge_function))

@@ -6,9 +6,10 @@ from datatypes import Option, option_is_some, option_unwrap
 from strlib import str_repeat
 
 class TextGenerator:
-    var indentation: int = 0
+    var m_indentation: int = 0
     var use_file: bool = false
     var outf: int = 0
+    var m_one_tab: int = 4
 
     fn begin(output_filename: Option[str]):
         if option_is_some(output_filename):
@@ -20,13 +21,13 @@ class TextGenerator:
             file_close(handle: outf)
 
     fn indent():
-        indentation += 1
+        m_indentation += 1
 
     fn dedent():
-        indentation -= 1
+        m_indentation -= 1
 
     fn emit(text?: str):
-        let indent = str_repeat(text: "   ", count: indentation)
+        let indent = str_repeat(text: " ", count: m_indentation * m_one_tab)
         let line = indent + text
         if use_file:
             file_writeln(handle: outf, line)

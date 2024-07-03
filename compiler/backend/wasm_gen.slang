@@ -12,7 +12,7 @@
 import webassembly
 import ast
 from webassembly import Instruction
-from datatypes import List, vec1, Option
+from datatypes import List, vec1, Option, option_is_none, option_is_some, option_unwrap
 from dicttype import Dictionary
 from location import location_default
 from std import print, str_len, ord
@@ -40,15 +40,16 @@ class WasmGenerator:
 
     fn gen_module_set(modules: List[ast.Module]):
         let type_parameters: List[ast.TypeParameter] = List()
-        let malloc_def = ast.extern_function_def(modname: "js", name: "malloc", type_parameters, parameter_types: vec1(ast.ParameterType(label: Option.None(), ty: ast.int_type())), return_type: ast.opaque_type(), location: location_default())
-        gen_external_function(extern_function_def: malloc_def)
+        let malloc_def = ast.extern_function_def(name: "js_malloc", type_parameters, parameters: vec1(ast.unlabeled_parameter(ty: ast.int_type())), return_type: ast.opaque_type(), location: location_default())
+        gen_external_function(function_def: malloc_def)
 
         for module in modules:
             log_info("Generating external functions {module.name}")
             for definition in module.definitions:
                 case definition:
-                    ExternFunction(extern_function_def):
-                        gen_external_function(extern_function_def)
+                    Function(function_def):
+                        if option_is_none(function_def.body):
+                            gen_external_function(function_def)
                 else:
                     pass
 
@@ -57,13 +58,14 @@ class WasmGenerator:
             for definition in module.definitions:
                 case definition:
                     Function(function_def):
-                        let key = ast.node_id_to_string(function_def.id)
-                        let funcidx = counter
-                        index_mapping.insert(key, value: funcidx)
-                        let name = function_def.id.name
-                        exports.append(webassembly.Export(name, funcidx))
+                        if option_is_some(function_def.body):
+                            let key = function_def.name
+                            let funcidx = counter
+                            index_mapping.insert(key, value: funcidx)
+                            let name = function_def.name
+                            exports.append(webassembly.Export(name, funcidx))
 
-                        counter += 1
+                            counter += 1
                 else:
                     pass
 
@@ -79,25 +81,28 @@ class WasmGenerator:
             datas
         webassembly.to_wat(module: wasm_module)
 
-    fn gen_external_function(extern_function_def: ast.ExternFunctionDef):
+    fn gen_external_function(function_def: ast.FunctionDef):
         # log_debug("extern function def: {extern_function_def.name}")
         let funcidx = imports.len()
-        index_mapping.insert(key: extern_function_def.name, value: funcidx)
-        let parameter_types = ast.get_types_from_parameter_types(extern_function_def.parameter_types)
-        let func_ty = reg_signature(parameter_types, return_type: extern_function_def.info.return_type)
-        imports.append(webassembly.Import(module: extern_function_def.modname, name: extern_function_def.name, ty: func_ty))
+        index_mapping.insert(key: function_def.name, value: funcidx)
+
+        let parameter_types: List[ast.Type] = List()
+        for parameter in function_def.parameters:
+            parameter_types.append(parameter.ty)
+
+        let func_ty = reg_signature(parameter_types, return_type: function_def.info.return_type)
+        let modname = "?"
+        imports.append(webassembly.Import(module: modname, name: function_def.name, ty: func_ty))
 
     fn gen_module(module: ast.Module):
         for definition in module.definitions:
             case definition:
-                ExternFunction(extern_function_def):
-                    pass
                 Function(function_def):
                     gen_function(function_def)
                 Struct(struct_def):
                     log_debug("Struct def: {struct_def.id.name}")
             else:
-                panic("Definition not supported")
+                panic("Definition {ast.definition_to_str(definition)} not supported")
 
     fn get_wasm_type(ty?: ast.Type) -> webassembly.ValueType:
         if ast.is_int_type(ty):
@@ -136,7 +141,7 @@ class WasmGenerator:
         return index
 
     fn gen_function(function_def: ast.FunctionDef):
-        log_info("Generating code for function: {function_def.id.name}")
+        log_info("Generating code for: {ast.function_def_to_str(function_def)}")
         code = List()
         local_variables = List()
         n_parameters = 0
@@ -146,10 +151,11 @@ class WasmGenerator:
             let x = create_parameter(id: parameter.id, ty: parameter.ty)
             parameter_types.append(parameter.ty)
         let func_ty = reg_signature(parameter_types, return_type: function_def.info.return_type)
-        gen_statement(function_def.body)
+        let body = option_unwrap(function_def.body).body
+        gen_statement(body)
 
         # Introduce an unreachable instruction, when we cannot reach this point.
-        if function_def.body.is_terminator:
+        if body.is_terminator:
             emit(Instruction.ctrl_unreachable())
 
         let f = webassembly.Function:
@@ -320,13 +326,8 @@ class WasmGenerator:
                 let funcidx = 0
 
                 case call.callee.kind:
-                    ExternFunctionRef(external_function_def, type_arguments):
-                        let key = external_function_def.name
-                        funcidx = index_mapping.get(key)
-
                     FunctionRef(function_def, type_arguments):
-                        # print("call {function_def.id.name}")
-                        let key = ast.node_id_to_string(function_def.id)
+                        let key = function_def.name
                         funcidx = index_mapping.get(key)
                 else:
                     gen_expression(call.callee)
@@ -345,9 +346,6 @@ class WasmGenerator:
                 gen_expression(base)
                 gen_load(offset, ty: expression.ty)
 
-            ExternFunctionRef(external_function, type_arguments):
-                panic("ext -> {external_function.name}")
-
             ParameterRef(parameter_def):
                 let localidx = get_local_index(id: parameter_def.id)
                 emit(Instruction.local_get(localidx))
@@ -359,7 +357,7 @@ class WasmGenerator:
             FunctionRef(function_def, type_args):
                 # TODO: figure out index?
                 emit(Instruction.i32_const(1337))
-                panic("FN {function_def.id.name}")
+                panic("FN {function_def.name}")
         else:
             panic("Not implemented: {ast.expression_to_string(expression)}")
 

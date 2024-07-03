@@ -148,9 +148,6 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                             let type_arguments = newop.new_type_arguments(type_parameters: function_def.type_parameters)
                             expression.kind = ast.ExpressionKind.FunctionRef(function_def, type_arguments)
 
-                        ExternFunction(extern_function_def):
-                            let type_arguments = newop.new_type_arguments(type_parameters: extern_function_def.type_parameters)
-                            expression.kind = ast.ExpressionKind.ExternFunctionRef(extern_function_def, type_arguments)
                     else:
                         panic("All symbols must be handled by now.")
             else:

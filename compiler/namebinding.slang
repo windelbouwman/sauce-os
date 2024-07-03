@@ -68,16 +68,18 @@ fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: Scope
 fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
     # try to retrieve a scope, if we have one
     case definition:
-        Function(func):
-            return Option.Some(func.scope)
-        ExternFunction(efunc):
-            return Option.None()
-        Enum(e):
-            return Option.Some(e.scope)
-        Struct(s):
-            return Option.Some(s.scope)
-        Class(c):
-            return Option.Some(c.scope)
+        Function(function_def):
+            case function_def.body:
+                Some(scoped_block):
+                    return Option.Some(scoped_block.scope)
+                None:
+                    return Option.None()
+        Enum(enum_def):
+            return Option.Some(enum_def.scope)
+        Struct(struct_def):
+            return Option.Some(struct_def.scope)
+        Class(class_def):
+            return Option.Some(class_def.scope)
         Var(v):
             return Option.None()
 
@@ -86,19 +88,21 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
         Pre:
             case definition:
                 Function(function_def):
-                    filler.define(name: function_def.id.name, symbol: ast.Symbol.Function(function_def), location: function_def.location)
-                    filler.enter_scope(scope: function_def.scope)
-                    for type_parameter in function_def.type_parameters:
-                        filler.define_type_parameter(type_parameter)
-                    for parameter_def in function_def.parameters:
-                        filler.define_parameter(parameter_def)
-                    case function_def.this_parameter:
-                        Some(this_parameter2):
-                            filler.define_parameter(parameter_def: this_parameter2)
+                    filler.define(name: function_def.name, symbol: ast.Symbol.Function(function_def), location: function_def.location)
+                    case function_def.body:
+                        Some(scoped_block):
+                            filler.enter_scope(scope: scoped_block.scope)
+                            for type_parameter in function_def.type_parameters:
+                                filler.define_type_parameter(type_parameter)
+                            for parameter_def in function_def.parameters:
+                                filler.define_parameter(parameter_def)
+                            case function_def.this_parameter:
+                                Some(this_parameter2):
+                                    filler.define_parameter(parameter_def: this_parameter2)
+                                None:
+                                    pass
                         None:
                             pass
-                ExternFunction(extern_function_def):
-                    filler.define(name: extern_function_def.name, symbol: ast.Symbol.ExternFunction(extern_function_def), location: extern_function_def.location)
                 Enum(enum_def):
                     filler.define(name: enum_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)), location: enum_def.location)
                     filler.enter_scope(scope: enum_def.scope)

@@ -100,9 +100,13 @@ class TypeChecker:
 
     fn check_function_def(function_def: ast.FunctionDef):
         # Check if we return a value, if we need to return a value
-        if not ast.is_void_type(function_def.info.return_type):
-            if not function_def.body.is_terminator:
-                add_error(location: function_def.location, message: "Control reaches end of non-void function")
+        case function_def.body:
+            Some(scoped_block):
+                if not ast.is_void_type(function_def.info.return_type):
+                    if not scoped_block.body.is_terminator:
+                        add_error(location: function_def.location, message: "Control reaches end of non-void function")
+            None:
+                pass
 
     fn check_statement_mid(statement: ast.Statement):
         case statement.kind:
@@ -283,8 +287,6 @@ class TypeChecker:
                         check_may_raise_exception(ty: except_type, location: expression.location)
                 else:
                     add_error(location: expression.location, message: "Cannot call non-function type {ast.type_to_string(call.callee.ty)}")
-            ExternFunctionRef(extern_function_def, type_arguments):
-                expression.ty = ast.get_extern_function_type(extern_function_def, type_arguments)
             ParameterRef(parameter_def):
                 # TODO: clone type?
                 # log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {ast.type_to_string(parameter.ty)}")

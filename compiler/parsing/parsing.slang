@@ -70,8 +70,8 @@ class Parser:
                     let func_def = parse_func_def(this_parameter: Option.None())
                     definitions.append(ast.Definition.Function(func_def))
                 KwExtern:
-                    let extern_func_def = parse_extern_func_def()
-                    definitions.append(ast.Definition.ExternFunction(extern_func_def))
+                    let func_def = parse_extern_func_def()
+                    definitions.append(ast.Definition.Function(func_def))
                 KwEnum:
                     let enum_def = parse_enum_def(location: tok.location)
                     definitions.append(ast.Definition.Enum(enum_def))
@@ -266,11 +266,11 @@ class Parser:
         # Body
         let body = parse_block()
 
-        let function_def = ast.function_def(name: name_at.name, id: new_id(), type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
+        let function_def = ast.function_def(name: name_at.name, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
         function_def.info.no_return = info.no_return
         return function_def
     
-    fn parse_extern_func_def() -> ast.ExternFunctionDef except CompilationError:
+    fn parse_extern_func_def() -> ast.FunctionDef except CompilationError:
         let tok = get_token()
         case tok.kind:
             KwFn:
@@ -284,11 +284,9 @@ class Parser:
         let info = parse_function_info()
         parse_newline()
 
-        let parameter_types = ast.get_parameter_types_from_parameters(parameters)
-
-        let extern_function_def = ast.extern_function_def(modname: option_unwrap(modname), name, type_parameters, parameter_types, return_type: info.return_type, location: name_at.location)
-        extern_function_def.info.no_return = info.no_return
-        return extern_function_def
+        let function_def = ast.extern_function_def(name, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
+        function_def.info.no_return = info.no_return
+        return function_def
 
     fn parse_parameters() -> List[ast.ParameterDef] except CompilationError:
         let parameters: List[ast.ParameterDef] = List()

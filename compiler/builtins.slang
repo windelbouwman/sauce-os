@@ -9,39 +9,35 @@ fn get_rt_module() -> ast.Module:
     let type_parameters: List[ast.TypeParameter] = List()
 
     let int_to_str = ast.extern_function_def:
-        modname
         name: "int_to_str"
         type_parameters
-        parameter_types: vec1(ast.ParameterType(label: Option.None(), ty: ast.int_type()))
+        parameters: vec1(ast.unlabeled_parameter(ty: ast.int_type()))
         return_type: ast.str_type()
         location: location_default()
-    ast.module_define_symbol(module, name: "int_to_str", definition: ast.Definition.ExternFunction(int_to_str))
+    ast.module_define_function(module, function_def: int_to_str)
 
     let char_to_str = ast.extern_function_def:
-        modname
         name: "char_to_str"
         type_parameters
-        parameter_types: vec1(ast.ParameterType(label: Option.None(), ty: ast.char_type()))
+        parameters: vec1(ast.unlabeled_parameter(ty: ast.char_type()))
         return_type: ast.str_type()
         location: location_default()
-    ast.module_define_symbol(module, name: "char_to_str", definition: ast.Definition.ExternFunction(char_to_str))
+    ast.module_define_function(module, function_def: char_to_str)
 
     let str_concat = ast.extern_function_def:
-        modname
         name: "str_concat"
         type_parameters
-        parameter_types: vec2(ast.ParameterType(label: Option.None(), ty: ast.str_type()), ast.ParameterType(label: Option.None(), ty: ast.str_type()))
+        parameters: vec2(ast.unlabeled_parameter(ty: ast.str_type()), ast.unlabeled_parameter(ty: ast.str_type()))
         return_type: ast.str_type()
         location: location_default()
-    ast.module_define_symbol(module, name: "str_concat", definition: ast.Definition.ExternFunction(str_concat))
+    ast.module_define_function(module, function_def: str_concat)
 
     let str_compare = ast.extern_function_def:
-        modname
         name: "str_compare"
         type_parameters
-        parameter_types: vec2(ast.ParameterType(label: Option.None(), ty: ast.str_type()), ast.ParameterType(label: Option.None(), ty: ast.str_type()))
+        parameters: vec2(ast.unlabeled_parameter(ty: ast.str_type()), ast.unlabeled_parameter(ty: ast.str_type()))
         return_type: ast.bool_type()
         location: location_default()
-    ast.module_define_symbol(module, name: "str_compare", definition: ast.Definition.ExternFunction(str_compare))
+    ast.module_define_function(module, function_def: str_compare)
 
     return module

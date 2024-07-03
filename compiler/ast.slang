@@ -447,8 +447,6 @@ fn get_field_type(ty: Type, attr: str) -> Option[Type]:
                             case sym:
                                 Function(function_def):
                                     return Option.Some(subst(ty: get_function_type(function_def), m))
-                                ExternFunction(extern_function_def):
-                                    return Option.Some(subst(ty: get_extern_function_type5(extern_function_def), m))
                                 Var(v):
                                     return Option.Some(subst(ty: v.ty, m))
                             else:
@@ -478,8 +476,6 @@ fn get_method_ref_from_type(ty: Type, attr: str, location: Location) -> Expressi
                     case sym:
                         Function(function_def):
                             return function_ref(function_def, type_arguments, location)
-                        ExternFunction(extern_function_def):
-                            return extern_function_ref(extern_function_def, type_arguments, location)
                     else:
                         panic("get_method_ref_from_type: class must contain func/vars")
             else:
@@ -672,6 +668,9 @@ fn new_module(name: str, filename: Option[str], imports: List[Import], definitio
 fn module_define_symbol(module: Module, name: str, definition: Definition):
     module.definitions.append(definition)
 
+fn module_define_function(module: Module, function_def: FunctionDef):
+    module_define_symbol(module, name: function_def.name, definition: Definition.Function(function_def))
+
 fn import_self(modname: str, location: Location) -> Import:
     let i = Import:
         modname: modname
@@ -695,26 +694,22 @@ enum ImportKind:
     Self
     Names(names: List[str])
 
-struct ExternFunctionDef:
-    modname: str
-    name: str
-    type_parameters: List[TypeParameter]
-    parameter_types: List[ParameterType]
-    info: FunctionInfo
-    location: Location
+fn extern_function_def(name: str, type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
+    let info = FunctionInfo:
+        no_return: false
+        return_type
+        except_type: void_type()
 
-fn extern_function_def_to_str(extern_function_def: ExternFunctionDef) -> str:
-    return "extern-function:{extern_function_def.name}"
-
-fn extern_function_def(modname: str, name: str, type_parameters: List[TypeParameter], parameter_types: List[ParameterType], return_type: Type, location: Location) -> ExternFunctionDef:
-    let info = FunctionInfo(no_return: false, return_type, except_type: void_type())
-    return ExternFunctionDef(modname, name, type_parameters, parameter_types, info, location)
-
-fn get_extern_function_type(extern_function_def: ExternFunctionDef, type_arguments: List[Type]) -> Type:
-    return get_function_type3(type_parameters: extern_function_def.type_parameters, type_arguments, parameter_types: extern_function_def.parameter_types, info: extern_function_def.info)
-
-fn get_extern_function_type5(extern_function_def: ExternFunctionDef) -> Type:
-    return function_type(parameter_types: extern_function_def.parameter_types, info: extern_function_def.info)
+    let f = FunctionDef:
+        name
+        is_pub: true
+        info
+        type_parameters
+        this_parameter: Option.None()
+        parameters
+        location
+        body: Option.None()
+    return f
 
 class Scope:
     var symbols: Dictionary[Symbol] = Dictionary()
@@ -738,7 +733,6 @@ class Scope:
 enum Symbol:
     Mod(module: Module)
     Function(function_def: FunctionDef)
-    ExternFunction(extern_function_def: ExternFunctionDef)
     Parameter(parameter_def: ParameterDef)
     Var(variable: Variable)
     TypeConstructor(tycon: TyCon)
@@ -752,8 +746,6 @@ fn symbol_to_str(symbol: Symbol) -> str:
             return "mod:{m.name}"
         Function(function_def):
             return function_def_to_str(function_def)
-        ExternFunction(extern_function_def):
-            return extern_function_def_to_str(extern_function_def)
         Parameter(p):
             return "parameter:{node_id_to_string(p.id)}"
         Var(v):
@@ -769,7 +761,6 @@ fn symbol_to_str(symbol: Symbol) -> str:
 
 enum Definition:
     Function(function_def: FunctionDef)
-    ExternFunction(extern_function_def: ExternFunctionDef)
     Enum(enum_def: EnumDef)
     Struct(struct_def: StructDef)
     Class(class_def: ClassDef)
@@ -779,8 +770,6 @@ fn definition_to_str(definition: Definition) -> str:
     case definition:
         Function(function_def):
             return function_def_to_str(function_def)
-        ExternFunction(extern_function_def):
-            return extern_function_def_to_str(extern_function_def)
         Enum(enum_def):
             return enum_def_to_str(enum_def)
         Struct(struct_def):
@@ -919,22 +908,21 @@ struct ClassDef:
 fn class_def_to_str(class_def: ClassDef) -> str:
     return "class({node_id_to_string(class_def.id)})"
 
-fn function_def(name: str, id: int, type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
+fn function_def(name: str, type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
     let info = FunctionInfo:
         no_return: false
         return_type
         except_type
 
     let f = FunctionDef:
-        id: NodeId(name, id)
+        name
         is_pub: true
         info
         type_parameters
         this_parameter
         parameters
         location
-        scope: Scope()
-        body
+        body: Option.Some(scoped_block(body))
     return f
 
 struct FunctionInfo:
@@ -943,18 +931,19 @@ struct FunctionInfo:
     except_type: Type
 
 struct FunctionDef:
-    id: NodeId
+    # modname: str
+    name: str
+    # id: NodeId
     is_pub: bool
     info: FunctionInfo
     type_parameters: List[TypeParameter]
     this_parameter: Option[ParameterDef]
     parameters: List[ParameterDef]
-    scope: Scope
-    body: Statement
+    body: Option[ScopedBlock]
     location: Location
 
 fn function_def_to_str(function_def: FunctionDef) -> str:
-    return "function:{node_id_to_string(function_def.id)}"
+    return "function:{function_def.name}"
 
 fn function_ref(function_def: FunctionDef, type_arguments: List[Type], location: Location) -> Expression:
     let kind = ExpressionKind.FunctionRef(function_def, type_arguments)
@@ -1002,6 +991,12 @@ struct ParameterDef:
     label_is_optional: bool
     ty: Type
     location: Location
+
+fn unlabeled_parameter(ty: Type) -> ParameterDef:
+    return parameter_def(name: "?", id: 0, label_is_optional: true, ty, location: location_default())
+
+fn labeled_parameter(name: str, ty: Type) -> ParameterDef:
+    return parameter_def(name, id: 0, label_is_optional: false, ty, location: location_default())
 
 fn variable(name: str, id: int, ty: Type, location: Location) -> Variable:
     return Variable(id: NodeId(name, id), ty, location)
@@ -1217,7 +1212,6 @@ enum ExpressionKind:
     VarRef(variable: Variable)
     FunctionRef(function: FunctionDef, type_arguments: List[Type])
     ParameterRef(parameter: ParameterDef)
-    ExternFunctionRef(extern_function: ExternFunctionDef, type_arguments: List[Type])
     LoadSymbol(symbol: Symbol)
     IntLiteral(value: int)
     FloatLiteral(value: float)
@@ -1253,9 +1247,6 @@ fn array_literal(values: List[Expression], location: Location) -> Expression:
 
 fn array_literal2(value: Expression, size: Expression, location: Location) -> Expression:
     return Expression(kind: ExpressionKind.ArrayLiteral2(value, size), ty: undefined_type(), location)
-
-fn extern_function_ref(extern_function_def: ExternFunctionDef, type_arguments: List[Type], location: Location) -> Expression:
-    return Expression(kind: ExpressionKind.ExternFunctionRef(extern_function_def, type_arguments), ty: undefined_type(), location)
 
 fn load_symbol(symbol: Symbol, ty: Type, location: Location) -> Expression:
     return Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
@@ -1566,11 +1557,7 @@ fn expression_to_string(expression?: Expression) -> str:
         VarRef(v):
             txt = "VAR-REF({node_id_to_string(v.id)})"
         FunctionRef(function, type_arguments):
-            txt = "FN-{node_id_to_string(function.id)}"
-            if not type_arguments.is_empty():
-                txt = txt + types_to_string(typs: type_arguments)
-        ExternFunctionRef(extern_function_def, type_arguments):
-            txt = "extern-function:{extern_function_def.name}"
+            txt = "FN-{function.name}"
             if not type_arguments.is_empty():
                 txt = txt + types_to_string(typs: type_arguments)
         ParameterRef(parameter_def):
@@ -1682,6 +1669,7 @@ enum VisitNode:
 fn visit_module_set[T](visitor: Visitor[T], module_set: ModuleSet):
     for module in module_set.modules:
         let module_node = VisitNode.ModuleNode(module)
+        visitor.on_node(data: visitor.data, module_node, phase: VisitPhase.Pre())
         visit_module(visitor, module)
         visitor.on_node(data: visitor.data, module_node, phase: VisitPhase.Post())
 
@@ -1704,12 +1692,11 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
                     pass
             visit_type(visitor, ty: function_def.info.return_type)
             visit_type(visitor, ty: function_def.info.except_type)
-            visit_statement(visitor, statement: function_def.body)
-        ExternFunction(extern_function_def):
-            for parameter_type in extern_function_def.parameter_types:
-                visit_type(visitor, ty: parameter_type.ty)
-            visit_type(visitor, ty: extern_function_def.info.return_type)
-            visit_type(visitor, ty: extern_function_def.info.except_type)
+            case function_def.body:
+                Some(scoped_block):
+                    visit_statement(visitor, statement: scoped_block.body)
+                None:
+                    pass
         Enum(enum_def):
             for variant in enum_def.variants:
                 for p in variant.payload:

@@ -96,14 +96,20 @@ class PyGenerator:
                 for parameter in function_def.parameters:
                     parameter_names.append(get_id(id: parameter.id))
                 let params = str_join(parts: parameter_names, sep: ", ")
-                emit("def {get_id(id: function_def.id)}({params}):")
-                if str_len(text: global_header) > 0:
-                    indent()
-                    emit(global_header)
-                    dedent()
-                gen_block(function_def.body)
-                emit("")
-                emit("")
+                
+                case function_def.body:
+                    Some(scoped_block):
+                        emit("def {function_def.name}({params}):")
+                        if str_len(text: global_header) > 0:
+                            indent()
+                            emit(global_header)
+                            dedent()
+                        gen_block(scoped_block.body)
+                        emit("")
+                        emit("")
+                    None:
+                        emit("# Using external function: {function_def.name}")
+
             Struct(struct_def):
                 emit("class {get_id(id: struct_def.id)}:")
                 indent()
@@ -127,8 +133,6 @@ class PyGenerator:
                 emit("")
             Class(class_def):
                 panic("class-def not supported")
-            ExternFunction(extern_function_def):
-                emit("# Using external function: {extern_function_def.modname}_{extern_function_def.name}")
             Enum(enum_def):
                 panic("enum-def not supported")
             Var(variable_def):
@@ -250,14 +254,12 @@ class PyGenerator:
                     txt = "float({txt})"
                 elif ast.is_int_type(ty):
                     txt = "int({txt})"
-            ExternFunctionRef(extern_function_def, type_args):
-                txt = "{extern_function_def.modname}_{extern_function_def.name}"
             ParameterRef(parameter_def):
                 txt = get_id(id: parameter_def.id)
             VarRef(variable):
                 txt = get_id(id: variable.id)
             FunctionRef(function_def, type_arguments):
-                txt = get_id(id: function_def.id)
+                txt = function_def.name
             Call(call):
                 let expressions: List[ast.Expression] = List()
                 for argument in call.arguments:
@@ -291,10 +293,7 @@ class PyGenerator:
         return str_join(parts, sep: ", ")
     
     fn get_id(id: ast.NodeId) -> str:
-        if id.name == "main":
-            return "{id.name}2"
-        else:
-            return "X{id.id}_{id.name}"
+        return "X{id.id}_{id.name}"
 
     fn emit(txt?: str):
         out.emit(txt)

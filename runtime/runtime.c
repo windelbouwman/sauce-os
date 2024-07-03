@@ -26,10 +26,10 @@ slang_float_t math_log10(slang_float_t value)
     return log10(value);
 }
 
-slang_float_t math_floor(slang_float_t value)
-{
-    return floor(value);
-}
+// slang_float_t math_floor(slang_float_t value)
+// {
+//     return floor(value);
+// }
 
 slang_float_t math_ceil(slang_float_t value)
 {
