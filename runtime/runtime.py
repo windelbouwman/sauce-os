@@ -24,7 +24,10 @@ def std_exit(code: int):
 std_print = print
 rt_int_to_str = str
 std_str_to_int = int
-std_float_to_str = str
+
+
+def std_float_to_str(value: float) -> str:
+    return f"{value:f}"
 
 
 def std_float_to_str2(value: float, digits: int) -> str:
