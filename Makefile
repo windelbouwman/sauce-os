@@ -107,7 +107,7 @@ run-test-c-%: ${BUILDDIR}/tests/test_%.exe
 ${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c/libbase.json ${COMPILER6} | ${BUILDDIR}/tests
 	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json
 
-${BUILDDIR}/tests/test_%.exe: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/c/libbase.so
+${BUILDDIR}/tests/test_%.exe: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/runtime.o
 	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libbase.so ${BUILDDIR}/runtime.o -lm
 
 # Unit tests with python backend:
@@ -125,6 +125,9 @@ ${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libbase.json
 # Apps
 ${BUILDDIR}/c/apps/%.c: Apps/%.slang ${GFX_LIB_SRCS} ${IMAGE_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c/apps
 	${SLANGC} --backend-c -o $@ $< ${GFX_LIB_SRCS} ${IMAGE_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
+
+${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/runtime.o
+	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/runtime.o -lm
 
 # Bootstrap sequence:
 ${COMPILER1}: | ${COMPILER_SRCS} compiler1/*.py ${BUILDDIR}
