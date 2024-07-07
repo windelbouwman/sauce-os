@@ -17,7 +17,7 @@ fn main() -> int:
     let t = get_bar(foo)
     print("t={t}")
 
-    let dev: Device[int] = Device()
+    let dev: Device[int] = Device(m_data: 12)
     let a = dev.exe()
     print("a={a}")
     let b = dev.exe()

@@ -101,11 +101,11 @@ class TypeChecker:
     fn check_function_def(function_def: ast.FunctionDef):
         # Check if we return a value, if we need to return a value
         case function_def.body:
-            Some(scoped_block):
+            Intern(scoped_block):
                 if not ast.is_void_type(function_def.info.return_type):
                     if not scoped_block.body.is_terminator:
                         add_error(location: function_def.location, message: "Control reaches end of non-void function")
-            None:
+            Extern(libname):
                 pass
 
     fn check_statement_mid(statement: ast.Statement):

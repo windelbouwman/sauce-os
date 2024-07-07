@@ -70,9 +70,9 @@ fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
     case definition:
         Function(function_def):
             case function_def.body:
-                Some(scoped_block):
+                Intern(scoped_block):
                     return Option.Some(scoped_block.scope)
-                None:
+                Extern(libname):
                     return Option.None()
         Enum(enum_def):
             return Option.Some(enum_def.scope)
@@ -90,7 +90,7 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
                 Function(function_def):
                     filler.define(name: function_def.name, symbol: ast.Symbol.Function(function_def), location: function_def.location)
                     case function_def.body:
-                        Some(scoped_block):
+                        Intern(scoped_block):
                             filler.enter_scope(scope: scoped_block.scope)
                             for type_parameter in function_def.type_parameters:
                                 filler.define_type_parameter(type_parameter)
@@ -101,7 +101,7 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
                                     filler.define_parameter(parameter_def: this_parameter2)
                                 None:
                                     pass
-                        None:
+                        Extern(libname):
                             pass
                 Enum(enum_def):
                     filler.define(name: enum_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)), location: enum_def.location)

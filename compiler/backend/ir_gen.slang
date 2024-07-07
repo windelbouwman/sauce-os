@@ -49,9 +49,12 @@ class BytecodeGenerator:
                         struct_mapping.insert(key: ast.node_id_to_string(struct_def.id), value: index)
                         index += 1
                     Function(function_def):
-                        if option_is_some(function_def.body):
-                            function_map.insert(key: function_def.name, value: func_index)
-                            func_index += 1
+                        case function_def.body:
+                            Intern(scoped_block):
+                                function_map.insert(key: function_def.name, value: func_index)
+                                func_index += 1
+                            Extern(libname):
+                                pass
                 else:
                     pass
 
@@ -66,8 +69,11 @@ class BytecodeGenerator:
                     Var(variable_def):
                         gen_global_variable(variable_def)
                     Function(function_def):
-                        if option_is_none(function_def.body):
-                            gen_extern_function(function_def)
+                        case function_def.body:
+                            Intern(scoped_block):
+                                pass
+                            Extern(libname):
+                                gen_extern_function(function_def)
                 else:
                     pass
 
@@ -76,8 +82,7 @@ class BytecodeGenerator:
         for definition in module.definitions:
             case definition:
                 Function(function_def):
-                    if option_is_some(function_def.body):
-                        gen_func(function_def)
+                    gen_func(function_def)
                 Enum(enum_def):
                     panic("Enum not supported, please rewrite")
                 Class(class_def):
@@ -114,36 +119,40 @@ class BytecodeGenerator:
         function_map.insert(key: name, value: func_index)
 
     fn gen_func(function_def: ast.FunctionDef):
-        log_debug("generate bytecode for {function_def.name}")
-        local_var_mapping.clear()
-        let parameters: List[bc.Type] = List()
-        for parameter in function_def.parameters:
-            let p2 = get_bc_type(parameter.ty)
-            let parameter_index = parameters.len()
-            local_var_mapping.insert(key: ast.node_id_to_string(parameter.id), value: parameter_index)
-            parameters.append(p2)
-        let return_type = Option.None()
-        if not ast.is_void_type(function_def.info.return_type):
-            return_type = Option.Some(get_bc_type(function_def.info.return_type))
-        begin_code()
-        local_variables = List()
+        case function_def.body:
+            Intern(scoped_block):
+                log_debug("generate bytecode for {function_def.name}")
+                local_var_mapping.clear()
+                let parameters: List[bc.Type] = List()
+                for parameter in function_def.parameters:
+                    let p2 = get_bc_type(parameter.ty)
+                    let parameter_index = parameters.len()
+                    local_var_mapping.insert(key: ast.node_id_to_string(parameter.id), value: parameter_index)
+                    parameters.append(p2)
+                let return_type = Option.None()
+                if not ast.is_void_type(function_def.info.return_type):
+                    return_type = Option.Some(get_bc_type(function_def.info.return_type))
+                begin_code()
+                local_variables = List()
 
-        let body = option_unwrap(function_def.body).body
-        gen_statement(body)
+                let body = scoped_block.body
+                gen_statement(body)
 
-        # Emit return to void function, or unreachable
-        if body.is_terminator:
-            is_reachable = true
-            emit(Instruction.Unreachable())
-        else:
-            if is_reachable:
-                emit(Instruction.Return(n_arg: 0))
+                # Emit return to void function, or unreachable
+                if body.is_terminator:
+                    is_reachable = true
+                    emit(Instruction.Unreachable())
+                else:
+                    if is_reachable:
+                        emit(Instruction.Return(n_arg: 0))
 
-        let instructions = get_relocated_instructions()
-        let locals = local_variables
-        let name = function_def.name
-        let no_return = function_def.info.no_return
-        functions.append(bc.Function(name, parameters, return_type, no_return, locals, instructions))
+                let instructions = get_relocated_instructions()
+                let locals = local_variables
+                let name = function_def.name
+                let no_return = function_def.info.no_return
+                functions.append(bc.Function(name, parameters, return_type, no_return, locals, instructions))
+            Extern(libname):
+                pass
 
     fn gen_statement(statement?: ast.Statement):
         case statement.kind:
@@ -424,11 +433,12 @@ class BytecodeGenerator:
                     let var_index = get_global_index(variable)
                     emit(Instruction.GlobalGet(var_index))
             FunctionRef(function_def, type_arguments):
-                if option_is_some(function_def.body):
-                    let funcidx = function_map.get(key: function_def.name)
-                    emit(Instruction.LoadFunc(funcidx))
-                else:
-                    panic("Extern function pointer to {function_def.name} not supported")
+                case function_def.body:
+                    Intern(scoped_block):
+                        let funcidx = function_map.get(key: function_def.name)
+                        emit(Instruction.LoadFunc(funcidx))
+                    Extern(libname):
+                        panic("Extern function pointer to {function_def.name} not supported")
             ParameterRef(parameter_def):
                 let parameter_index = get_parameter_index(parameter_def)
                 emit(Instruction.ParameterGet(parameter_index))
@@ -486,16 +496,15 @@ class BytecodeGenerator:
 
         case call.callee.kind:
             FunctionRef(function_def, type_args):
-                if option_is_some(function_def.body):
-                    # print("call {function_def.id.name}")
-                    let key = function_def.name
-                    let funcidx = function_map.get(key)
-                    emit(Instruction.Call(funcidx))
-                else:
-                    let key = function_def.name
-                    log_debug("Calling extern function: {key}")
-                    let funcidx = function_map.get(key)
-                    emit(Instruction.CallExtern(funcidx))
+                let key = function_def.name
+                let funcidx = function_map.get(key)
+                case function_def.body:
+                    Intern(scoped_block):
+                        # print("call {function_def.id.name}")
+                        emit(Instruction.Call(funcidx))
+                    Extern(libname):
+                        log_debug("Calling extern function: {key}")
+                        emit(Instruction.CallExtern(funcidx))
 
                 if function_def.info.no_return:
                     is_reachable = false

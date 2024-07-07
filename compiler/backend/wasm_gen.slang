@@ -40,7 +40,7 @@ class WasmGenerator:
 
     fn gen_module_set(modules: List[ast.Module]):
         let type_parameters: List[ast.TypeParameter] = List()
-        let malloc_def = ast.extern_function_def(name: "js_malloc", type_parameters, parameters: vec1(ast.unlabeled_parameter(ty: ast.int_type())), return_type: ast.opaque_type(), location: location_default())
+        let malloc_def = ast.extern_function_def(libname: "js", name: "js_malloc", type_parameters, parameters: vec1(ast.unlabeled_parameter(ty: ast.int_type())), return_type: ast.opaque_type(), location: location_default())
         gen_external_function(function_def: malloc_def)
 
         for module in modules:
@@ -48,8 +48,11 @@ class WasmGenerator:
             for definition in module.definitions:
                 case definition:
                     Function(function_def):
-                        if option_is_none(function_def.body):
-                            gen_external_function(function_def)
+                        case function_def.body:
+                            Intern(scoped_block):
+                                pass
+                            Extern(libname):
+                                gen_external_function(function_def)
                 else:
                     pass
 
@@ -58,14 +61,17 @@ class WasmGenerator:
             for definition in module.definitions:
                 case definition:
                     Function(function_def):
-                        if option_is_some(function_def.body):
-                            let key = function_def.name
-                            let funcidx = counter
-                            index_mapping.insert(key, value: funcidx)
-                            let name = function_def.name
-                            exports.append(webassembly.Export(name, funcidx))
+                        case function_def.body:
+                            Intern(scoped_block):
+                                let key = function_def.name
+                                let funcidx = counter
+                                index_mapping.insert(key, value: funcidx)
+                                let name = function_def.name
+                                exports.append(webassembly.Export(name, funcidx))
 
-                            counter += 1
+                                counter += 1
+                            Extern(libname):
+                                pass
                 else:
                     pass
 
@@ -91,8 +97,11 @@ class WasmGenerator:
             parameter_types.append(parameter.ty)
 
         let func_ty = reg_signature(parameter_types, return_type: function_def.info.return_type)
-        let modname = "?"
-        imports.append(webassembly.Import(module: modname, name: function_def.name, ty: func_ty))
+        case function_def.body:
+            Intern(scoped_block):
+                panic("Invalid extern function")
+            Extern(libname):
+                imports.append(webassembly.Import(module: libname, name: function_def.name, ty: func_ty))
 
     fn gen_module(module: ast.Module):
         for definition in module.definitions:
@@ -151,12 +160,17 @@ class WasmGenerator:
             let x = create_parameter(id: parameter.id, ty: parameter.ty)
             parameter_types.append(parameter.ty)
         let func_ty = reg_signature(parameter_types, return_type: function_def.info.return_type)
-        let body = option_unwrap(function_def.body).body
-        gen_statement(body)
+        
+        case function_def.body:
+            Intern(scoped_block):
+                let body = scoped_block.body
+                gen_statement(body)
 
-        # Introduce an unreachable instruction, when we cannot reach this point.
-        if body.is_terminator:
-            emit(Instruction.ctrl_unreachable())
+                # Introduce an unreachable instruction, when we cannot reach this point.
+                if body.is_terminator:
+                    emit(Instruction.ctrl_unreachable())
+            Extern(libname):
+                panic("Function without body")
 
         let f = webassembly.Function:
             ty: func_ty

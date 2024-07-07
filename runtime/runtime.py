@@ -1,6 +1,7 @@
 # Runtime functions implemented in python.
 
 import sys
+import math
 
 
 def std_get_n_args() -> int:
@@ -44,3 +45,35 @@ def std_str_get(s, i):
 
 def std_str_slice(s, b, e):
     return s[b:e]
+
+
+def rt_str_concat(a, b):
+    return a + b
+
+
+def rt_str_compare(a, b):
+    return a == b
+
+
+def std_file_open(filename: str) -> int:
+    return open(filename, "w")
+
+
+def std_file_writeln(handle: int, text: str):
+    print(text, file=handle)
+
+
+def std_file_close(handle: int):
+    handle.close()
+
+
+def math_powf(x, y):
+    return math.pow(x, y)
+
+
+def math_log10():
+    return math.log10(value)
+
+
+def math_ceil(value) -> float:
+    return math.ceil(value)

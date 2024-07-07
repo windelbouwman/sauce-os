@@ -17,9 +17,10 @@ COMPILER3=${BUILDDIR}/tmp-compiler3.py
 COMPILER4=${BUILDDIR}/compiler4
 COMPILER5=${BUILDDIR}/compiler5
 COMPILER6=${BUILDDIR}/tmp-compiler6.py
+SLANGC=python ${COMPILER6}
 SLANG_APPS := $(wildcard Apps/*.slang)
 
-CFLAGS=-Wfatal-errors -Werror -Wreturn-type
+CFLAGS=-Wfatal-errors -Werror -Wreturn-type -g
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/%.py, $(SLANG_EXAMPLES))
@@ -27,13 +28,15 @@ C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/snippets/%.exe, $(SL
 C_APPS := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
-ALL_TEST_RUNS := $(patsubst tests/test_%.slang, run-test-%, $(TESTS))
+ALL_TEST_RUNS := $(patsubst tests/test_%.slang, run-test-c-%, $(TESTS))
+ALL_TEST_RUNS_PY := $(patsubst tests/test_%.slang, run-test-py-%, $(TESTS))
 
-.PHONY: all check all-examples all-examples-bc all-examples-c all-examples-python
+.PHONY: all check check-py all-examples all-examples-bc all-examples-c all-examples-python
 all: ${C_APPS} all-examples
 all-examples: all-examples-bc all-examples-c all-examples-python
 
 check: ${ALL_TEST_RUNS}
+check-py: ${ALL_TEST_RUNS_PY}
 
 # Example to bytecode compilation
 all-examples-bc: $(BC_EXAMPLES)
@@ -50,29 +53,34 @@ ${BUILDDIR}/python/%.py: examples/snippets/%.slang runtime/std.slang ${COMPILER6
 # examples compiled to C code:
 all-examples-c: $(C_EXAMPLES)
 
-.PRECIOUS: ${BUILDDIR}/%.exe
-${BUILDDIR}/%.exe: ${BUILDDIR}/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}
+.PRECIOUS: ${BUILDDIR}/c/snippets/%.exe ${BUILDDIR}/c/snippets/%.c
+${BUILDDIR}/c/snippets/%.exe: ${BUILDDIR}/c/snippets/%.c ${BUILDDIR}/runtime.o | ${BUILDDIR}/c/snippets
 	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/runtime.o -lm
 
-.PRECIOUS: ${BUILDDIR}/c/snippets/%.c
-
 ${BUILDDIR}/c/snippets/%.c: examples/snippets/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/c/snippets
-	python ${COMPILER6} --backend-c -o $@ $< runtime/std.slang
+	${SLANGC} --backend-c -o $@ $< runtime/std.slang
 
 # Base lib as DLL:
-${BUILDDIR}/c/libbase.c ${BUILDDIR}/c/libbase.json: ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c/linkage
-	python ${COMPILER6} --backend-c -v --gen-export ${BUILDDIR}/c/libbase.json -o ${BUILDDIR}/c/libbase.c ${BASE_LIB_SRCS}
+${BUILDDIR}/c/libbase.c ${BUILDDIR}/c/libbase.json: ${BASE_LIB_SRCS} ${REGEX_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c
+	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libbase.json -o ${BUILDDIR}/c/libbase.c ${BASE_LIB_SRCS} ${REGEX_LIB_SRCS}
+
+${BUILDDIR}/c/libbase.so: ${BUILDDIR}/c/libbase.c
+	gcc ${CFLAGS} -shared -fPIC -o $@ $<
+
+# Base lib as python module
+${BUILDDIR}/python/libbase.py ${BUILDDIR}/python/libbase.json: ${BASE_LIB_SRCS} ${REGEX_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/python
+	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libbase.json -o ${BUILDDIR}/python/libbase.py ${BASE_LIB_SRCS} ${REGEX_LIB_SRCS}
 
 # linkage-example: ${BUILDDIR}/c/linkage-main.exe
 ${BUILDDIR}/c/linkage/libfancy.c ${BUILDDIR}/c/linkage/libfancy.json: examples/linkage/fancy.slang ${COMPILER6} | ${BUILDDIR}/c/linkage
-	python ${COMPILER6} --backend-c -v --gen-export ${BUILDDIR}/c/linkage/libfancy.json -o ${BUILDDIR}/c/linkage/libfancy.c examples/linkage/fancy.slang runtime/std.slang
+	${SLANGC} --backend-c -v --gen-export ${BUILDDIR}/c/linkage/libfancy.json -o ${BUILDDIR}/c/linkage/libfancy.c examples/linkage/fancy.slang runtime/std.slang
 
 ${BUILDDIR}/c/linkage/main.c: examples/linkage/main.slang ${BUILDDIR}/c/linkage/libfancy.json ${COMPILER6} | ${BUILDDIR}/c/linkage
 	jq '.modules[1].definitions[7]' ${BUILDDIR}/c/linkage/libfancy.json --indent 5
-	python ${COMPILER6} --backend-c -v -v --add-import ${BUILDDIR}/c/linkage/libfancy.json -o $@ examples/linkage/main.slang
+	${SLANGC} --backend-c -v --add-import ${BUILDDIR}/c/linkage/libfancy.json -o $@ examples/linkage/main.slang
 
 ${BUILDDIR}/c/linkage/libfancy.so: ${BUILDDIR}/c/linkage/libfancy.c
-	gcc ${CFLAGS} -shared -o $@ $<
+	gcc ${CFLAGS} -shared -fPIC -o $@ $<
 
 ${BUILDDIR}/c/linkage/main.exe: ${BUILDDIR}/c/linkage/main.c ${BUILDDIR}/c/linkage/libfancy.so
 	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c/linkage -Wl,-rpath=`pwd`/${BUILDDIR}/c/linkage -l:libfancy.so ${BUILDDIR}/runtime.o -lm
@@ -88,30 +96,47 @@ all-examples-wasm: $(WASM_EXAMPLES)
 .PRECIOUS: ${BUILDDIR}/wasm/%.wat
 
 ${BUILDDIR}/wasm/%.wat: examples/snippets/%.slang runtime/std.slang ${COMPILER6} | ${BUILDDIR}/wasm
-	python ${COMPILER6} -wasm $< runtime/std.slang | sed '/^# /d' > $@
+	${SLANGC} -wasm $< runtime/std.slang | sed '/^# /d' > $@
 
-# Unit tests:
-.PHONY: run-test-%
-.PRECIOUS: ${BUILDDIR}/tests/test_%.c
-run-test-%: ${BUILDDIR}/tests/test_%.exe
+# Unit tests with C backend:
+.PHONY: run-test-c-%
+.PRECIOUS: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/tests/test_%.exe
+run-test-c-%: ${BUILDDIR}/tests/test_%.exe
 	$<
 
-${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/tests
-	python ${COMPILER6} --backend-c -o $@ $< ${TEST_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
+${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c/libbase.json ${COMPILER6} | ${BUILDDIR}/tests
+	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json
 
+${BUILDDIR}/tests/test_%.exe: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/c/libbase.so
+	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libbase.so ${BUILDDIR}/runtime.o -lm
+
+# Unit tests with python backend:
+.PHONY: run-test-py-%
+.PRECIOUS: ${BUILDDIR}/python/test_%.py
+run-test-py-%: ${BUILDDIR}/python/test_%.py ${BUILDDIR}/python/runtime.py
+	python $<
+
+${BUILDDIR}/python/runtime.py: runtime/runtime.py | ${BUILDDIR}/python
+	cp $< $@
+
+${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libbase.json ${COMPILER6} | ${BUILDDIR}/python
+	${SLANGC} --backend-py -o $@ $< --add-import ${BUILDDIR}/python/libbase.json
 
 # Apps
 ${BUILDDIR}/c/apps/%.c: Apps/%.slang ${GFX_LIB_SRCS} ${IMAGE_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c/apps
-	python ${COMPILER6} --backend-c -o $@ $< ${GFX_LIB_SRCS} ${IMAGE_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
+	${SLANGC} --backend-c -o $@ $< ${GFX_LIB_SRCS} ${IMAGE_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS}
 
 # Bootstrap sequence:
-${BUILDDIR}/tmp-compiler.py: | ${COMPILER_SRCS} compiler1/*.py ${BUILDDIR}
+${COMPILER1}: | ${COMPILER_SRCS} compiler1/*.py ${BUILDDIR}
 	python bootstrap.py
 
-${COMPILER2}: | ${COMPILER_SRCS} ${BUILDDIR}/tmp-compiler.py ${BUILDDIR}
+${BUILDDIR}/runtime.py: runtime/runtime.py | ${BUILDDIR}
+	cp $< $@
+
+${COMPILER2}: ${BUILDDIR}/runtime.py | ${COMPILER_SRCS} ${BUILDDIR}/tmp-compiler.py ${BUILDDIR}
 	python ${COMPILER1} --backend-py -o ${COMPILER2} ${COMPILER_SRCS}
 
-${COMPILER3}: | ${COMPILER_SRCS} ${BUILDDIR}/tmp-compiler2.py ${BUILDDIR}
+${COMPILER3}: | ${COMPILER_SRCS} ${COMPILER2} ${BUILDDIR}
 	python ${COMPILER2} --backend-py -o ${COMPILER3} ${COMPILER_SRCS}
 
 ${BUILDDIR}/tmp-compiler4.c: | ${COMPILER_SRCS} ${BUILDDIR} ${COMPILER3}

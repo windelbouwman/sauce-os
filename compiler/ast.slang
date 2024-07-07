@@ -694,7 +694,7 @@ enum ImportKind:
     Self
     Names(names: List[str])
 
-fn extern_function_def(name: str, type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
+fn extern_function_def(libname: str, name: str, type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
     let info = FunctionInfo:
         no_return: false
         return_type
@@ -708,7 +708,7 @@ fn extern_function_def(name: str, type_parameters: List[TypeParameter], paramete
         this_parameter: Option.None()
         parameters
         location
-        body: Option.None()
+        body: FunctionDefBody.Extern(libname)
     return f
 
 class Scope:
@@ -891,7 +891,7 @@ fn new_class_def(id: NodeId, location: Location, type_parameters: List[TypeParam
     let c = ClassDef:
         id
         location
-        is_extern: false
+        is_extern: Option.None()
         type_parameters
         definitions
         scope: Scope()
@@ -900,7 +900,7 @@ fn new_class_def(id: NodeId, location: Location, type_parameters: List[TypeParam
 struct ClassDef:
     id: NodeId
     location: Location
-    is_extern: bool
+    is_extern: Option[str]
     type_parameters: List[TypeParameter]
     definitions: List[Definition]
     scope: Scope
@@ -922,7 +922,7 @@ fn function_def(name: str, type_parameters: List[TypeParameter], this_parameter:
         this_parameter
         parameters
         location
-        body: Option.Some(scoped_block(body))
+        body: FunctionDefBody.Intern(scoped_block: scoped_block(body))
     return f
 
 struct FunctionInfo:
@@ -939,8 +939,12 @@ struct FunctionDef:
     type_parameters: List[TypeParameter]
     this_parameter: Option[ParameterDef]
     parameters: List[ParameterDef]
-    body: Option[ScopedBlock]
+    body: FunctionDefBody
     location: Location
+
+enum FunctionDefBody:
+    Intern(body?: ScopedBlock)
+    Extern(libname: str)
 
 fn function_def_to_str(function_def: FunctionDef) -> str:
     return "function:{function_def.name}"
@@ -1693,9 +1697,9 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
             visit_type(visitor, ty: function_def.info.return_type)
             visit_type(visitor, ty: function_def.info.except_type)
             case function_def.body:
-                Some(scoped_block):
+                Intern(scoped_block):
                     visit_statement(visitor, statement: scoped_block.body)
-                None:
+                Extern(libname):
                     pass
         Enum(enum_def):
             for variant in enum_def.variants:

@@ -5,17 +5,11 @@ from lexer import Lexer
 from token import token_to_string, Token
 from location import Location, Position
 from datatypes import List, Result, Option, vec1, option_unwrap
-from strlib import split_string
+from pathlib import basename
 from basepass import IdGen
 from utils import panic, log_debug, log_trace, log_info
 from errors import CompilationError, SingleCompilationError
 import errors
-
-
-fn basename(path: str) -> str:
-    # retrieve 'bla' from 'for/bar/bla.txt'
-    let base = split_string(text: path, sep: '/').last()
-    return split_string(text: base, sep: '.').first()
 
 pub fn parse_source(filename: str, id_gen: IdGen) -> ast.Module except CompilationError:
     let source = std.read_file(filename)
@@ -242,7 +236,7 @@ class Parser:
         let class_def = ast.ClassDef:
             id: ast.NodeId(name: name_at.name, id: new_id())
             location: name_at.location
-            is_extern: false
+            is_extern: Option.None()
             type_parameters
             definitions: inner_defs
             scope: ast.Scope()
@@ -284,7 +278,8 @@ class Parser:
         let info = parse_function_info()
         parse_newline()
 
-        let function_def = ast.extern_function_def(name, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
+        let libname = "runtime" # TODO
+        let function_def = ast.extern_function_def(libname, name, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
         function_def.info.no_return = info.no_return
         return function_def
 

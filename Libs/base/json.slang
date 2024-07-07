@@ -82,24 +82,24 @@ class JsonBrowser:
     fn pop_value():
         m_value = m_stack.pop_last()
 
-    fn get_attribute(name: str) -> JsonValue:
+    fn get_attribute(attr: str) -> JsonValue:
         case m_value:
             Object(items):
                 for item in items:
-                    if item.key == name:
+                    if item.key == attr:
                         return item.value
-                panic("No key: {name}")
+                panic("No attribute: {attr}")
         else:
             panic("Not a JSON object")
 
-    fn has_attribute(name: str) -> bool:
-        return option_is_some(find_attribute(name))
+    fn has_attribute(attr: str) -> bool:
+        return option_is_some(find_attribute(attr))
 
-    fn find_attribute(name: str) -> Option[JsonValue]:
+    fn find_attribute(attr: str) -> Option[JsonValue]:
         case m_value:
             Object(items):
                 for item in items:
-                    if item.key == name:
+                    if item.key == attr:
                         return Option.Some(item.value)
                 return Option.None()
         else:
@@ -112,21 +112,27 @@ class JsonBrowser:
         else:
             panic("Not a JSON array")
 
-    fn get_array_attribute(name: str) -> List[JsonValue]:
-        enter_attribute(name)
+    fn get_array_attribute(attr: str) -> List[JsonValue]:
+        enter_attribute(attr)
         let values = get_array_values()
         pop_value()
         return values
 
-    fn get_text_attribute(name: str) -> str:
-        enter_attribute(name)
+    fn get_text_attribute(attr: str) -> str:
+        enter_attribute(attr)
         let text = get_text()
         pop_value()
         return text
 
-    fn get_integer_attribute(name: str) -> int:
-        enter_attribute(name)
+    fn get_integer_attribute(attr: str) -> int:
+        enter_attribute(attr)
         let value = get_integer()
+        pop_value()
+        return value
+
+    fn get_boolean_attribute(attr: str) -> bool:
+        enter_attribute(attr)
+        let value = get_boolean()
         pop_value()
         return value
 
@@ -139,15 +145,23 @@ class JsonBrowser:
             panic("Not a JSON text")
 
     fn get_integer() -> int:
-        # Get text from current node
+        # Get integer from current node
         case m_value:
             Integer(value):
                 return value
         else:
             panic("Not a JSON integer")
 
-    fn enter_attribute(name: str):
-        push_value(value: get_attribute(name))
+    fn get_boolean() -> bool:
+        # Get boolean from current node
+        case m_value:
+            Bool(value):
+                return value
+        else:
+            panic("Not a JSON bool")
+
+    fn enter_attribute(attr: str):
+        push_value(value: get_attribute(attr))
 
 class JsonBuilder:
     var m_object_stack: List[JsonObjectBuilder] = List()

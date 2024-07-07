@@ -486,10 +486,7 @@ class ClassRewriter:
         for method in methods:
             lift_method(method, class_def, struct_def)
         
-        if class_def.is_extern:
-            pass
-        else:
-            create_constructor(class_def, struct_def)
+        create_constructor(class_def, struct_def)
 
     fn lift_method(method: ast.FunctionDef, class_def: ast.ClassDef, struct_def: ast.StructDef):
         let type_arguments: List[ast.Type] = List()
@@ -537,9 +534,15 @@ class ClassRewriter:
             else:
                 pass
 
-        let init_literal = ast.struct_literal(ty: struct_type, values: init_values, location: class_def.location)
-        let body = ast.return_statement(value: Option.Some(init_literal), location: class_def.location)
-        let ctor_func = ast.function_def(name: ctor_name, type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
+        let libname = "?"
+        let ctor_func = ast.extern_function_def(libname, name: ctor_name, type_parameters, parameters, return_type: struct_type, location: class_def.location)
+        case class_def.is_extern:
+            Some(libname):
+                ctor_func = ast.extern_function_def(libname, name: ctor_name, type_parameters, parameters, return_type: struct_type, location: class_def.location)
+            None:
+                let init_literal = ast.struct_literal(ty: struct_type, values: init_values, location: class_def.location)
+                let body = ast.return_statement(value: Option.Some(init_literal), location: class_def.location)
+                ctor_func = ast.function_def(name: ctor_name, type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
 
         # Use node-id to store constructor:
         ctor_map.insert(key: ast.node_id_to_string(class_def.id), value: ctor_func)

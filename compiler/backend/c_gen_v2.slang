@@ -96,8 +96,7 @@ class CGenerator2:
             for definition in module.definitions:
                 case definition:
                     Function(function_def):
-                        if option_is_some(function_def.body):
-                            gen_function(function_def)
+                        gen_function(function_def)
                     Struct(struct_def):
                         gen_struct_ctors(struct_def)
                 else:
@@ -165,11 +164,15 @@ class CGenerator2:
         return "{return_type_text}({parameter_text})"
 
     fn gen_function(function_def: ast.FunctionDef):
-        let decl = gen_function_decl(function_def)
-        emit("{decl} {chr(123)}")
-        gen_block(option_unwrap(function_def.body).body)
-        emit("{chr(125)}")
-        emit("")
+        case function_def.body:
+            Intern(scoped_block):
+                let decl = gen_function_decl(function_def)
+                emit("{decl} {chr(123)}")
+                gen_block(scoped_block.body)
+                emit("{chr(125)}")
+                emit("")
+            Extern(libname):
+                pass
     
     fn gen_type(ty: ast.Type, name: str) -> str:
         if ast.is_int_type(ty):

@@ -11,13 +11,15 @@ fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_filename
     log_info("Generating python code")
     let g = PyGenerator()
     g.out.begin(output_filename)
-    if generate_runtime:
-        g.emit_runtime()
     g.emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
     for module in module_set.modules:
         g.gen_module(module)
     if generate_runtime:
+        g.emit("if __name__ == '__main__':")
+        g.indent()
+        g.emit("import sys")
         g.emit("sys.exit(main2())")
+        g.dedent()
     g.out.end()
 
 class PyGenerator:
@@ -41,54 +43,6 @@ class PyGenerator:
         for definition in module.definitions:
             gen_definition(definition)
 
-    fn emit_runtime():
-        # Print out runtime functions required
-        # TODO: figure out multiline string support?
-        # TBD: how to handle multiline strings. Do we want this?
-        let quote = chr(34)
-        let left_brace = chr(123)
-        let right_brace = chr(125)
-        emit("import sys")
-        emit("std_print = print")
-        emit("rt_int_to_str = str")
-        emit("std_str_to_int = int")
-        emit("std_float_to_str = lambda x: f{quote}{left_brace}x:f{right_brace}{quote}")
-        emit("std_str_to_float = float")
-        emit("rt_char_to_str = str")
-        emit("std_str_len = len")
-        emit("def std_str_get(s, i):  return s[i]")
-        emit("def std_str_slice(s,b,e):   return s[b:e]")
-        emit("def rt_str_concat(a, b):  return a + b")
-        emit("def rt_str_compare(a, b):  return a == b")
-        emit("std_ord = ord")
-        emit("std_chr = chr")
-        emit("def std_get_n_args() -> int: return len(sys.argv) - 1")
-        emit("def std_get_arg(index) -> str:  return sys.argv[index + 1]")
-        emit("def std_exit(code: int): raise RuntimeError('EXIT with code: ' + str(code))")
-        
-        emit("def std_read_file(filename: str) -> str:")
-        indent()
-        emit("with open(filename, 'r') as f:")
-        indent()
-        emit("return f.read()")
-        dedent()
-        dedent()
-        
-        emit("def std_file_open(filename: str) -> int:")
-        indent()
-        emit("return open(filename, 'w')")
-        dedent()
-
-        emit("def std_file_writeln(handle, text: str):")
-        indent()
-        emit("print(text, file=handle)")
-        dedent()
-
-        emit("def std_file_close(handle):")
-        indent()
-        emit("handle.close()")
-        dedent()
-
     fn gen_definition(definition: ast.Definition):
         case definition:
             Function(function_def):
@@ -98,7 +52,7 @@ class PyGenerator:
                 let params = str_join(parts: parameter_names, sep: ", ")
                 
                 case function_def.body:
-                    Some(scoped_block):
+                    Intern(scoped_block):
                         emit("def {function_def.name}({params}):")
                         if str_len(text: global_header) > 0:
                             indent()
@@ -107,8 +61,8 @@ class PyGenerator:
                         gen_block(scoped_block.body)
                         emit("")
                         emit("")
-                    None:
-                        emit("# Using external function: {function_def.name}")
+                    Extern(libname):
+                        emit("from {libname} import {function_def.name}")
 
             Struct(struct_def):
                 emit("class {get_id(id: struct_def.id)}:")

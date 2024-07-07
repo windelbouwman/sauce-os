@@ -1,7 +1,7 @@
 
 import std
 
-var global: int = 3
+var glbl: int = 3
 
 fn add3(a: int, b: int) -> int:
     return a + b + 3
@@ -32,6 +32,7 @@ class Device[T]:
     var m_data: T
 
     fn exe() -> T:
+        glbl += 4
         m_counter += 1
         std.print("Device exe: {m_counter}")
         return m_data

@@ -10,9 +10,11 @@ COMPILER4="build/tmp-compiler4.c"
 COMPILER6="build/tmp-compiler6.py"
 
 mkdir -p build
+
 # Compile compiler with bootstrap compiler
 echo "Compile compiler with bootstrap compiler into ${COMPILER1}"
 python bootstrap.py
+cp runtime/runtime.py build
 
 echo "Compiling compiler with ${COMPILER1} into ${COMPILER2}"
 
