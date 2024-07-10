@@ -284,9 +284,11 @@ class CustomTransformer(LarkTransformer):
         )
 
     def extern_func_def(self, x):
-        # extern_func_def: KW_EXTERN KW_FN id_and_type_parameters function_signature NEWLINE
-        location, name, type_parameters = x[2]
-        parameters, return_type, except_type, no_return = x[3]
+        # extern_func_def: KW_EXTERN STRING KW_FN id_and_type_parameters function_signature NEWLINE
+        libname = x[1].value
+        assert isinstance(libname, str)
+        location, name, type_parameters = x[3]
+        parameters, return_type, except_type, no_return = x[4]
         ptypes = [p.ty for p in parameters]
         return ast.BuiltinFunction(self._modname, name, ptypes, return_type, location)
 
@@ -792,7 +794,7 @@ definition: func_def
 class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
 var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
 func_def: KW_PUB? KW_FN id_and_type_parameters function_signature block
-extern_func_def: KW_EXTERN KW_FN id_and_type_parameters function_signature NEWLINE
+extern_func_def: KW_EXTERN STRING KW_FN id_and_type_parameters function_signature NEWLINE
 func_decl: KW_FN id_and_type_parameters function_signature NEWLINE
 interface_def: KW_INTERFACE id_and_type_parameters COLON NEWLINE INDENT func_decl+ DEDENT
 

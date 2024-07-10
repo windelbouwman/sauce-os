@@ -1,30 +1,30 @@
 
 # Header file for std runtime module
 
-extern fn ord(value?: char) -> int
-extern fn chr(value?: int) -> char
+extern "runtime" fn ord(value?: char) -> int
+extern "runtime" fn chr(value?: int) -> char
 
-extern fn float_to_str(value?: float) -> str
-extern fn float_to_str2(value: float, digits: int) -> str
-extern fn str_to_float(value?: str) -> float
+extern "runtime" fn float_to_str(value?: float) -> str
+extern "runtime" fn float_to_str2(value: float, digits: int) -> str
+extern "runtime" fn str_to_float(value?: str) -> float
 
-# extern fn int_to_str(value: int) -> str
-extern fn str_to_int(value?: str) -> int
+# extern "runtime" fn int_to_str(value: int) -> str
+extern "runtime" fn str_to_int(value?: str) -> int
 
-extern fn str_len(text: str) -> int
-extern fn str_get(text: str, index: int) -> char
-extern fn str_slice(text: str, begin: int, end: int) -> str
+extern "runtime" fn str_len(text: str) -> int
+extern "runtime" fn str_get(text: str, index: int) -> char
+extern "runtime" fn str_slice(text: str, begin: int, end: int) -> str
 
-extern fn print(message?: str)
+extern "runtime" fn print(message?: str)
 # '?' indicates that function does not return.
 # TODO: improve syntax for noreturn functions
-extern fn exit(code: int) ?
+extern "runtime" fn exit(code: int) ?
 
-extern fn read_file(filename: str) -> str
-extern fn file_open(filename: str) -> int
-extern fn file_writeln(handle: int, line: str)
-extern fn file_close(handle: int)
+extern "runtime" fn read_file(filename: str) -> str
+extern "runtime" fn file_open(filename: str) -> int
+extern "runtime" fn file_writeln(handle: int, line: str)
+extern "runtime" fn file_close(handle: int)
 
-extern fn get_n_args() -> int
-extern fn get_arg(arg: int) -> str
+extern "runtime" fn get_n_args() -> int
+extern "runtime" fn get_arg(arg: int) -> str
 

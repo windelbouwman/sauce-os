@@ -40,27 +40,21 @@ class BytecodeGenerator:
     var loop_stack: List[Loop] = List()
 
     fn forward_declarations(module_set: ast.ModuleSet):
+        # struct forward declarations:
         let index = 0
-        let func_index = 0
         for module in module_set.modules:
-            for definition1 in module.definitions:
-                case definition1:
+            for definition in module.definitions:
+                case definition:
                     Struct(struct_def):
                         struct_mapping.insert(key: ast.node_id_to_string(struct_def.id), value: index)
                         index += 1
-                    Function(function_def):
-                        case function_def.body:
-                            Intern(scoped_block):
-                                function_map.insert(key: function_def.name, value: func_index)
-                                func_index += 1
-                            Extern(libname):
-                                pass
                 else:
                     pass
-
+        
+        # Extern function forward delcarations:
         for module in module_set.modules:
-            for definition2 in module.definitions:
-                case definition2:
+            for definition in module.definitions:
+                case definition:
                     Struct(struct_def):
                         let fields2: List[bc.Type] = List()
                         for field1 in struct_def.fields:
@@ -74,6 +68,20 @@ class BytecodeGenerator:
                                 pass
                             Extern(libname):
                                 gen_extern_function(function_def)
+                else:
+                    pass
+
+        let func_index = extern_functions.len()
+        for module in module_set.modules:
+            for definition in module.definitions:
+                case definition:
+                    Function(function_def):
+                        case function_def.body:
+                            Intern(scoped_block):
+                                function_map.insert(key: function_def.name, value: func_index)
+                                func_index += 1
+                            Extern(libname):
+                                pass
                 else:
                     pass
 
@@ -433,12 +441,8 @@ class BytecodeGenerator:
                     let var_index = get_global_index(variable)
                     emit(Instruction.GlobalGet(var_index))
             FunctionRef(function_def, type_arguments):
-                case function_def.body:
-                    Intern(scoped_block):
-                        let funcidx = function_map.get(key: function_def.name)
-                        emit(Instruction.LoadFunc(funcidx))
-                    Extern(libname):
-                        panic("Extern function pointer to {function_def.name} not supported")
+                let funcidx = function_map.get(key: function_def.name)
+                emit(Instruction.LoadFunc(funcidx))
             ParameterRef(parameter_def):
                 let parameter_index = get_parameter_index(parameter_def)
                 emit(Instruction.ParameterGet(parameter_index))
@@ -498,14 +502,7 @@ class BytecodeGenerator:
             FunctionRef(function_def, type_args):
                 let key = function_def.name
                 let funcidx = function_map.get(key)
-                case function_def.body:
-                    Intern(scoped_block):
-                        # print("call {function_def.id.name}")
-                        emit(Instruction.Call(funcidx))
-                    Extern(libname):
-                        log_debug("Calling extern function: {key}")
-                        emit(Instruction.CallExtern(funcidx))
-
+                emit(Instruction.Call(funcidx))
                 if function_def.info.no_return:
                     is_reachable = false
         else:

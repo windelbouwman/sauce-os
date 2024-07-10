@@ -3,7 +3,7 @@
 
 from std import print
 from utils import unimplemented, panic
-from utils import log_error, log_info, log_debug
+from utils import log_error, log_info, log_debug, log_trace
 from datatypes import List, Option, option_is_some
 from hashmap import HashMap
 from pathlib import basename
@@ -38,23 +38,39 @@ class SymbolSaver:
         m_ser.add_text_attribute(attr: "libname", text: m_libname)
         m_ser.begin_array()
         for module in module_set.modules:
-            # ast.visit_module(visitor, module)
-            log_info("Saving meta-info for module: {module.name}")
-            if module.name == "rt":
-                continue
-
-            save_module(module)
+            if option_is_some(module.filename):
+                log_info("Saving meta-info for module: {module.name}")
+                save_module(module)
+            else:
+                log_info("Skip saving meta-info for module: {module.name}")
         m_ser.end_array_as_attribute(attr: "modules")
 
     fn save_module(module: ast.Module):
         m_ser.begin_object()
         m_ser.add_text_attribute(attr: "name", text: module.name)
         m_ser.begin_array()
+        for imp in module.imports:
+            save_import(imp)
+        m_ser.end_array_as_attribute(attr: "imports")
+        m_ser.begin_array()
         for definition in module.definitions:
             save_definition(definition)
         m_ser.end_array_as_attribute(attr: "definitions")
         m_ser.end_object_as_element()
     
+    fn save_import(imp: ast.Import):
+        m_ser.begin_object()
+        m_ser.add_text_attribute(attr: "modname", text: imp.modname)
+        case imp.kind:
+            Self:
+                pass
+            Names(names):
+                m_ser.begin_array()
+                for name in names:
+                    m_ser.add_text_as_element(text: name)
+                m_ser.end_array_as_attribute(attr: "names")
+        m_ser.end_object_as_element()
+
     fn save_definition(definition: ast.Definition):
         log_debug("Saving {ast.definition_to_str(definition)}")
         m_ser.begin_object()
@@ -180,13 +196,7 @@ class SymbolSaver:
             let tycon = ast.get_tycon_from_type(ty)
             let type_arguments = ast.get_type_arguments_from_type(ty)
 
-            case ast.get_tycon_from_type(ty):
-                Struct(struct_def):
-                    save_id(id: struct_def.id)
-                Enum(enum_def):
-                    save_id(id: enum_def.id)
-                Class(class_def):
-                    save_id(id: class_def.id)
+            save_tycon(tycon: ast.get_tycon_from_type(ty))
 
             m_ser.begin_array()
             for type_argument in type_arguments:
@@ -210,8 +220,18 @@ class SymbolSaver:
             save_type(attr: "except-type", ty: except_type)
         else:
             panic("Not-impl: {ast.type_to_string(ty)}")
-            # m_ser.add_text_attribute(name, text: "todo")
         m_ser.end_object_as_attribute(attr)
+    
+    fn save_tycon(tycon: ast.TyCon):
+        case tycon:
+            Struct(struct_def):
+                save_id(id: struct_def.id)
+            Enum(enum_def):
+                save_id(id: enum_def.id)
+            Class(class_def):
+                save_id(id: class_def.id)
+            Ref(key):
+                panic("Cannot save tycon ref")
 
     fn save_id(id: ast.NodeId):
         m_ser.add_text_attribute(attr: "name", text: id.name)
@@ -231,9 +251,8 @@ fn load_symbol_table(filename: str) -> List[ast.Module]:
 
 class SymbolLoader:
     var m_des: JsonBrowser = JsonBrowser()
-    var m_to_resolve: List[ToResolve] = List()
     var m_tycon_map: HashMap[ast.TyCon] = HashMap()
-    var m_typar_map: HashMap[ast.TypeParameter] = HashMap()
+    var m_type_parameter_map: HashMap[ast.TypeParameter] = HashMap()
     var m_this_type: Option[ast.Type] = Option.None()
     var m_libname: str = "?"
 
@@ -251,30 +270,47 @@ class SymbolLoader:
             let module = load_module()
             m_des.pop_value()
             modules.append(module)
-        do_fixup()
-        
+
         return modules
 
-    
     fn load_module() -> ast.Module:
         let mod_name = m_des.get_text_attribute(attr: "name")
-        log_debug("Load info for module: {mod_name}")
+        log_info("Load info for module: {mod_name}")
+
+        let imports: List[ast.Import] = List()
+        for import_obj in m_des.get_array_attribute(attr: "imports"):
+            m_des.push_value(value: import_obj)
+            imports.append(load_import())
+            m_des.pop_value()
 
         let definitions: List[ast.Definition] = List()
-
         for definition_obj in m_des.get_array_attribute(attr: "definitions"):
             m_des.push_value(value: definition_obj)
-            let definition = load_definition()
+            definitions.append(load_definition())
             m_des.pop_value()
-            definitions.append(definition)
-        let module = ast.new_module(name: mod_name, filename: Option.None(), imports: List(), definitions)
+        let module = ast.new_module(name: mod_name, filename: Option.None(), imports, definitions)
         return module
+    
+    fn load_import() -> ast.Import:
+        let modname = m_des.get_text_attribute(attr: "modname")
+        let location = location_default()
+        if m_des.has_attribute(attr: "names"):
+            let names: List[str] = List()
+            for name_obj in m_des.get_array_attribute(attr: "names"):
+                m_des.push_value(value: name_obj)
+                names.append(m_des.get_text())
+                m_des.pop_value()
+            let kind = ast.ImportKind.Names(names)
+            return ast.Import(modname, kind, location)
+        else:
+            let kind = ast.ImportKind.Self()
+            return ast.Import(modname, kind, location)
 
     fn load_definition() -> ast.Definition:
         let def_kind = m_des.get_text_attribute(attr: "kind")
         let def_name = m_des.get_text_attribute(attr: "name")
         let def_id = m_des.get_integer_attribute(attr: "id")
-        log_debug("  --> DEF-{def_kind}: {def_name} / {def_id}")
+        log_trace("  --> DEF-{def_kind}: {def_name} / {def_id}")
         if def_kind == "function":
             let function_def = load_function(def_name, def_id)
             return ast.Definition.Function(function_def)
@@ -415,7 +451,7 @@ class SymbolLoader:
             let id = load_id()
             let location = location_default()
             let type_parameter = ast.new_type_parameter(name: id.name, id: id.id, location)
-            m_typar_map.insert(key: "{id.id}", value: type_parameter)
+            m_type_parameter_map.insert(key: "{id.id}", value: type_parameter)
             type_parameters.append(type_parameter)
             m_des.pop_value()
         return type_parameters
@@ -446,12 +482,12 @@ class SymbolLoader:
             ty = ast.void_type()
         elif type_name == "app":
             let type_arguments = load_types(attr: "type-arguments")
-            ty = ast.undefined_type()
             let id = load_id()
-            fixup_later(ToResolve.App(ty, id: id.id, type_arguments))
+            let tycon = ast.TyCon.Ref(key: ast.node_id_to_string(id))
+            ty = ast.new_type(kind: ast.TypeKind.App(tycon, type_arguments))
         elif type_name == "type-parameter":
             let id = load_id()
-            let type_parameter = m_typar_map.get(key: "{id.id}")
+            let type_parameter = m_type_parameter_map.get(key: "{id.id}")
             ty = ast.type_parameter_ref(type_parameter)
         elif type_name == "array":
             let element_type = load_type(attr: "element-type")
@@ -476,19 +512,4 @@ class SymbolLoader:
         let id = m_des.get_integer_attribute(attr: "id")
         let name = m_des.get_text_attribute(attr: "name")
         return ast.NodeId(id, name)
-
-    fn fixup_later(r?: ToResolve):
-        m_to_resolve.append(r)
-    
-    fn do_fixup():
-        for r in m_to_resolve:
-            case r:
-                App(ty, id, type_arguments):
-                    log_debug("App id: {id}")
-                    let tycon = m_tycon_map.get(key: "{id}")
-                    let ty2 = ast.apply_tycon(tycon, type_arguments)
-                    ast.change_type_to(ty, ty2)
-
-enum ToResolve:
-    App(ty: ast.Type, id: int, type_arguments: List[ast.Type])
 

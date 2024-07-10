@@ -396,14 +396,15 @@ class CGenerator:
                 push(Value(name: varname, ty))
 
             Call(index):
-                let function = functions.get(index)
-                let callee = function.name
-                gen_call(callee, parameter_types: function.parameters, return_type: function.return_type)
-
-            CallExtern(index):
-                let function = extern_functions.get(index)
-                let callee = function.name
-                gen_call(callee, parameter_types: function.parameters, return_type: function.return_type)
+                if index < extern_functions.len():
+                    let function = extern_functions.get(index)
+                    let callee = function.name
+                    gen_call(callee, parameter_types: function.parameters, return_type: function.return_type)
+                else:
+                    index = index - extern_functions.len()
+                    let function = functions.get(index)
+                    let callee = function.name
+                    gen_call(callee, parameter_types: function.parameters, return_type: function.return_type)
 
             CallIndirect(parameter_types, return_type):
                 let target = pop()
@@ -478,9 +479,15 @@ class CGenerator:
                 emit("__builtin_unreachable();")
 
             LoadFunc(index):
-                let function = functions.get(index)
-                let callee = function.name
-                push(Value(name: callee, ty: bc.Type.Ptr()))
+                if index < extern_functions.len():
+                    let function = extern_functions.get(index)
+                    let callee = function.name
+                    push(Value(name: callee, ty: bc.Type.Ptr()))
+                else:
+                    index = index - extern_functions.len()
+                    let function = functions.get(index)
+                    let callee = function.name
+                    push(Value(name: callee, ty: bc.Type.Ptr()))
 
             StructLiteral(index):
                 # we can derive count from struct type:

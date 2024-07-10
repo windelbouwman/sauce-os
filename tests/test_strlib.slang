@@ -13,7 +13,7 @@ fn main() -> int:
     test_trim()
     test_hex_to_int()
     test_bin_to_int()
-    # test_find_char()
+    test_find_char()
     test_int_to_str()
     test_float_to_str()
     print("OK")
@@ -45,10 +45,9 @@ fn test_float_to_str():
     assert_str_equals(float_to_str2(value, digits: 2), "3.14")
     assert_str_equals(float_to_str2(value, digits: 3), "3.142")
 
-# TODO: support function pointers in bytecode.
-#fn test_find_char():
-#    let index = option_unwrap(find_char(text: "blaat5", criterium: is_digit))
-#    assert_int_equals(index, 5)
+fn test_find_char():
+    let index = option_unwrap(find_char(text: "blaat5", criterium: is_digit))
+    assert_int_equals(index, 5)
 
 fn test_int_to_str():
     # Check a large number

@@ -43,12 +43,12 @@ class Parser:
         this.modname = Option.Some(name)
 
         loop:
-            let tok = lex.next_token()
+            let tok = get_token()
             let is_pub = false
             case tok.kind:
                 KwPub:
                     is_pub = true
-                    tok = lex.next_token()
+                    tok = get_token()
             else:
                 pass
             
@@ -64,8 +64,21 @@ class Parser:
                     let func_def = parse_func_def(this_parameter: Option.None())
                     definitions.append(ast.Definition.Function(func_def))
                 KwExtern:
-                    let func_def = parse_extern_func_def()
-                    definitions.append(ast.Definition.Function(func_def))
+                    tok = get_token()
+                    let libname = "?"
+                    case tok.kind:
+                        String(value):
+                            libname = value
+                    else:
+                        raise unexpected_token(tok, expected: "string with library name")
+
+                    tok = get_token()
+                    case tok.kind:
+                        KwFn:
+                            let func_def = parse_extern_func_def(libname)
+                            definitions.append(ast.Definition.Function(func_def))
+                    else:
+                        raise unexpected_token(tok, expected: "'fn'")
                 KwEnum:
                     let enum_def = parse_enum_def(location: tok.location)
                     definitions.append(ast.Definition.Enum(enum_def))
@@ -264,13 +277,7 @@ class Parser:
         function_def.info.no_return = info.no_return
         return function_def
     
-    fn parse_extern_func_def() -> ast.FunctionDef except CompilationError:
-        let tok = get_token()
-        case tok.kind:
-            KwFn:
-                pass
-        else:
-            raise unexpected_token(tok, expected: "'fn'")
+    fn parse_extern_func_def(libname: str) -> ast.FunctionDef except CompilationError:
         let name_at = parse_name()
         let name: str = name_at.name
         let type_parameters = parse_type_parameters()
@@ -278,7 +285,6 @@ class Parser:
         let info = parse_function_info()
         parse_newline()
 
-        let libname = "runtime" # TODO
         let function_def = ast.extern_function_def(libname, name, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
         function_def.info.no_return = info.no_return
         return function_def

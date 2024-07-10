@@ -6,12 +6,14 @@ import os
 import subprocess
 import pytest
 import glob
+import sys
 import io
 from functools import lru_cache
 from compiler1 import compiler, errors, builtins
 
 
 example_filenames = list(glob.glob("examples/snippets/*.slang"))
+sys.path.insert(0, "runtime")
 
 
 @lru_cache
@@ -80,6 +82,12 @@ def test_examples_py_backend(filename):
     f2 = io.StringIO()
     program_global_map = builtins.get_builtins(args=[], stdout=f2)
     exec(program_py_code, program_global_map)
+
+    def std_print(txt: str):
+        print(txt, file=f2)
+
+    program_global_map["std_print"] = std_print
+
     program_global_map["main2"]()
     stdout = f2.getvalue()
 
@@ -132,7 +140,7 @@ def test_examples_exe(filename):
     """
 
     exe_filename = os.path.splitext(os.path.basename(filename))[0] + ".exe"
-    exe_path = os.path.join("build", "c", exe_filename)
+    exe_path = os.path.join("build", "c", "snippets", exe_filename)
 
     result = subprocess.run([exe_path], capture_output=True)
     stdout = result.stdout.decode("ascii")

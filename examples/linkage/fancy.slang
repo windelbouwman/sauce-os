@@ -1,5 +1,7 @@
 
 import std
+from fubar import Foo
+import fubar
 
 var glbl: int = 3
 
@@ -17,14 +19,14 @@ struct NumberAndText:
 fn display_both(value: NumberAndText):
     std.print("NumberAndText (a={value.a}, b={value.b})")
 
+fn new_bar[T](f: T) -> fubar.Foo[T]:
+    return Foo.Bar(f)
+
 fn get_bar[T](foo: Foo[T]) -> T:
     # Get a t from bar foo
     case foo:
         Bar(t):
             return t
-
-enum Foo[T]:
-    Bar(t: T)
 
 
 class Device[T]:

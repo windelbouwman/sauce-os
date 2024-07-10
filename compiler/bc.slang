@@ -72,7 +72,6 @@ enum Instruction:
     Jump(label: int)  # Unconditional jump
     JumpIf(label1: int, label2: int)
     Call(index: int)
-    CallExtern(index: int)
     CallIndirect(parameter_types: List[Type], return_type: Option[Type])  # Call function pointer, on top of stack
     Return(n_values: int)
     SetupTry(try_label: int, except_label: int)
@@ -180,8 +179,6 @@ fn instruction_to_string(instruction?: Instruction) -> str:
 
         Call(index):
             return "call({index})"
-        CallExtern(index):
-            return "call-extern({index})"
         CallIndirect(parameter_types, return_type):
             return "call-indirect({parameter_types.len()})"
         Return(v):
@@ -288,7 +285,6 @@ fn print_bc_program(program: Program):
             print("      {index}: {instruction_to_string(instruction)}")
             index += 1
 
-    func_index = 0
     for function in program.functions:
         print("  FUNC {func_index}: {function.name}")
         func_index += 1

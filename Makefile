@@ -61,23 +61,35 @@ ${BUILDDIR}/c/snippets/%.c: examples/snippets/%.slang runtime/std.slang ${COMPIL
 	${SLANGC} --backend-c -o $@ $< runtime/std.slang
 
 # Base lib as DLL:
-${BUILDDIR}/c/libbase.c ${BUILDDIR}/c/libbase.json: ${BASE_LIB_SRCS} ${REGEX_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c
-	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libbase.json -o ${BUILDDIR}/c/libbase.c ${BASE_LIB_SRCS} ${REGEX_LIB_SRCS}
+${BUILDDIR}/c/libbase.c ${BUILDDIR}/c/libbase.json: ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c
+	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libbase.json -o ${BUILDDIR}/c/libbase.c ${BASE_LIB_SRCS}
+
+${BUILDDIR}/c/libregex.c ${BUILDDIR}/c/libregex.json: ${REGEX_LIB_SRCS} ${BUILDDIR}/c/libbase.json ${COMPILER6} | ${BUILDDIR}/c
+	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libregex.json -o ${BUILDDIR}/c/libregex.c --add-import ${BUILDDIR}/c/libbase.json ${REGEX_LIB_SRCS}
 
 ${BUILDDIR}/c/libbase.so: ${BUILDDIR}/c/libbase.c
 	gcc ${CFLAGS} -shared -fPIC -o $@ $<
 
+${BUILDDIR}/c/libregex.so: ${BUILDDIR}/c/libregex.c
+	gcc ${CFLAGS} -shared -fPIC -o $@ $<
+
 # Base lib as python module
-${BUILDDIR}/python/libbase.py ${BUILDDIR}/python/libbase.json: ${BASE_LIB_SRCS} ${REGEX_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/python
-	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libbase.json -o ${BUILDDIR}/python/libbase.py ${BASE_LIB_SRCS} ${REGEX_LIB_SRCS}
+${BUILDDIR}/python/libbase.py ${BUILDDIR}/python/libbase.json: ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/python
+	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libbase.json -o ${BUILDDIR}/python/libbase.py ${BASE_LIB_SRCS}
+
+${BUILDDIR}/python/libregex.py ${BUILDDIR}/python/libregex.json: ${REGEX_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${COMPILER6} | ${BUILDDIR}/python
+	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libregex.json -o ${BUILDDIR}/python/libregex.py --add-import ${BUILDDIR}/python/libbase.json ${REGEX_LIB_SRCS}
 
 # linkage-example: ${BUILDDIR}/c/linkage-main.exe
-${BUILDDIR}/c/linkage/libfancy.c ${BUILDDIR}/c/linkage/libfancy.json: examples/linkage/fancy.slang ${COMPILER6} | ${BUILDDIR}/c/linkage
-	${SLANGC} --backend-c -v --gen-export ${BUILDDIR}/c/linkage/libfancy.json -o ${BUILDDIR}/c/linkage/libfancy.c examples/linkage/fancy.slang runtime/std.slang
+${BUILDDIR}/c/linkage/libfubar.c ${BUILDDIR}/c/linkage/libfubar.json: examples/linkage/fubar.slang ${COMPILER6} | ${BUILDDIR}/c/linkage
+	${SLANGC} --backend-c -v --gen-export ${BUILDDIR}/c/linkage/libfubar.json -o ${BUILDDIR}/c/linkage/libfubar.c examples/linkage/fubar.slang runtime/std.slang
+
+${BUILDDIR}/c/linkage/libfancy.c ${BUILDDIR}/c/linkage/libfancy.json: examples/linkage/fancy.slang ${BUILDDIR}/c/linkage/libfubar.json ${COMPILER6} | ${BUILDDIR}/c/linkage
+	${SLANGC} --backend-c -v --gen-export ${BUILDDIR}/c/linkage/libfancy.json -o ${BUILDDIR}/c/linkage/libfancy.c --add-import ${BUILDDIR}/c/linkage/libfubar.json examples/linkage/fancy.slang
 
 ${BUILDDIR}/c/linkage/main.c: examples/linkage/main.slang ${BUILDDIR}/c/linkage/libfancy.json ${COMPILER6} | ${BUILDDIR}/c/linkage
-	jq '.modules[1].definitions[7]' ${BUILDDIR}/c/linkage/libfancy.json --indent 5
-	${SLANGC} --backend-c -v --add-import ${BUILDDIR}/c/linkage/libfancy.json -o $@ examples/linkage/main.slang
+	jq '.' ${BUILDDIR}/c/linkage/libfancy.json --indent 5
+	${SLANGC} --backend-c -v --add-import ${BUILDDIR}/c/linkage/libfancy.json --add-import ${BUILDDIR}/c/linkage/libfubar.json -o $@ examples/linkage/main.slang
 
 ${BUILDDIR}/c/linkage/libfancy.so: ${BUILDDIR}/c/linkage/libfancy.c
 	gcc ${CFLAGS} -shared -fPIC -o $@ $<
@@ -104,11 +116,11 @@ ${BUILDDIR}/wasm/%.wat: examples/snippets/%.slang runtime/std.slang ${COMPILER6}
 run-test-c-%: ${BUILDDIR}/tests/test_%.exe
 	$<
 
-${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c/libbase.json ${COMPILER6} | ${BUILDDIR}/tests
-	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json
+${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${COMPILER6} | ${BUILDDIR}/tests
+	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json
 
-${BUILDDIR}/tests/test_%.exe: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/runtime.o
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libbase.so ${BUILDDIR}/runtime.o -lm
+${BUILDDIR}/tests/test_%.exe: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/runtime.o
+	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libbase.so -l:libregex.so ${BUILDDIR}/runtime.o -lm
 
 # Unit tests with python backend:
 .PHONY: run-test-py-%
@@ -119,8 +131,8 @@ run-test-py-%: ${BUILDDIR}/python/test_%.py ${BUILDDIR}/python/runtime.py
 ${BUILDDIR}/python/runtime.py: runtime/runtime.py | ${BUILDDIR}/python
 	cp $< $@
 
-${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libbase.json ${COMPILER6} | ${BUILDDIR}/python
-	${SLANGC} --backend-py -o $@ $< --add-import ${BUILDDIR}/python/libbase.json
+${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libregex.json ${COMPILER6} Makefile | ${BUILDDIR}/python
+	${SLANGC} --backend-py -o $@ --add-import ${BUILDDIR}/python/libbase.json --add-import ${BUILDDIR}/python/libregex.json $<
 
 # Apps
 ${BUILDDIR}/c/apps/%.c: Apps/%.slang ${GFX_LIB_SRCS} ${IMAGE_LIB_SRCS} ${REGEX_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER6} | ${BUILDDIR}/c/apps

@@ -7,9 +7,9 @@ import ast
 from errors import CompilationError, new_error, new_errors, SingleCompilationError
 
 
-fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) except CompilationError:
+fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module], tycon_map: Dictionary[ast.TyCon]) except CompilationError:
     log_info("Filling scopes for {module.name}")
-    let filler = ScopeFiller()
+    let filler = ScopeFiller(tycon_map)
     let fil_vis = ast.Visitor:
         data: filler
         on_definition: filler_on_definition
@@ -28,7 +28,7 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module]) except Com
         raise new_errors(filename: module.filename, errors: filler.errors)
 
     log_info("Binding names for {module.name}")
-    let binder = NameBinder()
+    let binder = NameBinder(tycon_map)
     let bind_visitor = ast.Visitor:
         data: binder
         on_definition: binder_on_definition
@@ -104,6 +104,7 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
                         Extern(libname):
                             pass
                 Enum(enum_def):
+                    filler.add_tycon(id: enum_def.id, tycon: ast.TyCon.Enum(enum_def))
                     filler.define(name: enum_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)), location: enum_def.location)
                     filler.enter_scope(scope: enum_def.scope)
                     for type_parameter in enum_def.type_parameters:
@@ -111,6 +112,7 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
                     for variant in enum_def.variants:
                         filler.define(name: variant.name, symbol: ast.Symbol.Variant(variant), location: variant.location)
                 Struct(struct_def):
+                    filler.add_tycon(id: struct_def.id, tycon: ast.TyCon.Struct(struct_def))
                     filler.define(name: struct_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Struct(struct_def)), location: struct_def.location)
                     filler.enter_scope(scope: struct_def.scope)
                     for type_parameter in struct_def.type_parameters:
@@ -118,6 +120,7 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
                     for field in struct_def.fields:
                         filler.define(name: field.name, symbol: ast.Symbol.Field(field), location: field.location)
                 Class(class_def):
+                    filler.add_tycon(id: class_def.id, tycon: ast.TyCon.Class(class_def))
                     filler.define(name: class_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Class(class_def)), location: class_def.location)
                     filler.enter_scope(scope: class_def.scope)
                     for type_parameter in class_def.type_parameters:
@@ -197,6 +200,10 @@ fn filler_on_node(filler: ScopeFiller, node: ast.VisitNode, phase: ast.VisitPhas
 class ScopeFiller:
     var scopes: List[ast.Scope] = List()
     var errors: List[SingleCompilationError] = List()
+    var tycon_map: Dictionary[ast.TyCon]
+
+    fn add_tycon(id: ast.NodeId, tycon: ast.TyCon):
+        tycon_map.insert(key: ast.node_id_to_string(id), value: tycon)
 
     fn define_variable(variable: ast.Variable):
         define(name: variable.id.name, symbol: ast.Symbol.Var(variable), location: variable.location)
@@ -243,7 +250,17 @@ fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: a
         pass
 
 fn binder_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
-    pass
+    case ty.kind:
+        App(tycon, type_arguments):
+            case tycon:
+                Ref(key):
+                    let tycon = binder.tycon_map.get(key)
+                    # panic("Resolve {key}")
+                    ty.kind = ast.TypeKind.App(tycon, type_arguments)
+            else:
+                pass
+    else:
+        pass
 
 
 fn binder_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.VisitPhase):
@@ -347,6 +364,7 @@ fn base_scope() -> ast.Scope:
 class NameBinder:
     var scopes: List[ast.Scope] = List()
     var errors: List[SingleCompilationError] = List()
+    var tycon_map: Dictionary[ast.TyCon]
 
     fn lookup2(name: str, location: Location) -> Option[ast.ExpressionKind]:
         for scope in scopes:

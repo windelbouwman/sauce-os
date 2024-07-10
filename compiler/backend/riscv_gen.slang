@@ -95,9 +95,6 @@ class RiscvGen:
                     # TODO: address?
                     let lr = 2  # link register
                     emit(riscv.Instruction.JAL(rd: lr, imm: 0))
-                CallExtern(index):
-                    let lr = 2  # link register
-                    emit(riscv.Instruction.JAL(rd: lr, imm: 0))
                 CallIndirect(parameter_types, return_type):
                     let lr = 2  # link register
                     emit(riscv.Instruction.JALR(rd: lr, rs1: 0, imm: 0))

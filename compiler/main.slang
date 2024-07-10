@@ -124,6 +124,7 @@ fn print_usage():
     print("    --backend-c     : Spit out C code")
     print("    --backend-wasm  : Spit out WebAssembly")
     print("    --backend-riscv : Spit out RiscV code")
+    print("    --backend-null  : Skip code generation")
     print("    -rt : Skip runtime?")
     print("    --run : Run code!")
     print("")
@@ -175,8 +176,9 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
     topo_sort(modules)
     let module_set = ast.ModuleSet(modules)
 
+    let tycon_map: Dictionary[ast.TyCon] = Dictionary()
     for module in modules:
-        bind_names(module, module_map)
+        bind_names(module, module_map, tycon_map)
         resolve_newops(module, id_gen)
     
     if options.dump_ast:

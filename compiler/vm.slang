@@ -20,6 +20,10 @@ enum Value:
     List(list: ListValue)
     Undefined
 
+enum FunctionRef:
+    ByteCode(func: bc.Function)
+    Native(func: ExternFunctionImpl)
+
 struct ListValue:
     values: List[Value]
 
@@ -193,7 +197,6 @@ fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
 
 fn run_bytecode(program: Program, entry_function: str):
     let vm = VirtualMachine()
-    vm.functions = program.functions
     vm.structs = program.structs
 
     # Link external functions:
@@ -202,9 +205,11 @@ fn run_bytecode(program: Program, entry_function: str):
         if efi_db.contains(key: e.name):
             let efi = efi_db.get(key: e.name)
             assert(condition: e.parameters.len() == efi.n, message: "n should match len(parameters)")
-            vm.efi_table.append(efi)
+            vm.m_functions.append(FunctionRef.Native(efi))
         else:
             panic("Missing extern function: {e.name}")
+    for f in program.functions:
+        vm.m_functions.append(FunctionRef.ByteCode(f))
 
     # Initialize global variables:
     for g in program.globals:
@@ -268,11 +273,10 @@ class Frame:
         return instruction
 
 class VirtualMachine:
-    var efi_table: List[ExternFunctionImpl] = List()
     var frames: List[Frame] = List()
     var globals: List[Value] = List()
     var exception_value: Value = Value.Undefined()
-    var functions: List[bc.Function] = List()
+    var m_functions: List[FunctionRef] = List()
     var structs: List[bc.Struct] = List()
 
     fn step():
@@ -414,27 +418,36 @@ class VirtualMachine:
                     jump(target2)
             Call(index):
                 log_debug("Call function!")
-                let function = functions.get(index)
-                let n = function.parameters.len()
-                let arguments = pop_n(count: n)
-                let frame = frame_from_function(function, arguments)
-                push_frame(frame)
-            CallExtern(index):
-                let efi = efi_table.get(index)
-                let arguments = pop_n(count: efi.n)
-                case efi.f(arguments):
-                    Some(value):
-                        push(value)
-                    None:
-                        pass
+                let function_ref = m_functions.get(index)
+                case function_ref:
+                    ByteCode(function):
+                        let n = function.parameters.len()
+                        let arguments = pop_n(count: n)
+                        let frame = frame_from_function(function, arguments)
+                        push_frame(frame)
+                    Native(efi):
+                        let arguments = pop_n(count: efi.n)
+                        case efi.f(arguments):
+                            Some(value):
+                                push(value)
+                            None:
+                                pass
             CallIndirect(parameter_types, return_type):
                 let func_pointer = pop()
                 let index = int_from_value(func_pointer)
                 let n = parameter_types.len()
                 let arguments = pop_n(count: n)
-                let function = functions.get(index)
-                let frame = frame_from_function(function, arguments)
-                push_frame(frame)
+                let function_ref = m_functions.get(index)
+                case function_ref:
+                    ByteCode(function):
+                        let frame = frame_from_function(function, arguments)
+                        push_frame(frame)
+                    Native(efi):
+                        case efi.f(arguments):
+                            Some(value):
+                                push(value)
+                            None:
+                                pass
             Return(amount):
                 if amount == 1:
                     let value = pop()

@@ -556,6 +556,7 @@ enum TyCon:
     Struct(struct_def: StructDef)
     Enum(enum_def: EnumDef)
     Class(class_def: ClassDef)
+    Ref(key: str)
 
 fn tycon_to_str(tycon: TyCon) -> str:
     case tycon:
@@ -565,6 +566,8 @@ fn tycon_to_str(tycon: TyCon) -> str:
             return enum_def_to_str(enum_def)
         Class(class_def):
             return class_def_to_str(class_def)
+        Ref(key):
+            return "tycon-ref-{key}"
 
 fn tycon_equal(tycon1: TyCon, tycon2: TyCon) -> bool:
     case tycon1:
@@ -586,6 +589,8 @@ fn tycon_equal(tycon1: TyCon, tycon2: TyCon) -> bool:
                     return node_id_equal(node_id1: class_def1.id, node_id2: class_def2.id)
             else:
                 return false
+        Ref(key):
+            return false
 
 fn tycon_get_type_parameters(tycon: TyCon) -> List[TypeParameter]:
     case tycon:
@@ -595,6 +600,8 @@ fn tycon_get_type_parameters(tycon: TyCon) -> List[TypeParameter]:
             return enum_def.type_parameters
         Class(class_def):
             return class_def.type_parameters
+        Ref(key):
+            panic("reference has no type parameters")
 
 fn void_type() -> Type:
     return new_type(kind: TypeKind.Void())

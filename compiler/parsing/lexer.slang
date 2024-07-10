@@ -113,7 +113,17 @@ class Lexer:
             let c = next_char()
 
             # Decide what to do based on char:
-            if c == '(':
+            if is_id(c):
+                while offset < n and is_id_or_digit(c: peek()):
+                    offset += 1
+
+                # Check for keywords:
+                kind = check_keyword(txt: get_lexeme())
+            elif c == ' ':
+                while match(txt: ' '):
+                    pass
+                kind = TokenKind.Space(amount: std.str_len(text: get_lexeme()))
+            elif c == '(':
                 kind = TokenKind.BraceOpen()
             elif c == ')':
                 kind = TokenKind.BraceClose()
@@ -127,10 +137,6 @@ class Lexer:
                 kind = TokenKind.Dot()
             elif c == ':':
                 kind = TokenKind.Colon()
-            elif c == ' ':
-                while match(txt: ' '):
-                    pass
-                kind = TokenKind.Space(amount: std.str_len(text: get_lexeme()))
             elif c == '#':
                 # Line comment
                 while offset < n and not is_lf(c: peek()):
@@ -211,12 +217,6 @@ class Lexer:
                         # Normal decimal number
                         let int_value: int = str_to_int(get_lexeme())
                         kind = TokenKind.Integer(int_value)
-            elif is_id(c):
-                while offset < n and is_id_or_digit(c: peek()):
-                    offset += 1
-
-                # Check for keywords:
-                kind = check_keyword(txt: get_lexeme())
 
             elif ord(c) == 39:
                 # Char literal

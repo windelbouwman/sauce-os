@@ -179,6 +179,9 @@ class JsonBuilder:
     fn add_text_attribute(attr: str, text: str):
         add_attribute(attr, value: JsonValue.String(text))
 
+    fn add_text_as_element(text: str):
+        add_element(value: JsonValue.String(text))
+
     fn add_integer_attribute(attr: str, value: int):
         add_attribute(attr, value: JsonValue.Integer(value))
 
@@ -387,7 +390,15 @@ class Lexer:
             let begin = index
             let c = str_get(text, index)
             index += 1
-            if c == ',':
+            if is_id(c):
+                while is_id(c: str_get(text, index)):
+                    index += 1
+                    if index >= n:
+                        break
+                let end = index
+                let slice = str_slice(text, begin, end)
+                return create_token(JsonTokenKind.Id(slice))
+            elif c == ',':
                 return create_token(JsonTokenKind.Comma())
             elif c == ':':
                 return create_token(JsonTokenKind.Colon())
@@ -420,14 +431,6 @@ class Lexer:
                 let end = index
                 let slice = str_slice(text, begin, end)
                 return create_token(JsonTokenKind.Integer(str_to_int(slice)))
-            elif is_id(c):
-                while is_id(c: str_get(text, index)):
-                    index += 1
-                    if index >= n:
-                        break
-                let end = index
-                let slice = str_slice(text, begin, end)
-                return create_token(JsonTokenKind.Id(slice))
             elif c == ' ':
                 pass
             elif ord(c) == 13 or ord(c) == 10:
