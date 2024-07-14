@@ -2,6 +2,7 @@
 """
 
 import logging
+from dataclasses import dataclass
 from . import ast
 from . import bc
 from .bc import OpCode
@@ -12,10 +13,20 @@ logger = logging.getLogger("bytecode-gen")
 def gen_bc(modules: list[ast.Module]) -> bc.Program:
     logger.info("generating bytecode")
     g = ByteCodeGenerator()
-    for module in modules:
-        g.gen_module(module)
+    g.gen_modules(modules)
 
     return bc.Program(g._types, g._globals, g._functions)
+
+
+@dataclass
+class LoopBlock:
+    start_label: int
+    final_label: int
+
+
+@dataclass
+class TryBlock:
+    pass
 
 
 class ByteCodeGenerator:
@@ -48,6 +59,10 @@ class ByteCodeGenerator:
             "not": OpCode.NOT,
             "-": OpCode.NEG,
         }
+
+    def gen_modules(self, modules: list[ast.Module]):
+        for module in modules:
+            self.gen_module(module)
 
     def gen_module(self, module: ast.Module):
         # Forward declare types:
@@ -145,6 +160,20 @@ class ByteCodeGenerator:
             )
         )
 
+    def goto_inner_loop(self) -> LoopBlock:
+        for block in self._loops:
+            if isinstance(block, LoopBlock):
+                return block
+            elif isinstance(block, TryBlock):
+                self.emit(OpCode.POP_EXCEPT)
+        raise RuntimeError("No in a loop!")
+
+    def enter_block(self, block):
+        self._loops.insert(0, block)
+
+    def leave_block(self):
+        self._loops.pop(0)
+
     def gen_statement(self, statement: ast.Statement):
         kind = statement.kind
         if isinstance(kind, ast.LetStatement):
@@ -156,9 +185,11 @@ class ByteCodeGenerator:
             for s in kind.statements:
                 self.gen_statement(s)
         elif isinstance(kind, ast.BreakStatement):
-            self.emit(OpCode.JUMP, self._loops[-1][1])
+            loop = self.goto_inner_loop()
+            self.emit(OpCode.JUMP, loop.final_label)
         elif isinstance(kind, ast.ContinueStatement):
-            self.emit(OpCode.JUMP, self._loops[-1][0])
+            loop = self.goto_inner_loop()
+            self.emit(OpCode.JUMP, loop.start_label)
         elif isinstance(kind, ast.PassStatement):
             pass
         elif isinstance(kind, ast.WhileStatement):
@@ -168,7 +199,7 @@ class ByteCodeGenerator:
 
             self.emit(OpCode.JUMP, start_label)
 
-            self._loops.append((start_label, final_label))
+            self.enter_block(LoopBlock(start_label, final_label))
 
             self.set_label(start_label)
             self.gen_expression(kind.condition)
@@ -178,7 +209,7 @@ class ByteCodeGenerator:
             self.gen_statement(kind.block.body)
             self.emit(OpCode.JUMP, start_label)
 
-            self._loops.pop()
+            self.leave_block()
 
             self.set_label(final_label)
         elif isinstance(kind, ast.IfStatement):
@@ -266,7 +297,9 @@ class ByteCodeGenerator:
             except_label = self.new_label()
 
             self.emit(OpCode.SETUP_EXCEPT, except_label)
+            self.enter_block(TryBlock())
             self.gen_statement(kind.try_block.body)
+            self.leave_block()
             self.emit(OpCode.POP_EXCEPT)
             self.emit(OpCode.JUMP, final_label)
 

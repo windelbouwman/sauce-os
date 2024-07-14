@@ -17,6 +17,10 @@ fn gen_bytecode(module_set: ast.ModuleSet) -> bc.Program:
         g.gen_prog(module)
     return bc.Program(functions: g.functions, structs: g.structs, globals: g.global_variables, extern_functions: g.extern_functions)
 
+enum ControlBlock:
+    LoopBlock(loop_: Loop)
+    TryBlock
+
 struct Loop:
     continue_label: int
     break_label: int
@@ -37,7 +41,7 @@ class BytecodeGenerator:
     var structs: List[bc.Struct] = List()
     var functions: List[bc.Function] = List()
     var function_map: Dictionary[int] = Dictionary()
-    var loop_stack: List[Loop] = List()
+    var block_stack: List[ControlBlock] = List()
 
     fn forward_declarations(module_set: ast.ModuleSet):
         # struct forward declarations:
@@ -161,16 +165,25 @@ class BytecodeGenerator:
                 functions.append(bc.Function(name, parameters, return_type, no_return, locals, instructions))
             Extern(libname):
                 pass
+    
+    fn goto_inner_loop() -> Loop:
+        for block in block_stack:
+            case block:
+                LoopBlock(loop_):
+                    return loop_
+                TryBlock:
+                    emit(Instruction.PopTry())
+        panic("Not in a loop!")
 
     fn gen_statement(statement?: ast.Statement):
         case statement.kind:
             Pass:
                 pass
             Break:
-                let inner_most_loop = loop_stack.last()
+                let inner_most_loop = goto_inner_loop()
                 jump(target: inner_most_loop.break_label)
             Continue:
-                let inner_most_loop = loop_stack.last()
+                let inner_most_loop = goto_inner_loop()
                 jump(target: inner_most_loop.continue_label)
             Expr(expr):
                 gen_expression(expr)
@@ -201,6 +214,13 @@ class BytecodeGenerator:
             Unreachable:
                 emit(Instruction.Unreachable())
             Return(opt_val):
+                for block in block_stack:
+                    case block:
+                        TryBlock:
+                            emit(Instruction.PopTry())
+                    else:
+                        pass
+
                 case opt_val:
                     Some(val):
                         gen_expression(val)
@@ -287,7 +307,9 @@ class BytecodeGenerator:
         emit(Instruction.SetupTry(try_label, except_label))
 
         set_label(try_label)
+        enter_block(block: ControlBlock.TryBlock())
         gen_statement(try_statement.try_block.body)
+        leave_block()
         emit(Instruction.PopTry())
         jump(final_label)
 
@@ -305,7 +327,7 @@ class BytecodeGenerator:
         let test_label = new_label()
         let body_label = new_label()
         let final_label = new_label()
-        loop_stack.append(Loop(continue_label: test_label, break_label: final_label))
+        enter_block(block: ControlBlock.LoopBlock(loop_: Loop(continue_label: test_label, break_label: final_label)))
 
         set_label(test_label)
         gen_condition(condition: while_statement.condition, true_label: body_label, false_label: final_label)
@@ -314,7 +336,7 @@ class BytecodeGenerator:
         gen_statement(while_statement.block.body)
         jump(test_label)
 
-        loop_stack.drop_last()
+        leave_block()
         set_label(final_label)
 
     fn gen_if_statement(if_statement: ast.IfStatement):
@@ -672,6 +694,12 @@ class BytecodeGenerator:
         else:
             panic("Type: {ast.type_to_string(ty2)} not supported")
         return ty
+    
+    fn enter_block(block: ControlBlock):
+        block_stack.prepend(block)
+
+    fn leave_block():
+        block_stack.drop_front()
 
     fn emit(instruction?: Instruction):
         # print("Inst: {bc.instruction_to_string(instruction)}")

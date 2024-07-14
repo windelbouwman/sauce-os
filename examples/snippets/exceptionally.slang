@@ -17,6 +17,35 @@ fn main() -> int:
         print("y2 = {y}")
     except(err_val: str):
         print("ERROR: {err_val}")
+
+    # Demo a return from within a try statement:
+    try:
+        return_in_try()
+        raise "fooo"
+    except(err: str):
+        print("main handler: {err}")
+
+    # Demo a break inside a loop:
+    try:
+        loop:
+            try:
+                break
+            except(err: str):
+                print("loop handler: {err}")
+        raise "Moi"
+    except(err2: str):
+        print("non-loop handler: {err2}")
+    
+    # Demo exception in an exception handler
+    try:
+        try:
+            raise 1337
+        except(err4: int):
+            raise "Oh my: {err4}"
+
+    except(err3: str):
+        print("outer handler: {err3}")
+
     return 0
 
 fn foo(x: bool) -> int except str:
@@ -31,3 +60,9 @@ fn may_bork(do_bork: bool) -> int except str:
     else:
         return 42
 
+
+fn return_in_try():
+    try:
+        return
+    except(err: str):
+        print("return_in_try handler: {err}")

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <setjmp.h>
 #include <string.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -15,6 +16,15 @@ extern slang_int_t main2();
 void *rt_malloc(int size);
 void rt_incref(void *ptr);
 void rt_decref(void *ptr);
+
+struct slang_exception_handler;
+typedef struct slang_exception_handler
+{
+    jmp_buf buf;
+    struct slang_exception_handler *prev;
+} slang_exception_handler_t;
+slang_exception_handler_t *g_except_hook;
+void *g_except_value;
 
 slang_float_t math_powf(slang_float_t a, slang_float_t b)
 {

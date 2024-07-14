@@ -105,8 +105,8 @@ class CGenerator:
         emit("typedef double slang_float_t;")
         emit("typedef struct {chr(123)} jmp_buf buf; void* prev; {chr(125)} slang_exception_handler_t;")
 
-        emit("slang_exception_handler_t* g_except_hook;")
-        emit("void* g_except_value;")
+        emit("extern slang_exception_handler_t* g_except_hook;")
+        emit("extern void* g_except_value;")
 
     fn gen_struct_def(sidx: int, struct_def: bc.Struct):
         if struct_def.is_union:

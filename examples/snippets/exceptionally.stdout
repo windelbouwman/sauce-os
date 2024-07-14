@@ -5,3 +5,6 @@ y1 = 84
 We might bork!
 We might bork!
 ERROR: Oh noes
+main handler: fooo
+non-loop handler: Moi
+outer handler: Oh my: 1337

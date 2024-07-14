@@ -1142,6 +1142,9 @@ class TryStatement(StatementKind):
         self.parameter = parameter
         self.except_block = except_block
 
+    def __repr__(self):
+        return f"TryStatement({self.parameter})"
+
 
 def break_statement(location: Location) -> Statement:
     kind = BreakStatement()

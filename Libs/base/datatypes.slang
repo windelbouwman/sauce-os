@@ -134,6 +134,10 @@ class List[T]:
         while not is_empty():
             let dummy = pop_front()
 
+    fn drop_front():
+        # Drop first item from list
+        let x = pop_front()
+
     fn pop_front() -> T:
         case head_element:
             None:

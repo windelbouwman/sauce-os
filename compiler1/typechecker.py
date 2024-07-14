@@ -111,9 +111,9 @@ class TypeChecker(BasePass):
             self.visit_statement(kind.block.body)
         elif isinstance(kind, ast.TryStatement):
             self._except_handlers.append(kind.parameter.ty)
-            super().visit_statement(kind.try_block.body)
+            self.visit_statement(kind.try_block.body)
             self._except_handlers.pop()
-            super().visit_statement(kind.except_block.body)
+            self.visit_statement(kind.except_block.body)
         else:
             super().visit_statement(statement)
 

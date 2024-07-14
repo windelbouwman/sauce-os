@@ -912,6 +912,7 @@ class Parser:
             let tok5 = get_token()
             case tok5.kind:
                 BracketClose:
+                    location = Location(begin: location.begin, end: tok5.location.end)
                     break
                 Comma:
                     continue
@@ -930,6 +931,7 @@ class Parser:
         else:
             raise unexpected_token(tok: tok5, expected: "']'")
 
+        location = Location(begin: location.begin, end: tok5.location.end)
         return ast.array_literal2(value, size, location)
 
     fn parse_name() -> NameAtLocation except CompilationError:
