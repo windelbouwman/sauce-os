@@ -45,7 +45,7 @@ class XmlWriter:
         # See also: 'text_gen.slang'
         # TODO: de-duplicate by means of dynamic dispatch/traits
         if option_is_some(output_filename):
-            outf = file_open(filename: option_unwrap(output_filename))
+            outf = file_open(filename: option_unwrap(output_filename), mode: "w")
             use_file = true
 
     fn end():

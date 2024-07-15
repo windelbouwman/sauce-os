@@ -404,6 +404,8 @@ class VirtualMachine:
                 let value = float_from_value(value: pop())
                 let f = int(value)
                 push(Value.Int(f))
+            IntCast(signed, bits):
+                pass # No-op?
             FromOpaque(ty):
                 pass  # VM values are all opaque
             ToOpaque(ty):

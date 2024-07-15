@@ -214,25 +214,32 @@ class BytecodeGenerator:
             Unreachable:
                 emit(Instruction.Unreachable())
             Return(opt_val):
-                for block in block_stack:
-                    case block:
-                        TryBlock:
-                            emit(Instruction.PopTry())
-                    else:
-                        pass
-
-                case opt_val:
-                    Some(val):
-                        gen_expression(val)
-                        emit(Instruction.Return(n_arg: 1))
-                    None:
-                        emit(Instruction.Return(n_args: 0))
-                is_reachable = false
-            Raise(val):
-                gen_expression(val)
-                emit(Instruction.Raise())
-                is_reachable = false
+                gen_return(opt_val)
+            Raise(value):
+                gen_raise(value)
     
+    fn gen_return(opt_val: Option[ast.Expression]):
+        for block in block_stack:
+            case block:
+                TryBlock:
+                    emit(Instruction.PopTry())
+            else:
+                pass
+
+        case opt_val:
+            Some(val):
+                gen_expression(val)
+                emit(Instruction.Return(n_arg: 1))
+            None:
+                emit(Instruction.Return(n_args: 0))
+        is_reachable = false
+
+    fn gen_raise(value: ast.Expression):
+        gen_expression(value)
+        emit(Instruction.ToOpaque(ty: get_bc_type(value.ty)))
+        emit(Instruction.Raise())
+        is_reachable = false
+
     fn gen_assignment(target: ast.Expression, op: Option[ast.BinaryOperator], value: ast.Expression):
         case target.kind:
             GetAttr(base, attr):
@@ -316,6 +323,7 @@ class BytecodeGenerator:
         set_label(except_label)
         emit(Instruction.PopTry())
         emit(Instruction.GetExceptionValue())
+        emit(Instruction.FromOpaque(get_bc_type(try_statement.except_var.ty)))
         emit(Instruction.LocalSet(index: except_var_index))
         gen_statement(try_statement.except_block.body)
         jump(final_label)
@@ -394,7 +402,7 @@ class BytecodeGenerator:
         # Evaluate a condition into a value on the stack.
 
         # Create a local variable for the result:
-        let ty = bc.Type.Int()
+        let ty = bc.Type.Bool()
         let index = new_local(ty)
 
         # Evaluate the condition, and branch:
@@ -495,6 +503,10 @@ class BytecodeGenerator:
                         emit(Instruction.IntToFloat())
                     elif ast.is_opaque_type(value.ty):
                         emit(Instruction.FromOpaque(get_bc_type(ty)))
+                    elif ast.is_float_type(value.ty):
+                        # No-op
+                        # TODO: cast from 32 to 64 bits and vice versa?
+                        pass
                     else:
                         panic("cannot cast to float: {ast.type_to_string(value.ty)}")
                 elif ast.is_int_type(ty):
@@ -502,8 +514,12 @@ class BytecodeGenerator:
                         emit(Instruction.FloatToInt())
                     elif ast.is_opaque_type(value.ty):
                         emit(Instruction.FromOpaque(get_bc_type(ty)))
+                    elif ast.is_int_type(value.ty):
+                        let signed = ast.is_signed_int_type(ty)
+                        let bits = ast.get_bits_from_int_type(ty)
+                        emit(Instruction.IntCast(signed, bits))
                     else:
-                        panic("cannot cast to float: {ast.type_to_string(value.ty)}")
+                        panic("cannot cast to int: {ast.type_to_string(value.ty)}")
                 elif ast.is_opaque_type(ty):
                     if ast.is_opaque_type(value.ty):
                         pass
@@ -659,9 +675,12 @@ class BytecodeGenerator:
         # Determine the bytecode type for the given ast type
         let ty = bc.Type.Ptr()
         if ast.is_int_type(ty2):
-            ty = bc.Type.Int()
+            let signed = ast.is_signed_int_type(ty2)
+            let bits = ast.get_bits_from_int_type(ty2)
+            ty = bc.Type.Int(signed, bits)
         elif ast.is_float_type(ty2):
-            ty = bc.Type.Float()
+            let bits = 64 # TODO
+            ty = bc.Type.Float(bits)
         elif ast.is_str_type(ty2):
             ty = bc.Type.Str()
         elif ast.is_struct_type(ty2):
@@ -683,7 +702,7 @@ class BytecodeGenerator:
         elif ast.is_type_parameter_type(ty2):
             ty = bc.Type.Ptr()
         elif ast.is_bool_type(ty2):
-            ty = bc.Type.Int()
+            ty = bc.Type.Bool()
         elif ast.is_char_type(ty2):
             ty = bc.Type.Char()
         elif ast.is_opaque_type(ty2):
@@ -692,7 +711,7 @@ class BytecodeGenerator:
             let element_type2 = ast.get_element_type_from_type(ty2)
             ty = bc.Type.Array(get_bc_type(element_type2))
         else:
-            panic("Type: {ast.type_to_string(ty2)} not supported")
+            panic("get_bc_type: Type {ast.type_to_string(ty2)} not supported")
         return ty
     
     fn enter_block(block: ControlBlock):

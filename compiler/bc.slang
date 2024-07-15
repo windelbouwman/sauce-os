@@ -34,8 +34,9 @@ struct Function:
     instructions: Vector[Instruction]
 
 enum Type:
-    Int
-    Float
+    Int(signed: bool, bits: int)
+    Float(bits: int)
+    Bool
     Str
     Char
     Ptr
@@ -63,6 +64,7 @@ enum Instruction:
     Comparison(op: ComparisonOperator)
     Bitop(op: BitOperator)
 
+    IntCast(signed: bool, bits: int)
     IntToFloat
     FloatToInt
 
@@ -166,7 +168,11 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return comparison_to_string(op)
         Bitop(op):
             return bitop_to_string(op)
-
+        IntCast(signed, bits):
+            if signed:
+                return "to-int{bits}"
+            else:
+                return "to-uint{bits}"
         IntToFloat:
             return "int-to-float"
         FloatToInt:
@@ -307,10 +313,15 @@ fn print_bc_program(program: Program):
 
 fn type_to_string(ty?: Type) -> str:
     case ty:
-        Int:
-            return "int"
-        Float:
-            return "float"
+        Int(signed, bits):
+            if signed:
+                return "int{bits}"
+            else:
+                return "uint{bits}"
+        Float(bits):
+            return "float{bits}"
+        Bool:
+            return "bool"
         Ptr:
             return "ptr"
         Str:

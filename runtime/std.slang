@@ -21,10 +21,12 @@ extern "runtime" fn print(message?: str)
 extern "runtime" fn exit(code: int) ?
 
 extern "runtime" fn read_file(filename: str) -> str
-extern "runtime" fn file_open(filename: str) -> int
+extern "runtime" fn file_open(filename: str, mode: str) -> int
 extern "runtime" fn file_writeln(handle: int, line: str)
+extern "runtime" fn file_read_n_bytes(handle: int, buffer: [uint8], bufsize: int) -> int
 extern "runtime" fn file_close(handle: int)
 
 extern "runtime" fn get_n_args() -> int
 extern "runtime" fn get_arg(arg: int) -> str
 
+# fn read_binary

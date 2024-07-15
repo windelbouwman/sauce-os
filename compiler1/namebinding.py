@@ -16,6 +16,21 @@ def base_scope() -> ast.Scope:
     top_scope.define("int", ast.int_type)
     top_scope.define("float", ast.float_type)
     top_scope.define("bool", ast.bool_type)
+
+    # Take a short-cut, and assume all integer types are 'int':
+    top_scope.define("uint8", ast.int_type)
+    top_scope.define("uint16", ast.int_type)
+    top_scope.define("uint32", ast.int_type)
+    top_scope.define("uint64", ast.int_type)
+    top_scope.define("int8", ast.int_type)
+    top_scope.define("int16", ast.int_type)
+    top_scope.define("int32", ast.int_type)
+    top_scope.define("int64", ast.int_type)
+
+    # Take a short-cut, and assume all float types are 'float':
+    top_scope.define("float32", ast.float_type)
+    top_scope.define("float64", ast.float_type)
+
     return top_scope
 
 

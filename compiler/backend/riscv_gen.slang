@@ -85,7 +85,8 @@ class RiscvGen:
                     panic("TODO")
                 FloatToInt:
                     panic("TODO")
-
+                IntCast(signed, bits):
+                    panic("TODO: IntCast")
                 ToOpaque(t):
                     panic("TODO")
                 FromOpaque(t):

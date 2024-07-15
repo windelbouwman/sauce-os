@@ -31,7 +31,7 @@ fn newop_on_type(newop: NewOp, ty: ast.Type, phase: ast.VisitPhase):
         Post:
             case ty.kind:
                 TypeExpression(expression):
-                    ast.change_type_to(ty, ty2: newop.eval_type_expr(expression))
+                    ast.change_type_to(ty, to_type: newop.eval_type_expr(expression))
             else:
                 pass
     else:
@@ -118,22 +118,19 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                                             pass
                                     Base(base):
                                         case base:
-                                            Float:
+                                            Float(bits):
                                                 ok = true
-                                                if call.arguments.len() == 1:
-                                                    let value = call.arguments.first().value
-                                                    expression.kind = ast.ExpressionKind.TypeCast(ty, value)
-                                                else:
-                                                    newop.add_error(location: expression.location, message: "Expect exactly 1 argument to type cast")
-                                            Int:
+                                            Int(signed, bits):
                                                 ok = true
-                                                if call.arguments.len() == 1:
-                                                    let value = call.arguments.first().value
-                                                    expression.kind = ast.ExpressionKind.TypeCast(ty, value)
-                                                else:
-                                                    newop.add_error(location: expression.location, message: "Expect exactly 1 argument to type cast")
                                         else:
                                             pass
+
+                                        if ok:
+                                            if call.arguments.len() == 1:
+                                                let value = call.arguments.first().value
+                                                expression.kind = ast.ExpressionKind.TypeCast(ty, value)
+                                            else:
+                                                newop.add_error(location: expression.location, message: "Expect exactly 1 argument to type cast")
                                 else:
                                     pass
 

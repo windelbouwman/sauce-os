@@ -2,6 +2,7 @@
 # Type checking logic.
 
 import ast
+from math import ceil, log2
 from std import print
 from datatypes import Option, List, option_unwrap, option_is_none
 from settype import Set
@@ -145,14 +146,10 @@ class TypeChecker:
                         add_error(location: for_statement.iter_value.location, message: "Array size unknown")
                 elif ast.has_field(ty: for_statement.iter_value.ty, attr: "iter"):
                     # TODO: we have a few assumptions here, which panic. Should be proper warning:
-                    # print("FORRRRRR")
                     let iter_ty: ast.Type = ast.get_return_type_from_type(option_unwrap(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "iter")))
-                    # print("iter ty: {ast.type_to_string(iter_ty)}")
                     let opt_ty: ast.Type = ast.get_return_type_from_type(option_unwrap(ast.get_field_type(ty: iter_ty, attr: "next")))
-                    # print("Opt ty: {ast.type_to_string(opt_ty)}")
                     let opt_variant = option_unwrap(ast.get_enum_variant_from_type(ty: opt_ty, attr: "Some"))
                     let val_ty: ast.Type = ast.get_variant_payload_types(ty: opt_ty, variant: opt_variant).first()
-                    # print("Val ty: {ast.type_to_string(val_ty)}")
                     for_statement.iter_var.ty = val_ty
                 else:
                     add_error(location: for_statement.iter_value.location, message: "Value cannot be iterated: {ast.type_to_string(for_statement.iter_value.ty)}")
@@ -170,11 +167,10 @@ class TypeChecker:
             Let(let_statement):
                 case let_statement.type_hint:
                     Some(ty):
-                        coerce(ty, value: let_statement.value)
                         let_statement.variable.ty = ty
                     None:
                         let_statement.variable.ty = let_statement.value.ty
-                # log_trace("Let var {ast.node_id_to_string(let_statement.variable.id)} -> {ast.type_to_string(let_statement.variable.ty)} @ {location_to_string(statement.location)}")
+                coerce(ty: let_statement.variable.ty, value: let_statement.value)
             Case(case_statement):
                 statement.is_terminator = true
                 for arm in case_statement.arms:
@@ -306,15 +302,16 @@ class TypeChecker:
                 expression.ty = ast.str_type()
             Typ(t):
                 add_error(location: expression.location, message: "Cannot use a type here")
-            Binop(b):
+            Binop(binop):
                 # Heuristics ahead...
-                let ty = b.lhs.ty
-                if ast.is_int_type(b.lhs.ty) and ast.is_float_type(b.rhs.ty):
-                    ty = b.rhs.ty
+                let ty = binop.lhs.ty
+                let rhs_ty = binop.rhs.ty
+                if ast.is_int_type(ty) and ast.is_float_type(rhs_ty):
+                    ty = rhs_ty
 
-                coerce(ty, value: b.lhs)
-                coerce(ty, value: b.rhs)
-                if ast.is_comparison_op(op: b.op):
+                coerce(ty, value: binop.lhs)
+                coerce(ty, value: binop.rhs)
+                if ast.is_comparison_op(op: binop.op):
                     expression.ty = ast.bool_type()
                 else:
                     expression.ty = ty
@@ -401,6 +398,15 @@ class TypeChecker:
             BoolLiteral(b):
                 expression.ty = ast.bool_type()
             IntLiteral(i):
+                # Calculate how many bits we require to store this literal:
+                # let bits = 1
+                # if i > 0:
+                #     bits = int(value: ceil(log2(i))) + 1
+                # elif i < 0:
+                #     bits = int(value: ceil(log2(-i))) + 2
+                # else:  # i = 0, 1 bit required.
+                #     bits = 1
+                # expression.ty = ast.some_int_type(bits)
                 expression.ty = ast.int_type()
             FloatLiteral(b):
                 expression.ty = ast.float_type()
@@ -434,20 +440,28 @@ class TypeChecker:
             add_error(location: value.location, message: "Got {ast.type_to_string(value.ty)}, expected {ast.type_to_string(ty)}")
     
     fn unify(ty1: ast.Type, ty2: ast.Type) -> bool:
-        if ast.is_int_type(ty1) and ast.is_int_type(ty2):
+        if ast.is_base_type(ty1) and ast.is_base_type(ty2):
+            let base_type1 = ast.get_base_type_from_type(ty1)
+            let base_type2 = ast.get_base_type_from_type(ty2)
+            return ast.base_type_equal(base_type1, base_type2)
+        elif ast.is_opaque_type(ty1) and ast.is_opaque_type(ty2):
             return true
         elif ast.is_void_type(ty1) and ast.is_void_type(ty2):
             return true
-        elif ast.is_str_type(ty1) and ast.is_str_type(ty2):
-            return true
-        elif ast.is_bool_type(ty1) and ast.is_bool_type(ty2):
-            return true
-        elif ast.is_float_type(ty1) and ast.is_float_type(ty2):
-            return true
-        elif ast.is_char_type(ty1) and ast.is_char_type(ty2):
-            return true
-        elif ast.is_opaque_type(ty1) and ast.is_opaque_type(ty2):
-            return true
+        elif ast.is_base_type(ty1) and ast.is_some_integer_type(ty2):
+            let base_type1 = ast.get_base_type_from_type(ty1)
+            let needed_bits = ast.get_bits_from_some_integer_type(ty2)
+            case base_type1:
+                Int(signed, bits):
+                    if needed_bits <= bits:
+                        ast.change_type_to(ty: ty2, to_type: ty1)
+                        return true
+                    else:
+                        return false
+            else:
+                return false
+        elif ast.is_some_integer_type(ty1) and ast.is_base_type(ty2):
+            return unify(ty1: ty2, ty2: ty1)  # Invoke swapped
         elif ast.is_tycon_app_type(ty1) and ast.is_tycon_app_type(ty2):
             let tycon1 = ast.get_tycon_from_type(ty1)
             let tycon2 = ast.get_tycon_from_type(ty2)
@@ -474,6 +488,8 @@ class TypeChecker:
                 return false
 
             return true
+        elif ast.is_array_type(ty1) and ast.is_array_type(ty2):
+            return unify(ty1: ast.get_element_type_from_type(ty1), ty2: ast.get_element_type_from_type(ty2))
         elif ast.is_type_var_type(ty1):
             let type_var1: ast.TypeVariable = ast.get_type_var_from_type(ty1)
             case type_var1.ty:
@@ -483,15 +499,13 @@ class TypeChecker:
                         return ast.type_var_equals(type_var1, type_var2)
                     else:
                         type_var1.ty = Option.Some(ty2)
-                        ast.change_type_to(ty: ty1, ty2)
+                        ast.change_type_to(ty: ty1, to_type: ty2)
                         return true
                 Some(assigned_ty):
-                    ast.change_type_to(ty: ty1, ty2: assigned_ty)
+                    ast.change_type_to(ty: ty1, to_type: assigned_ty)
                     return unify(ty1, ty2)
         elif ast.is_type_var_type(ty2):
             return unify(ty1: ty2, ty2: ty1)
-        elif ast.is_array_type(ty1) and ast.is_array_type(ty2):
-            return unify(ty1: ast.get_element_type_from_type(ty1), ty2: ast.get_element_type_from_type(ty2))
         else:
             return false
     

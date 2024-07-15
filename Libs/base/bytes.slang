@@ -4,20 +4,21 @@
 from std import str_len, str_slice, ord, chr, str_get
 from utils import assert
 from vectype import Vector, new_vector, VectorIter
+from datatypes import Option
 from strlib import hex_char, hex_to_int
 
 class Bytes:
     # Immutable bytes
-    var m_bytes: Vector[int]
+    var m_bytes: Vector[uint8]
 
-    fn iter() -> VectorIter[int]:
-        return m_bytes.iter()
+    fn iter() -> ByteIter:
+        return ByteIter(m_iter: m_bytes.iter())
 
     fn len() -> int:
         return m_bytes.len()
     
     fn get(index: int) -> int:
-        return m_bytes[index]
+        return int(value: m_bytes[index])
 
     fn as_hex() -> str:
         # Return bytes as hexadecimal text
@@ -29,6 +30,15 @@ class Bytes:
     fn into_reader() -> ByteReader:
         return ByteReader(m_bytes: this)
 
+class ByteIter:
+    var m_iter: VectorIter[uint8]
+
+    fn next() -> Option[int]:
+        case m_iter.next():
+            Some(value):
+                return Option.Some(value: int(value))
+            None:
+                return Option.None()
 
 class ByteReader:
     # read byte at a time
@@ -67,17 +77,17 @@ class ByteReader:
 
 class ByteArray:
     # Mutable bytes
-    var m_bytes: Vector[int] = new_vector(default: 0)
+    var m_bytes: Vector[uint8] = new_vector(default: uint8(value: 0))
 
     fn append(byte?: int):
-        m_bytes.append(byte)
+        m_bytes.append(uint8(byte))
 
     fn get(index: int) -> int:
-        return m_bytes[index]
+        return int(value: m_bytes[index])
 
     fn extend(bytes?: Bytes):
         for b in bytes.m_bytes:
-            append(b)
+            append(int(b))
 
     fn pack32_le(value?: int):
         append(value & 0xFF)
@@ -89,8 +99,8 @@ class ByteArray:
         append((value & 0xff00) >> 8)
         append(value & 0xff)
 
-    fn iter() -> VectorIter[int]:
-        return m_bytes.iter()
+    fn iter() -> ByteIter:
+        return ByteIter(m_iter: m_bytes.iter())
 
     fn len() -> int:
         return m_bytes.len()
@@ -101,9 +111,9 @@ class ByteArray:
     fn as_hex() -> str:
         return to_bytes().as_hex()
 
-fn byte_as_hex(byte?: int) -> str:
-    let c1 = hex_char(byte & 0xF)
-    let c2 = hex_char((byte & 0xF0) >> 4)
+fn byte_as_hex(byte?: uint8) -> str:
+    let c1 = hex_char(int(byte) & 0xF)
+    let c2 = hex_char((int(byte) & 0xF0) >> 4)
     return "{c2}{c1}"
 
 fn bytes_from_hex_text(text: str) -> Bytes:
@@ -115,6 +125,10 @@ fn bytes_from_hex_text(text: str) -> Bytes:
         let part = str_slice(text, begin: i, end: i + 2)
         output.append(hex_to_int(hextext: part))
         i += 2
+    return output.to_bytes()
+
+fn new_bytes() -> Bytes:
+    let output = ByteArray()
     return output.to_bytes()
 
 fn fill_bytes(n: int, fill: int) -> Bytes:

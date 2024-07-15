@@ -41,46 +41,16 @@ fn types_to_string(typs: List[Type]) -> str:
     return txt
 
 fn type_to_string(ty?: Type) -> str:
-    let txt = "?"
-    case ty.kind:
-        Base(base):
-            txt = base_type_to_str(base)
-        Opaque:
-            txt = "OPAQUE"
-        Void:
-            txt = "VOID"
-        TypeExpression(expr):
-            txt = "TYPE-EXPR"
-        Array(element_type, size):
-            txt = "ARRAY({type_to_string(element_type)} x {size})"
-        Function(parameter_types, info):
-            let typs = get_types_from_parameter_types(parameter_types)
-            txt = "FUNC-TYPE({types_to_string(typs)},{type_to_string(info.return_type)},{type_to_string(info.except_type)})"
-        Undefined:
-            txt = "UNDEFINED"
-        TypeParam(param):
-            txt = "TYPE-PARAM({node_id_to_string(param.id)})"
-        TypeVar(v):
-            case v.ty:
-                None:
-                    txt = "TYPE-VAR(id={v.unique})"
-                Some(ty_assigned):
-                    txt = "TYPE-VAR(id={v.unique},{type_to_string(ty_assigned)})"
-        App(tycon, type_arguments):
-            if type_arguments.is_empty():
-                txt = tycon_to_str(tycon)
-            else:
-                let args = types_to_string(typs: type_arguments)
-                txt = tycon_to_str(tycon) + args
-        
+    let txt = type_kind_to_string(kind: ty.kind)
+
     if ty.was_generic:
         txt = "@" + txt
 
     return txt
 
-fn change_type_to(ty: Type, ty2: Type):
+fn change_type_to(ty: Type, to_type: Type):
     # Adjust ty to ty2
-    ty.kind = ty2.kind
+    ty.kind = to_type.kind
     # TBD: copy was generic?
     # ty.was_generic = ty.was_generic
 
@@ -169,12 +139,62 @@ fn is_void_type(ty?: Type) -> bool:
     else:
         return false
 
+fn is_some_integer_type(ty?: Type) -> bool:
+    case ty.kind:
+        SomeInteger(bits):
+            return true
+    else:
+        return false
+
+fn get_bits_from_some_integer_type(ty?: Type) -> int:
+    case ty.kind:
+        SomeInteger(bits):
+            return bits
+    else:
+        panic("get_bits_from_some_integer_type: Not a some-integer type")
+
+fn is_base_type(ty?: Type) -> bool:
+    case ty.kind:
+        Base(base):
+            return true
+    else:
+        return false
+
+fn get_base_type_from_type(ty?: Type) -> BaseType:
+    case ty.kind:
+        Base(base):
+            return base
+    else:
+        panic("get_base_type_from_type: Not a base type")
+
 fn is_int_type(ty?: Type) -> bool:
     case ty.kind:
         Base(base):
             case base:
-                Int:
+                Int(signed, bits):
                     return true
+            else:
+                return false
+    else:
+        return false
+
+fn get_bits_from_int_type(ty?: Type) -> int:
+    case ty.kind:
+        Base(base):
+            case base:
+                Int(signed, bits):
+                    return bits
+            else:
+                panic("get_bits_from_int_type: Not an integer type")
+    else:
+        panic("get_bits_from_int_type: Not an integer type")
+
+fn is_signed_int_type(ty?: Type) -> bool:
+    case ty.kind:
+        Base(base):
+            case base:
+                Int(signed, bits):
+                    return signed
             else:
                 return false
     else:
@@ -217,12 +237,23 @@ fn is_float_type(ty?: Type) -> bool:
     case ty.kind:
         Base(base):
             case base:
-                Float:
+                Float(bits):
                     return true
             else:
                 return false
     else:
         return false
+
+fn get_bits_from_float_type(ty?: Type) -> int:
+    case ty.kind:
+        Base(base):
+            case base:
+                Float(bits):
+                    return bits
+            else:
+                panic("get_bits_from_float_type: Not a float type")
+    else:
+        panic("get_bits_from_float_type: Not a float type")
 
 fn is_array_type(ty?: Type) -> bool:
     case ty.kind:
@@ -511,6 +542,7 @@ fn get_type_arguments_from_type(ty?: Type) -> List[Type]:
 enum TypeKind:
     Base(base: BaseType)
     Undefined
+    SomeInteger(bits: int)  # Integer type, requiring at least n bits
     Opaque
     Void
     TypeExpression(expression: Expression)
@@ -522,16 +554,52 @@ enum TypeKind:
     # Application of a type-constructor:
     App(tycon: TyCon, type_arguments: List[Type])
 
+fn type_kind_to_string(kind: TypeKind) -> str:
+    let txt = "?"
+    case kind:
+        Base(base):
+            txt = base_type_to_str(base)
+        SomeInteger(bits):
+            txt = "SOME-INT-{bits}"
+        Opaque:
+            txt = "OPAQUE"
+        Void:
+            txt = "VOID"
+        TypeExpression(expr):
+            txt = "TYPE-EXPR"
+        Array(element_type, size):
+            txt = "ARRAY({type_to_string(element_type)} x {size})"
+        Function(parameter_types, info):
+            let typs = get_types_from_parameter_types(parameter_types)
+            txt = "FUNC-TYPE({types_to_string(typs)},{type_to_string(info.return_type)},{type_to_string(info.except_type)})"
+        Undefined:
+            txt = "UNDEFINED"
+        TypeParam(param):
+            txt = "TYPE-PARAM({node_id_to_string(param.id)})"
+        TypeVar(v):
+            case v.ty:
+                None:
+                    txt = "TYPE-VAR(id={v.unique})"
+                Some(ty_assigned):
+                    txt = "TYPE-VAR(id={v.unique},{type_to_string(ty_assigned)})"
+        App(tycon, type_arguments):
+            if type_arguments.is_empty():
+                txt = tycon_to_str(tycon)
+            else:
+                let args = types_to_string(typs: type_arguments)
+                txt = tycon_to_str(tycon) + args
+    return txt
+
 struct ParameterType:
     label: Option[str]
     ty: Type
 
 enum BaseType:
     Bool
-    Int
+    Int(signed: bool, bits: int)
     Str
     Char
-    Float
+    Float(bits: int)
 
 fn base_type_to_str(base: BaseType) -> str:
     let txt = "?"
@@ -540,13 +608,51 @@ fn base_type_to_str(base: BaseType) -> str:
             txt = "STR"
         Char:
             txt = "CHAR"
-        Int:
-            txt = "INT"
+        Int(signed, bits):
+            if signed:
+                txt = "Int{bits}"
+            else:
+                txt = "Uint{bits}"
         Bool:
             txt = "BOOL"
-        Float:
-            txt = "FLOAT"
+        Float(bits):
+            txt = "FLOAT{bits}"
     return txt
+
+fn base_type_equal(base_type1: BaseType, base_type2: BaseType) -> bool:
+    case base_type1:
+        Str:
+            case base_type2:
+                Str:
+                    return true
+            else:
+                return false
+        Char:
+            case base_type2:
+                Char:
+                    return true
+            else:
+                return false
+        Int(signed1, bits1):
+            case base_type2:
+                Int(signed2, bits2):
+                    return (signed1 == signed2) and (bits1 == bits2)
+            else:
+                return false
+        Bool:
+            case base_type2:
+                Bool:
+                    return true
+            else:
+                return false
+        Float(bits1):
+            case base_type2:
+                Float(bits2):
+                    return bits1 == bits2
+            else:
+                return false
+    else:
+        return false
 
 struct TypeVariable:
     unique: int
@@ -613,10 +719,49 @@ fn bool_type() -> Type:
     return new_base_type(base: BaseType.Bool())
 
 fn int_type() -> Type:
-    return new_base_type(base: BaseType.Int())
+    return int64_type()
+
+fn some_int_type(bits: int) -> Type:
+    return new_type(kind: TypeKind.SomeInteger(bits))
+
+fn specific_int_type(signed: bool, bits: int) -> Type:
+    return new_base_type(base: BaseType.Int(signed, bits))
+
+fn uint8_type() -> Type:
+    return specific_int_type(signed: false, bits: 8)
+
+fn uint16_type() -> Type:
+    return specific_int_type(signed: false, bits: 16)
+
+fn uint32_type() -> Type:
+    return specific_int_type(signed: false, bits: 32)
+
+fn uint64_type() -> Type:
+    return specific_int_type(signed: false, bits: 64)
+
+fn int8_type() -> Type:
+    return specific_int_type(signed: true, bits: 8)
+
+fn int16_type() -> Type:
+    return specific_int_type(signed: true, bits: 16)
+
+fn int32_type() -> Type:
+    return specific_int_type(signed: true, bits: 32)
+
+fn int64_type() -> Type:
+    return specific_int_type(signed: true, bits: 64)
 
 fn float_type() -> Type:
-    return new_base_type(base: BaseType.Float())
+    return float64_type()
+
+fn specific_float_type(bits: int) -> Type:
+    return new_base_type(base: BaseType.Float(bits))
+
+fn float32_type() -> Type:
+    return specific_float_type(bits: 32)
+
+fn float64_type() -> Type:
+    return specific_float_type(bits: 64)
 
 fn str_type() -> Type:
     return new_base_type(base: BaseType.Str())

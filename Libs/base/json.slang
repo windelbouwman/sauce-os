@@ -24,7 +24,7 @@ struct KeyValue:
 fn write_json_to_file(filename: str, obj: JsonValue):
     let json_txt = json_to_string(obj)
     # print("JSON: {json_txt}")
-    let handle = file_open(filename)
+    let handle = file_open(filename, mode: "w")
     file_writeln(handle, line: json_txt)
     file_close(handle)
 

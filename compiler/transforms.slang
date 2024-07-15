@@ -198,7 +198,7 @@ fn transformer_on_type7(transformer: Transformer, ty: ast.Type, phase: ast.Visit
     case phase:
         Post:
             if ast.is_type_parameter_type(ty):
-                ast.change_type_to(ty, ty2: ast.opaque_type())
+                ast.change_type_to(ty, to_type: ast.opaque_type())
             elif ast.is_tycon_app_type(ty):
                 let type_arguments = ast.get_type_arguments_from_type(ty)
                 type_arguments.clear()

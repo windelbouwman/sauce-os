@@ -82,6 +82,7 @@ def get_builtins(args=(), stdout=None):
 BUILTINS_PY_IMPL = """
 
 import sys
+import math
 
 def std_get_n_args() -> int:
     return len(sys.argv) - 1
@@ -117,12 +118,22 @@ def std_str_get(s, i):
 def std_str_slice(s,b,e):
     return s[b:e]
 
-def std_file_open(filename: str) -> int:
-    return open(filename, 'w')
+def std_file_open(filename: str, mode: str) -> int:
+    return open(filename, mode)
 
 def std_file_writeln(handle: int, text: str):
     print(text, file=handle)
 
 def std_file_close(handle: int):
     handle.close()
+
+def math_log10(value: float) -> float:
+    return math.log10(value)
+
+def math_log2(value: float) -> float:
+    return math.log2(value)
+
+def math_ceil(value: float) -> float:
+    return math.ceil(value)
+
 """

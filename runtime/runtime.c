@@ -36,6 +36,11 @@ slang_float_t math_log10(slang_float_t value)
     return log10(value);
 }
 
+slang_float_t math_log2(slang_float_t value)
+{
+    return log2(value);
+}
+
 // slang_float_t math_floor(slang_float_t value)
 // {
 //     return floor(value);
@@ -58,11 +63,13 @@ void std_putc(const char *ch)
     putchar(ch[0]);
 }
 
+void std_exit(slang_int_t code) __attribute__((noreturn));
 void std_exit(slang_int_t code)
 {
     exit(code);
 }
 
+void std_panic(const char *message) __attribute__((noreturn));
 void std_panic(const char *message)
 {
     puts(message);
@@ -172,12 +179,13 @@ char *std_read_file(char *filename)
     return buffer;
 }
 
-slang_int_t std_file_open(char *filename)
+slang_int_t std_file_open(char *filename, char *mode)
 {
-    FILE *f = fopen(filename, "w");
+    FILE *f = fopen(filename, mode);
     if (!f)
     {
-        std_panic("Cannot open file");
+        printf("Error opening file: [%s] with mode [%s]\n", filename, mode);
+        std_panic("std_file_open: Cannot open file");
     }
     return (slang_int_t)f;
 }
@@ -188,6 +196,19 @@ void std_file_writeln(slang_int_t handle, char *line)
     {
         FILE *f = (FILE *)handle;
         fprintf(f, "%s\n", line);
+    }
+}
+
+slang_int_t std_file_read_n_bytes(slang_int_t handle, uint8_t *buffer, slang_int_t bufsize)
+{
+    if (handle != 0)
+    {
+        FILE *f = (FILE *)handle;
+        return fread(buffer, 1, bufsize, f);
+    }
+    else
+    {
+        std_panic("std_file_read_n: invalid file");
     }
 }
 

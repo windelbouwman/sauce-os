@@ -171,10 +171,16 @@ class SymbolSaver:
         m_ser.begin_object()
         if ast.is_int_type(ty):
             m_ser.add_text_attribute(attr: "kind", text: "int")
+            let signed = ast.is_signed_int_type(ty)
+            let bits = ast.get_bits_from_int_type(ty)
+            m_ser.add_boolean_attribute(attr: "signed", value: signed)
+            m_ser.add_integer_attribute(attr: "bits", value: bits)
         elif ast.is_str_type(ty):
             m_ser.add_text_attribute(attr: "kind", text: "str")
         elif ast.is_float_type(ty):
             m_ser.add_text_attribute(attr: "kind", text: "float")
+            let bits = ast.get_bits_from_float_type(ty)
+            m_ser.add_integer_attribute(attr: "bits", value: bits)
         elif ast.is_bool_type(ty):
             m_ser.add_text_attribute(attr: "kind", text: "bool")
         elif ast.is_char_type(ty):
@@ -440,7 +446,7 @@ class SymbolLoader:
         let type_arguments: List[ast.Type] = List()
         for type_parameter in type_parameters:
             type_arguments.append(ast.type_parameter_ref(type_parameter))
-        ast.change_type_to(ty: this_type, ty2: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
+        ast.change_type_to(ty: this_type, to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
 
         return class_def
 
@@ -469,13 +475,16 @@ class SymbolLoader:
         m_des.enter_attribute(attr)
         let type_name = m_des.get_text_attribute(attr: "kind")
         if type_name == "int":
-            ty = ast.int_type()
+            let signed = m_des.get_boolean_attribute(attr: "signed")
+            let bits = m_des.get_integer_attribute(attr: "bits")
+            ty = ast.specific_int_type(signed, bits)
         elif type_name == "str":
             ty = ast.str_type()
         elif type_name == "bool":
             ty = ast.bool_type()
         elif type_name == "float":
-            ty = ast.float_type()
+            let bits = m_des.get_integer_attribute(attr: "bits")
+            ty = ast.specific_float_type(bits)
         elif type_name == "char":
             ty = ast.char_type()
         elif type_name == "void":

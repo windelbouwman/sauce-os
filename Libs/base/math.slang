@@ -58,6 +58,7 @@ extern "runtime" fn powf(a?: float, b?: float) -> float
 #     panic("TODO: powf")
 
 extern "runtime" fn log10(value?: float) -> float
+extern "runtime" fn log2(value?: float) -> float
 # fn log10(value?: float) -> float:
 #     panic("TODO: log10")
 

@@ -355,10 +355,20 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 fn base_scope() -> ast.Scope:
     let s = ast.Scope()
     s.define(name: "int", symbol: ast.Symbol.Typ(ty: ast.int_type()))
+    s.define(name: "uint8", symbol: ast.Symbol.Typ(ty: ast.uint8_type()))
+    s.define(name: "uint16", symbol: ast.Symbol.Typ(ty: ast.uint16_type()))
+    s.define(name: "uint32", symbol: ast.Symbol.Typ(ty: ast.uint32_type()))
+    s.define(name: "uint64", symbol: ast.Symbol.Typ(ty: ast.uint64_type()))
+    s.define(name: "int8", symbol: ast.Symbol.Typ(ty: ast.int8_type()))
+    s.define(name: "int16", symbol: ast.Symbol.Typ(ty: ast.int16_type()))
+    s.define(name: "int32", symbol: ast.Symbol.Typ(ty: ast.int32_type()))
+    s.define(name: "int64", symbol: ast.Symbol.Typ(ty: ast.int64_type()))
     s.define(name: "str", symbol: ast.Symbol.Typ(ty: ast.str_type()))
     s.define(name: "char", symbol: ast.Symbol.Typ(ty: ast.char_type()))
     s.define(name: "bool", symbol: ast.Symbol.Typ(ty: ast.bool_type()))
     s.define(name: "float", symbol: ast.Symbol.Typ(ty: ast.float_type()))
+    s.define(name: "float32", symbol: ast.Symbol.Typ(ty: ast.float32_type()))
+    s.define(name: "float64", symbol: ast.Symbol.Typ(ty: ast.float64_type()))
     return s
 
 class NameBinder:

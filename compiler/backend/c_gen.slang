@@ -102,7 +102,16 @@ class CGenerator:
         emit("void rt_decref(void *ptr);")
         emit("typedef intptr_t slang_int_t;")
         emit("typedef intptr_t slang_bool_t;")
-        emit("typedef double slang_float_t;")
+        emit("typedef uint8_t slang_uint8_t;")
+        emit("typedef uint16_t slang_uint16_t;")
+        emit("typedef uint32_t slang_uint32_t;")
+        emit("typedef intptr_t slang_uint64_t;")
+        emit("typedef int8_t slang_int8_t;")
+        emit("typedef int16_t slang_int16_t;")
+        emit("typedef int32_t slang_int32_t;")
+        emit("typedef intptr_t slang_int64_t;")
+        emit("typedef float slang_float32_t;")
+        emit("typedef double slang_float64_t;")
         emit("typedef struct {chr(123)} jmp_buf buf; void* prev; {chr(125)} slang_exception_handler_t;")
 
         emit("extern slang_exception_handler_t* g_except_hook;")
@@ -217,16 +226,16 @@ class CGenerator:
             Literal(literal):
                 case literal:
                     Int(value):
-                        push(Value(name: "{value}", ty: bc.Type.Int()))
+                        push(Value(name: "{value}", ty: bc.Type.Int(signed: true, bits: 64)))
                     Float(value):
-                        push(Value(name: "{float_to_str(value)}", ty: bc.Type.Float()))
+                        push(Value(name: "{float_to_str(value)}", ty: bc.Type.Float(bits: 64)))
                     Str(value):
                         push(Value(name: "{chr(34)}{value}{chr(34)}", ty: bc.Type.Str()))
                     Bool(value):
                         if value:
-                            push(Value(name: "1", ty: bc.Type.Int()))
+                            push(Value(name: "1", ty: bc.Type.Bool()))
                         else:
-                            push(Value(name: "0", ty: bc.Type.Int()))
+                            push(Value(name: "0", ty: bc.Type.Bool()))
                     Char(value):
                         push(Value(name: "'{value}'", ty: bc.Type.Char()))
 
@@ -302,7 +311,7 @@ class CGenerator:
                 let rhs = pop()
                 let lhs = pop()
                 let varname = new_local_var()
-                let ty = bc.Type.Int()
+                let ty = bc.Type.Bool()
                 let typed_var = get_type_txt(ty, name: varname)
                 let op_txt = "$"
                 case op:
@@ -345,17 +354,34 @@ class CGenerator:
             IntToFloat:
                 let value = pop()
                 let varname = new_local_var()
-                let ty = bc.Type.Float()
+                let bits = 64 # TODO
+                let ty = bc.Type.Float(bits)
                 let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} = (slang_float_t)({value.name});")
+                emit("{typed_var} = (slang_float{bits}_t)({value.name});")
                 push(Value(name: varname, ty))
 
             FloatToInt:
                 let value = pop()
                 let varname = new_local_var()
-                let ty = bc.Type.Int()
+                let signed = true # TODO
+                let bits = 64 # TODO
+                let ty = bc.Type.Int(signed, bits)
                 let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} = (slang_int_t)({value.name});")
+                if signed:
+                    emit("{typed_var} = (slang_int{bits}_t)({value.name});")
+                else:
+                    emit("{typed_var} = (slang_uint{bits}_t)({value.name});")
+                push(Value(name: varname, ty))
+            
+            IntCast(signed, bits):
+                let value = pop()
+                let varname = new_local_var()
+                let ty = bc.Type.Int(signed, bits)
+                let typed_var = get_type_txt(ty, name: varname)
+                if signed:
+                    emit("{typed_var} = (slang_int{bits}_t)({value.name});")
+                else:
+                    emit("{typed_var} = (slang_uint{bits}_t)({value.name});")
                 push(Value(name: varname, ty))
 
             ToOpaque(ty3):
@@ -364,8 +390,13 @@ class CGenerator:
                 let ty = bc.Type.Ptr()
                 let typed_var = get_type_txt(ty, name: varname)
                 case ty3:
-                    Float:
+                    Float(bits):
                         emit("{typed_var} = bit_cast<void*>({value.name});")
+                    Int(signed, bits):
+                        if signed:
+                            emit("{typed_var} = (void*)((intptr_t)({value.name}));")
+                        else:
+                            emit("{typed_var} = (void*)((uintptr_t)({value.name}));")
                 else:
                     emit("{typed_var} = (void*)({value.name});")
                 push(Value(name: varname, ty))
@@ -376,10 +407,15 @@ class CGenerator:
                 let varname = new_local_var()
                 let typed_var = get_type_txt(ty, name: varname)
                 case ty:
-                    Int:
+                    Int(signed, bits):
+                        if signed:
+                            emit("{typed_var} = (slang_int{bits}_t)((intptr_t)({value.name}));")
+                        else:
+                            emit("{typed_var} = (slang_uint{bits}_t)((uintptr_t)({value.name}));")
+                    Float(bits):
+                        emit("{typed_var} = (slang_float{bits}_t)({value.name});")
+                    Bool:
                         emit("{typed_var} = (slang_int_t)({value.name});")
-                    Float:
-                        emit("{typed_var} = (slang_float_t)({value.name});")
                     Str:
                         emit("{typed_var} = (char*)({value.name});")
                     Char:
@@ -564,14 +600,19 @@ class CGenerator:
 
     fn get_type_txt(ty: bc.Type, name: str) -> str:
         case ty:
-            Int:
-                return "slang_int_t {name}"
+            Int(signed, bits):
+                if signed:
+                    return "slang_int{bits}_t {name}"
+                else:
+                    return "slang_uint{bits}_t {name}"
             Str:
                 return "char* {name}"
             Char:
                 return "char {name}"
-            Float:
-                return "slang_float_t {name}"
+            Bool:
+                return "slang_bool_t {name}"
+            Float(bits):
+                return "slang_float{bits}_t {name}"
             Ptr:
                 return "void* {name}"
             StructRef(index):

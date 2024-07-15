@@ -58,12 +58,19 @@ def rt_str_compare(a, b):
     return a == b
 
 
-def std_file_open(filename: str) -> int:
-    return open(filename, "w")
+def std_file_open(filename: str, mode: str) -> int:
+    return open(filename, mode)
 
 
 def std_file_writeln(handle: int, text: str):
     print(text, file=handle)
+
+
+def std_file_read_n_bytes(handle: int, buf: list, bufsize: int) -> int:
+    data = handle.read(bufsize)
+    for i, b in enumerate(data):
+        buf[i] = b
+    return len(data)
 
 
 def std_file_close(handle: int):
@@ -76,6 +83,10 @@ def math_powf(x, y):
 
 def math_log10():
     return math.log10(value)
+
+
+def math_log2():
+    return math.log2(value)
 
 
 def math_ceil(value) -> float:
