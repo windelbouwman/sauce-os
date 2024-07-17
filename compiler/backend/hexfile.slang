@@ -52,7 +52,7 @@ struct HexLine:
 fn hex_line_to_text(line: HexLine) -> str:
     let x = ByteArray()
     x.append(line.data.len())
-    x.pack16_be(line.address)
+    x.pack_u16_be(line.address)
     x.append(line.record)
     x.extend(line.data)
     let crc = 0

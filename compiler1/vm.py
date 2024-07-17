@@ -213,6 +213,8 @@ class VirtualMachine:
             if isinstance(to_ty, bc.BaseTyp):
                 if to_ty.type_id == bc.SimpleTyp.FLOAT:
                     cast_val = float(val)
+                elif to_ty.type_id == bc.SimpleTyp.INT:
+                    cast_val = int(val)
                 else:
                     raise NotImplementedError(str(to_ty.type_id))
             else:

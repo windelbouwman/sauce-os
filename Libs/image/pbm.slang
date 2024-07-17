@@ -19,18 +19,21 @@
 #
 # """
 
+from std import print
 from utils import unimplemented
 from image import Image
 
 fn write_pbm(image: Image):
+    print("P3")
+    print("{image.width} {image.height}")
+    print("255")
 
     let y = 0
     while y < image.height:
         let x = 0
         while x < image.width:
             let pixel = image.get_pixel(x, y)
-            # print("")
+            print("{pixel.red} {pixel.green} {pixel.blue}")
             x += 1
         y += 1
 
-    unimplemented("write_pbm")

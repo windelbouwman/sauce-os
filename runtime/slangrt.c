@@ -208,7 +208,20 @@ slang_int_t std_file_read_n_bytes(slang_int_t handle, uint8_t *buffer, slang_int
     }
     else
     {
-        std_panic("std_file_read_n: invalid file");
+        std_panic("std_file_read_n_bytes: invalid file");
+    }
+}
+
+slang_int_t std_file_write_n_bytes(slang_int_t handle, uint8_t *buffer, slang_int_t bufsize)
+{
+    if (handle != 0)
+    {
+        FILE *f = (FILE *)handle;
+        return fwrite(buffer, 1, bufsize, f);
+    }
+    else
+    {
+        std_panic("std_file_write_n_bytes: invalid file");
     }
 }
 

@@ -48,7 +48,7 @@ class RiscvGen:
         let h = HexFile()
         let b = ByteArray()
         for code in codes:
-            b.pack32_le(code)
+            b.pack_u32_le(code)
         let data = b.to_bytes()
         h.add_bytes(address: 0, data)
         return h

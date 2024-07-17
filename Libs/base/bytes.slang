@@ -18,7 +18,7 @@ class Bytes:
         return m_bytes.len()
     
     fn get(index: int) -> int:
-        return int(value: m_bytes[index])
+        return int(m_bytes[index])
 
     fn as_hex() -> str:
         # Return bytes as hexadecimal text
@@ -44,6 +44,14 @@ class ByteReader:
     # read byte at a time
     var m_bytes: Bytes
     var m_index: int = 0
+
+    fn read_bytes(size: int) -> Bytes:
+        let i = 0
+        let ba = ByteArray()
+        while i < size:
+            ba.append(read_byte())
+            i += 1
+        return ba.to_bytes()
 
     fn read_byte() -> int:
         assert(condition: m_index < m_bytes.m_bytes.len(), message: "Cannot read past end of bytes")
@@ -83,19 +91,25 @@ class ByteArray:
         m_bytes.append(uint8(byte))
 
     fn get(index: int) -> int:
-        return int(value: m_bytes[index])
+        return int(m_bytes[index])
 
     fn extend(bytes?: Bytes):
         for b in bytes.m_bytes:
             append(int(b))
 
-    fn pack32_le(value?: int):
+    fn pack_u32_le(value?: int):
         append(value & 0xFF)
         append((value >> 8) & 0xFF)
         append((value >> 16) & 0xFF)
         append((value >> 24) & 0xFF)
 
-    fn pack16_be(value?: int):
+    fn pack_u32_be(value?: int):
+        append((value >> 24) & 0xFF)
+        append((value >> 16) & 0xFF)
+        append((value >> 8) & 0xFF)
+        append(value & 0xFF)
+
+    fn pack_u16_be(value?: int):
         append((value & 0xff00) >> 8)
         append(value & 0xff)
 

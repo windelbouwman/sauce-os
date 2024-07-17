@@ -4,7 +4,7 @@ from datatypes import List, Option, vec1, vec2, vec3
 from location import location_default
 
 fn get_rt_module() -> ast.Module:
-    let libname = "runtime"
+    let libname = "slangrt"
     let modname = "rt"
     let module = ast.new_module(name: modname, filename: Option.None(), imports: List(), definitions: List())
     let type_parameters: List[ast.TypeParameter] = List()

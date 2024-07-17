@@ -53,23 +53,23 @@ fn modulo(value: int, divisor: int) -> int:
     return value - (divisor * x)
 
 # TODO: implement log10 and powf somehow!
-extern "runtime" fn powf(a?: float, b?: float) -> float
+extern "slangrt" fn powf(a?: float, b?: float) -> float
 # fn powf(a?: float, b?: float) -> float:
 #     panic("TODO: powf")
 
-extern "runtime" fn log10(value?: float) -> float
-extern "runtime" fn log2(value?: float) -> float
+extern "slangrt" fn log10(value?: float) -> float
+extern "slangrt" fn log2(value?: float) -> float
 # fn log10(value?: float) -> float:
 #     panic("TODO: log10")
 
 # extern fn floor(value?: float) -> float
 fn floor(value?: float) -> float:
-    let result = float(value: int(value))
+    let result = float(int(value))
     if value < 0:
         result = result - 1.0
     return result
 
-extern "runtime" fn ceil(value?: float) -> float
+extern "slangrt" fn ceil(value?: float) -> float
 # fn ceil(value?: float) -> float:
 # TODO!
 #     return float(value: int(value) + 1)

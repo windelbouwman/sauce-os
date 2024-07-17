@@ -24,6 +24,7 @@ struct Pixel:
     red: int
     green: int
     blue: int
+    alpha: int
 
 fn new_pixel() -> Pixel:
-    return Pixel(red: 0, green: 0, blue: 255)
+    return Pixel(red: 0, green: 0, blue: 0, alpha: 0)

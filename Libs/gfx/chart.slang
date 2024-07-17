@@ -243,7 +243,7 @@ fn calc_tick_values(axis: Axis, n_ticks: int) -> List[TickValue]:
     if scale > 0:
         digits = 0
     else:
-        digits = int(value: -scale + 1)
+        digits = int(-scale + 1)
     let tick_values: List[TickValue] = List()
     while x < axis.upper:
         # TODO: use scale to limit amount of decimals
@@ -253,7 +253,7 @@ fn calc_tick_values(axis: Axis, n_ticks: int) -> List[TickValue]:
     return tick_values
 
 fn round_to_multiple(value: float, base: float) -> float:
-    let x = int(value: value / base)
+    let x = int(value / base)
     return x * base
 
 class ChartDrawer:

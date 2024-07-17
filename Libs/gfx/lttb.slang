@@ -17,7 +17,7 @@ fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
     if threshold >= data_length:
         return values
     
-    let bucket_size: float = float(value: data_length - 2) / float(value: threshold - 2)
+    let bucket_size: float = float(data_length - 2) / float(threshold - 2)
     let sampled: List[DataPoint] = List()
 
     # Always add first point:
@@ -28,12 +28,12 @@ fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
     let i = 0
     while i < threshold - 2:
         # Determine indici of bucket 2 and 3:
-        let start2: int = int(value: floor((i + 0) * bucket_size)) + 1
-        let end2: int = int(value: floor((i + 1) * bucket_size)) + 1
+        let start2: int = int(floor((i + 0) * bucket_size)) + 1
+        let end2: int = int(floor((i + 1) * bucket_size)) + 1
         let count2: int = end2 - start2
 
         let start3: int = end2
-        let end3: int = int(value: floor((i + 2) * bucket_size)) + 1
+        let end3: int = int(floor((i + 2) * bucket_size)) + 1
         if end3 > data_length:
             end3 = data_length
         let count3: int = end3 - start3
@@ -73,4 +73,4 @@ fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
     return sampled
 
 fn get_bucket_start(i: int, bucket_size: float) -> int:
-    return int(value: floor((i + 0) * bucket_size)) + 1
+    return int(floor((i + 0) * bucket_size)) + 1

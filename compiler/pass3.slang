@@ -81,21 +81,22 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                     else:
                         case newop.try_as_type(expression: call.callee):
                             Some(ty):
-                                let value_map: Dictionary[ast.Expression] = Dictionary()
-                                for labeled_field in call.arguments:
-                                    case labeled_field.name:
-                                        Some(field_name3):
-                                            if value_map.contains(key: field_name3):
-                                                newop.add_error(location: labeled_field.location, message: "Duplicate field: {field_name3}")
-                                            else:
-                                                value_map.insert(key: field_name3, value: labeled_field.value)
-                                        None:
-                                            newop.add_error(location: labeled_field.location, message: "Unlabeled expression")
                                 
                                 # Check that type is struct?
                                 let ok = false
                                 case ty.kind:
                                     App(tycon, type_arguments):
+                                        let value_map: Dictionary[ast.Expression] = Dictionary()
+                                        for labeled_field in call.arguments:
+                                            case labeled_field.name:
+                                                Some(field_name3):
+                                                    if value_map.contains(key: field_name3):
+                                                        newop.add_error(location: labeled_field.location, message: "Duplicate field: {field_name3}")
+                                                    else:
+                                                        value_map.insert(key: field_name3, value: labeled_field.value)
+                                                None:
+                                                    newop.add_error(location: labeled_field.location, message: "Unlabeled expression")
+
                                         case tycon:
                                             Struct(struct_def):
                                                 ok = true

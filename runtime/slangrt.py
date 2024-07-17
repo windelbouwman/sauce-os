@@ -73,6 +73,12 @@ def std_file_read_n_bytes(handle: int, buf: list, bufsize: int) -> int:
     return len(data)
 
 
+def std_file_write_n_bytes(handle: int, buf: list, bufsize: int) -> int:
+    data = bytes(buf[:bufsize])
+    handle.write(data)
+    return len(data)
+
+
 def std_file_close(handle: int):
     handle.close()
 

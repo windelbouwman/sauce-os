@@ -16,7 +16,7 @@ fn test_hex_text_conversion():
 
 fn test_pack():
     let b = ByteArray()
-    b.pack16_be(0x4302)
+    b.pack_u16_be(0x4302)
     b.append(5)
-    b.pack32_le(0x1337)
+    b.pack_u32_le(0x1337)
     assert_str_equals(b.as_hex(), "43020537130000")
