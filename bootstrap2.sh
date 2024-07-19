@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-COMPILER_SRCS="compiler/*.slang compiler/**/*.slang Libs/base/*.slang runtime/std.slang"
+COMPILER_SRCS="compiler/main.slang Libs/compiler/*.slang Libs/compiler/**/*.slang Libs/base/*.slang runtime/std.slang"
 COMPILER1="build/tmp-compiler.py"
 COMPILER2="build/tmp-compiler2.py"
 COMPILER3="build/tmp-compiler3.py"
@@ -14,7 +14,7 @@ mkdir -p build
 # Compile compiler with bootstrap compiler
 echo "Compile compiler with bootstrap compiler into ${COMPILER1}"
 python bootstrap.py
-cp runtime/runtime.py build
+cp runtime/slangrt.py build
 
 echo "Compiling compiler with ${COMPILER1} into ${COMPILER2}"
 
@@ -32,11 +32,11 @@ diff ${COMPILER2} ${COMPILER3}
 
 echo "Compiling compiler4"
 python ${COMPILER3} --backend-c -o build/tmp-compiler4.c ${COMPILER_SRCS}
-gcc -o build/compiler4 build/tmp-compiler4.c runtime/runtime.c -lm
+gcc -o build/compiler4 build/tmp-compiler4.c runtime/slangrt.c -lm
 
 echo "Compiling compiler5"
 ./build/compiler4 --backend-c -o build/tmp-compiler5.c ${COMPILER_SRCS}
-gcc -o build/compiler5 build/tmp-compiler5.c runtime/runtime.c -lm 
+gcc -o build/compiler5 build/tmp-compiler5.c runtime/slangrt.c -lm 
 
 diff build/tmp-compiler4.c build/tmp-compiler5.c
 

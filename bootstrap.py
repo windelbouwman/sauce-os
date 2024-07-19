@@ -25,7 +25,8 @@ from compiler1 import compiler, errors, builtins
 
 logging.basicConfig(level=loglevel)
 options = compiler.CompilationOptions(backend="py")
-sources = glob.glob("compiler/**/*.slang", recursive=True)
+sources = ["compiler/main.slang"]
+sources.extend(glob.glob("Libs/compiler/**/*.slang", recursive=True))
 sources.extend(glob.glob("Libs/base/*.slang"))
 sources.append("runtime/std.slang")
 

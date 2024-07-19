@@ -85,7 +85,7 @@ class ByteReader:
 
 class ByteArray:
     # Mutable bytes
-    var m_bytes: Vector[uint8] = new_vector(default: uint8(value: 0))
+    var m_bytes: Vector[uint8] = new_vector(default: uint8(0))
 
     fn append(byte?: int):
         m_bytes.append(uint8(byte))

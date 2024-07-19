@@ -16,6 +16,8 @@ extern slang_int_t main2();
 void *rt_malloc(int size);
 void rt_incref(void *ptr);
 void rt_decref(void *ptr);
+void std_exit(slang_int_t code) __attribute__((noreturn));
+void std_panic(const char *message) __attribute__((noreturn));
 
 struct slang_exception_handler;
 typedef struct slang_exception_handler
@@ -57,19 +59,29 @@ void std_print(char *message)
     rt_decref(message);
 }
 
+char* std_read_line(char *prompt)
+{
+    char *text = rt_malloc(300);
+    printf(prompt);
+    char* s_read = fgets(text, 300, stdin);
+    if (!s_read) {
+        std_panic("fgets failed!");
+    }
+    return s_read;
+}
+
 void std_putc(const char *ch)
 {
     // TBD: do we require special char type?
     putchar(ch[0]);
 }
 
-void std_exit(slang_int_t code) __attribute__((noreturn));
 void std_exit(slang_int_t code)
 {
     exit(code);
 }
 
-void std_panic(const char *message) __attribute__((noreturn));
+
 void std_panic(const char *message)
 {
     puts(message);

@@ -3,4 +3,5 @@
 ../Libs/regex
 ../Libs/gfx
 ../Libs/image
+../Libs/compiler
 ../runtime/std.slang

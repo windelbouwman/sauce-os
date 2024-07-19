@@ -5,8 +5,9 @@ BUILDDIR=build
 # Variables:
 BASE_LIB_SRCS := $(wildcard Libs/base/*.slang)
 BASE_LIB_SRCS += runtime/std.slang
-COMPILER_SRCS := $(wildcard compiler/*/*.slang)
-COMPILER_SRCS += $(wildcard compiler/*.slang)
+COMPILER_LIB_SRCS := $(wildcard Libs/compiler/*.slang)
+COMPILER_LIB_SRCS += $(wildcard Libs/compiler/*/*.slang)
+COMPILER_SRCS := $(wildcard compiler/main.slang)
 REGEX_LIB_SRCS := $(wildcard Libs/regex/*.slang)
 GFX_LIB_SRCS := $(wildcard Libs/gfx/*.slang)
 IMAGE_LIB_SRCS := $(wildcard Libs/image/*.slang)
@@ -87,6 +88,9 @@ ${BUILDDIR}/c/libimage.c ${BUILDDIR}/c/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDD
 ${BUILDDIR}/c/libgfx.c ${BUILDDIR}/c/libgfx.json: ${GFX_LIB_SRCS} ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
 	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libgfx.json -o ${BUILDDIR}/c/libgfx.c --add-import ${BUILDDIR}/c/libbase.json ${GFX_LIB_SRCS}
 
+${BUILDDIR}/c/libcompiler.c ${BUILDDIR}/c/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
+	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libcompiler.json -o ${BUILDDIR}/c/libcompiler.c --add-import ${BUILDDIR}/c/libbase.json ${COMPILER_LIB_SRCS}
+
 .PRECIOUS: ${BUILDDIR}/c/lib%.so
 ${BUILDDIR}/c/lib%.so: ${BUILDDIR}/c/lib%.c
 	gcc ${CFLAGS} -shared -fPIC -o $@ $<
@@ -154,11 +158,11 @@ ${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libbase.json
 
 # Apps
 .PRECIOUS: ${BUILDDIR}/c/apps/%.c
-${BUILDDIR}/c/apps/%.c: Apps/%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libgfx.json ${SLANGC_DEPS} | ${BUILDDIR}/c/apps
-	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libgfx.json
+${BUILDDIR}/c/apps/%.c: Apps/%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libgfx.json ${BUILDDIR}/c/libcompiler.json ${SLANGC_DEPS} | ${BUILDDIR}/c/apps
+	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libgfx.json --add-import ${BUILDDIR}/c/libcompiler.json
 
-${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libgfx.so ${BUILDDIR}/slangrt.o
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libbase.so -l:libregex.so -l:libimage.so -l:libgfx.so ${BUILDDIR}/slangrt.o -lm
+${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libgfx.so ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/slangrt.o
+	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libbase.so -l:libregex.so -l:libimage.so -l:libgfx.so -l:libcompiler.so ${BUILDDIR}/slangrt.o -lm
 
 # Bootstrap sequence:
 ${COMPILER1}: | ${COMPILER_SRCS} ${BASE_LIB_SRCS} compiler1/*.py ${BUILDDIR}
@@ -167,20 +171,20 @@ ${COMPILER1}: | ${COMPILER_SRCS} ${BASE_LIB_SRCS} compiler1/*.py ${BUILDDIR}
 ${BUILDDIR}/slangrt.py: runtime/slangrt.py | ${BUILDDIR}
 	cp $< $@
 
-${COMPILER2}: ${BUILDDIR}/slangrt.py | ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${BUILDDIR}/tmp-compiler.py ${BUILDDIR}
-	python ${COMPILER1} --backend-py -o ${COMPILER2} ${COMPILER_SRCS} ${BASE_LIB_SRCS}
+${COMPILER2}: ${BUILDDIR}/slangrt.py | ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS} ${BUILDDIR}/tmp-compiler.py ${BUILDDIR}
+	python ${COMPILER1} --backend-py -o ${COMPILER2} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
-${COMPILER3}: | ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${COMPILER2} ${BUILDDIR}
-	python ${COMPILER2} --backend-py -o ${COMPILER3} ${COMPILER_SRCS} ${BASE_LIB_SRCS}
+${COMPILER3}: | ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER2} ${BUILDDIR}
+	python ${COMPILER2} --backend-py -o ${COMPILER3} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
-${BUILDDIR}/tmp-compiler4.c: | ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${BUILDDIR} ${COMPILER3}
-	python ${COMPILER3} --backend-c -o ${BUILDDIR}/tmp-compiler4.c ${COMPILER_SRCS} ${BASE_LIB_SRCS}
+${BUILDDIR}/tmp-compiler4.c: | ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS} ${BUILDDIR} ${COMPILER3}
+	python ${COMPILER3} --backend-c -o ${BUILDDIR}/tmp-compiler4.c ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
 ${COMPILER4}: ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/slangrt.o
 	gcc ${CFLAGS} -o ${COMPILER4} ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/slangrt.o -lm
 
-${BUILDDIR}/tmp-compiler5.c: ${COMPILER_SRCS} ${BASE_LIB_SRCS} | ${BUILDDIR} ${COMPILER4}
-	./${COMPILER4} --backend-c -o ${BUILDDIR}/tmp-compiler5.c ${COMPILER_SRCS} ${BASE_LIB_SRCS}
+${BUILDDIR}/tmp-compiler5.c: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS} | ${BUILDDIR} ${COMPILER4}
+	./${COMPILER4} --backend-c -o ${BUILDDIR}/tmp-compiler5.c ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
 ${COMPILER5}: ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/slangrt.o | ${BUILDDIR}
 	gcc ${CFLAGS} -o ${COMPILER5} ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/slangrt.o -lm

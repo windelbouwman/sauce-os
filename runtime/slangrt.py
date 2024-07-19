@@ -22,6 +22,7 @@ def std_exit(code: int):
 
 
 std_print = print
+std_read_line = input
 rt_int_to_str = str
 std_str_to_int = int
 
