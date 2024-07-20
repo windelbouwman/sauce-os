@@ -900,8 +900,8 @@ fn symbol_to_str(symbol: Symbol) -> str:
             return function_def_to_str(function_def)
         Parameter(p):
             return "parameter:{node_id_to_string(p.id)}"
-        Var(v):
-            return "var:{node_id_to_string(v.id)}"
+        Var(variable):
+            return "var:{node_id_to_string(variable.id)}"
         TypeConstructor(t):
             return "tycon"
         Typ(t):
@@ -933,7 +933,11 @@ fn definition_to_str(definition: Definition) -> str:
 
 struct VariableDef:
     variable: Variable
-    value: Option[Expression]
+    value: VariableDefValue
+
+enum VariableDefValue:
+    Intern(value: Option[Expression])
+    Extern(libname: str, initialized: bool)
 
 fn variable_def_to_str(variable_def: VariableDef) -> str:
     return "var-def:{node_id_to_string(variable_def.variable.id)}"
@@ -1556,6 +1560,11 @@ fn print_ast(module: Module):
                 printer.print2(txt: "import {imp.modname}")
             Names(names):
                 printer.print2(txt: "from {imp.modname} import ..")
+    let visitor = new_print_visitor(printer)
+    visit_module(visitor, module)
+    printer.dedent()
+
+fn new_print_visitor(printer: AstPrinter) -> Visitor[AstPrinter]:
     let visitor = Visitor:
         data: printer
         on_definition: print_ast_definition
@@ -1563,9 +1572,7 @@ fn print_ast(module: Module):
         on_statement: print_ast_statement
         on_expression: print_ast_expression
         on_node: print_ast_node
-        
-    visit_module(visitor, module)
-    printer.dedent()
+    return visitor
 
 class AstPrinter:
     var indent_level: int = 0
@@ -1867,10 +1874,15 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
         Var(variable_def):
             visit_type(visitor, ty: variable_def.variable.ty)
             case variable_def.value:
-                Some(v2):
-                    visit_expression(visitor, expression: v2)
-                None:
+                Intern(value):
+                    case value:
+                        Some(v2):
+                            visit_expression(visitor, expression: v2)
+                        None:
+                            pass
+                Extern(libname, initialized):
                     pass
+                
     visitor.on_definition(data: visitor.data, definition, phase: VisitPhase.Post())
 
 fn visit_type[T](visitor: Visitor[T], ty: Type):

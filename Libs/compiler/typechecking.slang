@@ -16,8 +16,13 @@ fn type_check_modules(module_set: ast.ModuleSet) except CompilationError:
 
 fn type_check(module: ast.Module) except CompilationError:
     log_info("Checking module {module.name}")
-
     let checker = TypeChecker()
+    let visitor = new_type_check_visitor(checker)
+    ast.visit_module(visitor, module)
+    if not checker.errors.is_empty():
+        raise new_errors(filename: module.filename, errors: checker.errors)
+
+fn new_type_check_visitor(checker: TypeChecker) -> ast.Visitor[TypeChecker]:
     let visitor = ast.Visitor:
         data: checker
         on_definition: checker_on_definition
@@ -25,10 +30,14 @@ fn type_check(module: ast.Module) except CompilationError:
         on_statement: checker_on_statement
         on_expression: checker_on_expression
         on_node: checker_on_node
+    return visitor
 
-    ast.visit_module(visitor, module)
+fn type_check_expression(expression: ast.Expression) except CompilationError:
+    let checker = TypeChecker()
+    let visitor = new_type_check_visitor(checker)
+    ast.visit_expression(visitor, expression)
     if not checker.errors.is_empty():
-        raise new_errors(filename: module.filename, errors: checker.errors)
+        raise new_errors(filename: Option.None(), errors: checker.errors)
 
 fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase: ast.VisitPhase):
     case phase:
@@ -336,7 +345,7 @@ class TypeChecker:
             Variant(ty, v):
                 add_error(location: expression.location, message: "variants must be literals")
             Undefined:
-                panic("undefined")
+                panic("check_expression: undefined")
             GetAttr(base, attr):
                 case ast.get_field_type(ty: base.ty, attr):
                     Some(ty):

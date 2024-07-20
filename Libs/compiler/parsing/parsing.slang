@@ -18,6 +18,14 @@ pub fn parse_source(filename: str, id_gen: IdGen) -> ast.Module except Compilati
     parser.feed(source)
     return parser.parse_module(filename, name: modname)
 
+fn parse_statement_from_text(source: str, id_gen: IdGen, p1: Position) -> ast.Statement except CompilationError:
+    # Invoke parsing, purely on statement.
+    let parser = Parser(id_gen)
+    parser.feed(source)
+    parser.lex.row = p1.row
+    parser.lex.start_col = p1.column
+    return parser.parse_statement()
+
 fn parse_expr_from_text(source: str, id_gen: IdGen, p1: Position) -> ast.Expression except CompilationError:
     # Invoke parsing, purely on expression.
     let parser = Parser(id_gen)
@@ -371,7 +379,7 @@ class Parser:
 
         parse_newline()
         let variable = ast.variable(name, id: new_id(), ty, location: name_at.location)
-        let var_def = ast.VariableDef(variable, value: var_init)
+        let var_def = ast.VariableDef(variable, value: ast.VariableDefValue.Intern(value: var_init))
         return var_def
 
     fn parse_type() -> ast.Type except CompilationError:

@@ -29,13 +29,7 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module], tycon_map:
 
     log_info("Binding names for {module.name}")
     let binder = NameBinder(tycon_map)
-    let bind_visitor = ast.Visitor:
-        data: binder
-        on_definition: binder_on_definition
-        on_type: binder_on_type
-        on_statement: binder_on_statement
-        on_expression: binder_on_expression
-        on_node: binder_on_node
+    let bind_visitor = new_bind_visitor(binder)
     binder.enter_scope(scope: base_scope())
     binder.enter_scope(scope: module.scope)
     ast.visit_module(visitor: bind_visitor, module)
@@ -46,6 +40,24 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module], tycon_map:
         raise new_errors(filename: module.filename, errors: binder.errors)
 
     return
+
+fn new_bind_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
+    let bind_visitor = ast.Visitor:
+        data: binder
+        on_definition: binder_on_definition
+        on_type: binder_on_type
+        on_statement: binder_on_statement
+        on_expression: binder_on_expression
+        on_node: binder_on_node
+    return bind_visitor
+
+fn bind_names_expression(expression: ast.Expression) except CompilationError:
+    let tycon_map: Dictionary[ast.TyCon] = Dictionary()
+    let binder = NameBinder(tycon_map)
+    let bind_visitor = new_bind_visitor(binder)
+    ast.visit_expression(visitor: bind_visitor, expression)
+    if not binder.errors.is_empty():
+        raise new_errors(filename: Option.None(), errors: binder.errors)
 
 fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: ScopeFiller):
     log_trace("Import {imp.modname}")

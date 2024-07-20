@@ -31,7 +31,11 @@ class PyGenerator:
         for definition in module.definitions:
             case definition:
                 Var(variable_def):
-                    global_names.append(get_id(id: variable_def.variable.id))
+                    case variable_def.value:
+                        Intern(value):
+                            global_names.append(get_id(id: variable_def.variable.id))
+                        Extern(libname, initialized):
+                            pass
             else:
                 pass
         if global_names.len() > 0:
@@ -90,7 +94,11 @@ class PyGenerator:
             Enum(enum_def):
                 panic("enum-def not supported")
             Var(variable_def):
-                emit("{get_id(id: variable_def.variable.id)} = {gen_expression(option_unwrap(variable_def.value), parens: false)}")
+                case variable_def.value:
+                    Intern(value):
+                        emit("{get_id(id: variable_def.variable.id)} = {gen_expression(option_unwrap(value), parens: false)}")
+                    Extern(libname, initialized):
+                        emit("# external: from {libname} import {get_id(id: variable_def.variable.id)}")
 
     fn gen_block(body?: ast.Statement):
         indent()
@@ -146,7 +154,7 @@ class PyGenerator:
             Unreachable:
                 emit("raise RuntimeError('unreachable')")
         else:
-            panic("Unsupported: {ast.statement_to_string(statement)}")
+            panic("gen_statement: Unsupported: {ast.statement_to_string(statement)}")
 
     fn gen_if_statement(if_statement: ast.IfStatement, kw: str):
         emit("{kw} {gen_expression(if_statement.condition, parens: false)}:")

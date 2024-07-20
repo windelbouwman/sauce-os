@@ -17,6 +17,11 @@ fn gen_bytecode(module_set: ast.ModuleSet) -> bc.Program:
         g.gen_prog(module)
     return bc.Program(functions: g.functions, structs: g.structs, globals: g.global_variables, extern_functions: g.extern_functions)
 
+fn gen_expression_bytecode(expression: ast.Expression) -> Vector[Instruction]:
+    let g = BytecodeGenerator()
+    g.gen_expression(expression)
+    return g.code
+
 enum ControlBlock:
     LoopBlock(loop_: Loop)
     TryBlock
@@ -106,9 +111,14 @@ class BytecodeGenerator:
         let global_index = global_variables.len()
         let key = ast.node_id_to_string(variable_def.variable.id)
         let name = get_name(variable_def.variable.id)
-        begin_code()
-        gen_expression(option_unwrap(variable_def.value))
-        let value = get_relocated_instructions()
+        let value: Option[Vector[bc.Instruction]] = Option.None()
+        case variable_def.value:
+            Intern(ival):
+                begin_code()
+                gen_expression(option_unwrap(ival))
+                value = Option.Some(get_relocated_instructions())
+            Extern(libname, initialized):
+                pass
         let global_variable = bc.Global(name, ty: get_bc_type(variable_def.variable.ty), value)
         global_variables.append(global_variable)
         global_var_mapping.insert(key, value: global_index)
@@ -530,7 +540,7 @@ class BytecodeGenerator:
                 else:
                     panic("unsupported type-casting from {ast.type_to_string(value.ty)} to {ast.type_to_string(ty)}")
         else:
-            panic("Unsupported: {ast.expression_to_string(expression)}")
+            panic("gen_expression: Unsupported: {ast.expression_to_string(expression)}")
 
     fn gen_call(call: ast.FunctionCall):
         for argument in call.arguments:

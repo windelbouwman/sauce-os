@@ -8,7 +8,7 @@ from strlib import str_repeat, str_join
 import ast
 from datatypes import List, option_unwrap, Option, option_is_some
 from dicttype import Dictionary
-from utils import panic, log_info, log_debug, log_warning, assert
+from utils import panic, log_info, log_debug, log_warning, assert, unimplemented
 from text_gen import TextGenerator
 
 
@@ -86,8 +86,12 @@ class CGenerator2:
                     Var(variable_def):
                         let varname = gen_id(id: variable_def.variable.id)
                         let typed_name = gen_type(ty: variable_def.variable.ty, name: varname)
-                        let initial_value = gen_expression(option_unwrap(variable_def.value))
-                        emit("{typed_name} = {initial_value};")
+                        case variable_def.value:
+                            Intern(value):
+                                let initial_value = gen_expression(option_unwrap(value))
+                                emit("{typed_name} = {initial_value};")
+                            Extern(libname, initialized):
+                                unimplemented("Extern variable")
                 else:
                     pass
 

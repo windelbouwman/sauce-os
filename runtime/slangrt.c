@@ -62,7 +62,7 @@ void std_print(char *message)
 char* std_read_line(char *prompt)
 {
     char *text = rt_malloc(300);
-    printf(prompt);
+    fputs(prompt, stdout);
     char* s_read = fgets(text, 300, stdin);
     if (!s_read) {
         std_panic("fgets failed!");

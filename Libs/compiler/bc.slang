@@ -13,7 +13,7 @@ struct Program:
 struct Global:
     name: str
     ty: Type
-    value: Vector[Instruction]
+    value: Option[Vector[Instruction]]
 
 struct Struct:
     is_union: bool
@@ -286,10 +286,11 @@ fn print_bc_program(program: Program):
 
     for global in program.globals:
         print("  GLOBAL {global.name} {type_to_string(global.ty)}")
-        index = 0
-        for instruction in global.value:
-            print("      {index}: {instruction_to_string(instruction)}")
-            index += 1
+        case global.value:
+            Some(value):
+                print_bc_instructions(instructions: value)
+            None:
+                pass
 
     for function in program.functions:
         print("  FUNC {func_index}: {function.name}")
@@ -306,10 +307,13 @@ fn print_bc_program(program: Program):
         for ty in function.locals:
             print("      > {type_to_string(ty)}")
         print("    CODE:")
-        index = 0
-        for instruction in function.instructions:
-            print("      {index}: {instruction_to_string(instruction)}")
-            index += 1
+        print_bc_instructions(instructions: function.instructions)
+
+fn print_bc_instructions(instructions: Vector[Instruction]):
+    let index = 0
+    for instruction in instructions:
+        print("      {index}: {instruction_to_string(instruction)}")
+        index += 1
 
 fn type_to_string(ty?: Type) -> str:
     case ty:

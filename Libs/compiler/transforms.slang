@@ -520,17 +520,25 @@ class ClassRewriter:
         let init_values: List[ast.Expression] = List()
         for definition in class_def.definitions:
             case definition:
-                Var(var_def):
-                    case var_def.value:
-                        Some(iv2):
-                            init_values.append(iv2)
-                        None:
-                            # Create a c-tor parameter
-                            let ty = ast.subst(ty: var_def.variable.ty, m)
-                            let ctor_param = ast.parameter_def(name: var_def.variable.id.name, id: get_unique_id(), label_is_optional: false, ty, location: class_def.location)
-                            parameters.append(ctor_param)
-                            let iv2 = ast.parameter_ref(parameter_def: ctor_param, location: class_def.location)
-                            init_values.append(iv2)
+                Var(variable_def):
+                    case variable_def.value:
+                        Intern(ival):
+                            case ival:
+                                Some(iv2):
+                                    init_values.append(iv2)
+                                None:
+                                    # Create a c-tor parameter
+                                    let ty = ast.subst(ty: variable_def.variable.ty, m)
+                                    let ctor_param = ast.parameter_def(name: variable_def.variable.id.name, id: get_unique_id(), label_is_optional: false, ty, location: class_def.location)
+                                    parameters.append(ctor_param)
+                                    let iv2 = ast.parameter_ref(parameter_def: ctor_param, location: class_def.location)
+                                    init_values.append(iv2)
+                        Extern(libname, initialized):
+                            if not initialized:
+                                # Create a c-tor parameter
+                                let ty = ast.subst(ty: variable_def.variable.ty, m)
+                                let ctor_param = ast.parameter_def(name: variable_def.variable.id.name, id: get_unique_id(), label_is_optional: false, ty, location: class_def.location)
+                                parameters.append(ctor_param)
             else:
                 pass
 

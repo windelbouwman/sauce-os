@@ -4,7 +4,7 @@
 from datatypes import List, Option
 from dicttype import Dictionary
 from vectype import Vector, new_vector
-from utils import panic, log_debug, log_info, assert
+from utils import panic, log_debug, log_info, assert, unimplemented
 from bc import Instruction, Program, Function, instruction_to_string
 from std import print, float_to_str
 import std
@@ -213,7 +213,11 @@ fn run_bytecode(program: Program, entry_function: str):
 
     # Initialize global variables:
     for g in program.globals:
-        vm.globals.append(eval_code(vm, code: g.value))
+        case g.value:
+            Some(value):
+                vm.globals.append(eval_code(vm, code: value))
+            None:
+                unimplemented("External variables")
 
     let top_frame = Frame(code: new_vector(default: Instruction.Nop()))
     vm.push_frame(frame: top_frame)

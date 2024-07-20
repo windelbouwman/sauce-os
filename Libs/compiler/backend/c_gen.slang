@@ -156,9 +156,13 @@ class CGenerator:
         emit("extern {decl};")
     
     fn gen_global(global: bc.Global):
-        let value = eval_code_sequence(code: global.value)
         let typed_name = get_type_txt(ty: global.ty, name: global.name)
-        emit("{typed_name} = {value};")
+        case global.value:
+            Some(code):
+                let value = eval_code_sequence(code)
+                emit("{typed_name} = {value};")
+            None:
+                emit("extern {typed_name};")
 
     fn gen_function_decl(function: bc.Function):
         let decl = get_function_decl(function, fill_param: false)

@@ -91,7 +91,13 @@ class SymbolSaver:
         m_ser.add_text_attribute(attr: "kind", text: "variable")
         save_id(id: var_def.variable.id)
         save_type(attr: "type", ty: var_def.variable.ty)
-        m_ser.add_boolean_attribute(attr: "initialized", value: option_is_some(var_def.value))
+        let is_initialized = false
+        case var_def.value:
+            Intern(value):
+                is_initialized = option_is_some(value)
+            Extern(libname, initialized):
+                is_initialized = initialized
+        m_ser.add_boolean_attribute(attr: "initialized", value: is_initialized)
 
     fn save_enum_def(enum_def: ast.EnumDef):
         m_ser.add_text_attribute(attr: "kind", text: "enum")
@@ -344,11 +350,7 @@ class SymbolLoader:
         let location = location_default()
         let variable = ast.Variable(id, ty, location)
         let is_initialized = m_des.get_boolean_attribute(attr: "initialized")
-        let value = Option.None()
-        if is_initialized:
-            # value = Option.Some(ast.undefined_value())
-            value = Option.Some(ast.float_literal(value: 13.37, location: location_default()))
-        return ast.VariableDef(variable, value)
+        return ast.VariableDef(variable, value: ast.VariableDefValue.Extern(libname: m_libname, is_initialized))
 
     fn load_function(def_name: str, def_id: int) -> ast.FunctionDef:
         let type_parameters = load_type_parameters()
