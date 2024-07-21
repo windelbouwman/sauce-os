@@ -3,6 +3,7 @@
 
 from datetime import unix_to_str
 from std import print
+from math import modulo
 from utils import unimplemented, assert
 from bytes import Bytes, ByteReader
 from deflate import new_deflate_decoder, BitReader
@@ -77,4 +78,45 @@ fn calc_crc32(data: Bytes) -> int:
     crc = crc ^ 0xffffffff
 
     return crc
+
+fn zlib_decompress(data: Bytes) -> Bytes:
+    # See RFC 1950
+    let reader = data.into_reader()
+
+    # header byte 1:
+    let cmf_byte = reader.read_byte()
+    let cm = cmf_byte & 0xF  # Compression method
+    assert(condition: cm == 8, message: "Only support deflate in zlib format")
+    let cinfo = (cmf_byte >> 4) & 0xF
+    assert(condition: cinfo == 7, message: "Only support 32K window size")
+
+    # header byte 2
+    let flg_byte = reader.read_byte()
+
+    # Check fcheck, CMF*256+FLG must be multiple of 31:
+    assert(condition: modulo(value: cmf_byte * 256 + flg_byte, divisor: 31) == 0, message: "FCHECK failed")
+    let fdict = (flg_byte >> 5) & 1
+    if fdict == 1:
+        unimplemented("FDICT unsupported")
+
+    let decoder = new_deflate_decoder(reader)
+    decoder.deflate()
+    let decompressed = decoder.m_output.to_bytes()
+
+    # ADLER32 checksum:
+    let crc2 = calc_adler32(data: decompressed)
+    let crc1 = reader.read_u32_be()
+    assert(condition: crc1 == crc2, message: "CRC mismatch {crc1} != {crc2}")
+
+    return decompressed
+
+fn calc_adler32(data: Bytes) -> int:
+    let s1 = 1
+    let s2 = 0
+    let index = 0
+    while index < data.len():
+        s1 = modulo(value: s1 + data.get(index), divisor: 65521)
+        s2 = modulo(value: s2 + s1, divisor: 65521)
+        index += 1
+    return (s2 * 65536) + s1
 

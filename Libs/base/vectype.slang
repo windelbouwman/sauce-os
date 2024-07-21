@@ -49,10 +49,12 @@ class Vector[T]:
 
     fn get(index: int) -> T:
         # Retrieve value at index
+        assert(condition: index < m_size, message: "Vector.get: index out of range.")
         return m_elements[index]
     
     fn set(index: int, value: T):
         # " Set value at index. "
+        assert(condition: index < m_size, message: "Vector.get: index out of range.")
         m_elements[index] = value
     
     fn last() -> T:
@@ -61,13 +63,23 @@ class Vector[T]:
     fn iter() -> VectorIter[T]:
         return VectorIter(m_vector: this)
 
-    fn take(amount?: int) -> Vector:
+    fn take(amount?: int) -> Vector[T]:
         # Create a new vector with the given amount of items
-        unimplemented("take")
+        assert(condition: amount < m_size, message: "take: amount must less than size.")
+        let v2: Vector[T] = new_vector(default: m_default)
+        let index = 0
+        while index < amount:
+            v2.append(get(index))
+            index += 1
+        return v2
 
-    fn skip(amount?: int) -> Vector:
-        # Create a new vector with the given amount of items
-        unimplemented("skip")
+    fn skip(amount?: int) -> Vector[T]:
+        let v2: Vector[T] = new_vector(default: m_default)
+        let index = amount
+        while index < m_size:
+            v2.append(get(index))
+            index += 1
+        return v2
 
 
 class VectorIter[T]:

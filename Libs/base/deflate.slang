@@ -4,6 +4,7 @@
 
 from std import print
 from utils import panic, unimplemented, assert
+from utils import log_trace, log_debug, log_info
 from bytes import Bytes, ByteArray, ByteReader
 from vectype import Vector, new_vector, new_vector_of_size
 
@@ -30,7 +31,7 @@ class DeflateDecoder:
             # Read block header:
             let bfinal = read_bits(1)  # last block or not
             let btype = read_bits(2)  # Block type
-            print("bfinal={bfinal} btype={btype}")
+            log_debug("bfinal={bfinal} btype={btype}")
 
             if btype == 0:  # no compression
                 copy_uncompressed()
@@ -51,6 +52,7 @@ class DeflateDecoder:
     fn copy_uncompressed():
         let len = read_u16_le()
         let nlen = read_u16_le()  # Inverted version
+        log_debug("copy_uncompressed len={len} nlen={nlen}")
         # TODO: what to do with nlen? Check it?
         while len > 0:
             emit_byte(read_byte())
@@ -62,7 +64,7 @@ class DeflateDecoder:
         let hdist = read_bits(5) + 1  # Number of distance codes
         let hclen = read_bits(4) + 4  # Number of length codes
 
-        print("hlit={hlit}, hdist={hdist}, hclen={hclen}")
+        log_debug("hlit={hlit}, hdist={hdist}, hclen={hclen}")
 
         let lengths: Vector[int] = new_vector_of_size(size: 19, default: 0)
         let i = 0
@@ -78,7 +80,7 @@ class DeflateDecoder:
         lengths = new_vector(default: 0)
         while lengths.len() < hlit + hdist:
             let symbol = decode_symbol(tree)
-            print("symbol={symbol}")
+            # print("symbol={symbol}")
             let times = 0
             let L = 0
             if symbol < 16:
@@ -96,7 +98,7 @@ class DeflateDecoder:
             else:
                 panic("Invalid value")
 
-            print("times={times} L={L}")
+            # print("times={times} L={L}")
             while times > 0:
                 times -= 1
                 lengths.append(L)
@@ -105,7 +107,7 @@ class DeflateDecoder:
         assert(condition: lengths.len() == hlit + hdist, message: "lengths must be hlit + hdist")
         # Split vector
         let first = create_tree(lengths: lengths.take(hlit))
-        let second = create_tree(lengths: lengths.skip(hdist))
+        let second = create_tree(lengths: lengths.skip(hlit))
         return TreePair(first, second)
 
     fn inflate_block(pair: TreePair):
@@ -136,7 +138,7 @@ class DeflateDecoder:
                 assert(condition: symbol < 30, message: "Invalid distance code: {symbol}")
                 let distance = read_bits(dist_bits[symbol]) + dist_base[symbol]
 
-                print("length={length} distance={distance}")
+                log_trace("length={length} distance={distance}")
                 let index = m_output.len() - distance
                 while length > 0:
                     let value = m_output.get(index)

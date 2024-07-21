@@ -2,7 +2,7 @@
 # A slang-lang REPL!
 
 from std import print, read_line
-from utils import log_info, log_debug
+from utils import log_info, log_debug, set_log_level
 from basepass import IdGen
 from parsing import parse_expr_from_text, parse_statement_from_text
 from namebinding import bind_names_expression
@@ -18,6 +18,7 @@ from vm import VirtualMachine, eval_code, value_to_string
 
 fn main() -> int:
     print("Welcome to the slang-lang REPL!")
+    set_log_level(level: 1)
     let r = Repl()
     loop:
         let line = read_line(prompt: "~~~> ")
