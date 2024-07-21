@@ -1,19 +1,73 @@
 
 # Demo of saving images
 
-from utils import set_log_level
+from std import get_n_args, get_arg, print
+from utils import set_log_level, panic
+from strlib import split_string
 from image import Image, new_image
 from pbm import write_pbm
-from png import read_png
-from qoi import read_qoi, write_qoi
+from png import read_png_from_file, write_png_to_file
+from qoi import read_qoi_from_file, write_qoi_to_file
 
+fn load_image(filename: str) -> Image:
+    # Load image from file
+    let extension = get_extension(filename)
+    if extension == "png":
+        return read_png_from_file(filename)
+    elif extension == "qoi":
+        return read_qoi_from_file(filename)
+    else:
+        panic("Unsupported image extension for load_image: {extension}")
+
+fn save_image(image: Image, filename: str):
+    let extension = get_extension(filename)
+    if extension == "ppm":
+        write_pbm(image, filename)
+    elif extension == "qoi":
+        write_qoi_to_file(image, filename)
+    elif extension == "png":
+        write_png_to_file(image, filename)
+    else:
+        panic("Unsupported image extension for save_image: {extension}")
+
+fn get_extension(filename: str) -> str:
+    return split_string(text: filename, sep: '.').last()
+
+fn print_usage():
+    print("Usage:")
+    print("   CMD> write_image.exe input_image_filename output_image_filename")
 
 fn main() -> int:
+    # Argument processing
+    let n = get_n_args()
+    let i = 0
+    let parse_state = 0
+    let input_image: str = ""
+    let output_image: str = ""
+    while i < n:
+        let argument = get_arg(arg: i)
+        if argument == "-h":
+            print_usage()
+            return 0
+        else:
+            if parse_state == 0:
+                input_image = argument
+                parse_state = 1
+            elif parse_state == 1:
+                output_image = argument
+                parse_state = 2
+            else:
+                print("Too many arguments")
+                return 1
+        i += 1
+    
+    if parse_state != 2:
+        print_usage()
+        return 1
+
     set_log_level(level: 2)
-    # let image = new_image()
-    # let image = read_qoi(filename: "foo.qoi")
-    # let image = read_png(filename: "kodim23.png")
-    let image = read_png(filename: "PNG-Gradient.png")
-    write_pbm(image, filename: "bar.ppm")
-    # write_qoi(image, filename: "bar.qoi")
+    let image = load_image(filename: input_image)
+    save_image(image, filename: output_image)
+    
     return 0
+

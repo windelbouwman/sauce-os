@@ -5,45 +5,66 @@
 from std import print
 from utils import unimplemented, panic, assert, log_error, log_warning, log_debug
 from math import abs, modulo
-from bytes import Bytes, ByteReader, bytes_from_ascii, bytes_from_hex_text, ByteArray, bytes_to_ascii
-from gzip import calc_crc32, zlib_decompress
+from bytes import Bytes, ByteReader, bytes_from_ascii, bytes_from_hex_text, ByteArray, bytes_to_ascii, new_bytes
+from gzip import calc_crc32, zlib_decompress, zlib_compress
 from deflate import new_deflate_decoder
-from qoi import read_whole_file_as_bytes
+from qoi import read_whole_file_as_bytes, write_bytes_to_file
 from image import Image, new_image, Pixel
 
-fn read_png(filename: str) -> Image:
+fn read_png_from_file(filename: str) -> Image:
     log_debug("Loading PNG from {filename}")
     let data = read_whole_file_as_bytes(filename)
+    return read_png_from_bytes(data)
+
+fn read_png_from_bytes(data: Bytes) -> Image:
     let reader = data.into_reader()
+    return read_png_from_stream(reader)
+
+fn read_png_from_stream(reader: ByteReader) -> Image:
     let decoder = PngDecoder(m_byte_reader: reader)
     return decoder.read_image()
+
+fn write_png_to_file(image: Image, filename: str):
+    log_debug("Writing PNG image to {filename}")
+    let encoder = PngEncoder()
+    let data = encoder.write(image)
+    write_bytes_to_file(filename, data)
+
+fn write_png_to_stream(image: Image, writer: ByteArray):
+    #PngEncoder
+    unimplemented("write_png_to_stream")
 
 class PngDecoder:
     var m_byte_reader: ByteReader
 
     fn read_image() -> Image:
         let signature = read_bytes(8)
-        # let expected_signature = bytes_from_hex_text(text: "aa")
-        # assert(condition: signature == 1, message: "Invalid signature")
+        # let expected_signature = bytes_from_hex_text(text: "89 50 4e 47 0d 0a 1a 0a")
+        assert(condition: signature.as_hex() == "89504E470D0A1A0A", message: "Invalid signature: {signature.as_hex()}")
 
         let type_ihdr = chunk_type_code(name: "IHDR")
         let type_idat = chunk_type_code(name: "IDAT")
         let type_iend = chunk_type_code(name: "IEND")
-        let image = new_image(width: 1, height: 1)
-        
         # let type_gama = chunk_type_code(name: "gAMA")
         # let type_gama = chunk_type_code(name: "sRGB")
+
+        let idat: Bytes = new_bytes()
+        let width = 0
+        let height = 0
+        let bpp = 0
+        let colortype = 0
+        
+        # Loop over chunks in PNG:
         loop:
             let chunk = read_chunk()
             if chunk.chunk_type == type_ihdr:
                 log_debug("IHDR chunk")
                 let r = chunk.data.into_reader()
-                let width = r.read_u32_be()
-                let height = r.read_u32_be()
-                image = new_image(width, height)
+                width = r.read_u32_be()
+                height = r.read_u32_be()
 
                 let bitdepth = r.read_byte()
-                let colortype = r.read_byte()
+                colortype = r.read_byte()
                 let compression = r.read_byte()
                 let filter_method = r.read_byte()
                 let interlace_method = r.read_byte()
@@ -56,7 +77,13 @@ class PngDecoder:
                 # 3 = indexed
                 # 4 = grayscal and alpha
                 # 6 = rgb + alpha
-                assert(condition: colortype == 2, message: "color type must be rgb")
+
+                if colortype == 2: # rgb
+                    bpp = 3
+                elif colortype == 6: # rgb a
+                    bpp = 4
+                else:
+                    panic("Unsupported color type: {colortype}")
 
                 # compression type 0 --> zlib deflate format
                 assert(condition: compression == 0, message: "compression must be 0")
@@ -67,58 +94,7 @@ class PngDecoder:
 
             elif chunk.chunk_type == type_idat:
                 log_debug("IDAT chunk")
-
-                # Decompress data:
-                let data2 = zlib_decompress(data: chunk.data)
-                log_debug("Decompressed {data2.len()} bytes")
-                let expected_data_size = (image.width * 3 + 1) * image.height
-                assert(condition: data2.len() == expected_data_size, message: "PNG data size mismatch, expected {expected_data_size}, but got {data2.len()}")
-
-                let scanline = 0
-                let index = 0
-                let alpha = 0xFF
-                let zero_pixel = Pixel(red: 0, green: 0, blue: 0, alpha: 0)
-                while scanline < image.height:
-                    let filter_type = data2.get(index)
-                    index += 1
-
-                    let x = 0
-                    while x < image.width:
-
-                        let red = data2.get(index)
-                        index += 1
-                        let green = data2.get(index)
-                        index += 1
-                        let blue = data2.get(index)
-                        index += 1
-
-                        # filter type:
-                        # 0 = None -> no delta
-                        # 1 = Sub -> diff to pixel to the left
-                        # 2 = Up -> diff to pixel up
-                        # 3 = Average
-                        # 4 = Paeth
-                        if filter_type == 4:
-                            let left_pixel = zero_pixel
-                            if x > 0:
-                                left_pixel = image.pixels.get(index: scanline * image.width + x - 1)
-                            let up_pixel = zero_pixel
-                            if scanline > 0:
-                                up_pixel = image.pixels.get(index: (scanline - 1) * image.width + x)
-                            let left_up_pixel = zero_pixel
-                            if (x > 0) and (scanline > 0):
-                                left_up_pixel = image.pixels.get(index: (scanline - 1) * image.width + x - 1)
-                            red = modulo(value: red + paeth_predictor(a: left_pixel.red, b: up_pixel.red, c: left_up_pixel.red), divisor: 256)
-                            green = modulo(value: green + paeth_predictor(a: left_pixel.green, b: up_pixel.green, c: left_up_pixel.green), divisor: 256)
-                            blue = modulo(value: blue + paeth_predictor(a: left_pixel.blue, b: up_pixel.blue, c: left_up_pixel.blue), divisor: 256)
-                        else:
-                            unimplemented("Filter type: {filter_type}")
-                        
-                        # Push pixel:
-                        let pixel = Pixel(red, green, blue, alpha)
-                        image.pixels.append(pixel)
-                        x += 1
-                    scanline += 1
+                idat = idat.concat(other: chunk.data)
 
             elif chunk.chunk_type == type_iend:
                 log_debug("IEND chunk")
@@ -127,6 +103,15 @@ class PngDecoder:
                 let type_data = ByteArray()
                 type_data.pack_u32_be(chunk.chunk_type)
                 log_warning("Unsupported chunk type: {bytes_to_ascii(data: type_data.to_bytes())}")
+
+        
+        # Post processing!
+        # Decompress data:
+        let data2 = zlib_decompress(data: idat)
+        log_debug("Decompressed {data2.len()} bytes")
+        let data3 = post_filter(data: data2, width, height, bpp)
+        let image = new_image(width, height)
+        to_pixels(data: data3, image, colortype)
         return image
     
     fn read_chunk() -> Chunk:
@@ -147,6 +132,184 @@ class PngDecoder:
 
     fn read_u32_be() -> int:
         return m_byte_reader.read_u32_be()
+
+class PngEncoder:
+    var m_writer: ByteArray = ByteArray()
+
+    fn write(image: Image) -> Bytes:
+        let signature = bytes_from_hex_text(text: "89504E470D0A1A0A")
+        m_writer.extend(signature)
+
+        let width = image.width
+        let height = image.height
+        let bpp = 3
+
+        # Write IHDR chunk
+        let out = ByteArray()
+        out.pack_u32_be(width)
+        out.pack_u32_be(height)
+        out.append(8) # bit depth
+        out.append(2) # color type (2 = rgd)
+        out.append(0) # compression type
+        out.append(0) # filter method
+        out.append(0) # interlace method
+        let ihdr_chunk = Chunk(chunk_type: chunk_type_code(name: "IHDR"), data: out.to_bytes())
+        write_chunk(chunk: ihdr_chunk)
+
+        # Write IDAT chunk
+        let data = pixels_to_buffer(image)
+        let data2 = encode_filter(data, width, height, bpp)
+        log_debug("Compressing {data2.len()} bytes")
+        let data3 = zlib_compress(data: data2)
+        let idat_chunk = Chunk(chunk_type: chunk_type_code(name: "IDAT"), data: data3)
+        write_chunk(chunk: idat_chunk)
+
+        # Write IEND chunk
+        let iend_chunk = Chunk(chunk_type: chunk_type_code(name: "IEND"), data: new_bytes())
+        write_chunk(chunk: iend_chunk)
+        return m_writer.to_bytes()
+
+    fn write_chunk(chunk: Chunk):
+        # Write chunk to output.
+        let crc_data = ByteArray()
+        crc_data.pack_u32_be(chunk.chunk_type)
+        crc_data.extend(chunk.data)
+        let crc = calc_crc32(data: crc_data.to_bytes())
+
+        m_writer.pack_u32_be(chunk.data.len())
+        m_writer.pack_u32_be(chunk.chunk_type)
+        m_writer.extend(chunk.data)
+        m_writer.pack_u32_be(crc)
+
+fn pixels_to_buffer(image: Image) -> Bytes:
+    let out = ByteArray()
+    let scanline = 0
+    while scanline < image.height:
+        let x = 0
+        while x < image.width:
+            let pixel = image.pixels.get(index: scanline * image.width + x)
+            out.append(pixel.red)
+            out.append(pixel.green)
+            out.append(pixel.blue)
+
+            x += 1
+        scanline += 1
+    return out.to_bytes()
+
+fn to_pixels(data: Bytes, image: Image, colortype: int):
+    let scanline = 0
+    let index = 0
+    while scanline < image.height:
+        let x = 0
+        while x < image.width:
+            let red = data.get(index)
+            index += 1
+            let green = data.get(index)
+            index += 1
+            let blue = data.get(index)
+            index += 1
+
+            let alpha = 0xFF
+            if colortype == 6:
+                alpha = data.get(index)
+                index += 1
+
+            # Push pixel:
+            let pixel = Pixel(red, green, blue, alpha)
+            image.pixels.append(pixel)
+            x += 1
+        scanline += 1
+
+fn encode_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
+    # Apply filtering as encoding step
+    let out = ByteArray()
+    let bytes_per_line = bpp * width
+    let scanline = 0
+    let index = 0
+    while scanline < height:
+        # Idea: try all filter types, and select filtered line with the lowest entropy
+        out.append(0) # no-op filter type
+        let x = 0
+        while x < bytes_per_line:
+            let value = data.get(index)
+            index += 1
+            out.append(value)
+            x += 1
+        scanline += 1
+
+    let filtered = out.to_bytes()
+    let expected_data_size = (width * bpp + 1) * height
+    assert(condition: filtered.len() == expected_data_size, message: "Expected {expected_data_size}, but created {filtered.len()}")
+    return filtered
+
+fn post_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
+    # Perform post filtering on a byte basis.
+    # Note that we have no notion of bit depth or color space at this point.
+
+    let expected_data_size = (width * bpp + 1) * height
+    assert(condition: data.len() == expected_data_size, message: "PNG data size mismatch, expected {expected_data_size}, but got {data.len()}")
+
+    let scanline = 0
+    let index = 0
+    let bytes_per_line = bpp * width
+    let out = ByteArray()
+    while scanline < height:
+        let filter_type = data.get(index)
+        index += 1
+        # log_debug("Filter type: {filter_type}")
+
+        let x = 0
+        while x < bytes_per_line:
+            let value = data.get(index)
+            index += 1
+
+            # filter type:
+            # 0 = None -> no delta
+            # 1 = Sub -> diff to pixel to the left
+            # 2 = Up -> diff to pixel up
+            # 3 = Average
+            # 4 = Paeth
+            if filter_type == 0: # No-op
+                pass
+            elif filter_type == 1: # Diff to left pixel
+                let left_value = 0
+                if x >= bpp:
+                    left_value = out.get(index: scanline * bytes_per_line + x - bpp)
+                value = modulo(value: value + left_value, divisor: 256)
+            elif filter_type == 2: # Diff to above pixel
+                let above_value = 0
+                if scanline > 0:
+                    above_value = out.get(index: (scanline - 1) * bytes_per_line + x)
+                value = modulo(value: value + above_value, divisor: 256)
+            elif filter_type == 3:  # Average
+                let left_value = 0
+                if x >= bpp:
+                    left_value = out.get(index: scanline * bytes_per_line + x - bpp)
+                let above_value = 0
+                if scanline > 0:
+                    above_value = out.get(index: (scanline - 1) * bytes_per_line + x)
+                value = modulo(value: value + average(a: left_value, b: above_value), divisor: 256)
+            elif filter_type == 4:  # Paeth
+                let left_value = 0
+                if x >= bpp:
+                    left_value = out.get(index: scanline * bytes_per_line + x - bpp)
+                let above_value = 0
+                if scanline > 0:
+                    above_value = out.get(index: (scanline - 1) * bytes_per_line + x)
+                let left_up_value = 0
+                if (x >= bpp) and (scanline > 0):
+                    left_up_value = out.get(index: (scanline - 1) * bytes_per_line + x - bpp)
+                value = modulo(value: value + paeth_predictor(a: left_value, b: above_value, c: left_up_value), divisor: 256)
+            else:
+                unimplemented("Filter type: {filter_type}")
+            
+            out.append(value)
+            x += 1
+        scanline += 1
+    return out.to_bytes()
+
+fn average(a: int, b: int) -> int:
+    return (a + b) / 2
 
 fn paeth_predictor(a: int, b: int, c: int) -> int:
     let p = a + b - c

@@ -3,7 +3,7 @@ from std import print
 from unittest import assert_bytes_equals, assert_int_equals
 from bytes import bytes_from_hex_text, fill_bytes, bytes_from_ascii, Bytes
 from gzip import gzip_decompress, calc_crc32
-from gzip import zlib_decompress, calc_adler32
+from gzip import zlib_decompress, zlib_compress, calc_adler32
 
 fn main() -> int:
     test_gzip_example1()
@@ -53,6 +53,12 @@ fn test_zlib_example2():
     let expected = fill_bytes(n: 100, fill: 0)
     let decompressed = zlib_decompress(data: compressed)
     assert_bytes_equals(decompressed, expected)
+
+fn test_zlib_roundtrip1():
+    let data = bytes_from_hex_text(text: "78")
+    let compressed = zlib_compress(data)
+    let decompressed = zlib_decompress(data: compressed)
+    assert_bytes_equals(data, decompressed)
 
 fn test_adler32():
     let data = bytes_from_ascii(text: "Wikipedia")

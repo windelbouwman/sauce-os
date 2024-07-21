@@ -44,18 +44,22 @@ fn write_bytes_to_file(filename: str, data: Bytes):
             j = 0
         i += 1
 
+    if j > 0:
+        let x = std.file_write_n_bytes(handle, buffer, bufsize: j)
+        assert(condition: x == j, message: "file_write_n_bytes failed")
+
     std.file_close(handle)
 
 # TODO: support constants:
 # QOI_OP_RGB = 0b1111_1110
 # QOI_OP_RGBA = 0b1111_1111
 
-fn read_qoi(filename: str) -> Image:
+fn read_qoi_from_file(filename: str) -> Image:
     let data = read_whole_file_as_bytes(filename)
     let reader = QoiReader(m_reader: data.into_reader())
     return reader.read_image()
 
-fn write_qoi(image: Image, filename: str):
+fn write_qoi_to_file(image: Image, filename: str):
     # Write image as QOI file.
     let writer = QoiWriter()
     let data = writer.write(image)

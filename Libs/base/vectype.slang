@@ -80,6 +80,20 @@ class Vector[T]:
             v2.append(get(index))
             index += 1
         return v2
+    
+    fn concat(other: Vector[T]) -> Vector[T]:
+        let v2: Vector[T] = new_vector(default: m_default)
+        
+        let index = 0
+        while index < m_size:
+            v2.append(get(index))
+            index += 1
+        
+        index = 0
+        while index < other.m_size:
+            v2.append(other.get(index))
+            index += 1
+        return v2
 
 
 class VectorIter[T]:

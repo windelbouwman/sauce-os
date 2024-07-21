@@ -12,6 +12,9 @@ fn deflate_decompress(data?: Bytes) -> Bytes:
     # Decompress the given data using deflate
     # See: RFC 1951
     let reader = data.into_reader()
+    return deflate_decompress_from_reader(reader)
+
+fn deflate_decompress_from_reader(reader: ByteReader) -> Bytes:
     let decoder = new_deflate_decoder(reader)
     decoder.deflate()
     return decoder.m_output.to_bytes()
@@ -20,6 +23,36 @@ fn new_deflate_decoder(reader: ByteReader) -> DeflateDecoder:
     let bit_reader = BitReader(m_reader: reader)
     let decoder = DeflateDecoder(m_bit_reader: bit_reader)
     return decoder
+
+fn deflate_compress(data: Bytes) -> Bytes:
+    # Implementation 1: copy uncompressed:
+    let out = ByteArray()
+    let index = 0
+    while index < data.len():
+        let size = data.len() - index
+        let last_block = false
+        if size > 4000:
+            size = 4000
+        else:
+            last_block = true
+        
+        print("Size: {size}")
+
+        if last_block:
+            out.append(1)
+        else:
+            out.append(0)
+
+        out.pack_u16_le(size)
+        out.pack_u16_le(0xFFFF ^ size)
+
+        let i = 0
+        while i < size:
+            out.append(data.get(index))
+            index += 1
+            i += 1
+
+    return out.to_bytes()
 
 class DeflateDecoder:
     var m_bit_reader: BitReader
@@ -102,7 +135,7 @@ class DeflateDecoder:
             while times > 0:
                 times -= 1
                 lengths.append(L)
-        print("lengths.len={lengths.len()}")
+        # print("lengths.len={lengths.len()}")
 
         assert(condition: lengths.len() == hlit + hdist, message: "lengths must be hlit + hdist")
         # Split vector
@@ -173,6 +206,8 @@ class DeflateDecoder:
         return m_bit_reader.m_reader.read_byte()
 
     fn read_u16_le() -> int:
+        m_bit_reader.m_bitbuf = 0
+        m_bit_reader.m_bitcnt = 0
         return m_bit_reader.m_reader.read_u16_le()
 
     fn emit_byte(b?: int):

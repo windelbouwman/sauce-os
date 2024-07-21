@@ -5,8 +5,9 @@ from datetime import unix_to_str
 from std import print
 from math import modulo
 from utils import unimplemented, assert
-from bytes import Bytes, ByteReader
+from bytes import Bytes, ByteReader, ByteArray
 from deflate import new_deflate_decoder, BitReader
+from deflate import deflate_compress
 
 fn gzip_decompress(data?: Bytes) -> Bytes:
     # Handle the gzip header.
@@ -53,6 +54,9 @@ fn gzip_decompress(data?: Bytes) -> Bytes:
     print("isize = {isize}, crc32 = {crc32}, crc32_check = {crc32_check}")
     assert(condition: crc32_check == crc32, message: "CRC error: {crc32} != {crc32_check}")
     return decompressed
+
+fn gzip_compress(data: Bytes) -> Bytes:
+    unimplemented("gzip_compress")
 
 fn calc_crc32(data: Bytes) -> int:
     # Create table:
@@ -109,6 +113,27 @@ fn zlib_decompress(data: Bytes) -> Bytes:
     assert(condition: crc1 == crc2, message: "CRC mismatch {crc1} != {crc2}")
 
     return decompressed
+
+fn zlib_compress(data: Bytes) -> Bytes:
+    # Compress data in zlib format
+    # See RFC 1950
+    let out = ByteArray()
+
+    # Write header:
+    let cmf = 0x78
+    out.append(cmf)
+    let flg = 0x9c
+    out.append(flg)
+
+    # Compressed data:    
+    let compressed_data = deflate_compress(data)
+    out.extend(compressed_data)
+
+    # CRC of the uncompressed data:
+    let crc = calc_adler32(data)
+    out.pack_u32_be(crc)
+
+    return out.to_bytes()
 
 fn calc_adler32(data: Bytes) -> int:
     let s1 = 1

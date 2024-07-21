@@ -19,6 +19,10 @@ class Bytes:
     
     fn get(index: int) -> int:
         return int(m_bytes[index])
+    
+    fn concat(other: Bytes) -> Bytes:
+        # Concatenate two byte sequences
+        return concat2(a: this, b: other)
 
     fn as_hex() -> str:
         # Return bytes as hexadecimal text
@@ -29,6 +33,9 @@ class Bytes:
     
     fn into_reader() -> ByteReader:
         return ByteReader(m_bytes: this)
+
+fn concat2(a: Bytes, b: Bytes) -> Bytes:
+    return Bytes(m_bytes: a.m_bytes.concat(other: b.m_bytes))
 
 class ByteIter:
     var m_iter: VectorIter[uint8]
@@ -108,6 +115,10 @@ class ByteArray:
         append((value >> 16) & 0xFF)
         append((value >> 8) & 0xFF)
         append(value & 0xFF)
+
+    fn pack_u16_le(value?: int):
+        append(value & 0xff)
+        append((value >> 8) & 0xFF)
 
     fn pack_u16_be(value?: int):
         append((value & 0xff00) >> 8)

@@ -6,6 +6,7 @@ from unittest import assert_str_equals
 fn main() -> int:
     test_hex_text_conversion()
     test_pack()
+    test_concatenation()
     print("OK")
     return 0
 
@@ -20,3 +21,10 @@ fn test_pack():
     b.append(5)
     b.pack_u32_le(0x1337)
     assert_str_equals(b.as_hex(), "43020537130000")
+
+fn test_concatenation():
+    let data1 = bytes_from_hex_text(text: "ABCD")
+    let data2 = bytes_from_hex_text(text: "1234EF")
+    let data3 = data1.concat(other: data2)
+    assert_str_equals(data3.as_hex(), "ABCD1234EF")
+
