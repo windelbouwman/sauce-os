@@ -1,0 +1,111 @@
+
+# Run with:
+# CMD> nmake /f Makefile.win32
+
+BUILDDIR=build
+SLANGC=$(BUILDDIR)\compiler5.exe
+CC=cl.exe
+LD=link.exe
+
+COMPILER_SRCS=compiler\main.slang
+
+COMPILER_LIB_SRCS=Libs\compiler\backend\c_gen_v2.slang \
+	Libs\compiler\backend\c_gen.slang \
+	Libs\compiler\backend\hexfile.slang \
+	Libs\compiler\backend\ir_gen.slang \
+	Libs\compiler\backend\pygenerator.slang \
+	Libs\compiler\backend\riscv_gen.slang \
+	Libs\compiler\backend\riscv.slang \
+	Libs\compiler\backend\text_gen.slang \
+	Libs\compiler\backend\wasm_gen.slang \
+	Libs\compiler\parsing\lexer.slang \
+	Libs\compiler\parsing\location.slang \
+	Libs\compiler\parsing\parsing.slang \
+	Libs\compiler\parsing\token.slang \
+	Libs\compiler\ast.slang \
+	Libs\compiler\basepass.slang \
+	Libs\compiler\bc.slang \
+	Libs\compiler\builtins.slang \
+	Libs\compiler\errors.slang \
+	Libs\compiler\namebinding.slang \
+	Libs\compiler\pass3.slang \
+	Libs\compiler\transforms.slang \
+	Libs\compiler\typechecking.slang \
+	Libs\compiler\typedb.slang \
+	Libs\compiler\vm.slang \
+	Libs\compiler\webassembly.slang
+
+BASE_LIB_SRCS=Libs\base\assoclist.slang \
+	Libs\base\base64.slang \
+	Libs\base\bytes.slang \
+	Libs\base\datatypes.slang \
+	Libs\base\datetime.slang \
+	Libs\base\deflate.slang \
+	Libs\base\dicttype.slang \
+	Libs\base\functools.slang \
+	Libs\base\graphlib.slang \
+	Libs\base\gzip.slang \
+	Libs\base\hashlib.slang \
+	Libs\base\hashmap.slang \
+	Libs\base\json.slang \
+	Libs\base\math.slang \
+	Libs\base\pathlib.slang \
+	Libs\base\settype.slang \
+	Libs\base\shapelib.slang \
+	Libs\base\sorting.slang \
+	Libs\base\strlib.slang \
+	Libs\base\unittest.slang \
+	Libs\base\utils.slang \
+	Libs\base\vectype.slang \
+	Libs\base\xml.slang \
+	runtime\std.slang
+
+all: $(BUILDDIR)\compiler5.exe $(BUILDDIR)\libcompiler.dll
+
+# Library DLLs
+$(BUILDDIR)\libbase.c $(BUILDDIR)\libbase.json: $(BASE_LIB_SRCS)
+	$(SLANGC) --backend-c --gen-export $(BUILDDIR)\libbase.json -o $(BUILDDIR)\libbase.c $(BASE_LIB_SRCS)
+
+$(BUILDDIR)\libcompiler.c $(BUILDDIR)\libcompiler.json: $(COMPILER_LIB_SRCS) $(BUILDDIR)\libbase.json
+	$(SLANGC) --backend-c --gen-export $(BUILDDIR)\libcompiler.json --add-import $(BUILDDIR)\libbase.json -o $(BUILDDIR)\libcompiler.c $(COMPILER_LIB_SRCS)
+
+$(BUILDDIR)\libbase.dll $(BUILDDIR)\libbase.lib: $(BUILDDIR)\libbase.obj $(BUILDDIR)\slangrt.lib
+	$(LD) /DLL /OUT:$(BUILDDIR)\libbase.dll $(BUILDDIR)\libbase.obj $(BUILDDIR)\slangrt.lib
+
+$(BUILDDIR)\libcompiler.dll $(BUILDDIR)\libcompiler.lib: $(BUILDDIR)\libcompiler.obj $(BUILDDIR)\libbase.lib $(BUILDDIR)\slangrt.lib
+	$(LD) /DLL /OUT:$(BUILDDIR)\libcompiler.dll $(BUILDDIR)\libcompiler.obj $(BUILDDIR)\libbase.lib
+
+$(BUILDDIR)\slangrt.dll $(BUILDDIR)\slangrt.lib: $(BUILDDIR)\slangrt.obj
+	$(LD) /DLL /OUT:$(BUILDDIR)\slangrt.dll $(BUILDDIR)\slangrt.obj
+
+$(BUILDDIR)\slangrt.obj: runtime\slangrt.c
+	$(CC) /c /Fo: $(BUILDDIR)\slangrt.obj runtime\slangrt.c
+
+.c.obj:
+	$(CC) /c /Fo: $@ $<
+
+# Bootstrap
+$(BUILDDIR)\slangrt.py: runtime\slangrt.py
+	copy runtime\slangrt.py $(BUILDDIR)
+
+$(BUILDDIR)\tmp-compiler.py: bootstrap.py $(COMPILER_SRCS) $(COMPILER_LIB_SRCS) $(BASE_LIB_SRCS)
+	python bootstrap.py
+
+$(BUILDDIR)\tmp-compiler2.py: build\tmp-compiler.py $(COMPILER_SRCS) $(COMPILER_LIB_SRCS) $(BASE_LIB_SRCS) $(BUILDDIR)\slangrt.py
+	python $(BUILDDIR)\tmp-compiler.py --backend-py $(COMPILER_SRCS) $(COMPILER_LIB_SRCS) $(BASE_LIB_SRCS) -o $(BUILDDIR)\tmp-compiler2.py
+
+$(BUILDDIR)\tmp-compiler3.py: $(BUILDDIR)\tmp-compiler2.py $(COMPILER_SRCS) $(COMPILER_LIB_SRCS) $(BASE_LIB_SRCS) $(BUILDDIR)\slangrt.py
+	python $(BUILDDIR)\tmp-compiler2.py --backend-py $(COMPILER_SRCS) $(COMPILER_LIB_SRCS) $(BASE_LIB_SRCS) -o $(BUILDDIR)\tmp-compiler3.py
+
+$(BUILDDIR)\tmp-compiler4.c: $(BUILDDIR)\tmp-compiler3.py $(COMPILER_SRCS) $(COMPILER_LIB_SRCS) $(BASE_LIB_SRCS) $(BUILDDIR)\slangrt.py
+	python $(BUILDDIR)\tmp-compiler3.py --backend-c $(COMPILER_SRCS) $(COMPILER_LIB_SRCS) $(BASE_LIB_SRCS) -o $(BUILDDIR)\tmp-compiler4.c
+
+$(BUILDDIR)\compiler4.exe: $(BUILDDIR)\tmp-compiler4.obj runtime\slangrt.obj
+	$(LD) /OUT:$(BUILDDIR)\compiler4.exe $(BUILDDIR)\tmp-compiler4.obj runtime\slangrt.obj
+
+$(BUILDDIR)\tmp-compiler5.c: $(BUILDDIR)\compiler4.exe $(COMPILER_SRCS) $(COMPILER_LIB_SRCS) $(BASE_LIB_SRCS)
+	$(BUILDDIR)\compiler4.exe --backend-c $(COMPILER_SRCS) $(COMPILER_LIB_SRCS) $(BASE_LIB_SRCS) -o $(BUILDDIR)\tmp-compiler5.c
+
+$(BUILDDIR)\compiler5.exe: $(BUILDDIR)\tmp-compiler5.obj runtime\slangrt.obj
+	$(LD) /OUT:$(BUILDDIR)\compiler5.exe $(BUILDDIR)\tmp-compiler5.obj runtime\slangrt.obj
+

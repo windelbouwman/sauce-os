@@ -47,7 +47,14 @@ jobs:
         with:
           python-version: '3.12'
           cache: 'pip'
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
       - name: Install dependencies
         run: pip install -r compiler1/requirements.txt
       - name: Test with pytest
         run: pytest test_compiler1.py -v
+      - name: Build
+        run: | 
+          mkdir build
+          nmake build\compiler5.exe
+
