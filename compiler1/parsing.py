@@ -810,7 +810,6 @@ enum_variant: ID NEWLINE
 type_def: KW_TYPE ID EQUALS typ NEWLINE
 id_and_type_parameters: ID type_parameters?
 type_parameters: LEFT_BRACKET ids RIGHT_BRACKET
-# type_parameter: ID (COLON ID)
 types: typ
      | types COMMA typ
 typ: expression

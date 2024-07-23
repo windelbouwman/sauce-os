@@ -16,8 +16,17 @@ extern slang_int_t main2();
 void *rt_malloc(int size);
 void rt_incref(void *ptr);
 void rt_decref(void *ptr);
+#if defined __GNUC__
 void std_exit(slang_int_t code) __attribute__((noreturn));
 void std_panic(const char *message) __attribute__((noreturn));
+#define SLANG_API
+#elif defined _MSC_VER
+__declspec(noreturn) __declspec(dllexport) void std_exit(slang_int_t code);
+__declspec(noreturn) void std_panic(const char *message);
+#define SLANG_API __declspec(dllexport)
+#else
+#error unsupported compiler
+#endif
 
 struct slang_exception_handler;
 typedef struct slang_exception_handler
@@ -28,17 +37,17 @@ typedef struct slang_exception_handler
 slang_exception_handler_t *g_except_hook;
 void *g_except_value;
 
-slang_float_t math_powf(slang_float_t a, slang_float_t b)
+SLANG_API slang_float_t math_powf(slang_float_t a, slang_float_t b)
 {
     return powf(a, b);
 }
 
-slang_float_t math_log10(slang_float_t value)
+SLANG_API slang_float_t math_log10(slang_float_t value)
 {
     return log10(value);
 }
 
-slang_float_t math_log2(slang_float_t value)
+SLANG_API slang_float_t math_log2(slang_float_t value)
 {
     return log2(value);
 }
@@ -48,18 +57,18 @@ slang_float_t math_log2(slang_float_t value)
 //     return floor(value);
 // }
 
-slang_float_t math_ceil(slang_float_t value)
+SLANG_API slang_float_t math_ceil(slang_float_t value)
 {
     return ceil(value);
 }
 
-void std_print(char *message)
+SLANG_API void std_print(char *message)
 {
     puts(message);
     rt_decref(message);
 }
 
-char* std_read_line(char *prompt)
+SLANG_API char* std_read_line(char *prompt)
 {
     char *text = rt_malloc(300);
     fputs(prompt, stdout);
@@ -70,7 +79,7 @@ char* std_read_line(char *prompt)
     return s_read;
 }
 
-void std_putc(const char *ch)
+SLANG_API void std_putc(const char *ch)
 {
     // TBD: do we require special char type?
     putchar(ch[0]);
@@ -81,6 +90,14 @@ void std_exit(slang_int_t code)
     exit(code);
 }
 
+SLANG_API char std_get_path_separator()
+{
+#if defined(_WIN32)
+    return '\\';
+#else
+    return '/';
+#endif
+}
 
 void std_panic(const char *message)
 {
@@ -88,7 +105,7 @@ void std_panic(const char *message)
     std_exit(1);
 }
 
-slang_int_t std_str_to_int(char *x)
+SLANG_API slang_int_t std_str_to_int(char *x)
 {
     slang_int_t value = strtoll(x, NULL, 10);
     rt_decref(x);
@@ -104,7 +121,7 @@ char *rt_int_to_str(slang_int_t x)
     return text;
 }
 
-char *std_float_to_str(slang_float_t x)
+SLANG_API char *std_float_to_str(slang_float_t x)
 {
     char buffer[50];
     snprintf(buffer, 50, "%f", x);
@@ -113,7 +130,7 @@ char *std_float_to_str(slang_float_t x)
     return text;
 }
 
-char *std_float_to_str2(slang_float_t x, slang_int_t digits)
+SLANG_API char *std_float_to_str2(slang_float_t x, slang_int_t digits)
 {
     char buffer[50];
     snprintf(buffer, 50, "%.*f", (int)digits, x);
@@ -122,7 +139,7 @@ char *std_float_to_str2(slang_float_t x, slang_int_t digits)
     return text;
 }
 
-slang_float_t std_str_to_float(char *x)
+SLANG_API slang_float_t std_str_to_float(char *x)
 {
     double value = strtod(x, NULL);
     return value;
@@ -169,7 +186,7 @@ char std_str_get(char *txt, slang_int_t pos)
     return txt[pos];
 }
 
-char *std_read_file(char *filename)
+SLANG_API char *std_read_file(char *filename)
 {
     char *buffer = 0;
     FILE *f = fopen(filename, "r");

@@ -561,8 +561,6 @@ class Module(Node):
         return self.scope.lookup(name)
 
     def add_definition(self, definition: "Definition"):
-        assert not self.scope.is_defined(definition.id.name)
-        self.scope.define(definition.id.name, definition)
         self.definitions.append(definition)
 
 

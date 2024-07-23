@@ -21,7 +21,7 @@ else:
 
 # import cProfile
 # import pstats
-from compiler1 import compiler, errors, builtins
+from compiler1 import compiler, errors
 
 logging.basicConfig(level=loglevel)
 options = compiler.CompilationOptions(backend="py")
@@ -35,9 +35,7 @@ try:
     # profiler = cProfile.Profile()
     # profiler.enable()
     with open(output_filename, "w") as f:
-        print(builtins.BUILTINS_PY_IMPL, file=f)
         compiler.do_compile(sources, f, options)
-        print("sys.exit(main())", file=f)
     # profiler.disable()
     # stats = pstats.Stats(profiler)
     # stats.print_stats()

@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass
 import logging, io
+import sys, os
 from typing import TextIO, Optional
 
 import networkx as nx
@@ -24,9 +25,11 @@ from .pygenerator import gen_pycode
 from .bc_gen import gen_bc
 from .vm import run_bytecode
 from .bc import print_bytecode
-from .builtins import create_rt_module, get_builtins, BUILTINS_PY_IMPL
+from .builtins import create_rt_module, get_builtins
 
 logger = logging.getLogger("compiler")
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), "runtime"))
+import slangrt
 
 
 @dataclass
@@ -47,10 +50,9 @@ def do_compile(
 
     id_context = ast.IdContext()
 
-    rt_module = create_rt_module()
-    known_modules = {"rt": rt_module}
-
     modules = []
+    rt_module = create_rt_module()
+    modules.append(rt_module)
     for filename in filenames:
         module = parse_file(id_context, filename)
         modules.append(module)
@@ -58,6 +60,7 @@ def do_compile(
             ast.print_ast(module)
     topo_sort(modules)
 
+    known_modules = {}
     for module in modules:
         analyze_ast(module, known_modules, options)
         if options.dump_ast:
@@ -86,7 +89,21 @@ def do_compile(
             gen_pycode(modules, f)
             code = f.getvalue()
             logger.info("Invoking python code")
-            namespace = get_builtins(args=options.program_args, stdout=output)
+
+            if output:
+
+                def std_print(txt: str):
+                    print(txt, file=output)
+
+            else:
+
+                def std_print(txt: str):
+                    print(txt)
+
+            slangrt.std_print = std_print
+
+            # namespace = get_builtins(args=options.program_args, stdout=output)
+            namespace = {}
             exec(code, namespace)
             namespace["main"]()
         else:

@@ -18,6 +18,8 @@ extern "slangrt" fn str_slice(text: str, begin: int, end: int) -> str
 extern "slangrt" fn print(message?: str)
 extern "slangrt" fn read_line(prompt: str) -> str
 
+extern "slangrt" fn get_path_separator() -> char
+
 # '?' indicates that function does not return.
 # TODO: improve syntax for noreturn functions
 extern "slangrt" fn exit(code: int) ?

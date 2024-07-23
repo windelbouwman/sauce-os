@@ -1,6 +1,7 @@
 # Runtime functions implemented in python.
 
 import sys
+import os
 import math
 
 
@@ -19,6 +20,10 @@ def std_read_file(filename: str) -> str:
 
 def std_exit(code: int):
     raise RuntimeError(f"EXIT with code: {code}")
+
+
+def std_get_path_separator() -> str:
+    return os.sep
 
 
 std_print = print

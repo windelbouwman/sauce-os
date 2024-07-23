@@ -151,9 +151,15 @@ class CGenerator:
 
         let decl = "{return_type} {extern_function.name}({param_txt})"
         if extern_function.no_return:
-            decl = decl + " __attribute__((noreturn))"
-
-        emit("extern {decl};")
+            emit("#if defined __GNUC__")
+            emit("{decl} __attribute__((noreturn));")
+            emit("#elif defined _MSC_VER")
+            emit("__declspec(noreturn) {decl};")
+            emit("#else")
+            emit("#error unsupported compiler")
+            emit("#endif")
+        else:
+            emit("extern {decl};")
     
     fn gen_global(global: bc.Global):
         let typed_name = get_type_txt(ty: global.ty, name: global.name)
@@ -167,8 +173,15 @@ class CGenerator:
     fn gen_function_decl(function: bc.Function):
         let decl = get_function_decl(function, fill_param: false)
         if function.no_return:
-            decl = decl + " __attribute__((noreturn))"
-        emit("{decl};")
+            emit("#if defined __GNUC__")
+            emit("{decl} __attribute__((noreturn));")
+            emit("#elif defined _MSC_VER")
+            emit("__declspec(noreturn) {decl};")
+            emit("#else")
+            emit("#error unsupported compiler")
+            emit("#endif")
+        else:
+            emit("{decl};")
 
     fn get_function_decl(function: bc.Function, fill_param: bool) -> str:
         let parameters2: List[str] = List()
@@ -518,7 +531,13 @@ class CGenerator:
                     emit("return;")
 
             Unreachable:
+                emit("#if defined __GNUC__")
                 emit("__builtin_unreachable();")
+                emit("#elif defined _MSC_VER")
+                emit("__assume(0);")
+                emit("#else")
+                emit("#error unsupported compiler")
+                emit("#endif")
 
             LoadFunc(index):
                 if index < extern_functions.len():
