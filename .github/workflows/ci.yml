@@ -56,5 +56,5 @@ jobs:
       - name: Build
         run: | 
           mkdir build
-          nmake build\compiler5.exe
+          nmake /f Makefile.win32 build\compiler5.exe
 
