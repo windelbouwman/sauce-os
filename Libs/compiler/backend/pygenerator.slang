@@ -184,6 +184,8 @@ class PyGenerator:
             CharLiteral(s):
                 # TODO: implement escaping in string literals
                 txt = "{chr(34)}{s}{chr(34)}"
+            Null:
+                txt = "None"
             FloatLiteral(value):
                 txt = float_to_str(value)
             StructLiteral(ty, values):

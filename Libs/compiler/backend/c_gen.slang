@@ -242,6 +242,8 @@ class CGenerator:
                             push(Value(name: "0", ty: bc.Type.Bool()))
                     Char(value):
                         push(Value(name: "'{value}'", ty: bc.Type.Char()))
+                    Null:
+                        push(Value(name: "0", ty: bc.Type.Ptr()))
 
             Jump(label):
                 emit("goto {get_label_str(label)};")

@@ -139,6 +139,10 @@ fn efi_std_print(arguments: List[Value]) -> Option[Value]:
     std.print(str_from_value(arguments.first()))
     return Option.None()
 
+fn efi_std_read_line(arguments: List[Value]) -> Option[Value]:
+    let value = std.read_line(prompt: str_from_value(arguments.first()))
+    return Option.Some(Value.Str(value))
+
 fn efi_default(arguments: List[Value]) -> Option[Value]:
     panic("Not impl EFI")
     return Option.None()
@@ -180,9 +184,10 @@ fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
     efi_db.insert(key: "std_str_get", value: ExternFunctionImpl(f: efi_std_str_get, n: 2))
     efi_db.insert(key: "std_str_slice", value: ExternFunctionImpl(f: efi_std_str_slice, n: 3))
     efi_db.insert(key: "std_print", value: ExternFunctionImpl(f: efi_std_print, n: 1))
+    efi_db.insert(key: "std_read_line", value: ExternFunctionImpl(f: efi_std_read_line, n: 1))
     efi_db.insert(key: "std_exit", value: ExternFunctionImpl(f: efi_default, n: 1))
     efi_db.insert(key: "std_read_file", value: ExternFunctionImpl(f: efi_default, n: 1))
-    efi_db.insert(key: "std_file_open", value: ExternFunctionImpl(f: efi_default, n: 1))
+    efi_db.insert(key: "std_file_open", value: ExternFunctionImpl(f: efi_default, n: 2))
     efi_db.insert(key: "std_file_writeln", value: ExternFunctionImpl(f: efi_default, n: 2))
     efi_db.insert(key: "std_file_close", value: ExternFunctionImpl(f: efi_default, n: 1))
     efi_db.insert(key: "std_get_n_args", value: ExternFunctionImpl(f: efi_default, n: 0))
@@ -311,6 +316,8 @@ class VirtualMachine:
                         push(Value.Bool(val))
                     Float(val):
                         push(Value.Float(val))
+                    Null:
+                        unimplemented("Null value")
             LocalGet(index):
                 let value = get_local(index)
                 push(value)

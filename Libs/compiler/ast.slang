@@ -297,6 +297,13 @@ fn is_type_parameter_type(ty?: Type) -> bool:
     else:
         return false
 
+fn is_null_type(ty?: Type) -> bool:
+    case ty.kind:
+        Null:
+            return true
+    else:
+        return false
+
 fn is_type_var_type(ty?: Type) -> bool:
     case ty.kind:
         TypeVar(v):
@@ -545,6 +552,7 @@ enum TypeKind:
     SomeInteger(bits: int)  # Integer type, requiring at least n bits
     Opaque
     Void
+    Null
     TypeExpression(expression: Expression)
     Function(parameter_types: List[ParameterType], info: FunctionInfo)
     TypeParam(type_parameter: TypeParameter)
@@ -565,6 +573,8 @@ fn type_kind_to_string(kind: TypeKind) -> str:
             txt = "OPAQUE"
         Void:
             txt = "VOID"
+        Null:
+            txt = "NULL"
         TypeExpression(expr):
             txt = "TYPE-EXPR"
         Array(element_type, size):
@@ -775,6 +785,9 @@ fn opaque_type() -> Type:
 
 fn undefined_type() -> Type:
     return new_type(kind: TypeKind.Undefined())
+
+fn null_type() -> Type:
+    return new_type(kind: TypeKind.Null())
 
 fn array_type(element_type: Type, size: int) -> Type:
     return new_type(kind: TypeKind.Array(element_type, size))
@@ -1390,6 +1403,7 @@ enum ExpressionKind:
     Variant(ty: Type, variant: EnumVariant)
     EnumLiteral(ty: Type, variant: EnumVariant, values: List[Expression])
     Undefined
+    Null
 
 struct LabeledExpression:
     location: Location
@@ -1545,6 +1559,9 @@ fn to_string(value: Expression, location: Location) -> Expression:
 fn undefined_value() -> Expression:
     let location = location_default()
     return Expression(kind: ExpressionKind.Undefined(), ty: undefined_type(), location)
+
+fn null_value(location: Location) -> Expression:
+    return Expression(kind: ExpressionKind.Null(), ty: null_type(), location)
 
 fn print_ast2(module_set: ModuleSet):
     for module in module_set.modules:
@@ -1711,6 +1728,8 @@ fn expression_to_string(expression?: Expression) -> str:
             txt = "GET-INDEX"
         Undefined:
             txt = "UNDEFINED"
+        Null:
+            txt = "NULL"
         Binop(op):
             let op_txt = binary_op_to_str(op: op.op)
             txt = "BINOP({op_txt})"

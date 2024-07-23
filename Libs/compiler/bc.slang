@@ -107,6 +107,7 @@ enum LiteralValue:
     Float(value: float)
     Bool(value: bool)
     Char(value: char)
+    Null
 
 enum BinaryOperator:
     Add
@@ -144,6 +145,8 @@ fn literal_to_string(literal?: LiteralValue) -> str:
                 return "bool(false)"
         Char(value):
             return "char('{value}')"
+        Null:
+            return "Null"
 
 
 fn instruction_to_string(instruction?: Instruction) -> str:

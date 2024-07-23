@@ -346,6 +346,8 @@ class TypeChecker:
                 add_error(location: expression.location, message: "variants must be literals")
             Undefined:
                 panic("check_expression: undefined")
+            Null:
+                pass
             GetAttr(base, attr):
                 case ast.get_field_type(ty: base.ty, attr):
                     Some(ty):
@@ -515,6 +517,8 @@ class TypeChecker:
                     return unify(ty1, ty2)
         elif ast.is_type_var_type(ty2):
             return unify(ty1: ty2, ty2: ty1)
+        elif ast.is_null_type(ty1) and ast.is_struct_type(ty2):
+            return true
         else:
             return false
     

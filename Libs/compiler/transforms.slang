@@ -182,11 +182,14 @@ fn transformer_on_type5(transformer: Transformer, ty: ast.Type, phase: ast.Visit
                 App(tycon, type_arguments):
                     case tycon:
                         Class(class_def):
-                            let struct_def = transformer.class_rewriter.struct_map.get(key: ast.node_id_to_string(class_def.id))
+                            let struct_def = transformer.class_rewriter.class_struct_map.get(key: ast.node_id_to_string(class_def.id))
                             ty.kind = ast.TypeKind.App(ast.TyCon.Struct(struct_def), type_arguments)
                         Enum(enum_def):
-                            let struct_def = transformer.class_rewriter.struct_map.get(key: ast.node_id_to_string(enum_def.id))
-                            ty.kind = ast.TypeKind.App(ast.TyCon.Struct(struct_def), type_arguments)
+                            case transformer.class_rewriter.enum_impl_map.get(key: ast.node_id_to_string(enum_def.id)):
+                                Struct(struct_def):
+                                    ty.kind = ast.TypeKind.App(ast.TyCon.Struct(struct_def), type_arguments)
+                                Int:
+                                    ty.kind = ast.int_type().kind
                     else:
                         pass
             else:
@@ -448,9 +451,14 @@ fn transformer_on_node7b(transformer: Transformer, node: ast.VisitNode, phase: a
     else:
         pass
 
+enum EnumImpl:
+    Int
+    Struct(struct_def: ast.StructDef)
+
 class ClassRewriter:
     var ctor_map: Dictionary[ast.FunctionDef] = Dictionary()
-    var struct_map: Dictionary[ast.StructDef] = Dictionary()
+    var class_struct_map: Dictionary[ast.StructDef] = Dictionary()
+    var enum_impl_map: Dictionary[EnumImpl] = Dictionary()
     var new_definitions: List[ast.Definition] = List()
     var id_gen: IdGen
     var rt_module: ast.Module
@@ -480,7 +488,7 @@ class ClassRewriter:
 
         let struct_def = builder.finish()
         new_definitions.append(ast.Definition.Struct(struct_def))
-        struct_map.insert(key: ast.node_id_to_string(class_def.id), value: struct_def)
+        class_struct_map.insert(key: ast.node_id_to_string(class_def.id), value: struct_def)
 
         # Lift methods:
         for method in methods:
@@ -573,13 +581,9 @@ class ClassRewriter:
         let id = get_unique_id()
         return ast.variable(name, id, ty, location)
 
-    fn get_struct_def_for_id(id: ast.NodeId) -> ast.StructDef:
-        return struct_map.get(key: ast.node_id_to_string(id))
+    fn get_enum_impl(id: ast.NodeId) -> EnumImpl:
+        return enum_impl_map.get(key: ast.node_id_to_string(id))
     
-    fn get_struct_type_for_id(id: ast.NodeId, type_arguments: List[ast.Type]) -> ast.Type:
-        let struct_def = get_struct_def_for_id(id)
-        return ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
-
     fn load_std_function(name: str, location: Location) -> ast.Expression:
         # Get expression that loads a builtin runtime function.
         let symbol = option_unwrap(rt_module.scope.lookup(name))
@@ -698,9 +702,9 @@ class ClassRewriter:
             type_arguments2.append(type_parameter_ref2)
 
         for variant in enum_def.variants:
-            let t3 = ast.int_type()
             if variant.payload.len() == 1:
-                t3 = variant.payload.first()
+                let t3 = variant.payload.first()
+                builder2.add_field(name: variant.name, ty: t3, location: variant.location)
             elif variant.payload.len() > 1:
                 let builder3 = ast.StructBuilder()
                 builder3.set_name(name: "{enum_def.id.name}{variant.name}Data")
@@ -713,108 +717,141 @@ class ClassRewriter:
 
                 let struct_def3 = builder3.finish()
                 new_definitions.append(ast.Definition.Struct(struct_def3))
-                t3 = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def3), type_arguments: type_arguments2)
+                let t3 = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def3), type_arguments: type_arguments2)
+                builder2.add_field(name: variant.name, ty: t3, location: variant.location)
 
-            builder2.add_field(name: variant.name, ty: t3, location: variant.location)
+        if builder2.fields.len() > 0:
+            let union_def = builder2.finish()
+            new_definitions.append(ast.Definition.Struct(union_def))
 
-        let union_def = builder2.finish()
-        new_definitions.append(ast.Definition.Struct(union_def))
+            let builder = ast.StructBuilder()
+            builder.set_name(name: enum_def.id.name)
+            builder.set_id(get_unique_id())
 
-        let builder = ast.StructBuilder()
-        builder.set_name(name: enum_def.id.name)
-        builder.set_id(get_unique_id())
+            let type_arguments: List[ast.Type] = List()
+            for type_parameter in enum_def.type_parameters:
+                let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
+                type_arguments.append(type_parameter_ref)
 
-        let type_arguments: List[ast.Type] = List()
-        for type_parameter in enum_def.type_parameters:
-            let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
-            type_arguments.append(type_parameter_ref)
+            builder.add_field(name: "tag", ty: ast.int_type(), location: enum_def.location)
+            let union_type = ast.apply_tycon(tycon: ast.TyCon.Struct(union_def), type_arguments)
+            builder.add_field(name: "data", ty: union_type, location: enum_def.location)
+            let struct_def = builder.finish()
+            # let m = ast.create_subst_mapping(type_parameters: enum_def.type_parameters, type_arguments)
 
-        builder.add_field(name: "tag", ty: ast.int_type(), location: enum_def.location)
-        let union_type = ast.apply_tycon(tycon: ast.TyCon.Struct(union_def), type_arguments)
-        builder.add_field(name: "data", ty: union_type, location: enum_def.location)
-        let struct_def = builder.finish()
-        # let m = ast.create_subst_mapping(type_parameters: enum_def.type_parameters, type_arguments)
-
-        new_definitions.append(ast.Definition.Struct(struct_def))
-        struct_map.insert(key: ast.node_id_to_string(enum_def.id), value: struct_def)
+            new_definitions.append(ast.Definition.Struct(struct_def))
+            enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Struct(struct_def))
+        else:
+            # A simple tag suffices!
+            enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Int())
 
     fn transform_case(case_statement: ast.CaseStatement) -> ast.Statement:
         # TODO: support doc strings
         # """ Transform case statement into switch case over tagged unions. """
         let location = case_statement.value.location
         let enum_def = ast.get_enum_def_from_type(case_statement.value.ty)
-        let struct_def = get_struct_def_for_id(id: enum_def.id)
-        let type_arguments = ast.get_type_arguments_from_type(case_statement.value.ty)
-        let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
+        case get_enum_impl(id: enum_def.id):
+            Struct(struct_def):
+                let type_arguments = ast.get_type_arguments_from_type(case_statement.value.ty)
+                let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
 
-        let x_var = new_variable(name: "x", ty: struct_type, location)
-        let store_tagged_union = ast.let_statement(variable: x_var, type_hint: Option.None(), value: case_statement.value, location)
+                let x_var = new_variable(name: "x", ty: struct_type, location)
+                let store_tagged_union = ast.let_statement(variable: x_var, type_hint: Option.None(), value: case_statement.value, location)
 
-        let switch_arms: List[ast.SwitchArm] = List()
-        for arm in case_statement.arms:
-            let arm_tag = option_unwrap(ast.get_enum_variant(enum_def, attr: arm.name)).tag_value
-            let switch_arm_value = ast.integer_literal(value: arm_tag, location: arm.location)
-            let switch_arm_body: List[ast.Statement] = List()
+                let switch_arms: List[ast.SwitchArm] = List()
+                for arm in case_statement.arms:
+                    let arm_tag = option_unwrap(ast.get_enum_variant(enum_def, attr: arm.name)).tag_value
+                    let switch_arm_value = ast.integer_literal(value: arm_tag, location: arm.location)
+                    let switch_arm_body: List[ast.Statement] = List()
 
-            # Unpack payload:
-            if arm.variables.len() == 1:
-                let x_var_ref = ast.var_ref(variable: x_var, location: arm.location)
-                let payload_value = ast.get_attr_typed(value: x_var_ref, attr: "data", location: arm.location)
-                let union_val = ast.get_attr_typed(value: payload_value, attr: arm.name, location: arm.location)
-                let store_var = ast.let_statement(variable: arm.variables.first(), type_hint: Option.None(), value: union_val, location: arm.location)
-                switch_arm_body.append(store_var)
-            elif arm.variables.len() > 1:
-                let idx = 0
-                for variable in arm.variables:
-                    let x_var_ref = ast.var_ref(variable: x_var, location: arm.location)
-                    let payload_value = ast.get_attr_typed(value: x_var_ref, attr: "data", location: arm.location)
-                    let union_val = ast.get_attr_typed(value: payload_value, attr: arm.name, location: arm.location)
-                    let actual_val = ast.get_attr_typed(value: union_val, attr: "f_{idx}", location: arm.location)
-                    let store_var = ast.let_statement(variable, type_hint: Option.None(), value: actual_val, location: arm.location)
-                    switch_arm_body.append(store_var)
-                    idx += 1
+                    # Unpack payload:
+                    if arm.variables.len() == 1:
+                        let x_var_ref = ast.var_ref(variable: x_var, location: arm.location)
+                        let payload_value = ast.get_attr_typed(value: x_var_ref, attr: "data", location: arm.location)
+                        let union_val = ast.get_attr_typed(value: payload_value, attr: arm.name, location: arm.location)
+                        let store_var = ast.let_statement(variable: arm.variables.first(), type_hint: Option.None(), value: union_val, location: arm.location)
+                        switch_arm_body.append(store_var)
+                    elif arm.variables.len() > 1:
+                        let idx = 0
+                        for variable in arm.variables:
+                            let x_var_ref = ast.var_ref(variable: x_var, location: arm.location)
+                            let payload_value = ast.get_attr_typed(value: x_var_ref, attr: "data", location: arm.location)
+                            let union_val = ast.get_attr_typed(value: payload_value, attr: arm.name, location: arm.location)
+                            let actual_val = ast.get_attr_typed(value: union_val, attr: "f_{idx}", location: arm.location)
+                            let store_var = ast.let_statement(variable, type_hint: Option.None(), value: actual_val, location: arm.location)
+                            switch_arm_body.append(store_var)
+                            idx += 1
 
-            switch_arm_body.append(arm.block.body)
-            let switch_arm = ast.SwitchArm:
-                location: arm.location
-                value: switch_arm_value
-                block: ast.scoped_block(body: ast.compound(inner: switch_arm_body, location: arm.location))
-            switch_arms.append(switch_arm)
-        
-        let switch_default_code: ast.Statement = ast.pass_statement(location)
-        case case_statement.else_block:
-            None:
-                switch_default_code = ast.unreachable_statement(location)
-            Some(else_block):
-                switch_default_code = else_block.body
+                    switch_arm_body.append(arm.block.body)
+                    let switch_arm = ast.SwitchArm:
+                        location: arm.location
+                        value: switch_arm_value
+                        block: ast.scoped_block(body: ast.compound(inner: switch_arm_body, location: arm.location))
+                    switch_arms.append(switch_arm)
+                
+                let switch_default_code: ast.Statement = ast.pass_statement(location)
+                case case_statement.else_block:
+                    None:
+                        switch_default_code = ast.unreachable_statement(location)
+                    Some(else_block):
+                        switch_default_code = else_block.body
 
-        let x_var_ref0 = ast.var_ref(variable: x_var, location)
-        let switch_value = ast.get_attr_typed(value: x_var_ref0, attr: "tag", location)
-        let switch_on_tag = ast.switch_statement(value: switch_value, arms: switch_arms, default_body: switch_default_code, location)
+                let x_var_ref0 = ast.var_ref(variable: x_var, location)
+                let switch_value = ast.get_attr_typed(value: x_var_ref0, attr: "tag", location)
+                let switch_on_tag = ast.switch_statement(value: switch_value, arms: switch_arms, default_body: switch_default_code, location)
 
-        return ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
+                return ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
+            Int:
+                let x_var = new_variable(name: "x", ty: ast.int_type(), location)
+                let store_tagged_union = ast.let_statement(variable: x_var, type_hint: Option.None(), value: case_statement.value, location)
+
+                let switch_arms: List[ast.SwitchArm] = List()
+                for arm in case_statement.arms:
+                    let arm_tag = option_unwrap(ast.get_enum_variant(enum_def, attr: arm.name)).tag_value
+                    let switch_arm_value = ast.integer_literal(value: arm_tag, location: arm.location)
+                    let switch_arm_body = arm.block.body
+                    let switch_arm = ast.SwitchArm:
+                        location: arm.location
+                        value: switch_arm_value
+                        block: ast.scoped_block(body: switch_arm_body)
+                    switch_arms.append(switch_arm)
+
+                let switch_default_code: ast.Statement = ast.pass_statement(location)
+                case case_statement.else_block:
+                    None:
+                        switch_default_code = ast.unreachable_statement(location)
+                    Some(else_block):
+                        switch_default_code = else_block.body
+
+                let switch_value = ast.var_ref(variable: x_var, location)
+                let switch_on_tag = ast.switch_statement(value: switch_value, arms: switch_arms, default_body: switch_default_code, location)
+                return ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
+
 
     fn rewrite_enum_literal(enum_ty: ast.Type, variant: ast.EnumVariant, values: List[ast.Expression], location: Location) -> ast.Expression:
         # log_info("Rewrite enum literal")
         let enum_def = ast.get_enum_def_from_type(enum_ty)
-        let struct_def = get_struct_def_for_id(id: enum_def.id)
-        let type_arguments = ast.get_type_arguments_from_type(enum_ty)
-        let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
-        let union_type = option_unwrap(ast.get_field_type(ty: struct_type, attr: "data"))
-
-        let union_value = ast.undefined_value()
-        if values.len() == 0:
-            union_value = ast.integer_literal(value: 0, location)
-        elif values.len() == 1:
-            union_value = values.first()
-        elif values.len() > 1:
-            let struct_type2 = option_unwrap(ast.get_field_type(ty: union_type, attr: variant.name))
-            union_value = ast.struct_literal(ty: struct_type2, values, location)
-
-        let payload = ast.union_literal(ty: union_type, field: variant.name, value: union_value, location)
         let tag_value = variant.tag_value
         let tag = ast.integer_literal(value: tag_value, location)
-        return ast.struct_literal(ty: struct_type, values: vec2(tag, payload), location)
+        case get_enum_impl(id: enum_def.id):
+            Int:
+                return tag
+            Struct(struct_def):
+                let type_arguments = ast.get_type_arguments_from_type(enum_ty)
+                let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
+                let union_type = option_unwrap(ast.get_field_type(ty: struct_type, attr: "data"))
+
+                let payload = ast.undefined_value()
+                if values.len() == 0:
+                    payload = ast.null_value(location)
+                elif values.len() == 1:
+                    let union_value = values.first()
+                    payload = ast.union_literal(ty: union_type, field: variant.name, value: union_value, location)
+                elif values.len() > 1:
+                    let struct_type2 = option_unwrap(ast.get_field_type(ty: union_type, attr: variant.name))
+                    let union_value = ast.struct_literal(ty: struct_type2, values, location)
+                    payload = ast.union_literal(ty: union_type, field: variant.name, value: union_value, location)
+                return ast.struct_literal(ty: struct_type, values: vec2(tag, payload), location)
 
     fn erase_type(ft: ast.Type, value: ast.Expression, assign: bool):
         if ft.was_generic and not assign:

@@ -153,7 +153,7 @@ run-test-py-%: ${BUILDDIR}/python/test_%.py ${BUILDDIR}/python/slangrt.py
 ${BUILDDIR}/python/slangrt.py: runtime/slangrt.py | ${BUILDDIR}/python
 	cp $< $@
 
-${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libregex.json ${SLANGC_DEPS} Makefile | ${BUILDDIR}/python
+${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/python
 	${SLANGC} --backend-py -o $@ --add-import ${BUILDDIR}/python/libbase.json --add-import ${BUILDDIR}/python/libregex.json $<
 
 # Apps
@@ -165,16 +165,16 @@ ${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUIL
 	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libcompiler.so -l:libimage.so -l:libgfx.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.o -lm
 
 # Bootstrap sequence:
-${COMPILER1}: | ${COMPILER_SRCS} ${BASE_LIB_SRCS} compiler1/*.py ${BUILDDIR}
+${COMPILER1}: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} compiler1/*.py ${BUILDDIR}
 	python bootstrap.py
 
 ${BUILDDIR}/slangrt.py: runtime/slangrt.py | ${BUILDDIR}
 	cp $< $@
 
-${COMPILER2}: ${BUILDDIR}/slangrt.py | ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS} ${BUILDDIR}/tmp-compiler.py ${BUILDDIR}
+${COMPILER2}: ${BUILDDIR}/slangrt.py ${COMPILER1} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} ${BUILDDIR}
 	python ${COMPILER1} --backend-py -o ${COMPILER2} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
-${COMPILER3}: | ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER2} ${BUILDDIR}
+${COMPILER3}: ${COMPILER2} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} ${BUILDDIR}
 	python ${COMPILER2} --backend-py -o ${COMPILER3} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
 ${BUILDDIR}/tmp-compiler4.c: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} ${BUILDDIR} ${COMPILER3}

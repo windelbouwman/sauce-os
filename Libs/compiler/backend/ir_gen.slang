@@ -473,6 +473,8 @@ class BytecodeGenerator:
                 emit(Instruction.Literal(bc.LiteralValue.Char(value)))
             BoolLiteral(value):
                 emit(Instruction.Literal(bc.LiteralValue.Bool(value)))
+            Null:
+                emit(Instruction.Literal(bc.LiteralValue.Null()))
             VarRef(variable):
                 if is_local_variable(variable):
                     let var_index = get_local_index(variable)

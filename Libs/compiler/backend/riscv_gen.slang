@@ -173,6 +173,8 @@ class RiscvGen:
                 let imm = ord(value)
                 reg += 1
                 emit(riscv.Instruction.ADDI(rd: reg, rs1: 0, imm))
+            Null:
+                panic("TODO: Null")
 
     fn gen_binop(op: bc.BinaryOperator):
         reg -= 1
