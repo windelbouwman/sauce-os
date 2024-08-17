@@ -242,9 +242,6 @@ class VirtualMachine:
             # Treat struct as list of values? Might work!
             arguments = self.pop_n(args[0])
             self.push_value(arguments)
-        elif opcode == OpCode.UNION_LITERAL:
-            value = self.pop_value()
-            self.push_value([None] * args[0] + [value])
         elif opcode == OpCode.GET_INDEX:
             index = self.pop_value()
             base = self.pop_value()

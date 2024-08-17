@@ -17,13 +17,13 @@ COMPILER3=${BUILDDIR}/tmp-compiler3.py
 COMPILER4=${BUILDDIR}/compiler4
 COMPILER5=${BUILDDIR}/compiler5
 COMPILER6=${BUILDDIR}/tmp-compiler6.py
-#SLANGC=python ${COMPILER6}
-#SLANGC_DEPS=${COMPILER6}
+#SLANGC=python ${COMPILER3}
+#SLANGC_DEPS=${COMPILER3}
 SLANGC=./${COMPILER5}
 SLANGC_DEPS=${COMPILER5}
 SLANG_APPS := $(wildcard Apps/*.slang)
 
-CFLAGS=-Wfatal-errors -Werror -Wreturn-type -g
+CFLAGS=-Werror -Wreturn-type -g -Iruntime
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/%.py, $(SLANG_EXAMPLES))
@@ -51,7 +51,7 @@ pytest-compiler1:
 	pytest -v test_compiler1.py
 
 pytest-exes: $(C_EXAMPLES)
-	pytest -v test_compiler.py -k exe
+	pytest -vv test_compiler.py -k exe
 
 # Example to bytecode compilation
 all-examples-bc: $(BC_EXAMPLES)
@@ -174,7 +174,7 @@ ${BUILDDIR}/slangrt.py: runtime/slangrt.py | ${BUILDDIR}
 ${COMPILER2}: ${BUILDDIR}/slangrt.py ${COMPILER1} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} ${BUILDDIR}
 	python ${COMPILER1} --backend-py -o ${COMPILER2} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
-${COMPILER3}: ${COMPILER2} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} ${BUILDDIR}
+${COMPILER3}: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} ${BUILDDIR} ${COMPILER2}
 	python ${COMPILER2} --backend-py -o ${COMPILER3} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
 ${BUILDDIR}/tmp-compiler4.c: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} ${BUILDDIR} ${COMPILER3}

@@ -140,8 +140,8 @@ class TypeChecker(BasePass):
                 if kind.value:
                     if not self.unify(kind.value.ty, self._function.return_ty):
                         self.error(
-                            statement.location,
-                            f"Returning wrong type {ast.str_ty(kind.value.ty)} (should be {ast.str_ty(self._function.return_ty)})",
+                            kind.value.location,
+                            f"Expected {ast.str_ty(self._function.return_ty)}, got {ast.str_ty(kind.value.ty)}",
                         )
             elif isinstance(kind, ast.RaiseStatement):
                 self.check_may_raise(kind.value.ty, statement.location)
@@ -216,7 +216,7 @@ class TypeChecker(BasePass):
             else:
                 self.error(
                     expression.location,
-                    f"{ast.str_ty(kind.base.ty)} has no field: {kind.field}",
+                    f"{ast.str_ty(kind.base.ty)} has no field '{kind.field}'",
                 )
                 expression.ty = void_type
 
@@ -254,10 +254,16 @@ class TypeChecker(BasePass):
                 if len(ftyp.parameter_names) == len(values):
                     for expected_name, arg in zip(ftyp.parameter_names, kind.args):
                         if expected_name:
-                            if expected_name != arg.name:
+                            if arg.name:
+                                if expected_name != arg.name:
+                                    self.error(
+                                        arg.location,
+                                        f"Expected labeled argument '{expected_name}', got '{arg.name}'",
+                                    )
+                            else:
                                 self.error(
                                     arg.location,
-                                    f"Expected labeled argument '{expected_name}'. Got {arg.name}",
+                                    f"Expected labeled argument '{expected_name}'",
                                 )
                         # TODO: check for redundant labels?
                         # else:
@@ -332,6 +338,10 @@ class TypeChecker(BasePass):
             else:
                 self.assert_type(kind.expr, ast.str_type)
             expression.ty = ast.str_type
+        elif isinstance(kind, ast.Box):
+            expression.ty = ast.ptr_type
+        elif isinstance(kind, ast.Unbox):
+            expression.ty = kind.to_type
         else:
             raise NotImplementedError(str(expression.kind))
 
@@ -401,6 +411,8 @@ class TypeChecker(BasePass):
             if not self.unify(a.kind.return_type, b.kind.return_type):
                 return False
             return self.unify_many(a.kind.parameter_types, b.kind.parameter_types)
+        elif isinstance(a.kind, ast.ArrayType) and isinstance(b.kind, ast.ArrayType):
+            return self.unify(a.kind.element_type, b.kind.element_type)
         elif isinstance(a.kind, ast.Meta):
             if a.kind.assigned:
                 # Patch and recurse:
@@ -431,8 +443,6 @@ class TypeChecker(BasePass):
         elif isinstance(b.kind, ast.Meta):
             # Simply swap comparison
             return self.unify(b, a)
-        elif isinstance(a.kind, ast.ArrayType) and isinstance(b.kind, ast.ArrayType):
-            return self.unify(a.kind.element_type, b.kind.element_type)
         else:
             return False
 

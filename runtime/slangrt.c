@@ -1,21 +1,31 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <math.h>
 #include <setjmp.h>
 #include <string.h>
 #include <stdint.h>
 #include <inttypes.h>
 
+#include "slangrt.h"
+
 // Config:
 // #define DEBUG_REFCOUNTING
 
-typedef intptr_t slang_int_t;
-typedef double slang_float_t;
+typedef struct rt_ref_mem_tag rt_ref_mem_t;
+struct rt_ref_mem_tag
+{
+    int count;
+    void (*destroyer)();
+    rt_ref_mem_t* next;
+};
+
 extern slang_int_t main2();
-void *rt_malloc(int size);
-void rt_incref(void *ptr);
-void rt_decref(void *ptr);
+
+rt_ref_mem_t* g_gc_root = NULL;
+
+
 #if defined __GNUC__
 void std_exit(slang_int_t code) __attribute__((noreturn));
 void std_panic(const char *message) __attribute__((noreturn));
@@ -28,12 +38,6 @@ __declspec(noreturn) void std_panic(const char *message);
 #error unsupported compiler
 #endif
 
-struct slang_exception_handler;
-typedef struct slang_exception_handler
-{
-    jmp_buf buf;
-    struct slang_exception_handler *prev;
-} slang_exception_handler_t;
 slang_exception_handler_t *g_except_hook;
 void *g_except_value;
 
@@ -90,7 +94,7 @@ void std_exit(slang_int_t code)
     exit(code);
 }
 
-SLANG_API char std_get_path_separator()
+SLANG_API char std_get_path_separator(void)
 {
 #if defined(_WIN32)
     return '\\';
@@ -102,6 +106,7 @@ SLANG_API char std_get_path_separator()
 void std_panic(const char *message)
 {
     puts(message);
+    raise(SIGTRAP);
     std_exit(1);
 }
 
@@ -153,24 +158,24 @@ char *rt_char_to_str(char x)
     return text;
 }
 
-slang_int_t std_str_len(char *txt)
+SLANG_API slang_int_t std_str_len(char *txt)
 {
     const int len = strlen(txt);
     rt_decref(txt);
     return len;
 }
 
-slang_int_t std_ord(char c)
+SLANG_API slang_int_t std_ord(char c)
 {
     return c;
 }
 
-char std_chr(slang_int_t val)
+SLANG_API char std_chr(slang_int_t val)
 {
     return val;
 }
 
-char *std_str_slice(char *txt, slang_int_t begin, slang_int_t end)
+SLANG_API char *std_str_slice(char *txt, slang_int_t begin, slang_int_t end)
 {
     const int size = end - begin;
     char *buffer = rt_malloc(size + 1);
@@ -181,7 +186,7 @@ char *std_str_slice(char *txt, slang_int_t begin, slang_int_t end)
 }
 
 // TBD: special case of slice?
-char std_str_get(char *txt, slang_int_t pos)
+SLANG_API char std_str_get(char *txt, slang_int_t pos)
 {
     return txt[pos];
 }
@@ -202,13 +207,14 @@ SLANG_API char *std_read_file(char *filename)
     }
     else
     {
+        printf("File %s not found!\n", filename);
         std_panic("File not found!");
     }
     rt_decref(filename);
     return buffer;
 }
 
-slang_int_t std_file_open(char *filename, char *mode)
+SLANG_API slang_int_t std_file_open(char *filename, char *mode)
 {
     FILE *f = fopen(filename, mode);
     if (!f)
@@ -219,7 +225,7 @@ slang_int_t std_file_open(char *filename, char *mode)
     return (slang_int_t)f;
 }
 
-void std_file_writeln(slang_int_t handle, char *line)
+SLANG_API void std_file_writeln(slang_int_t handle, char *line)
 {
     if (handle != 0)
     {
@@ -228,7 +234,7 @@ void std_file_writeln(slang_int_t handle, char *line)
     }
 }
 
-slang_int_t std_file_read_n_bytes(slang_int_t handle, uint8_t *buffer, slang_int_t bufsize)
+SLANG_API slang_int_t std_file_read_n_bytes(slang_int_t handle, uint8_t *buffer, slang_int_t bufsize)
 {
     if (handle != 0)
     {
@@ -241,7 +247,7 @@ slang_int_t std_file_read_n_bytes(slang_int_t handle, uint8_t *buffer, slang_int
     }
 }
 
-slang_int_t std_file_write_n_bytes(slang_int_t handle, uint8_t *buffer, slang_int_t bufsize)
+SLANG_API slang_int_t std_file_write_n_bytes(slang_int_t handle, uint8_t *buffer, slang_int_t bufsize)
 {
     if (handle != 0)
     {
@@ -254,7 +260,7 @@ slang_int_t std_file_write_n_bytes(slang_int_t handle, uint8_t *buffer, slang_in
     }
 }
 
-void std_file_close(slang_int_t handle)
+SLANG_API void std_file_close(slang_int_t handle)
 {
     if (handle != 0)
     {
@@ -270,17 +276,46 @@ int main(int argc, char **argv)
 {
     g_argc = argc;
     g_argv = argv;
-    return main2();
+    int res = main2();
+
+    // Cleanup malloc stuff:
+    int total = 0, bad = 0;
+    rt_ref_mem_t *ptr = g_gc_root;
+    rt_ref_mem_t *prev_ptr = NULL;
+    while (ptr != NULL) {
+        total += 1;
+        if (ptr->count > 0) {
+            // printf("Count = %d\n", ptr->count);
+            bad += 1;
+        }
+        prev_ptr = ptr;
+        ptr = ptr->next;
+        free(prev_ptr);
+    }
+    if (bad > 0) {
+        // printf("Total = %d bad = %d\n", total, bad);
+        // return 2;
+    }
+
+    return res;
 }
 
-slang_int_t std_get_n_args()
+SLANG_API slang_int_t std_get_n_args(void)
 {
     return g_argc - 1;
 }
 
-char *std_get_arg(slang_int_t index)
+SLANG_API char *std_get_arg(slang_int_t index)
 {
-    return g_argv[index + 1];
+    return rt_str_new(g_argv[index + 1]);
+}
+
+// Create a string on the heap..
+SLANG_API char *rt_str_new(const char *a)
+{
+    char *buffer = rt_malloc(strlen(a) + 2);
+    strcpy(buffer, a);
+    return buffer;
 }
 
 char *rt_str_concat(char *a, char *b)
@@ -301,16 +336,21 @@ int rt_str_compare(char *a, char *b)
     return res;
 }
 
-typedef struct rt_ref_mem_tag
+void *rt_malloc(size_t size)
 {
-    int count;
-    int dummy;
-} rt_ref_mem_t;
+    return rt_malloc_with_destroyer(size, NULL);
+}
 
-void *rt_malloc(int size)
+void *rt_malloc_with_destroyer(size_t size, void (*destroyer)(void*))
 {
     rt_ref_mem_t *ptr = malloc(size + sizeof(rt_ref_mem_t));
+    if (((intptr_t)(ptr) & 0x3) != 0) {
+        std_panic("Unaligned malloc!");
+    }
+    ptr->next = g_gc_root;
+    g_gc_root = ptr;
     ptr->count = 1;
+    ptr->destroyer = destroyer;
     void *p = (ptr + 1);
     return p;
 }
@@ -327,6 +367,9 @@ void rt_incref(void *ptr)
 
     rt_ref_mem_t *p = ptr;
     p -= 1;
+    if (p->count <= 0) {
+        std_panic("rt_incref: Logic error inc-ref on released item!\n");
+    }
     p->count += 1;
 #ifdef DEBUG_REFCOUNTING
     printf("INCREF New ref count: %d\n", p->count);
@@ -344,13 +387,27 @@ void rt_decref(void *ptr)
 
     rt_ref_mem_t *p = ptr;
     p -= 1;
+
+    if (p->count <= 0) {
+        std_panic("rt_decref: Logic error, dec ref on released item!\n");
+    }
+
     p->count -= 1;
+
+    if (p->count == 0) {
+        if (p->destroyer != NULL)
+        {
+            p->destroyer(ptr);
+        }
+    }
+
 #ifdef DEBUG_REFCOUNTING
     printf("DECREF New ref count: %d\n", p->count);
 #endif
     if (p->count == 0)
     {
         // comment out below, to have malloc only!
-        free(p);
+        // printf("FREE 0x%X!\n", ptr);
+        // free(p);
     }
 }

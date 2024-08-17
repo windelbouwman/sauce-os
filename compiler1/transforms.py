@@ -6,8 +6,7 @@ Example transformations:
 """
 
 import logging
-
-
+from dataclasses import dataclass
 from . import ast
 from .location import Location, Span
 
@@ -208,16 +207,27 @@ class LoopRewriter(BaseTransformer):
         return self._rt_module.get_field(name)
 
 
-def rewrite_enums(id_context, modules):
-    EnumRewriter(id_context).transform(modules)
+def rewrite_enums(id_context: ast.IdContext, modules: list[ast.Module]):
+    phase1 = EnumRewriterPhase1(id_context)
+    phase1.transform(modules)
+    enum_impls = phase1._enum_impls
+    EnumRewriterPhase2(id_context, enum_impls).transform(modules)
+    EnumRewriterPhase3(id_context, enum_impls).transform(modules)
 
 
-class EnumRewriter(BaseTransformer):
-    name = "enum-rewrite"
+@dataclass
+class EnumImpl:
+    struct_def: ast.StructDef
+
+
+class EnumRewriterPhase1(BaseTransformer):
+    """Create tagged union types"""
+
+    name = "enum-rewrite-phase1"
 
     def __init__(self, id_context: ast.IdContext):
         super().__init__(id_context)
-        self._tagged_unions: dict[int, ast.StructDef] = {}
+        self._enum_impls: dict[int, EnumImpl] = {}
 
     def visit_module(self, module: ast.Module):
         self.new_defs = []
@@ -230,163 +240,185 @@ class EnumRewriter(BaseTransformer):
         module.definitions = self.new_defs
         super().visit_module(module)
 
-    def rewrite_enum_def(self, definition: ast.EnumDef):
+    def rewrite_enum_def(self, enum_def: ast.EnumDef):
         """Create tagged union types / definitions"""
 
-        logger.debug(f"Creating tagged union for {definition.id}")
+        logger.debug(f"Creating tagged union for {enum_def.id}")
 
         builder2 = ast.StructBuilder(
-            self.new_id(f"{definition.id.name}Data"), True, definition.location
+            self.new_id(f"{enum_def.id.name}Data"), enum_def.location
         )
+        builder2.set_is_union(True)
         type_vars2 = [
             builder2.add_type_parameter(self.new_id(tp.id.name), tp.location)
-            for tp in definition.type_parameters
+            for tp in enum_def.type_parameters
         ]
-        m2 = dict(zip(definition.type_parameters, type_vars2))
+        m2 = dict(zip(enum_def.type_parameters, type_vars2))
+        builder2.add_field("nodata", ast.int_type, enum_def.location)
 
-        for variant in definition.variants:
+        for variant in enum_def.variants:
+            union_field_name = f"data_{variant.id.name}"
             if len(variant.payload) == 0:
-                t3 = ast.int_type
+                pass
             elif len(variant.payload) == 1:
-                # TODO: replace type-vars!
                 t3 = ast.subst(variant.payload[0], m2)
+                builder2.add_field(union_field_name, t3, variant.location)
             else:
                 assert len(variant.payload) > 1
                 builder3 = ast.StructBuilder(
-                    self.new_id(f"{definition.id.name}{variant.id.name}Data"),
-                    False,
+                    self.new_id(f"{enum_def.id.name}Data{variant.id.name}"),
                     variant.location,
                 )
-                type_vars3 = [
+                type_parameter_refs3 = [
                     builder3.add_type_parameter(self.new_id(tp.id.name), tp.location)
-                    for tp in definition.type_parameters
+                    for tp in enum_def.type_parameters
                 ]
 
-                m3 = dict(zip(definition.type_parameters, type_vars3))
+                m3 = dict(zip(enum_def.type_parameters, type_parameter_refs3))
                 for nr, p in enumerate(variant.payload):
                     builder3.add_field(f"f_{nr}", ast.subst(p, m3), variant.location)
-                s_def3 = builder3.finish()
-                self.new_defs.append(s_def3)
-                t3 = s_def3.apply(type_vars2)
+                struct_def3 = builder3.finish()
+                self.new_defs.append(struct_def3)
+                t3 = struct_def3.apply(type_vars2)
+                builder2.add_field(union_field_name, t3, variant.location)
 
-            builder2.add_field(variant.id.name, t3, variant.location)
         union_def = builder2.finish()
         self.new_defs.append(union_def)
-        builder1 = ast.StructBuilder(
-            self.new_id(definition.id.name), False, definition.location
-        )
-        type_vars1 = [
+
+        builder1 = ast.StructBuilder(self.new_id(enum_def.id.name), enum_def.location)
+        type_parameter_refs1 = [
             builder1.add_type_parameter(self.new_id(tp.id.name), tp.location)
-            for tp in definition.type_parameters
+            for tp in enum_def.type_parameters
         ]
-        builder1.add_field("tag", ast.int_type, definition.location)
-        builder1.add_field("data", union_def.apply(type_vars1), definition.location)
-        tagged_union_def = builder1.finish()
-        self.new_defs.append(tagged_union_def)
-        self._tagged_unions[id(definition)] = tagged_union_def
+        builder1.add_field("tag", ast.int_type, enum_def.location)
+        builder1.add_field(
+            "data", union_def.apply(type_parameter_refs1), enum_def.location
+        )
+        tagged_data_def = builder1.finish()
+        self.new_defs.append(tagged_data_def)
+        self._enum_impls[id(enum_def)] = EnumImpl(struct_def=tagged_data_def)
 
-    def change_enum_type(self, ty: ast.MyType):
-        # Change type into tagged union type
-        assert ty.is_enum()
-        struct_def = self._tagged_unions[id(ty.kind.tycon)]
-        ty.change_to(struct_def.apply(ty.kind.type_args))
 
-    def visit_type(self, ty: ast.MyType):
-        super().visit_type(ty)
-        if ty.is_enum():
-            self.change_enum_type(ty)
+class EnumRewriterPhase2(BaseTransformer):
+    name = "enum-rewrite-phase2"
+
+    def __init__(self, id_context: ast.IdContext, enum_impls):
+        super().__init__(id_context)
+        self._enum_impls = enum_impls
 
     def visit_statement(self, statement: ast.Statement):
         """
         Rewrite case statement over an enum type.
         - Change case into switch statement over an integer tag.
         - Change arm variables into seperate let statements
-        - Grab values from arm out of the tagged union
+        - Extract values from arm out of the data field
         """
         super().visit_statement(statement)
         kind = statement.kind
 
         if isinstance(kind, ast.CaseStatement):
-            self.change_enum_type(kind.value.ty)
+            statement.kind = self.transform_case(kind, statement.location)
 
-            # x = value
-            x_var = self.new_variable("x1337", kind.value.ty, statement.location)
-            let_x = ast.let_statement(x_var, None, kind.value, statement.location)
+    def transform_case(
+        self, kind: ast.CaseStatement, location: Location
+    ) -> ast.CompoundStatement:
+        assert kind.value.ty.is_enum()
+        impl = self._enum_impls[id(kind.value.ty.kind.tycon)]
 
-            arms = []
-            for arm in kind.arms:
-                variant_idx: int = arm.variant.index
+        # x = value
+        x_var = self.new_variable("x", ast.undefined_type(), location)
+        let_x = ast.let_statement(x_var, None, kind.value, location)
 
-                # assign variables:
-                body = []
-                if len(arm.variables) == 0:
-                    pass
-                elif len(arm.variables) == 1:
-                    union_val = (
-                        x_var.ref_expr(arm.location).get_attr(1).get_attr(variant_idx)
-                    )
-                    let_v = ast.let_statement(
-                        arm.variables[0], None, union_val, arm.location
-                    )
-                    body.append(let_v)
-                else:
-                    for var_idx, var in enumerate(arm.variables):
-                        union_val = (
-                            x_var.ref_expr(arm.location)
-                            .get_attr(1)
-                            .get_attr(variant_idx)
-                        )
-                        val2 = union_val.get_attr(var_idx)
-                        let_v = ast.let_statement(var, None, val2, arm.location)
-                        body.append(let_v)
-                body.append(arm.block.body)
-                body = ast.compound_statement(body, arm.location)
-                block = ast.ScopedBlock(body)
-                tag_val = ast.numeric_constant(variant_idx, arm.location)
-                arms.append(ast.SwitchArm(tag_val, block, arm.location))
-
-            if kind.else_clause:
-                default_body = kind.else_clause
+        arms = []
+        for arm in kind.arms:
+            variant_idx: int = arm.variant.index
+            union_field_name = f"data_{arm.variant.id.name}"
+            # assign variables:
+            body = []
+            if len(arm.variables) == 0:
+                pass
+            elif len(arm.variables) == 1:
+                union_val = x_var.ref_expr(arm.location).get_attr("data")
+                data_val = union_val.get_attr(union_field_name)
+                let_v = ast.let_statement(
+                    arm.variables[0], None, data_val, arm.location
+                )
+                body.append(let_v)
             else:
-                # Maybe insert panic instruction?
-                default_body = ast.ScopedBlock(ast.pass_statement(statement.location))
+                for var_idx, var in enumerate(arm.variables):
+                    union_val = x_var.ref_expr(arm.location).get_attr("data")
+                    struct_val = union_val.get_attr(union_field_name)
+                    value = struct_val.get_attr(f"f_{var_idx}")
+                    let_v = ast.let_statement(var, None, value, arm.location)
+                    body.append(let_v)
+            body.append(arm.block.body)
+            body = ast.compound_statement(body, arm.location)
+            block = ast.ScopedBlock(body)
+            tag_val = ast.numeric_constant(variant_idx, arm.location)
+            arms.append(ast.SwitchArm(tag_val, block, arm.location))
 
-            # switch x.tag
-            switch_1 = ast.switch_statement(
-                x_var.ref_expr(statement.location).get_attr(0),
-                arms,
-                default_body,
-                statement.location,
-            )
-            statement.kind = ast.CompoundStatement([let_x, switch_1])
+        if kind.else_clause:
+            default_body = kind.else_clause
+        else:
+            # Maybe insert panic instruction?
+            default_body = ast.ScopedBlock(ast.pass_statement(location))
+
+        # switch x.tag
+        switch_1 = ast.switch_statement(
+            x_var.ref_expr(location).get_attr("tag"),
+            arms,
+            default_body,
+            location,
+        )
+        return ast.CompoundStatement([let_x, switch_1])
 
     def visit_expression(self, expression: ast.Expression):
         """Rewrite enum literal into tagged union"""
         super().visit_expression(expression)
         kind = expression.kind
         if isinstance(kind, ast.EnumLiteral):
-            tag_value = ast.numeric_constant(kind.variant.index, expression.location)
+            expression.kind = self.rewrite_enum_literal(kind, expression.location)
 
-            tagged_union_ty: ast.MyType = kind.enum_ty
-            union_ty = tagged_union_ty.get_field_type(1)
+    def rewrite_enum_literal(self, kind: ast.EnumLiteral, location: Location):
+        assert kind.enum_ty.is_enum()
+        impl = self._enum_impls[id(kind.enum_ty.kind.tycon)]
+        tag_value = ast.numeric_constant(kind.variant.index, location)
+        tagged_union_ty = impl.struct_def.apply(kind.enum_ty.kind.type_args)
+        union_ty = tagged_union_ty.get_field_type("data")
 
-            if len(kind.values) == 0:
-                # Dummy value
-                v = ast.numeric_constant(0, expression.location)
-            elif len(kind.values) == 1:
-                v = kind.values[0]
-            else:
-                assert len(kind.values) > 1
-                t = union_ty.get_field_type(kind.variant.index)
-                v = ast.struct_literal(t, kind.values, expression.location)
-            union_value = ast.union_literal(
-                union_ty, kind.variant.index, v, expression.location
-            )
+        union_field_name = f"data_{kind.variant.id.name}"
+        if len(kind.values) == 0:
+            # Dummy value
+            union_field_name = "nodata"
+            value = ast.numeric_constant(0, location)
+        elif len(kind.values) == 1:
+            value = kind.values[0]
+        else:
+            assert len(kind.values) > 1
+            struct_type = union_ty.get_field_type(union_field_name)
+            value = ast.struct_literal(struct_type, kind.values, location)
+        union_value = ast.union_literal(union_ty, union_field_name, value, location)
+        return ast.StructLiteral(tagged_union_ty, [tag_value, union_value])
 
-            expression.kind = ast.StructLiteral(
-                tagged_union_ty, [tag_value, union_value]
-            )
-            expression.ty = tagged_union_ty
+
+class EnumRewriterPhase3(BaseTransformer):
+    name = "enum-rewrite-phase3"
+
+    def __init__(self, id_context: ast.IdContext, enum_impls):
+        super().__init__(id_context)
+        self._enum_impls = enum_impls
+
+    def change_enum_type(self, ty: ast.MyType):
+        # Change type into tagged union type
+        assert ty.is_enum()
+        enum_impl = self._enum_impls[id(ty.kind.tycon)]
+        struct_def = enum_impl.struct_def
+        ty.change_to(struct_def.apply(ty.kind.type_args))
+
+    def visit_type(self, ty: ast.MyType):
+        super().visit_type(ty)
+        if ty.is_enum():
+            self.change_enum_type(ty)
 
 
 def rewrite_classes(id_context, modules):
@@ -415,9 +447,7 @@ class ClassRewriter(BaseTransformer):
         # Create a struct instead of a class:
         methods = []
         type_args = []
-        builder = ast.StructBuilder(
-            self.new_id(class_def.id.name), False, class_def.location
-        )
+        builder = ast.StructBuilder(self.new_id(class_def.id.name), class_def.location)
         for type_parameter in class_def.type_parameters:
             type_arg = builder.add_type_parameter(
                 self.new_id(type_parameter.id.name), type_parameter.location
@@ -607,7 +637,7 @@ class SwitchRewriter(BaseTransformer):
             statement.kind = ast.CompoundStatement([let_x, else_block.body])
 
 
-def constant_folding(id_context, modules):
+def constant_folding(id_context, modules: list[ast.Module]):
     ConstantFolder(id_context).transform(modules)
 
 
@@ -670,3 +700,39 @@ binops = {
     ">=": lambda x, y: x >= y,
     "==": lambda x, y: x == y,
 }
+
+
+def replace_unions(id_context, modules: list[ast.Module]):
+    UnionEraser(id_context).transform(modules)
+
+
+class UnionEraser(BaseTransformer):
+    """Replace union literals with a boxing operator."""
+
+    name = "union-eraser"
+
+    def visit_module(self, module: ast.Module):
+        new_defs = []
+        for definition in module.definitions:
+            if isinstance(definition, ast.StructDef) and definition.is_union:
+                pass
+            else:
+                new_defs.append(definition)
+
+        module.definitions = new_defs
+        super().visit_module(module)
+
+    def visit_type(self, ty: ast.MyType):
+        super().visit_type(ty)
+        if ty.is_union():
+            ty.change_to(ast.ptr_type)
+
+    def visit_expression(self, expression: ast.Expression):
+        super().visit_expression(expression)
+        kind = expression.kind
+        if isinstance(kind, ast.UnionLiteral):
+            expression.kind = ast.Box(kind.value)
+        elif isinstance(kind, ast.DotOperator):
+            if kind.base.ty.is_union():
+                to_ty = expression.ty
+                expression.kind = ast.Unbox(kind.base, to_ty)

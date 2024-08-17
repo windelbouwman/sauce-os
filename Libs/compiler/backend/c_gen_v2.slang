@@ -63,17 +63,14 @@ class CGenerator2:
 
                     Struct(struct_def):
                         # Create struct constructor function
-                        let name = gen_id(id: struct_def.id)
                         if struct_def.is_union:
-                            for field in struct_def.fields:
-                                let arg = gen_type(ty: field.ty, name: field.name)
-                                emit("union {name}* {name}_{field.name}({arg});")
-                        else:
-                            let parts: List[str] = List()
-                            for field in struct_def.fields:
-                                parts.append(gen_type(ty: field.ty, name: field.name))
-                            let args = str_join(parts, sep: ", ")
-                            emit("struct {name}* {name}_new({args});")
+                            panic("Unions not supported")
+                        let name = gen_id(id: struct_def.id)
+                        let parts: List[str] = List()
+                        for field in struct_def.fields:
+                            parts.append(gen_type(ty: field.ty, name: field.name))
+                        let args = str_join(parts, sep: ", ")
+                        emit("struct {name}* {name}_new({args});")
                 else:
                     pass
 
@@ -108,10 +105,7 @@ class CGenerator2:
 
     fn gen_struct_decl(struct_def: ast.StructDef) -> str:
         let name = gen_id(id: struct_def.id)
-        if struct_def.is_union:
-            return "union {name}"
-        else:
-            return "struct {name}"
+        return "struct {name}"
 
     fn gen_struct(struct_def: ast.StructDef):
         let decl = gen_struct_decl(struct_def)
@@ -126,32 +120,23 @@ class CGenerator2:
     
     fn gen_struct_ctors(struct_def: ast.StructDef):
         # Create struct constructor function
-        let struct_name = gen_id(id: struct_def.id)
         if struct_def.is_union:
-            for field in struct_def.fields:
-                let arg = gen_type(ty: field.ty, name: field.name)
-                emit("union {struct_name}* {struct_name}_{field.name}({arg}) {chr(123)}")
-                indent()
-                emit("union {struct_name}* X = malloc(sizeof(union {struct_name}));")
-                emit("X->{field.name} = {field.name};")
-                emit("return X;")
-                dedent()
-                emit("{chr(125)}")
-                emit("")
-        else:
-            let parts: List[str] = List()
-            for field in struct_def.fields:
-                parts.append(gen_type(ty: field.ty, name: field.name))
-            let args = str_join(parts, sep: ", ")
-            emit("struct {struct_name}* {struct_name}_new({args}) {chr(123)}")
-            indent()
-            emit("struct {struct_name}* X = malloc(sizeof(struct {struct_name}));")
-            for field in struct_def.fields:
-                emit("X->{field.name} = {field.name};")
-            emit("return X;")
-            dedent()
-            emit("{chr(125)}")
-            emit("")
+            panic("Unions not supported")
+
+        let struct_name = gen_id(id: struct_def.id)
+        let parts: List[str] = List()
+        for field in struct_def.fields:
+            parts.append(gen_type(ty: field.ty, name: field.name))
+        let args = str_join(parts, sep: ", ")
+        emit("struct {struct_name}* {struct_name}_new({args}) {chr(123)}")
+        indent()
+        emit("struct {struct_name}* X = malloc(sizeof(struct {struct_name}));")
+        for field in struct_def.fields:
+            emit("X->{field.name} = {field.name};")
+        emit("return X;")
+        dedent()
+        emit("{chr(125)}")
+        emit("")
 
     fn gen_function_decl(function_def: ast.FunctionDef) -> str:
         let name = function_def.name
@@ -194,10 +179,7 @@ class CGenerator2:
         elif ast.is_struct_type(ty):
             let struct_def = ast.get_struct_def_from_type(ty)
             let struct_name = gen_id(id: struct_def.id)
-            if struct_def.is_union:
-                return "union {struct_name}* {name}"
-            else:
-                return "struct {struct_name}* {name}"
+            return "struct {struct_name}* {name}"
         elif ast.is_function_type(ty):
             let ret_ty = ast.get_return_type_from_type(ty)
             let parts: List[str] = List()
@@ -452,12 +434,6 @@ class CGenerator2:
                 # return "{chr(34)} {args} {chr(34)} * {size_2}"
                 return "calloc({size_2}, sizeof({value_2}))"
                 # panic("TODO: array literal2")
-
-            UnionLiteral(ty, field, value):
-                let struct_def = ast.get_struct_def_from_type(ty)
-                let union_name = gen_id(id: struct_def.id)
-                let value_text = gen_expression(value)
-                return "{union_name}_{field}({value_text})"
 
         else:
             panic("Unsupported: {ast.expression_to_string(expression)}")

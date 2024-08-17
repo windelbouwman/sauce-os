@@ -54,9 +54,8 @@ class StructTyp(Typ):
 
 
 class StructTypDef:
-    def __init__(self, name: str, is_union: bool, fields):
+    def __init__(self, name: str, fields):
         self.name = name
-        self.is_union = is_union
         self.fields = fields
 
 
@@ -117,7 +116,6 @@ class OpCode(Enum):
     NOT = 57
 
     STRUCT_LITERAL = 70
-    UNION_LITERAL = 71
     ARRAY_LITERAL = 72
     ARRAY_LITERAL2 = 73
 

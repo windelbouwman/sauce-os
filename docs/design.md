@@ -28,6 +28,183 @@ fn new_array(size: int) -> [int]:
     return result
 ```
 
+# Transformations
+
+Compilation is done by transforming high level language features into lower level equivalents.
+This has the benefit that we do not need to implement all language features during later code generation.
+
+There are several transformations made in sequence:
+
+- For loops to while loops
+- 
+
+
+# For loops
+
+Each `for` loop is compiled into a `while` loop.
+
+## Over array types
+
+
+## Over non-array types
+
+Non array types are looped over by invoking the `iter` method to retrieve an iterator.
+
+```
+for element in x:
+    process_element(element)
+```
+
+Into this:
+
+```
+let it = x.iter()
+loop:
+    let opt = it.next()
+    case opt:
+        None:
+            break
+        Some(element):
+            process_element(element)
+```
+
+# Enums
+
+In general, enums are translated to tagged unions.
+
+## General case
+Compile to tagged unions.
+
+```
+enum Option[S, T]:
+    None
+    Some(value: S)
+    Money(a: int, b: T)
+
+fn demo():
+    let option: Option[int, float] = Option.Money(a: 1, b: 3.14)
+    case option:
+        None:
+            pass
+        Some(value):
+            pass
+        Money(a, b):
+            pass
+
+```
+
+Is translated into:
+
+```
+struct Option[S1, T1]:
+    tag: int
+    data: OptionData[S1, T1]
+
+union OptionData[S2, T2]:
+    data_Some: S2
+    data_Money: OptionDataMoney[S2, T2]
+
+struct OptionDataMoney[S3, T3]:
+    a: int
+    b: T3
+
+fn demo():
+    let option: Option[int, float] = Option:
+        tag: 2
+        data: OptionData[int, float](data2: OptionDataMoney[int, float](a: 1, b: 3.14)))
+    let x = option
+    switch x.tag:
+        0:
+            pass
+        1:
+            let value = x.data.data_Some:
+            pass
+        2:
+            let a = x.data.data_Money.a
+            let b = x.data.data_Money.b
+            pass
+    else:
+        unreachable
+
+```
+
+## Special case 1: only tags
+
+If the enum type contains only named tags, we can use only the tag as implementation.
+
+```
+enum Option:
+    None
+    Some
+    Money
+
+fn demo():
+    let option = Option.Money()
+    case option:
+        None:
+            pass
+        Some:
+            pass
+        Money:
+            pass
+
+```
+
+Is translated into:
+
+```
+
+fn demo():
+    let option = 2
+    let x = option
+    switch x:
+        0:
+            pass
+        1:
+            pass
+        2:
+            pass
+    else:
+        unreachable
+
+```
+
+## Special case 2: two tags, and only one tag has data
+
+If the enum has only two tags, and one of them contains data, we use a pointer
+with a null-check.
+
+```
+enum Option[T]:
+    None
+    Some(T)
+
+fn demo():
+    let option: Option[int] = Option.Some(3)
+    case option:
+        None:
+            handle_none()
+        Some(value):
+            handle_some()
+
+```
+
+Is translated into:
+
+```
+
+fn demo():
+    let option = box(2)
+    let x = option
+    if x = null:
+        handle_none()
+    else:
+        let value = unbox(x)
+        handle_some()
+
+```
+
+
 # Classes
 
 Classes are lowered into structs and functions.

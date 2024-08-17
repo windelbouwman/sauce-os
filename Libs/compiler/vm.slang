@@ -333,7 +333,7 @@ class VirtualMachine:
                 push(value)
             ParameterSet(index):
                 set_parameter(index, value: pop())
-            GetAttr(index, ty):
+            GetAttr(index):
                 let base = pop()
                 let list = list_from_value(base)
                 let value = list.values.get(index)
@@ -489,6 +489,8 @@ class VirtualMachine:
                             break
             PopTry:
                 frames.last().exception_handlers.drop_last()
+            DecRef(index):
+                print("TODO?: dec ref {index}")
             GetExceptionValue:
                 push(exception_value)
             LoadFunc(index):
@@ -497,15 +499,6 @@ class VirtualMachine:
                 let struc = structs[struct_index]
                 let count = struc.fields.len()
                 let values = pop_n(count)
-                let list = ListValue(values)
-                push(Value.List(list))
-            UnionLiteral(struct_index, field_index):
-                let struc = structs[struct_index]
-                let values: List[Value] = List()
-                for x in struc.fields:
-                    values.append(Value.Undefined())
-                let value = pop()
-                values.set(index: field_index, value)
                 let list = ListValue(values)
                 push(Value.List(list))
             ArrayLiteral(count):

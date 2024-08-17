@@ -1,7 +1,11 @@
 
 from datatypes import List, Option
 from std import str_slice, str_get, str_len, ord, chr
-from utils import assert, panic
+from utils import assert, panic, unimplemented
+
+fn split_string2(text: str, sep: str) -> List[str]:
+    """ Split string by other string """
+    unimplemented("split_string2")
 
 fn split_string(text: str, sep: char) -> List[str]:
     let size = str_len(text)

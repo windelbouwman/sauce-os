@@ -386,6 +386,10 @@ class TypeChecker:
                 let wanted_value_type = option_unwrap(ast.get_field_type(ty, attr: field))
                 coerce(ty: wanted_value_type, value)
                 expression.ty = ty
+            Box(value):
+                expression.ty = ast.opaque_type()
+            Unbox(value, to_type):
+                expression.ty = to_type
             ArrayLiteral(values):
                 let element_type: ast.Type = values.first().ty
 
@@ -517,8 +521,6 @@ class TypeChecker:
                     return unify(ty1, ty2)
         elif ast.is_type_var_type(ty2):
             return unify(ty1: ty2, ty2: ty1)
-        elif ast.is_null_type(ty1) and ast.is_struct_type(ty2):
-            return true
         else:
             return false
     

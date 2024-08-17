@@ -230,11 +230,13 @@ class CustomTransformer(LarkTransformer):
 
     def class_def(self, x):
         # class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
-        assert x[2].type == "COLON"
         location, name, type_parameters = x[1]
+        assert x[2].type == "COLON"
+        assert x[3].type == "NEWLINE"
         assert x[4].type == "INDENT"
+        docstring = x[5]
+        members = x[6:-1]
         assert x[-1].type == "DEDENT"
-        members = x[5:-1]
         this_type = ast.void_type.clone()
         for member in members:
             if isinstance(member, ast.FunctionDef):
@@ -266,21 +268,29 @@ class CustomTransformer(LarkTransformer):
         return ast.var_def(self.new_id(name), ty, value, location)
 
     def func_def(self, x):
-        # KW_PUB? KW_FN id_and_type_parameters function_signature block
+        # KW_PUB? KW_FN id_and_type_parameters function_signature COLON NEWLINE INDENT docstring statement+ DEDENT
         if x[0].type == "KW_PUB":
             x = x[1:]
         location, name, type_parameters = x[1]
         parameters, return_type, except_type, no_return = x[2]
-        block = x[-1]
+        assert x[3].type == "COLON"
+        assert x[4].type == "NEWLINE"
+        assert x[5].type == "INDENT"
+        docstring = x[6]
+        statements = x[7:-1]
+        span = get_loc2(x[3], x[-1])
+        body = ast.compound_statement(statements, get_loc(x[5]))
+        assert x[-1].type == "DEDENT"
+
         return ast.function_def(
             self.new_id(name),
             type_parameters,
             parameters,
             return_type,
             except_type,
-            block.body,
+            body,
             location,
-            block.scope.span,
+            span,
         )
 
     def extern_func_def(self, x):
@@ -342,11 +352,15 @@ class CustomTransformer(LarkTransformer):
         )
 
     def struct_def(self, x):
-        # struct_def: KW_STRUCT id_and_type_parameters COLON NEWLINE INDENT struct_field+ DEDENT
-        assert isinstance(x[2], LarkToken) and x[2].type == "COLON"
+        # KW_STRUCT id_and_type_parameters COLON NEWLINE INDENT docstring struct_field+ DEDENT
+        is_union = x[0].type == "KW_UNION"
         location, name, type_parameters = x[1]
-        fields = x[5:-1]
-        is_union = False
+        assert x[2].type == "COLON"
+        assert x[3].type == "NEWLINE"
+        assert x[4].type == "INDENT"
+        docstring = x[5]
+        fields = x[6:-1]
+        assert x[-1].type == "DEDENT"
         span = get_loc2(x[4], x[-1])
         return ast.StructDef(
             self.new_id(name), type_parameters, is_union, fields, location, span
@@ -356,10 +370,15 @@ class CustomTransformer(LarkTransformer):
         return ast.StructFieldDef(x[0], x[2], get_loc(x[0]))
 
     def enum_def(self, x):
-        # enum_def: KW_ENUM id_and_type_parameters COLON NEWLINE INDENT enum_variant+ DEDENT
-        assert isinstance(x[2], LarkToken) and x[2].type == "COLON"
+        # KW_ENUM id_and_type_parameters COLON NEWLINE INDENT docstring enum_variant+ DEDENT
+        assert x[0].type == "KW_ENUM"
         location, name, type_parameters = x[1]
-        variants = x[5:-1]
+        assert x[2].type == "COLON"
+        assert x[3].type == "NEWLINE"
+        assert x[4].type == "INDENT"
+        docstring = x[5]
+        variants = x[6:-1]
+        assert x[-1].type == "DEDENT"
         span = get_loc2(x[4], x[-1])
         return ast.EnumDef(self.new_id(name), type_parameters, variants, location, span)
 
@@ -432,14 +451,18 @@ class CustomTransformer(LarkTransformer):
             needs_label = True
         return ast.Parameter(self.new_id(name), needs_label, typ, get_loc(x[0]))
 
+    def docstring(self, x):
+        if len(x) == 2:
+            return x[0]
+
     def block(self, x):
         # COLON NEWLINE INDENT statement+ DEDENT
+        assert x[1].type == "NEWLINE"
+        assert x[2].type == "INDENT"
         statements = x[3:-1]
+        assert x[-1].type == "DEDENT"
         span = get_loc2(x[0], x[-1])
-        if len(statements) == 1:
-            statement = statements[0]
-        else:
-            statement = ast.compound_statement(statements, get_loc(x[2]))
+        statement = ast.compound_statement(statements, get_loc(x[2]))
         return ast.ScopedBlock(statement, span)
 
     def statement(self, x):
@@ -791,20 +814,20 @@ definition: func_def
           | extern_func_def
           | interface_def
 
-class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
+class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT docstring (func_def | var_def)+ DEDENT
 var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
-func_def: KW_PUB? KW_FN id_and_type_parameters function_signature block
+func_def: KW_PUB? KW_FN id_and_type_parameters function_signature COLON NEWLINE INDENT docstring statement+ DEDENT
 extern_func_def: KW_EXTERN STRING KW_FN id_and_type_parameters function_signature NEWLINE
 func_decl: KW_FN id_and_type_parameters function_signature NEWLINE
 interface_def: KW_INTERFACE id_and_type_parameters COLON NEWLINE INDENT func_decl+ DEDENT
-
+docstring: (DOCSTRING NEWLINE)?
 function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? (KW_EXCEPT typ)? QUESTION?
 parameters: parameter
           | parameters COMMA parameter
 parameter: ID QUESTION? COLON typ
-struct_def: KW_STRUCT id_and_type_parameters COLON NEWLINE INDENT struct_field+ DEDENT
+struct_def: (KW_STRUCT | KW_UNION) id_and_type_parameters COLON NEWLINE INDENT docstring struct_field+ DEDENT
 struct_field: ID COLON typ NEWLINE
-enum_def: KW_ENUM id_and_type_parameters COLON NEWLINE INDENT enum_variant+ DEDENT
+enum_def: KW_ENUM id_and_type_parameters COLON NEWLINE INDENT docstring enum_variant+ DEDENT
 enum_variant: ID NEWLINE
             | ID LEFT_BRACE parameters RIGHT_BRACE NEWLINE
 type_def: KW_TYPE ID EQUALS typ NEWLINE
@@ -917,7 +940,7 @@ labeled_expression: test
 %declare KW_ELIF KW_ELSE KW_ENUM KW_PUB
 %declare KW_FN KW_FOR KW_FROM KW_IF KW_IMPORT KW_IN
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
-%declare KW_RETURN KW_STRUCT KW_SWITCH KW_TYPE KW_VAR KW_WHILE
+%declare KW_RETURN KW_STRUCT KW_UNION KW_SWITCH KW_TYPE KW_VAR KW_WHILE
 %declare KW_RAISE KW_TRY KW_EXCEPT KW_EXTERN
 %declare KW_INTERFACE
 
@@ -930,6 +953,7 @@ labeled_expression: test
 
 %declare INDENT DEDENT NEWLINE EOF
 %declare NUMBER STRING FNUMBER BOOL CHAR ID
+%declare DOCSTRING
 
 """
 lark_parser = Lark(

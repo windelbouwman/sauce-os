@@ -16,21 +16,25 @@ struct Global:
     value: Option[Vector[Instruction]]
 
 struct Struct:
-    is_union: bool
-    fields: List[Type]
+    name: str
+    fields: List[TypedName]
+
+struct TypedName:
+    ty: Type
+    name: str
 
 struct ExternFunction:
     name: str
-    parameters: List[Type]
+    parameters: List[TypedName]
     return_type: Option[Type]
     no_return: bool
 
 struct Function:
     name: str
-    parameters: List[Type]
+    parameters: List[TypedName]
     return_type: Option[Type]
     no_return: bool
-    locals: List[Type]
+    locals: List[TypedName]
     instructions: Vector[Instruction]
 
 enum Type:
@@ -74,11 +78,12 @@ enum Instruction:
     Jump(label: int)  # Unconditional jump
     JumpIf(label1: int, label2: int)
     Call(index: int)
-    CallIndirect(parameter_types: List[Type], return_type: Option[Type])  # Call function pointer, on top of stack
+    CallIndirect(parameters: List[TypedName], return_type: Option[Type])  # Call function pointer, on top of stack
     Return(n_values: int)
     SetupTry(try_label: int, except_label: int)
     Raise
     PopTry
+    DecRef(index: int)
     GetExceptionValue
     Unreachable
 
@@ -86,7 +91,7 @@ enum Instruction:
     LocalSet(index: int)
     ParameterGet(index: int)
     ParameterSet(index: int)
-    GetAttr(index: int, ty: Type)  # TODO: in theory we can derive type from the value on the stack + index?
+    GetAttr(index: int)
     SetAttr(index: int)
     GetIndex
     SetIndex
@@ -97,7 +102,6 @@ enum Instruction:
     LoadFunc(index: int)
 
     StructLiteral(struct_index: int)
-    UnionLiteral(struct_index: int, field_index: int)
     ArrayLiteral(size: int)
     ArrayLiteral2
 
@@ -200,6 +204,8 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "raise"
         PopTry:
             return "pop-try"
+        DecRef(index):
+            return "dec ref {index}"
         GetExceptionValue:
             return "get-exception-value"
         LocalGet(index):
@@ -214,8 +220,8 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "parameter-get({index})"
         ParameterSet(index):
             return "parameter-set({index})"
-        GetAttr(index, ty):
-            return "get-attr({index}) -> {type_to_string(ty)}"
+        GetAttr(index):
+            return "get-attr({index})"
         SetAttr(index):
             return "set-attr({index})"
         GetIndex:
@@ -226,8 +232,6 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "load-func({index})"
         StructLiteral(struct_index):
             return "struct-literal(index={struct_index})"
-        UnionLiteral(struct_index, field_index):
-            return "union-literal(index={struct_index}, field={field_index})"
         ArrayLiteral(count):
             return "array-literal({count})"
         ArrayLiteral2:
@@ -284,7 +288,7 @@ fn print_bc_program(program: Program):
     for struct0 in program.structs:
         print("  STRUCT {index}")
         for field in struct0.fields:
-            print("    -> {type_to_string(ty: field)}")
+            print("    -> {field.name}: {type_to_string(ty: field.ty)}")
         index += 1
 
     for global in program.globals:
@@ -299,16 +303,16 @@ fn print_bc_program(program: Program):
         print("  FUNC {func_index}: {function.name}")
         func_index += 1
         print("    PARAMETERS:")
-        for ty in function.parameters:
-            print("      > {type_to_string(ty)}")
+        for parameter in function.parameters:
+            print("      > {parameter.name}: {type_to_string(ty: parameter.ty)}")
         case function.return_type:
             Some(ty):
                 print("    RETURNS: {type_to_string(ty)}")
             None:
                 pass
         print("    LOCALS:")
-        for ty in function.locals:
-            print("      > {type_to_string(ty)}")
+        for local in function.locals:
+            print("      > {local.name}: {type_to_string(ty: local.ty)}")
         print("    CODE:")
         print_bc_instructions(instructions: function.instructions)
 

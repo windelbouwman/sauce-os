@@ -19,6 +19,7 @@ from .transforms import (
     rewrite_classes,
     rewrite_switch,
     constant_folding,
+    replace_unions,
 )
 from .flowcheck import flow_check
 from .pygenerator import gen_pycode
@@ -181,7 +182,8 @@ def transform(
     check_modules(modules)
 
     rewrite_enums(id_context, modules)
-    # print_modules(modules)
+    if options.dump_ast:
+        print_modules(modules)
     check_modules(modules)
 
     rewrite_classes(id_context, modules)
@@ -191,6 +193,7 @@ def transform(
 
     # TODO: this can be optional, depending on what the backend supports!
     rewrite_switch(id_context, modules)
+    replace_unions(id_context, modules)
     # print_modules(modules)
     check_modules(modules)
 

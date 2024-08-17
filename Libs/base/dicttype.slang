@@ -40,6 +40,9 @@ class Dictionary[T]:
         # remove an item from this dictionary
         return items.pop(key)
 
+    fn values() -> List[T]:
+        return items.values()
+
     fn iter() -> DictionaryIter[T]:
         let it = DictionaryIter(it2: items.iter())
         return it

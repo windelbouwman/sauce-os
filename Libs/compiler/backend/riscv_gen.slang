@@ -109,6 +109,8 @@ class RiscvGen:
                     panic("TODO: Raise")
                 PopTry:
                     panic("TODO: PopTry")
+                DecRef(index):
+                    panic("TODO: DecRef {index}")
                 GetExceptionValue:
                     panic("TODO: GetExceptionValue")
                 LocalGet(index):
@@ -135,7 +137,7 @@ class RiscvGen:
                     let offset = 0
                     emit(riscv.Instruction.SW(rs1: reg, rs2: 0, imm: offset))
                     reg -= 1
-                GetAttr(index, ty):
+                GetAttr(index):
                     panic("TODO: GetAttr")
                 SetAttr(index):
                     panic("TODO: SetAttr")
@@ -146,8 +148,6 @@ class RiscvGen:
                 LoadFunc(index):
                     panic("TODO")
                 StructLiteral(struct_index):
-                    panic("TODO")
-                UnionLiteral(struct_index, field_index):
                     panic("TODO")
                 ArrayLiteral(count):
                     panic("TODO")

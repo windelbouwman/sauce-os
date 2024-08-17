@@ -70,6 +70,7 @@ def tokenize(code: str | tuple[Location, str]):
         ("FNUMBER", r"[0-9]+\.[0-9]+"),
         ("NUMBER", r"[0-9]+"),
         ("SPACE", r"[ ]+"),
+        ("DOCSTRING", r"\"\"\".*?\"\"\""),
         ("STRING", r"\"[^\"]*\""),
         ("CHAR", r"\'[^\']\'"),
         ("NEWLINE", r"\n"),
@@ -141,6 +142,10 @@ def tokenize(code: str | tuple[Location, str]):
                 value = False
         elif kind == "STRING":
             value = value[1:-1]
+        elif kind == "DOCSTRING":
+            value = value[3:-3]
+            newlines_in_docstring = len(value.splitlines()) - 1
+            row += newlines_in_docstring
         elif kind == "CHAR":
             value = value[1:-1]
         elif kind == "NUMBER":

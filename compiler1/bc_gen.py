@@ -101,7 +101,7 @@ class ByteCodeGenerator:
             return bc.BaseTyp(bc.SimpleTyp.FLOAT)
         elif ty.is_bool():
             return bc.BaseTyp(bc.SimpleTyp.BOOL)
-        elif ty.is_struct() or ty.is_union():
+        elif ty.is_struct():
             return bc.StructTyp(self._type_map[id(ty.kind.tycon)])
         elif ty.is_function():
             param_types = [self.get_bc_ty(t) for t in ty.kind.parameter_types]
@@ -119,11 +119,9 @@ class ByteCodeGenerator:
 
     def gen_struct(self, struct_def: ast.StructDef):
         logger.debug(f"generating bytecode type for struct {struct_def.id}")
-        ts = []
-        for field in struct_def.fields:
-            t = self.get_bc_ty(field.ty)
-            ts.append(t)
-        self._types.append((struct_def.id.name, struct_def.is_union, ts))
+        assert not struct_def.is_union
+        ts = [self.get_bc_ty(field.ty) for field in struct_def.fields]
+        self._types.append((struct_def.id.name, ts))
 
     def gen_function(self, func_def: ast.FunctionDef):
         logger.debug(f"generating bytecode for function {func_def.id}")
@@ -345,11 +343,6 @@ class ByteCodeGenerator:
             assert len(kind.indici) == 1
             self.gen_expression(kind.indici[0])
             self.emit(OpCode.GET_INDEX)
-        elif isinstance(kind, ast.UnionLiteral):
-            self.gen_expression(kind.value)
-            index = kind.ty.get_field_index(kind.field)
-            ty = bc.StructTyp(self._type_map[id(kind.ty.kind.tycon)])
-            self.emit(OpCode.UNION_LITERAL, index, ty)
         elif isinstance(kind, ast.Binop):
             # TBD: implement short circuit logic operations?
             # For example: 'false and expensive_function()'
@@ -373,6 +366,10 @@ class ByteCodeGenerator:
             self.gen_expression(kind.value)
             to_ty = self.get_bc_ty(kind.ty)
             self.emit(OpCode.CAST, to_ty)
+        elif isinstance(kind, ast.Box):
+            self.gen_expression(kind.value)
+        elif isinstance(kind, ast.Unbox):
+            self.gen_expression(kind.value)
         elif isinstance(kind, ast.FunctionCall):
             for arg in kind.args:
                 self.gen_expression(arg.value)

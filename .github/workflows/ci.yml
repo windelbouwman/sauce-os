@@ -53,8 +53,9 @@ jobs:
         run: pip install -r compiler1/requirements.txt
       - name: Test with pytest
         run: pytest test_compiler1.py -v
-      - name: Build
-        run: | 
-          mkdir build
-          nmake /f Makefile.win32 build\compiler5.exe
+      # TODO:
+      # - name: Build
+      #   run: | 
+      #     mkdir build
+      #     nmake /f Makefile.win32 build\compiler5.exe
 

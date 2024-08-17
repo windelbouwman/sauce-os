@@ -25,6 +25,7 @@ fn gen_expression_bytecode(expression: ast.Expression) -> Vector[Instruction]:
 enum ControlBlock:
     LoopBlock(loop_: Loop)
     TryBlock
+    Scope(variables: List[ast.Variable])
 
 struct Loop:
     continue_label: int
@@ -37,7 +38,7 @@ class BytecodeGenerator:
 
     var global_variables: List[bc.Global] = List()
     var global_var_mapping: Dictionary[int] = Dictionary()
-    var local_variables: List[bc.Type] = List()
+    var local_variables: List[bc.TypedName] = List()
     var local_var_mapping: Dictionary[int] = Dictionary()
     var label_mapping: Dictionary[int] = Dictionary()
     var struct_mapping: Dictionary[int] = Dictionary()
@@ -65,10 +66,11 @@ class BytecodeGenerator:
             for definition in module.definitions:
                 case definition:
                     Struct(struct_def):
-                        let fields2: List[bc.Type] = List()
+                        assert(condition: not struct_def.is_union, message: "Unions not supported in bytecode.")
+                        let fields2: List[bc.TypedName] = List()
                         for field1 in struct_def.fields:
-                            fields2.append(get_bc_type(field1.ty))
-                        structs.append(bc.Struct(fields: fields2, is_union: struct_def.is_union))
+                            fields2.append(bc.TypedName(name: field1.name, ty: get_bc_type(field1.ty)))
+                        structs.append(bc.Struct(name: struct_def.id.name, fields: fields2))
                     Var(variable_def):
                         gen_global_variable(variable_def)
                     Function(function_def):
@@ -127,9 +129,9 @@ class BytecodeGenerator:
         let func_index = extern_functions.len()
         let name = function_def.name
 
-        let parameters: List[bc.Type] = List()
+        let parameters: List[bc.TypedName] = List()
         for parameter in function_def.parameters:
-            parameters.append(get_bc_type(parameter.ty))
+            parameters.append(bc.TypedName(name: parameter.id.name, ty: get_bc_type(parameter.ty)))
 
         let return_type = Option.None()
         if not ast.is_void_type(function_def.info.return_type):
@@ -145,9 +147,9 @@ class BytecodeGenerator:
             Intern(scoped_block):
                 log_debug("generate bytecode for {function_def.name}")
                 local_var_mapping.clear()
-                let parameters: List[bc.Type] = List()
+                let parameters: List[bc.TypedName] = List()
                 for parameter in function_def.parameters:
-                    let p2 = get_bc_type(parameter.ty)
+                    let p2 = bc.TypedName(name: parameter.id.name, ty: get_bc_type(parameter.ty))
                     let parameter_index = parameters.len()
                     local_var_mapping.insert(key: ast.node_id_to_string(parameter.id), value: parameter_index)
                     parameters.append(p2)
@@ -157,11 +159,10 @@ class BytecodeGenerator:
                 begin_code()
                 local_variables = List()
 
-                let body = scoped_block.body
-                gen_statement(body)
+                gen_scoped_block(scoped_block)
 
                 # Emit return to void function, or unreachable
-                if body.is_terminator:
+                if scoped_block.body.is_terminator:
                     is_reachable = true
                     emit(Instruction.Unreachable())
                 else:
@@ -181,9 +182,24 @@ class BytecodeGenerator:
             case block:
                 LoopBlock(loop_):
                     return loop_
-                TryBlock:
-                    emit(Instruction.PopTry())
+            else:
+                block_cleanup(block)
         panic("Not in a loop!")
+
+    fn gen_scoped_block(scoped_block?: ast.ScopedBlock):
+        # scoped_block.scope
+        # let variables: List[ast.Variable] = List()
+        # scoped_block.scope.dump()
+        # for symbol in scoped_block.scope.get_symbols():
+        #     case symbol:
+        #         Var(variable):
+        #             print("Name: {variable.id.name}")
+        #             variables.append(variable)
+        #     else:
+        #         pass
+        # enter_block(block: ControlBlock.Scope(variables))
+        gen_statement(scoped_block.body)
+        # leave_block()
 
     fn gen_statement(statement?: ast.Statement):
         case statement.kind:
@@ -229,19 +245,18 @@ class BytecodeGenerator:
                 gen_raise(value)
     
     fn gen_return(opt_val: Option[ast.Expression]):
-        for block in block_stack:
-            case block:
-                TryBlock:
-                    emit(Instruction.PopTry())
-            else:
-                pass
-
+        let n_args = 0
         case opt_val:
             Some(val):
                 gen_expression(val)
-                emit(Instruction.Return(n_arg: 1))
+                n_args += 1
             None:
-                emit(Instruction.Return(n_args: 0))
+                pass
+
+        for block in block_stack:
+            block_cleanup(block)
+
+        emit(Instruction.Return(n_args))
         is_reachable = false
 
     fn gen_raise(value: ast.Expression):
@@ -258,7 +273,7 @@ class BytecodeGenerator:
                 case op:
                     Some(op):
                         emit(Instruction.Dup())
-                        emit(Instruction.GetAttr(index, ty: get_bc_type(target.ty)))
+                        emit(Instruction.GetAttr(index))
                         gen_expression(value)
                         gen_binop(op)
                     None:
@@ -325,9 +340,8 @@ class BytecodeGenerator:
 
         set_label(try_label)
         enter_block(block: ControlBlock.TryBlock())
-        gen_statement(try_statement.try_block.body)
+        gen_scoped_block(try_statement.try_block)
         leave_block()
-        emit(Instruction.PopTry())
         jump(final_label)
 
         set_label(except_label)
@@ -335,7 +349,7 @@ class BytecodeGenerator:
         emit(Instruction.GetExceptionValue())
         emit(Instruction.FromOpaque(get_bc_type(try_statement.except_var.ty)))
         emit(Instruction.LocalSet(index: except_var_index))
-        gen_statement(try_statement.except_block.body)
+        gen_scoped_block(try_statement.except_block)
         jump(final_label)
 
         set_label(final_label)
@@ -351,7 +365,7 @@ class BytecodeGenerator:
         gen_condition(condition: while_statement.condition, true_label: body_label, false_label: final_label)
 
         set_label(body_label)
-        gen_statement(while_statement.block.body)
+        gen_scoped_block(while_statement.block)
         jump(test_label)
 
         leave_block()
@@ -365,11 +379,11 @@ class BytecodeGenerator:
         gen_condition(condition: if_statement.condition, true_label, false_label)
         
         set_label(true_label)
-        gen_statement(if_statement.true_block.body)
+        gen_scoped_block(if_statement.true_block)
         jump(final_label)
 
         set_label(false_label)
-        gen_statement(if_statement.false_block.body)
+        gen_scoped_block(if_statement.false_block)
         jump(final_label)
 
         set_label(final_label)
@@ -413,7 +427,7 @@ class BytecodeGenerator:
 
         # Create a local variable for the result:
         let ty = bc.Type.Bool()
-        let index = new_local(ty)
+        let index = new_local(name: "tmp", ty)
 
         # Evaluate the condition, and branch:
         let true_label = new_label()
@@ -441,7 +455,7 @@ class BytecodeGenerator:
             GetAttr(base, attr):
                 gen_expression(base)
                 let index = get_attr_index(ty: base.ty, attr)
-                emit(Instruction.GetAttr(index, ty: get_bc_type(expression.ty)))
+                emit(Instruction.GetAttr(index))
             GetIndex(base, indici):
                 gen_expression(base)
                 assert(condition: indici.len() == 1, message: "Unsupported: multi-indexing")
@@ -494,12 +508,6 @@ class BytecodeGenerator:
                 let struct_def = ast.get_struct_def_from_type(ty)
                 let struct_index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
                 emit(Instruction.StructLiteral(struct_index))
-            UnionLiteral(ty, field, value):
-                gen_expression(value)
-                let struct_def = ast.get_struct_def_from_type(ty)
-                let struct_index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
-                let field_index = get_attr_index(ty, attr: field)
-                emit(Instruction.UnionLiteral(struct_index, field_index))
             ArrayLiteral(values):
                 for value in values:
                     gen_expression(value)
@@ -541,6 +549,12 @@ class BytecodeGenerator:
                     emit(Instruction.FromOpaque(get_bc_type(ty)))
                 else:
                     panic("unsupported type-casting from {ast.type_to_string(value.ty)} to {ast.type_to_string(ty)}")
+            Box(value):
+                gen_expression(value)
+                emit(Instruction.ToOpaque(get_bc_type(value.ty)))
+            Unbox(value, to_type):
+                gen_expression(value)
+                emit(Instruction.FromOpaque(get_bc_type(to_type)))
         else:
             panic("gen_expression: Unsupported: {ast.expression_to_string(expression)}")
 
@@ -560,9 +574,9 @@ class BytecodeGenerator:
 
     fn gen_indirect_call(callee: ast.Expression):
         gen_expression(callee)
-        let parameter_types: List[bc.Type] = List()
+        let parameter_types: List[bc.TypedName] = List()
         for p2 in ast.get_parameter_types_from_type(callee.ty):
-            parameter_types.append(get_bc_type(p2.ty))
+            parameter_types.append(bc.TypedName(name: "x", ty: get_bc_type(p2.ty)))
         let return_type: Option[bc.Type] = Option.None()
         let return_type2 = ast.get_return_type_from_type(callee.ty)
         if ast.is_void_type(return_type2):
@@ -660,13 +674,14 @@ class BytecodeGenerator:
     fn add_local(variable: ast.Variable) -> int:
         # Add a local variable!
         let ty = get_bc_type(variable.ty)
-        let index = new_local(ty)
+        let index = new_local(name: variable.id.name, ty)
         local_var_mapping.insert(key: ast.node_id_to_string(variable.id), value: index)
         return index
     
-    fn new_local(ty: bc.Type) -> int:
+    fn new_local(name: str, ty: bc.Type) -> int:
         let index = local_variables.len()
-        local_variables.append(ty)
+        let local = bc.TypedName(name, ty)
+        local_variables.append(local)
         return index
     
     fn is_local_variable(variable: ast.Variable) -> bool:
@@ -730,7 +745,19 @@ class BytecodeGenerator:
         block_stack.prepend(block)
 
     fn leave_block():
-        block_stack.drop_front()
+        let block = block_stack.pop_front()
+        block_cleanup(block)
+    
+    fn block_cleanup(block: ControlBlock):
+        case block:
+            Scope(variables):
+                for variable in variables:
+                    emit(Instruction.DecRef(index: get_local_index(variable)))
+            TryBlock:
+                emit(Instruction.PopTry())
+        else:
+            pass
+
 
     fn emit(instruction?: Instruction):
         # print("Inst: {bc.instruction_to_string(instruction)}")

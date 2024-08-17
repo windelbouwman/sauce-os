@@ -2,7 +2,7 @@
 
 import std
 from utils import panic
-from std import print, ord, str_slice, str_len
+from std import print, ord, chr, str_slice, str_len
 from std import str_to_float, str_to_int
 from token import Token, TokenKind, token_to_string
 from location import Location, location_at, Position
@@ -120,7 +120,7 @@ class Lexer:
                 # Check for keywords:
                 kind = check_keyword(txt: get_lexeme())
             elif c == ' ':
-                while match(txt: ' '):
+                while match(' '):
                     pass
                 kind = TokenKind.Space(amount: std.str_len(text: get_lexeme()))
             elif c == '(':
@@ -145,22 +145,40 @@ class Lexer:
                 kind = TokenKind.Comment(comment: get_lexeme())
                 col_start = offset
             elif ord(c) == 34:
-                while offset < n and not (ord(c: peek()) == 34):
+                if match(chr(34)):
+                    if match(chr(34)):
+                        # Doc string
+                        let z = 0
+                        while offset < n:
+                            let c2 = next_char()
+                            if ord(c2) == 34:
+                                z += 1
+                                if z == 3:
+                                    break
+                            else:
+                                z = 0
+                        let txt: str = get_lexeme()
+                        kind = TokenKind.String(txt)
+                    else:
+                        # empty string
+                        kind = TokenKind.String(txt: "")
+                else:
+                    while offset < n and not (ord(peek()) == 34):
+                        offset += 1
                     offset += 1
-                offset += 1
-                # String
-                let txt: str = get_lexeme()
-                txt = str_slice(text: txt, begin: 1, end: str_len(text: txt) - 1)
-                kind = TokenKind.String(txt)
+                    # String
+                    let txt: str = get_lexeme()
+                    txt = str_slice(text: txt, begin: 1, end: str_len(text: txt) - 1)
+                    kind = TokenKind.String(txt)
             elif c == '-':
-                if match(txt: '>'):
+                if match('>'):
                     kind = TokenKind.Arrow()
-                elif match(txt: '='):
+                elif match('='):
                     kind = TokenKind.MinusEquals()
                 else:
                     kind = TokenKind.Minus()
             elif c == '+':
-                if match(txt: '='):
+                if match('='):
                     kind = TokenKind.PlusEquals()
                 else:
                     kind = TokenKind.Plus()
@@ -228,26 +246,26 @@ class Lexer:
                         kind = TokenKind.Char(char_value)
 
             elif c == '<':
-                if match(txt: '='):
+                if match('='):
                     kind = TokenKind.LessEquals()
-                elif match(txt: '<'):
+                elif match('<'):
                     kind = TokenKind.ShiftLeft()
                 else:
                     kind = TokenKind.Less()
             elif c == '>':
-                if match(txt: '='):
+                if match('='):
                     kind = TokenKind.GreaterEquals()
-                elif match(txt: '>'):
+                elif match('>'):
                     kind = TokenKind.ShiftRight()
                 else:
                     kind = TokenKind.Greater()
             elif c == '=':
-                if match(txt: '='):
+                if match('='):
                     kind = TokenKind.EqualsEquals()
                 else:
                     kind = TokenKind.Equals()
             elif c == '!':
-                if match(txt: '='):
+                if match('='):
                     kind = TokenKind.NotEquals()
             elif c == '|':
                 kind = TokenKind.BitOr()
@@ -283,7 +301,7 @@ class Lexer:
         else:
             panic("Next char beyond input")
 
-    fn match(txt: char) -> bool:
+    fn match(txt?: char) -> bool:
         let n = source_length
         if offset < n:
             let c = std.str_get(text: source, index: offset)
@@ -299,7 +317,7 @@ class Lexer:
         return std.str_slice(text: source, begin: tok_begin, end: offset)
 
 fn is_lf(c: char) -> bool:
-    let o = ord(value: c)
+    let o = ord(c)
     return o == 10
 
 fn is_id(c: char) -> bool:

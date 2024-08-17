@@ -24,37 +24,7 @@ fn gen_c_code(program: bc.Program, output_filename: Option[str]):
 
     # Runtime function prototypes:
     g.emit_runtime()
-
-    # Struct forward declarations:
-    let index = 0
-    for struct_def in program.structs:
-        if struct_def.is_union:
-            g.emit("union U{index};")
-        else:
-            g.emit("struct S{index};")
-        index += 1
-    
-    # Struct definitions:
-    index = 0
-    for struct_def in program.structs:
-        g.gen_struct_def(sidx: index, struct_def)
-        index += 1
-    
-    for extern_function in g.extern_functions:
-        g.gen_extern_function_decl(extern_function)
-
-    # Forward declarations:
-    for function in program.functions:
-        g.gen_function_decl(function)
-    
-    # Globals!
-    for global in program.globals:
-        g.gen_global(global)
-
-    # Function definitions:
-    for function in program.functions:
-        g.gen_function(function)
-
+    g.gen_program(program)
     g.out.end()
 
 fn get_target_labels(instructions: Vector[bc.Instruction]) -> Set:
@@ -78,6 +48,18 @@ struct Value:
     ty: bc.Type
     name: str
 
+fn is_heap(ty?: bc.Type) -> bool:
+    # Test if type is heap like type
+    case ty:
+        StructRef(index):
+            return true
+        Array(element_type):
+            return true
+        Str:
+            return true
+    else:
+        return false
+
 class CGenerator:
     # Generate C from bytecode
     var out: TextGenerator = TextGenerator()
@@ -95,52 +77,90 @@ class CGenerator:
         emit("#include <stdint.h>")
         emit("#include <setjmp.h>")
         emit("#include <stdlib.h>")
+        emit("#include {chr(34)}slangrt.h{chr(34)}")
 
-        emit("// runtime functions:")
-        emit("void* rt_malloc(int size);")
-        emit("void rt_incref(void *ptr);")
-        emit("void rt_decref(void *ptr);")
-        emit("typedef intptr_t slang_int_t;")
-        emit("typedef intptr_t slang_bool_t;")
-        emit("typedef uint8_t slang_uint8_t;")
-        emit("typedef uint16_t slang_uint16_t;")
-        emit("typedef uint32_t slang_uint32_t;")
-        emit("typedef intptr_t slang_uint64_t;")
-        emit("typedef int8_t slang_int8_t;")
-        emit("typedef int16_t slang_int16_t;")
-        emit("typedef int32_t slang_int32_t;")
-        emit("typedef intptr_t slang_int64_t;")
-        emit("typedef float slang_float32_t;")
-        emit("typedef double slang_float64_t;")
-        emit("typedef struct {chr(123)} jmp_buf buf; void* prev; {chr(125)} slang_exception_handler_t;")
-
-        emit("extern slang_exception_handler_t* g_except_hook;")
-        emit("extern void* g_except_value;")
-
-    fn gen_struct_def(sidx: int, struct_def: bc.Struct):
-        if struct_def.is_union:
-            emit("union U{sidx} {chr(123)}")
-        else:
-            emit("struct S{sidx} {chr(123)}")
-        indent()
+    fn gen_program(program: bc.Program):
+        # Struct forward declarations:
         let index = 0
-        for field in struct_def.fields:
-            let typed_var = get_type_txt(ty: field, name: "field{index}")
-            emit("{typed_var};")
+        for struct_def in program.structs:
+            emit("struct S{index}_{struct_def.name};")
             index += 1
+        
+        index = 0
+        for struct_def in program.structs:
+            # Struct definitions:
+            gen_struct_def(index, struct_def)
+            index += 1
+
+        for extern_function in program.extern_functions:
+            gen_extern_function_decl(extern_function)
+
+        # Forward declarations:
+        for function in program.functions:
+            gen_function_decl(function)
+        
+        # Globals!
+        for global in program.globals:
+            gen_global(global)
+
+        # Function definitions:
+        for function in program.functions:
+            gen_function(function)
+
+    fn gen_struct_def(index: int, struct_def: bc.Struct):
+        let name = "S{index}_{struct_def.name}"
+        emit("struct {name} {chr(123)}")
+        indent()
+        
+        let findex = 0
+        for field in struct_def.fields:
+            let typed_var = get_type_txt(ty: field.ty, name: "f{findex}_{field.name}")
+            emit("{typed_var};")
+            findex += 1
         dedent()
         emit("{chr(125)};")
         emit("")
 
-    fn gen_extern_function_decl(extern_function: bc.ExternFunction):
+        # struct destructor functions
+        emit("void {name}_destroyer(void* x) {chr(123)}")
+        indent()
+        emit("struct {name}* x2 = (struct {name}*)x;")
+        findex = 0
+        for field in struct_def.fields:
+            if is_heap(field.ty):
+                emit("rt_decref(x2->f{findex}_{field.name});")
+            findex += 1
+        if findex == 0:
+            emit("(void)(x2);")  # Prevent unused variable warning.
+
+        dedent()
+        emit("{chr(125)}")
+
+        # Create struct type info for garbage collector:
+        # This can be used during the mark phase of garbage collection to track pointers.
+        emit("// {name}_type_info = {chr(123)}")
+        indent()
+        findex = 0
+        for field in struct_def.fields:
+            if is_heap(field.ty):
+                emit("// offsetof(f{findex}_{field.name}),")
+            findex += 1
+        emit("// NULL,")
+        dedent()
+        emit("// {chr(125)}")
+
+    fn get_parameter_text(parameters: List[bc.TypedName]) -> str:
         let parameters2: List[str] = List()
         let index = 0
-        for parameter_type in extern_function.parameters:
-            let pname = "P{index}"
-            let typed_var = get_type_txt(ty: parameter_type, name: pname)
+        for parameter in parameters:
+            let name = "P{index}"
+            let typed_var = get_type_txt(ty: parameter.ty, name)
             parameters2.append(typed_var)
             index += 1
-        let param_txt = str_join(parts: parameters2, sep: ", ")
+        return str_join(parts: parameters2, sep: ", ")
+
+    fn gen_extern_function_decl(extern_function: bc.ExternFunction):
+        let param_txt = get_parameter_text(parameters: extern_function.parameters)
 
         let return_type = "void"
         case extern_function.return_type:
@@ -186,11 +206,11 @@ class CGenerator:
     fn get_function_decl(function: bc.Function, fill_param: bool) -> str:
         let parameters2: List[str] = List()
         let index = 0
-        for parameter_type in function.parameters:
-            let pname = "P{index}"
+        for parameter in function.parameters:
+            let name = "P{index}_{parameter.name}"
             if fill_param:
-                local_parameters.append(Value(name: pname, ty: parameter_type))
-            let typed_var = get_type_txt(ty: parameter_type, name: pname)
+                local_parameters.append(Value(name, ty: parameter.ty))
+            let typed_var = get_type_txt(ty: parameter.ty, name)
             parameters2.append(typed_var)
             index += 1
         let param_txt = str_join(parts: parameters2, sep: ", ")
@@ -213,11 +233,14 @@ class CGenerator:
         # TODO: allow string literal escaping
         emit("{decl} {chr(123)}")  # '{' = 123
         indent()
-        for ty in function.locals:
-            let varname = new_local_var()
-            let ty_txt = get_type_txt(ty, name: varname)
-            emit("{ty_txt};")
-            local_variables.append(Value(name: varname, ty))
+        for local in function.locals:
+            let varname = new_named_local_var(name: local.name)
+            let ty_txt = get_type_txt(ty: local.ty, name: varname)
+            if is_heap(local.ty):
+                emit("{ty_txt} = NULL;")
+            else:
+                emit("{ty_txt};")
+            local_variables.append(Value(name: varname, ty: local.ty))
 
         let target_labels = get_target_labels(instructions: function.instructions)
         let index = 0
@@ -229,7 +252,7 @@ class CGenerator:
         dedent()
         emit("{chr(125)}") # '}' => 125
         emit("")
-
+    
     fn gen_instruction(instruction: bc.Instruction):
         case instruction:
             Nop:
@@ -237,6 +260,7 @@ class CGenerator:
 
             Dup:
                 let value = pop()
+                inc_ref(value)
                 push(value)
                 push(value)
 
@@ -247,7 +271,11 @@ class CGenerator:
                     Float(value):
                         push(Value(name: "{float_to_str(value)}", ty: bc.Type.Float(bits: 64)))
                     Str(value):
-                        push(Value(name: "{chr(34)}{value}{chr(34)}", ty: bc.Type.Str()))
+                        let varname = new_local_var()
+                        let ty = bc.Type.Str()
+                        let typed_var = get_type_txt(ty, name: varname)
+                        emit("{typed_var} = rt_str_new({chr(34)}{value}{chr(34)});")
+                        push(Value(name: varname, ty))
                     Bool(value):
                         if value:
                             push(Value(name: "1", ty: bc.Type.Bool()))
@@ -285,6 +313,11 @@ class CGenerator:
 
             PopTry:
                 emit("g_except_hook = g_except_hook->prev;")
+            
+            DecRef(index):
+                let varname = local_variables.get(index)
+                #if is_heap(varname.ty):
+                #    emit("rt_decref({varname.name});")
 
             GetExceptionValue:
                 let value = Value(name: "g_except_value", ty: bc.Type.Ptr())
@@ -410,12 +443,19 @@ class CGenerator:
                 let typed_var = get_type_txt(ty, name: varname)
                 case ty3:
                     Float(bits):
-                        emit("{typed_var} = bit_cast<void*>({value.name});")
+                        # panic("Cannot box float")
+                        emit("{typed_var} = *(void**)(&({value.name}));")
                     Int(signed, bits):
                         if signed:
                             emit("{typed_var} = (void*)((intptr_t)({value.name}));")
                         else:
                             emit("{typed_var} = (void*)((uintptr_t)({value.name}));")
+                    Bool:
+                        emit("{typed_var} = (void*)((intptr_t){value.name});")
+                    Char:
+                        emit("{typed_var} = (void*)((intptr_t){value.name});")
+                    Ptr:
+                        emit("{typed_var} = {value.name};")
                 else:
                     emit("{typed_var} = (void*)({value.name});")
                 push(Value(name: varname, ty))
@@ -432,23 +472,25 @@ class CGenerator:
                         else:
                             emit("{typed_var} = (slang_uint{bits}_t)((uintptr_t)({value.name}));")
                     Float(bits):
-                        emit("{typed_var} = (slang_float{bits}_t)({value.name});")
+                        emit("{typed_var} = *(slang_float{bits}_t*)(&({value.name}));")
                     Bool:
                         emit("{typed_var} = (slang_int_t)({value.name});")
                     Str:
                         emit("{typed_var} = (char*)({value.name});")
                     Char:
-                        emit("{typed_var} = (char)({value.name});")
+                        emit("{typed_var} = (char)((uintptr_t)({value.name}));")
                     Function(parameter_types, return_type):
                         panic("Cannot unbox ptr to function")
                     Array(element_type):
                         panic("Cannot unbox ptr to array")
                     Ptr:
-                        panic("Cannot unbox ptr to ptr")
+                        emit("{typed_var} = {value.name};")
                     StructRef(index):
                         let to_type = get_type_txt(ty, name: "")
                         emit("{typed_var} = ({to_type})({value.name});")
-                push(Value(name: varname, ty))
+                let value2 = Value(name: varname, ty)
+                inc_ref(value2)
+                push(value2)
 
             Call(index):
                 if index < extern_functions.len():
@@ -468,11 +510,13 @@ class CGenerator:
 
             LocalGet(index):
                 let varname = local_variables.get(index)
+                inc_ref(varname)
                 push(varname)
 
             LocalSet(index):
                 let value = pop()
                 let varname = local_variables.get(index)
+                dec_ref(varname)
                 emit("{varname.name} = {value.name};")
             
             GlobalGet(index):
@@ -489,24 +533,32 @@ class CGenerator:
 
             ParameterGet(index):
                 let param = local_parameters.get(index)
+                inc_ref(param)
                 push(param)
 
             ParameterSet(index):
                 let value = pop()
                 let param = local_parameters.get(index)
+                dec_ref(param)
                 emit("{param.name} = {value.name};")
 
-            GetAttr(index, ty):
+            GetAttr(index):
                 let base = pop()
+                let field = get_struct_field(ty: base.ty, index)
                 let varname = new_local_var()
-                let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} = {base.name}->field{index};")
-                push(Value(name: varname, ty))
+                let typed_var = get_type_txt(ty: field.ty, name: varname)
+                emit("{typed_var} = {base.name}->f{index}_{field.name};")
+                dec_ref(base)
+                let value = Value(name: varname, ty: field.ty)
+                inc_ref(value)
+                push(value)
 
             SetAttr(index):
                 let value = pop()
                 let base = pop()
-                emit("{base.name}->field{index} = {value.name};")
+                let field = get_struct_field(ty: base.ty, index)
+                emit("{base.name}->f{index}_{field.name} = {value.name};")
+                dec_ref(base)
 
             GetIndex:
                 let index = pop()
@@ -515,15 +567,20 @@ class CGenerator:
                 let ty = bc.get_element_type_from_type(base.ty)
                 let typed_var = get_type_txt(ty, name: varname)
                 emit("{typed_var} = {base.name}[{index.name}];")
-                push(Value(name: varname, ty))
+                dec_ref(base)
+                let value = Value(name: varname, ty)
+                inc_ref(value)
+                push(value)
                 
             SetIndex:
                 let value = pop()
                 let index = pop()
                 let base = pop()
                 emit("{base.name}[{index.name}] = {value.name};")
+                dec_ref(base)
 
             Return(amount):
+                free_heap_refs()
                 if amount == 1:
                     let value = pop()
                     emit("return {value.name};")
@@ -558,22 +615,12 @@ class CGenerator:
                 let varname = new_local_var()
                 let ty = bc.Type.StructRef(index)  # "struct S{index}*"
                 let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} = rt_malloc(sizeof(struct S{index}));")
+                emit("{typed_var} = rt_malloc_with_destroyer(sizeof(struct S{index}_{struct_def.name}), S{index}_{struct_def.name}_destroyer);")
                 let index2 = 0
                 for value in values:
-                    emit("{varname}->field{index2} = {value.name};")
+                    let field = struct_def.fields.get(index: index2)
+                    emit("{varname}->f{index2}_{field.name} = {value.name};")
                     index2 += 1
-                push(Value(name: varname, ty))
-
-            UnionLiteral(struct_index, field_index):
-                let value = pop()
-                # Treat unions as structs (for now)
-                # Malloc it!
-                let varname = new_local_var()
-                let ty = bc.Type.StructRef(struct_index)   # "union U{struct_index}*"
-                let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} = rt_malloc(sizeof(union U{struct_index}));")
-                emit("{varname}->field{field_index} = {value.name};")
                 push(Value(name: varname, ty))
 
             ArrayLiteral(size):
@@ -607,8 +654,15 @@ class CGenerator:
                 emit("for (int i = 1; i < {size.name}; i++)")
                 emit("  {varname}[i] = {varname}[0];")
                 push(Value(name: varname, ty))
+    
+    fn get_struct_field(ty: bc.Type, index: int) -> bc.TypedName:
+        case ty:
+            StructRef(struct_index):
+                return structs.get(index: struct_index).fields.get(index)
+        else:
+            panic("No struct")
 
-    fn gen_call(callee: str, parameter_types: List[bc.Type], return_type: Option[bc.Type]):
+    fn gen_call(callee: str, parameter_types: List[bc.TypedName], return_type: Option[bc.Type]):
         let args = pop_n(count: parameter_types.len())
         let args2: List[str] = List()
         for arg in args:
@@ -641,10 +695,8 @@ class CGenerator:
             Ptr:
                 return "void* {name}"
             StructRef(index):
-                if structs.get(index).is_union:
-                    return "union U{index}* {name}"
-                else:
-                    return "struct S{index}* {name}"
+                let struct_def = structs.get(index)
+                return "struct S{index}_{struct_def.name}* {name}"
             Function(parameter_types, return_type):
                 let parts: List[str] = List()
                 for p in parameter_types:
@@ -660,6 +712,23 @@ class CGenerator:
             Array(element_type):
                 let e = get_type_txt(ty: element_type, name: "")
                 return "{e}* {name}"
+
+    fn free_heap_refs():
+        for v in local_variables:
+            dec_ref(v)
+
+        for p in local_parameters:
+            dec_ref(p)
+
+    fn inc_ref(value?: Value):
+        return # TODO: decide between garbage collection en reference counting
+        if is_heap(value.ty):
+            emit("rt_incref({value.name});")
+
+    fn dec_ref(value?: Value):
+        return # TODO: decide between garbage collection en reference counting
+        if is_heap(value.ty):
+            emit("rt_decref({value.name});")
 
     fn push(value?: Value):
         stack.append(value)
@@ -681,7 +750,12 @@ class CGenerator:
     fn new_local_var() -> str:
         let id = next_id
         next_id += 1
-        return "VAR{id}"
+        return "V{id}"
+
+    fn new_named_local_var(name: str) -> str:
+        let id = next_id
+        next_id += 1
+        return "V{id}_{name}"
 
     fn indent():
         out.indent()

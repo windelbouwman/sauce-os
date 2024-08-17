@@ -154,6 +154,7 @@ class Parser:
         parse_colon()
         parse_newline()
         parse_indent()
+        let docstring = parse_optional_docstring()
 
         let variants: List[ast.EnumVariant] = List()
         let tag_index = 0
@@ -217,6 +218,7 @@ class Parser:
         parse_colon()
         parse_newline()
         parse_indent()
+        let docstring = parse_optional_docstring()
 
         let fields: List[ast.StructField] = List()
         while not try_parse_dedent():
@@ -230,10 +232,12 @@ class Parser:
 
     fn parse_class_def() -> ast.ClassDef except CompilationError:
         let name_at = parse_name()
+        log_debug("Parsing class: {name_at.name}")
         let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
         parse_colon()
         parse_newline()
         parse_indent()
+        let docstring = parse_optional_docstring()
 
         let inner_defs: List[ast.Definition] = List()
         # TODO: create type instance per 'this' parameter
@@ -279,7 +283,17 @@ class Parser:
         let info = parse_function_info()
 
         # Body
-        let body = parse_block()
+        parse_colon()
+        parse_newline()
+        parse_indent()
+        let docstring = parse_optional_docstring()
+
+        let inner: List[ast.Statement] = List()
+        while not try_parse_dedent():
+            let statement = parse_statement()
+            inner.append(statement)
+        let location = inner.first().location
+        let body = ast.compound(inner, location)
 
         let function_def = ast.function_def(name: name_at.name, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
         function_def.info.no_return = info.no_return
@@ -352,6 +366,22 @@ class Parser:
         let ty = parse_type()
         return ast.parameter_def(name: name_at.name, id: new_id(), label_is_optional, ty, location: name_at.location)
     
+    fn parse_optional_docstring() -> Option[str]:
+        let tok = get_token()
+        case tok.kind:
+            String(value):
+                let tok2 = get_token()
+                case tok2.kind:
+                    NewLine:
+                        return Option.Some(value)
+                else:
+                    unget_token(tok2)
+                    unget_token(tok)
+                    return Option.None()
+        else:
+            unget_token(tok)
+            return Option.None()
+
     fn has_parsed_question() -> bool:
         let q = false
         let tok = get_token()

@@ -46,21 +46,16 @@ class PyCodeGenerator:
         if isinstance(definition, ast.FunctionDef):
             self.gen_func(definition)
         elif isinstance(definition, ast.StructDef):
+            assert not definition.is_union
             self.emit(f"class {self.gen_id(definition.id)}:")
             self.indent()
-            if definition.is_union:
-                self.emit(f"def __init__(self, field, value):")
-                self.indent()
-                self.emit(f"setattr(self, field, value)")
-                self.dedent()
-            else:
-                field_names = [f"f_{field.id.name}" for field in definition.fields]
-                args = ", ".join(field_names)
-                self.emit(f"def __init__(self, {args}):")
-                self.indent()
-                for field_name in field_names:
-                    self.emit(f"self.{field_name} = {field_name}")
-                self.dedent()
+            field_names = [f"f_{field.id.name}" for field in definition.fields]
+            args = ", ".join(field_names)
+            self.emit(f"def __init__(self, {args}):")
+            self.indent()
+            for field_name in field_names:
+                self.emit(f"self.{field_name} = {field_name}")
+            self.dedent()
             self.dedent()
         elif isinstance(definition, ast.BuiltinFunction):
             self.emit(f"from slangrt import {modname}_{definition.id.name}")
@@ -186,10 +181,6 @@ class PyCodeGenerator:
             name = self.gen_id(kind.ty.kind.tycon.id)
             values = self.gen_expressions(kind.values)
             return f"{name}({values})"
-        elif isinstance(kind, ast.UnionLiteral):
-            name: str = self.gen_id(kind.ty.kind.tycon.id)
-            value = self.gen_expression(kind.value)
-            return f"{name}('f_{kind.field}', {value})"
         elif isinstance(kind, ast.Binop):
             lhs = self.gen_expression(kind.lhs)
             rhs = self.gen_expression(kind.rhs)
@@ -216,6 +207,10 @@ class PyCodeGenerator:
                 raise NotImplementedError(str(obj))
         elif isinstance(kind, ast.TypeCast):
             # TODO!
+            return self.gen_expression(kind.value)
+        elif isinstance(kind, ast.Box):
+            return self.gen_expression(kind.value)
+        elif isinstance(kind, ast.Unbox):
             return self.gen_expression(kind.value)
         elif isinstance(kind, ast.FunctionCall):
             callee = self.gen_expression(kind.target)

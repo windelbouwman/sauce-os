@@ -297,13 +297,6 @@ fn is_type_parameter_type(ty?: Type) -> bool:
     else:
         return false
 
-fn is_null_type(ty?: Type) -> bool:
-    case ty.kind:
-        Null:
-            return true
-    else:
-        return false
-
 fn is_type_var_type(ty?: Type) -> bool:
     case ty.kind:
         TypeVar(v):
@@ -445,6 +438,17 @@ fn is_struct_type(ty?: Type) -> bool:
     else:
         return false
 
+fn is_union_struct_type(ty?: Type) -> bool:
+    case ty.kind:
+        App(tycon, type_arguments):
+            case tycon:
+                Struct(struct_def):
+                    return struct_def.is_union
+            else:
+                return false
+    else:
+        return false
+
 fn get_struct_def_from_type(ty?: Type) -> StructDef:
     case ty.kind:
         App(tycon, type_arguments):
@@ -552,7 +556,6 @@ enum TypeKind:
     SomeInteger(bits: int)  # Integer type, requiring at least n bits
     Opaque
     Void
-    Null
     TypeExpression(expression: Expression)
     Function(parameter_types: List[ParameterType], info: FunctionInfo)
     TypeParam(type_parameter: TypeParameter)
@@ -573,8 +576,6 @@ fn type_kind_to_string(kind: TypeKind) -> str:
             txt = "OPAQUE"
         Void:
             txt = "VOID"
-        Null:
-            txt = "NULL"
         TypeExpression(expr):
             txt = "TYPE-EXPR"
         Array(element_type, size):
@@ -786,9 +787,6 @@ fn opaque_type() -> Type:
 fn undefined_type() -> Type:
     return new_type(kind: TypeKind.Undefined())
 
-fn null_type() -> Type:
-    return new_type(kind: TypeKind.Null())
-
 fn array_type(element_type: Type, size: int) -> Type:
     return new_type(kind: TypeKind.Array(element_type, size))
 
@@ -894,6 +892,9 @@ class Scope:
         log_info("Scope:")
         for name in symbols:
             log_info(" - {name}")
+
+    fn get_symbols() -> List[Symbol]:
+        return symbols.values()
 
 enum Symbol:
     Mod(module: Module)
@@ -1397,6 +1398,8 @@ enum ExpressionKind:
     ArrayLiteral(values: List[Expression])
     ArrayLiteral2(value: Expression, size: Expression)
     TypeCast(typ: Type, value: Expression)
+    Box(value: Expression)
+    Unbox(value: Expression, to_type: Type)
     ToString(value: Expression)
     Typ(ty: Type)
     TypeConstructor(tycon: TyCon)
@@ -1441,6 +1444,14 @@ fn get_attr(base: Expression, field: str, ty: Type, location: Location) -> Expre
 fn get_attr_typed(value: Expression, attr: str, location: Location) -> Expression:
     let attr_ty = option_unwrap(get_field_type(ty: value.ty, attr))
     return get_attr(base: value, field: attr, ty: attr_ty, location)
+
+fn box(value: Expression, location: Location) -> Expression:
+    let kind = ExpressionKind.Box(value)
+    return Expression(kind, ty: undefined_type(), location)
+
+fn unbox(value: Expression, to_type: Type, location: Location) -> Expression:
+    let kind = ExpressionKind.Unbox(value, to_type)
+    return Expression(kind, ty: undefined_type(), location)
 
 fn call_method(base: Expression, method: str, arguments: List[LabeledExpression], location: Location) -> Expression:
     let callee = get_attr_typed(value: base, attr: method, location)
@@ -1561,7 +1572,7 @@ fn undefined_value() -> Expression:
     return Expression(kind: ExpressionKind.Undefined(), ty: undefined_type(), location)
 
 fn null_value(location: Location) -> Expression:
-    return Expression(kind: ExpressionKind.Null(), ty: null_type(), location)
+    return Expression(kind: ExpressionKind.Null(), ty: opaque_type(), location)
 
 fn print_ast2(module_set: ModuleSet):
     for module in module_set.modules:
@@ -1756,6 +1767,10 @@ fn expression_to_string(expression?: Expression) -> str:
             txt = "ARRAY-LITERAL2"
         TypeCast(ty, value):
             txt = "TYPE-CAST"
+        Box(value):
+            txt = "BOX"
+        Unbox(value, to_type):
+            txt = "UNBOX"
         ToString(value):
             txt = "TOSTRING"
         Typ(ty):
@@ -2045,14 +2060,15 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         TypeCast(ty, value):
             visit_type(visitor, ty)
             visit_expression(visitor, expression: value)
+        Box(value):
+            visit_expression(visitor, expression: value)
+        Unbox(value, to_type):
+            visit_type(visitor, ty: to_type)
+            visit_expression(visitor, expression: value)
         ToString(value):
             visit_expression(visitor, expression: value)
         Typ(ty):
             visit_type(visitor, ty)
-        TypeConstructor(tycon):
-            pass
-        Variant(ty, v):
-            pass
         EnumLiteral(ty, v, values):
             for value in values:
                 visit_expression(visitor, expression: value)

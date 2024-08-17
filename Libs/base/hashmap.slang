@@ -120,6 +120,17 @@ class HashMap[T]:
             i += 1
         # print("Created {n_buckets} buckets")
 
+    fn values() -> List[T]:
+        let res: List[T] = List()
+
+        let i = 0
+        while i < n_buckets:
+            for v in buckets[i].items:
+                res.append(v.value)
+            i += 1
+
+        return res
+
     fn iter() -> HashMapIter[T]:
         let it: HashMapIter[T] = HashMapIter(m: this)
         return it

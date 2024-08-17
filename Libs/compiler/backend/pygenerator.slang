@@ -69,23 +69,19 @@ class PyGenerator:
                         emit("from {libname} import {function_def.name}")
 
             Struct(struct_def):
+                if struct_def.is_union:
+                    panic("Unions not supported")
                 emit("class {get_id(id: struct_def.id)}:")
                 indent()
-                if struct_def.is_union:
-                    emit("def __init__(self, field, value):")
-                    indent()
-                    emit("setattr(self, field, value)")
-                    dedent()
-                else:
-                    let parameter_names: List[str] = List()
-                    for field in struct_def.fields:
-                        parameter_names.append(field.name)
-                    let params = str_join(parts: parameter_names, sep: ", ")
-                    emit("def __init__(self, {params}):")
-                    indent()
-                    for field in struct_def.fields:
-                        emit("self.{field.name} = {field.name}")
-                    dedent()
+                let parameter_names: List[str] = List()
+                for field in struct_def.fields:
+                    parameter_names.append(field.name)
+                let params = str_join(parts: parameter_names, sep: ", ")
+                emit("def __init__(self, {params}):")
+                indent()
+                for field in struct_def.fields:
+                    emit("self.{field.name} = {field.name}")
+                dedent()
                 dedent()
                 emit("")
                 emit("")
@@ -193,11 +189,6 @@ class PyGenerator:
                 let name = get_id(id: struct_def.id)
                 let args = gen_expression_list(expressions: values)
                 txt = "{name}({args})"
-            UnionLiteral(ty, field, value):
-                let struct_def = ast.get_struct_def_from_type(ty)
-                let name = get_id(id: struct_def.id)
-                let value_txt = gen_expression(value, parens: true)
-                txt = "{name}('{field}', {value_txt})"
             ArrayLiteral(values):
                 let args = gen_expression_list(expressions: values)
                 txt = "[{args}]"
@@ -218,6 +209,10 @@ class PyGenerator:
                     txt = "float({txt})"
                 elif ast.is_int_type(ty):
                     txt = "int({txt})"
+            Box(value):
+                txt = gen_expression(value, parens: true)
+            Unbox(value, to_type):
+                txt = gen_expression(value, parens: true)
             ParameterRef(parameter_def):
                 txt = get_id(id: parameter_def.id)
             VarRef(variable):

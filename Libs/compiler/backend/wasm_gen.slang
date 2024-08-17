@@ -300,22 +300,6 @@ class WasmGenerator:
                     index += 1
                 emit(Instruction.local_get(ptr_index))
 
-            UnionLiteral(ty, field, value):
-                let size = sizeof(ty)
-                let node_id = ast.NodeId(name: "$ptr$", id: 0)
-                let ptr_index = create_local(id: node_id, ty: ast.opaque_type())
-                gen_malloc_call(size)
-                emit(Instruction.local_set(ptr_index))
-
-                let index = ast.get_struct_field_index(ty, attr: field)
-                let offset = offsetof(ty, index)
-
-                emit(Instruction.local_get(ptr_index))
-                gen_expression(value)
-                gen_store(offset, ty: value.ty)
-
-                emit(Instruction.local_get(ptr_index))
-
             Binop(binop):
                 gen_binop(binop)
 

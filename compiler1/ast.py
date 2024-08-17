@@ -58,7 +58,7 @@ class Scope:
     def lookup(self, name: str) -> "Definition":
         if name in self.symbols:
             return self.symbols[name]
-        raise ValueError(f"Name {name} not found")
+        raise ValueError(f"Name '{name}' not found")
 
     def define(self, name: str, symbol: "Definition"):
         self.symbols[name] = symbol
@@ -161,19 +161,19 @@ class MyType:
             elif isinstance(self.kind.tycon, ClassDef):
                 return self.kind.tycon.get_field(i).id.name
 
-        raise ValueError("Can only get field from struct/union")
+        raise ValueError("Can only get field from struct")
 
     def get_field_index(self, name: str) -> int:
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, StructDef):
             return self.kind.tycon.get_field(name).index
         else:
-            raise ValueError("Can only get field from struct/union")
+            raise ValueError("Can only get field from struct")
 
     def get_field_names(self) -> list[str]:
         """Retrieve names of all fields"""
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, StructDef):
             return self.kind.tycon.get_field_names()
-        raise ValueError("Can only get field names from struct/union")
+        raise ValueError("Can only get field names from struct")
 
     def get_field_type(self, i: int | str) -> "MyType":
         """Retrieve type of field. i can be index or name"""
@@ -187,14 +187,14 @@ class MyType:
             else:
                 raise NotImplementedError()
         else:
-            raise ValueError("Can only get field from struct/union/class")
+            raise ValueError("Can only get field from struct/class")
 
     def get_field_types(self) -> list["MyType"]:
         """Retrieve types of all fields"""
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, StructDef):
             return [subst(f.ty, self.kind.m) for f in self.kind.tycon.fields]
         else:
-            raise ValueError("Can only get field names from struct/union")
+            raise ValueError("Can only get field names from struct")
 
     def has_variant(self, name: str) -> bool:
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, EnumDef):
@@ -240,9 +240,9 @@ def subst(t: MyType, m: dict["TypeParameter", MyType]) -> MyType:
         else:
             return t
     elif isinstance(t.kind, App):
-        return tycon_apply(t.kind.tycon, [subst(u, m) for u in t.kind.type_args])
+        return tycon_apply(t.kind.tycon, subst_many(t.kind.type_args, m))
     elif isinstance(t.kind, FunctionType):
-        new_args = [subst(a, m) for a in t.kind.parameter_types]
+        new_args = subst_many(t.kind.parameter_types, m)
         parameter_names = t.kind.parameter_names
         return_type = subst(t.kind.return_type, m)
         except_type = subst(t.kind.except_type, m)
@@ -253,6 +253,10 @@ def subst(t: MyType, m: dict["TypeParameter", MyType]) -> MyType:
         return array_type(size, element_type)
     else:
         return t
+
+
+def subst_many(typs, m):
+    return [subst(u, m) for u in typs]
 
 
 class TypeConstructor(ScopedDefinition):
@@ -472,12 +476,13 @@ class TypeParameterKind(TypeKind):
         self.type_parameter = type_parameter
 
     def __repr__(self):
-        return f"tpt-{self.type_parameter.id}"
+        return f"TypeParameter({self.type_parameter.id})"
 
 
 str_type = base_type("str")
 char_type = base_type("char")
 int_type = base_type("int")
+ptr_type = int_type
 float_type = base_type("float")
 bool_type = base_type("bool")
 void_type = MyType(VoidType())
@@ -815,10 +820,10 @@ class StructFieldDef(Definition):
 class StructBuilder:
     """Builder for structs."""
 
-    def __init__(self, id: Id, is_union: bool, location: Location):
+    def __init__(self, id: Id, location: Location):
         self.id = id
         self.type_parameters = []
-        self.is_union = is_union
+        self.is_union = False
         self.fields = []
         self.location = location
 
@@ -1609,6 +1614,29 @@ class Undefined:
         self.ty = void_type
 
 
+class Box(ExpressionKind):
+    """Create a box the given value."""
+
+    def __init__(self, value: Expression):
+        super().__init__()
+        assert isinstance(value, Expression)
+        self.value = value
+
+    def __repr__(self):
+        return "Box"
+
+
+class Unbox(ExpressionKind):
+    def __init__(self, value: Expression, to_type: MyType):
+        super().__init__()
+        assert isinstance(value, Expression)
+        self.value = value
+        self.to_type = to_type
+
+    def __repr__(self):
+        return "Unbox"
+
+
 class AstVisitor:
     def visit_module(self, module: Module):
         for definition in module.definitions:
@@ -1764,6 +1792,11 @@ class AstVisitor:
             self.visit_expression(kind.value)
         elif isinstance(kind, ToString):
             self.visit_expression(kind.expr)
+        elif isinstance(kind, Box):
+            self.visit_expression(kind.value)
+        elif isinstance(kind, Unbox):
+            self.visit_type(kind.to_type)
+            self.visit_expression(kind.value)
 
 
 def print_ast(module: Module):
