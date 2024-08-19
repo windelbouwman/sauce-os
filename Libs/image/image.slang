@@ -18,6 +18,9 @@ class Image:
         let index = y * width + x
         let pixel = pixels[index]
         return pixel
+    
+    fn add_pixel(red: int, green: int, blue: int, alpha: int):
+        pixels.append(Pixel(red, green, blue, alpha))
 
 
 struct Pixel:

@@ -153,12 +153,15 @@ class TypeChecker:
                         for_statement.iter_var.ty = ast.get_element_type_from_type(for_statement.iter_value.ty)
                     else:
                         add_error(location: for_statement.iter_value.location, message: "Array size unknown")
-                elif ast.has_field(ty: for_statement.iter_value.ty, attr: "iter"):
+                elif ast.is_iterable_like_type(for_statement.iter_value.ty):
                     # TODO: we have a few assumptions here, which panic. Should be proper warning:
-                    let iter_ty: ast.Type = ast.get_return_type_from_type(option_unwrap(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "iter")))
-                    let opt_ty: ast.Type = ast.get_return_type_from_type(option_unwrap(ast.get_field_type(ty: iter_ty, attr: "next")))
+                    let iter_ty: ast.Type = ast.get_return_type_from_type(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "iter"))
+                    let opt_ty: ast.Type = ast.get_return_type_from_type(ast.get_field_type(ty: iter_ty, attr: "next"))
                     let opt_variant = option_unwrap(ast.get_enum_variant_from_type(ty: opt_ty, attr: "Some"))
                     let val_ty: ast.Type = ast.get_variant_payload_types(ty: opt_ty, variant: opt_variant).first()
+                    for_statement.iter_var.ty = val_ty
+                elif ast.is_sequence_like_type(for_statement.iter_value.ty):
+                    let val_ty: ast.Type = ast.get_return_type_from_type(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "get"))
                     for_statement.iter_var.ty = val_ty
                 else:
                     add_error(location: for_statement.iter_value.location, message: "Value cannot be iterated: {ast.type_to_string(for_statement.iter_value.ty)}")
@@ -218,7 +221,10 @@ class TypeChecker:
                 let func = option_unwrap(current_function)
                 case value:
                     Some(value):
-                        coerce(ty: func.info.return_type, value)
+                        if ast.is_void_type(func.info.return_type):
+                            add_error(location: value.location, message: "Unexpected return value")
+                        else:
+                            coerce(ty: func.info.return_type, value)
                     None:
                         if not ast.is_void_type(func.info.return_type):
                             add_error(location: statement.location, message: "Expected a value")
@@ -349,7 +355,7 @@ class TypeChecker:
             Null:
                 pass
             GetAttr(base, attr):
-                case ast.get_field_type(ty: base.ty, attr):
+                case ast.maybe_get_field_type(ty: base.ty, attr):
                     Some(ty):
                         expression.ty = ty
                     None:
@@ -361,7 +367,7 @@ class TypeChecker:
                 elif ast.has_field(ty: base.ty, attr: "get"):
                     # Maybe we try to access an object with get/set interface
                     # TODO: we have a few assumptions here, which panic. Should be proper warning:
-                    let val_ty: ast.Type = ast.get_return_type_from_type(option_unwrap(ast.get_field_type(ty: base.ty, attr: "get")))
+                    let val_ty: ast.Type = ast.get_return_type_from_type(ast.get_field_type(ty: base.ty, attr: "get"))
                     expression.ty = val_ty
                 else:
                     add_error(location: expression.location, message: "Got {ast.type_to_string(base.ty)}, expected array or indexable type")
@@ -383,7 +389,7 @@ class TypeChecker:
                 check_arguments(location: expression.location, parameter_types: field_types, arguments: values)
                 expression.ty = ty
             UnionLiteral(ty, field, value):
-                let wanted_value_type = option_unwrap(ast.get_field_type(ty, attr: field))
+                let wanted_value_type = ast.get_field_type(ty, attr: field)
                 coerce(ty: wanted_value_type, value)
                 expression.ty = ty
             Box(value):

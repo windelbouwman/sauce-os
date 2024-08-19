@@ -13,7 +13,7 @@ from location import Location
 from utils import panic, log_info, log_debug, assert
 from basepass import IdGen
 from typechecking import type_check_modules
-from datatypes import List, vec1, vec2, vec3, Option, option_unwrap_or, option_unwrap
+from datatypes import List, vec1, vec2, vec3, vec4, Option, option_unwrap_or, option_unwrap
 from dicttype import Dictionary
 from errors import CompilationError
 import ast
@@ -432,7 +432,7 @@ fn transformer_on_expression7(transformer: Transformer, expression: ast.Expressi
 
                 UnionLiteral(ty, attr, value):
                     # Perform type erasure on union literal value
-                    let ft = option_unwrap(ast.get_field_type(ty, attr))
+                    let ft = ast.get_field_type(ty, attr)
                     transformer.class_rewriter.erase_type(ft, value, assign: false)
 
                 GetAttr(base, attr):
@@ -496,7 +496,7 @@ fn transformer_on_expression9(transformer: Transformer, expression: ast.Expressi
                 GetAttr(base, name):
                     if ast.is_union_struct_type(base.ty):
                         # Unbox value
-                        let to_type = option_unwrap(ast.get_field_type(ty: base.ty, attr: name))
+                        let to_type = ast.get_field_type(ty: base.ty, attr: name)
                         let unboxed_value = ast.unbox(value: base, to_type, location: expression.location)
                         ast.change_expression_to(expression, to: unboxed_value)
             else:
@@ -648,13 +648,17 @@ class ClassRewriter:
             panic("{name} must be external function")
 
     fn transform_for_loop(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
+        """ Turn for loop into iterator and while loop """
         log_debug("Rewrite for loop")
-        # Turn for loop into iterator and while loop
 
         if ast.is_array_type(for_statement.iter_value.ty):
             return transform_for_loop_over_array(for_statement, location)
-        else:
+        elif ast.is_iterable_like_type(for_statement.iter_value.ty):
             return transform_for_loop_over_iterator(for_statement, location)
+        elif ast.is_sequence_like_type(for_statement.iter_value.ty):
+            return transform_for_loop_over_sequence(for_statement, location)
+        else:
+            panic("Cannot for-loop over {ast.type_to_string(for_statement.iter_value.ty)}")
 
     fn transform_for_loop_over_iterator(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
         # Implement loop over 'iter' method:
@@ -689,6 +693,51 @@ class ClassRewriter:
 
         return ast.compound(inner: vec2(let_it_var, loop_statement), location)
 
+    fn transform_for_loop_over_sequence(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
+        let sequence_type = for_statement.iter_value.ty
+
+        # let x = iter_value
+        let x_var = new_variable(name: "x", ty: sequence_type, location)
+        let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: for_statement.iter_value, location)
+
+        # let index = 0
+        let index_var = new_variable(name: "index", ty: ast.int_type(), location)
+        let zero = ast.integer_literal(value: 0, location)
+        let let_index = ast.let_statement(variable: index_var, type_hint: Option.None(), value: zero, location)
+
+        # let size = x.len()
+        let size_var = new_variable(name: "size", ty: ast.int_type(), location)
+        let x_ref1 = ast.var_ref(variable: x_var, location)
+        let method_arguments_for_len: List[ast.LabeledExpression] = List()
+        let call_len_method = ast.call_method(base: x_ref1, method: "len", arguments: method_arguments_for_len, location)
+        let let_size = ast.let_statement(variable: size_var, type_hint: Option.None(), value: call_len_method, location)
+
+        # index < size
+        let index_ref1 = ast.var_ref(variable: index_var, location)
+        let size_ref1 = ast.var_ref(variable: size_var, location)
+        let condition = ast.binop(lhs: index_ref1, op: ast.BinaryOperator.Less(), rhs: size_ref1, ty: ast.bool_type(), location)
+
+        # v = x.get(index)
+        let x_ref2 = ast.var_ref(variable: x_var, location)
+        let index_ref2 = ast.var_ref(variable: index_var, location)
+        let method_arguments_for_get: List[ast.LabeledExpression] = List()
+        method_arguments_for_get.append(ast.LabeledExpression(name: Option.Some("index"), value: index_ref2, location))
+        let call_get_method = ast.call_method(base: x_ref2, method: "get", arguments: method_arguments_for_get, location)
+        let let_v = ast.let_statement(variable: for_statement.iter_var, type_hint: Option.None(), value: call_get_method, location)
+
+        # index = index + 1
+        let index_ref3 = ast.var_ref(variable: index_var, location)
+        let index_ref4 = ast.var_ref(variable: index_var, location)
+        let one = ast.integer_literal(value: 1, location)
+        let index_plus_1 = ast.binop(lhs: index_ref4, op: ast.BinaryOperator.Add(), rhs: one, ty: ast.int_type(), location)
+        let inc_index = ast.assignment_statement(target: index_ref3, op: Option.None(), value: index_plus_1, location)
+
+        # While loop:
+        let loop_body1 = ast.compound(inner: vec3(let_v, inc_index, for_statement.block.body), location)
+        let while_loop = ast.while_statement(condition, body: loop_body1, location)
+
+        return ast.compound(inner: vec4(let_x, let_index, let_size, while_loop), location)
+
     fn transform_for_loop_over_array(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
         # Turn for loop into index / while loop
         let array_type = for_statement.iter_value.ty
@@ -721,7 +770,7 @@ class ClassRewriter:
         let inc_index = ast.assignment_statement(target: index_ref3, op: Option.None(), value: index_plus_1, location)
 
         # While loop:
-        let loop_body1 = ast.compound(inner: vec3(let_v, for_statement.block.body, inc_index), location)
+        let loop_body1 = ast.compound(inner: vec3(let_v, inc_index, for_statement.block.body), location)
         let while_loop = ast.while_statement(condition, body: loop_body1, location)
 
         return ast.compound(inner: vec3(let_x, let_index, while_loop), location)
@@ -901,7 +950,7 @@ class ClassRewriter:
             Struct(struct_def):
                 let type_arguments = ast.get_type_arguments_from_type(enum_ty)
                 let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
-                let union_type = option_unwrap(ast.get_field_type(ty: struct_type, attr: "data"))
+                let union_type = ast.get_field_type(ty: struct_type, attr: "data")
 
                 let union_field_name = "data_{variant.name}"
                 let union_value = ast.undefined_value()
@@ -911,7 +960,7 @@ class ClassRewriter:
                 elif values.len() == 1:
                     union_value = values.first()
                 elif values.len() > 1:
-                    let struct_type2 = option_unwrap(ast.get_field_type(ty: union_type, attr: union_field_name))
+                    let struct_type2 = ast.get_field_type(ty: union_type, attr: union_field_name)
                     union_value = ast.struct_literal(ty: struct_type2, values, location)
                 let data = ast.union_literal(ty: union_type, field: union_field_name, value: union_value, location)
                 return ast.struct_literal(ty: struct_type, values: vec2(tag, data), location)

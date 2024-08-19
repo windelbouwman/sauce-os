@@ -57,118 +57,167 @@ class LoopRewriter(BaseTransformer):
             statement.kind = ast.WhileStatement(yes_value, kind.block)
         elif isinstance(kind, ast.ForStatement):
             if kind.values.ty.is_array():
-                # Turn for loop into while loop.
-                #
-                # Turn this:
-                # for v in arr:
-                #   ...
-                #
-                # Into this:
-                # i = 0
-                # x = arr
-                # while i < len(arr):
-                #   v = x[i]
-                #   ...
-                #   i = i + 1
-
-                # x = arr
-                x_var = self.new_variable("x", kind.values.ty, statement.location)
-
-                let_x = ast.let_statement(x_var, None, kind.values, statement.location)
-
-                # i = 0
-                i_var = self.new_variable("i", ast.int_type, statement.location)
-                zero = ast.numeric_constant(0, statement.location)
-                let_i0 = ast.let_statement(i_var, None, zero, statement.location)
-
-                # i < len(arr)
-                array_size = ast.numeric_constant(
-                    kind.values.ty.kind.size, statement.location
+                statement.kind = self.rewrite_loop_over_array(kind, statement.location)
+            elif kind.values.ty.is_iterable_like():
+                statement.kind = self.rewrite_loop_over_iterator(
+                    kind, statement.location
                 )
-                loop_condition = i_var.ref_expr(statement.location).binop(
-                    "<", array_size
+            elif kind.values.ty.is_sequence_like():
+                statement.kind = self.rewrite_loop_over_sequence(
+                    kind, statement.location
                 )
+            else:
+                raise RuntimeError(f"Invalid for loop type: {kind.values.ty}")
 
-                # v = x[i]
-                v_var: ast.Variable = kind.variable
-                let_v = ast.let_statement(
-                    v_var,
-                    None,
-                    x_var.ref_expr(statement.location).array_index(
-                        i_var.ref_expr(statement.location)
-                    ),
-                    statement.location,
-                )
+    def rewrite_loop_over_array(
+        self, kind: ast.ForStatement, location: Location
+    ) -> ast.CompoundStatement:
+        """
+        Turn for loop into while loop.
 
-                # i++
-                one = ast.numeric_constant(1, statement.location)
-                inc_i = ast.assignment_statement(
-                    i_var.ref_expr(statement.location),
-                    "+=",
-                    one,
-                    statement.location,
-                )
+        Turn this:
+        # for v in arr:
+        #   ...
+        #
+        Into this:
+        # i = 0
+        # x = arr
+        # while i < len(arr):
+        #   v = x[i]
+        #   ...
+        #   i = i + 1
+        """
 
-                loop_body = ast.compound_statement(
-                    [let_v, kind.block.body, inc_i], kind.block.body.location
-                )
-                loop_block = ast.ScopedBlock(loop_body)
-                while_loop = ast.while_statement(
-                    loop_condition, loop_block, statement.location
-                )
-                statements = [let_x, let_i0, while_loop]
-                statement.kind = ast.CompoundStatement(statements)
-            elif kind.values.ty.has_field("iter"):
-                # Try to rewrite using iterator.
+        # x = arr
+        x_var = self.new_variable("x", kind.values.ty, location)
+        let_x = ast.let_statement(x_var, None, kind.values, location)
 
-                # Turn this:
-                # for e in x:
-                #     print("Item[{n}]= {e.value}")
-                #     n = n + 1
+        # i = 0
+        i_var = self.new_variable("i", ast.int_type, location)
+        zero = ast.numeric_constant(0, location)
+        let_i0 = ast.let_statement(i_var, None, zero, location)
 
-                # Into this:
-                # let it = x.iter()
-                # loop:
-                #     let opt = it.next()
-                #     case opt:
-                #         None:
-                #             break
-                #         Some(element):
-                #             print("Item[{n}]=" + std::int_to_str(element.value))
+        # i < len(arr)
+        array_size = ast.numeric_constant(kind.values.ty.kind.size, location)
+        loop_condition = i_var.ref_expr(location).binop("<", array_size)
 
-                iter_ty: ast.MyType = kind.values.ty.get_field_type(
-                    "iter"
-                ).kind.return_type
-                opt_ty: ast.MyType = iter_ty.get_field_type("next").kind.return_type
-                location = statement.location
+        # v = x[i]
+        v_var: ast.Variable = kind.variable
+        let_v = ast.let_statement(
+            v_var,
+            None,
+            x_var.ref_expr(location).array_index(i_var.ref_expr(location)),
+            location,
+        )
 
-                it_var = self.new_variable("it", iter_ty, location)
-                opt_var = self.new_variable("opt", opt_ty, location)
-                let_it_var = ast.let_statement(
-                    it_var, None, kind.values.call_method("iter", []), location
-                )
-                let_opt_var = ast.let_statement(
-                    opt_var,
-                    None,
-                    it_var.ref_expr(location).call_method("next", []),
-                    location,
-                )
-                beak_block = break_block = ast.ScopedBlock(
-                    ast.break_statement(location)
-                )
-                none_arm = ast.CaseArm("None", [], break_block, location)
-                some_arm = ast.CaseArm("Some", [kind.variable], kind.block, location)
-                arms = [none_arm, some_arm]
-                case_statement = ast.case_statement(
-                    opt_var.ref_expr(location), arms, None, location
-                )
-                yes_value = ast.bool_constant(True, location)
-                loop_body = ast.compound_statement(
-                    [let_opt_var, case_statement], location
-                )
-                loop_block = ast.ScopedBlock(loop_body)
-                loop_statement = ast.while_statement(yes_value, loop_block, location)
-                statement.kind = ast.CompoundStatement([let_it_var, loop_statement])
+        # i += 1
+        one = ast.numeric_constant(1, location)
+        inc_i = ast.assignment_statement(
+            i_var.ref_expr(location),
+            "+=",
+            one,
+            location,
+        )
+
+        loop_body = ast.compound_statement(
+            [let_v, inc_i, kind.block.body], kind.block.body.location
+        )
+        loop_block = ast.ScopedBlock(loop_body)
+        while_loop = ast.while_statement(loop_condition, loop_block, location)
+        statements = [let_x, let_i0, while_loop]
+        return ast.CompoundStatement(statements)
+
+    def rewrite_loop_over_iterator(
+        self, kind: ast.ForStatement, location: Location
+    ) -> ast.CompoundStatement:
+        # Try to rewrite using iterator.
+
+        # Turn this:
+        # for e in x:
+        #     print("Item[{n}]= {e.value}")
+        #     n = n + 1
+
+        # Into this:
+        # let it = x.iter()
+        # loop:
+        #     let opt = it.next()
+        #     case opt:
+        #         None:
+        #             break
+        #         Some(element):
+        #             print("Item[{n}]=" + std::int_to_str(element.value))
+
+        iter_ty: ast.MyType = kind.values.ty.get_field_type("iter").kind.return_type
+        opt_ty: ast.MyType = iter_ty.get_field_type("next").kind.return_type
+
+        it_var = self.new_variable("it", iter_ty, location)
+        opt_var = self.new_variable("opt", opt_ty, location)
+        let_it_var = ast.let_statement(
+            it_var, None, kind.values.call_method("iter", []), location
+        )
+        let_opt_var = ast.let_statement(
+            opt_var,
+            None,
+            it_var.ref_expr(location).call_method("next", []),
+            location,
+        )
+        beak_block = break_block = ast.ScopedBlock(ast.break_statement(location))
+        none_arm = ast.CaseArm("None", [], break_block, location)
+        some_arm = ast.CaseArm("Some", [kind.variable], kind.block, location)
+        arms = [none_arm, some_arm]
+        case_statement = ast.case_statement(
+            opt_var.ref_expr(location), arms, None, location
+        )
+        yes_value = ast.bool_constant(True, location)
+        loop_body = ast.compound_statement([let_opt_var, case_statement], location)
+        loop_block = ast.ScopedBlock(loop_body)
+        loop_statement = ast.while_statement(yes_value, loop_block, location)
+        return ast.CompoundStatement([let_it_var, loop_statement])
+
+    def rewrite_loop_over_sequence(
+        self, kind: ast.ForStatement, location: Location
+    ) -> ast.CompoundStatement:
+        # x = arr
+        x_var = self.new_variable("x", kind.values.ty, location)
+        let_x = ast.let_statement(x_var, None, kind.values, location)
+
+        # index = 0
+        index_var = self.new_variable("index", ast.int_type, location)
+        zero = ast.numeric_constant(0, location)
+        let_index = ast.let_statement(index_var, None, zero, location)
+
+        # size = x.len()
+        size_var = self.new_variable("size", ast.int_type, location)
+        x_len = x_var.ref_expr(location).call_method('len', [])
+        let_size = ast.let_statement(size_var, None, zero, location)
+
+        # index < size
+        loop_condition = index_var.ref_expr(location).binop("<", size_var.ref_expr(location))
+
+        # v = x.get(index)
+        let_v = ast.let_statement(
+            kind.variable,
+            None,
+            x_var.ref_expr(location).call_method('get', [ast.LabeledExpression("index", index_var.ref_expr(location), location)]),
+            location,
+        )
+
+        # index += 1
+        one = ast.numeric_constant(1, location)
+        inc_index = ast.assignment_statement(
+            index_var.ref_expr(location),
+            "+=",
+            one,
+            location,
+        )
+
+        loop_body = ast.compound_statement(
+            [let_v, inc_index, kind.block.body], kind.block.body.location
+        )
+        loop_block = ast.ScopedBlock(loop_body)
+        while_loop = ast.while_statement(loop_condition, loop_block, location)
+
+        return ast.CompoundStatement([let_x, let_index, let_size, while_loop])
 
     def visit_expression(self, expression: ast.Expression):
         """Rewrite To-String operator"""

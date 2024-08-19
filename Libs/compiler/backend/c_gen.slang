@@ -4,7 +4,7 @@
 
 from std import float_to_str, chr
 from rt import int_to_str
-from utils import panic, log_info
+from utils import panic, log_info, log_trace
 from datatypes import List, Option, option_is_some, option_unwrap
 from vectype import Vector
 from settype import Set
@@ -172,9 +172,9 @@ class CGenerator:
         let decl = "{return_type} {extern_function.name}({param_txt})"
         if extern_function.no_return:
             emit("#if defined __GNUC__")
-            emit("{decl} __attribute__((noreturn));")
+            emit("extern {decl} __attribute__((noreturn));")
             emit("#elif defined _MSC_VER")
-            emit("__declspec(noreturn) {decl};")
+            emit("__declspec(noreturn) extern {decl};")
             emit("#else")
             emit("#error unsupported compiler")
             emit("#endif")
@@ -225,6 +225,7 @@ class CGenerator:
         return "{return_type} {function.name}({param_txt})"
 
     fn gen_function(function: bc.Function):
+        log_trace("Generating bytecode for {function.name}")
         next_id = 1
         local_variables = List()
         local_parameters = List()

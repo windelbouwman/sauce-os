@@ -2,17 +2,14 @@
 # Data types for bytes
 
 from std import str_len, str_slice, ord, chr, str_get
-from utils import assert
-from vectype import Vector, new_vector, VectorIter
+from utils import assert, panic
+from vectype import Vector, new_vector
 from datatypes import Option
-from strlib import hex_char, hex_to_int
+from strlib import hex_char, hex_digit_to_int, is_hex_digit, is_space
 
 class Bytes:
     # Immutable bytes
     var m_bytes: Vector[uint8]
-
-    fn iter() -> ByteIter:
-        return ByteIter(m_iter: m_bytes.iter())
 
     fn len() -> int:
         return m_bytes.len()
@@ -36,16 +33,6 @@ class Bytes:
 
 fn concat2(a: Bytes, b: Bytes) -> Bytes:
     return Bytes(m_bytes: a.m_bytes.concat(other: b.m_bytes))
-
-class ByteIter:
-    var m_iter: VectorIter[uint8]
-
-    fn next() -> Option[int]:
-        case m_iter.next():
-            Some(value):
-                return Option.Some(value: int(value))
-            None:
-                return Option.None()
 
 class ByteReader:
     # read byte at a time
@@ -124,9 +111,6 @@ class ByteArray:
         append((value & 0xff00) >> 8)
         append(value & 0xff)
 
-    fn iter() -> ByteIter:
-        return ByteIter(m_iter: m_bytes.iter())
-
     fn len() -> int:
         return m_bytes.len()
 
@@ -145,11 +129,23 @@ fn bytes_from_hex_text(text: str) -> Bytes:
     let output = ByteArray()
     let n = str_len(text)
     let i = 0
+    let value = 0
+    let n_bits = 0
     while i < n:
-        assert(condition: i + 1 < n, message: "Hexadecimal text must contain whole bytes")
-        let part = str_slice(text, begin: i, end: i + 2)
-        output.append(hex_to_int(hextext: part))
-        i += 2
+        let c = str_get(text, index: i)
+        if is_hex_digit(c):
+            value = (value << 4) | hex_digit_to_int(c)
+            n_bits += 4
+            if n_bits == 8:
+                output.append(value)
+                value = 0
+                n_bits = 0
+        elif is_space(c):
+            pass
+        else:
+            panic("Invalid hex char '{c}'")
+        i += 1
+    assert(condition: n_bits == 0, message: "Hexadecimal text must contain whole bytes")
     return output.to_bytes()
 
 fn new_bytes() -> Bytes:

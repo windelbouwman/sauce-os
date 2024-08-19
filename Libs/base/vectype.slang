@@ -33,6 +33,9 @@ class Vector[T]:
         m_elements[m_size] = value
         m_size += 1
     
+    fn clear():
+        m_size = 0
+
     fn grow():
         assert(condition: m_capacity > 0, message: "capacity must larger than zero.")
         let old_elements = m_elements
@@ -49,19 +52,20 @@ class Vector[T]:
 
     fn get(index: int) -> T:
         # Retrieve value at index
-        assert(condition: index < m_size, message: "Vector.get: index out of range.")
-        return m_elements[index]
+        if index < m_size:
+            return m_elements[index]
+        else:
+            panic("Vector.get: index out of range.")
     
     fn set(index: int, value: T):
         # " Set value at index. "
-        assert(condition: index < m_size, message: "Vector.get: index out of range.")
-        m_elements[index] = value
+        if index < m_size:
+            m_elements[index] = value
+        else:
+            panic("Vector.get: index out of range.")
     
     fn last() -> T:
         return m_elements[m_size - 1]
-
-    fn iter() -> VectorIter[T]:
-        return VectorIter(m_vector: this)
 
     fn take(amount?: int) -> Vector[T]:
         # Create a new vector with the given amount of items
@@ -89,21 +93,6 @@ class Vector[T]:
             v2.append(get(index))
             index += 1
         
-        index = 0
-        while index < other.m_size:
-            v2.append(other.get(index))
-            index += 1
+        for value in other:
+            v2.append(value)
         return v2
-
-
-class VectorIter[T]:
-    var m_vector: Vector[T]
-    var m_index: int = 0
-
-    fn next() -> Option[T]:
-        if m_index < m_vector.m_size:
-            let x = m_vector.m_elements[m_index]
-            m_index += 1
-            return Option.Some(x)
-        else:
-            return Option.None()

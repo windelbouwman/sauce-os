@@ -339,6 +339,12 @@ fn is_function_type(ty?: Type) -> bool:
     else:
         return false
 
+fn is_sequence_like_type(ty?: Type) -> bool:
+    return has_field(ty, attr: "len") and has_field(ty, attr: "get")
+
+fn is_iterable_like_type(ty?: Type) -> bool:
+    return has_field(ty, attr: "iter")
+
 fn get_parameter_types_from_type(ty?: Type) -> List[ParameterType]:
     case ty.kind:
         Function(p, i):
@@ -465,9 +471,16 @@ fn get_struct_name_from_type(ty: Type) -> str:
     return struct_def.id.name
 
 fn has_field(ty: Type, attr: str) -> bool:
-    return option_is_some(get_field_type(ty, attr))
+    return option_is_some(maybe_get_field_type(ty, attr))
 
-fn get_field_type(ty: Type, attr: str) -> Option[Type]:
+fn get_field_type(ty: Type, attr: str) -> Type:
+    case maybe_get_field_type(ty, attr):
+        Some(ty):
+            return ty
+        None:
+            panic("No field: {attr}")
+
+fn maybe_get_field_type(ty: Type, attr: str) -> Option[Type]:
     case ty.kind:
         App(tycon, type_arguments):
             case tycon:
@@ -1442,7 +1455,7 @@ fn get_attr(base: Expression, field: str, ty: Type, location: Location) -> Expre
     return Expression(kind, ty, location)
 
 fn get_attr_typed(value: Expression, attr: str, location: Location) -> Expression:
-    let attr_ty = option_unwrap(get_field_type(ty: value.ty, attr))
+    let attr_ty = get_field_type(ty: value.ty, attr)
     return get_attr(base: value, field: attr, ty: attr_ty, location)
 
 fn box(value: Expression, location: Location) -> Expression:

@@ -57,6 +57,9 @@ fn str_join(parts: List[str], sep: str) -> str:
             counter -= 1
     return x
 
+fn is_space(c: char) -> bool:
+    return c == ' '
+
 fn hex_to_int(hextext: str) -> int:
     # Convert hex text
     let n = str_len(text: hextext)
@@ -65,18 +68,7 @@ fn hex_to_int(hextext: str) -> int:
     let value = 0
     while index < n:
         let c = str_get(text: hextext, index)
-        let o = ord(c)
-
-        let cval = 0
-        if (o >= 48) and (o <= 57):     # 0..9
-            cval = o - 48
-        elif (o >= 65) and (o <= 70):   # A..F
-            cval = o - 55
-        elif (o >= 97) and (o <= 102):  # a..f
-            cval = o - 87
-        else:
-            panic("Invalid hex char: {c}")
-        value = value * 16 + cval
+        value = value * 16 + hex_digit_to_int(c)
         index += 1
     return value
 
@@ -101,12 +93,26 @@ fn bin_to_int(bintext: str) -> int:
     return value
 
 fn is_digit(c: char) -> bool:
-    # Check if a character is a digit.
+    """  Check if a character is a digit. """
     let o = ord(value: c)
     return (o >= 48) and (o <= 57)
 
+fn hex_digit_to_int(c: char) -> int:
+    let o = ord(c)
+
+    let cval = 0
+    if (o >= 48) and (o <= 57):     # 0..9
+        cval = o - 48
+    elif (o >= 65) and (o <= 70):   # A..F
+        cval = o - 55
+    elif (o >= 97) and (o <= 102):  # a..f
+        cval = o - 87
+    else:
+        panic("Invalid hex char: {c}")
+    return cval
+
 fn is_hex_digit(c: char) -> bool:
-    # Check if a character is a hex digit.
+    """ Check if a character is a hex digit. """
     let o = ord(value: c)
     if (o >= 48) and (o <= 57):     # 0..9
         return true

@@ -8,6 +8,7 @@ from image import Image, new_image
 from pbm import write_pbm
 from png import read_png_from_file, write_png_to_file
 from qoi import read_qoi_from_file, write_qoi_to_file
+from gif import read_gif_from_file
 
 fn load_image(filename: str) -> Image:
     # Load image from file
@@ -16,6 +17,8 @@ fn load_image(filename: str) -> Image:
         return read_png_from_file(filename)
     elif extension == "qoi":
         return read_qoi_from_file(filename)
+    elif extension == "gif":
+        return read_gif_from_file(filename).first()
     else:
         panic("Unsupported image extension for load_image: {extension}")
 
@@ -41,6 +44,7 @@ fn main() -> int:
     # Argument processing
     let n = get_n_args()
     let i = 0
+    let log_level = 0
     let parse_state = 0
     let input_image: str = ""
     let output_image: str = ""
@@ -49,6 +53,8 @@ fn main() -> int:
         if argument == "-h":
             print_usage()
             return 0
+        elif argument == "-v":
+            log_level += 1
         else:
             if parse_state == 0:
                 input_image = argument
@@ -65,7 +71,7 @@ fn main() -> int:
         print_usage()
         return 1
 
-    set_log_level(level: 2)
+    set_log_level(level: log_level)
     let image = load_image(filename: input_image)
     save_image(image, filename: output_image)
     

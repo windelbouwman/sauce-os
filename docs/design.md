@@ -45,8 +45,26 @@ Each `for` loop is compiled into a `while` loop.
 
 ## Over array types
 
+## Over sequence objects
 
-## Over non-array types
+If an object supports `len` and `get`, we use those methods.
+
+```
+for element in x:
+    process_element(element)
+```
+
+Into this:
+
+```
+let size = x.len()
+let index = 0
+while index < size:
+    let element = x.get(index)
+    process_element(element)
+```
+
+## Over iterables
 
 Non array types are looped over by invoking the `iter` method to retrieve an iterator.
 

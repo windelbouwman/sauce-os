@@ -36,7 +36,7 @@ fn deflate_compress(data: Bytes) -> Bytes:
         else:
             last_block = true
         
-        print("Size: {size}")
+        log_trace("Size: {size}")
 
         if last_block:
             out.append(1)

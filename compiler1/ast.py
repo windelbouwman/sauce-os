@@ -118,6 +118,14 @@ class MyType:
     def is_array(self):
         return isinstance(self.kind, ArrayType)
 
+    def is_iterable_like(self) -> bool:
+        """Check if this type conforms to the iterator protocol"""
+        return self.has_field("iter")
+
+    def is_sequence_like(self) -> bool:
+        """Check if this types conforms to the sequence protocol."""
+        return self.has_field("len") and self.has_field("get")
+
     def is_enum(self):
         return isinstance(self.kind, App) and isinstance(self.kind.tycon, EnumDef)
 

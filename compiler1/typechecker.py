@@ -95,7 +95,7 @@ class TypeChecker(BasePass):
             self.visit_expression(kind.values)
             if kind.values.ty.is_array():
                 kind.variable.ty = kind.values.ty.kind.element_type
-            elif kind.values.ty.has_field("iter"):
+            elif kind.values.ty.is_iterable_like():
                 # If it quacks lite an iterator... it must be an iterator!
                 iter_ty: ast.MyType = kind.values.ty.get_field_type(
                     "iter"
@@ -103,10 +103,15 @@ class TypeChecker(BasePass):
                 opt_ty: ast.MyType = iter_ty.get_field_type("next").kind.return_type
                 val_ty = opt_ty.get_variant_types("Some")[0]
                 kind.variable.ty = val_ty
+            elif kind.values.ty.is_sequence_like():
+                val_ty: ast.MyType = kind.values.ty.get_field_type(
+                    "get"
+                ).kind.return_type
+                kind.variable.ty = val_ty
             else:
                 self.error(
                     kind.values.location,
-                    f"Expected array or iterable, not {kind.values.ty}",
+                    f"Expected array, iterable or sequence. Got {kind.values.ty}",
                 )
             self.visit_statement(kind.block.body)
         elif isinstance(kind, ast.TryStatement):

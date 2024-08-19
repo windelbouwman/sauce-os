@@ -14,7 +14,7 @@ fn get(url: str) -> str:
 fn post(url: str):
     """ Post to an url """
     let client = HttpClient()
-    return client.post(url)
+    client.post(url)
 
 class HttpClient:
     """ HTTP client """
@@ -49,7 +49,7 @@ class HttpClient:
 
         loop:
             let line = read_line()
-            if str_len(line) == 0:
+            if str_len(text: line) == 0:
                 break
             let header = parse_header(line)
 

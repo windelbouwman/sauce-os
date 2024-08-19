@@ -2,6 +2,6 @@
 # Marker file!
 # Store included files outside this folder here:
 
-../runtime/std.slang
+../../runtime/std.slang
 ../base
 

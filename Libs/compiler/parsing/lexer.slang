@@ -157,6 +157,8 @@ class Lexer:
                                     break
                             else:
                                 z = 0
+                            if is_lf(c: c2):
+                                row += 1
                         let txt: str = get_lexeme()
                         kind = TokenKind.String(txt)
                     else:
