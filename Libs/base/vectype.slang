@@ -9,7 +9,10 @@ from utils import panic, assert, unimplemented
 from datatypes import Option
 
 fn new_vector[T](default: T) -> Vector[T]:
-    let m_capacity = 2
+    return new_vector_with_capacity(default, capacity: 7)
+
+fn new_vector_with_capacity[T](default: T, capacity: int) -> Vector[T]:
+    let m_capacity = capacity
     let m_elements = [default : m_capacity]
     let v: Vector[T] = Vector(m_capacity, m_elements, m_default: default)
     return v
@@ -86,7 +89,7 @@ class Vector[T]:
         return v2
     
     fn concat(other: Vector[T]) -> Vector[T]:
-        let v2: Vector[T] = new_vector(default: m_default)
+        let v2: Vector[T] = new_vector_with_capacity(default: m_default, capacity: m_size + other.m_size)
         
         let index = 0
         while index < m_size:

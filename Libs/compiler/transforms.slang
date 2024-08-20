@@ -248,6 +248,18 @@ fn transformer_on_statement1(transformer: Transformer, statement: ast.Statement,
                     statement.kind = ast.StatementKind.While(while_statement)
                 For(for_statement):
                     statement.kind = transformer.class_rewriter.transform_for_loop(for_statement, location: statement.location).kind
+                If(if_statement):
+                    # Constant fold, if constant
+                    case if_statement.condition.kind:
+                        BoolLiteral(value):
+                            log_info("Collapsing if on bool")
+                            if value:
+                                # Copy terminator?
+                                statement.kind = if_statement.true_block.body.kind
+                            else:
+                                statement.kind = if_statement.false_block.body.kind
+                    else:
+                        pass
             else:
                 pass
     else:
@@ -290,7 +302,7 @@ fn transformer_on_statement7(transformer: Transformer, statement: ast.Statement,
                             if ast.is_opaque_type(value.ty) or ast.is_type_parameter_type(value.ty):
                                 ast.change_expression_to(expression: target, to: value)
                             else:
-                                panic("Only supported type cast from opaque as assignment target (not {ast.type_to_string(value.ty)})")
+                                panic("Only supported type cast from opaque as assignment target (not {value.ty})")
                     else:
                         pass
 
@@ -309,7 +321,7 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                 ToString(value):
                     # Rewrite To String
                     # log_info("Rewrite to-string")
-                    if ast.is_str_type(value.ty):
+                    if value.ty.is_str():
                         ast.change_expression_to(expression, to: value)
                     elif ast.is_int_type(value.ty):
                         # call int-to-str
@@ -318,23 +330,66 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                         let arguments = vec1(arg1)
                         let call = ast.call(callee: int_to_str_func, arguments, ty: ast.str_type(), location: expression.location)
                         ast.change_expression_to(expression, to: call)
-                    elif ast.is_char_type(value.ty):
+                    elif value.ty.is_char():
                         # call char-to-str
                         let char_to_str_func = transformer.class_rewriter.load_std_function(name: "char_to_str", location: expression.location)
                         let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
                         let arguments = vec1(arg1)
                         let call = ast.call(callee: char_to_str_func, arguments, ty: ast.str_type(), location: expression.location)
                         ast.change_expression_to(expression, to: call)
+                    elif value.ty.has_field(attr: "to_string"):
+                        # Invoke to_string method
+                        let arguments: List[ast.LabeledExpression] = List()
+                        let call_to_string = value.call_method(method: "to_string", arguments, location: expression.location)
+                        ast.change_expression_to(expression, to: call_to_string)
                     else:
                         panic("Invalid type for to-string")
                 GetIndex(base, indici):
-                    if ast.has_field(ty: base.ty, attr: "get"):
+                    if base.ty.has_field(attr: "get"):
                         assert(condition: indici.len() == 1, message: "Only support single indexing.")
                         let index = indici.first()
                         let arg1 = ast.LabeledExpression(name: Option.Some("index"), value: index, location: index.location)
                         let arguments = vec1(arg1)
-                        let call_get = ast.call_method(base, method: "get", arguments, location: expression.location)
+                        let call_get = base.call_method(method: "get", arguments, location: expression.location)
                         ast.change_expression_to(expression, to: call_get)
+                Binop(binop):
+                    # Try constant folding
+                    case binop.lhs.kind:
+                        IntLiteral(lhs_value):
+                            case binop.rhs.kind:
+                                IntLiteral(rhs_value):
+                                    case binop.op:
+                                        Greater:
+                                            log_info("Folding integer greater")
+                                            let value: bool = lhs_value > rhs_value
+                                            let new_literal = ast.bool_literal(value, location: expression.location)
+                                            ast.change_expression_to(expression, to: new_literal)
+                                        Less:
+                                            log_info("Folding integer less")
+                                            let value: bool = lhs_value < rhs_value
+                                            let new_literal = ast.bool_literal(value, location: expression.location)
+                                            ast.change_expression_to(expression, to: new_literal)
+                                        Equals:
+                                            log_info("Folding integer equals")
+                                            let value: bool = lhs_value == rhs_value
+                                            let new_literal = ast.bool_literal(value, location: expression.location)
+                                            ast.change_expression_to(expression, to: new_literal)
+                                        Add:
+                                            log_info("Folding integer add")
+                                            let value = lhs_value + rhs_value
+                                            let new_literal = ast.integer_literal(value, location: expression.location)
+                                            ast.change_expression_to(expression, to: new_literal)
+                                        Sub:
+                                            log_info("Folding integer sub")
+                                            let value = lhs_value - rhs_value
+                                            let new_literal = ast.integer_literal(value, location: expression.location)
+                                            ast.change_expression_to(expression, to: new_literal)
+                                    else:
+                                        pass
+                            else:
+                                pass
+                    else:
+                        pass
             else:
                 pass
     else:
@@ -347,7 +402,7 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                 Call(call):
                     case call.callee.kind:
                         GetAttr(base, name):
-                            if ast.is_class_type(base.ty):
+                            if base.ty.is_class():
                                 # Rewrite method call
                                 # log_info("Rewrite method call")
                                 let function_ref: ast.Expression = ast.get_method_ref_from_type(ty: base.ty, attr: name, location: expression.location)
@@ -358,7 +413,7 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                     else:
                         pass
                 Binop(op):
-                    if ast.is_str_type(op.lhs.ty):
+                    if op.lhs.ty.is_str():
                         case op.op:
                             Add:
                                 # Rewrite adding of strings by calling a runtime str_concat function
@@ -423,7 +478,7 @@ fn transformer_on_expression7(transformer: Transformer, expression: ast.Expressi
 
                 StructLiteral(ty, values):
                     # Perform type erasure on struct literal values
-                    let field_types = ast.get_field_types(ty)
+                    let field_types = ty.get_field_types()
                     assert(condition: values.len() == field_types.len(), message: "values and field-types must be the same length")
                     let fti = field_types.iter()
                     for value in values:
@@ -432,7 +487,7 @@ fn transformer_on_expression7(transformer: Transformer, expression: ast.Expressi
 
                 UnionLiteral(ty, attr, value):
                     # Perform type erasure on union literal value
-                    let ft = ast.get_field_type(ty, attr)
+                    let ft = ty.get_field_type(attr)
                     transformer.class_rewriter.erase_type(ft, value, assign: false)
 
                 GetAttr(base, attr):
@@ -480,7 +535,7 @@ fn transformer_on_type9(transformer: Transformer, ty: ast.Type, phase: ast.Visit
     # Change unions to opaque pointer types.
     case phase:
         Post:
-            if ast.is_union_struct_type(ty):
+            if ty.is_union_struct():
                 ast.change_type_to(ty, to_type: ast.opaque_type())
     else:
         pass
@@ -494,9 +549,9 @@ fn transformer_on_expression9(transformer: Transformer, expression: ast.Expressi
                     let boxed_value = ast.box(value, location: expression.location)
                     ast.change_expression_to(expression, to: boxed_value)
                 GetAttr(base, name):
-                    if ast.is_union_struct_type(base.ty):
+                    if base.ty.is_union_struct():
                         # Unbox value
-                        let to_type = ast.get_field_type(ty: base.ty, attr: name)
+                        let to_type = base.ty.get_field_type(attr: name)
                         let unboxed_value = ast.unbox(value: base, to_type, location: expression.location)
                         ast.change_expression_to(expression, to: unboxed_value)
             else:
@@ -653,24 +708,24 @@ class ClassRewriter:
 
         if ast.is_array_type(for_statement.iter_value.ty):
             return transform_for_loop_over_array(for_statement, location)
-        elif ast.is_iterable_like_type(for_statement.iter_value.ty):
+        elif for_statement.iter_value.ty.is_iterable_like():
             return transform_for_loop_over_iterator(for_statement, location)
-        elif ast.is_sequence_like_type(for_statement.iter_value.ty):
+        elif for_statement.iter_value.ty.is_sequence_like():
             return transform_for_loop_over_sequence(for_statement, location)
         else:
-            panic("Cannot for-loop over {ast.type_to_string(for_statement.iter_value.ty)}")
+            panic("Cannot for-loop over {for_statement.iter_value.ty}")
 
     fn transform_for_loop_over_iterator(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
         # Implement loop over 'iter' method:
-        # log_info(".... {ast.type_to_string(for_statement.iter_value.ty)}")
+        # log_info(".... {for_statement.iter_value.ty}")
         let arguments: List[ast.LabeledExpression] = List()
-        let iter_val = ast.call_method(base: for_statement.iter_value, method: "iter", arguments, location)
+        let iter_val = for_statement.iter_value.call_method(method: "iter", arguments, location)
         let iter_var = new_variable(name: "it", ty: iter_val.ty, location)
         let let_it_var = ast.let_statement(variable: iter_var, type_hint: Option.None(), value: iter_val, location)
 
-        # log_info("....>>> {ast.type_to_string(iter_var.ty)}")
+        # log_info("....>>> {iter_var.ty}")
         arguments = List()
-        let opt_val = ast.call_method(base: ast.var_ref(variable: iter_var, location), method: "next", arguments, location)
+        let opt_val = ast.var_ref(variable: iter_var, location).call_method(method: "next", arguments, location)
         let opt_var = new_variable(name: "opt", ty: opt_val.ty, location)
         let let_opt_var = ast.let_statement(variable: opt_var, type_hint: Option.None(), value: opt_val, location)
 
@@ -709,7 +764,7 @@ class ClassRewriter:
         let size_var = new_variable(name: "size", ty: ast.int_type(), location)
         let x_ref1 = ast.var_ref(variable: x_var, location)
         let method_arguments_for_len: List[ast.LabeledExpression] = List()
-        let call_len_method = ast.call_method(base: x_ref1, method: "len", arguments: method_arguments_for_len, location)
+        let call_len_method = x_ref1.call_method(method: "len", arguments: method_arguments_for_len, location)
         let let_size = ast.let_statement(variable: size_var, type_hint: Option.None(), value: call_len_method, location)
 
         # index < size
@@ -722,7 +777,7 @@ class ClassRewriter:
         let index_ref2 = ast.var_ref(variable: index_var, location)
         let method_arguments_for_get: List[ast.LabeledExpression] = List()
         method_arguments_for_get.append(ast.LabeledExpression(name: Option.Some("index"), value: index_ref2, location))
-        let call_get_method = ast.call_method(base: x_ref2, method: "get", arguments: method_arguments_for_get, location)
+        let call_get_method = x_ref2.call_method(method: "get", arguments: method_arguments_for_get, location)
         let let_v = ast.let_statement(variable: for_statement.iter_var, type_hint: Option.None(), value: call_get_method, location)
 
         # index = index + 1
@@ -877,17 +932,17 @@ class ClassRewriter:
                     # Unpack payload:
                     if arm.variables.len() == 1:
                         let x_var_ref = ast.var_ref(variable: x_var, location: arm.location)
-                        let data_value = ast.get_attr_typed(value: x_var_ref, attr: "data", location: arm.location)
-                        let union_value = ast.get_attr_typed(value: data_value, attr: union_field_name, location: arm.location)
+                        let data_value = x_var_ref.get_attr_typed(attr: "data", location: arm.location)
+                        let union_value = data_value.get_attr_typed(attr: union_field_name, location: arm.location)
                         let store_var = ast.let_statement(variable: arm.variables.first(), type_hint: Option.None(), value: union_value, location: arm.location)
                         switch_arm_body.append(store_var)
                     elif arm.variables.len() > 1:
                         let idx = 0
                         for variable in arm.variables:
                             let x_var_ref = ast.var_ref(variable: x_var, location: arm.location)
-                            let data_value = ast.get_attr_typed(value: x_var_ref, attr: "data", location: arm.location)
-                            let union_value = ast.get_attr_typed(value: data_value, attr: union_field_name, location: arm.location)
-                            let actual_value = ast.get_attr_typed(value: union_value, attr: "f_{idx}", location: arm.location)
+                            let data_value = x_var_ref.get_attr_typed(attr: "data", location: arm.location)
+                            let union_value = data_value.get_attr_typed(attr: union_field_name, location: arm.location)
+                            let actual_value = union_value.get_attr_typed(attr: "f_{idx}", location: arm.location)
                             let store_var = ast.let_statement(variable, type_hint: Option.None(), value: actual_value, location: arm.location)
                             switch_arm_body.append(store_var)
                             idx += 1
@@ -907,7 +962,7 @@ class ClassRewriter:
                         switch_default_code = else_block.body
 
                 let x_var_ref0 = ast.var_ref(variable: x_var, location)
-                let switch_value = ast.get_attr_typed(value: x_var_ref0, attr: "tag", location)
+                let switch_value = x_var_ref0.get_attr_typed(attr: "tag", location)
                 let switch_on_tag = ast.switch_statement(value: switch_value, arms: switch_arms, default_body: switch_default_code, location)
 
                 return ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
@@ -950,7 +1005,7 @@ class ClassRewriter:
             Struct(struct_def):
                 let type_arguments = ast.get_type_arguments_from_type(enum_ty)
                 let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
-                let union_type = ast.get_field_type(ty: struct_type, attr: "data")
+                let union_type = struct_type.get_field_type(attr: "data")
 
                 let union_field_name = "data_{variant.name}"
                 let union_value = ast.undefined_value()
@@ -960,7 +1015,7 @@ class ClassRewriter:
                 elif values.len() == 1:
                     union_value = values.first()
                 elif values.len() > 1:
-                    let struct_type2 = ast.get_field_type(ty: union_type, attr: union_field_name)
+                    let struct_type2 = union_type.get_field_type(attr: union_field_name)
                     union_value = ast.struct_literal(ty: struct_type2, values, location)
                 let data = ast.union_literal(ty: union_type, field: union_field_name, value: union_value, location)
                 return ast.struct_literal(ty: struct_type, values: vec2(tag, data), location)
@@ -970,9 +1025,9 @@ class ClassRewriter:
             let old_value = ast.clone_expression(value)
             let new_value = ast.cast(value: old_value, to_type: ast.opaque_type(), location: value.location)
             ast.change_expression_to(expression: value, to: new_value)
-        elif ast.is_function_type(ft):
+        elif ft.is_function_type():
             let parameter_types = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ft))
-            let return_type = ast.get_return_type_from_type(ft)
+            let return_type = ft.get_return_type()
 
             # Check if we need a bridge function:
             let opaq = false
@@ -983,7 +1038,7 @@ class ClassRewriter:
                 opaq = true
 
             if opaq:
-                log_info("We need a bridge function for {ast.type_to_string(ft)} {ast.expression_to_string(value)}")
+                log_info("We need a bridge function for {ft} {value}")
                 case value.kind:
                     FunctionRef(function_def, type_arguments):
                         # TODO: check for existing bridge functions!
@@ -1001,7 +1056,7 @@ class ClassRewriter:
         let parameters: List[ast.ParameterDef] = List()
         let arguments: List[ast.LabeledExpression] = List()
         let return_type2 = function_def.info.return_type
-        assert(condition: ast.is_void_type(function_def.info.except_type), message: "Bridge function only supports non-throwing functions")
+        assert(condition: function_def.info.except_type.is_void(), message: "Bridge function only supports non-throwing functions")
         let except_type = ast.void_type()
         let pti = parameter_types.iter()
         for parameter in function_def.parameters:
@@ -1026,7 +1081,7 @@ class ClassRewriter:
         let function_ref = ast.function_ref(function_def, type_arguments: List(), location)
         let function_call = ast.call(callee: function_ref, arguments, ty: ast.void_type(), location)
         let body = ast.pass_statement(location)
-        if ast.is_void_type(return_type2):
+        if return_type2.is_void():
             body = ast.expression_statement(expr: function_call)
         else:
             # Check if we need to introduce a cast to opaque value

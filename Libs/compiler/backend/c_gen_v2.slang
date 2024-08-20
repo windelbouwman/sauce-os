@@ -146,7 +146,7 @@ class CGenerator2:
             parameter_parts.append(gen_type(ty: parameter_def.ty, name: parameter_name))
         let parameter_text = str_join(parts: parameter_parts, sep: ", ")
         let return_type_text = "void"
-        if ast.is_void_type(function_def.info.return_type):
+        if function_def.info.return_type.is_void():
             return_type_text = "void {name}"
         else:
             return_type_text = gen_type(ty: function_def.info.return_type, name)
@@ -166,28 +166,28 @@ class CGenerator2:
     fn gen_type(ty: ast.Type, name: str) -> str:
         if ast.is_int_type(ty):
             return "intptr_t {name}"
-        elif ast.is_bool_type(ty):
+        elif ty.is_bool():
             return "intptr_t {name}"
-        elif ast.is_str_type(ty):
+        elif ty.is_str():
             return "char* {name}"
-        elif ast.is_float_type(ty):
+        elif ty.is_float():
             return "double {name}"
-        elif ast.is_char_type(ty):
+        elif ty.is_char():
             return "char {name}"
         elif ast.is_opaque_type(ty):
             return "void* {name}"
-        elif ast.is_struct_type(ty):
-            let struct_def = ast.get_struct_def_from_type(ty)
+        elif ty.is_struct():
+            let struct_def = ty.get_struct_def()
             let struct_name = gen_id(id: struct_def.id)
             return "struct {struct_name}* {name}"
-        elif ast.is_function_type(ty):
-            let ret_ty = ast.get_return_type_from_type(ty)
+        elif ty.is_function_type():
+            let ret_ty = ty.get_return_type()
             let parts: List[str] = List()
             for param_ty in ast.get_parameter_types_from_type(ty):
                 parts.append(gen_type(ty: param_ty.ty, name: ""))
             let param_text = str_join(parts, sep: ", ")
             return gen_type(ty: ret_ty, name: "(*{name})({param_text})")
-        elif ast.is_void_type(ty):
+        elif ty.is_void():
             return "void {name}"
         elif ast.is_array_type(ty):
             let ety = ast.get_element_type_from_type(ty)
@@ -195,7 +195,7 @@ class CGenerator2:
             let ety2 = gen_type(ty: ety, name)
             return "{ety2}[]"
         else:
-            panic("Type: {ast.type_to_string(ty)} not supported")
+            panic("Type: {ty} not supported")
 
     fn gen_block(statement?: ast.Statement):
         indent()
@@ -248,7 +248,7 @@ class CGenerator2:
                     ParameterRef(parameter_def):
                         target_text = gen_id(id: parameter_def.id)
                 else:
-                    panic("Unsupported assignment target: {ast.expression_to_string(target)}")
+                    panic("Unsupported assignment target: {target}")
 
                 let value_text = gen_expression(value)
                 emit("{target_text} {op_text} {value_text};")
@@ -372,23 +372,23 @@ class CGenerator2:
             
             TypeCast(ty, value):
                 let source = gen_expression(value)
-                if ast.is_float_type(ty):
+                if ty.is_float():
                     return "(double)({source})"
                 elif ast.is_opaque_type(ty):
                     return "(void*)({source})"
-                elif ast.is_str_type(ty):
+                elif ty.is_str():
                     return "(char*)({source})"
                 elif ast.is_int_type(ty):
                     return "(intptr_t)({source})"
-                elif ast.is_bool_type(ty):
+                elif ty.is_bool():
                     return "(intptr_t)({source})"
-                elif ast.is_struct_type(ty):
+                elif ty.is_struct():
                     let to_type2 = gen_type(ty: ty, name: "")
                     return "(({to_type2})({source}))"
-                elif ast.is_char_type(ty):
+                elif ty.is_char():
                     return "(char)({source})"
                 else:
-                    panic("Unsupported cast to: {ast.type_to_string(ty)}")
+                    panic("Unsupported cast to: {ty}")
 
             ParameterRef(parameter_def):
                 return gen_id(id: parameter_def.id)
@@ -418,7 +418,7 @@ class CGenerator2:
                 return "'{value}'"
             
             StructLiteral(ty, values):
-                let struct_def = ast.get_struct_def_from_type(ty)
+                let struct_def = ty.get_struct_def()
                 let name = gen_id(id: struct_def.id)
                 let args = gen_expression_list(values)
                 return "{name}_new({args})"
@@ -436,7 +436,7 @@ class CGenerator2:
                 # panic("TODO: array literal2")
 
         else:
-            panic("Unsupported: {ast.expression_to_string(expression)}")
+            panic("Unsupported: {expression}")
 
     fn gen_expression_list(values: List[ast.Expression]) -> str:
         let parts: List[str] = List()

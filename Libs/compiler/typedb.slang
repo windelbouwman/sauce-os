@@ -42,7 +42,7 @@ class SymbolSaver:
                 log_info("Saving meta-info for module: {module.name}")
                 save_module(module)
             else:
-                log_info("Skip saving meta-info for module: {module.name}")
+                log_debug("Skip saving meta-info for module: {module.name}")
         m_ser.end_array_as_attribute(attr: "modules")
 
     fn save_module(module: ast.Module):
@@ -181,17 +181,17 @@ class SymbolSaver:
             let bits = ast.get_bits_from_int_type(ty)
             m_ser.add_boolean_attribute(attr: "signed", value: signed)
             m_ser.add_integer_attribute(attr: "bits", value: bits)
-        elif ast.is_str_type(ty):
+        elif ty.is_str():
             m_ser.add_text_attribute(attr: "kind", text: "str")
-        elif ast.is_float_type(ty):
+        elif ty.is_float():
             m_ser.add_text_attribute(attr: "kind", text: "float")
             let bits = ast.get_bits_from_float_type(ty)
             m_ser.add_integer_attribute(attr: "bits", value: bits)
-        elif ast.is_bool_type(ty):
+        elif ty.is_bool():
             m_ser.add_text_attribute(attr: "kind", text: "bool")
-        elif ast.is_char_type(ty):
+        elif ty.is_char():
             m_ser.add_text_attribute(attr: "kind", text: "char")
-        elif ast.is_void_type(ty):
+        elif ty.is_void():
             m_ser.add_text_attribute(attr: "kind", text: "void")
         elif ast.is_array_type(ty):
             m_ser.add_text_attribute(attr: "kind", text: "array")
@@ -216,11 +216,11 @@ class SymbolSaver:
                 save_type(attr: "type", ty: type_argument)
                 m_ser.end_object_as_element()
             m_ser.end_array_as_attribute(attr: "type-arguments")
-        elif ast.is_function_type(ty):
+        elif ty.is_function_type():
             m_ser.add_text_attribute(attr: "kind", text: "function")
             let parameter_types = ast.get_parameter_types_from_type(ty)
-            let return_type = ast.get_return_type_from_type(ty)
-            let except_type = ast.get_except_type_from_type(ty)
+            let return_type = ty.get_return_type()
+            let except_type = ty.get_except_type()
             m_ser.begin_array()
             for parameter_type in parameter_types:
                 m_ser.begin_object()
@@ -231,7 +231,7 @@ class SymbolSaver:
             save_type(attr: "return-type", ty: return_type)
             save_type(attr: "except-type", ty: except_type)
         else:
-            panic("Not-impl: {ast.type_to_string(ty)}")
+            panic("Not-impl: {ty}")
         m_ser.end_object_as_attribute(attr)
     
     fn save_tycon(tycon: ast.TyCon):

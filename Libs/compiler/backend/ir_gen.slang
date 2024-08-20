@@ -134,7 +134,7 @@ class BytecodeGenerator:
             parameters.append(bc.TypedName(name: parameter.id.name, ty: get_bc_type(parameter.ty)))
 
         let return_type = Option.None()
-        if not ast.is_void_type(function_def.info.return_type):
+        if not function_def.info.return_type.is_void():
             return_type = Option.Some(get_bc_type(function_def.info.return_type))
         let no_return = function_def.info.no_return
 
@@ -154,7 +154,7 @@ class BytecodeGenerator:
                     local_var_mapping.insert(key: ast.node_id_to_string(parameter.id), value: parameter_index)
                     parameters.append(p2)
                 let return_type = Option.None()
-                if not ast.is_void_type(function_def.info.return_type):
+                if not function_def.info.return_type.is_void():
                     return_type = Option.Some(get_bc_type(function_def.info.return_type))
                 begin_code()
                 local_variables = List()
@@ -213,7 +213,7 @@ class BytecodeGenerator:
                 jump(target: inner_most_loop.continue_label)
             Expr(expr):
                 gen_expression(expr)
-                assert(condition: ast.is_void_type(expr.ty), message: "Expression must be void!")
+                assert(condition: expr.ty.is_void(), message: "Expression must be void!")
             Assignment(target, op, value):
                 gen_assignment(target, op, value)
             While(while_statement):
@@ -327,7 +327,7 @@ class BytecodeGenerator:
                 emit(Instruction.ParameterSet(parameter_index))
 
         else:
-            panic("Cannot assign: {ast.expression_to_string(target)}")
+            panic("Cannot assign: {target}")
     
     fn gen_try_statement(try_statement: ast.TryStatement):
         log_trace("gen_try_statement")
@@ -505,7 +505,7 @@ class BytecodeGenerator:
             StructLiteral(ty, values):
                 for value in values:
                     gen_expression(value)
-                let struct_def = ast.get_struct_def_from_type(ty)
+                let struct_def = ty.get_struct_def()
                 let struct_index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
                 emit(Instruction.StructLiteral(struct_index))
             ArrayLiteral(values):
@@ -518,19 +518,19 @@ class BytecodeGenerator:
                 emit(Instruction.ArrayLiteral2())
             TypeCast(ty, value):
                 gen_expression(value)
-                if ast.is_float_type(ty):
+                if ty.is_float():
                     if ast.is_int_type(value.ty):
                         emit(Instruction.IntToFloat())
                     elif ast.is_opaque_type(value.ty):
                         emit(Instruction.FromOpaque(get_bc_type(ty)))
-                    elif ast.is_float_type(value.ty):
+                    elif value.ty.is_float():
                         # No-op
                         # TODO: cast from 32 to 64 bits and vice versa?
                         pass
                     else:
-                        panic("cannot cast to float: {ast.type_to_string(value.ty)}")
+                        panic("cannot cast to float: {value.ty}")
                 elif ast.is_int_type(ty):
-                    if ast.is_float_type(value.ty):
+                    if value.ty.is_float():
                         emit(Instruction.FloatToInt())
                     elif ast.is_opaque_type(value.ty):
                         emit(Instruction.FromOpaque(get_bc_type(ty)))
@@ -539,7 +539,7 @@ class BytecodeGenerator:
                         let bits = ast.get_bits_from_int_type(ty)
                         emit(Instruction.IntCast(signed, bits))
                     else:
-                        panic("cannot cast to int: {ast.type_to_string(value.ty)}")
+                        panic("cannot cast to int: {value.ty}")
                 elif ast.is_opaque_type(ty):
                     if ast.is_opaque_type(value.ty):
                         pass
@@ -548,7 +548,7 @@ class BytecodeGenerator:
                 elif ast.is_opaque_type(value.ty):
                     emit(Instruction.FromOpaque(get_bc_type(ty)))
                 else:
-                    panic("unsupported type-casting from {ast.type_to_string(value.ty)} to {ast.type_to_string(ty)}")
+                    panic("unsupported type-casting from {value.ty} to {ty}")
             Box(value):
                 gen_expression(value)
                 emit(Instruction.ToOpaque(get_bc_type(value.ty)))
@@ -556,7 +556,7 @@ class BytecodeGenerator:
                 gen_expression(value)
                 emit(Instruction.FromOpaque(get_bc_type(to_type)))
         else:
-            panic("gen_expression: Unsupported: {ast.expression_to_string(expression)}")
+            panic("gen_expression: Unsupported: {expression}")
 
     fn gen_call(call: ast.FunctionCall):
         for argument in call.arguments:
@@ -578,8 +578,8 @@ class BytecodeGenerator:
         for p2 in ast.get_parameter_types_from_type(callee.ty):
             parameter_types.append(bc.TypedName(name: "x", ty: get_bc_type(p2.ty)))
         let return_type: Option[bc.Type] = Option.None()
-        let return_type2 = ast.get_return_type_from_type(callee.ty)
-        if ast.is_void_type(return_type2):
+        let return_type2 = callee.ty.get_return_type()
+        if return_type2.is_void():
             return_type = Option.None()
         else:
             return_type = Option.Some(get_bc_type(return_type2))
@@ -705,32 +705,32 @@ class BytecodeGenerator:
             let signed = ast.is_signed_int_type(ty2)
             let bits = ast.get_bits_from_int_type(ty2)
             ty = bc.Type.Int(signed, bits)
-        elif ast.is_float_type(ty2):
+        elif ty2.is_float():
             let bits = 64 # TODO
             ty = bc.Type.Float(bits)
-        elif ast.is_str_type(ty2):
+        elif ty2.is_str():
             ty = bc.Type.Str()
-        elif ast.is_struct_type(ty2):
-            let struct_def = ast.get_struct_def_from_type(ty2)
+        elif ty2.is_struct():
+            let struct_def = ty2.get_struct_def()
             let index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
             ty = bc.Type.StructRef(index)
-        elif ast.is_function_type(ty2):
+        elif ty2.is_function_type():
             let parameter_types2 = ast.get_parameter_types_from_type(ty2)
-            let return_type2 = ast.get_return_type_from_type(ty2)
+            let return_type2 = ty2.get_return_type()
             let parameter_types: List[bc.Type] = List()
             for p2 in parameter_types2:
                 parameter_types.append(get_bc_type(p2.ty))
             let return_type: Option[bc.Type] = Option.None()
-            if ast.is_void_type(return_type2):
+            if return_type2.is_void():
                 return_type = Option.None()
             else:
                 return_type = Option.Some(get_bc_type(return_type2))
             ty = bc.Type.Function(parameter_types, return_type)
         elif ast.is_type_parameter_type(ty2):
             ty = bc.Type.Ptr()
-        elif ast.is_bool_type(ty2):
+        elif ty2.is_bool():
             ty = bc.Type.Bool()
-        elif ast.is_char_type(ty2):
+        elif ty2.is_char():
             ty = bc.Type.Char()
         elif ast.is_opaque_type(ty2):
             ty = bc.Type.Ptr()
@@ -738,7 +738,7 @@ class BytecodeGenerator:
             let element_type2 = ast.get_element_type_from_type(ty2)
             ty = bc.Type.Array(get_bc_type(element_type2))
         else:
-            panic("get_bc_type: Type {ast.type_to_string(ty2)} not supported")
+            panic("get_bc_type: Type {ty2} not supported")
         return ty
     
     fn enter_block(block: ControlBlock):
@@ -774,7 +774,7 @@ class BytecodeGenerator:
 
 
 fn get_attr_index(ty: ast.Type, attr: str) -> int:
-    let struct_def = ast.get_struct_def_from_type(ty)
+    let struct_def = ty.get_struct_def()
     let index = 0
     for field in struct_def.fields:
         if field.name == attr:

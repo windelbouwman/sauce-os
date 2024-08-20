@@ -21,9 +21,217 @@ fn node_id_to_string(id?: NodeId) -> str:
     return "{id.name}${id.id}"
 
 # TODO: implement type-defs!
-struct Type:
-    kind: TypeKind
-    was_generic: bool
+class Type:
+    var kind: TypeKind
+    var was_generic: bool = false
+
+    fn to_string() -> str:
+        return type_to_string(this)
+
+    fn is_enum() -> bool:
+        case kind:
+            App(tycon, type_arguments):
+                case tycon:
+                    Enum(x):
+                        return true
+                else:
+                    return false
+        else:
+            return false
+
+    fn is_class() -> bool:
+        case kind:
+            App(tycon, type_arguments):
+                case tycon:
+                    Class(x):
+                        return true
+                else:
+                    return false
+        else:
+            return false
+
+    fn is_void() -> bool:
+        case kind:
+            Void:
+                return true
+        else:
+            return false
+
+    fn is_str() -> bool:
+        case kind:
+            Base(base):
+                case base:
+                    Str:
+                        return true
+                else:
+                    return false
+        else:
+            return false
+
+    fn is_char() -> bool:
+        case kind:
+            Base(base):
+                case base:
+                    Char:
+                        return true
+                else:
+                    return false
+        else:
+            return false
+
+    fn is_bool() -> bool:
+        case kind:
+            Base(base):
+                case base:
+                    Bool:
+                        return true
+                else:
+                    return false
+        else:
+            return false
+
+    fn is_float() -> bool:
+        case kind:
+            Base(base):
+                case base:
+                    Float(bits):
+                        return true
+                else:
+                    return false
+        else:
+            return false
+
+    fn is_base_type() -> bool:
+        case kind:
+            Base(base):
+                return true
+        else:
+            return false
+
+    fn get_base_type() -> BaseType:
+        case kind:
+            Base(base):
+                return base
+        else:
+            panic("get_base_type: Not a base type")
+
+    fn is_struct() -> bool:
+        case kind:
+            App(tycon, type_arguments):
+                case tycon:
+                    Struct(struct_def):
+                        return true
+                else:
+                    return false
+        else:
+            return false
+
+    fn is_union_struct() -> bool:
+        case kind:
+            App(tycon, type_arguments):
+                case tycon:
+                    Struct(struct_def):
+                        return struct_def.is_union
+                else:
+                    return false
+        else:
+            return false
+
+    fn get_struct_def() -> StructDef:
+        case kind:
+            App(tycon, type_arguments):
+                case tycon:
+                    Struct(struct_def):
+                        return struct_def
+                else:
+                    panic("No struct type")
+        else:
+            panic("No struct type")
+
+    fn has_field(attr: str) -> bool:
+        return option_is_some(maybe_get_field_type(attr))
+
+    fn get_field_type(attr: str) -> Type:
+        case maybe_get_field_type(attr):
+            Some(ty):
+                return ty
+            None:
+                panic("No field: {attr}")
+
+    fn maybe_get_field_type(attr: str) -> Option[Type]:
+        case kind:
+            App(tycon, type_arguments):
+                case tycon:
+                    Struct(struct_def):
+                        case struct_def.scope.lookup(name: attr):
+                            Some(sym):
+                                let m = create_subst_mapping(type_parameters: struct_def.type_parameters, type_arguments)
+                                case sym:
+                                    Field(f):
+                                        return Option.Some(subst(ty: f.ty, m))
+                                else:
+                                    panic("Struct field must be ")
+                            None:
+                                return Option.None()
+                    Class(class_def):
+                        case class_def.scope.lookup(name: attr):
+                            Some(sym):
+                                let m = create_subst_mapping(type_parameters: class_def.type_parameters, type_arguments)
+                                case sym:
+                                    Function(function_def):
+                                        return Option.Some(subst(ty: get_function_type(function_def), m))
+                                    Var(v):
+                                        return Option.Some(subst(ty: v.ty, m))
+                                else:
+                                    panic("class must contain func/vars")
+                            None:
+                                return Option.None()
+                else:
+                    return Option.None()
+        else:
+            return Option.None()
+
+    fn get_field_types() -> List[Type]:
+        case kind:
+            App(tycon, type_arguments):
+                case tycon:
+                    Struct(struct_def):
+                        let m = create_subst_mapping(type_parameters: struct_def.type_parameters, type_arguments)
+                        let field_types: List[Type] = List()
+                        for field in struct_def.fields:
+                            field_types.append(subst(ty: field.ty, m))
+                        return field_types
+                else:
+                    panic("Type without fields")
+        else:
+            panic("Type without fields")
+
+    fn is_sequence_like() -> bool:
+        return has_field(attr: "len") and has_field(attr: "get")
+
+    fn is_iterable_like() -> bool:
+        return has_field(attr: "iter")
+
+    fn is_function_type() -> bool:
+        case kind:
+            Function(p, i):
+                return true
+        else:
+            return false
+
+    fn get_return_type() -> Type:
+        case kind:
+            Function(p, i):
+                return i.return_type
+        else:
+            panic("Type must be function type")
+
+    fn get_except_type() -> Type:
+        case kind:
+            Function(p, i):
+                return i.except_type
+        else:
+            panic("Type must be function type")
 
 fn clone_type(ty?: Type) -> Type:
     let ty2 = new_type(kind: ty.kind)
@@ -31,7 +239,7 @@ fn clone_type(ty?: Type) -> Type:
     return ty2
 
 fn new_type(kind: TypeKind) -> Type:
-    return Type(kind, was_generic: false)
+    return Type(kind)
 
 fn types_to_string(typs: List[Type]) -> str:
     let parts: List[str] = List()
@@ -100,7 +308,7 @@ fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: Li
         for type_parameter in type_parameters:
             log_error("type parameter: {node_id_to_string(type_parameter.id)}")
         for type_argument in type_arguments:
-            log_error("type argument: {type_to_string(type_argument)}")
+            log_error("type argument: {type_argument}")
         panic("amount of type parameters and type arguments must be equal")
     let m: Dictionary[Type] = Dictionary()
     let tpi = type_parameters.iter()
@@ -109,35 +317,6 @@ fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: Li
         m.insert(key: tp.id.name, value: ty)
     return m
 
-
-fn is_enum_type(ty?: Type) -> bool:
-    case ty.kind:
-        App(tycon, type_arguments):
-            case tycon:
-                Enum(x):
-                    return true
-            else:
-                return false
-    else:
-        return false
-
-fn is_class_type(ty?: Type) -> bool:
-    case ty.kind:
-        App(tycon, type_arguments):
-            case tycon:
-                Class(x):
-                    return true
-            else:
-                return false
-    else:
-        return false
-
-fn is_void_type(ty?: Type) -> bool:
-    case ty.kind:
-        Void:
-            return true
-    else:
-        return false
 
 fn is_some_integer_type(ty?: Type) -> bool:
     case ty.kind:
@@ -152,20 +331,6 @@ fn get_bits_from_some_integer_type(ty?: Type) -> int:
             return bits
     else:
         panic("get_bits_from_some_integer_type: Not a some-integer type")
-
-fn is_base_type(ty?: Type) -> bool:
-    case ty.kind:
-        Base(base):
-            return true
-    else:
-        return false
-
-fn get_base_type_from_type(ty?: Type) -> BaseType:
-    case ty.kind:
-        Base(base):
-            return base
-    else:
-        panic("get_base_type_from_type: Not a base type")
 
 fn is_int_type(ty?: Type) -> bool:
     case ty.kind:
@@ -195,50 +360,6 @@ fn is_signed_int_type(ty?: Type) -> bool:
             case base:
                 Int(signed, bits):
                     return signed
-            else:
-                return false
-    else:
-        return false
-
-fn is_str_type(ty?: Type) -> bool:
-    case ty.kind:
-        Base(base):
-            case base:
-                Str:
-                    return true
-            else:
-                return false
-    else:
-        return false
-
-fn is_char_type(ty?: Type) -> bool:
-    case ty.kind:
-        Base(base):
-            case base:
-                Char:
-                    return true
-            else:
-                return false
-    else:
-        return false
-
-fn is_bool_type(ty?: Type) -> bool:
-    case ty.kind:
-        Base(base):
-            case base:
-                Bool:
-                    return true
-            else:
-                return false
-    else:
-        return false
-
-fn is_float_type(ty?: Type) -> bool:
-    case ty.kind:
-        Base(base):
-            case base:
-                Float(bits):
-                    return true
             else:
                 return false
     else:
@@ -332,19 +453,6 @@ fn get_type_parameter_from_type(ty?: Type) -> TypeParameter:
     else:
         panic("Type must be type parameter")
 
-fn is_function_type(ty?: Type) -> bool:
-    case ty.kind:
-        Function(p, i):
-            return true
-    else:
-        return false
-
-fn is_sequence_like_type(ty?: Type) -> bool:
-    return has_field(ty, attr: "len") and has_field(ty, attr: "get")
-
-fn is_iterable_like_type(ty?: Type) -> bool:
-    return has_field(ty, attr: "iter")
-
 fn get_parameter_types_from_type(ty?: Type) -> List[ParameterType]:
     case ty.kind:
         Function(p, i):
@@ -357,20 +465,6 @@ fn get_types_from_parameter_types(p2?: List[ParameterType]) -> List[Type]:
     for p in p2:
         t.append(p.ty)
     return t
-
-fn get_return_type_from_type(ty?: Type) -> Type:
-    case ty.kind:
-        Function(p, i):
-            return i.return_type
-    else:
-        panic("Type must be function type")
-
-fn get_except_type_from_type(ty?: Type) -> Type:
-    case ty.kind:
-        Function(p, i):
-            return i.except_type
-    else:
-        panic("Type must be function type")
 
 fn get_enum_variant_from_type(ty: Type, attr: str) -> Option[EnumVariant]:
     let enum_def = get_enum_def_from_type(ty)
@@ -418,103 +512,12 @@ fn get_variant_payload_types(ty: Type, variant: EnumVariant) -> List[Type]:
     let payload = subst_many(typs: variant.payload, m)
     return payload
 
-fn get_field_types(ty: Type) -> List[Type]:
-    case ty.kind:
-        App(tycon, type_arguments):
-            case tycon:
-                Struct(struct_def):
-                    let m = create_subst_mapping(type_parameters: struct_def.type_parameters, type_arguments)
-                    let field_types: List[Type] = List()
-                    for field in struct_def.fields:
-                        field_types.append(subst(ty: field.ty, m))
-                    return field_types
-            else:
-                panic("Type without fields")
-    else:
-        panic("Type without fields")
-
-fn is_struct_type(ty?: Type) -> bool:
-    case ty.kind:
-        App(tycon, type_arguments):
-            case tycon:
-                Struct(struct_def):
-                    return true
-            else:
-                return false
-    else:
-        return false
-
-fn is_union_struct_type(ty?: Type) -> bool:
-    case ty.kind:
-        App(tycon, type_arguments):
-            case tycon:
-                Struct(struct_def):
-                    return struct_def.is_union
-            else:
-                return false
-    else:
-        return false
-
-fn get_struct_def_from_type(ty?: Type) -> StructDef:
-    case ty.kind:
-        App(tycon, type_arguments):
-            case tycon:
-                Struct(struct_def):
-                    return struct_def
-            else:
-                panic("No struct type")
-    else:
-        panic("No struct type")
-
 fn get_struct_name_from_type(ty: Type) -> str:
-    let struct_def = get_struct_def_from_type(ty)
+    let struct_def = ty.get_struct_def()
     return struct_def.id.name
 
-fn has_field(ty: Type, attr: str) -> bool:
-    return option_is_some(maybe_get_field_type(ty, attr))
-
-fn get_field_type(ty: Type, attr: str) -> Type:
-    case maybe_get_field_type(ty, attr):
-        Some(ty):
-            return ty
-        None:
-            panic("No field: {attr}")
-
-fn maybe_get_field_type(ty: Type, attr: str) -> Option[Type]:
-    case ty.kind:
-        App(tycon, type_arguments):
-            case tycon:
-                Struct(struct_def):
-                    case struct_def.scope.lookup(name: attr):
-                        Some(sym):
-                            let m = create_subst_mapping(type_parameters: struct_def.type_parameters, type_arguments)
-                            case sym:
-                                Field(f):
-                                    return Option.Some(subst(ty: f.ty, m))
-                            else:
-                                panic("Struct field must be ")
-                        None:
-                            return Option.None()
-                Class(class_def):
-                    case class_def.scope.lookup(name: attr):
-                        Some(sym):
-                            let m = create_subst_mapping(type_parameters: class_def.type_parameters, type_arguments)
-                            case sym:
-                                Function(function_def):
-                                    return Option.Some(subst(ty: get_function_type(function_def), m))
-                                Var(v):
-                                    return Option.Some(subst(ty: v.ty, m))
-                            else:
-                                panic("class must contain func/vars")
-                        None:
-                            return Option.None()
-            else:
-                return Option.None()
-    else:
-        return Option.None()
-
 fn get_struct_field_index(ty: Type, attr: str) -> int:
-    let struct_def = get_struct_def_from_type(ty)
+    let struct_def = ty.get_struct_def()
     let index = 0
     for field in struct_def.fields:
         if field.name == attr:
@@ -534,9 +537,9 @@ fn get_method_ref_from_type(ty: Type, attr: str, location: Location) -> Expressi
                     else:
                         panic("get_method_ref_from_type: class must contain func/vars")
             else:
-                panic("get_method_ref_from_type: No class: {type_to_string(ty)}")
+                panic("get_method_ref_from_type: No class: {ty}")
     else:
-        panic("get_method_ref_from_type: No class: {type_to_string(ty)}")
+        panic("get_method_ref_from_type: No class: {ty}")
 
 fn get_class_def_from_type(ty: Type) -> ClassDef:
     case ty.kind:
@@ -592,10 +595,10 @@ fn type_kind_to_string(kind: TypeKind) -> str:
         TypeExpression(expr):
             txt = "TYPE-EXPR"
         Array(element_type, size):
-            txt = "ARRAY({type_to_string(element_type)} x {size})"
+            txt = "ARRAY({element_type} x {size})"
         Function(parameter_types, info):
             let typs = get_types_from_parameter_types(parameter_types)
-            txt = "FUNC-TYPE({types_to_string(typs)},{type_to_string(info.return_type)},{type_to_string(info.except_type)})"
+            txt = "FUNC-TYPE({types_to_string(typs)},{info.return_type},{info.except_type})"
         Undefined:
             txt = "UNDEFINED"
         TypeParam(param):
@@ -605,7 +608,7 @@ fn type_kind_to_string(kind: TypeKind) -> str:
                 None:
                     txt = "TYPE-VAR(id={v.unique})"
                 Some(ty_assigned):
-                    txt = "TYPE-VAR(id={v.unique},{type_to_string(ty_assigned)})"
+                    txt = "TYPE-VAR(id={v.unique},{ty_assigned})"
         App(tycon, type_arguments):
             if type_arguments.is_empty():
                 txt = tycon_to_str(tycon)
@@ -1377,10 +1380,22 @@ fn continue_statement(location: Location) -> Statement:
 fn unreachable_statement(location: Location) -> Statement:
     return statement(kind: StatementKind.Unreachable(), location)
 
-struct Expression:
-    location: Location
-    ty: Type
-    kind: ExpressionKind
+class Expression:
+    var kind: ExpressionKind
+    var ty: Type
+    var location: Location
+
+    fn to_string() -> str:
+        return expression_to_string(this)
+
+    fn call_method(method: str, arguments: List[LabeledExpression], location: Location) -> Expression:
+        let callee = get_attr_typed(attr: method, location)
+        let result_ty: Type = callee.ty.get_return_type()
+        return call(callee, arguments, ty: result_ty, location)
+
+    fn get_attr_typed(attr: str, location: Location) -> Expression:
+        let attr_ty = ty.get_field_type(attr)
+        return get_attr(base: this, field: attr, ty: attr_ty, location)
 
 fn clone_expression(value: Expression) -> Expression:
     return Expression(kind: value.kind, ty: value.ty, location: value.location)
@@ -1454,10 +1469,6 @@ fn get_attr(base: Expression, field: str, ty: Type, location: Location) -> Expre
     let kind = ExpressionKind.GetAttr(base, field)
     return Expression(kind, ty, location)
 
-fn get_attr_typed(value: Expression, attr: str, location: Location) -> Expression:
-    let attr_ty = get_field_type(ty: value.ty, attr)
-    return get_attr(base: value, field: attr, ty: attr_ty, location)
-
 fn box(value: Expression, location: Location) -> Expression:
     let kind = ExpressionKind.Box(value)
     return Expression(kind, ty: undefined_type(), location)
@@ -1465,11 +1476,6 @@ fn box(value: Expression, location: Location) -> Expression:
 fn unbox(value: Expression, to_type: Type, location: Location) -> Expression:
     let kind = ExpressionKind.Unbox(value, to_type)
     return Expression(kind, ty: undefined_type(), location)
-
-fn call_method(base: Expression, method: str, arguments: List[LabeledExpression], location: Location) -> Expression:
-    let callee = get_attr_typed(value: base, attr: method, location)
-    let result_ty: Type = get_return_type_from_type(callee.ty)
-    return call(callee, arguments, ty: result_ty, location)
 
 struct FunctionCall:
     callee: Expression
@@ -1800,7 +1806,7 @@ fn print_ast_expression(printer: AstPrinter, expression: Expression, phase: Visi
     case phase:
         Pre:
             let ty_txt = type_to_string(expression.ty)
-            printer.print2(txt: "EXPR {expression_to_string(expression)} ---> {ty_txt}")
+            printer.print2(txt: "EXPR {expression} ---> {ty_txt}")
             printer.indent()
         Post:
             printer.dedent()

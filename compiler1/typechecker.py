@@ -336,9 +336,9 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.TypeCast):
             expression.ty = kind.ty
         elif isinstance(kind, ast.ToString):
-            if kind.expr.ty.is_int():
+            if kind.expr.ty.is_int() or kind.expr.ty.is_char():
                 pass
-            elif kind.expr.ty.is_char():
+            elif kind.expr.ty.has_field("to_string"):
                 pass
             else:
                 self.assert_type(kind.expr, ast.str_type)

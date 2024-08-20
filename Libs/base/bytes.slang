@@ -48,10 +48,12 @@ class ByteReader:
         return ba.to_bytes()
 
     fn read_byte() -> int:
-        assert(condition: m_index < m_bytes.m_bytes.len(), message: "Cannot read past end of bytes")
-        let value = m_bytes[m_index]
-        m_index += 1
-        return value
+        if m_index < m_bytes.m_bytes.len():
+            let value = m_bytes[m_index]
+            m_index += 1
+            return value
+        else:
+            panic("Cannot read past end of bytes")
 
     fn read_u16_be() -> int:
         let b1 = read_byte()

@@ -45,7 +45,7 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
             case definition:
                 Function(function_def):
                     checker.current_function = Option.Some(function_def)
-                    if not ast.is_void_type(function_def.info.except_type):
+                    if not function_def.info.except_type.is_void():
                         checker.exception_handlers.append(function_def.info.except_type)
             else:
                 pass
@@ -54,7 +54,7 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
                 Function(function_def):
                     checker.check_function_def(function_def)
                     checker.current_function = Option.None()
-                    if not ast.is_void_type(function_def.info.except_type):
+                    if not function_def.info.except_type.is_void():
                         checker.exception_handlers.drop_last()
             else:
                 pass
@@ -112,7 +112,7 @@ class TypeChecker:
         # Check if we return a value, if we need to return a value
         case function_def.body:
             Intern(scoped_block):
-                if not ast.is_void_type(function_def.info.return_type):
+                if not function_def.info.return_type.is_void():
                     if not scoped_block.body.is_terminator:
                         add_error(location: function_def.location, message: "Control reaches end of non-void function")
             Extern(libname):
@@ -121,7 +121,7 @@ class TypeChecker:
     fn check_statement_mid(statement: ast.Statement):
         case statement.kind:
             Case(case_statement):
-                if ast.is_enum_type(case_statement.value.ty):
+                if case_statement.value.ty.is_enum():
                     let variant_names = ast.get_enum_variant_names_from_type(case_statement.value.ty)
                     let uncovered_arms = Set()
                     for variant_name in variant_names:
@@ -145,7 +145,7 @@ class TypeChecker:
                         for uncovered_arm in uncovered_arms:
                             add_error(location: statement.location, message: "Enum case not covered: {uncovered_arm}")
                 else:
-                    add_error(location: case_statement.value.location, message: "Got {ast.type_to_string(case_statement.value.ty)}, expected enum")
+                    add_error(location: case_statement.value.location, message: "Got {case_statement.value.ty}, expected enum")
             For(for_statement):
                 if ast.is_array_type(for_statement.iter_value.ty):
                     let size = ast.get_array_size_from_type(for_statement.iter_value.ty)
@@ -153,18 +153,18 @@ class TypeChecker:
                         for_statement.iter_var.ty = ast.get_element_type_from_type(for_statement.iter_value.ty)
                     else:
                         add_error(location: for_statement.iter_value.location, message: "Array size unknown")
-                elif ast.is_iterable_like_type(for_statement.iter_value.ty):
+                elif for_statement.iter_value.ty.is_iterable_like():
                     # TODO: we have a few assumptions here, which panic. Should be proper warning:
-                    let iter_ty: ast.Type = ast.get_return_type_from_type(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "iter"))
-                    let opt_ty: ast.Type = ast.get_return_type_from_type(ast.get_field_type(ty: iter_ty, attr: "next"))
+                    let iter_ty: ast.Type = for_statement.iter_value.ty.get_field_type(attr: "iter").get_return_type()
+                    let opt_ty: ast.Type = iter_ty.get_field_type(attr: "next").get_return_type()
                     let opt_variant = option_unwrap(ast.get_enum_variant_from_type(ty: opt_ty, attr: "Some"))
                     let val_ty: ast.Type = ast.get_variant_payload_types(ty: opt_ty, variant: opt_variant).first()
                     for_statement.iter_var.ty = val_ty
-                elif ast.is_sequence_like_type(for_statement.iter_value.ty):
-                    let val_ty: ast.Type = ast.get_return_type_from_type(ast.get_field_type(ty: for_statement.iter_value.ty, attr: "get"))
+                elif for_statement.iter_value.ty.is_sequence_like():
+                    let val_ty: ast.Type = for_statement.iter_value.ty.get_field_type(attr: "get").get_return_type()
                     for_statement.iter_var.ty = val_ty
                 else:
-                    add_error(location: for_statement.iter_value.location, message: "Value cannot be iterated: {ast.type_to_string(for_statement.iter_value.ty)}")
+                    add_error(location: for_statement.iter_value.location, message: "Value cannot be iterated: {for_statement.iter_value.ty}")
             Try(try_statement):
                 exception_handlers.drop_last()
                 try_statement.except_var.ty = try_statement.except_type
@@ -196,7 +196,7 @@ class TypeChecker:
                         pass
             Expr(expression):
                 # Check we are of void type.
-                if not ast.is_void_type(expression.ty):
+                if not expression.ty.is_void():
                     add_error(location: expression.location, message: "Non-void expression")
 
                 case expression.kind:
@@ -221,12 +221,12 @@ class TypeChecker:
                 let func = option_unwrap(current_function)
                 case value:
                     Some(value):
-                        if ast.is_void_type(func.info.return_type):
+                        if func.info.return_type.is_void():
                             add_error(location: value.location, message: "Unexpected return value")
                         else:
                             coerce(ty: func.info.return_type, value)
                     None:
-                        if not ast.is_void_type(func.info.return_type):
+                        if not func.info.return_type.is_void():
                             add_error(location: statement.location, message: "Expected a value")
                 statement.is_terminator = true
             Raise(value):
@@ -261,9 +261,9 @@ class TypeChecker:
 
         case expression.kind:
             Call(call):
-                if ast.is_function_type(call.callee.ty):
+                if call.callee.ty.is_function_type():
                     let parameter_types = ast.get_parameter_types_from_type(call.callee.ty)
-                    let return_type = ast.get_return_type_from_type(call.callee.ty)
+                    let return_type = call.callee.ty.get_return_type()
 
                     if parameter_types.len() == call.arguments.len():
                         let p_iter = parameter_types.iter()
@@ -290,20 +290,20 @@ class TypeChecker:
                         return
 
                     expression.ty = ast.deref_type_var(return_type)
-                    # print("Call: {ast.type_to_string(expression.ty)}")
+                    # print("Call: {expression.ty}")
 
                     # Check exception raising:
-                    let except_type = ast.get_except_type_from_type(call.callee.ty)
-                    if not ast.is_void_type(except_type):
+                    let except_type = call.callee.ty.get_except_type()
+                    if not except_type.is_void():
                         check_may_raise_exception(ty: except_type, location: expression.location)
                 else:
-                    add_error(location: expression.location, message: "Cannot call non-function type {ast.type_to_string(call.callee.ty)}")
+                    add_error(location: expression.location, message: "Cannot call non-function type {call.callee.ty}")
             ParameterRef(parameter_def):
                 # TODO: clone type?
-                # log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {ast.type_to_string(parameter.ty)}")
+                # log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {parameter.ty}")
                 expression.ty = parameter_def.ty
             VarRef(variable):
-                # log_trace("Var ref {ast.node_id_to_string(variable.id)}: {ast.type_to_string(variable.ty)}")
+                # log_trace("Var ref {ast.node_id_to_string(variable.id)}: {variable.ty}")
                 expression.ty = variable.ty
             FunctionRef(function_def, type_arguments):
                 expression.ty = ast.get_function_type2(function_def, type_arguments)
@@ -312,8 +312,8 @@ class TypeChecker:
             TypeCast(ty, value):
                 expression.ty = ty
             ToString(value):
-                if not (ast.is_int_type(value.ty) or ast.is_str_type(value.ty) or ast.is_char_type(value.ty)):
-                    add_error(location: expression.location, message: "Cannot convert {ast.type_to_string(value.ty)} to string automatically")
+                if not (ast.is_int_type(value.ty) or value.ty.is_str() or value.ty.is_char() or value.ty.has_field(attr: "to_string")):
+                    add_error(location: expression.location, message: "Cannot convert {value.ty} to string automatically")
                 expression.ty = ast.str_type()
             Typ(t):
                 add_error(location: expression.location, message: "Cannot use a type here")
@@ -321,7 +321,7 @@ class TypeChecker:
                 # Heuristics ahead...
                 let ty = binop.lhs.ty
                 let rhs_ty = binop.rhs.ty
-                if ast.is_int_type(ty) and ast.is_float_type(rhs_ty):
+                if ast.is_int_type(ty) and rhs_ty.is_float():
                     ty = rhs_ty
 
                 coerce(ty, value: binop.lhs)
@@ -334,16 +334,16 @@ class TypeChecker:
                 case op:
                     Minus:
                         let ty = rhs.ty
-                        if ast.is_float_type(ty) or ast.is_int_type(ty):
+                        if ty.is_float() or ast.is_int_type(ty):
                             expression.ty = ty
                         else:
-                            add_error(location: expression.location, message: "Got {ast.type_to_string(ty)}, but unary '-' requires numeric type")
+                            add_error(location: expression.location, message: "Got {ty}, but unary '-' requires numeric type")
                     Not:
                         let ty = rhs.ty
-                        if ast.is_bool_type(ty):
+                        if ty.is_bool():
                             expression.ty = ty
                         else:
-                            add_error(location: expression.location, message: "Got {ast.type_to_string(ty)}, but 'not' operator requires bool type")
+                            add_error(location: expression.location, message: "Got {ty}, but 'not' operator requires bool type")
             NameRef(name):
                 panic("names must be resolved: {name}")
             LoadSymbol(symbol):
@@ -355,22 +355,22 @@ class TypeChecker:
             Null:
                 pass
             GetAttr(base, attr):
-                case ast.maybe_get_field_type(ty: base.ty, attr):
+                case base.ty.maybe_get_field_type(attr):
                     Some(ty):
                         expression.ty = ty
                     None:
-                        add_error(location: expression.location, message: "Type {ast.type_to_string(base.ty)} has no field: {attr}")
+                        add_error(location: expression.location, message: "Type {base.ty} has no field: {attr}")
                         expression.ty = ast.undefined_type()
             GetIndex(base, indici):
                 if ast.is_array_type(ty: base.ty):
                     expression.ty = ast.get_element_type_from_type(ty: base.ty)
-                elif ast.has_field(ty: base.ty, attr: "get"):
+                elif base.ty.has_field(attr: "get"):
                     # Maybe we try to access an object with get/set interface
                     # TODO: we have a few assumptions here, which panic. Should be proper warning:
-                    let val_ty: ast.Type = ast.get_return_type_from_type(ast.get_field_type(ty: base.ty, attr: "get"))
+                    let val_ty: ast.Type = base.ty.get_field_type(attr: "get").get_return_type()
                     expression.ty = val_ty
                 else:
-                    add_error(location: expression.location, message: "Got {ast.type_to_string(base.ty)}, expected array or indexable type")
+                    add_error(location: expression.location, message: "Got {base.ty}, expected array or indexable type")
 
                 if indici.len() == 1:
                     let index: ast.Expression = indici.first()
@@ -385,11 +385,11 @@ class TypeChecker:
                 # TODO: check arguments
                 expression.ty = ty
             StructLiteral(ty, values):
-                let field_types = ast.get_field_types(ty)
+                let field_types = ty.get_field_types()
                 check_arguments(location: expression.location, parameter_types: field_types, arguments: values)
                 expression.ty = ty
             UnionLiteral(ty, field, value):
-                let wanted_value_type = ast.get_field_type(ty, attr: field)
+                let wanted_value_type = ty.get_field_type(attr: field)
                 coerce(ty: wanted_value_type, value)
                 expression.ty = ty
             Box(value):
@@ -447,30 +447,30 @@ class TypeChecker:
         else:
             let expected_exception_type = exception_handlers.last()
             if not unify(ty1: ty, ty2: expected_exception_type):
-                add_error(location, message: "Raised {ast.type_to_string(ty)}, expected: {ast.type_to_string(expected_exception_type)}")
+                add_error(location, message: "Raised {ty}, expected: {expected_exception_type}")
 
     fn coerce(ty: ast.Type, value: ast.Expression):
         # Try to auto-convert before check:
-        if ast.is_int_type(value.ty) and ast.is_float_type(ty):
+        if ast.is_int_type(value.ty) and ty.is_float():
             # Auto-conv int to floats
             let old_expr = ast.clone_expression(value)
             value.kind = ast.ExpressionKind.TypeCast(ty, old_expr)
             value.ty = ty
 
         if not unify(ty1: value.ty, ty2: ty):
-            add_error(location: value.location, message: "Got {ast.type_to_string(value.ty)}, expected {ast.type_to_string(ty)}")
+            add_error(location: value.location, message: "Got {value.ty}, expected {ty}")
     
     fn unify(ty1: ast.Type, ty2: ast.Type) -> bool:
-        if ast.is_base_type(ty1) and ast.is_base_type(ty2):
-            let base_type1 = ast.get_base_type_from_type(ty1)
-            let base_type2 = ast.get_base_type_from_type(ty2)
+        if ty1.is_base_type() and ty2.is_base_type():
+            let base_type1 = ty1.get_base_type()
+            let base_type2 = ty2.get_base_type()
             return ast.base_type_equal(base_type1, base_type2)
         elif ast.is_opaque_type(ty1) and ast.is_opaque_type(ty2):
             return true
-        elif ast.is_void_type(ty1) and ast.is_void_type(ty2):
+        elif ty1.is_void() and ty2.is_void():
             return true
-        elif ast.is_base_type(ty1) and ast.is_some_integer_type(ty2):
-            let base_type1 = ast.get_base_type_from_type(ty1)
+        elif ty1.is_base_type() and ast.is_some_integer_type(ty2):
+            let base_type1 = ty1.get_base_type()
             let needed_bits = ast.get_bits_from_some_integer_type(ty2)
             case base_type1:
                 Int(signed, bits):
@@ -481,7 +481,7 @@ class TypeChecker:
                         return false
             else:
                 return false
-        elif ast.is_some_integer_type(ty1) and ast.is_base_type(ty2):
+        elif ast.is_some_integer_type(ty1) and ty2.is_base_type():
             return unify(ty1: ty2, ty2: ty1)  # Invoke swapped
         elif ast.is_tycon_app_type(ty1) and ast.is_tycon_app_type(ty2):
             let tycon1 = ast.get_tycon_from_type(ty1)
@@ -496,15 +496,15 @@ class TypeChecker:
             let tp1 = ast.get_type_parameter_from_type(ty1)
             let tp2 = ast.get_type_parameter_from_type(ty2)
             return ast.type_parameter_equals(tp1, tp2)
-        elif ast.is_function_type(ty1) and ast.is_function_type(ty2):
+        elif ty1.is_function_type() and ty2.is_function_type():
             let ptys1 = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ty1))
             let ptys2 = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ty2))
 
             if not unify_many(typs1: ptys1, typs2: ptys2):
                 return false
             
-            let rty1 = ast.get_return_type_from_type(ty1)
-            let rty2 = ast.get_return_type_from_type(ty2)
+            let rty1 = ty1.get_return_type()
+            let rty2 = ty2.get_return_type()
             if not unify(ty1: rty1, ty2: rty2):
                 return false
 

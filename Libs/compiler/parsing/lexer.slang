@@ -8,6 +8,7 @@ from token import Token, TokenKind, token_to_string
 from location import Location, location_at, Position
 from strlib import hex_to_int, bin_to_int, is_digit, is_hex_digit, is_bin_digit
 from datatypes import List, Option
+from dicttype import Dictionary
 
 
 class Lexer:
@@ -18,6 +19,7 @@ class Lexer:
     var spaces: int = 0
     var source: str = ""
     var source_length: int = 0
+    var m_keywords: Dictionary[TokenKind] = Dictionary()
 
     var tok_begin: int = 0
     var offset: int = 0
@@ -26,6 +28,7 @@ class Lexer:
     var start_col: int = 1  # Offset added to column
 
     fn init(source: str):
+        fill_keyword_dictionary(keywords: m_keywords)
         this.source = source
         source_length = str_len(text: source)
         at_end = false
@@ -118,7 +121,12 @@ class Lexer:
                     offset += 1
 
                 # Check for keywords:
-                kind = check_keyword(txt: get_lexeme())
+                let txt = get_lexeme()
+                case m_keywords.maybe_get(key: txt):
+                    Some(k2):
+                        kind = k2
+                    None:
+                        kind = TokenKind.Identifier(txt)
             elif c == ' ':
                 while match(' '):
                     pass
@@ -336,69 +344,35 @@ fn is_id(c: char) -> bool:
 fn is_id_or_digit(c: char) -> bool:
     return is_id(c) or is_digit(c)
 
-fn check_keyword(txt: str) -> TokenKind:
-    let kind = TokenKind.Identifier(txt)
-    if txt == "and":
-        kind = TokenKind.KwAnd()
-    elif txt == "break":
-        kind = TokenKind.KwBreak()
-    elif txt == "case":
-        kind = TokenKind.KwCase()
-    elif txt == "class":
-        kind = TokenKind.KwClass()
-    elif txt == "continue":
-        kind = TokenKind.KwContinue()
-    elif txt == "else":
-        kind = TokenKind.KwElse()
-    elif txt == "elif":
-        kind = TokenKind.KwElif()
-    elif txt == "enum":
-        kind = TokenKind.KwEnum()
-    elif txt == "except":
-        kind = TokenKind.KwExcept()
-    elif txt == "extern":
-        kind = TokenKind.KwExtern()
-    elif txt == "fn":
-        kind = TokenKind.KwFn()
-    elif txt == "for":
-        kind = TokenKind.KwFor()
-    elif txt == "from":
-        kind = TokenKind.KwFrom()
-    elif txt == "if":
-        kind = TokenKind.KwIf()
-    elif txt == "import":
-        kind = TokenKind.KwImport()
-    elif txt == "in":
-        kind = TokenKind.KwIn()
-    elif txt == "let":
-        kind = TokenKind.KwLet()
-    elif txt == "loop":
-        kind = TokenKind.KwLoop()
-    elif txt == "not":
-        kind = TokenKind.KwNot()
-    elif txt == "or":
-        kind = TokenKind.KwOr()
-    elif txt == "pass":
-        kind = TokenKind.KwPass()
-    elif txt == "pub":
-        kind = TokenKind.KwPub()
-    elif txt == "raise":
-        kind = TokenKind.KwRaise()
-    elif txt == "return":
-        kind = TokenKind.KwReturn()
-    elif txt == "struct":
-        kind = TokenKind.KwStruct()
-    elif txt == "switch":
-        kind = TokenKind.KwSwitch()
-    elif txt == "try":
-        kind = TokenKind.KwTry()
-    elif txt == "var":
-        kind = TokenKind.KwVar()
-    elif txt == "while":
-        kind = TokenKind.KwWhile()
-    elif txt == "true":
-        kind = TokenKind.Bool(value: true)
-    elif txt == "false":
-        kind = TokenKind.Bool(value: false)
-
-    return kind
+fn fill_keyword_dictionary(keywords: Dictionary[TokenKind]):
+    keywords.insert(key: "and", value: TokenKind.KwAnd())
+    keywords.insert(key: "break", value: TokenKind.KwBreak())
+    keywords.insert(key: "case", value: TokenKind.KwCase())
+    keywords.insert(key: "class", value: TokenKind.KwClass())
+    keywords.insert(key: "continue", value: TokenKind.KwContinue())
+    keywords.insert(key: "else", value: TokenKind.KwElse())
+    keywords.insert(key: "elif", value: TokenKind.KwElif())
+    keywords.insert(key: "enum", value: TokenKind.KwEnum())
+    keywords.insert(key: "except", value: TokenKind.KwExcept())
+    keywords.insert(key: "extern", value: TokenKind.KwExtern())
+    keywords.insert(key: "fn", value: TokenKind.KwFn())
+    keywords.insert(key: "for", value: TokenKind.KwFor())
+    keywords.insert(key: "from", value: TokenKind.KwFrom())
+    keywords.insert(key: "if", value: TokenKind.KwIf())
+    keywords.insert(key: "import", value: TokenKind.KwImport())
+    keywords.insert(key: "in", value: TokenKind.KwIn())
+    keywords.insert(key: "let", value: TokenKind.KwLet())
+    keywords.insert(key: "loop", value: TokenKind.KwLoop())
+    keywords.insert(key: "not", value: TokenKind.KwNot())
+    keywords.insert(key: "or", value: TokenKind.KwOr())
+    keywords.insert(key: "pass", value: TokenKind.KwPass())
+    keywords.insert(key: "pub", value: TokenKind.KwPub())
+    keywords.insert(key: "raise", value: TokenKind.KwRaise())
+    keywords.insert(key: "return", value: TokenKind.KwReturn())
+    keywords.insert(key: "struct", value: TokenKind.KwStruct())
+    keywords.insert(key: "switch", value: TokenKind.KwSwitch())
+    keywords.insert(key: "try", value: TokenKind.KwTry())
+    keywords.insert(key: "var", value: TokenKind.KwVar())
+    keywords.insert(key: "while", value: TokenKind.KwWhile())
+    keywords.insert(key: "true", value: TokenKind.Bool(value: true))
+    keywords.insert(key: "false", value: TokenKind.Bool(value: false))

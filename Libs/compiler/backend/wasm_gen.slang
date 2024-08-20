@@ -118,25 +118,25 @@ class WasmGenerator:
             return webassembly.ValueType.i64()
         elif ast.is_opaque_type(ty) or ast.is_tycon_app_type(ty):
             return webassembly.ValueType.i32()
-        elif ast.is_str_type(ty):
+        elif ty.is_str():
             return webassembly.ValueType.i32()
-        elif ast.is_float_type(ty):
+        elif ty.is_float():
             return webassembly.ValueType.f64()
-        elif ast.is_char_type(ty):
+        elif ty.is_char():
             return webassembly.ValueType.i32()
-        elif ast.is_bool_type(ty):
+        elif ty.is_bool():
             return webassembly.ValueType.i32()
-        elif ast.is_function_type(ty):
+        elif ty.is_function_type():
             return webassembly.ValueType.i32()
         else:
-            panic("TODO: {ast.type_to_string(ty)}!")
+            panic("TODO: {ty}!")
 
     fn reg_signature(parameter_types: List[ast.Type], return_type: ast.Type) -> int:
         let params: List[webassembly.ValueType] = List()
         let results: List[webassembly.ValueType] = List()
         for pt in parameter_types:
             params.append(get_wasm_type(pt))
-        if not ast.is_void_type(return_type):
+        if not return_type.is_void():
             results.append(get_wasm_type(return_type))
         let ft = webassembly.Type(params, results)
         let key = webassembly.type_to_string(ft)
@@ -213,7 +213,7 @@ class WasmGenerator:
                         let localidx = get_local_index(id: parameter_def.id)
                         emit(Instruction.local_set(localidx))
                 else:
-                    panic("Unsupported assignment target: {ast.expression_to_string(target)}")
+                    panic("Unsupported assignment target: {target}")
 
             Let(let_statement):
                 gen_expression(let_statement.value)
@@ -306,7 +306,7 @@ class WasmGenerator:
             Unop(op, value):
                 case op:
                     Not:
-                        assert(condition: ast.is_bool_type(value.ty), message: "'not' operator only supports booleans")
+                        assert(condition: value.ty.is_bool(), message: "'not' operator only supports booleans")
                         gen_expression(value)
                         emit(Instruction.i32_eqz())
                     Minus:
@@ -315,7 +315,7 @@ class WasmGenerator:
                             gen_expression(value)
                             emit(Instruction.i64_sub())
                         else:
-                            panic("unop(-) for {ast.type_to_string(value.ty)}")
+                            panic("unop(-) for {value.ty}")
 
             Call(call):
                 for argument in call.arguments:
@@ -330,7 +330,7 @@ class WasmGenerator:
                 else:
                     gen_expression(call.callee)
                     emit(Instruction.ctrl_call_indirect(1337))
-                    panic("Cannot call! {ast.expression_to_string(call.callee)}")
+                    panic("Cannot call! {call.callee}")
 
                 emit(Instruction.ctrl_call(funcidx))
 
@@ -357,7 +357,7 @@ class WasmGenerator:
                 emit(Instruction.i32_const(1337))
                 panic("FN {function_def.name}")
         else:
-            panic("Not implemented: {ast.expression_to_string(expression)}")
+            panic("Not implemented: {expression}")
 
     fn gen_binop(binop: ast.BinopExpression):
         gen_expression(binop.lhs)
@@ -397,7 +397,7 @@ class WasmGenerator:
                     emit(Instruction.i64_shr_u())
             else:
                 panic("Invalid int binop: {ast.binary_op_to_str(binop.op)}")
-        elif ast.is_bool_type(binop.lhs.ty):
+        elif binop.lhs.ty.is_bool():
             case binop.op:
                 And:
                     emit(Instruction.i32_and())
@@ -405,7 +405,7 @@ class WasmGenerator:
                     emit(Instruction.i32_or())
             else:
                 panic("Invalid bool binop: {ast.binary_op_to_str(binop.op)}")
-        elif ast.is_float_type(binop.lhs.ty):
+        elif binop.lhs.ty.is_float():
             case binop.op:
                 Add:
                     emit(Instruction.f64_add())
@@ -429,7 +429,7 @@ class WasmGenerator:
                     emit(Instruction.f64_ne())
             else:
                 panic("Invalid str binop: {ast.binary_op_to_str(binop.op)}")
-        elif ast.is_char_type(binop.lhs.ty):
+        elif binop.lhs.ty.is_char():
             case binop.op:
                 Equals:
                     emit(Instruction.i32_eq())
@@ -438,51 +438,51 @@ class WasmGenerator:
             else:
                 panic("Invalid char binop: {ast.binary_op_to_str(binop.op)}")
         else:
-            panic("Binop type not supported: {ast.type_to_string(binop.lhs.ty)}")
+            panic("Binop type not supported: {binop.lhs.ty}")
 
     fn gen_type_cast(from_type: ast.Type, to_type: ast.Type):
-        if ast.is_float_type(to_type):
+        if to_type.is_float():
             if ast.is_int_type(from_type):
                 emit(Instruction.f64_convert_i64_s())
             else:
-                panic("TODO: cast {ast.type_to_string(from_type)} to float")
-        elif ast.is_str_type(to_type):
+                panic("TODO: cast {from_type} to float")
+        elif to_type.is_str():
             if ast.is_opaque_type(from_type):
                 pass
             else:
-                panic("TODO: cast to tycon-app: {ast.type_to_string(from_type)}")
+                panic("TODO: cast to tycon-app: {from_type}")
         elif ast.is_int_type(to_type):
             if ast.is_opaque_type(from_type):
                 emit(Instruction.i64_extend_i32_s())
             else:
-                panic("TODO: cast to int from: {ast.type_to_string(from_type)}")
-        elif ast.is_bool_type(to_type):
+                panic("TODO: cast to int from: {from_type}")
+        elif to_type.is_bool():
             if ast.is_opaque_type(from_type):
                 pass
             else:
-                panic("TODO: cast to bool: {ast.type_to_string(from_type)}")
+                panic("TODO: cast to bool: {from_type}")
         elif ast.is_opaque_type(to_type):
             if ast.is_tycon_app_type(from_type):
                 pass
             elif ast.is_opaque_type(from_type):
                 pass
-            elif ast.is_str_type(from_type):
+            elif from_type.is_str():
                 pass
             elif ast.is_int_type(from_type):
                 # integers are 64 bit, pointers 32 bit.
                 # TODO: this fails for large integers!
                 emit(Instruction.i32_wrap_i64())
-            elif ast.is_bool_type(from_type):
+            elif from_type.is_bool():
                 pass
             else:
-                panic("TODO: cast to opaque: {ast.type_to_string(from_type)}")
+                panic("TODO: cast to opaque: {from_type}")
         elif ast.is_tycon_app_type(to_type):
             if ast.is_opaque_type(from_type):
                 pass
             else:
-                panic("TODO: cast to tycon-app: {ast.type_to_string(from_type)}")
+                panic("TODO: cast to tycon-app: {from_type}")
         else:
-            panic("TODO: cast to {ast.type_to_string(to_type)}")
+            panic("TODO: cast to {to_type}")
 
     fn gen_malloc_call(size: int):
         emit(Instruction.i64_const(size))
@@ -499,7 +499,7 @@ class WasmGenerator:
 
     fn get_struct_layout(ty: ast.Type) -> StructLayout:
         # TODO: cache results.
-        let struct_def = ast.get_struct_def_from_type(ty)
+        let struct_def = ty.get_struct_def()
         let size: int = 0
         let offsets: List[int] = List()
         for field in struct_def.fields:

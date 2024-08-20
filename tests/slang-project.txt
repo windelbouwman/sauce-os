@@ -1,6 +1,7 @@
 
 ../Libs/base
 ../Libs/image
+../Libs/compiler
 ../Libs/regex/integersetlib.slang
 ../Libs/regex/rangelib.slang
 ../Libs/regex/regex.slang

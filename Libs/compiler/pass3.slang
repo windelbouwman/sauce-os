@@ -59,7 +59,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                 GetAttr(base, attr):
                     case newop.try_as_type(expression: base):
                         Some(ty):
-                            if ast.is_enum_type(ty):
+                            if ty.is_enum():
                                 case ast.get_enum_variant_from_type(ty, attr):
                                     Some(variant):
                                         expression.kind = ast.ExpressionKind.Variant(ty, variant)
@@ -67,7 +67,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                                         newop.add_error(location: expression.location, message: "No such enum variant: {attr}")
                                     
                             else:
-                                newop.add_error(location: expression.location, message: "Can only get attr from enum type, not {ast.type_to_string(ty)}")
+                                newop.add_error(location: expression.location, message: "Can only get attr from enum type, not {ty}")
                         None:
                             pass
                     
@@ -136,7 +136,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                                     pass
 
                                 if not ok:
-                                    newop.add_error(location: expression.location, message: "Cannot call type: {ast.type_to_string(ty)}")
+                                    newop.add_error(location: expression.location, message: "Cannot call type: {ty}")
                             None:
                                 pass
                 LoadSymbol(symbol):
@@ -186,7 +186,7 @@ class NewOp:
             Some(ty2):
                 return ty2
             None:
-                let message = "Invalid type expression: {ast.expression_to_string(expression)}"
+                let message = "Invalid type expression: {expression}"
                 add_error(location: expression.location, message)
                 return ast.undefined_type()
 

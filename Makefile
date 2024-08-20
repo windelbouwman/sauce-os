@@ -45,7 +45,7 @@ check-py: ${ALL_TEST_RUNS_PY}
 
 # Profiling
 profile: ${COMPILER5} | ${BUILDDIR}
-	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-c ${COMPILER_SRCS} ${BASE_LIB_SRCS}
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-c ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 	kcachegrind build/callgrind.out
 
 pytest-compiler1:
@@ -109,6 +109,9 @@ ${BUILDDIR}/python/libregex.py ${BUILDDIR}/python/libregex.json: ${REGEX_LIB_SRC
 ${BUILDDIR}/python/libimage.py ${BUILDDIR}/python/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libimage.json -o ${BUILDDIR}/python/libimage.py --add-import ${BUILDDIR}/python/libbase.json ${IMAGE_LIB_SRCS}
 
+${BUILDDIR}/python/libcompiler.py ${BUILDDIR}/python/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libcompiler.json -o ${BUILDDIR}/python/libcompiler.py --add-import ${BUILDDIR}/python/libbase.json ${COMPILER_LIB_SRCS}
+
 # linkage-example: ${BUILDDIR}/c/linkage-main.exe
 ${BUILDDIR}/c/linkage/libfubar.c ${BUILDDIR}/c/linkage/libfubar.json: examples/linkage/fubar.slang ${SLANGC_DEPS} | ${BUILDDIR}/c/linkage
 	${SLANGC} --backend-c -v --gen-export ${BUILDDIR}/c/linkage/libfubar.json -o ${BUILDDIR}/c/linkage/libfubar.c examples/linkage/fubar.slang runtime/std.slang
@@ -145,11 +148,11 @@ ${BUILDDIR}/wasm/%.wat: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEP
 run-test-c-%: ${BUILDDIR}/tests/test_%.exe
 	$<
 
-${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/tests
-	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json
+${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c/libcompiler.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/tests
+	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json
 
-${BUILDDIR}/tests/test_%.exe: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/slangrt.o
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libimage.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.o -lm
+${BUILDDIR}/tests/test_%.exe: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/slangrt.o
+	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libcompiler.so -l:libimage.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.o -lm
 
 # Unit tests with python backend:
 .PHONY: run-test-py-%
@@ -160,8 +163,8 @@ run-test-py-%: ${BUILDDIR}/python/test_%.py ${BUILDDIR}/python/slangrt.py
 ${BUILDDIR}/python/slangrt.py: runtime/slangrt.py | ${BUILDDIR}/python
 	cp $< $@
 
-${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/python
-	${SLANGC} --backend-py -o $@ --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libbase.json --add-import ${BUILDDIR}/python/libregex.json $<
+${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libcompiler.json ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+	${SLANGC} --backend-py -o $@ --add-import ${BUILDDIR}/python/libcompiler.json --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libbase.json --add-import ${BUILDDIR}/python/libregex.json $<
 
 # Apps
 .PRECIOUS: ${BUILDDIR}/c/apps/%.c

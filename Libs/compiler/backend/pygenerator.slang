@@ -131,7 +131,7 @@ class PyGenerator:
                     None:
                         op_txt = "="
                     Some(op3):
-                        let float_division = ast.is_float_type(value.ty)
+                        let float_division = value.ty.is_float()
                         op_txt = "{binary_operator_to_str(op: op3, float_division)}="
                 emit("{gen_expression(target, parens: true)} {op_txt} {gen_expression(value, parens: false)}")
             Return(value):
@@ -185,7 +185,7 @@ class PyGenerator:
             FloatLiteral(value):
                 txt = float_to_str(value)
             StructLiteral(ty, values):
-                let struct_def = ast.get_struct_def_from_type(ty)
+                let struct_def = ty.get_struct_def()
                 let name = get_id(id: struct_def.id)
                 let args = gen_expression_list(expressions: values)
                 txt = "{name}({args})"
@@ -205,7 +205,7 @@ class PyGenerator:
                 txt = "{b}[{i}]"
             TypeCast(ty, value):
                 txt = gen_expression(value, parens: true)
-                if ast.is_float_type(ty):
+                if ty.is_float():
                     txt = "float({txt})"
                 elif ast.is_int_type(ty):
                     txt = "int({txt})"
@@ -236,13 +236,13 @@ class PyGenerator:
                 if parens:
                     txt = "({txt})"
             Binop(binop):
-                let float_division = ast.is_float_type(binop.lhs.ty)
+                let float_division = binop.lhs.ty.is_float()
                 let op = binary_operator_to_str(op: binop.op, float_division)
                 txt = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
                 if parens:
                     txt = "({txt})"
         else:
-            panic("Unsupported: {ast.expression_to_string(expression)}")
+            panic("Unsupported: {expression}")
         return txt
     
     fn gen_expression_list(expressions: List[ast.Expression]) -> str:

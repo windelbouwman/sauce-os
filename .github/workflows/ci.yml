@@ -36,8 +36,8 @@ jobs:
         run: bash bootstrap2.sh
       - name: Build all
         run: make
-      - name: Check slang unit tests
-        run: make check
+      - name: Run tests
+        run: make test
 
   windows-build:
     runs-on: windows-latest

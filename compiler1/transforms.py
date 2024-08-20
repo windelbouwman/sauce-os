@@ -188,17 +188,23 @@ class LoopRewriter(BaseTransformer):
 
         # size = x.len()
         size_var = self.new_variable("size", ast.int_type, location)
-        x_len = x_var.ref_expr(location).call_method('len', [])
+        x_len = x_var.ref_expr(location).call_method("len", [])
         let_size = ast.let_statement(size_var, None, zero, location)
 
         # index < size
-        loop_condition = index_var.ref_expr(location).binop("<", size_var.ref_expr(location))
+        loop_condition = index_var.ref_expr(location).binop(
+            "<", size_var.ref_expr(location)
+        )
 
         # v = x.get(index)
+        arguments = [
+            ast.LabeledExpression("index", index_var.ref_expr(location), location)
+        ]
+
         let_v = ast.let_statement(
             kind.variable,
             None,
-            x_var.ref_expr(location).call_method('get', [ast.LabeledExpression("index", index_var.ref_expr(location), location)]),
+            x_var.ref_expr(location).call_method("get", arguments),
             location,
         )
 
@@ -239,9 +245,13 @@ class LoopRewriter(BaseTransformer):
                 callee = ast.obj_ref(char_to_str, ast.void_type, expression.location)
                 args = [ast.LabeledExpression("value", kind.expr, kind.expr.location)]
                 expression.kind = ast.FunctionCall(callee, args)
+            elif kind.expr.ty.has_field("to_string"):
+                # Invoke to_string method
+                call_to_string = kind.expr.call_method("to_string", [])
+                expression.kind = call_to_string.kind
             else:
                 raise ValueError(
-                    f"Cannot resolve to-string for {ast.str_ty(kind.expr.ty)}"
+                    f"Cannot transform to-string for {ast.str_ty(kind.expr.ty)}"
                 )
         elif isinstance(kind, ast.ArrayIndex):
             if kind.base.ty.has_field("get"):
