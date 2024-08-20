@@ -27,6 +27,9 @@ class Type:
 
     fn to_string() -> str:
         return type_to_string(this)
+    
+    fn change_to(to_type: Type):
+        change_type_to(ty: this, to_type)
 
     fn is_enum() -> bool:
         case kind:
@@ -39,6 +42,21 @@ class Type:
         else:
             return false
 
+    fn get_enum_def() -> EnumDef:
+        case kind:
+            App(tycon, type_arguments):
+                case tycon:
+                    Enum(enum_def):
+                        return enum_def
+                else:
+                    panic("get_enum_def: type must be enum")
+        else:
+            panic("get_enum_def: type must be enum")
+
+    fn get_enum_variant_from_type(attr: str) -> Option[EnumVariant]:
+        let enum_def = get_enum_def()
+        return get_enum_variant(enum_def, attr)
+
     fn is_class() -> bool:
         case kind:
             App(tycon, type_arguments):
@@ -49,6 +67,41 @@ class Type:
                     return false
         else:
             return false
+
+    fn is_int() -> bool:
+        case kind:
+            Base(base):
+                case base:
+                    Int(signed, bits):
+                        return true
+                else:
+                    return false
+        else:
+            return false
+
+    fn is_signed_int() -> bool:
+        case kind:
+            Base(base):
+                case base:
+                    Int(signed, bits):
+                        return signed
+                else:
+                    return false
+        else:
+            return false
+
+    fn get_bits() -> int:
+        case kind:
+            Base(base):
+                case base:
+                    Int(signed, bits):
+                        return bits
+                    Float(bits):
+                        return bits
+                else:
+                    panic("get_bits: Not an integer or float type")
+        else:
+            panic("get_bits: Not an integer or float type")
 
     fn is_void() -> bool:
         case kind:
@@ -114,6 +167,34 @@ class Type:
                 return base
         else:
             panic("get_base_type: Not a base type")
+
+    fn is_opaque() -> bool:
+        case kind:
+            Opaque:
+                return true
+        else:
+            return false
+
+    fn is_array() -> bool:
+        case kind:
+            Array(element_type, size):
+                return true
+        else:
+            return false
+
+    fn get_element_type() -> Type:
+        case kind:
+            Array(element_type, size):
+                return element_type
+        else:
+            panic("No array type")
+
+    fn get_array_size() -> int:
+        case kind:
+            Array(element_type, size):
+                return size
+        else:
+            panic("No array type")
 
     fn is_struct() -> bool:
         case kind:
@@ -233,6 +314,52 @@ class Type:
         else:
             panic("Type must be function type")
 
+    fn get_class_def() -> ClassDef:
+        case kind:
+            App(tycon, type_arguments):
+                case tycon:
+                    Class(class_def):
+                        return class_def
+                else:
+                    panic("No class type")
+        else:
+            panic("No class type")
+
+    fn is_tycon_app() -> bool:
+        case kind:
+            App(tycon, args):
+                return true
+        else:
+            return false
+
+    fn get_tycon() -> TyCon:
+        case kind:
+            App(tycon, args):
+                return tycon
+        else:
+            panic("Must be App type")
+
+    fn get_type_arguments() -> List[Type]:
+        case kind:
+            App(tycon, args):
+                return args
+        else:
+            panic("Must be App type")
+
+    fn is_type_parameter() -> bool:
+        case kind:
+            TypeParam(p):
+                return true
+        else:
+            return false
+
+    fn get_type_parameter() -> TypeParameter:
+        case kind:
+            TypeParam(p):
+                return p
+        else:
+            panic("Type must be type parameter")
+
 fn clone_type(ty?: Type) -> Type:
     let ty2 = new_type(kind: ty.kind)
     ty2.was_generic = ty.was_generic
@@ -332,92 +459,6 @@ fn get_bits_from_some_integer_type(ty?: Type) -> int:
     else:
         panic("get_bits_from_some_integer_type: Not a some-integer type")
 
-fn is_int_type(ty?: Type) -> bool:
-    case ty.kind:
-        Base(base):
-            case base:
-                Int(signed, bits):
-                    return true
-            else:
-                return false
-    else:
-        return false
-
-fn get_bits_from_int_type(ty?: Type) -> int:
-    case ty.kind:
-        Base(base):
-            case base:
-                Int(signed, bits):
-                    return bits
-            else:
-                panic("get_bits_from_int_type: Not an integer type")
-    else:
-        panic("get_bits_from_int_type: Not an integer type")
-
-fn is_signed_int_type(ty?: Type) -> bool:
-    case ty.kind:
-        Base(base):
-            case base:
-                Int(signed, bits):
-                    return signed
-            else:
-                return false
-    else:
-        return false
-
-fn get_bits_from_float_type(ty?: Type) -> int:
-    case ty.kind:
-        Base(base):
-            case base:
-                Float(bits):
-                    return bits
-            else:
-                panic("get_bits_from_float_type: Not a float type")
-    else:
-        panic("get_bits_from_float_type: Not a float type")
-
-fn is_array_type(ty?: Type) -> bool:
-    case ty.kind:
-        Array(element_type, size):
-            return true
-    else:
-        return false
-
-fn is_opaque_type(ty?: Type) -> bool:
-    case ty.kind:
-        Opaque:
-            return true
-    else:
-        return false
-
-fn get_element_type_from_type(ty?: Type) -> Type:
-    case ty.kind:
-        Array(element_type, size):
-            return element_type
-    else:
-        panic("No array type")
-
-fn get_array_size_from_type(ty?: Type) -> int:
-    case ty.kind:
-        Array(element_type, size):
-            return size
-    else:
-        panic("No array type")
-
-fn is_tycon_app_type(ty?: Type) -> bool:
-    case ty.kind:
-        App(tycon, args):
-            return true
-    else:
-        return false
-
-fn is_type_parameter_type(ty?: Type) -> bool:
-    case ty.kind:
-        TypeParam(p):
-            return true
-    else:
-        return false
-
 fn is_type_var_type(ty?: Type) -> bool:
     case ty.kind:
         TypeVar(v):
@@ -445,14 +486,6 @@ fn deref_type_var(ty?: Type) -> Type:
     else:
         return ty
 
-
-fn get_type_parameter_from_type(ty?: Type) -> TypeParameter:
-    case ty.kind:
-        TypeParam(p):
-            return p
-    else:
-        panic("Type must be type parameter")
-
 fn get_parameter_types_from_type(ty?: Type) -> List[ParameterType]:
     case ty.kind:
         Function(p, i):
@@ -465,10 +498,6 @@ fn get_types_from_parameter_types(p2?: List[ParameterType]) -> List[Type]:
     for p in p2:
         t.append(p.ty)
     return t
-
-fn get_enum_variant_from_type(ty: Type, attr: str) -> Option[EnumVariant]:
-    let enum_def = get_enum_def_from_type(ty)
-    return get_enum_variant(enum_def, attr)
 
 fn get_enum_variant(enum_def: EnumDef, attr: str) -> Option[EnumVariant]:
     case enum_def.scope.lookup(name: attr):
@@ -483,22 +512,11 @@ fn get_enum_variant(enum_def: EnumDef, attr: str) -> Option[EnumVariant]:
             return Option.None()
 
 fn get_enum_variant_names_from_type(ty?: Type) -> List[str]:
-    let enum_def = get_enum_def_from_type(ty)
+    let enum_def = ty.get_enum_def()
     let names: List[str] = List()
     for variant in enum_def.variants:
         names.append(variant.name)
     return names
-
-fn get_enum_def_from_type(ty?: Type) -> EnumDef:
-    case ty.kind:
-        App(tycon, type_arguments):
-            case tycon:
-                Enum(enum_def):
-                    return enum_def
-            else:
-                panic("get_enum_def_from_type: type must be enum")
-    else:
-        panic("get_enum_def_from_type: type must be enum")
 
 fn get_subst_map(ty: Type) -> Dictionary[Type]:
     case ty.kind:
@@ -540,31 +558,6 @@ fn get_method_ref_from_type(ty: Type, attr: str, location: Location) -> Expressi
                 panic("get_method_ref_from_type: No class: {ty}")
     else:
         panic("get_method_ref_from_type: No class: {ty}")
-
-fn get_class_def_from_type(ty: Type) -> ClassDef:
-    case ty.kind:
-        App(tycon, type_arguments):
-            case tycon:
-                Class(class_def):
-                    return class_def
-            else:
-                panic("No class type")
-    else:
-        panic("No class type")
-
-fn get_tycon_from_type(ty?: Type) -> TyCon:
-    case ty.kind:
-        App(tycon, args):
-            return tycon
-    else:
-        panic("Must be App type")
-
-fn get_type_arguments_from_type(ty?: Type) -> List[Type]:
-    case ty.kind:
-        App(tycon, args):
-            return args
-    else:
-        panic("Must be App type")
 
 enum TypeKind:
     Base(base: BaseType)
@@ -1191,10 +1184,13 @@ fn labeled_parameter(name: str, ty: Type) -> ParameterDef:
 fn variable(name: str, id: int, ty: Type, location: Location) -> Variable:
     return Variable(id: NodeId(name, id), ty, location)
 
-struct Variable:
-    id: NodeId
-    ty: Type
-    location: Location
+class Variable:
+    var id: NodeId
+    var ty: Type
+    var location: Location
+
+    fn ref(location: Location) -> Expression:
+        return var_ref(variable: this, location)
 
 struct ScopedBlock:
     scope: Scope
@@ -1392,10 +1388,17 @@ class Expression:
         let callee = get_attr_typed(attr: method, location)
         let result_ty: Type = callee.ty.get_return_type()
         return call(callee, arguments, ty: result_ty, location)
+    
+    fn call_it(arguments: List[LabeledExpression], location: Location) -> Expression:
+        let return_type = ty.get_return_type()
+        return call(callee: this, arguments, ty: return_type, location)
 
     fn get_attr_typed(attr: str, location: Location) -> Expression:
         let attr_ty = ty.get_field_type(attr)
         return get_attr(base: this, field: attr, ty: attr_ty, location)
+    
+    fn change_to(to: Expression):
+        change_expression_to(expression: this, to)
 
 fn clone_expression(value: Expression) -> Expression:
     return Expression(kind: value.kind, ty: value.ty, location: value.location)

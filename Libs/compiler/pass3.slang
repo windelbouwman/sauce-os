@@ -31,7 +31,7 @@ fn newop_on_type(newop: NewOp, ty: ast.Type, phase: ast.VisitPhase):
         Post:
             case ty.kind:
                 TypeExpression(expression):
-                    ast.change_type_to(ty, to_type: newop.eval_type_expr(expression))
+                    ty.change_to(to_type: newop.eval_type_expr(expression))
             else:
                 pass
     else:
@@ -60,7 +60,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                     case newop.try_as_type(expression: base):
                         Some(ty):
                             if ty.is_enum():
-                                case ast.get_enum_variant_from_type(ty, attr):
+                                case ty.get_enum_variant_from_type(attr):
                                     Some(variant):
                                         expression.kind = ast.ExpressionKind.Variant(ty, variant)
                                     None:

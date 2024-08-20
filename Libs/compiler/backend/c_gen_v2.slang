@@ -164,7 +164,7 @@ class CGenerator2:
                 pass
     
     fn gen_type(ty: ast.Type, name: str) -> str:
-        if ast.is_int_type(ty):
+        if ty.is_int():
             return "intptr_t {name}"
         elif ty.is_bool():
             return "intptr_t {name}"
@@ -174,7 +174,7 @@ class CGenerator2:
             return "double {name}"
         elif ty.is_char():
             return "char {name}"
-        elif ast.is_opaque_type(ty):
+        elif ty.is_opaque():
             return "void* {name}"
         elif ty.is_struct():
             let struct_def = ty.get_struct_def()
@@ -189,8 +189,8 @@ class CGenerator2:
             return gen_type(ty: ret_ty, name: "(*{name})({param_text})")
         elif ty.is_void():
             return "void {name}"
-        elif ast.is_array_type(ty):
-            let ety = ast.get_element_type_from_type(ty)
+        elif ty.is_array():
+            let ety = ty.get_element_type()
             # return gen_type(ty: ety, name: "*{name}")
             let ety2 = gen_type(ty: ety, name)
             return "{ety2}[]"
@@ -374,11 +374,11 @@ class CGenerator2:
                 let source = gen_expression(value)
                 if ty.is_float():
                     return "(double)({source})"
-                elif ast.is_opaque_type(ty):
+                elif ty.is_opaque():
                     return "(void*)({source})"
                 elif ty.is_str():
                     return "(char*)({source})"
-                elif ast.is_int_type(ty):
+                elif ty.is_int():
                     return "(intptr_t)({source})"
                 elif ty.is_bool():
                     return "(intptr_t)({source})"

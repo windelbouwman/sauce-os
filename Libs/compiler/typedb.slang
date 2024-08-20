@@ -175,17 +175,17 @@ class SymbolSaver:
 
     fn save_type(attr: str, ty: ast.Type):
         m_ser.begin_object()
-        if ast.is_int_type(ty):
+        if ty.is_int():
             m_ser.add_text_attribute(attr: "kind", text: "int")
-            let signed = ast.is_signed_int_type(ty)
-            let bits = ast.get_bits_from_int_type(ty)
+            let signed = ty.is_signed_int()
+            let bits = ty.get_bits()
             m_ser.add_boolean_attribute(attr: "signed", value: signed)
             m_ser.add_integer_attribute(attr: "bits", value: bits)
         elif ty.is_str():
             m_ser.add_text_attribute(attr: "kind", text: "str")
         elif ty.is_float():
             m_ser.add_text_attribute(attr: "kind", text: "float")
-            let bits = ast.get_bits_from_float_type(ty)
+            let bits = ty.get_bits()
             m_ser.add_integer_attribute(attr: "bits", value: bits)
         elif ty.is_bool():
             m_ser.add_text_attribute(attr: "kind", text: "bool")
@@ -193,22 +193,22 @@ class SymbolSaver:
             m_ser.add_text_attribute(attr: "kind", text: "char")
         elif ty.is_void():
             m_ser.add_text_attribute(attr: "kind", text: "void")
-        elif ast.is_array_type(ty):
+        elif ty.is_array():
             m_ser.add_text_attribute(attr: "kind", text: "array")
-            let element_type = ast.get_element_type_from_type(ty)
+            let element_type = ty.get_element_type()
             save_type(attr: "element-type", ty: element_type)
-            let size = ast.get_array_size_from_type(ty)
+            let size = ty.get_array_size()
             m_ser.add_integer_attribute(attr: "size", value: size)
-        elif ast.is_type_parameter_type(ty):
+        elif ty.is_type_parameter():
             m_ser.add_text_attribute(attr: "kind", text: "type-parameter")
-            let type_parameter = ast.get_type_parameter_from_type(ty)
+            let type_parameter = ty.get_type_parameter()
             save_id(id: type_parameter.id)
-        elif ast.is_tycon_app_type(ty):
+        elif ty.is_tycon_app():
             m_ser.add_text_attribute(attr: "kind", text: "app")
-            let tycon = ast.get_tycon_from_type(ty)
-            let type_arguments = ast.get_type_arguments_from_type(ty)
+            let tycon = ty.get_tycon()
+            let type_arguments = ty.get_type_arguments()
 
-            save_tycon(tycon: ast.get_tycon_from_type(ty))
+            save_tycon(tycon)
 
             m_ser.begin_array()
             for type_argument in type_arguments:
@@ -448,7 +448,7 @@ class SymbolLoader:
         let type_arguments: List[ast.Type] = List()
         for type_parameter in type_parameters:
             type_arguments.append(ast.type_parameter_ref(type_parameter))
-        ast.change_type_to(ty: this_type, to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
+        this_type.change_to(to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
 
         return class_def
 

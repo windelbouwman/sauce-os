@@ -127,7 +127,7 @@ class TypeChecker:
                     for variant_name in variant_names:
                         uncovered_arms.add(variant_name)
                     for arm in case_statement.arms:
-                        case ast.get_enum_variant_from_type(ty: case_statement.value.ty, attr: arm.name):
+                        case case_statement.value.ty.get_enum_variant_from_type(attr: arm.name):
                             Some(variant):
                                 if uncovered_arms.contains(arm.name):
                                     uncovered_arms.remove(arm.name)
@@ -147,17 +147,17 @@ class TypeChecker:
                 else:
                     add_error(location: case_statement.value.location, message: "Got {case_statement.value.ty}, expected enum")
             For(for_statement):
-                if ast.is_array_type(for_statement.iter_value.ty):
-                    let size = ast.get_array_size_from_type(for_statement.iter_value.ty)
+                if for_statement.iter_value.ty.is_array():
+                    let size = for_statement.iter_value.ty.get_array_size()
                     if size > 0:
-                        for_statement.iter_var.ty = ast.get_element_type_from_type(for_statement.iter_value.ty)
+                        for_statement.iter_var.ty = for_statement.iter_value.ty.get_element_type()
                     else:
                         add_error(location: for_statement.iter_value.location, message: "Array size unknown")
                 elif for_statement.iter_value.ty.is_iterable_like():
                     # TODO: we have a few assumptions here, which panic. Should be proper warning:
                     let iter_ty: ast.Type = for_statement.iter_value.ty.get_field_type(attr: "iter").get_return_type()
                     let opt_ty: ast.Type = iter_ty.get_field_type(attr: "next").get_return_type()
-                    let opt_variant = option_unwrap(ast.get_enum_variant_from_type(ty: opt_ty, attr: "Some"))
+                    let opt_variant = option_unwrap(opt_ty.get_enum_variant_from_type(attr: "Some"))
                     let val_ty: ast.Type = ast.get_variant_payload_types(ty: opt_ty, variant: opt_variant).first()
                     for_statement.iter_var.ty = val_ty
                 elif for_statement.iter_value.ty.is_sequence_like():
@@ -312,7 +312,7 @@ class TypeChecker:
             TypeCast(ty, value):
                 expression.ty = ty
             ToString(value):
-                if not (ast.is_int_type(value.ty) or value.ty.is_str() or value.ty.is_char() or value.ty.has_field(attr: "to_string")):
+                if not (value.ty.is_int() or value.ty.is_str() or value.ty.is_char() or value.ty.has_field(attr: "to_string")):
                     add_error(location: expression.location, message: "Cannot convert {value.ty} to string automatically")
                 expression.ty = ast.str_type()
             Typ(t):
@@ -321,7 +321,7 @@ class TypeChecker:
                 # Heuristics ahead...
                 let ty = binop.lhs.ty
                 let rhs_ty = binop.rhs.ty
-                if ast.is_int_type(ty) and rhs_ty.is_float():
+                if ty.is_int() and rhs_ty.is_float():
                     ty = rhs_ty
 
                 coerce(ty, value: binop.lhs)
@@ -334,7 +334,7 @@ class TypeChecker:
                 case op:
                     Minus:
                         let ty = rhs.ty
-                        if ty.is_float() or ast.is_int_type(ty):
+                        if ty.is_float() or ty.is_int():
                             expression.ty = ty
                         else:
                             add_error(location: expression.location, message: "Got {ty}, but unary '-' requires numeric type")
@@ -362,8 +362,8 @@ class TypeChecker:
                         add_error(location: expression.location, message: "Type {base.ty} has no field: {attr}")
                         expression.ty = ast.undefined_type()
             GetIndex(base, indici):
-                if ast.is_array_type(ty: base.ty):
-                    expression.ty = ast.get_element_type_from_type(ty: base.ty)
+                if base.ty.is_array():
+                    expression.ty = base.ty.get_element_type()
                 elif base.ty.has_field(attr: "get"):
                     # Maybe we try to access an object with get/set interface
                     # TODO: we have a few assumptions here, which panic. Should be proper warning:
@@ -451,7 +451,7 @@ class TypeChecker:
 
     fn coerce(ty: ast.Type, value: ast.Expression):
         # Try to auto-convert before check:
-        if ast.is_int_type(value.ty) and ty.is_float():
+        if value.ty.is_int() and ty.is_float():
             # Auto-conv int to floats
             let old_expr = ast.clone_expression(value)
             value.kind = ast.ExpressionKind.TypeCast(ty, old_expr)
@@ -465,7 +465,7 @@ class TypeChecker:
             let base_type1 = ty1.get_base_type()
             let base_type2 = ty2.get_base_type()
             return ast.base_type_equal(base_type1, base_type2)
-        elif ast.is_opaque_type(ty1) and ast.is_opaque_type(ty2):
+        elif ty1.is_opaque() and ty2.is_opaque():
             return true
         elif ty1.is_void() and ty2.is_void():
             return true
@@ -483,18 +483,18 @@ class TypeChecker:
                 return false
         elif ast.is_some_integer_type(ty1) and ty2.is_base_type():
             return unify(ty1: ty2, ty2: ty1)  # Invoke swapped
-        elif ast.is_tycon_app_type(ty1) and ast.is_tycon_app_type(ty2):
-            let tycon1 = ast.get_tycon_from_type(ty1)
-            let tycon2 = ast.get_tycon_from_type(ty2)
+        elif ty1.is_tycon_app() and ty2.is_tycon_app():
+            let tycon1 = ty1.get_tycon()
+            let tycon2 = ty2.get_tycon()
             if ast.tycon_equal(tycon1, tycon2):
-                let type_arguments1 = ast.get_type_arguments_from_type(ty1)
-                let type_arguments2 = ast.get_type_arguments_from_type(ty2)
+                let type_arguments1 = ty1.get_type_arguments()
+                let type_arguments2 = ty2.get_type_arguments()
                 return unify_many(typs1: type_arguments1, typs2: type_arguments2)
             else:
                 return false
-        elif ast.is_type_parameter_type(ty1) and ast.is_type_parameter_type(ty2):
-            let tp1 = ast.get_type_parameter_from_type(ty1)
-            let tp2 = ast.get_type_parameter_from_type(ty2)
+        elif ty1.is_type_parameter() and ty2.is_type_parameter():
+            let tp1 = ty1.get_type_parameter()
+            let tp2 = ty2.get_type_parameter()
             return ast.type_parameter_equals(tp1, tp2)
         elif ty1.is_function_type() and ty2.is_function_type():
             let ptys1 = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ty1))
@@ -509,8 +509,8 @@ class TypeChecker:
                 return false
 
             return true
-        elif ast.is_array_type(ty1) and ast.is_array_type(ty2):
-            return unify(ty1: ast.get_element_type_from_type(ty1), ty2: ast.get_element_type_from_type(ty2))
+        elif ty1.is_array() and ty2.is_array():
+            return unify(ty1: ty1.get_element_type(), ty2: ty2.get_element_type())
         elif ast.is_type_var_type(ty1):
             let type_var1: ast.TypeVariable = ast.get_type_var_from_type(ty1)
             case type_var1.ty:
@@ -520,10 +520,10 @@ class TypeChecker:
                         return ast.type_var_equals(type_var1, type_var2)
                     else:
                         type_var1.ty = Option.Some(ty2)
-                        ast.change_type_to(ty: ty1, to_type: ty2)
+                        ty1.change_to(to_type: ty2)
                         return true
                 Some(assigned_ty):
-                    ast.change_type_to(ty: ty1, to_type: assigned_ty)
+                    ty1.change_to(to_type: assigned_ty)
                     return unify(ty1, ty2)
         elif ast.is_type_var_type(ty2):
             return unify(ty1: ty2, ty2: ty1)

@@ -519,9 +519,9 @@ class BytecodeGenerator:
             TypeCast(ty, value):
                 gen_expression(value)
                 if ty.is_float():
-                    if ast.is_int_type(value.ty):
+                    if value.ty.is_int():
                         emit(Instruction.IntToFloat())
-                    elif ast.is_opaque_type(value.ty):
+                    elif value.ty.is_opaque():
                         emit(Instruction.FromOpaque(get_bc_type(ty)))
                     elif value.ty.is_float():
                         # No-op
@@ -529,23 +529,23 @@ class BytecodeGenerator:
                         pass
                     else:
                         panic("cannot cast to float: {value.ty}")
-                elif ast.is_int_type(ty):
+                elif ty.is_int():
                     if value.ty.is_float():
                         emit(Instruction.FloatToInt())
-                    elif ast.is_opaque_type(value.ty):
+                    elif value.ty.is_opaque():
                         emit(Instruction.FromOpaque(get_bc_type(ty)))
-                    elif ast.is_int_type(value.ty):
-                        let signed = ast.is_signed_int_type(ty)
-                        let bits = ast.get_bits_from_int_type(ty)
+                    elif value.ty.is_int():
+                        let signed = ty.is_signed_int()
+                        let bits = ty.get_bits()
                         emit(Instruction.IntCast(signed, bits))
                     else:
                         panic("cannot cast to int: {value.ty}")
-                elif ast.is_opaque_type(ty):
-                    if ast.is_opaque_type(value.ty):
+                elif ty.is_opaque():
+                    if value.ty.is_opaque():
                         pass
                     else:
                         emit(Instruction.ToOpaque(get_bc_type(value.ty)))
-                elif ast.is_opaque_type(value.ty):
+                elif value.ty.is_opaque():
                     emit(Instruction.FromOpaque(get_bc_type(ty)))
                 else:
                     panic("unsupported type-casting from {value.ty} to {ty}")
@@ -701,9 +701,9 @@ class BytecodeGenerator:
     fn get_bc_type(ty2?: ast.Type) -> bc.Type:
         # Determine the bytecode type for the given ast type
         let ty = bc.Type.Ptr()
-        if ast.is_int_type(ty2):
-            let signed = ast.is_signed_int_type(ty2)
-            let bits = ast.get_bits_from_int_type(ty2)
+        if ty2.is_int():
+            let signed = ty2.is_signed_int()
+            let bits = ty2.get_bits()
             ty = bc.Type.Int(signed, bits)
         elif ty2.is_float():
             let bits = 64 # TODO
@@ -726,16 +726,16 @@ class BytecodeGenerator:
             else:
                 return_type = Option.Some(get_bc_type(return_type2))
             ty = bc.Type.Function(parameter_types, return_type)
-        elif ast.is_type_parameter_type(ty2):
+        elif ty2.is_type_parameter():
             ty = bc.Type.Ptr()
         elif ty2.is_bool():
             ty = bc.Type.Bool()
         elif ty2.is_char():
             ty = bc.Type.Char()
-        elif ast.is_opaque_type(ty2):
+        elif ty2.is_opaque():
             ty = bc.Type.Ptr()
-        elif ast.is_array_type(ty2):
-            let element_type2 = ast.get_element_type_from_type(ty2)
+        elif ty2.is_array():
+            let element_type2 = ty2.get_element_type()
             ty = bc.Type.Array(get_bc_type(element_type2))
         else:
             panic("get_bc_type: Type {ty2} not supported")

@@ -207,7 +207,7 @@ class PyGenerator:
                 txt = gen_expression(value, parens: true)
                 if ty.is_float():
                     txt = "float({txt})"
-                elif ast.is_int_type(ty):
+                elif ty.is_int():
                     txt = "int({txt})"
             Box(value):
                 txt = gen_expression(value, parens: true)

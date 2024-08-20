@@ -114,9 +114,9 @@ class WasmGenerator:
                 panic("Definition {ast.definition_to_str(definition)} not supported")
 
     fn get_wasm_type(ty?: ast.Type) -> webassembly.ValueType:
-        if ast.is_int_type(ty):
+        if ty.is_int():
             return webassembly.ValueType.i64()
-        elif ast.is_opaque_type(ty) or ast.is_tycon_app_type(ty):
+        elif ty.is_opaque() or ty.is_tycon_app():
             return webassembly.ValueType.i32()
         elif ty.is_str():
             return webassembly.ValueType.i32()
@@ -310,7 +310,7 @@ class WasmGenerator:
                         gen_expression(value)
                         emit(Instruction.i32_eqz())
                     Minus:
-                        if ast.is_int_type(value.ty):
+                        if value.ty.is_int():
                             emit(Instruction.i64_const(0))
                             gen_expression(value)
                             emit(Instruction.i64_sub())
@@ -362,7 +362,7 @@ class WasmGenerator:
     fn gen_binop(binop: ast.BinopExpression):
         gen_expression(binop.lhs)
         gen_expression(binop.rhs)
-        if ast.is_int_type(binop.lhs.ty):
+        if binop.lhs.ty.is_int():
             case binop.op:
                 Add:
                     emit(Instruction.i64_add())
@@ -442,33 +442,33 @@ class WasmGenerator:
 
     fn gen_type_cast(from_type: ast.Type, to_type: ast.Type):
         if to_type.is_float():
-            if ast.is_int_type(from_type):
+            if from_type.is_int():
                 emit(Instruction.f64_convert_i64_s())
             else:
                 panic("TODO: cast {from_type} to float")
         elif to_type.is_str():
-            if ast.is_opaque_type(from_type):
+            if from_type.is_opaque():
                 pass
             else:
                 panic("TODO: cast to tycon-app: {from_type}")
-        elif ast.is_int_type(to_type):
-            if ast.is_opaque_type(from_type):
+        elif to_type.is_int():
+            if from_type.is_opaque():
                 emit(Instruction.i64_extend_i32_s())
             else:
                 panic("TODO: cast to int from: {from_type}")
         elif to_type.is_bool():
-            if ast.is_opaque_type(from_type):
+            if from_type.is_opaque():
                 pass
             else:
                 panic("TODO: cast to bool: {from_type}")
-        elif ast.is_opaque_type(to_type):
-            if ast.is_tycon_app_type(from_type):
+        elif to_type.is_opaque():
+            if from_type.is_tycon_app():
                 pass
-            elif ast.is_opaque_type(from_type):
+            elif from_type.is_opaque():
                 pass
             elif from_type.is_str():
                 pass
-            elif ast.is_int_type(from_type):
+            elif from_type.is_int():
                 # integers are 64 bit, pointers 32 bit.
                 # TODO: this fails for large integers!
                 emit(Instruction.i32_wrap_i64())
@@ -476,8 +476,8 @@ class WasmGenerator:
                 pass
             else:
                 panic("TODO: cast to opaque: {from_type}")
-        elif ast.is_tycon_app_type(to_type):
-            if ast.is_opaque_type(from_type):
+        elif to_type.is_tycon_app():
+            if from_type.is_opaque():
                 pass
             else:
                 panic("TODO: cast to tycon-app: {from_type}")

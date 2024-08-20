@@ -272,7 +272,7 @@ class Parser:
         let type_arguments: List[ast.Type] = List()
         for type_parameter in type_parameters:
             type_arguments.append(ast.type_parameter_ref(type_parameter))
-        ast.change_type_to(ty: this_type, to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
+        this_type.change_to(to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
         return class_def
 
     fn parse_func_def(this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except CompilationError:
