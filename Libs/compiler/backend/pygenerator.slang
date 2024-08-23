@@ -4,7 +4,7 @@ import ast
 from utils import panic, log_info
 from datatypes import List, option_is_some, option_unwrap, Option
 from std import float_to_str, chr, str_len
-from strlib import str_join, str_repeat
+from strlib import str_join
 from text_gen import TextGenerator
 
 fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_filename: Option[str]):
@@ -62,7 +62,7 @@ class PyGenerator:
                             indent()
                             emit(global_header)
                             dedent()
-                        gen_block(scoped_block.body)
+                        gen_block(scoped_block)
                         emit("")
                         emit("")
                     Extern(libname):
@@ -96,16 +96,16 @@ class PyGenerator:
                     Extern(libname, initialized):
                         emit("# external: from {libname} import {get_id(id: variable_def.variable.id)}")
 
-    fn gen_block(body?: ast.Statement):
+    fn gen_block(block?: ast.ScopedBlock):
         indent()
-        gen_statement(body)
+        gen_statement(block.body)
         dedent()
 
     fn gen_statement(statement?: ast.Statement):
         case statement.kind:
             While(while_statement):
                 emit("while {gen_expression(while_statement.condition, parens: false)}:")
-                gen_block(while_statement.block.body)
+                gen_block(while_statement.block)
             Let(let_statement):
                 emit("{get_id(id: let_statement.variable.id)} = {gen_expression(let_statement.value, parens: false)}")
             If(if_statement):
@@ -118,7 +118,7 @@ class PyGenerator:
                 emit("continue")
             Try(try_statement):
                 emit("try:")
-                gen_block(try_statement.try_block.body)
+                gen_block(try_statement.try_block)
                 let ex_name = "ex_{get_id(id: try_statement.except_var.id)}"
                 emit("except ValueError as {ex_name}:")
                 indent()
@@ -150,11 +150,11 @@ class PyGenerator:
             Unreachable:
                 emit("raise RuntimeError('unreachable')")
         else:
-            panic("gen_statement: Unsupported: {ast.statement_to_string(statement)}")
+            panic("gen_statement: Unsupported: {statement}")
 
     fn gen_if_statement(if_statement: ast.IfStatement, kw: str):
         emit("{kw} {gen_expression(if_statement.condition, parens: false)}:")
-        gen_block(if_statement.true_block.body)
+        gen_block(if_statement.true_block)
         case if_statement.false_block.body.kind:
             If(if2):
                 gen_if_statement(if_statement: if2, kw: "elif")
@@ -162,7 +162,7 @@ class PyGenerator:
                 pass
         else:
             emit("else:")
-            gen_block(if_statement.false_block.body)
+            gen_block(if_statement.false_block)
 
     fn gen_expression(expression?: ast.Expression, parens: bool) -> str:
         let txt = "?"

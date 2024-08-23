@@ -18,6 +18,7 @@ enum Value:
     Float(value: float)
     Bool(value: bool)
     List(list: ListValue)
+    Null
     Undefined
 
 enum FunctionRef:
@@ -44,6 +45,8 @@ fn value_to_string(value?: Value) -> str:
                 return "bool(false)"
         List(values):
             return "List(..)"
+        Null:
+            return "Null"
         Undefined:
             return "undefined"
 
@@ -185,10 +188,13 @@ fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
     efi_db.insert(key: "std_str_slice", value: ExternFunctionImpl(f: efi_std_str_slice, n: 3))
     efi_db.insert(key: "std_print", value: ExternFunctionImpl(f: efi_std_print, n: 1))
     efi_db.insert(key: "std_read_line", value: ExternFunctionImpl(f: efi_std_read_line, n: 1))
+    efi_db.insert(key: "std_get_path_separator", value: ExternFunctionImpl(f: efi_default, n: 0))
     efi_db.insert(key: "std_exit", value: ExternFunctionImpl(f: efi_default, n: 1))
     efi_db.insert(key: "std_read_file", value: ExternFunctionImpl(f: efi_default, n: 1))
     efi_db.insert(key: "std_file_open", value: ExternFunctionImpl(f: efi_default, n: 2))
     efi_db.insert(key: "std_file_writeln", value: ExternFunctionImpl(f: efi_default, n: 2))
+    efi_db.insert(key: "std_file_read_n_bytes", value: ExternFunctionImpl(f: efi_default, n: 3))
+    efi_db.insert(key: "std_file_write_n_bytes", value: ExternFunctionImpl(f: efi_default, n: 3))
     efi_db.insert(key: "std_file_close", value: ExternFunctionImpl(f: efi_default, n: 1))
     efi_db.insert(key: "std_get_n_args", value: ExternFunctionImpl(f: efi_default, n: 0))
     efi_db.insert(key: "std_get_arg", value: ExternFunctionImpl(f: efi_default, n: 1))
@@ -317,7 +323,7 @@ class VirtualMachine:
                     Float(val):
                         push(Value.Float(val))
                     Null:
-                        unimplemented("Null value")
+                        push(Value.Null())
             LocalGet(index):
                 let value = get_local(index)
                 push(value)

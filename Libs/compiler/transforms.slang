@@ -10,7 +10,7 @@
 
 from location import Location
 # from std import print
-from utils import panic, log_info, log_debug, assert
+from utils import panic, log_info, log_debug, assert, unimplemented
 from basepass import IdGen
 from typechecking import type_check_modules
 from datatypes import List, vec1, vec2, vec3, vec4, Option, option_unwrap_or, option_unwrap
@@ -215,6 +215,8 @@ fn transformer_on_type5(transformer: Transformer, ty: ast.Type, phase: ast.Visit
                                     ty.kind = ast.TypeKind.App(ast.TyCon.Struct(struct_def), type_arguments)
                                 Int:
                                     ty.kind = ast.int_type().kind
+                                Nullable:
+                                    ty.kind = ast.opaque_type().kind
                     else:
                         pass
             else:
@@ -337,7 +339,7 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                         let arguments = vec1(arg1)
                         let call = char_to_str_func.call_it(arguments, location: expression.location)
                         expression.change_to(to: call)
-                    elif value.ty.has_field(attr: "to_string"):
+                    elif value.ty.has_method("to_string"):
                         # Invoke to_string method
                         let arguments: List[ast.LabeledExpression] = List()
                         let call_to_string = value.call_method(method: "to_string", arguments, location: expression.location)
@@ -345,7 +347,7 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                     else:
                         panic("Invalid type for to-string")
                 GetIndex(base, indici):
-                    if base.ty.has_field(attr: "get"):
+                    if base.ty.has_method("get"):
                         assert(condition: indici.len() == 1, message: "Only support single indexing.")
                         let index = indici.first()
                         let arg1 = ast.LabeledExpression(name: Option.Some("index"), value: index, location: index.location)
@@ -561,6 +563,7 @@ fn transformer_on_expression9(transformer: Transformer, expression: ast.Expressi
 
 enum EnumImpl:
     Int
+    Nullable
     Struct(struct_def: ast.StructDef)
 
 class ClassRewriter:
@@ -878,7 +881,13 @@ class ClassRewriter:
                 let t3 = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def3), type_arguments: type_arguments2)
                 builder2.add_field(name: union_field_name, ty: t3, location: variant.location)
 
-        if builder2.fields.len() > 0:
+        if builder2.fields.len() == 0:
+            # A simple tag suffices!
+            enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Int())
+        elif builder2.fields.len() == 1 and builder2.fields.first().ty.is_nullable():
+            # We can check if the value is null or not
+            enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Nullable())
+        else:
             # The general case:
             # use a struct with 'tag' and 'data' fields
 
@@ -905,9 +914,6 @@ class ClassRewriter:
 
             new_definitions.append(ast.Definition.Struct(struct_def))
             enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Struct(struct_def))
-        else:
-            # A simple tag suffices!
-            enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Int())
 
     fn transform_case(case_statement: ast.CaseStatement) -> ast.Statement:
         """ Transform case statement into switch case over tag values. """
@@ -966,6 +972,8 @@ class ClassRewriter:
                 let switch_on_tag = ast.switch_statement(value: switch_value, arms: switch_arms, default_body: switch_default_code, location)
 
                 return ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
+            Nullable:
+                unimplemented("case nullable")
             Int:
                 let x_var = new_variable(name: "x", ty: ast.int_type(), location)
                 let store_tagged_union = ast.let_statement(variable: x_var, type_hint: Option.None(), value: case_statement.value, location)
@@ -1002,6 +1010,8 @@ class ClassRewriter:
         case get_enum_impl(id: enum_def.id):
             Int:
                 return tag
+            Nullable:
+                unimplemented("nullable literal")
             Struct(struct_def):
                 let type_arguments = enum_ty.get_type_arguments()
                 let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)

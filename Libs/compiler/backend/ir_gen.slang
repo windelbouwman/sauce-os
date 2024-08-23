@@ -706,7 +706,7 @@ class BytecodeGenerator:
             let bits = ty2.get_bits()
             ty = bc.Type.Int(signed, bits)
         elif ty2.is_float():
-            let bits = 64 # TODO
+            let bits = ty2.get_bits()
             ty = bc.Type.Float(bits)
         elif ty2.is_str():
             ty = bc.Type.Str()

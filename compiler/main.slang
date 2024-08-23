@@ -23,6 +23,7 @@ from c_gen import gen_c_code
 from c_gen_v2 import gen_c_code_v2
 from wasm_gen import gen_webassembly
 from riscv_gen import gen_riscv
+from slang_gen import gen_slang
 from vm import run_bytecode
 
 
@@ -83,6 +84,8 @@ fn main() -> int:
             options.runtime = false
         elif argument == "--backend-wasm":
             options.backend = Backend.WebAssembly()
+        elif argument == "--backend-slang":
+            options.backend = Backend.Slang()
         elif argument == "--run":
             options.run_code = true
         else:
@@ -125,6 +128,7 @@ fn print_usage():
     print("    --backend-wasm  : Spit out WebAssembly")
     print("    --backend-riscv : Spit out RiscV code")
     print("    --backend-null  : Skip code generation")
+    print("    --backend-slang : Spit out slang")
     print("    -rt : Skip runtime?")
     print("    --run : Run code!")
     print("")
@@ -144,6 +148,7 @@ enum Backend:
     Bytecode
     C
     Python
+    Slang
     WebAssembly
     Null
     Riscv
@@ -207,6 +212,8 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
             pass
         Python:
             gen_python(module_set, generate_runtime: options.runtime, output_filename: options.output_filename)
+        Slang:
+            gen_slang(module_set, output_filename: options.output_filename)
         Bytecode:
             let program = gen_bytecode(module_set)
             if options.run_code:

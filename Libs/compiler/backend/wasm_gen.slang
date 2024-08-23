@@ -260,7 +260,7 @@ class WasmGenerator:
             Raise(value):
                 panic("TODO: raise!")
         else:
-            panic("Not implemented: {ast.statement_to_string(statement)}")
+            panic("Not implemented: {statement}")
 
     fn gen_expression(expression?: ast.Expression):
         case expression.kind:

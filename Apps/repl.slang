@@ -41,7 +41,7 @@ class Repl:
                     print("Computed result: {value_to_string(x)}")
             else:
                 print_statement_ast(statement)
-                print("Unsupported statement: {ast.statement_to_string(statement)}")
+                print("Unsupported statement: {statement}")
 
         except (error: CompilationError):
             display_error(error)

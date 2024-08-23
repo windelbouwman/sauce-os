@@ -90,8 +90,7 @@ class ByteArray:
         return int(m_bytes[index])
 
     fn extend(bytes?: Bytes):
-        for b in bytes.m_bytes:
-            append(int(b))
+        m_bytes.extend(other: bytes.m_bytes)
 
     fn pack_u32_le(value?: int):
         append(value & 0xFF)

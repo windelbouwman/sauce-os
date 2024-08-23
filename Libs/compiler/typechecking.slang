@@ -312,7 +312,7 @@ class TypeChecker:
             TypeCast(ty, value):
                 expression.ty = ty
             ToString(value):
-                if not (value.ty.is_int() or value.ty.is_str() or value.ty.is_char() or value.ty.has_field(attr: "to_string")):
+                if not (value.ty.is_int() or value.ty.is_str() or value.ty.is_char() or value.ty.has_method("to_string")):
                     add_error(location: expression.location, message: "Cannot convert {value.ty} to string automatically")
                 expression.ty = ast.str_type()
             Typ(t):
@@ -364,7 +364,7 @@ class TypeChecker:
             GetIndex(base, indici):
                 if base.ty.is_array():
                     expression.ty = base.ty.get_element_type()
-                elif base.ty.has_field(attr: "get"):
+                elif base.ty.has_method("get"):
                     # Maybe we try to access an object with get/set interface
                     # TODO: we have a few assumptions here, which panic. Should be proper warning:
                     let val_ty: ast.Type = base.ty.get_field_type(attr: "get").get_return_type()

@@ -287,11 +287,21 @@ class Type:
         else:
             panic("Type without fields")
 
+    fn has_method(name?: str) -> bool:
+        if has_field(attr: name):
+            return get_field_type(attr: name).is_function_type()
+        else:
+            return false
+
     fn is_sequence_like() -> bool:
-        return has_field(attr: "len") and has_field(attr: "get")
+        return has_method("len") and has_method("get")
 
     fn is_iterable_like() -> bool:
-        return has_field(attr: "iter")
+        return has_method("iter")
+    
+    fn is_nullable() -> bool:
+        # TODO
+        return false
 
     fn is_function_type() -> bool:
         case kind:
@@ -1176,7 +1186,7 @@ struct ParameterDef:
     location: Location
 
 fn unlabeled_parameter(ty: Type) -> ParameterDef:
-    return parameter_def(name: "?", id: 0, label_is_optional: true, ty, location: location_default())
+    return parameter_def(name: "noname", id: 0, label_is_optional: true, ty, location: location_default())
 
 fn labeled_parameter(name: str, ty: Type) -> ParameterDef:
     return parameter_def(name, id: 0, label_is_optional: false, ty, location: location_default())
@@ -1199,13 +1209,16 @@ struct ScopedBlock:
 fn scoped_block(body: Statement) -> ScopedBlock:
     return ScopedBlock(scope: Scope(), body)
 
-struct Statement:
-    location: Location
-    kind: StatementKind
-    is_terminator: bool
+class Statement:
+    var kind: StatementKind
+    var location: Location
+    var is_terminator: bool = false
+
+    fn to_string() -> str:
+        return statement_to_string(statement: this)
 
 fn statement(kind: StatementKind, location: Location) -> Statement:
-    return Statement(kind, location, is_terminator: false)
+    return Statement(kind, location)
 
 enum StatementKind:
     If(if_statement: IfStatement)
@@ -1725,8 +1738,7 @@ fn statement_to_string(statement: Statement) -> str:
 fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPhase):
     case phase:
         Pre:
-            let txt = statement_to_string(statement)
-            printer.print2(txt: "STMT {txt}")
+            printer.print2(txt: "STMT {statement}")
             printer.indent()
         Post:
             printer.dedent()

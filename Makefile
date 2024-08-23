@@ -26,6 +26,7 @@ SLANG_APPS := $(wildcard Apps/*.slang)
 
 CFLAGS=-Werror -Wreturn-type -g -Iruntime
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
+SLANG2_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang/%.slang, $(SLANG_EXAMPLES))
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/%.py, $(SLANG_EXAMPLES))
 C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/snippets/%.exe, $(SLANG_EXAMPLES))
@@ -37,28 +38,35 @@ ALL_TEST_RUNS_PY := $(patsubst tests/test_%.slang, run-test-py-%, $(TESTS))
 
 .PHONY: all check check-py all-examples all-examples-bc all-examples-c all-examples-python test pytest-exes
 all: ${C_APPS} all-examples
-all-examples: all-examples-bc all-examples-c all-examples-python
-test: pytest-exes pytest-compiler1 check check-py
+all-examples: all-examples-bc all-examples-c all-examples-python all-examples-slang2
+test: pytest-compiler pytest-compiler1 check check-py
 
 check: ${ALL_TEST_RUNS}
 check-py: ${ALL_TEST_RUNS_PY}
 
 # Profiling
 profile: ${COMPILER5} | ${BUILDDIR}
-	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-c ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-null ${BASE_LIB_SRCS}
 	kcachegrind build/callgrind.out
 
 pytest-compiler1:
 	pytest -v test_compiler1.py
 
-pytest-exes: $(C_EXAMPLES)
-	pytest -vv test_compiler.py -k exe
+pytest-compiler: $(C_EXAMPLES)
+	pytest -vv test_compiler.py
 
 # Example to bytecode compilation
 all-examples-bc: $(BC_EXAMPLES)
 
 ${BUILDDIR}/bc/%.txt: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/bc
 	${SLANGC} --backend-bc $< runtime/std.slang > $@
+
+# Example compiled to slang-code!
+all-examples-slang2: $(SLANG2_EXAMPLES)
+
+${BUILDDIR}/slang/%.slang: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/slang
+	${SLANGC} -o $@ --backend-slang $< runtime/std.slang
+#	${SLANGC} --backend-null $@  # Validate slang code
 
 # Example compiled to Python code:
 all-examples-python: $(PY_EXAMPLES)
@@ -220,6 +228,9 @@ ${BUILDDIR}/c/linkage:
 
 ${BUILDDIR}/python:
 	mkdir -p ${BUILDDIR}/python
+
+${BUILDDIR}/slang:
+	mkdir -p ${BUILDDIR}/slang
 
 ${BUILDDIR}/wasm:
 	mkdir -p ${BUILDDIR}/wasm

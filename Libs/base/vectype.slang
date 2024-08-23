@@ -36,6 +36,17 @@ class Vector[T]:
         m_elements[m_size] = value
         m_size += 1
     
+    fn extend(other: Vector[T]):
+        """ Append all elements of other to this vector """
+        let new_size = m_size + other.m_size
+        while m_capacity < new_size:
+            grow()
+        let index = 0
+        while index < other.m_size:
+            m_elements[m_size] = other.m_elements[index]
+            m_size += 1
+            index += 1
+
     fn clear():
         m_size = 0
 
@@ -90,12 +101,6 @@ class Vector[T]:
     
     fn concat(other: Vector[T]) -> Vector[T]:
         let v2: Vector[T] = new_vector_with_capacity(default: m_default, capacity: m_size + other.m_size)
-        
-        let index = 0
-        while index < m_size:
-            v2.append(get(index))
-            index += 1
-        
-        for value in other:
-            v2.append(value)
+        v2.extend(other: this)
+        v2.extend(other)
         return v2

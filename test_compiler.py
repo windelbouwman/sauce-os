@@ -39,18 +39,28 @@ def slang_compiler():
 
 
 def run_compiler(args):
-    slang_compiler_py_code = slang_compiler()
+    compiled_here = False
+    if compiled_here:
 
-    f1 = io.StringIO()
-    global_map = builtins.get_builtins(args=args, stdout=f1)
-    exec(slang_compiler_py_code, global_map)
-    exit_code = global_map["main"]()
-    compiler_output = f1.getvalue()
-    if exit_code == 0:
-        return compiler_output
+        slang_compiler_py_code = slang_compiler()
+
+        f1 = io.StringIO()
+        global_map = builtins.get_builtins(args=args, stdout=f1)
+        exec(slang_compiler_py_code, global_map)
+        exit_code = global_map["main"]()
+        compiler_output = f1.getvalue()
+        if exit_code == 0:
+            return compiler_output
+        else:
+            print(compiler_output)
+            raise ValueError(f"Compiler failed: {exit_code}")
     else:
-        print(compiler_output)
-        raise ValueError(f"Compiler failed: {exit_code}")
+        # invoke compiler5 in build folder
+        exe_path = os.path.join("build", "compiler5")
+        result = subprocess.run([exe_path] + args, capture_output=True)
+        stdout = result.stdout.decode("ascii")
+        assert result.returncode == 0
+        return stdout
 
 
 def get_reference_output(example_filename):
@@ -64,17 +74,15 @@ def get_reference_output(example_filename):
 @pytest.mark.parametrize("filename", example_filenames)
 def test_examples_py_backend(filename):
     """
-    Test all examples can be compiled using our slang compiler
+    Test all examples can be compiled to python code
 
     Recipe:
-    1. compile slang compiler to python
-    2. invoke slang compiler on the example, to produce python code (again)
-    3. invoke example program
-    4. compare example output with reference output
+    1. invoke slang compiler on the example, to produce python code (again)
+    2. invoke example program
+    3. compare example output with reference output
 
     """
 
-    # Compile example using bootstrapped compiler:
     args = ["-rt", "--backend-py", "runtime/std.slang"] + [filename]
     program_py_code = run_compiler(args)
 
@@ -99,18 +107,26 @@ def test_examples_py_backend(filename):
 @pytest.mark.parametrize("filename", example_filenames)
 def test_examples_c_backend(filename):
     """
-    Test all examples can be compiled using our slang compiler
+    Test example can be compiled to C code
 
     Recipe:
-    1. compile slang compiler to python
-    2. invoke slang compiler on the example, to produce C code
+    1. invoke slang compiler on the example, to produce C code
 
     """
 
-    # Compile example using bootstrapped compiler:
     args = ["--backend-c", "runtime/std.slang"] + [filename]
     run_compiler(args)
 
+@pytest.mark.parametrize("filename", example_filenames)
+def test_examples_slang_backend(filename):
+    """
+    Recipe:
+    1. invoke slang compiler on the example, to produce Slang code
+
+    """
+
+    args = ["--backend-slang", "runtime/std.slang"] + [filename]
+    run_compiler(args)
 
 @pytest.mark.parametrize("filename", example_filenames)
 def test_examples_bc_backend(filename):
@@ -118,9 +134,8 @@ def test_examples_bc_backend(filename):
     Test all examples can be compiled to bytecode.
 
     Recipe:
-    1. compile slang compiler to python
-    2. invoke slang compiler on the example, to produce bytecode, and run this bytecode
-    3. compare example output with reference output
+    1. invoke slang compiler on the example, to produce bytecode, and run this bytecode
+    2. compare example output with reference output
 
     """
 
