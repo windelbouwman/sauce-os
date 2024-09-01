@@ -269,6 +269,77 @@ SLANG_API void std_file_close(slang_int_t handle)
     }
 }
 
+void* slangrt_box_char(char value)
+{
+    intptr_t p2 = value;
+    p2 = (p2 << 1) | 1;
+    return (void*)p2;
+}
+
+char slangrt_unbox_char(void* p1)
+{
+    intptr_t p2 = (intptr_t)p1;
+    p2 = p2 >> 1;
+    return (char)p2;
+}
+
+void* slangrt_box_bool(slang_bool_t value)
+{
+    intptr_t p2 = (intptr_t)value;
+    p2 = (p2 << 1) | 1;
+    return (void*)p2;
+}
+
+slang_bool_t slangrt_unbox_bool(void* p1)
+{
+    intptr_t p2 = (intptr_t)p1;
+    p2 = p2 >> 1;
+    return (slang_bool_t)p2;
+}
+
+void* slangrt_box_int64(slang_int64_t value)
+{
+    intptr_t p2 = value;
+    // TODO: we loose 1 bit here!
+    p2 = (p2 << 1) | 1;
+    return (void*)p2;
+}
+
+slang_int64_t slangrt_unbox_int64(void* p1)
+{
+    intptr_t p2 = (intptr_t)p1;
+    p2 = p2 >> 1;
+    return (slang_int64_t)p2;
+}
+
+void* slangrt_box_uint8(slang_uint8_t value)
+{
+    uintptr_t p2 = value;
+    p2 = (p2 << 1) | 1;
+    return (void*)p2;
+}
+
+slang_uint8_t slangrt_unbox_uint8(void* p1)
+{
+    uintptr_t p2 = (uintptr_t)p1;
+    p2 = p2 >> 1;
+    return (slang_uint8_t)p2;
+}
+
+void* slangrt_box_float64(slang_float64_t value)
+{
+    void* p1 = rt_malloc(sizeof(slang_float64_t));
+    slang_float64_t* p2 = p1;
+    *p2 = value;
+    return p1;
+}
+
+slang_float64_t slangrt_unbox_float64(void* p1)
+{
+    slang_float64_t* p2 = p1;
+    return *p2;
+}
+
 int g_argc;
 char **g_argv;
 

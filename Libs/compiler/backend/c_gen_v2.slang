@@ -30,15 +30,7 @@ class CGenerator2:
         emit("#include <setjmp.h>")
         emit("#include <stdlib.h>")
         emit("#include <stdint.h>")
-        emit("")
-
-        # MEH: copy/pasted from c_gen.slang ..
-        emit("void* rt_malloc(int size);")
-        emit("void rt_incref(void *ptr);")
-        emit("void rt_decref(void *ptr);")
-
-        emit("jmp_buf* g_except_hook;")
-        emit("void* g_except_value;")
+        emit("#include {chr(34)}slangrt.h{chr(34)}")
 
     fn gen_forward_declarations1(module_set: ast.ModuleSet):
         for module in module_set.modules:

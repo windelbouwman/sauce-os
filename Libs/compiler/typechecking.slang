@@ -5,6 +5,7 @@ import ast
 from math import ceil, log2
 from std import print
 from datatypes import Option, List, option_unwrap, option_is_none
+from strlib import str_join
 from settype import Set
 from location import Location, location_to_string
 from utils import log_info, panic, log_error
@@ -142,8 +143,12 @@ class TypeChecker:
                             None:
                                 add_error(location: arm.location, message: "No such enum variant: {arm.name}")
                     if option_is_none(case_statement.else_block):
+                        let parts: List[str] = List()
                         for uncovered_arm in uncovered_arms:
-                            add_error(location: statement.location, message: "Enum case not covered: {uncovered_arm}")
+                            parts.append(uncovered_arm)
+                        if parts.len() > 0:
+                            let uncovered_text = str_join(parts, sep: ", ")
+                            add_error(location: statement.location, message: "Enum cases not covered: {uncovered_text}")
                 else:
                     add_error(location: case_statement.value.location, message: "Got {case_statement.value.ty}, expected enum")
             For(for_statement):
@@ -395,6 +400,7 @@ class TypeChecker:
             Box(value):
                 expression.ty = ast.opaque_type()
             Unbox(value, to_type):
+                coerce(ty: ast.opaque_type(), value)
                 expression.ty = to_type
             ArrayLiteral(values):
                 let element_type: ast.Type = values.first().ty

@@ -209,6 +209,8 @@ class PyGenerator:
                     txt = "float({txt})"
                 elif ty.is_int():
                     txt = "int({txt})"
+                else:
+                    panic("Cannot cast to {ty}")
             Box(value):
                 txt = gen_expression(value, parens: true)
             Unbox(value, to_type):

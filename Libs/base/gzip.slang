@@ -4,7 +4,7 @@
 from datetime import unix_to_str
 from std import print
 from math import modulo
-from utils import unimplemented, assert
+from utils import unimplemented, assert, log_debug
 from bytes import Bytes, ByteReader, ByteArray
 from deflate import new_deflate_decoder, BitReader
 from deflate import deflate_compress
@@ -22,7 +22,7 @@ fn gzip_decompress(data?: Bytes) -> Bytes:
     let mtime = reader.read_u32_le()
     let xfl = reader.read_byte()
     let os = reader.read_byte()
-    print("OS = {os} mtime={unix_to_str(seconds: mtime)}")
+    log_debug("OS = {os} mtime={unix_to_str(seconds: mtime)}")
 
     # bit 0   FTEXT
     # bit 1   FHCRC
@@ -51,7 +51,7 @@ fn gzip_decompress(data?: Bytes) -> Bytes:
     let isize = reader.read_u32_le()
     assert(condition: isize == decompressed.len(), message: "Invalid length: {isize} != {decompressed.len()}")
     let crc32_check = calc_crc32(data: decompressed)
-    print("isize = {isize}, crc32 = {crc32}, crc32_check = {crc32_check}")
+    log_debug("isize = {isize}, crc32 = {crc32}, crc32_check = {crc32_check}")
     assert(condition: crc32_check == crc32, message: "CRC error: {crc32} != {crc32_check}")
     return decompressed
 

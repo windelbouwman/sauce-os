@@ -13,7 +13,7 @@ from location import Location
 from utils import panic, log_info, log_debug, assert, unimplemented
 from basepass import IdGen
 from typechecking import type_check_modules
-from datatypes import List, vec1, vec2, vec3, vec4, Option, option_unwrap_or, option_unwrap
+from datatypes import List, vec1, vec2, vec3, vec4, Option, option_unwrap_or, option_unwrap, option_is_none, option_is_some
 from dicttype import Dictionary
 from errors import CompilationError
 import ast
@@ -298,9 +298,8 @@ fn transformer_on_statement7(transformer: Transformer, statement: ast.Statement,
                     transformer.class_rewriter.erase_type(ft: target.ty, value: expr, assign: true)
 
                     # If we cast to a value, we must move the cast to the value side
-
                     case target.kind:
-                        TypeCast(typ, value):
+                        Unbox(value, to_type):
                             if value.ty.is_opaque() or value.ty.is_type_parameter():
                                 target.change_to(to: value)
                             else:
@@ -505,7 +504,7 @@ fn upcast_type(expression: ast.Expression):
     # Perform type promotion, when this type was a generic
     if expression.ty.was_generic:
         let old_expression = ast.clone_expression(value: expression)
-        let new_expression = ast.cast(value: old_expression, to_type: expression.ty, location: expression.location)
+        let new_expression = ast.unbox(value: old_expression, to_type: expression.ty, location: expression.location)
         expression.change_to(to: new_expression)
 
 fn transformer_on_node0(transformer: Transformer, node: ast.VisitNode, phase: ast.VisitPhase):
@@ -787,7 +786,7 @@ class ClassRewriter:
         let index_ref3 = index_var.ref(location)
         let index_ref4 = index_var.ref(location)
         let one = ast.integer_literal(value: 1, location)
-        let index_plus_1 = ast.binop(lhs: index_ref4, op: ast.BinaryOperator.Add(), rhs: one, ty: ast.int_type(), location)
+        let index_plus_1 = index_ref4.add(rhs: one, location)
         let inc_index = ast.assignment_statement(target: index_ref3, op: Option.None(), value: index_plus_1, location)
 
         # While loop:
@@ -824,7 +823,7 @@ class ClassRewriter:
         let index_ref3 = index_var.ref(location)
         let index_ref4 = index_var.ref(location)
         let one = ast.integer_literal(value: 1, location)
-        let index_plus_1 = ast.binop(lhs: index_ref4, op: ast.BinaryOperator.Add(), rhs: one, ty: ast.int_type(), location)
+        let index_plus_1 = index_ref4.add(rhs: one, location)
         let inc_index = ast.assignment_statement(target: index_ref3, op: Option.None(), value: index_plus_1, location)
 
         # While loop:
@@ -851,45 +850,56 @@ class ClassRewriter:
     fn rewrite_enum_def(enum_def: ast.EnumDef):
         log_info("Rewriting enum def {enum_def.id.name}")
 
-        let builder2 = ast.StructBuilder()
-        builder2.set_name(name: "{enum_def.id.name}Data")
-        builder2.set_id(get_unique_id())
-        builder2.set_is_union(true)
-
-        let type_arguments2: List[ast.Type] = List()
-        for type_parameter in enum_def.type_parameters:
-            let type_parameter_ref2 = builder2.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
-            type_arguments2.append(type_parameter_ref2)
-
+        # Check for enum def characteristics:
+        let n_arms = 0
+        let n_payload_arms = 0
+        let n_nullable_arms = 0
         for variant in enum_def.variants:
-            let union_field_name = "data_{variant.name}"
-            if variant.payload.len() == 1:
-                let t3 = variant.payload.first()
-                builder2.add_field(name: union_field_name, ty: t3, location: variant.location)
-            elif variant.payload.len() > 1:
-                let builder3 = ast.StructBuilder()
-                builder3.set_name(name: "{enum_def.id.name}Data{variant.name}")
-                builder3.set_id(id: get_unique_id())
+            n_arms += 1
+            if variant.payload.len() > 0:
+                n_payload_arms += 1
+                if variant.payload.len() == 1 and variant.payload.first().is_nullable():
+                    n_nullable_arms += 1
 
-                let idx = 0
-                for payload_type in variant.payload:
-                    builder3.add_field(name: "f_{idx}", ty: payload_type, location: variant.location)
-                    idx += 1
-
-                let struct_def3 = builder3.finish()
-                new_definitions.append(ast.Definition.Struct(struct_def3))
-                let t3 = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def3), type_arguments: type_arguments2)
-                builder2.add_field(name: union_field_name, ty: t3, location: variant.location)
-
-        if builder2.fields.len() == 0:
+        if n_payload_arms == 0:
             # A simple tag suffices!
             enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Int())
-        elif builder2.fields.len() == 1 and builder2.fields.first().ty.is_nullable():
+        elif n_arms == 2 and n_payload_arms == 1 and n_nullable_arms == 1:
             # We can check if the value is null or not
             enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Nullable())
         else:
             # The general case:
             # use a struct with 'tag' and 'data' fields
+
+            let builder2 = ast.StructBuilder()
+            builder2.set_name(name: "{enum_def.id.name}Data")
+            builder2.set_id(get_unique_id())
+            builder2.set_is_union(true)
+
+            let type_arguments2: List[ast.Type] = List()
+            for type_parameter in enum_def.type_parameters:
+                let type_parameter_ref2 = builder2.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
+                type_arguments2.append(type_parameter_ref2)
+
+            for variant in enum_def.variants:
+                let union_field_name = "data_{variant.name}"
+                if variant.payload.len() == 1:
+                    let t3 = variant.payload.first()
+                    builder2.add_field(name: union_field_name, ty: t3, location: variant.location)
+                elif variant.payload.len() > 1:
+                    let builder3 = ast.StructBuilder()
+                    builder3.set_name(name: "{enum_def.id.name}Data{variant.name}")
+                    builder3.set_id(id: get_unique_id())
+
+                    let idx = 0
+                    for payload_type in variant.payload:
+                        builder3.add_field(name: "f_{idx}", ty: payload_type, location: variant.location)
+                        idx += 1
+
+                    let struct_def3 = builder3.finish()
+                    new_definitions.append(ast.Definition.Struct(struct_def3))
+                    let t3 = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def3), type_arguments: type_arguments2)
+                    builder2.add_field(name: union_field_name, ty: t3, location: variant.location)
 
             # Add field for enum variants without data:
             builder2.add_field(name: "nodata", ty: ast.opaque_type(), location: enum_def.location)
@@ -973,11 +983,53 @@ class ClassRewriter:
 
                 return ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
             Nullable:
-                unimplemented("case nullable")
-            Int:
-                let x_var = new_variable(name: "x", ty: ast.int_type(), location)
-                let store_tagged_union = ast.let_statement(variable: x_var, type_hint: Option.None(), value: case_statement.value, location)
+                # Change case to if-null construction
+                let x_var = new_variable(name: "x", ty: ast.opaque_type(), location)
+                let store_nullable = ast.let_statement(variable: x_var, type_hint: Option.None(), value: case_statement.value, location)
 
+                # Determine true and false arms
+                let optional_true_body: Option[ast.Statement] = Option.None()
+                let optional_false_body: Option[ast.Statement] = Option.None()
+
+                for arm in case_statement.arms:
+                    let variant = option_unwrap(ast.get_enum_variant(enum_def, attr: arm.name))
+                    let is_null_case = variant.payload.len() == 0
+                    if is_null_case:
+                        optional_true_body = Option.Some(arm.block.body)
+                    else:
+                        assert(condition: variant.payload.len() == 1, message: "Number of payload items must be one.")
+                        # Unpack payload:
+                        let x_var_ref1 = x_var.ref(location: arm.location)
+                        let payload_types = ast.get_variant_payload_types(ty: case_statement.value.ty, variant)
+                        assert(condition: payload_types.len() == 1, message: "number of types must be 1")
+                        let to_type = payload_types.first()
+                        let value = ast.unbox(value: x_var_ref1, to_type, location: arm.location)
+                        let store_var = ast.let_statement(variable: arm.variables.first(), type_hint: Option.None(), value, location: arm.location)
+
+                        optional_false_body = Option.Some(ast.compound(inner: vec2(store_var, arm.block.body), location: arm.location))
+
+                case case_statement.else_block:
+                    None:
+                        # When no default case is given, all paths must be covered
+                        assert(condition: option_is_some(optional_true_body) and option_is_some(optional_false_body), message: "Both paths must be covered")
+                    Some(else_block):
+                        if option_is_none(optional_true_body):
+                            optional_true_body = Option.Some(else_block.body)
+                        elif option_is_none(optional_false_body):
+                            optional_false_body = Option.Some(else_block.body)
+
+                # Both if-arms must be covered
+                let true_body = option_unwrap(optional_true_body)
+                let false_body = option_unwrap(optional_false_body)
+
+                # if x == null
+                let x_var_ref0 = x_var.ref(location)
+                let null_test_value = ast.null_value(location)
+                let condition = x_var_ref0.equals(rhs: null_test_value, location)
+                let choice = ast.if_statement(condition, body: true_body, false_body, location)
+
+                return ast.compound(inner: vec2(store_nullable, choice), location)
+            Int:
                 let switch_arms: List[ast.SwitchArm] = List()
                 for arm in case_statement.arms:
                     let variant = option_unwrap(ast.get_enum_variant(enum_def, attr: arm.name))
@@ -997,10 +1049,7 @@ class ClassRewriter:
                     Some(else_block):
                         switch_default_code = else_block.body
 
-                let switch_value = x_var.ref(location)
-                let switch_on_tag = ast.switch_statement(value: switch_value, arms: switch_arms, default_body: switch_default_code, location)
-                return ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
-
+                return ast.switch_statement(value: case_statement.value, arms: switch_arms, default_body: switch_default_code, location)
 
     fn rewrite_enum_literal(enum_ty: ast.Type, variant: ast.EnumVariant, values: List[ast.Expression], location: Location) -> ast.Expression:
         # log_info("Rewrite enum literal")
@@ -1011,7 +1060,14 @@ class ClassRewriter:
             Int:
                 return tag
             Nullable:
-                unimplemented("nullable literal")
+                let nullable_value = ast.null_value(location)
+                if values.len() == 0:
+                    pass
+                elif values.len() == 1:
+                    nullable_value = ast.box(value: values.first(), location)
+                else:
+                    panic("Bad nullable")
+                return nullable_value
             Struct(struct_def):
                 let type_arguments = enum_ty.get_type_arguments()
                 let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
@@ -1033,7 +1089,7 @@ class ClassRewriter:
     fn erase_type(ft: ast.Type, value: ast.Expression, assign: bool):
         if ft.was_generic and not assign:
             let old_value = ast.clone_expression(value)
-            let new_value = ast.cast(value: old_value, to_type: ast.opaque_type(), location: value.location)
+            let new_value = ast.box(value: old_value, location: value.location)
             value.change_to(to: new_value)
         elif ft.is_function_type():
             let parameter_types = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ft))
@@ -1085,7 +1141,7 @@ class ClassRewriter:
             let argument = ast.LabeledExpression(name: Option.Some(parameter.id.name), value: parameter_ref, location)
             if needs_cast:
                 # Introduce cast from opaque to specific type here.
-                argument.value = ast.cast(value: argument.value, to_type: parameter.ty, location)
+                argument.value = ast.unbox(value: argument.value, to_type: parameter.ty, location)
             arguments.append(argument)
 
         let function_ref = ast.function_ref(function_def, type_arguments: List(), location)
@@ -1098,7 +1154,7 @@ class ClassRewriter:
             let value = function_call
             if needs_opaque_cast(return_type):
                 return_type2 = ast.opaque_type()
-                value = ast.cast(value, to_type: return_type2, location)
+                value = ast.box(value, location)
             body = ast.return_statement(value: Option.Some(value), location)
 
         let bridge_function = ast.function_def(name: bridge_function_name, type_parameters, this_parameter: Option.None(), parameters, return_type: return_type2, except_type, body, location)

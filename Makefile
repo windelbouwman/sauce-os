@@ -78,7 +78,7 @@ ${BUILDDIR}/python/%.py: examples/snippets/%.slang runtime/std.slang ${SLANGC_DE
 all-examples-c: $(C_EXAMPLES)
 
 .PRECIOUS: ${BUILDDIR}/c/snippets/%.exe ${BUILDDIR}/c/snippets/%.c
-${BUILDDIR}/c/snippets/%.exe: ${BUILDDIR}/c/snippets/%.c ${BUILDDIR}/slangrt.o | ${BUILDDIR}/c/snippets
+${BUILDDIR}/c/snippets/%.exe: ${BUILDDIR}/c/snippets/%.c ${BUILDDIR}/slangrt.o runtime/slangrt.h | ${BUILDDIR}/c/snippets
 	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/slangrt.o -lm
 
 ${BUILDDIR}/c/snippets/%.c: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/c/snippets
@@ -134,7 +134,7 @@ ${BUILDDIR}/c/linkage/main.c: examples/linkage/main.slang ${BUILDDIR}/c/linkage/
 ${BUILDDIR}/c/linkage/libfancy.so: ${BUILDDIR}/c/linkage/libfancy.c
 	gcc ${CFLAGS} -shared -fPIC -o $@ $<
 
-${BUILDDIR}/c/linkage/main.exe: ${BUILDDIR}/c/linkage/main.c ${BUILDDIR}/c/linkage/libfancy.so ${BUILDDIR}/slangrt.o
+${BUILDDIR}/c/linkage/main.exe: ${BUILDDIR}/c/linkage/main.c ${BUILDDIR}/c/linkage/libfancy.so ${BUILDDIR}/slangrt.o runtime/slangrt.h
 	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c/linkage -Wl,-rpath=`pwd`/${BUILDDIR}/c/linkage -l:libfancy.so ${BUILDDIR}/slangrt.o -lm
 
 linkage: ${BUILDDIR}/c/linkage/main.exe
@@ -198,13 +198,13 @@ ${COMPILER3}: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} ${BUILDDI
 ${BUILDDIR}/tmp-compiler4.c: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} ${BUILDDIR} ${COMPILER3}
 	python ${COMPILER3} --backend-c -o ${BUILDDIR}/tmp-compiler4.c ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
-${COMPILER4}: ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/slangrt.o
+${COMPILER4}: ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/slangrt.o runtime/slangrt.h | ${BUILDDIR}
 	gcc ${CFLAGS} -o ${COMPILER4} ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/slangrt.o -lm
 
 ${BUILDDIR}/tmp-compiler5.c: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} | ${BASE_LIB_SRCS} ${BUILDDIR} ${COMPILER4}
 	./${COMPILER4} --backend-c -o ${BUILDDIR}/tmp-compiler5.c ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
-${COMPILER5}: ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/slangrt.o | ${BUILDDIR}
+${COMPILER5}: ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/slangrt.o runtime/slangrt.h | ${BUILDDIR}
 	gcc ${CFLAGS} -o ${COMPILER5} ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/slangrt.o -lm
 
 ${COMPILER6}: ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${COMPILER5} | ${BUILDDIR}
@@ -244,7 +244,7 @@ ${BUILDDIR}/tests:
 ${BUILDDIR}/c/apps:
 	mkdir -p ${BUILDDIR}/c/apps
 
-${BUILDDIR}/slangrt.o: runtime/slangrt.c | ${BUILDDIR}
+${BUILDDIR}/slangrt.o: runtime/slangrt.c runtime/slangrt.h | ${BUILDDIR}
 	gcc ${CFLAGS} -c -o $@ $<
 
 .PHONY: clean

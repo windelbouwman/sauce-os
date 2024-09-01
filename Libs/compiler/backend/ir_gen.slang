@@ -521,8 +521,6 @@ class BytecodeGenerator:
                 if ty.is_float():
                     if value.ty.is_int():
                         emit(Instruction.IntToFloat())
-                    elif value.ty.is_opaque():
-                        emit(Instruction.FromOpaque(get_bc_type(ty)))
                     elif value.ty.is_float():
                         # No-op
                         # TODO: cast from 32 to 64 bits and vice versa?
@@ -532,21 +530,12 @@ class BytecodeGenerator:
                 elif ty.is_int():
                     if value.ty.is_float():
                         emit(Instruction.FloatToInt())
-                    elif value.ty.is_opaque():
-                        emit(Instruction.FromOpaque(get_bc_type(ty)))
                     elif value.ty.is_int():
                         let signed = ty.is_signed_int()
                         let bits = ty.get_bits()
                         emit(Instruction.IntCast(signed, bits))
                     else:
                         panic("cannot cast to int: {value.ty}")
-                elif ty.is_opaque():
-                    if value.ty.is_opaque():
-                        pass
-                    else:
-                        emit(Instruction.ToOpaque(get_bc_type(value.ty)))
-                elif value.ty.is_opaque():
-                    emit(Instruction.FromOpaque(get_bc_type(ty)))
                 else:
                     panic("unsupported type-casting from {value.ty} to {ty}")
             Box(value):

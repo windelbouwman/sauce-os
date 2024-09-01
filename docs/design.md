@@ -198,34 +198,76 @@ enum Option[T]:
     Some(T)
 
 fn demo():
-    let option: Option[int] = Option.Some(3)
+    let option1: Option[str] = Option.Some("w00t")
+    let option2: Option[str] = Option.None()
+    handle_option(option: option1)
+    handle_option(option: option2)
+
+fn handle_option(option: Option[str]):
     case option:
         None:
             handle_none()
         Some(value):
-            handle_some()
+            handle_some(value)
 
+fn handle_none():
+    pass
+
+fn handle_some(value: str):
+    pass
 ```
 
-Is translated into:
+Translates to:
 
 ```
 
 fn demo():
-    let option = box(2)
+    let option1: ptr = box("w00t")
+    let option2: ptr = null
+    handle_option(option: option1)
+    handle_option(option: option2)
+
+fn handle_option(option: ptr):
     let x = option
-    if x = null:
+    if x == null:
         handle_none()
     else:
-        let value = unbox(x)
-        handle_some()
+        let value = unbox(x, str)
+        handle_some(value)
+
+fn handle_none():
+    pass
+
+fn handle_some(value: str):
+    pass
 
 ```
 
+# Exceptions
+
+We use checked exceptions. This means, you can only raise exceptions within an error handler. This prevents uncaught exceptions.
 
 # Classes
 
 Classes are lowered into structs and functions.
+
+```
+class Bar:
+    var m_value: int
+
+    fn add():
+        m_value = m_value + 2
+```
+
+Translates to:
+
+```
+struct Bar:
+    m_value: int
+
+fn Bar_add(this: Bar):
+    this.m_value = this.m_value + 2
+```
 
 # Interfaces
 

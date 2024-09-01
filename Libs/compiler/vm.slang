@@ -390,6 +390,18 @@ class VirtualMachine:
                         let rhs_value = float_from_value(rhs)
                         let value = eval_comparison_float(op, lhs: lhs_value, rhs: rhs_value)
                         push(Value.Bool(value))
+                    List(values):
+                        case rhs:
+                            Null:
+                                push(Value.Bool(false))
+                        else:
+                            panic("Cannot compare list to: {value_to_string(rhs)}")
+                    Null:
+                        case rhs:
+                            Null:
+                                push(Value.Bool(true))
+                        else:
+                            panic("Cannot compare null to: {value_to_string(rhs)}")
                 else:
                     panic("Cannot compare: {value_to_string(lhs)}")
             Binop(op):

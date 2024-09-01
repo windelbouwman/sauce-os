@@ -445,20 +445,26 @@ class CGenerator:
                 case ty3:
                     Float(bits):
                         # panic("Cannot box float")
-                        emit("{typed_var} = *(void**)(&({value.name}));")
+                        emit("{typed_var} = SLANG_BOX_FLOAT{bits}({value.name});")
                     Int(signed, bits):
                         if signed:
-                            emit("{typed_var} = (void*)((intptr_t)({value.name}));")
+                            emit("{typed_var} = SLANG_BOX_INT{bits}({value.name});")
                         else:
-                            emit("{typed_var} = (void*)((uintptr_t)({value.name}));")
+                            emit("{typed_var} = SLANG_BOX_UINT{bits}({value.name});")
                     Bool:
-                        emit("{typed_var} = (void*)((intptr_t){value.name});")
+                        emit("{typed_var} = SLANG_BOX_BOOL({value.name});")
                     Char:
-                        emit("{typed_var} = (void*)((intptr_t){value.name});")
+                        emit("{typed_var} = SLANG_BOX_CHAR({value.name});")
                     Ptr:
                         emit("{typed_var} = {value.name};")
-                else:
-                    emit("{typed_var} = (void*)({value.name});")
+                    Str:
+                        emit("{typed_var} = (void*)({value.name});")
+                    StructRef(index):
+                        emit("{typed_var} = (void*)({value.name});")
+                    Function(parameter_types, return_type):
+                        panic("Cannot box function")
+                    Array(element_type):
+                        panic("Cannot box array")
                 push(Value(name: varname, ty))
 
             FromOpaque(ty):
@@ -469,17 +475,17 @@ class CGenerator:
                 case ty:
                     Int(signed, bits):
                         if signed:
-                            emit("{typed_var} = (slang_int{bits}_t)((intptr_t)({value.name}));")
+                            emit("{typed_var} = SLANG_UNBOX_INT{bits}({value.name});")
                         else:
-                            emit("{typed_var} = (slang_uint{bits}_t)((uintptr_t)({value.name}));")
+                            emit("{typed_var} = SLANG_UNBOX_UINT{bits}({value.name});")
                     Float(bits):
-                        emit("{typed_var} = *(slang_float{bits}_t*)(&({value.name}));")
+                        emit("{typed_var} = SLANG_UNBOX_FLOAT{bits}({value.name});")
                     Bool:
-                        emit("{typed_var} = (slang_int_t)({value.name});")
+                        emit("{typed_var} = SLANG_UNBOX_BOOL({value.name});")
                     Str:
                         emit("{typed_var} = (char*)({value.name});")
                     Char:
-                        emit("{typed_var} = (char)((uintptr_t)({value.name}));")
+                        emit("{typed_var} = SLANG_UNBOX_CHAR({value.name});")
                     Function(parameter_types, return_type):
                         panic("Cannot unbox ptr to function")
                     Array(element_type):
@@ -589,13 +595,7 @@ class CGenerator:
                     emit("return;")
 
             Unreachable:
-                emit("#if defined __GNUC__")
-                emit("__builtin_unreachable();")
-                emit("#elif defined _MSC_VER")
-                emit("__assume(0);")
-                emit("#else")
-                emit("#error unsupported compiler")
-                emit("#endif")
+                emit("SLANG_UNREACHABLE")
 
             LoadFunc(index):
                 if index < extern_functions.len():

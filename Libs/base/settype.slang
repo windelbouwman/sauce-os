@@ -7,10 +7,10 @@ from dicttype import Dictionary, DictionaryIter
 
 class Set:
     # Use a dictionary to emulate a set datatype.
-    var items: Dictionary[int] = Dictionary()
+    var items: Dictionary[bool] = Dictionary()
 
     fn add(value?: str):
-        items.insert(key: value, value: 1)
+        items.insert(key: value, value: true)
     
     fn remove(value?: str):
         let stub = items.pop(key: value)
@@ -27,7 +27,7 @@ class Set:
 
 
 class SetIter:
-    var it2: DictionaryIter[int]
+    var it2: DictionaryIter[bool]
 
     fn next() -> Option[str]:
         return it2.next()

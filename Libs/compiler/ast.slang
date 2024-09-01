@@ -298,10 +298,12 @@ class Type:
 
     fn is_iterable_like() -> bool:
         return has_method("iter")
-    
+
     fn is_nullable() -> bool:
         # TODO
-        return false
+        # return false
+        # return is_struct() or is_enum() or is_type_parameter()
+        return is_type_parameter()
 
     fn is_function_type() -> bool:
         case kind:
@@ -1405,6 +1407,15 @@ class Expression:
     fn call_it(arguments: List[LabeledExpression], location: Location) -> Expression:
         let return_type = ty.get_return_type()
         return call(callee: this, arguments, ty: return_type, location)
+    
+    fn add(rhs: Expression, location: Location) -> Expression:
+        return binop(lhs: this, op: BinaryOperator.Add(), rhs, ty, location)
+
+    fn less(rhs: Expression, location: Location) -> Expression:
+        return binop(lhs: this, op: BinaryOperator.Less(), rhs, ty: bool_type(), location)
+
+    fn equals(rhs: Expression, location: Location) -> Expression:
+        return binop(lhs: this, op: BinaryOperator.Equals(), rhs, ty: bool_type(), location)
 
     fn get_attr_typed(attr: str, location: Location) -> Expression:
         let attr_ty = ty.get_field_type(attr)

@@ -25,6 +25,12 @@ fn print_instructions(value: Vector[Instruction]):
     case value.value:
         Nop:
             print("nop")
+        Typ(b):
+            case b:
+                Int:
+                    print("Ty b = int")
+                Float:
+                    print("Ty b = float")
     else:
         pass
 

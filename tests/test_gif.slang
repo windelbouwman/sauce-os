@@ -6,7 +6,7 @@ from unittest import assert_str_equals
 from gif import lzw_decode
 
 fn main() -> int:
-    set_log_level(level: 5)
+    # set_log_level(level: 5)
     test_lzw_decode()
     print("OK")
     return 0
