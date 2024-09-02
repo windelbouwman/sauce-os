@@ -110,7 +110,7 @@ class DeflateDecoder:
         let tree = create_tree(lengths)
 
         # Read a fair amount of code lengths:
-        lengths = new_vector(default: 0)
+        lengths = new_vector()
         while lengths.len() < hlit + hdist:
             let symbol = decode_symbol(tree)
             # print("symbol={symbol}")
@@ -239,27 +239,37 @@ struct TreePair:
     first: Tree
     second: Tree
 
+fn zero_int_array(size: int) -> [int]:
+    let array = [size : int]
+    let i = 0
+    while i < size:
+        array[i] = 0
+        i += 1
+    return array
+
 fn create_tree(lengths: Vector[int]) -> Tree:
     # Given a set of lengths, calculate the Huffman tree.
     # A Huffman tree can be defined entirely by the bit lengths
     # of each symbol.
 
     # Step 1: count number of codes for each non-zero length
-    let counts: [int] = [0 : 17]
+    let counts: [int] = zero_int_array(size: 17)
 
     for length in lengths:
         assert(condition: length < 17, message: "Length must be less than 17")
         counts[length] = counts[length] + 1
 
     # Step 2: determine start code for each bit length:
-    let offsets: [int] = [0 : 17]
+    let offsets: [int] = zero_int_array(size: 17)
+
     let bits = 1
     while bits < 16:
         offsets[bits + 1] = offsets[bits] + counts[bits]
         bits += 1
 
     # Step 3: Fill in table with used symbols:
-    let symbols: [int] = [0 : 288]
+    let symbols: [int] = zero_int_array(size: 288)
+
     let symbol = 0
     for length in lengths:
         if length > 0:
@@ -278,7 +288,7 @@ fn create_fixed_trees() -> TreePair:
     return TreePair(first, second)
 
 fn create_fixed_literal_length_tree() -> Tree:
-    let lengths = new_vector(default: 0)
+    let lengths: Vector[int] = new_vector()
     let symbol = 0
     while symbol < 144:
         lengths.append(8)
@@ -295,7 +305,7 @@ fn create_fixed_literal_length_tree() -> Tree:
     return create_tree(lengths)
 
 fn create_fixed_distance_tree() -> Tree:
-    let lengths = new_vector(default: 0)
+    let lengths: Vector[int] = new_vector()
     let symbol = 0
     while symbol < 30:
         lengths.append(5)

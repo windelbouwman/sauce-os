@@ -112,7 +112,7 @@ class HashMap[T]:
     
     fn create_buckets(n: int):
         n_buckets = n
-        buckets = [AssociationList() : n]
+        buckets = [n : AssociationList[T]]
         let i = 0
         while i < n:
             let new_list: AssociationList[T] = AssociationList()

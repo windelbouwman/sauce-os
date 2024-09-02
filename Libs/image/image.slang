@@ -2,7 +2,7 @@
 from vectype import Vector, new_vector
 
 fn new_image(width: int, height: int) -> Image:
-    let pixels: Vector[Pixel] = new_vector(default: new_pixel())
+    let pixels: Vector[Pixel] = new_vector()
     let image = Image:
         width
         height

@@ -34,7 +34,7 @@ struct Loop:
 class BytecodeGenerator:
     var id_counter: int = 1
     var is_reachable: bool = true
-    var code: Vector[Instruction] = new_vector(default: Instruction.Nop())
+    var code: Vector[Instruction] = new_vector()
 
     var global_variables: List[bc.Global] = List()
     var global_var_mapping: Dictionary[int] = Dictionary()
@@ -512,10 +512,9 @@ class BytecodeGenerator:
                 for value in values:
                     gen_expression(value)
                 emit(Instruction.ArrayLiteral(n_values: values.len()))
-            ArrayLiteral2(value, size):
-                gen_expression(value)
+            ArrayLiteral2(size, ty):
                 gen_expression(size)
-                emit(Instruction.ArrayLiteral2())
+                emit(Instruction.ArrayLiteral2(get_bc_type(ty)))
             TypeCast(ty, value):
                 gen_expression(value)
                 if ty.is_float():
@@ -629,12 +628,12 @@ class BytecodeGenerator:
 
     fn begin_code():
         label_mapping = Dictionary()
-        code = new_vector(default: Instruction.Nop())
+        code = new_vector()
         is_reachable = true
 
     fn get_relocated_instructions() -> Vector[Instruction]:
         # Apply relocations to labels
-        let instructions: Vector[Instruction] = new_vector(default: Instruction.Nop())
+        let instructions: Vector[Instruction] = new_vector()
         for instruction in code:
             case instruction:
                 Jump(label):

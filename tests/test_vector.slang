@@ -12,7 +12,7 @@ fn main() -> int:
 
 
 fn test_vector():
-    let x: Vector[int] = new_vector(default: 0)
+    let x: Vector[int] = new_vector()
     assert_int_equals(0, x.len())
     x.append(1)
     x.append(42)

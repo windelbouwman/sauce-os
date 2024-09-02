@@ -35,7 +35,7 @@ class GifReader:
     var m_width: int = 0
     var m_height: int = 0
     var m_global_color_table_present: bool = false
-    var m_palette: Vector[Color] = new_vector(default: Color(r:0, g: 0, b: 0))
+    var m_palette: Vector[Color] = new_vector()
     var m_images: List[Image] = List()
 
     fn read() -> List[Image]:
@@ -143,7 +143,7 @@ class GifReader:
     
     fn read_color_table(size: int) -> Vector[Color]:
         log_trace("Reading pallete with {size} colors")
-        let palette: Vector[Color] = new_vector(default: Color(r:0, g: 0, b: 0))
+        let palette: Vector[Color] = new_vector()
         let index = 0
         while index < size:
             let r = read_u8()
@@ -181,7 +181,7 @@ class LzwDecoder:
     var m_bitbuf: int = 0
     var m_bitcnt: int = 0
     var m_code_bit_size: int = 9
-    var m_table: Vector[Bytes] = new_vector(default: new_bytes())
+    var m_table: Vector[Bytes] = new_vector()
     var m_output: ByteArray = ByteArray()
 
     fn decode():

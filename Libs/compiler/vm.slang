@@ -230,7 +230,7 @@ fn run_bytecode(program: Program, entry_function: str):
             None:
                 unimplemented("External variables")
 
-    let top_frame = Frame(code: new_vector(default: Instruction.Nop()))
+    let top_frame = Frame(code: new_vector())
     vm.push_frame(frame: top_frame)
 
     # Create mapping from names to index:
@@ -523,9 +523,9 @@ class VirtualMachine:
                 let values = pop_n(count)
                 let list = ListValue(values)
                 push(Value.List(list))
-            ArrayLiteral2:
+            ArrayLiteral2(ty):
                 let size = pop()
-                let value = pop()
+                let value = Value.Undefined()
                 let size2 = int_from_value(size)
                 let values: List[Value] = List()
                 while size2 > 0:

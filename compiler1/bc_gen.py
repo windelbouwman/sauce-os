@@ -335,9 +335,9 @@ class ByteCodeGenerator:
                 self.gen_expression(value)
             self.emit(OpCode.ARRAY_LITERAL, len(kind.values))
         elif isinstance(kind, ast.ArrayLiteral2):
-            self.gen_expression(kind.value)
             self.gen_expression(kind.size)
-            self.emit(OpCode.ARRAY_LITERAL2)
+            to_ty = self.get_bc_ty(kind.ty)
+            self.emit(OpCode.ARRAY_LITERAL2, to_ty)
         elif isinstance(kind, ast.ArrayIndex):
             self.gen_expression(kind.base)
             assert len(kind.indici) == 1

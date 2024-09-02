@@ -41,7 +41,7 @@ fn gen_riscv(program: bc.Program):
 
 class RiscvGen:
     var reg: int = 4
-    var codes: Vector[int] = new_vector(default: 0)
+    var codes: Vector[int] = new_vector()
 
     fn to_hex() -> HexFile:
         # Gather resulting binary code in a hex file.
@@ -151,7 +151,7 @@ class RiscvGen:
                     panic("TODO")
                 ArrayLiteral(count):
                     panic("TODO")
-                ArrayLiteral2:
+                ArrayLiteral2(ty):
                     panic("TODO")
 
     fn gen_literal(literal: bc.LiteralValue):

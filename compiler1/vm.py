@@ -235,8 +235,7 @@ class VirtualMachine:
         elif opcode == OpCode.ARRAY_LITERAL2:
             # Contrapt a list of values:
             size = self.pop_value()
-            value = self.pop_value()
-            value = [value] * size
+            value = [None] * size
             self.push_value(value)
         elif opcode == OpCode.STRUCT_LITERAL:
             # Treat struct as list of values? Might work!

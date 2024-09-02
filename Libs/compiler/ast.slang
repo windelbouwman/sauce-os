@@ -1451,7 +1451,7 @@ enum ExpressionKind:
     UnionLiteral(ty: Type, field: str, value: Expression)
     ClassLiteral(typ: Type, arguments: List[LabeledExpression])
     ArrayLiteral(values: List[Expression])
-    ArrayLiteral2(value: Expression, size: Expression)
+    ArrayLiteral2(size: Expression, ty: Type)
     TypeCast(typ: Type, value: Expression)
     Box(value: Expression)
     Unbox(value: Expression, to_type: Type)
@@ -1477,8 +1477,8 @@ fn union_literal(ty: Type, field: str, value: Expression, location: Location) ->
 fn array_literal(values: List[Expression], location: Location) -> Expression:
     return Expression(kind: ExpressionKind.ArrayLiteral(values), ty: undefined_type(), location)
 
-fn array_literal2(value: Expression, size: Expression, location: Location) -> Expression:
-    return Expression(kind: ExpressionKind.ArrayLiteral2(value, size), ty: undefined_type(), location)
+fn array_literal2(size: Expression, ty: Type, location: Location) -> Expression:
+    return Expression(kind: ExpressionKind.ArrayLiteral2(size, ty), ty: undefined_type(), location)
 
 fn load_symbol(symbol: Symbol, ty: Type, location: Location) -> Expression:
     return Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
@@ -1808,7 +1808,7 @@ fn expression_to_string(expression?: Expression) -> str:
             txt = "CLASS-LITERAL"
         ArrayLiteral(values):
             txt = "ARRAY-LITERAL"
-        ArrayLiteral2(value, size):
+        ArrayLiteral2(size, ty):
             txt = "ARRAY-LITERAL2"
         TypeCast(ty, value):
             txt = "TYPE-CAST"
@@ -2095,9 +2095,9 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         ArrayLiteral(values):
             for value in values:
                 visit_expression(visitor, expression: value)
-        ArrayLiteral2(value, size):
-            visit_expression(visitor, expression: value)
+        ArrayLiteral2(size, ty):
             visit_expression(visitor, expression: size)
+            visit_type(visitor, ty)
         ClassLiteral(ty, arguments):
             visit_type(visitor, ty)
             for arg in arguments:

@@ -29,7 +29,7 @@ class TypeEvaluation(BasePass):
             return ty
         else:
             self.error(
-                expression.location, f"Invalid type expression: {expression.kind}"
+                expression.location, f"Invalid type: {expression.kind}"
             )
             return ast.void_type
 

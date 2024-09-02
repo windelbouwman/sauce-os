@@ -192,10 +192,9 @@ class PyGenerator:
             ArrayLiteral(values):
                 let args = gen_expression_list(expressions: values)
                 txt = "[{args}]"
-            ArrayLiteral2(value, size):
-                let value_txt = gen_expression(value, parens: false)
+            ArrayLiteral2(size, ty):
                 let size_txt = gen_expression(size, parens: false)
-                txt = "[{value_txt}] * {size_txt}"
+                txt = "[None] * {size_txt}"
             GetAttr(base, attr):
                 let b = gen_expression(base, parens: true)
                 txt = "{b}.{attr}"

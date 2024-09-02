@@ -16,7 +16,7 @@ fn read_whole_file_as_bytes(filename: str) -> Bytes:
     # Helper to read in a whole file into a bytes object in memory
     let handle = std.file_open(filename, mode: "rb")
     let ba = ByteArray()
-    let buffer: [uint8] = [uint8(0) : 200]
+    let buffer: [uint8] = [200 : uint8]
     loop:
         let res = std.file_read_n_bytes(handle, buffer, bufsize: 200)
         if res > 0:
@@ -32,7 +32,7 @@ fn read_whole_file_as_bytes(filename: str) -> Bytes:
 
 fn write_bytes_to_file(filename: str, data: Bytes):
     let handle = std.file_open(filename, mode: "wb")
-    let buffer: [uint8] = [uint8(0) : 200]
+    let buffer: [uint8] = [200 : uint8]
     let i = 0
     let j = 0
     while i < data.len():
@@ -67,8 +67,8 @@ fn write_qoi_to_file(image: Image, filename: str):
 
 class QoiReader:
     var m_reader: ByteReader
-    var m_array: Vector[Pixel] = new_vector(default: new_pixel())
-    var m_pixels: Vector[Pixel] = new_vector(default: new_pixel())
+    var m_array: Vector[Pixel] = new_vector()
+    var m_pixels: Vector[Pixel] = new_vector()
 
     fn read_image() -> Image:
         # let f = std.open_binary(filename)

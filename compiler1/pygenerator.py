@@ -166,9 +166,8 @@ class PyCodeGenerator:
             values = self.gen_expressions(kind.values)
             return f"[{values}]"
         elif isinstance(kind, ast.ArrayLiteral2):
-            value = self.gen_expression(kind.value)
             size = self.gen_expression(kind.size)
-            return f"[{value}] * {size}"
+            return f"[None] * {size}"
         elif isinstance(kind, ast.ArrayIndex):
             assert len(kind.indici) == 1
             base = self.gen_expression(kind.base)

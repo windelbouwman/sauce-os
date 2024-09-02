@@ -60,7 +60,7 @@ fn gzip_compress(data: Bytes) -> Bytes:
 
 fn calc_crc32(data: Bytes) -> int:
     # Create table:
-    let crc_table = [0 : 256]
+    let crc_table = [256 : int]
     let n = 0
     while n < 256:
         let c = n

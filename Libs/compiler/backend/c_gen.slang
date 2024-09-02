@@ -642,18 +642,13 @@ class CGenerator:
                     index += 1
                 push(Value(name: varname, ty))
 
-            ArrayLiteral2:
+            ArrayLiteral2(ty2):
                 let size = pop()
-                let value = pop()
                 let varname = new_local_var()
-                let ty = bc.Type.Array(ty: value.ty)
+                let ty = bc.Type.Array(ty: ty2)
                 let typed_var = get_type_txt(ty, name: varname)
-                let element_type_text = get_type_txt(ty: value.ty, name: "")
+                let element_type_text = get_type_txt(ty: ty2, name: "")
                 emit("{typed_var} = rt_malloc({size.name} * sizeof({element_type_text}));")
-                emit("{varname}[0] = {value.name};")
-                # Copy value to all elements:
-                emit("for (int i = 1; i < {size.name}; i++)")
-                emit("  {varname}[i] = {varname}[0];")
                 push(Value(name: varname, ty))
     
     fn get_struct_field(ty: bc.Type, index: int) -> bc.TypedName:

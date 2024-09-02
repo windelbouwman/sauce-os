@@ -762,10 +762,10 @@ class CustomTransformer(LarkTransformer):
         return ast.array_literal(x[1], get_loc2(x[0], x[-1]))
 
     def array_literal2(self, x):
-        #  LEFT_BRACKET test COLON test RIGHT_BRACKET
-        value = x[1]
-        size = x[3]
-        return ast.array_literal2(value, size, get_loc2(x[0], x[-1]))
+        #  LEFT_BRACKET test COLON typ RIGHT_BRACKET
+        size = x[1]
+        typ = x[3]
+        return ast.array_literal2(size, typ, get_loc2(x[0], x[-1]))
 
     def obj_init(self, x):
         "obj_init: expr COLON NEWLINE INDENT field_init+ DEDENT"
@@ -928,7 +928,7 @@ arguments: labeled_expression
 
 literal: STRING | NUMBER | FNUMBER | BOOL | CHAR
 array_literal: LEFT_BRACKET tests RIGHT_BRACKET
-array_literal2: LEFT_BRACKET test COLON test RIGHT_BRACKET
+array_literal2: LEFT_BRACKET test COLON typ RIGHT_BRACKET
 obj_ref: ID
 
 obj_init: expression COLON NEWLINE INDENT field_init+ DEDENT

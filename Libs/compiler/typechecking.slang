@@ -415,8 +415,7 @@ class TypeChecker:
                         coerce(ty: element_type, value)
 
                 expression.ty = ast.array_type(element_type, size: values.len())
-            ArrayLiteral2(value, size):
-                let element_type = value.ty
+            ArrayLiteral2(size, element_type):
                 expression.ty = ast.array_type(element_type, size: 0)
             StringLiteral(s):
                 expression.ty = ast.str_type()

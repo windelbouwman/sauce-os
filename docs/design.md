@@ -23,10 +23,18 @@ Create fixed or dynamic arrays?
 
 ```
 fn new_array(size: int) -> [int]:
-    let result: [int] = [0, size]
+    let result: [int] = [0 : size]
     result[5] = 4
     return result
 ```
+
+Syntax examples:
+```
+    let three_integers: [int] = [1, 2, 3]
+    let empty_array: [int] = []
+    let ten_integers: [int] = [10 : int]
+```
+
 
 # Transformations
 

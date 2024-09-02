@@ -193,10 +193,10 @@ class SlangGenerator:
             ArrayLiteral(values):
                 let args = gen_expression_list(expressions: values)
                 txt = "[{args}]"
-            ArrayLiteral2(value, size):
-                let value_txt = gen_expression(value, parens: false)
+            ArrayLiteral2(size, ty):
                 let size_txt = gen_expression(size, parens: false)
-                txt = "[{value_txt} : {size_txt}]"
+                let ty_txt = gen_type(ty)
+                txt = "[{size_txt} : {ty_txt}]"
             ParameterRef(parameter_def):
                 txt = get_id(parameter_def.id)
             VarRef(variable):

@@ -1376,8 +1376,7 @@ class BoolLiteral(ExpressionKind):
 
 def array_literal(values: list[Expression], location: Location):
     kind = ArrayLiteral(values)
-    ty = void_type
-    return Expression(kind, ty, location)
+    return Expression(kind, void_type, location)
 
 
 class ArrayLiteral(ExpressionKind):
@@ -1389,17 +1388,18 @@ class ArrayLiteral(ExpressionKind):
         return f"ArrayLiteral({len(self.values)})"
 
 
-def array_literal2(value: Expression, size: Expression, location: Location):
-    kind = ArrayLiteral2(value, size)
-    ty = void_type
-    return Expression(kind, ty, location)
+def array_literal2(size: Expression, ty: MyType, location: Location):
+    kind = ArrayLiteral2(size, ty)
+    return Expression(kind, void_type, location)
 
 
 class ArrayLiteral2(ExpressionKind):
-    def __init__(self, value: Expression, size: Expression):
+    def __init__(self, size: Expression, ty: MyType):
         super().__init__()
-        self.value = value
+        assert isinstance(size, Expression)
         self.size = size
+        assert isinstance(ty, MyType)
+        self.ty = ty
 
     def __repr__(self):
         return f"ArrayLiteral2"
@@ -1774,8 +1774,8 @@ class AstVisitor:
             for value in kind.values:
                 self.visit_expression(value)
         elif isinstance(kind, ArrayLiteral2):
-            self.visit_expression(kind.value)
             self.visit_expression(kind.size)
+            self.visit_type(kind.ty)
         elif isinstance(kind, StructLiteral):
             self.visit_type(kind.ty)
             for value in kind.values:

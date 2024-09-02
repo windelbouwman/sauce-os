@@ -955,13 +955,13 @@ class Parser:
                 Comma:
                     continue
                 Colon:
-                    return parse_array_literal2(value, location)
+                    return parse_array_literal2(size: value, location)
             else:
                 raise unexpected_token(tok: tok5, expected: "',', ':' or ']'")
         return ast.array_literal(values, location)
     
-    fn parse_array_literal2(value: ast.Expression, location: Location) -> ast.Expression except CompilationError:
-        let size = parse_expression()
+    fn parse_array_literal2(size: ast.Expression, location: Location) -> ast.Expression except CompilationError:
+        let ty = parse_type()
         let tok5 = get_token()
         case tok5.kind:
             BracketClose:
@@ -970,7 +970,7 @@ class Parser:
             raise unexpected_token(tok: tok5, expected: "']'")
 
         location = Location(begin: location.begin, end: tok5.location.end)
-        return ast.array_literal2(value, size, location)
+        return ast.array_literal2(size, ty, location)
 
     fn parse_name() -> NameAtLocation except CompilationError:
         let tok = get_token()

@@ -418,14 +418,11 @@ class CGenerator2:
             ArrayLiteral(values):
                 let args = gen_expression_list(values)
                 return "{chr(123)} {args} {chr(125)}"
-                #panic("TODO: array literal")
 
-            ArrayLiteral2(value, size):
-                let value_2 = gen_expression(value)
+            ArrayLiteral2(size, ty):
                 let size_2 = gen_expression(size)
-                # return "{chr(34)} {args} {chr(34)} * {size_2}"
-                return "calloc({size_2}, sizeof({value_2}))"
-                # panic("TODO: array literal2")
+                let ty_2 = gen_type(ty, name: "")
+                return "calloc({size_2}, sizeof({ty_2}))"
 
         else:
             panic("Unsupported: {expression}")

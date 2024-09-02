@@ -183,7 +183,7 @@ class TypeChecker(BasePass):
             assert len(kind.values) > 0
             expression.ty = ast.array_type(len(kind.values), kind.values[0].ty)
         elif isinstance(kind, ast.ArrayLiteral2):
-            expression.ty = ast.array_type(None, kind.value.ty)
+            expression.ty = ast.array_type(None, kind.ty)
             self.assert_type(kind.size, ast.int_type)
         elif isinstance(kind, ast.Binop):
             # Introduce some heuristics...

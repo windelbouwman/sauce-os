@@ -103,7 +103,7 @@ enum Instruction:
 
     StructLiteral(struct_index: int)
     ArrayLiteral(size: int)
-    ArrayLiteral2
+    ArrayLiteral2(ty: Type)
 
 enum LiteralValue:
     Int(value: int)
@@ -234,7 +234,7 @@ fn instruction_to_string(instruction?: Instruction) -> str:
             return "struct-literal(index={struct_index})"
         ArrayLiteral(count):
             return "array-literal({count})"
-        ArrayLiteral2:
+        ArrayLiteral2(ty):
             return "array-literal2"
 
 fn binop_to_string(op: BinaryOperator) -> str:

@@ -4,7 +4,10 @@ from rt import int_to_str
 
 fn main() -> int:
     let x = [1, 2, 3, 4]  # Array with 4 items
-    let y = [1 : 100]   # Array with 100 items with value 1
+    let y = [100 : int]   # Array with 100 integers
+    y[0] = 1
+    y[1] = 1
+    y[2] = 1
     # let z = []  # Empty array? Do we want to support this?
     print(int_to_str(x[1]))
     print(int_to_str(x[2]))
