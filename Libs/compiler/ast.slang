@@ -4,6 +4,7 @@ from strlib import str_repeat, str_join
 from utils import panic, assert, log_info, log_error
 from location import Location, location_default
 from datatypes import List, Option, option_unwrap, option_is_some
+from vectype import Vector
 from dicttype import Dictionary
 
 # Name coupled with global unique ID:
@@ -372,6 +373,20 @@ class Type:
         else:
             panic("Type must be type parameter")
 
+    fn is_type_var() -> bool:
+        case kind:
+            TypeVar(v):
+                return true
+        else:
+            return false
+
+    fn get_type_var() -> TypeVariable:
+        case kind:
+            TypeVar(v):
+                return v
+        else:
+            panic("Type must be type variable reference")
+
 fn clone_type(ty?: Type) -> Type:
     let ty2 = new_type(kind: ty.kind)
     ty2.was_generic = ty.was_generic
@@ -470,20 +485,6 @@ fn get_bits_from_some_integer_type(ty?: Type) -> int:
             return bits
     else:
         panic("get_bits_from_some_integer_type: Not a some-integer type")
-
-fn is_type_var_type(ty?: Type) -> bool:
-    case ty.kind:
-        TypeVar(v):
-            return true
-    else:
-        return false
-
-fn get_type_var_from_type(ty?: Type) -> TypeVariable:
-    case ty.kind:
-        TypeVar(v):
-            return v
-    else:
-        panic("Type must be type variable reference")
 
 fn deref_type_var(ty?: Type) -> Type:
     case ty.kind:
@@ -683,8 +684,6 @@ fn base_type_equal(base_type1: BaseType, base_type2: BaseType) -> bool:
                     return bits1 == bits2
             else:
                 return false
-    else:
-        return false
 
 struct TypeVariable:
     unique: int
@@ -1231,7 +1230,7 @@ enum StatementKind:
     Switch(switch_statement: SwitchStatement)
     Let(let_statement: LetStatement)
     Try(try_statement: TryStatement)
-    Compound(body: List[Statement])
+    Compound(body: Vector[Statement])
     Expr(expression: Expression)
     Assignment(target: Expression, operator: Option[BinaryOperator], value: Expression)
     Return(value: Option[Expression])
@@ -1358,7 +1357,7 @@ struct LetStatement:
     type_hint: Option[Type]
     value: Expression
 
-fn compound(inner: List[Statement], location: Location) -> Statement:
+fn compound(inner: Vector[Statement], location: Location) -> Statement:
     if inner.len() == 1:
         return inner[0]
     else:

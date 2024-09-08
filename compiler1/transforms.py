@@ -189,7 +189,7 @@ class LoopRewriter(BaseTransformer):
         # size = x.len()
         size_var = self.new_variable("size", ast.int_type, location)
         x_len = x_var.ref_expr(location).call_method("len", [])
-        let_size = ast.let_statement(size_var, None, zero, location)
+        let_size = ast.let_statement(size_var, None, x_len, location)
 
         # index < size
         loop_condition = index_var.ref_expr(location).binop(

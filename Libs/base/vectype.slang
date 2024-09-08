@@ -28,10 +28,34 @@ fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
     v.m_size = size
     return v
 
+fn vec2[T](v1?: T, v2?: T) -> Vector[T]:
+    let vec: Vector[T] = new_vector()
+    vec.append(v1)
+    vec.append(v2)
+    return vec
+
+fn vec3[T](v1?: T, v2?: T, v3?: T) -> Vector[T]:
+    let vec: Vector[T] = new_vector()
+    vec.append(v1)
+    vec.append(v2)
+    vec.append(v3)
+    return vec
+
+fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> Vector[T]:
+    let vec: Vector[T] = new_vector()
+    vec.append(v1)
+    vec.append(v2)
+    vec.append(v3)
+    vec.append(v4)
+    return vec
+
 class Vector[T]:
     var m_size: int = 0
     var m_capacity: int
     var m_elements: [T]
+
+    fn is_empty() -> bool:
+        return m_size == 0
 
     fn append(value?: T):
         if m_size == m_capacity:
@@ -81,6 +105,9 @@ class Vector[T]:
         else:
             panic("Vector.get: index out of range.")
     
+    fn first() -> T:
+        return get(index: 0)
+
     fn last() -> T:
         return m_elements[m_size - 1]
 

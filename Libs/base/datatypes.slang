@@ -38,25 +38,25 @@ enum Result[O,E]:
     Ok(value: O)
     Error(value: E)
 
-fn vec1[T](v1?: T) -> List[T]:
+fn list1[T](v1?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     return vec
 
-fn vec2[T](v1?: T, v2?: T) -> List[T]:
+fn list2[T](v1?: T, v2?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
     return vec
 
-fn vec3[T](v1?: T, v2?: T, v3?: T) -> List[T]:
+fn list3[T](v1?: T, v2?: T, v3?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
     vec.append(v3)
     return vec
 
-fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> List[T]:
+fn list4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
@@ -64,7 +64,7 @@ fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> List[T]:
     vec.append(v4)
     return vec
 
-fn vec5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> List[T]:
+fn list5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
@@ -73,7 +73,7 @@ fn vec5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> List[T]:
     vec.append(v5)
     return vec
 
-fn vec6[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T) -> List[T]:
+fn list6[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)

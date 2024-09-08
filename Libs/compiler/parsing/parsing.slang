@@ -4,7 +4,8 @@ import std
 from lexer import Lexer
 from token import token_to_string, Token
 from location import Location, Position
-from datatypes import List, Result, Option, vec1, option_unwrap
+from datatypes import List, Result, Option, list1, option_unwrap
+from vectype import Vector, new_vector
 from pathlib import basename
 from basepass import IdGen
 from utils import panic, log_debug, log_trace, log_info
@@ -288,7 +289,7 @@ class Parser:
         parse_indent()
         let docstring = parse_optional_docstring()
 
-        let inner: List[ast.Statement] = List()
+        let inner: Vector[ast.Statement] = new_vector()
         while not try_parse_dedent():
             let statement = parse_statement()
             inner.append(statement)
@@ -466,7 +467,7 @@ class Parser:
         parse_newline()
         parse_indent()
 
-        let inner: List[ast.Statement] = List()
+        let inner: Vector[ast.Statement] = new_vector()
         while not try_parse_dedent():
             let statement = parse_statement()
             inner.append(statement)
@@ -1061,7 +1062,7 @@ class Parser:
 
     fn new_error(location: Location, message: str) -> CompilationError:
         let err = errors.new_error(location, message)
-        return errors.new_errors(filename: filename, errors: vec1(err))
+        return errors.new_errors(filename: filename, errors: list1(err))
 
     fn process_fstring(literal: str, location: Location) -> ast.Expression except CompilationError:
         # Check strings for parts surrounded by '{' and '}'

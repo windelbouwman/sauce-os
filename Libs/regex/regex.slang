@@ -3,7 +3,7 @@
 
 from std import str_get, str_len, ord, print, chr, str_slice
 from integersetlib import IntegerSet, new_int_set
-from datatypes import List, vec1, vec2, vec3, Option
+from datatypes import List, list1, list2, Option
 from rangelib import Range, range_to_string, range_contains
 from strlib import str_repeat
 from utils import panic, assert
@@ -497,16 +497,16 @@ class Regex:
             Kleene(r):
                 return r.derivative_classes()
             Symbol(s):
-                return vec2(s, sigma().difference(other: s))
+                return list2(s, sigma().difference(other: s))
             Epsilon:
-                return vec1(sigma())
+                return list1(sigma())
             Concat(left, right):
                 if left.is_nullable():
                     return product_intersections(left.derivative_classes(), right.derivative_classes())
                 else:
                     return left.derivative_classes()
             Null:
-                return vec1(sigma())
+                return list1(sigma())
             LogicalAnd(left, right):
                 return product_intersections(left.derivative_classes(), right.derivative_classes())
             LogicalOr(left, right):

@@ -516,12 +516,12 @@ class TypeChecker:
             return true
         elif ty1.is_array() and ty2.is_array():
             return unify(ty1: ty1.get_element_type(), ty2: ty2.get_element_type())
-        elif ast.is_type_var_type(ty1):
-            let type_var1: ast.TypeVariable = ast.get_type_var_from_type(ty1)
+        elif ty1.is_type_var():
+            let type_var1: ast.TypeVariable = ty1.get_type_var()
             case type_var1.ty:
                 None:
-                    if ast.is_type_var_type(ty2):
-                        let type_var2: ast.TypeVariable = ast.get_type_var_from_type(ty2)
+                    if ty2.is_type_var():
+                        let type_var2: ast.TypeVariable = ty2.get_type_var()
                         return ast.type_var_equals(type_var1, type_var2)
                     else:
                         type_var1.ty = Option.Some(ty2)
@@ -530,7 +530,7 @@ class TypeChecker:
                 Some(assigned_ty):
                     ty1.change_to(to_type: assigned_ty)
                     return unify(ty1, ty2)
-        elif ast.is_type_var_type(ty2):
+        elif ty2.is_type_var():
             return unify(ty1: ty2, ty2: ty1)
         else:
             return false

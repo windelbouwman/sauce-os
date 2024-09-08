@@ -1,6 +1,6 @@
 
 from std import print, read_file
-from datatypes import List, vec1, Option
+from datatypes import List, Option
 from strlib import split_lines, str_repeat, str_pad_right
 from location import Location, location_to_string
 

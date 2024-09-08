@@ -28,9 +28,7 @@ class TypeEvaluation(BasePass):
         if ty:
             return ty
         else:
-            self.error(
-                expression.location, f"Invalid type: {expression.kind}"
-            )
+            self.error(expression.location, f"Invalid type: {expression.kind}")
             return ast.void_type
 
     def tycon_apply(

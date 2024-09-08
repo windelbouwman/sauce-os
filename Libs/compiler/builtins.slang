@@ -1,6 +1,6 @@
 
 import ast
-from datatypes import List, Option, vec1, vec2, vec3
+from datatypes import List, Option, list1, list2
 from location import location_default
 
 fn get_rt_module() -> ast.Module:
@@ -13,7 +13,7 @@ fn get_rt_module() -> ast.Module:
         libname
         name: "int_to_str"
         type_parameters
-        parameters: vec1(ast.unlabeled_parameter(ty: ast.int_type()))
+        parameters: list1(ast.unlabeled_parameter(ty: ast.int_type()))
         return_type: ast.str_type()
         location: location_default()
     ast.module_define_function(module, function_def: int_to_str)
@@ -22,7 +22,7 @@ fn get_rt_module() -> ast.Module:
         libname
         name: "char_to_str"
         type_parameters
-        parameters: vec1(ast.unlabeled_parameter(ty: ast.char_type()))
+        parameters: list1(ast.unlabeled_parameter(ty: ast.char_type()))
         return_type: ast.str_type()
         location: location_default()
     ast.module_define_function(module, function_def: char_to_str)
@@ -31,7 +31,7 @@ fn get_rt_module() -> ast.Module:
         libname
         name: "str_concat"
         type_parameters
-        parameters: vec2(ast.unlabeled_parameter(ty: ast.str_type()), ast.unlabeled_parameter(ty: ast.str_type()))
+        parameters: list2(ast.unlabeled_parameter(ty: ast.str_type()), ast.unlabeled_parameter(ty: ast.str_type()))
         return_type: ast.str_type()
         location: location_default()
     ast.module_define_function(module, function_def: str_concat)
@@ -40,7 +40,7 @@ fn get_rt_module() -> ast.Module:
         libname
         name: "str_compare"
         type_parameters
-        parameters: vec2(ast.unlabeled_parameter(ty: ast.str_type()), ast.unlabeled_parameter(ty: ast.str_type()))
+        parameters: list2(ast.unlabeled_parameter(ty: ast.str_type()), ast.unlabeled_parameter(ty: ast.str_type()))
         return_type: ast.bool_type()
         location: location_default()
     ast.module_define_function(module, function_def: str_compare)

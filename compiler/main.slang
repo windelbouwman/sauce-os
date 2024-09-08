@@ -23,6 +23,7 @@ from c_gen import gen_c_code
 from c_gen_v2 import gen_c_code_v2
 from wasm_gen import gen_webassembly
 from riscv_gen import gen_riscv
+from x86_gen import gen_x86
 from slang_gen import gen_slang
 from vm import run_bytecode
 
@@ -80,6 +81,8 @@ fn main() -> int:
             options.backend = Backend.Null()
         elif argument == "--backend-riscv":
             options.backend = Backend.Riscv()
+        elif argument == "--backend-x86":
+            options.backend = Backend.X86()
         elif argument == "-rt":
             options.runtime = false
         elif argument == "--backend-wasm":
@@ -129,6 +132,7 @@ fn print_usage():
     print("    --backend-riscv : Spit out RiscV code")
     print("    --backend-null  : Skip code generation")
     print("    --backend-slang : Spit out slang")
+    print("    --backend-x86   : Spit out x86 code")
     print("    -rt : Skip runtime?")
     print("    --run : Run code!")
     print("")
@@ -152,6 +156,7 @@ enum Backend:
     WebAssembly
     Null
     Riscv
+    X86
 
 fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
     let id_gen = IdGen()
@@ -239,6 +244,9 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
         Riscv:
             let program = gen_bytecode(module_set)
             gen_riscv(program)
+        X86:
+            let program = gen_bytecode(module_set)
+            gen_x86(program)
 
 fn topo_sort(modules: List[ast.Module]):
     # Sort modules (in-place) based on which module import the other one

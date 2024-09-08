@@ -13,7 +13,9 @@ from location import Location
 from utils import panic, log_info, log_debug, assert, unimplemented
 from basepass import IdGen
 from typechecking import type_check_modules
-from datatypes import List, vec1, vec2, vec3, vec4, Option, option_unwrap_or, option_unwrap, option_is_none, option_is_some
+from datatypes import List, list1, list2, list3, list4
+from datatypes import Option, option_unwrap_or, option_unwrap, option_is_none, option_is_some
+from vectype import vec2, vec3, vec4, Vector, new_vector
 from dicttype import Dictionary
 from errors import CompilationError
 import ast
@@ -328,14 +330,14 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                         # call int-to-str
                         let int_to_str_func = transformer.class_rewriter.load_std_function(name: "int_to_str", location: expression.location)
                         let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
-                        let arguments = vec1(arg1)
+                        let arguments = list1(arg1)
                         let call = int_to_str_func.call_it(arguments, location: expression.location)
                         expression.change_to(to: call)
                     elif value.ty.is_char():
                         # call char-to-str
                         let char_to_str_func = transformer.class_rewriter.load_std_function(name: "char_to_str", location: expression.location)
                         let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
-                        let arguments = vec1(arg1)
+                        let arguments = list1(arg1)
                         let call = char_to_str_func.call_it(arguments, location: expression.location)
                         expression.change_to(to: call)
                     elif value.ty.has_method("to_string"):
@@ -350,7 +352,7 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                         assert(condition: indici.len() == 1, message: "Only support single indexing.")
                         let index = indici.first()
                         let arg1 = ast.LabeledExpression(name: Option.Some("index"), value: index, location: index.location)
-                        let arguments = vec1(arg1)
+                        let arguments = list1(arg1)
                         let call_get = base.call_method(method: "get", arguments, location: expression.location)
                         expression.change_to(to: call_get)
                 Binop(binop):
@@ -421,7 +423,7 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                                 let str_concat_func = transformer.class_rewriter.load_std_function(name: "str_concat", location: expression.location)
                                 let lhs_arg = ast.LabeledExpression(name: Option.None(), value: op.lhs, location: op.lhs.location)
                                 let rhs_arg = ast.LabeledExpression(name: Option.None(), value: op.rhs, location: op.rhs.location)
-                                let arguments = vec2(lhs_arg, rhs_arg)
+                                let arguments = list2(lhs_arg, rhs_arg)
                                 let call = str_concat_func.call_it(arguments, location: expression.location)
                                 expression.change_to(to: call)
 
@@ -430,7 +432,7 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
                                 let str_compare_func = transformer.class_rewriter.load_std_function(name: "str_compare", location: expression.location)
                                 let lhs_arg = ast.LabeledExpression(name: Option.None(), value: op.lhs, location: op.lhs.location)
                                 let rhs_arg = ast.LabeledExpression(name: Option.None(), value: op.rhs, location: op.rhs.location)
-                                let arguments = vec2(lhs_arg, rhs_arg)
+                                let arguments = list2(lhs_arg, rhs_arg)
                                 let call = str_compare_func.call_it(arguments, location: expression.location)
                                 expression.change_to(to: call)
 
@@ -739,9 +741,9 @@ class ClassRewriter:
         let arm2 = ast.CaseArm:
             location
             name: "Some"
-            variables: vec1(for_statement.iter_var)
+            variables: list1(for_statement.iter_var)
             block: for_statement.block
-        let arms: List[ast.CaseArm] = vec2(arm1, arm2)
+        let arms: List[ast.CaseArm] = list2(arm1, arm2)
 
         let case_statement = ast.case_statement(value: opt_var.ref(location), arms, else_clause: Option.None(), location)
         let true_value = ast.bool_literal(value: true, location)
@@ -816,7 +818,7 @@ class ClassRewriter:
         # v = x[index]
         let x_ref1 = x_var.ref(location)
         let index_ref2 = index_var.ref(location)
-        let x_indexed = ast.subscript(base: x_ref1, indici: vec1(index_ref2), ty: array_type.get_element_type(), location)
+        let x_indexed = ast.subscript(base: x_ref1, indici: list1(index_ref2), ty: array_type.get_element_type(), location)
         let let_v = ast.let_statement(variable: for_statement.iter_var, type_hint: Option.None(), value: x_indexed, location)
 
         # index = index + 1
@@ -943,7 +945,7 @@ class ClassRewriter:
                     let arm_tag = variant.tag_value
                     let union_field_name = "data_{variant.name}"
                     let switch_arm_value = ast.integer_literal(value: arm_tag, location: arm.location)
-                    let switch_arm_body: List[ast.Statement] = List()
+                    let switch_arm_body: Vector[ast.Statement] = new_vector()
 
                     # Unpack payload:
                     if arm.variables.len() == 1:
@@ -1084,7 +1086,7 @@ class ClassRewriter:
                     let struct_type2 = union_type.get_field_type(attr: union_field_name)
                     union_value = ast.struct_literal(ty: struct_type2, values, location)
                 let data = ast.union_literal(ty: union_type, field: union_field_name, value: union_value, location)
-                return ast.struct_literal(ty: struct_type, values: vec2(tag, data), location)
+                return ast.struct_literal(ty: struct_type, values: list2(tag, data), location)
 
     fn erase_type(ft: ast.Type, value: ast.Expression, assign: bool):
         if ft.was_generic and not assign:
