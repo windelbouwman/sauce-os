@@ -3,7 +3,6 @@
 # Idea: implement a list type as a linked list.
 
 import std
-from rt import int_to_str
 
 class List:
     var head_element: Option = Option.None()
@@ -33,7 +32,7 @@ class List:
                 None:
                     break
                 Some(element):
-                    std.print("Item[" + int_to_str(i) + "]=" + int_to_str(element.data))
+                    std.print("Item[" + str(i) + "]=" + str(element.data))
                     mabye_element = element.next
             i = i + 1
 
@@ -89,6 +88,6 @@ fn main() -> int:
             None:
                 break
             Some(element):
-                std.print("Item[" + int_to_str(n) + "]=" + int_to_str(element.data))
+                std.print("Item[" + str(n) + "]=" + str(element.data))
         n = n + 1
     return 0

@@ -3,7 +3,7 @@
 import ast
 from utils import panic, log_info
 from datatypes import List, option_is_some, option_unwrap, Option
-from std import float_to_str, chr, str_len
+from std import float_to_str2, chr, str_len
 from strlib import str_join
 from text_gen import TextGenerator
 
@@ -183,7 +183,7 @@ class PyGenerator:
             Null:
                 txt = "None"
             FloatLiteral(value):
-                txt = float_to_str(value)
+                txt = float_to_str2(value, digits: 20)
             StructLiteral(ty, values):
                 let struct_def = ty.get_struct_def()
                 let name = get_id(id: struct_def.id)

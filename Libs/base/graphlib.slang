@@ -4,21 +4,21 @@
 
 from std import print
 from datatypes import List, Option
-from settype import Set
+from settype import StringSet
 from dicttype import Dictionary
 
 class DiGraph:
     # A directed graph
-    var nodes: Set = Set()
-    var pred: Dictionary[Set] = Dictionary()
-    var succ: Dictionary[Set] = Dictionary()
+    var nodes: StringSet = StringSet()
+    var pred: Dictionary[StringSet] = Dictionary()
+    var succ: Dictionary[StringSet] = Dictionary()
 
     fn add_node(n?: str):
         if not nodes.contains(key: n):
             nodes.add(n)
             # TODO: assert n not in pred and succ?
-            pred.insert(key: n, value: Set())
-            succ.insert(key: n, value: Set())
+            pred.insert(key: n, value: StringSet())
+            succ.insert(key: n, value: StringSet())
     
     fn add_edge(src: str, dst: str):
         add_node(src)

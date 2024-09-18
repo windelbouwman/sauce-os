@@ -123,13 +123,19 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                                                 ok = true
                                             Int(signed, bits):
                                                 ok = true
+                                            Str:
+                                                ok = true
                                         else:
                                             pass
 
                                         if ok:
                                             if call.arguments.len() == 1:
                                                 let value = call.arguments.first().value
-                                                expression.kind = ast.ExpressionKind.TypeCast(ty, value)
+                                                case base:
+                                                    Str:
+                                                        expression.kind = ast.ExpressionKind.ToString(value)
+                                                else:
+                                                    expression.kind = ast.ExpressionKind.TypeCast(ty, value)
                                             else:
                                                 newop.add_error(location: expression.location, message: "Expect exactly 1 argument to type cast")
                                 else:

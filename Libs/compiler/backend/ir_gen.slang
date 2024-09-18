@@ -162,12 +162,8 @@ class BytecodeGenerator:
                 gen_scoped_block(scoped_block)
 
                 # Emit return to void function, or unreachable
-                if scoped_block.body.is_terminator:
-                    is_reachable = true
-                    emit(Instruction.Unreachable())
-                else:
-                    if is_reachable:
-                        emit(Instruction.Return(n_arg: 0))
+                if not scoped_block.body.is_terminator:
+                    emit(Instruction.Return(n_arg: 0))
 
                 let instructions = get_relocated_instructions()
                 let locals = local_variables
@@ -239,6 +235,7 @@ class BytecodeGenerator:
                 panic("Switch not implemented")
             Unreachable:
                 emit(Instruction.Unreachable())
+                is_reachable = false
             Return(opt_val):
                 gen_return(opt_val)
             Raise(value):
@@ -380,13 +377,16 @@ class BytecodeGenerator:
         
         set_label(true_label)
         gen_scoped_block(if_statement.true_block)
+        let reach1 = is_reachable
         jump(final_label)
 
         set_label(false_label)
         gen_scoped_block(if_statement.false_block)
+        let reach2 = is_reachable
         jump(final_label)
 
-        set_label(final_label)
+        if reach1 or reach2:
+            set_label(final_label)
 
     fn gen_condition(condition: ast.Expression, true_label: int, false_label: int):
         # Generate short circuit logic for 'and' and 'or' conditions
@@ -745,7 +745,6 @@ class BytecodeGenerator:
                 emit(Instruction.PopTry())
         else:
             pass
-
 
     fn emit(instruction?: Instruction):
         # print("Inst: {bc.instruction_to_string(instruction)}")

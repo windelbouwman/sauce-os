@@ -2,12 +2,10 @@
 # C code backend
 # Translate bytecode into C code.
 
-from std import float_to_str, chr
-from rt import int_to_str
+from std import chr, float_to_str2
 from utils import panic, log_info, log_trace
 from datatypes import List, Option, option_is_some, option_unwrap
 from vectype import Vector
-from settype import Set
 from strlib import str_repeat, str_join
 import vm
 import bc
@@ -26,23 +24,6 @@ fn gen_c_code(program: bc.Program, output_filename: Option[str]):
     g.emit_runtime()
     g.gen_program(program)
     g.out.end()
-
-fn get_target_labels(instructions: Vector[bc.Instruction]) -> Set:
-    # Get a set of labels to which is being jumped
-    let target_labels = Set()
-    for instruction in instructions:
-        case instruction:
-            Jump(index):
-                target_labels.add(int_to_str(index))
-            JumpIf(index1, index2):
-                target_labels.add(int_to_str(index1))
-                target_labels.add(int_to_str(index2))
-            SetupTry(try_label, except_label):
-                target_labels.add(int_to_str(try_label))
-                target_labels.add(int_to_str(except_label))
-        else:
-            pass
-    return target_labels
 
 struct Value:
     ty: bc.Type
@@ -243,10 +224,10 @@ class CGenerator:
                 emit("{ty_txt};")
             local_variables.append(Value(name: varname, ty: local.ty))
 
-        let target_labels = get_target_labels(instructions: function.instructions)
+        let target_labels = bc.get_target_labels(instructions: function.instructions)
         let index = 0
         for instruction in function.instructions:
-            if target_labels.contains(int_to_str(index)):
+            if target_labels.contains(index):
                 emit("{get_label_str(index)}:")
             gen_instruction(instruction)
             index += 1
@@ -270,7 +251,7 @@ class CGenerator:
                     Int(value):
                         push(Value(name: "{value}", ty: bc.Type.Int(signed: true, bits: 64)))
                     Float(value):
-                        push(Value(name: "{float_to_str(value)}", ty: bc.Type.Float(bits: 64)))
+                        push(Value(name: "{float_to_str2(value, digits: 20)}", ty: bc.Type.Float(bits: 64)))
                     Str(value):
                         let varname = new_local_var()
                         let ty = bc.Type.Str()
@@ -733,9 +714,9 @@ class CGenerator:
         let values: List[Value] = List()
         while count > 0:
             let val = pop()
-            values.append(val)
+            values.prepend(val)
             count -= 1
-        return values.reversed()
+        return values
 
     fn pop() -> Value:
         return stack.pop_last()
@@ -773,8 +754,8 @@ fn eval_code_sequence(code: Vector[bc.Instruction]) -> str:
                 return "1"
             else:
                 return "0"
-        Float(v):
-            return float_to_str(v)
+        Float(value):
+            return float_to_str2(value, digits: 20)
         Str(v):
             let quote = chr(34)
             return "{quote}{v}{quote}"

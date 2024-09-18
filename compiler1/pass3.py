@@ -130,15 +130,12 @@ class NewOpPass(BasePass):
                         self.error(left.location, f"Superfluous field: {left.name}")
                     expression.kind = ast.StructLiteral(ty, values)
                     expression.ty = ty
-
-                elif ty.is_float():
+                elif ty.is_float() or ty.is_int():
                     value = expression.kind.args[0].value
                     expression.kind = ast.TypeCast(ty, value)
-
-                elif ty.is_int():
+                elif ty.is_str():
                     value = expression.kind.args[0].value
-                    expression.kind = ast.TypeCast(ty, value)
-
+                    expression.kind = ast.ToString(value)
                 else:
                     self.error(
                         expression.location,

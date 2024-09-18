@@ -1,6 +1,7 @@
 
 from std import print, float_to_str
 from datatypes import List, Option
+from settype import IntegerSet
 from vectype import Vector
 from utils import panic
 
@@ -104,6 +105,23 @@ enum Instruction:
     StructLiteral(struct_index: int)
     ArrayLiteral(size: int)
     ArrayLiteral2(ty: Type)
+
+fn get_target_labels(instructions: Vector[Instruction]) -> IntegerSet:
+    """ Get a set of labels to which is being jumped """
+    let target_labels = IntegerSet()
+    for instruction in instructions:
+        case instruction:
+            Jump(index):
+                target_labels.add(index)
+            JumpIf(index1, index2):
+                target_labels.add(index1)
+                target_labels.add(index2)
+            SetupTry(try_label, except_label):
+                target_labels.add(try_label)
+                target_labels.add(except_label)
+        else:
+            pass
+    return target_labels
 
 enum LiteralValue:
     Int(value: int)

@@ -6,7 +6,7 @@ from math import ceil, log2
 from std import print
 from datatypes import Option, List, option_unwrap, option_is_none
 from strlib import str_join
-from settype import Set
+from settype import StringSet
 from location import Location, location_to_string
 from utils import log_info, panic, log_error
 from errors import CompilationError, new_errors, new_error, display_error, SingleCompilationError
@@ -124,7 +124,7 @@ class TypeChecker:
             Case(case_statement):
                 if case_statement.value.ty.is_enum():
                     let variant_names = ast.get_enum_variant_names_from_type(case_statement.value.ty)
-                    let uncovered_arms = Set()
+                    let uncovered_arms = StringSet()
                     for variant_name in variant_names:
                         uncovered_arms.add(variant_name)
                     for arm in case_statement.arms:

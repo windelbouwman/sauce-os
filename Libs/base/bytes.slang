@@ -39,6 +39,9 @@ class ByteReader:
     var m_bytes: Bytes
     var m_index: int = 0
 
+    fn at_end() -> bool:
+        return m_index >= m_bytes.m_bytes.len()
+
     fn read_bytes(size: int) -> Bytes:
         let i = 0
         let ba = ByteArray()
@@ -91,6 +94,16 @@ class ByteArray:
 
     fn extend(bytes?: Bytes):
         m_bytes.extend(other: bytes.m_bytes)
+
+    fn pack_u64_le(value?: int):
+        append(value & 0xFF)
+        append((value >> 8) & 0xFF)
+        append((value >> 16) & 0xFF)
+        append((value >> 24) & 0xFF)
+        append((value >> 32) & 0xFF)
+        append((value >> 40) & 0xFF)
+        append((value >> 48) & 0xFF)
+        append((value >> 56) & 0xFF)
 
     fn pack_u32_le(value?: int):
         append(value & 0xFF)

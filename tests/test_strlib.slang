@@ -2,7 +2,6 @@
 # Unit tests for strlib
 
 from std import print, str_to_int, float_to_str2
-from rt import int_to_str
 from strlib import trim, hex_to_int, bin_to_int, find_char, is_digit
 from strlib import int_to_hex_string
 from datatypes import option_unwrap
@@ -54,5 +53,5 @@ fn test_int_to_str():
     let large_number = "2906422699"
     let value = str_to_int(large_number)
     assert_int_equals(2906422699, value)
-    let text = int_to_str(value)
+    let text = str(value)
     assert_str_equals("2906422699", text)

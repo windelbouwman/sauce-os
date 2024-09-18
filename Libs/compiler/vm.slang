@@ -544,9 +544,9 @@ class VirtualMachine:
         let values: List[Value] = List()
         while count > 0:
             let val = pop()
-            values.append(val)
+            values.prepend(val)
             count -= 1
-        return values.reversed()
+        return values
     
     fn jump(pc?: int):
         frames.last().pc = pc
