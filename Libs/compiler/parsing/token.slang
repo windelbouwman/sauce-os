@@ -85,7 +85,8 @@ enum TokenKind:
     Dedent
 
     Eof
-    Error
+    None
+    Error(message: str)
 
 fn token_to_string(tok: Token) -> str:
     # """ Convert token to txt """
@@ -228,9 +229,11 @@ fn token_to_string(tok: Token) -> str:
             txt = "["
         BracketClose:
             txt = "]"
-        Error:
-            txt = "LEX-ERROR"
+        Error(message):
+            txt = "LEX-ERROR({message})"
         Eof:
             txt = "EOF"
+        None:
+            txt = "None"
 
     return txt

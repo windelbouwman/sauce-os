@@ -41,31 +41,6 @@ __declspec(noreturn) void std_panic(const char *message);
 slang_exception_handler_t *g_except_hook;
 void *g_except_value;
 
-SLANG_API slang_float_t math_powf(slang_float_t a, slang_float_t b)
-{
-    return powf(a, b);
-}
-
-SLANG_API slang_float_t math_log10(slang_float_t value)
-{
-    return log10(value);
-}
-
-SLANG_API slang_float_t math_log2(slang_float_t value)
-{
-    return log2(value);
-}
-
-// slang_float_t math_floor(slang_float_t value)
-// {
-//     return floor(value);
-// }
-
-SLANG_API slang_float_t math_ceil(slang_float_t value)
-{
-    return ceil(value);
-}
-
 SLANG_API void std_print(char *message)
 {
     puts(message);

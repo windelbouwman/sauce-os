@@ -8,7 +8,6 @@ extern "slangrt" fn float_to_str(value?: float) -> str
 extern "slangrt" fn float_to_str2(value: float, digits: int) -> str
 extern "slangrt" fn str_to_float(value?: str) -> float
 
-# extern "slangrt" fn int_to_str(value: int) -> str
 extern "slangrt" fn str_to_int(value?: str) -> int
 
 extern "slangrt" fn str_len(text: str) -> int
@@ -33,5 +32,3 @@ extern "slangrt" fn file_close(handle: int)
 
 extern "slangrt" fn get_n_args() -> int
 extern "slangrt" fn get_arg(arg: int) -> str
-
-# fn read_binary

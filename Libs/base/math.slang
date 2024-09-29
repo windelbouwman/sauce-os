@@ -1,4 +1,5 @@
 
+from std import float_to_str, print
 from utils import panic, unimplemented
 
 # TODO: make constant
@@ -88,37 +89,19 @@ fn sin_kernel(x?: float) -> float:
     let factor = x
 
     let i = 2
-    while i < 40:
+    while i < 30:
         result = result + factor
         # Calculate the next factor, based on the previous factor:
         factor = factor * (-(x*x) / (i*(i+1)))
         i += 2
     return result
 
-    # let S3 = 1.0 / float(factorial(3)) #-0.166666666666666666666 # 3!
-    # let S5 = 1.0 / float(factorial(5)) #0.008333333333333333333  # 5!
-    # let S7 = 1.0 / float(factorial(7))
-    # let S9 = 1.0 / float(factorial(9))
-    # let S11 = 1.0 / float(factorial(11))
-    # let S13 = 1.0 / float(factorial(13))
-
-    # let x2 = x * x
-    # let x3 = x2 * x
-    # let x4 = x2 * x2
-    # let x5 = x2 * x3
-    # let x7 = x3 * x4
-    # let x8 = x4 * x4
-    # let x9 = x5 * x4
-    # let x11 = x7 * x4
-    # let x13 = x9 * x4
-    # return x - (x3 * S3) + (x5 * S5) - (x7 * S7) + (x9 * S9) - (x11 * S11) + (x13 * S13)
-
-
 fn tan(value?: float) -> float:
     # TODO: check division by 0
     return sin(value) / cos(value)
 
 fn fmod(x?: float, divisor: float) -> float:
+     # TODO: how about negative numbers?
     if x > divisor:
         return x - int(x / divisor) * divisor
     else:
@@ -128,26 +111,107 @@ fn modulo(value: int, divisor: int) -> int:
     let x = value / divisor
     return value - (divisor * x)
 
-# TODO: implement log10 and powf somehow!
-extern "slangrt" fn powf(a?: float, b?: float) -> float
-# fn powf(a?: float, b?: float) -> float:
-#     panic("TODO: powf")
+fn powf(x?: float, y?: float) -> float:
+    """ Raise x to the power of y.
 
-extern "slangrt" fn log10(value?: float) -> float
-extern "slangrt" fn log2(value?: float) -> float
-# fn log10(value?: float) -> float:
-#     panic("TODO: log10")
+    Implemented as:
+    x^y = e^(y*log(x))
 
-# extern fn floor(value?: float) -> float
+    This follow from: x^y = exp(log(x))^y = exp(y * log(x))
+    """
+    return exp(y * log(x))
+
+fn log10(x?: float) -> float:
+    return log(x) / log(10)
+
+fn log2(x?: float) -> float:
+    return log(x) / log(2)
+
+fn log(x?: float) -> float:
+    """ Natural logarithm
+
+    See: https://en.wikipedia.org/wiki/Natural_logarithm
+    For implementation algorithm: https://ben.land/post/2021/02/24/power-without-math-lib/
+
+    Use the series:
+                  2       ?
+    log(x) = Sum ----- * (---)^(2n+1)
+                 2*n+1    ?
+    """
+
+    let q = 3.0
+    if x > 0:
+        if x > q:
+            # For larger x, use the trick:
+            # log(x) = log(p*q^r) = log(p) + r * log(q)
+            let r = 0
+            while x > q:
+                x = x / q
+                r += 1
+            return log(x) + r * log(q)
+        else:
+            # range 0 .. 1
+            let ratio = (x - 1) / (x + 1)
+            let F = ratio
+            let y = 0.0
+            let n = 1
+            loop:
+                let term = F / n
+                y = y + term
+                if fabs(term) < 1e-17:
+                    break
+                F = F * ratio * ratio
+                n += 2
+            return 2 * y
+    else:
+        panic("log({float_to_str(x)}) is undefined")
+
+fn exp(x?: float) -> float:
+    """ Use Taylor series:
+
+              x^1   x^2   x^3
+    e^x = 1 + --- + --- + --- + ...
+               1!    2!    3!
+    
+    """
+
+    if x < 0:
+        # exp(-z) = 1/exp(z)
+        return 1/exp(-x)
+    elif x > 1:
+        # Use the fact that:
+        # e^x = (e^(x/3))^3
+        let r = exp(x / 3.0)
+        return r * r * r
+    else:
+        let sum = 1.0
+        let term = 1.0
+        let n = 1
+        loop:
+            term = term * (x / float(n))
+            sum = sum + term
+            n += 1
+            # print("n = {n}")
+            if term < 1e-18:
+                break
+            if n > 100:
+                break
+        return sum
+
 fn floor(value?: float) -> float:
-    let result = float(int(value))
-    if value < 0:
-        result = result - 1.0
-    return result
+    let i = int(value)
+    if float(i) == value:
+        return value
+    elif value < 0:
+        return float(i - 1)
+    else:
+        return float(int(value))
 
-extern "slangrt" fn ceil(value?: float) -> float
-# fn ceil(value?: float) -> float:
-# TODO!
-#     return float(value: int(value) + 1)
-
-
+fn ceil(value?: float) -> float:
+    let i = int(value)
+    if float(i) == value:
+        return value
+    elif value < 0:
+        return float(i)
+    else:
+        return float(i + 1)

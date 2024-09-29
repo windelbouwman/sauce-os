@@ -62,13 +62,15 @@ def detect_indentations(tokens: Iterable[Token]):
 
 def tokenize(code: str | tuple[Location, str]):
     token_spec = [
+        ("HEXNUMBER", r"0x[0-9a-fA-F]+"),
+        ("BINNUMBER", r"0b[0-1]+"),
+        ("FNUMBER1", r"[0-9]+[eE][\-+]?[0-9]+"),  # 1e9
+        ("FNUMBER2", r"[0-9]+\.[0-9]+[eE][\-+]?[0-9]+"),  # 1.0e9
+        ("FNUMBER3", r"[0-9]+\.[0-9]+"),  # 1.0
+        ("NUMBER", r"[0-9]+"),
         ("OP2", r"(->)|(\+=)|(\-=)|(<<)|(>>)|(==)|(<=)|(!=)|(>=)"),
         ("OP", r"[\(\):+\-\*/\.,<>=^\|&{}\[\]\?]"),
         ("ID", r"[A-Za-z][A-Za-z_0-9]*"),
-        ("HEXNUMBER", r"0x[0-9a-fA-F]+"),
-        ("BINNUMBER", r"0b[0-1]+"),
-        ("FNUMBER", r"[0-9]+\.[0-9]+"),
-        ("NUMBER", r"[0-9]+"),
         ("SPACE", r"[ ]+"),
         ("DOCSTRING", r"\"\"\".*?\"\"\""),
         ("STRING", r"\"[^\"]*\""),
@@ -156,7 +158,8 @@ def tokenize(code: str | tuple[Location, str]):
         elif kind == "BINNUMBER":
             kind = "NUMBER"
             value = int(value, 2)
-        elif kind == "FNUMBER":
+        elif kind == "FNUMBER1" or kind == "FNUMBER2" or kind == "FNUMBER3":
+            kind = "FNUMBER"
             value = float(value)
         elif kind == "SPACE":
             pass

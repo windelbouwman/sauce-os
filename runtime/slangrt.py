@@ -88,18 +88,3 @@ def std_file_write_n_bytes(handle: int, buf: list, bufsize: int) -> int:
 def std_file_close(handle: int):
     handle.close()
 
-
-def math_powf(x, y):
-    return math.pow(x, y)
-
-
-def math_log10():
-    return math.log10(value)
-
-
-def math_log2():
-    return math.log2(value)
-
-
-def math_ceil(value) -> float:
-    return math.ceil(value)
