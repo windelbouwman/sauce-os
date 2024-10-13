@@ -3,7 +3,7 @@
 
 # Alternative to c_gen module
 
-from std import float_to_str, chr
+from std import float_to_str
 from strlib import str_repeat, str_join
 import ast
 from datatypes import List, option_unwrap, Option, option_is_some
@@ -30,7 +30,7 @@ class CGenerator2:
         emit("#include <setjmp.h>")
         emit("#include <stdlib.h>")
         emit("#include <stdint.h>")
-        emit("#include {chr(34)}slangrt.h{chr(34)}")
+        emit("#include \"slangrt.h\"")
 
     fn gen_forward_declarations1(module_set: ast.ModuleSet):
         for module in module_set.modules:
@@ -101,13 +101,13 @@ class CGenerator2:
 
     fn gen_struct(struct_def: ast.StructDef):
         let decl = gen_struct_decl(struct_def)
-        emit("{decl} {chr(123)}")
+        emit("{decl} \{")
         indent()
         for field in struct_def.fields:
             let typed_name = gen_type(ty: field.ty, name: field.name)
             emit("{typed_name};")
         dedent()
-        emit("{chr(125)};")
+        emit("\};")
         emit("")
     
     fn gen_struct_ctors(struct_def: ast.StructDef):
@@ -120,14 +120,14 @@ class CGenerator2:
         for field in struct_def.fields:
             parts.append(gen_type(ty: field.ty, name: field.name))
         let args = str_join(parts, sep: ", ")
-        emit("struct {struct_name}* {struct_name}_new({args}) {chr(123)}")
+        emit("struct {struct_name}* {struct_name}_new({args}) \{")
         indent()
         emit("struct {struct_name}* X = malloc(sizeof(struct {struct_name}));")
         for field in struct_def.fields:
             emit("X->{field.name} = {field.name};")
         emit("return X;")
         dedent()
-        emit("{chr(125)}")
+        emit("\}")
         emit("")
 
     fn gen_function_decl(function_def: ast.FunctionDef) -> str:
@@ -148,9 +148,9 @@ class CGenerator2:
         case function_def.body:
             Intern(scoped_block):
                 let decl = gen_function_decl(function_def)
-                emit("{decl} {chr(123)}")
+                emit("{decl} \{")
                 gen_block(scoped_block.body)
-                emit("{chr(125)}")
+                emit("\}")
                 emit("")
             Extern(libname):
                 pass
@@ -198,17 +198,17 @@ class CGenerator2:
         case statement.kind:
             While(while_statement):
                 let value = gen_expression(while_statement.condition)
-                emit("while ({value}) {chr(123)}")
+                emit("while ({value}) \{")
                 gen_block(while_statement.block.body)
-                emit("{chr(125)}")
+                emit("\}")
 
             If(if_statement):
                 gen_if_statement(if_statement, kw: "if")
 
             Loop(loop_statement):
-                emit("while (1) {chr(123)}")
+                emit("while (1) \{")
                 gen_block(loop_statement.block.body)
-                emit("{chr(125)}")
+                emit("\}")
 
             Compound(body):
                 for s in body:
@@ -280,27 +280,27 @@ class CGenerator2:
                 emit("jmp_buf {jmp_buf};")
                 emit("jmp_buf* {jmp_buf_backup} = g_except_hook;")
                 emit("g_except_hook = &{jmp_buf};")
-                emit("if (setjmp(*g_except_hook) == 0) {chr(123)}")
+                emit("if (setjmp(*g_except_hook) == 0) \{")
                 gen_block(try_statement.try_block.body)
                 indent()
                 emit("g_except_hook = {jmp_buf_backup};")
                 dedent()
-                emit("{chr(125)} else {chr(123)}")
+                emit("\} else \{")
                 indent()
                 emit("g_except_hook = {jmp_buf_backup};")
                 let typed_var = gen_type(ty: try_statement.except_type, name: param_name)
                 emit("{typed_var} = g_except_value;")
                 gen_statement(try_statement.except_block.body)
                 dedent()
-                emit("{chr(125)}")
+                emit("\}")
 
             Switch(switch_statement):
                 # TBD: IDEA: we actually have switch in C!
                 panic("switch-statement not supported")
-                emit("switch () {chr(123)}")
+                emit("switch () \{")
                 indent()
                 dedent()
-                emit("{chr(125)}")
+                emit("\}")
 
             Raise(value):
                 let value_txt = gen_expression(value)
@@ -315,17 +315,17 @@ class CGenerator2:
     
     fn gen_if_statement(if_statement: ast.IfStatement, kw: str):
         let value = gen_expression(if_statement.condition)
-        emit("{kw} ({value}) {chr(123)}")
+        emit("{kw} ({value}) \{")
         gen_block(if_statement.true_block.body)
         case if_statement.false_block.body.kind:
             Pass:
-                emit("{chr(125)}")
+                emit("\}")
             If(if_statement2):
-                gen_if_statement(if_statement: if_statement2, kw: "{chr(125)} else if")
+                gen_if_statement(if_statement: if_statement2, kw: "\} else if")
         else:
-            emit("{chr(125)} else {chr(123)}")
+            emit("\} else \{")
             gen_block(if_statement.false_block.body)
-            emit("{chr(125)}")
+            emit("\}")
 
     fn gen_expression(expression?: ast.Expression) -> str:
         # TODO/TBD: optional parenthesis?
@@ -404,7 +404,7 @@ class CGenerator2:
                     return "0"
 
             StringLiteral(value):
-                return "{chr(34)}{value}{chr(34)}"
+                return "\"{value}\""
 
             CharLiteral(value):
                 return "'{value}'"
@@ -417,7 +417,7 @@ class CGenerator2:
             
             ArrayLiteral(values):
                 let args = gen_expression_list(values)
-                return "{chr(123)} {args} {chr(125)}"
+                return "\{ {args} \}"
 
             ArrayLiteral2(size, ty):
                 let size_2 = gen_expression(size)

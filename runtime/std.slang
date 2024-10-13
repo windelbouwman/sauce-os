@@ -8,8 +8,6 @@ extern "slangrt" fn float_to_str(value?: float) -> str
 extern "slangrt" fn float_to_str2(value: float, digits: int) -> str
 extern "slangrt" fn str_to_float(value?: str) -> float
 
-extern "slangrt" fn str_to_int(value?: str) -> int
-
 extern "slangrt" fn str_len(text: str) -> int
 extern "slangrt" fn str_get(text: str, index: int) -> char
 extern "slangrt" fn str_slice(text: str, begin: int, end: int) -> str

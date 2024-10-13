@@ -1,8 +1,8 @@
 
 # Unit tests for strlib
 
-from std import print, str_to_int, float_to_str2
-from strlib import trim, hex_to_int, bin_to_int, find_char, is_digit
+from std import print, float_to_str2
+from strlib import trim, str_to_int, hex_to_int, bin_to_int, find_char, is_digit
 from strlib import int_to_hex_string
 from datatypes import option_unwrap
 from unittest import assert_str_equals, assert_int_equals

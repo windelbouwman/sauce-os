@@ -2,10 +2,10 @@
 # json data serialization library
 
 from utils import panic
-from std import str_len, str_get, ord, chr, str_slice, str_to_int
+from std import str_len, str_get, ord, str_slice
 from std import read_file
 from std import file_writeln, file_open, file_close
-from strlib import str_join, is_digit
+from strlib import str_join, is_digit, str_to_int
 from datatypes import List, Option, option_is_some
 
 enum JsonValue:
@@ -49,13 +49,13 @@ pub fn json_to_string(value?: JsonValue) -> str:
             else:
                 return "false"
         String(text):
-            return "{chr(34)}{text}{chr(34)}"
+            return "\"{text}\""
         Object(items):
             let parts: List[str] = List()
             for item in items:
-                parts.append("{chr(34)}{item.key}{chr(34)}: {json_to_string(item.value)}")
+                parts.append("\"{item.key}\": {json_to_string(item.value)}")
             let txt = str_join(parts, sep: ", ")
-            return "{chr(123)} {txt} {chr(125)}"
+            return "\{ {txt} \}"
         Array(values):
             let parts: List[str] = List()
             for value in values:
@@ -385,7 +385,6 @@ class Lexer:
         n = str_len(text)
 
     fn lex() -> JsonToken:
-        let quote = chr(34)
         loop:
             let begin = index
             let c = str_get(text, index)
@@ -410,11 +409,11 @@ class Lexer:
                 return create_token(JsonTokenKind.BraceLeft())
             elif c == '}':
                 return create_token(JsonTokenKind.BraceRight())
-            elif c == quote:
+            elif c == '"':
                 loop:
                     c = str_get(text, index)
                     index += 1
-                    if c == quote:
+                    if c == '"':
                         break
                     if index >= n:
                         return create_token(JsonTokenKind.UnexpectedEof())

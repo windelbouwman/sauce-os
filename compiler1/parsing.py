@@ -3,7 +3,6 @@
 
 import logging
 import os
-import re
 
 
 # try lark as parser
@@ -80,44 +79,6 @@ def lark_it(id_context: ast.IdContext, modname: str, code, start):
             raise
 
 
-def process_fstrings(
-    id_context: ast.IdContext, literal: str, location: Location
-) -> ast.Expression:
-    """Check if we have a string with f-strings in it."""
-
-    # Check empty string:
-    if not literal:
-        return ast.string_constant(literal, location)
-
-    # Split on braced expressions:
-    parts = list(filter(None, re.split(r"({[^}]+})", literal)))
-    # print('parts', parts, location)
-    assert "".join(parts) == literal
-
-    exprs = []
-    row = location.begin.row
-    col = location.begin.column + 1
-    for part in parts:
-        if part.startswith(r"{") and part.endswith("}"):
-            p1 = Position(row, col + 1)
-            p2 = Position(row, col + len(part) - 2)
-            part_loc = Location(p1, p2)
-            value = parse_expr(id_context, part[1:-1], part_loc)
-            expr = value.to_string()
-        else:
-            p1 = Position(row, col)
-            p2 = Position(row, col + len(part))
-            part_loc = Location(p1, p2)
-            expr = ast.string_constant(part, part_loc)
-        col += len(part)
-        exprs.append(expr)
-
-    # Concatenate all parts:
-    x = exprs.pop(0)
-    while exprs:
-        x = x.binop("+", exprs.pop(0))
-    return x
-
 
 class CustomLarkLexer(LarkLexer):
     def __init__(self, lexer_conf):
@@ -125,10 +86,12 @@ class CustomLarkLexer(LarkLexer):
 
     def lex(self, data):
         type_map = {
-            "(": "LEFT_BRACE",
-            ")": "RIGHT_BRACE",
+            "(": "LEFT_PARENTHESIS",
+            ")": "RIGHT_PARENTHESIS",
             "[": "LEFT_BRACKET",
             "]": "RIGHT_BRACKET",
+            "{": "LEFT_BRACE",
+            "}": "RIGHT_BRACE",
             "<": "LESS_THAN",
             ">": "GREATER_THAN",
             ">=": "GREATER_EQUALS",
@@ -203,7 +166,7 @@ class CustomTransformer(LarkTransformer):
 
     def module(self, x):
         name = self._modname
-        imports, definitions, eof = x
+        docstring, imports, definitions, eof = x
         span = get_span(Location.default(), get_loc(eof))
         return ast.Module(name, imports, definitions, span)
 
@@ -295,7 +258,7 @@ class CustomTransformer(LarkTransformer):
 
     def extern_func_def(self, x):
         # extern_func_def: KW_EXTERN STRING KW_FN id_and_type_parameters function_signature NEWLINE
-        libname = x[1].value
+        libname = x[1]
         assert isinstance(libname, str)
         location, name, type_parameters = x[3]
         parameters, return_type, except_type, no_return = x[4]
@@ -303,8 +266,8 @@ class CustomTransformer(LarkTransformer):
         return ast.BuiltinFunction(self._modname, name, ptypes, return_type, location)
 
     def function_signature(self, x):
-        # LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)?
-        if isinstance(x[1], LarkToken) and x[1].type == "RIGHT_BRACE":
+        # LEFT_PARENTHESIS parameters? RIGHT_PARENTHESIS (ARROW typ)?
+        if isinstance(x[1], LarkToken) and x[1].type == "RIGHT_PARENTHESIS":
             parameters = []
             x = x[2:]
         else:
@@ -413,8 +376,8 @@ class CustomTransformer(LarkTransformer):
 
     def typ(self, x):
         if isinstance(x[0], LarkToken) and x[0].type == "KW_FN":
-            # KW_FN LEFT_BRACE types? RIGHT_BRACE (ARROW typ)?
-            if isinstance(x[2], LarkToken) and x[2].type == "RIGHT_BRACE":
+            # KW_FN LEFT_PARENTHESIS types? RIGHT_PARENTHESIS (ARROW typ)?
+            if isinstance(x[2], LarkToken) and x[2].type == "RIGHT_PARENTHESIS":
                 parameter_types = []
             else:
                 assert isinstance(x[2], list)
@@ -500,7 +463,7 @@ class CustomTransformer(LarkTransformer):
         return ast.raise_statement(value, get_loc(x[0]))
 
     def try_statement(self, x):
-        # try_statement: KW_TRY block KW_EXCEPT LEFT_BRACE parameter RIGHT_BRACE block
+        # try_statement: KW_TRY block KW_EXCEPT LEFT_PARENTHESIS parameter RIGHT_PARENTHESIS block
         try_code = x[1]
         parameter = x[4]
         except_code = x[6]
@@ -541,9 +504,9 @@ class CustomTransformer(LarkTransformer):
         return ast.case_statement(value, arms, else_block, get_loc(x[0]))
 
     def case_arm(self, x):
-        # case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? block
+        # case_arm: ID (LEFT_PARENTHESIS ids RIGHT_PARENTHESIS)? block
         name = x[0].value
-        if isinstance(x[1], LarkToken) and x[1].type == "LEFT_BRACE":
+        if isinstance(x[1], LarkToken) and x[1].type == "LEFT_PARENTHESIS":
             variables = [
                 self.new_variable(name, ast.void_type, location)
                 for name, location in x[2]
@@ -703,12 +666,12 @@ class CustomTransformer(LarkTransformer):
     def atom(self, x):
         if len(x) == 1:
             return x[0]
-        elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == "LEFT_BRACE":
+        elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == "LEFT_PARENTHESIS":
             arguments = x[2] if len(x) == 4 else []
             callee = x[0]
             span = get_span(callee.location, get_loc(x[-1]))
             return ast.function_call(callee, arguments, span)
-        elif len(x) > 2 and isinstance(x[0], LarkToken) and x[0].type == "LEFT_BRACE":
+        elif len(x) > 2 and isinstance(x[0], LarkToken) and x[0].type == "LEFT_PARENTHESIS":
             return x[1]
         elif len(x) > 2 and isinstance(x[1], LarkToken) and x[1].type == "LEFT_BRACKET":
             base = x[0]
@@ -746,9 +709,6 @@ class CustomTransformer(LarkTransformer):
     def literal(self, x):
         if x[0].type == "NUMBER":
             return ast.numeric_constant(x[0].value, get_loc(x[0]))
-        elif x[0].type == "STRING":
-            text = x[0].value
-            return process_fstrings(self.id_context, text, get_loc(x[0]))
         elif x[0].type == "FNUMBER":
             return ast.numeric_constant(x[0].value, get_loc(x[0]))
         elif x[0].type == "BOOL":
@@ -757,6 +717,33 @@ class CustomTransformer(LarkTransformer):
             return ast.char_constant(x[0].value, get_loc(x[0]))
         else:
             raise NotImplementedError(f"Literal: {x}")
+    
+    def rawstring(self, x):
+        # rawstring: STRING_START STRING_LITERAL STRING_END
+        return x[1].value
+
+    def string(self, x):
+        # string: STRING_START string_part* STRING_END
+        parts = x[1:-1]
+        if len(parts) == 0:  # empty string
+            return ast.string_constant("", get_loc(x[0]))
+        else:
+            # Concatenate all parts:
+            x = parts.pop(0)
+            while parts:
+                x = x.binop("+", parts.pop(0))
+            return x
+
+    def string_part(self, x):
+        # string_part: STRING_LITERAL
+        #         | LEFT_BRACE expression RIGHT_BRACE
+        if len(x) == 1:
+            text = x[0].value
+            return ast.string_constant(x[0].value, get_loc(x[0]))
+        elif len(x) == 3:
+            return x[1].to_string()
+        else:
+            raise RuntimeError("Invalid string_part rule")
 
     def array_literal(self, x):
         return ast.array_literal(x[1], get_loc2(x[0], x[-1]))
@@ -797,7 +784,7 @@ class CustomTransformer(LarkTransformer):
 
 
 grammar = r"""
-module: imports definitions EOF
+module: docstring imports definitions EOF
 eval_expr: expression NEWLINE EOF
 
 imports: (import1|import2)*
@@ -817,11 +804,11 @@ definition: func_def
 class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT docstring (func_def | var_def)+ DEDENT
 var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
 func_def: KW_PUB? KW_FN id_and_type_parameters function_signature COLON NEWLINE INDENT docstring statement+ DEDENT
-extern_func_def: KW_EXTERN STRING KW_FN id_and_type_parameters function_signature NEWLINE
+extern_func_def: KW_EXTERN rawstring KW_FN id_and_type_parameters function_signature NEWLINE
 func_decl: KW_FN id_and_type_parameters function_signature NEWLINE
 interface_def: KW_INTERFACE id_and_type_parameters COLON NEWLINE INDENT func_decl+ DEDENT
 docstring: (DOCSTRING NEWLINE)?
-function_signature: LEFT_BRACE parameters? RIGHT_BRACE (ARROW typ)? (KW_EXCEPT typ)? QUESTION?
+function_signature: LEFT_PARENTHESIS parameters? RIGHT_PARENTHESIS (ARROW typ)? (KW_EXCEPT typ)? QUESTION?
 parameters: parameter
           | parameters COMMA parameter
 parameter: ID QUESTION? COLON typ
@@ -829,14 +816,14 @@ struct_def: (KW_STRUCT | KW_UNION) id_and_type_parameters COLON NEWLINE INDENT d
 struct_field: ID COLON typ NEWLINE
 enum_def: KW_ENUM id_and_type_parameters COLON NEWLINE INDENT docstring enum_variant+ DEDENT
 enum_variant: ID NEWLINE
-            | ID LEFT_BRACE parameters RIGHT_BRACE NEWLINE
+            | ID LEFT_PARENTHESIS parameters RIGHT_PARENTHESIS NEWLINE
 type_def: KW_TYPE ID EQUALS typ NEWLINE
 id_and_type_parameters: ID type_parameters?
 type_parameters: LEFT_BRACKET ids RIGHT_BRACKET
 types: typ
      | types COMMA typ
 typ: expression
-   | KW_FN LEFT_BRACE types? RIGHT_BRACE (ARROW typ)?
+   | KW_FN LEFT_PARENTHESIS types? RIGHT_PARENTHESIS (ARROW typ)?
 ids: ID
    | ids COMMA ID
 
@@ -867,7 +854,7 @@ return_statement: KW_RETURN test?
 assignment_statement: expression (EQUALS | PLUS_EQUALS | MINUS_EQUALS) test
 
 raise_statement: KW_RAISE expression
-try_statement: KW_TRY block KW_EXCEPT LEFT_BRACE parameter RIGHT_BRACE block
+try_statement: KW_TRY block KW_EXCEPT LEFT_PARENTHESIS parameter RIGHT_PARENTHESIS block
 if_statement: KW_IF test block elif_clause* else_clause?
 elif_clause: KW_ELIF test block
 else_clause: KW_ELSE block
@@ -877,7 +864,7 @@ while_statement: KW_WHILE test block
 loop_statement: KW_LOOP block
 for_statement: KW_FOR ID KW_IN expression block
 case_statement: KW_CASE expression COLON NEWLINE INDENT case_arm+ DEDENT else_clause?
-case_arm: ID (LEFT_BRACE ids RIGHT_BRACE)? block
+case_arm: ID (LEFT_PARENTHESIS ids RIGHT_PARENTHESIS)? block
 switch_statement: KW_SWITCH expression COLON NEWLINE INDENT switch_arm+ DEDENT else_clause
 switch_arm: expression block
 
@@ -913,10 +900,11 @@ factor: atom
 
 atom: obj_ref
     | literal
+    | string
     | array_literal
     | array_literal2
-    | atom LEFT_BRACE arguments? RIGHT_BRACE
-    | LEFT_BRACE test RIGHT_BRACE
+    | atom LEFT_PARENTHESIS arguments? RIGHT_PARENTHESIS
+    | LEFT_PARENTHESIS test RIGHT_PARENTHESIS
     | atom LEFT_BRACKET tests RIGHT_BRACKET
     | atom DOT ID
 
@@ -926,7 +914,11 @@ tests: test
 arguments: labeled_expression
          | arguments COMMA labeled_expression
 
-literal: STRING | NUMBER | FNUMBER | BOOL | CHAR
+literal: NUMBER | FNUMBER | BOOL | CHAR
+rawstring: STRING_START STRING_LITERAL STRING_END
+string: STRING_START string_part* STRING_END
+string_part: STRING_LITERAL
+           | LEFT_BRACE expression RIGHT_BRACE
 array_literal: LEFT_BRACKET tests RIGHT_BRACKET
 array_literal2: LEFT_BRACKET test COLON typ RIGHT_BRACKET
 obj_ref: ID
@@ -944,7 +936,7 @@ labeled_expression: test
 %declare KW_RAISE KW_TRY KW_EXCEPT KW_EXTERN
 %declare KW_INTERFACE
 
-%declare LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
+%declare LEFT_PARENTHESIS RIGHT_PARENTHESIS LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON COMMA DOT ARROW QUESTION
 %declare MINUS PLUS ASTERIX SLASH
 %declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS NOT_EQUALS
@@ -952,8 +944,10 @@ labeled_expression: test
 %declare BITAND BITOR BITXOR SHR SHL
 
 %declare INDENT DEDENT NEWLINE EOF
-%declare NUMBER STRING FNUMBER BOOL CHAR ID
+%declare NUMBER FNUMBER BOOL CHAR ID
 %declare DOCSTRING
+
+%declare STRING_START STRING_LITERAL STRING_END
 
 """
 lark_parser = Lark(

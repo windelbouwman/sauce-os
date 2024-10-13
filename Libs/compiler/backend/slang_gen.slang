@@ -2,7 +2,7 @@
 # Idea: This backend emits slang code, sort of a no-op operation?
 
 from utils import panic, log_info
-from std import chr, float_to_str
+from std import float_to_str
 from strlib import str_join
 import ast
 from text_gen import TextGenerator
@@ -43,7 +43,7 @@ class SlangGenerator:
                         emit("fn {function_def.name}({params}){return_types}:")
                         gen_block(scoped_block)
                     Extern(libname):
-                        emit("extern {chr(34)}{libname}{chr(34)} fn {function_def.name}({params}){return_types}")
+                        emit("extern \"{libname}\" fn {function_def.name}({params}){return_types}")
             Struct(struct_def):
                 let struct_name = get_id(struct_def.id)
                 emit("struct {struct_name}:")
@@ -174,8 +174,7 @@ class SlangGenerator:
             IntLiteral(v):
                 txt = "{v}"
             StringLiteral(s):
-                # TODO: implement escaping in string literals
-                txt = "{chr(34)}{s}{chr(34)}"
+                txt = "\"{s}\""
             CharLiteral(s):
                 txt = "'{s}'"
             FloatLiteral(value):

@@ -60,8 +60,20 @@ fn str_join(parts: List[str], sep: str) -> str:
 fn is_space(c: char) -> bool:
     return c == ' '
 
+fn str_to_int(text?: str) -> int:
+    let n = str_len(text)
+    assert(condition: n > 0, message: "Integer string must be at least a single digit.")
+    let index = 0
+    let value = 0
+    while index < n:
+        let c = str_get(text, index)
+        let cval = digit_to_int(c)
+        value = value * 10 + cval
+        index += 1
+    return value
+
 fn hex_to_int(hextext: str) -> int:
-    # Convert hex text
+    """ Convert hex text """
     let n = str_len(text: hextext)
     assert(condition: n > 0, message: "Hex string must be at least a single digit.")
     let index = 0
@@ -73,22 +85,16 @@ fn hex_to_int(hextext: str) -> int:
     return value
 
 fn bin_to_int(bintext: str) -> int:
-    # Convert bin text to integer value
-    # For example, convert 101 to 5
+    """ Convert bin text to integer value
+    For example, convert 101 to 5
+    """
     let n = str_len(text: bintext)
     assert(condition: n > 0, message: "Binary string must be at least a single digit.")
     let index = 0
     let value = 0
     while index < n:
         let c = str_get(text: bintext, index)
-        let o = ord(c)
-
-        let cval = 0
-        if (o >= 48) and (o <= 49):     # 0..1
-            cval = o - 48
-        else:
-            panic("Invalid binary char: {c}")
-        value = value * 2 + cval
+        value = value * 2 + bin_digit_to_int(c)
         index += 1
     return value
 
@@ -96,6 +102,14 @@ fn is_digit(c: char) -> bool:
     """  Check if a character is a digit. """
     let o = ord(value: c)
     return (o >= 48) and (o <= 57)
+
+fn digit_to_int(c: char) -> int:
+    let cval = ord(c)
+    if (cval >= 48) and (cval <= 57):     # 0..9
+        cval = cval - 48
+    else:
+        panic("Invalid integer char: {c}")
+    return cval
 
 fn hex_digit_to_int(c: char) -> int:
     let o = ord(c)
@@ -148,6 +162,14 @@ fn is_bin_digit(c: char) -> bool:
         return true
     else:
         return false
+
+fn bin_digit_to_int(c: char) -> int:
+    let cval = ord(c)
+    if (cval >= 48) and (cval <= 49):     # 0..1
+        cval = cval - 48
+    else:
+        panic("Invalid binary char: {c}")
+    return cval
 
 fn trim(text?: str) -> str:
     # Trim spaces

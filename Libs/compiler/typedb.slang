@@ -75,6 +75,8 @@ class SymbolSaver:
         log_debug("Saving {ast.definition_to_str(definition)}")
         m_ser.begin_object()
         case definition:
+            Macro(macro_def):
+                save_macro_def(macro_def)
             Function(function_def):
                 save_function_def(function_def)
             Struct(struct_def):
@@ -86,6 +88,9 @@ class SymbolSaver:
             Var(var_def):
                 save_var_def(var_def)
         m_ser.end_object_as_element()
+
+    fn save_macro_def(macro_def: ast.MacroDef):
+        unimplemented("macro-def")
 
     fn save_var_def(var_def: ast.VariableDef):
         m_ser.add_text_attribute(attr: "kind", text: "variable")

@@ -20,7 +20,7 @@
 # MV rd, rs  > ADDI rd, rs, 0
 
 import bc
-from std import print, chr, ord
+from std import print, ord
 import riscv
 from vectype import Vector, new_vector
 from utils import panic, log_info

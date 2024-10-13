@@ -17,7 +17,9 @@ typedef struct rt_ref_mem_tag rt_ref_mem_t;
 struct rt_ref_mem_tag
 {
     int count;
-    void (*destroyer)();
+    int mark; // for mark and sweep GC
+    const int* ref_offsets;
+    // void (*destroyer)();
     rt_ref_mem_t* next;
 };
 
@@ -83,13 +85,6 @@ void std_panic(const char *message)
     puts(message);
     raise(SIGTRAP);
     std_exit(1);
-}
-
-SLANG_API slang_int_t std_str_to_int(char *x)
-{
-    slang_int_t value = strtoll(x, NULL, 10);
-    rt_decref(x);
-    return value;
 }
 
 char *rt_int_to_str(slang_int_t x)
@@ -387,7 +382,7 @@ void *rt_malloc(size_t size)
     return rt_malloc_with_destroyer(size, NULL);
 }
 
-void *rt_malloc_with_destroyer(size_t size, void (*destroyer)(void*))
+void *rt_malloc_with_destroyer(size_t size, const int* ref_offsets)
 {
     rt_ref_mem_t *ptr = malloc(size + sizeof(rt_ref_mem_t));
     if (((intptr_t)(ptr) & 0x3) != 0) {
@@ -396,7 +391,8 @@ void *rt_malloc_with_destroyer(size_t size, void (*destroyer)(void*))
     ptr->next = g_gc_root;
     g_gc_root = ptr;
     ptr->count = 1;
-    ptr->destroyer = destroyer;
+    ptr->mark = 0;
+    ptr->ref_offsets = ref_offsets;
     void *p = (ptr + 1);
     return p;
 }
@@ -441,10 +437,10 @@ void rt_decref(void *ptr)
     p->count -= 1;
 
     if (p->count == 0) {
-        if (p->destroyer != NULL)
-        {
-            p->destroyer(ptr);
-        }
+        // if (p->destroyer != NULL)
+        // {
+        //     p->destroyer(ptr);
+        // }
     }
 
 #ifdef DEBUG_REFCOUNTING

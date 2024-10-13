@@ -1,7 +1,7 @@
 
 from std import print, float_to_str, float_to_str2
 from utils import assert
-from math import modulo, fabs, floor, ceil, factorial, sin, cos, log10, exp
+from math import modulo, fabs, floor, ceil, factorial, sin, cos, log10, exp, sqrt
 from unittest import assert_int_equals
 
 fn main() -> int:
@@ -9,10 +9,11 @@ fn main() -> int:
     test_modulo()
     test_factorial()
     test_floor_ceil()
+    test_sqrt()
     test_sin()
     test_cos()
     test_log()
-    text_exp()
+    test_exp()
     print("OK")
     return 0
 
@@ -40,6 +41,12 @@ fn test_factorial():
     assert_int_equals(factorial(3), 6)
     assert_int_equals(factorial(4), 24)
     assert_int_equals(factorial(5), 120)
+
+fn test_sqrt():
+    assert_are_close(sqrt(4), 2)
+    assert_are_close(sqrt(9), 3)
+    assert_are_close(sqrt(16), 4)
+    assert_are_close(sqrt(25), 5)
 
 fn test_sin():
     let x = 0.0
@@ -79,7 +86,7 @@ fn test_log():
 fn check_log10(value?: float, expected: float):
     assert_are_close(log10(value), expected)
 
-fn text_exp():
+fn test_exp():
     check_exp(0, expected: 1)
     check_exp(1, expected: 2.718281828459045)
     check_exp(3.14, expected: 23.103866858722185)

@@ -12,7 +12,7 @@ const fs = require('fs');
 
 console.log("Load webassembly script");
 
-const heapPtr = new WebAssembly.Global({ value: "i32", mutable: true}, 1000);
+const heapPtr = new WebAssembly.Global({ value: "i32", mutable: true }, 1000);
 const memory = new WebAssembly.Memory({
     initial: 100,
     maximum: 100,
@@ -86,17 +86,12 @@ const importObject = {
             console.log(text2);
         },
 
-        str_to_int(value) {
-            console.log("In std_str_to_int");
-            return 13;
-        },
-
-        str_to_float: function(value) {
+        str_to_float: function (value) {
             console.log("In std_str_to_float");
             return 13;
         },
 
-        float_to_str: function(value) {
+        float_to_str: function (value) {
             // console.log("In std_float_to_str");
             return alloc_string(memory, value.toString());
         },
@@ -160,9 +155,9 @@ let wasm_file = 'build/wasm/loops.wasm';
 // let wasm_file = 'linkable.wasm';
 const wasmBuffer = fs.readFileSync(wasm_file);
 WebAssembly.instantiate(wasmBuffer, importObject).then(wasmModule => {
-  // Exported function live under instance.exports
-  const { main } = wasmModule.instance.exports;
-  const res = main();
-  console.log("Result of main:", res);
+    // Exported function live under instance.exports
+    const { main } = wasmModule.instance.exports;
+    const res = main();
+    console.log("Result of main:", res);
 });
 

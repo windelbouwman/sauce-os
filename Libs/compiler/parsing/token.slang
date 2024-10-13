@@ -28,6 +28,7 @@ enum TokenKind:
     KwIn
     KwLet
     KwLoop
+    KwMacro
     KwNot
     KwOr
     KwPass
@@ -43,9 +44,12 @@ enum TokenKind:
     # Literals:
     Float(value: float)
     Integer(value: int)
-    String(value: str)
     Char(value: char)
     Bool(value: bool)
+
+    StringStart
+    StringContent(value: str)
+    StringEnd
 
     # Punctuation:
     Colon
@@ -53,10 +57,12 @@ enum TokenKind:
     Dot
     Arrow
     Question
-    BraceOpen
-    BraceClose
+    ParenthesisOpen
+    ParenthesisClose
     BracketOpen
     BracketClose
+    BraceOpen
+    BraceClose
 
     Plus
     Minus
@@ -128,6 +134,8 @@ fn token_to_string(tok: Token) -> str:
             txt = "LET"
         KwLoop:
             txt = "LOOP"
+        KwMacro:
+            txt = "MACRO"
         KwNot:
             txt = "NOT"
         KwOr:
@@ -152,8 +160,12 @@ fn token_to_string(tok: Token) -> str:
             txt = "WHILE"
         Identifier(id):
             txt = "ID({id})"
-        String(a):
-            txt = "STRING({a})"
+        StringStart:
+            txt = "STRING_START"
+        StringContent(content):
+            txt = "STRING_CONTENT({content})"
+        StringEnd:
+            txt = "STRING_END"
         Char(value):
             txt = "CHAR({value})"
         Integer(value):
@@ -221,14 +233,18 @@ fn token_to_string(tok: Token) -> str:
             txt = "bitand"
         BitXor:
             txt = "bitxor"
-        BraceOpen:
-            txt = "BRACE_OPEN"
-        BraceClose:
-            txt = "BRACE_CLOSE"
+        ParenthesisOpen:
+            txt = "("
+        ParenthesisClose:
+            txt = ")"
         BracketOpen:
             txt = "["
         BracketClose:
             txt = "]"
+        BraceOpen:
+            txt = "\{"
+        BraceClose:
+            txt = "}"
         Error(message):
             txt = "LEX-ERROR({message})"
         Eof:

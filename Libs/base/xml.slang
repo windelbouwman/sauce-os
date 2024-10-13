@@ -1,7 +1,7 @@
 
 # XML parsing routines.
 
-from std import print, chr, str_len
+from std import print, str_len
 from std import file_writeln, file_open, file_close
 from utils import panic, unimplemented
 from datatypes import List
@@ -83,8 +83,7 @@ class XmlWriter:
         return attrs_text
     
     fn attribute_to_string(attribute: Attribute) -> str:
-        let q = chr(34)
-        return "{attribute.name}={q}{attribute.value}{q}"
+        return "{attribute.name}=\"{attribute.value}\""
 
     fn indent():
         indentation += 1

@@ -8,7 +8,7 @@ from datatypes import List, Result, Option, list1, option_unwrap
 from vectype import Vector, new_vector
 from pathlib import basename
 from basepass import IdGen
-from utils import panic, log_debug, log_trace, log_info
+from utils import log_debug, log_trace, log_info
 from errors import CompilationError, SingleCompilationError
 import errors
 
@@ -50,6 +50,7 @@ class Parser:
         let imports: List[ast.Import] = List()
         this.filename = Option.Some(filename)
         this.modname = Option.Some(name)
+        let docstring = parse_optional_docstring()
 
         loop:
             let tok = get_token()
@@ -69,17 +70,14 @@ class Parser:
                     imports.append(parse_import())
                 KwFrom:
                     imports.append(parse_from_import())
+                KwMacro:
+                    let macro_def = parse_macro_def()
+                    definitions.append(ast.Definition.Macro(macro_def))
                 KwFn:
                     let func_def = parse_func_def(this_parameter: Option.None())
                     definitions.append(ast.Definition.Function(func_def))
                 KwExtern:
-                    tok = get_token()
-                    let libname = "?"
-                    case tok.kind:
-                        String(value):
-                            libname = value
-                    else:
-                        raise unexpected_token(tok, expected: "string with library name")
+                    let libname = parse_raw_string()
 
                     tok = get_token()
                     case tok.kind:
@@ -147,6 +145,20 @@ class Parser:
         else:
             unget_token(tok)
         return is_pub
+    
+    fn parse_macro_def() -> ast.MacroDef except CompilationError:
+        # unimplemented("macro-def")
+        let name_at = parse_name()
+        let name = name_at.name
+        let location = name_at.location
+
+        parse_colon()
+        parse_newline()
+        parse_indent()
+        let statement = parse_statement()
+        parse_dedent()
+
+        return ast.MacroDef(name, location)
 
     fn parse_enum_def(location: Location) -> ast.EnumDef except CompilationError:
         let name = parse_name().name
@@ -164,13 +176,13 @@ class Parser:
             let payload_types: List[ast.Type] = List()
             let tok3 = get_token()
             case tok3.kind:
-                BraceOpen:
+                ParenthesisOpen:
                     loop:
                         payload_types.append(parse_parameter_def().ty)
 
                         let tok4 = get_token()
                         case tok4.kind:
-                            BraceClose:
+                            ParenthesisClose:
                                 break
                             Comma:
                                 continue
@@ -314,11 +326,11 @@ class Parser:
 
     fn parse_parameters() -> List[ast.ParameterDef] except CompilationError:
         let parameters: List[ast.ParameterDef] = List()
-        parse_brace_open()
+        parse_parenthesis_open()
         # ')' or parameters and ')'
         let tok = get_token()
         case tok.kind:
-            BraceClose:
+            ParenthesisClose:
                 pass
         else:
             unget_token(tok)
@@ -326,7 +338,7 @@ class Parser:
                 parameters.append(parse_parameter_def())
                 let tok4 = get_token()
                 case tok4.kind:
-                    BraceClose:
+                    ParenthesisClose:
                         break
                     Comma:
                         pass
@@ -370,7 +382,7 @@ class Parser:
     fn parse_optional_docstring() -> Option[str]:
         let tok = get_token()
         case tok.kind:
-            String(value):
+            StringContent(value):
                 let tok2 = get_token()
                 case tok2.kind:
                     NewLine:
@@ -420,13 +432,13 @@ class Parser:
                 # Parse function signature.
 
                 # '('
-                parse_brace_open()
+                parse_parenthesis_open()
 
                 let parameter_types: List[ast.ParameterType] = List()
                 # ')' or parameters and ')'
                 let tok2 = get_token()
                 case tok2.kind:
-                    BraceClose:
+                    ParenthesisClose:
                         pass
                 else:
                     unget_token(tok2)
@@ -437,7 +449,7 @@ class Parser:
 
                         let tok4 = get_token()
                         case tok4.kind:
-                            BraceClose:
+                            ParenthesisClose:
                                 break
                             Comma:
                                 continue
@@ -660,11 +672,11 @@ class Parser:
         else:
             raise unexpected_token(tok, expected: "'except'")
 
-        parse_brace_open()
+        parse_parenthesis_open()
         let name_at = parse_name()
         parse_colon()
         let except_type = parse_type()
-        parse_brace_close()
+        parse_parenthesis_close()
         let except_var = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
 
         let except_body = parse_block()
@@ -698,7 +710,7 @@ class Parser:
         # Eventual payload values to unpack:
         let tok4 = get_token()
         case tok4.kind:
-            BraceOpen:
+            ParenthesisOpen:
                 loop:
                     let name_at = parse_name()
                     let variable = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
@@ -706,7 +718,7 @@ class Parser:
                     
                     let tok5 = get_token()
                     case tok5.kind:
-                        BraceClose:
+                        ParenthesisClose:
                             break
                         Comma:
                             continue
@@ -859,17 +871,17 @@ class Parser:
                 expr = ast.integer_literal(value, location: tok.location)
             Float(value):
                 expr = ast.float_literal(value, location: tok.location)
-            String(value):
-                expr = process_fstring(literal: value, location: tok.location)
+            StringStart:
+                expr = parse_string(location: tok.location)
             Char(value):
                 expr = ast.char_literal(value, location: tok.location)
             Bool(value):
                 expr = ast.bool_literal(value, location: tok.location)
             Identifier(name):
                 expr = ast.name_ref(name, location: tok.location)
-            BraceOpen:
+            ParenthesisOpen:
                 expr = parse_expression()
-                parse_brace_close()
+                parse_parenthesis_close()
             BracketOpen:
                 expr = parse_array_literal(location: tok.location)
         else:
@@ -884,7 +896,7 @@ class Parser:
                     let attr_at = parse_name()
                     let location = Location(begin: expr.location.begin, end: attr_at.location.end)
                     expr = ast.get_attr(base: expr, field: attr_at.name, ty: ast.undefined_type(), location)
-                BraceOpen:
+                ParenthesisOpen:
                     expr = parse_call_suffix(callee: expr)
                 BracketOpen:
                     expr = parse_index_suffix(base: expr)
@@ -892,7 +904,65 @@ class Parser:
                 unget_token(tok)
                 break
         return expr
-    
+
+    fn parse_raw_string() -> str except CompilationError:
+        """ Parse string without interpolation """
+        let text = ""
+
+        let tok = get_token()
+        case tok.kind:
+            StringStart:
+                pass
+        else:
+            raise unexpected_token(tok, expected: "string start")
+
+        tok = get_token()
+        case tok.kind:
+            StringContent(value):
+                text = value
+        else:
+            raise unexpected_token(tok, expected: "string content")
+
+        tok = get_token()
+        case tok.kind:
+            StringEnd:
+                pass
+        else:
+            raise unexpected_token(tok, expected: "string end")
+
+        return text
+
+    fn parse_string(location: Location) -> ast.Expression except CompilationError:
+        """ Parse possibly interpolated string. """
+        # Gather parts
+        let parts: List[ast.Expression] = List()
+        loop:
+            let tok = get_token()
+            case tok.kind:
+                StringContent(value):
+                    let raw_string_expr = ast.string_literal(value, location: tok.location)
+                    parts.append(raw_string_expr)
+
+                BraceOpen:
+                    let to_string_expr = parse_expression()
+                    to_string_expr = ast.to_string(value: to_string_expr, location: to_string_expr.location)
+                    parts.append(to_string_expr)
+                    parse_brace_close()
+
+                StringEnd:
+                    break
+            else:
+                raise unexpected_token(tok, expected: "String content, '\"' or '\{'")
+
+        # Concatenate parts
+        if parts.is_empty():
+            return ast.string_literal(value: "", location)
+        else:
+            let x = parts.pop_front()
+            while not parts.is_empty():
+                x = ast.binop(lhs: x, op: ast.BinaryOperator.Add(), rhs: parts.pop_front(), ty: ast.str_type(), location)
+            return x
+
     fn parse_index_suffix(base: ast.Expression) -> ast.Expression except CompilationError:
         let begin = base.location.begin
         let end = base.location.end
@@ -920,7 +990,7 @@ class Parser:
         let begin = callee.location.begin
         let end = tok2.location.end
         case tok2.kind:
-            BraceClose:
+            ParenthesisClose:
                 # no args call
                 pass
         else:
@@ -931,7 +1001,7 @@ class Parser:
                 arguments.append(parse_labeled_expression())
                 let tok4 = get_token()
                 case tok4.kind:
-                    BraceClose:
+                    ParenthesisClose:
                         end = tok4.location.end
                         break
                     Comma:
@@ -981,13 +1051,21 @@ class Parser:
         else:
             raise unexpected_token(tok, expected: "name")
 
-    fn parse_brace_open() except CompilationError:
+    fn parse_parenthesis_open() except CompilationError:
         let tok = get_token()
         case tok.kind:
-            BraceOpen:
+            ParenthesisOpen:
                 pass
         else:
             raise unexpected_token(tok, expected: "'('")
+
+    fn parse_parenthesis_close() except CompilationError:
+        let tok = get_token()
+        case tok.kind:
+            ParenthesisClose:
+                pass
+        else:
+            raise unexpected_token(tok, expected: "')'")
 
     fn parse_brace_close() except CompilationError:
         let tok = get_token()
@@ -995,7 +1073,7 @@ class Parser:
             BraceClose:
                 pass
         else:
-            raise unexpected_token(tok, expected: "')'")
+            raise unexpected_token(tok, expected: "'}'")
 
     fn parse_newline() except CompilationError:
         let tok = get_token()
@@ -1012,6 +1090,14 @@ class Parser:
                 pass
         else:
             raise unexpected_token(tok, expected: "indent")
+
+    fn parse_dedent() except CompilationError:
+        let tok = get_token()
+        case tok.kind:
+            Dedent:
+                pass
+        else:
+            raise unexpected_token(tok, expected: "dedent")
 
     fn try_parse_dedent() -> bool:
         # expect dedent (eventually)
@@ -1063,62 +1149,6 @@ class Parser:
     fn new_error(location: Location, message: str) -> CompilationError:
         let err = errors.new_error(location, message)
         return errors.new_errors(filename: filename, errors: list1(err))
-
-    fn process_fstring(literal: str, location: Location) -> ast.Expression except CompilationError:
-        # Check strings for parts surrounded by '{' and '}'
-        let txt_length = std.str_len(text: literal)
-        if txt_length == 0:
-            return ast.string_literal(value: "", location)
-
-        let parts: List[ast.Expression] = List()
-
-        let index = 0
-        let begin = index
-        let end = index
-        let in_braces = false
-
-        while index < txt_length:
-            let c = std.str_get(text: literal, index)
-            if not in_braces and std.ord(c) == 123:  # { -> 123
-                in_braces = true
-
-                # Raw string part
-                end = index
-                if begin < end:
-                    let raw_string_value = std.str_slice(text: literal, begin, end)
-                    let raw_string_expr = ast.string_literal(value: raw_string_value, location)
-                    parts.append(raw_string_expr)
-                begin = index + 1
-            elif in_braces and std.ord(c) == 125:  # } -> 125
-                in_braces = false
-
-                # Expression which must be turned into string
-                end = index
-                if begin < end:
-                    # Skip past first " of string:
-                    let p1 = Position(row: location.begin.row, column: location.begin.column + begin + 1)
-                    let expr_text = std.str_slice(text: literal, begin, end)
-                    let to_string_expr: ast.Expression = parse_expr_from_text(source: expr_text, id_gen: id_gen, p1)
-                    to_string_expr = ast.to_string(value: to_string_expr, location: to_string_expr.location)
-                    parts.append(to_string_expr)
-                begin = index + 1
-
-            index += 1
-        
-        if in_braces:
-            raise new_error(location, message: "invalid f-string!")
-
-        # Last part:
-        end = index
-        if begin < end:
-            let raw_string_value2 = std.str_slice(text: literal, begin, end)
-            let raw_string_expr2 = ast.string_literal(value: raw_string_value2, location)
-            parts.append(raw_string_expr2)
-        
-        let x = parts.pop_front()
-        while not parts.is_empty():
-            x = ast.binop(lhs: x, op: ast.BinaryOperator.Add(), rhs: parts.pop_front(), ty: ast.str_type(), location)
-        return x
 
 struct NameAtLocation:
     name: str

@@ -918,6 +918,7 @@ class Scope:
 
 enum Symbol:
     Mod(module: Module)
+    Macro(macro_def: MacroDef)
     Function(function_def: FunctionDef)
     Parameter(parameter_def: ParameterDef)
     Var(variable: Variable)
@@ -930,6 +931,8 @@ fn symbol_to_str(symbol: Symbol) -> str:
     case symbol:
         Mod(m):
             return "mod:{m.name}"
+        Macro(macro_def):
+            return macro_def_to_str(macro_def)
         Function(function_def):
             return function_def_to_str(function_def)
         Parameter(p):
@@ -946,6 +949,7 @@ fn symbol_to_str(symbol: Symbol) -> str:
             return "Field({f.name})"
 
 enum Definition:
+    Macro(macro_def: MacroDef)
     Function(function_def: FunctionDef)
     Enum(enum_def: EnumDef)
     Struct(struct_def: StructDef)
@@ -954,6 +958,8 @@ enum Definition:
 
 fn definition_to_str(definition: Definition) -> str:
     case definition:
+        Macro(macro_def):
+            return macro_def_to_str(macro_def)
         Function(function_def):
             return function_def_to_str(function_def)
         Enum(enum_def):
@@ -964,6 +970,13 @@ fn definition_to_str(definition: Definition) -> str:
             return class_def_to_str(class_def)
         Var(variable_def):
             return variable_def_to_str(variable_def)
+
+struct MacroDef:
+    name: str
+    location: Location
+
+fn macro_def_to_str(macro_def: MacroDef) -> str:
+    return "Macro({macro_def.name})"
 
 struct VariableDef:
     variable: Variable
@@ -1922,6 +1935,8 @@ fn visit_module[T](visitor: Visitor[T], module: Module):
 fn visit_definition[T](visitor: Visitor[T], definition: Definition):
     visitor.on_definition(a: visitor.data, definition, phase: VisitPhase.Pre())
     case definition:
+        Macro(macro_def):
+            pass
         Function(function_def):
             # print("VISIT {func.name}")
             for parameter in function_def.parameters:

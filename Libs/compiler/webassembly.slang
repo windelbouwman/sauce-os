@@ -1,13 +1,14 @@
+""" 
+WebAssembly
+===========
 
-# 
-# WebAssembly
-# ===========
-#
-# WebAssembly support.
+WebAssembly support.
+
+"""
 
 from datatypes import List
 from utils import panic
-from std import float_to_str, print, chr
+from std import float_to_str, print
 from strlib import str_join
 
 struct Module:
@@ -991,11 +992,10 @@ fn to_wat(module: Module):
         let type_txt = type_to_string(ty)
         print("  (type (func {type_txt}))")
 
-    let quote = chr(34)
     for imp in module.imports:
-        print("  (import {quote}{imp.module}{quote} {quote}{imp.name}{quote} (func (type {imp.ty})))")
+        print("  (import \"{imp.module}\" \"{imp.name}\" (func (type {imp.ty})))")
     
-    print("  (import {quote}js{quote} {quote}mem{quote} (memory 25))")
+    print("  (import \"js\" \"mem\" (memory 25))")
 
     for function in module.functions:
         print("  (func (type {function.ty})")
@@ -1009,9 +1009,9 @@ fn to_wat(module: Module):
     # print("  (memory 25)")
 
     for ex in module.exports:
-        print("  (export {quote}{ex.name}{quote} (func {ex.funcidx}))")
+        print("  (export \"{ex.name}\" (func {ex.funcidx}))")
 
     for data in module.datas:
-        print("  (data (i32.const {data.offset}) {quote}{data.text}{quote})")
+        print("  (data (i32.const {data.offset}) \"{data.text}\")")
 
     print(")")

@@ -29,7 +29,6 @@ def std_get_path_separator() -> str:
 std_print = print
 std_read_line = input
 rt_int_to_str = str
-std_str_to_int = int
 
 
 def std_float_to_str(value: float) -> str:

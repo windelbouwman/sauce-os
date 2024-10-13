@@ -3,7 +3,7 @@
 import ast
 from utils import panic, log_info
 from datatypes import List, option_is_some, option_unwrap, Option
-from std import float_to_str2, chr, str_len
+from std import float_to_str2, str_len, str_get, str_slice
 from strlib import str_join
 from text_gen import TextGenerator
 
@@ -49,6 +49,8 @@ class PyGenerator:
 
     fn gen_definition(definition: ast.Definition):
         case definition:
+            Macro(macro_def):
+                pass
             Function(function_def):
                 let parameter_names: List[str] = List()
                 for parameter in function_def.parameters:
@@ -165,7 +167,7 @@ class PyGenerator:
             gen_block(if_statement.false_block)
 
     fn gen_expression(expression?: ast.Expression, parens: bool) -> str:
-        let txt = "?"
+        let txt = ""
         case expression.kind:
             BoolLiteral(v):
                 if v:
@@ -175,11 +177,12 @@ class PyGenerator:
             IntLiteral(v):
                 txt = "{v}"
             StringLiteral(s):
-                # TODO: implement escaping in string literals
-                txt = "{chr(34)}{s}{chr(34)}"
-            CharLiteral(s):
-                # TODO: implement escaping in string literals
-                txt = "{chr(34)}{s}{chr(34)}"
+                txt = "\"{escape_string(s)}\""
+            CharLiteral(c):
+                if c == '\' or c == '"':
+                    txt = "\"\\{c}\""
+                else:
+                    txt = "\"{c}\""
             Null:
                 txt = "None"
             FloatLiteral(value):
@@ -265,7 +268,7 @@ class PyGenerator:
         out.dedent()
 
 fn binary_operator_to_str(op: ast.BinaryOperator, float_division: bool) -> str:
-    let op_txt = "?"
+    let op_txt = ""
     case op:
         And:
             op_txt = "and"
@@ -306,3 +309,25 @@ fn binary_operator_to_str(op: ast.BinaryOperator, float_division: bool) -> str:
             op_txt = ">>"
 
     return op_txt
+
+fn escape_string(text?: str) -> str:
+    """ Prefix double quotes and backslashes with an extra backslash """
+    let res = ""
+    let index = 0
+    let begin = 0
+    let n = str_len(text)
+    while index < n:
+        let c = str_get(text, index)
+        if c == '\' or c == '"':
+            if begin < index:
+                res = res + str_slice(text, begin, end: index)
+            res = res + "\\{c}"
+            begin = index + 1
+        index += 1
+
+    if begin == 0:
+        return text
+    else:
+        if begin < index:
+            res = res + str_slice(text, begin, end: index)
+        return res

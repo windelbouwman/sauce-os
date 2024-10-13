@@ -1,15 +1,19 @@
-# Turn source text into a sequence of tokens
+""" Turn source text into a sequence of tokens
+"""
 
 import std
-from utils import panic
+from utils import panic, assert
 from std import print, ord, chr, str_slice, str_len
-from std import str_to_float, str_to_int
+from std import str_to_float
 from token import Token, TokenKind, token_to_string
 from location import Location, location_at, Position
-from strlib import hex_to_int, bin_to_int, is_digit, is_hex_digit, is_bin_digit
+from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int
 from datatypes import List, Option
 from dicttype import Dictionary
 
+enum LexerMode:
+    Normal
+    String
 
 class Lexer:
     var pending: List[Token] = List()
@@ -21,6 +25,7 @@ class Lexer:
     var source_length: int = 0
     var m_keywords: Dictionary[TokenKind] = Dictionary()
 
+    var m_mode: LexerMode = LexerMode.Normal()
     var tok_begin: int = 0
     var offset: int = 0
     var row: int = 1
@@ -119,97 +124,123 @@ class Lexer:
             let c = next_char()
 
             # Decide what to do based on char:
-            if is_id(c):
-                kind = parse_identifier()
-            elif c == ' ':
-                while match(' '):
-                    pass
-                kind = TokenKind.Space(amount: std.str_len(text: get_lexeme()))
-            elif c == '(':
-                kind = TokenKind.BraceOpen()
-            elif c == ')':
-                kind = TokenKind.BraceClose()
-            elif c == '[':
-                kind = TokenKind.BracketOpen()
-            elif c == ']':
-                kind = TokenKind.BracketClose()
-            elif c == ',':
-                kind = TokenKind.Comma()
-            elif c == '.':
-                kind = TokenKind.Dot()
-            elif c == ':':
-                kind = TokenKind.Colon()
-            elif c == '#':
-                # Line comment
-                while offset < n and not is_lf(c: peek()):
-                    offset += 1
-                offset += 1
-                kind = TokenKind.Comment(comment: get_lexeme())
-                col_start = offset
-            elif ord(c) == 34:
-                kind = parse_string()
-            elif c == '-':
-                if match('>'):
-                    kind = TokenKind.Arrow()
-                elif match('='):
-                    kind = TokenKind.MinusEquals()
-                else:
-                    kind = TokenKind.Minus()
-            elif c == '+':
-                if match('='):
-                    kind = TokenKind.PlusEquals()
-                else:
-                    kind = TokenKind.Plus()
-            elif c == '?':
-                kind = TokenKind.Question()
-            elif c == '/':
-                kind = TokenKind.Slash()
-            elif c == '*':
-                kind = TokenKind.Asterix()
-            elif is_lf(c):
-                kind = TokenKind.NewLine()
-                col_start = offset
-            elif is_digit(c):
-                kind = parse_number(c)
-            elif ord(c) == 39:
-                # Char literal
-                offset += 1
-                if ord(peek()) == 39:
-                    offset += 1
-                    if offset < n:
-                        let char_value = std.str_get(text: get_lexeme(), index: 1)
-                        kind = TokenKind.Char(char_value)
+            case m_mode:
+                Normal:
+                    if is_id(c):
+                        kind = parse_identifier()
+                    elif c == ' ':
+                        while match(' '):
+                            pass
+                        kind = TokenKind.Space(amount: std.str_len(text: get_lexeme()))
+                    elif c == '(':
+                        kind = TokenKind.ParenthesisOpen()
+                    elif c == ')':
+                        kind = TokenKind.ParenthesisClose()
+                    elif c == '[':
+                        kind = TokenKind.BracketOpen()
+                    elif c == ']':
+                        kind = TokenKind.BracketClose()
+                    elif c == '}':
+                        kind = TokenKind.BraceClose()
+                        m_mode = LexerMode.String()
+                    elif c == ',':
+                        kind = TokenKind.Comma()
+                    elif c == '.':
+                        kind = TokenKind.Dot()
+                    elif c == ':':
+                        kind = TokenKind.Colon()
+                    elif c == '#':
+                        # Line comment
+                        while offset < n and not is_lf(c: peek()):
+                            offset += 1
+                        offset += 1
+                        kind = TokenKind.Comment(comment: get_lexeme())
+                        col_start = offset
+                    elif c == '"':
+                        kind = parse_string()
+                    elif c == '-':
+                        if match('>'):
+                            kind = TokenKind.Arrow()
+                        elif match('='):
+                            kind = TokenKind.MinusEquals()
+                        else:
+                            kind = TokenKind.Minus()
+                    elif c == '+':
+                        if match('='):
+                            kind = TokenKind.PlusEquals()
+                        else:
+                            kind = TokenKind.Plus()
+                    elif c == '?':
+                        kind = TokenKind.Question()
+                    elif c == '/':
+                        kind = TokenKind.Slash()
+                    elif c == '*':
+                        kind = TokenKind.Asterix()
+                    elif is_lf(c):
+                        kind = TokenKind.NewLine()
+                        col_start = offset
+                    elif is_digit(c):
+                        kind = parse_number(c)
+                    elif ord(c) == 39:
+                        # Char literal
+                        offset += 1
+                        if ord(peek()) == 39:
+                            offset += 1
+                            if offset < n:
+                                let char_value = std.str_get(text: get_lexeme(), index: 1)
+                                kind = TokenKind.Char(char_value)
 
-            elif c == '<':
-                if match('='):
-                    kind = TokenKind.LessEquals()
-                elif match('<'):
-                    kind = TokenKind.ShiftLeft()
-                else:
-                    kind = TokenKind.Less()
-            elif c == '>':
-                if match('='):
-                    kind = TokenKind.GreaterEquals()
-                elif match('>'):
-                    kind = TokenKind.ShiftRight()
-                else:
-                    kind = TokenKind.Greater()
-            elif c == '=':
-                if match('='):
-                    kind = TokenKind.EqualsEquals()
-                else:
-                    kind = TokenKind.Equals()
-            elif c == '!':
-                if match('='):
-                    kind = TokenKind.NotEquals()
-            elif c == '|':
-                kind = TokenKind.BitOr()
-            elif c == '&':
-                kind = TokenKind.BitAnd()
-            elif c == '^':
-                kind = TokenKind.BitXor()
-            else:
-                kind = TokenKind.Error("Unknown char: '{c}'")
+                    elif c == '<':
+                        if match('='):
+                            kind = TokenKind.LessEquals()
+                        elif match('<'):
+                            kind = TokenKind.ShiftLeft()
+                        else:
+                            kind = TokenKind.Less()
+                    elif c == '>':
+                        if match('='):
+                            kind = TokenKind.GreaterEquals()
+                        elif match('>'):
+                            kind = TokenKind.ShiftRight()
+                        else:
+                            kind = TokenKind.Greater()
+                    elif c == '=':
+                        if match('='):
+                            kind = TokenKind.EqualsEquals()
+                        else:
+                            kind = TokenKind.Equals()
+                    elif c == '!':
+                        if match('='):
+                            kind = TokenKind.NotEquals()
+                    elif c == '|':
+                        kind = TokenKind.BitOr()
+                    elif c == '&':
+                        kind = TokenKind.BitAnd()
+                    elif c == '^':
+                        kind = TokenKind.BitXor()
+                    else:
+                        kind = TokenKind.Error("Unknown char: '{c}'")
+                String:
+                    if c == '"':
+                        kind = TokenKind.StringEnd()
+                        m_mode = LexerMode.Normal()
+                    elif c == '{':
+                        kind = TokenKind.BraceOpen()
+                        m_mode = LexerMode.Normal()
+                    elif c == '\':
+                        offset += 1
+                        let text: str = get_lexeme()
+                        assert(condition: str_len(text) == 2, message: "Escape sequence must contain 2 characters.")
+                        text = str_slice(text, begin: 1, end: 2)
+                        kind = TokenKind.StringContent(text)
+                    else:
+                        while offset < n:
+                            c = peek()
+                            if c == '"' or c == '{' or c == '\':
+                                break
+                            offset += 1
+                        let txt: str = get_lexeme()
+                        kind = TokenKind.StringContent(txt)
 
             let end_column = offset - 1
             end_column = end_column - col_start + start_col
@@ -238,33 +269,25 @@ class Lexer:
     fn parse_string() -> TokenKind:
         let n = source_length
         let kind = TokenKind.None()
-        if match(chr(34)):
-            if match(chr(34)):
-                # Doc string
-                let z = 0
-                while offset < n:
-                    let c2 = next_char()
-                    if ord(c2) == 34:
-                        z += 1
-                        if z == 3:
-                            break
-                    else:
-                        z = 0
-                    if is_lf(c: c2):
-                        row += 1
-                let txt: str = get_lexeme()
-                kind = TokenKind.String(txt)
-            else:
-                # empty string
-                kind = TokenKind.String(txt: "")
-        else:
-            while offset < n and not (ord(peek()) == 34):
-                offset += 1
-            offset += 1
-            # String
+        if peek() == '"' and peek_n(n: 1) == '"':
+            offset += 2
+            # Doc string
+            let z = 0
+            while offset < n:
+                let c2 = next_char()
+                if c2 == '"':
+                    z += 1
+                    if z == 3:
+                        break
+                else:
+                    z = 0
+                if is_lf(c: c2):
+                    row += 1
             let txt: str = get_lexeme()
-            txt = str_slice(text: txt, begin: 1, end: str_len(text: txt) - 1)
-            kind = TokenKind.String(txt)
+            kind = TokenKind.StringContent(txt)
+        else:
+            kind = TokenKind.StringStart()
+            m_mode = LexerMode.String()
         return kind
 
     fn parse_number(c: char) -> TokenKind:
@@ -273,7 +296,7 @@ class Lexer:
         let is_hex = false
         let is_bin = false
         if c == '0':
-            if peek() == 'x' or peek() == 'X':
+            if peek() == 'x':
                 is_hex = true
                 offset += 1
             elif peek() == 'b':
@@ -281,30 +304,39 @@ class Lexer:
                 offset += 1
 
         if is_hex:
-            # Hex number!
-            while is_hex_digit(c: peek()):
-                offset += 1
-            let hextext = get_lexeme()
-            hextext = str_slice(text: hextext, begin: 2, end: str_len(text: hextext))
-            let int_value = hex_to_int(hextext)
-            kind = TokenKind.Integer(int_value)
+            let value = 0
+            loop:
+                c = peek()
+                if is_hex_digit(c):
+                    value = value * 16 + hex_digit_to_int(c)
+                    offset += 1
+                else:
+                    break
+            kind = TokenKind.Integer(value)
         elif is_bin:
-            # Binary number!
-            while is_bin_digit(c: peek()):
-                offset += 1
-            let bintext = get_lexeme()
-            bintext = str_slice(text: bintext, begin: 2, end: str_len(text: bintext))
-            let int_value = bin_to_int(bintext)
-            kind = TokenKind.Integer(int_value)
+            let value = 0
+            loop:
+                c = peek()
+                if is_bin_digit(c):
+                    value = value * 2 + bin_digit_to_int(c)
+                    offset += 1
+                else:
+                    break
+            kind = TokenKind.Integer(value)
         else:
-            while is_digit(c: peek()):
-                offset += 1
-            let value: int = str_to_int(get_lexeme())
+            # Calculate value as we go through the digits:
+            let value = digit_to_int(c)
+            loop:
+                c = peek()
+                if is_digit(c):
+                    value = value * 10 + digit_to_int(c)
+                    offset += 1
+                else:
+                    break
             if peek() == '.':
-                # Floating point!
                 offset += 1
                 kind = parse_float(before: value)
-            elif peek() == 'e' or peek() == 'E':
+            elif peek() == 'e':
                 kind = parse_exponent(base: value)
             else:
                 # Normal decimal number
@@ -314,7 +346,7 @@ class Lexer:
     fn parse_float(before: int) -> TokenKind:
         while is_digit(c: peek()):
             offset += 1
-        if peek() == 'e' or peek() == 'E':
+        if peek() == 'e':
             return parse_exponent(base: 0)
         else:
             let float_value: float = str_to_float(get_lexeme())
@@ -339,13 +371,16 @@ class Lexer:
             return TokenKind.Error("Invalid exponent notation")
     
     fn peek() -> char:
-        let n = source_length
-        if offset < n:
-            let c = std.str_get(text: source, index: offset)
+        return peek_n(n: 0)
+
+    fn peek_n(n: int) -> char:
+        let index = offset + n
+        if index < source_length:
+            let c = std.str_get(text: source, index)
             return c
         else:
             return chr(0)
-    
+
     fn next_char() -> char:
         let n = source_length
         if offset < n:
@@ -376,9 +411,9 @@ fn is_lf(c: char) -> bool:
 
 fn is_id(c: char) -> bool:
     let o = ord(c)
-    if (o >= 65) and (o <= 90):
+    if (o >= 97) and (o <= 122):  # 'a' .. 'z' (most common case)
         return true
-    elif (o >= 97) and (o <= 122):
+    elif (o >= 65) and (o <= 90):  # 'A' .. 'Z'
         return true
     elif c == '_':
         return true
@@ -407,6 +442,7 @@ fn fill_keyword_dictionary(keywords: Dictionary[TokenKind]):
     keywords.insert(key: "in", value: TokenKind.KwIn())
     keywords.insert(key: "let", value: TokenKind.KwLet())
     keywords.insert(key: "loop", value: TokenKind.KwLoop())
+    keywords.insert(key: "macro", value: TokenKind.KwMacro())
     keywords.insert(key: "not", value: TokenKind.KwNot())
     keywords.insert(key: "or", value: TokenKind.KwOr())
     keywords.insert(key: "pass", value: TokenKind.KwPass())

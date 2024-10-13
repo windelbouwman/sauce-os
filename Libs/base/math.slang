@@ -4,6 +4,7 @@ from utils import panic, unimplemented
 
 # TODO: make constant
 var pi: float = 3.1415926535897932384626433
+var e: float = 2.718281828459045235360287471352
 
 fn min(a: int, b: int) -> int:
     if a < b:
@@ -41,6 +42,17 @@ fn fabs(a?: float) -> float:
         return -a
     else:
         return a
+
+fn sqrt(x?: float) -> float:
+    """ Take the square root """
+    if x < 0:
+        panic("Square root undefined for negative numbers like {float_to_str(x)}")
+
+    let eps = 1e-16
+    let r = x
+    while fabs(x - r*r) > eps:
+        r = (r + x / r) / 2
+    return r
 
 fn factorial(x?: int) -> int:
     if x < 0:
@@ -100,12 +112,23 @@ fn tan(value?: float) -> float:
     # TODO: check division by 0
     return sin(value) / cos(value)
 
+fn degrees(radians: float) -> float:
+    """ Convert radians to degrees """
+    return radians * (180.0 / pi)
+
+fn radians(degrees: float) -> float:
+    """ Convert degrees to radians """
+    return degrees * (pi / 180.0)
+
 fn fmod(x?: float, divisor: float) -> float:
      # TODO: how about negative numbers?
     if x > divisor:
         return x - int(x / divisor) * divisor
     else:
         return x
+
+fn hypot(x?: float, y: float) -> float:
+    return sqrt(x*x + y*y)
 
 fn modulo(value: int, divisor: int) -> int:
     let x = value / divisor

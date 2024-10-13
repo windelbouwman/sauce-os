@@ -1,5 +1,5 @@
 
-from utils import log_info, log_trace, panic
+from utils import log_info, log_trace
 from location import Location
 from datatypes import List, Option, option_unwrap
 from dicttype import Dictionary
@@ -80,6 +80,8 @@ fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: Scope
 fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
     # try to retrieve a scope, if we have one
     case definition:
+        Macro(macro_def):
+            return Option.None()
         Function(function_def):
             case function_def.body:
                 Intern(scoped_block):
@@ -99,6 +101,8 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
     case phase:
         Pre:
             case definition:
+                Macro(macro_def):
+                    filler.define(name: macro_def.name, symbol: ast.Symbol.Macro(macro_def), location: macro_def.location)
                 Function(function_def):
                     filler.define(name: function_def.name, symbol: ast.Symbol.Function(function_def), location: function_def.location)
                     case function_def.body:
@@ -267,7 +271,6 @@ fn binder_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
             case tycon:
                 Ref(key):
                     let tycon = binder.tycon_map.get(key)
-                    # panic("Resolve {key}")
                     ty.kind = ast.TypeKind.App(tycon, type_arguments)
             else:
                 pass
@@ -310,7 +313,6 @@ fn symbol_to_kind(symbol: ast.Symbol) -> ast.ExpressionKind:
             return ast.ExpressionKind.VarRef(variable)
         Parameter(parameter_def):
             return ast.ExpressionKind.ParameterRef(parameter_def)
-
     else:
         return ast.ExpressionKind.LoadSymbol(symbol)
 

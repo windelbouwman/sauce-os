@@ -2,7 +2,7 @@
 # C code backend
 # Translate bytecode into C code.
 
-from std import chr, float_to_str2
+from std import float_to_str2
 from utils import panic, log_info, log_trace
 from datatypes import List, Option, option_is_some, option_unwrap
 from vectype import Vector
@@ -10,6 +10,7 @@ from strlib import str_repeat, str_join
 import vm
 import bc
 from text_gen import TextGenerator
+from pygenerator import escape_string
 
 fn gen_c_code(program: bc.Program, output_filename: Option[str]):
     log_info("Generating C-code from bytecode")
@@ -55,10 +56,11 @@ class CGenerator:
     var extern_functions: List[bc.ExternFunction] = List()
 
     fn emit_runtime():
+        emit("#include <stddef.h>")
         emit("#include <stdint.h>")
         emit("#include <setjmp.h>")
         emit("#include <stdlib.h>")
-        emit("#include {chr(34)}slangrt.h{chr(34)}")
+        emit("#include \"slangrt.h\"")
 
     fn gen_program(program: bc.Program):
         # Struct forward declarations:
@@ -90,7 +92,7 @@ class CGenerator:
 
     fn gen_struct_def(index: int, struct_def: bc.Struct):
         let name = "S{index}_{struct_def.name}"
-        emit("struct {name} {chr(123)}")
+        emit("struct {name} \{")
         indent()
         
         let findex = 0
@@ -99,36 +101,21 @@ class CGenerator:
             emit("{typed_var};")
             findex += 1
         dedent()
-        emit("{chr(125)};")
+        emit("\};")
         emit("")
-
-        # struct destructor functions
-        emit("void {name}_destroyer(void* x) {chr(123)}")
-        indent()
-        emit("struct {name}* x2 = (struct {name}*)x;")
-        findex = 0
-        for field in struct_def.fields:
-            if is_heap(field.ty):
-                emit("rt_decref(x2->f{findex}_{field.name});")
-            findex += 1
-        if findex == 0:
-            emit("(void)(x2);")  # Prevent unused variable warning.
-
-        dedent()
-        emit("{chr(125)}")
 
         # Create struct type info for garbage collector:
         # This can be used during the mark phase of garbage collection to track pointers.
-        emit("// {name}_type_info = {chr(123)}")
+        emit("static const int {name}_type_info[] = \{")
         indent()
         findex = 0
         for field in struct_def.fields:
             if is_heap(field.ty):
-                emit("// offsetof(f{findex}_{field.name}),")
+                emit("   offsetof(struct {name}, f{findex}_{field.name}),")
             findex += 1
-        emit("// NULL,")
+        emit("   0xFFFF,")
         dedent()
-        emit("// {chr(125)}")
+        emit("\};")
 
     fn get_parameter_text(parameters: List[bc.TypedName]) -> str:
         let parameters2: List[str] = List()
@@ -212,8 +199,7 @@ class CGenerator:
         local_parameters = List()
 
         let decl = get_function_decl(function, fill_param: true)
-        # TODO: allow string literal escaping
-        emit("{decl} {chr(123)}")  # '{' = 123
+        emit("{decl} \{")
         indent()
         for local in function.locals:
             let varname = new_named_local_var(name: local.name)
@@ -232,7 +218,7 @@ class CGenerator:
             gen_instruction(instruction)
             index += 1
         dedent()
-        emit("{chr(125)}") # '}' => 125
+        emit("}")
         emit("")
     
     fn gen_instruction(instruction: bc.Instruction):
@@ -256,7 +242,7 @@ class CGenerator:
                         let varname = new_local_var()
                         let ty = bc.Type.Str()
                         let typed_var = get_type_txt(ty, name: varname)
-                        emit("{typed_var} = rt_str_new({chr(34)}{value}{chr(34)});")
+                        emit("{typed_var} = rt_str_new(\"{escape_string(value)}\");")
                         push(Value(name: varname, ty))
                     Bool(value):
                         if value:
@@ -264,7 +250,10 @@ class CGenerator:
                         else:
                             push(Value(name: "0", ty: bc.Type.Bool()))
                     Char(value):
-                        push(Value(name: "'{value}'", ty: bc.Type.Char()))
+                        let text = "'{value}'"
+                        if value == '\':
+                            text = "'\\{value}'"
+                        push(Value(name: text, ty: bc.Type.Char()))
                     Null:
                         push(Value(name: "0", ty: bc.Type.Ptr()))
 
@@ -597,7 +586,8 @@ class CGenerator:
                 let varname = new_local_var()
                 let ty = bc.Type.StructRef(index)  # "struct S{index}*"
                 let typed_var = get_type_txt(ty, name: varname)
-                emit("{typed_var} = rt_malloc_with_destroyer(sizeof(struct S{index}_{struct_def.name}), S{index}_{struct_def.name}_destroyer);")
+                let name = "S{index}_{struct_def.name}"
+                emit("{typed_var} = rt_malloc_with_destroyer(sizeof(struct {name}), {name}_type_info);")
                 let index2 = 0
                 for value in values:
                     let field = struct_def.fields.get(index: index2)
@@ -757,8 +747,7 @@ fn eval_code_sequence(code: Vector[bc.Instruction]) -> str:
         Float(value):
             return float_to_str2(value, digits: 20)
         Str(v):
-            let quote = chr(34)
-            return "{quote}{v}{quote}"
+            return "\"{v}\""
         Char(v):
             return "'{v}'"
     else:
