@@ -1,4 +1,4 @@
-""" Generate python code
+"""Generate python code
 
 Idea: Use python code as bootstrapping target!
 
@@ -105,7 +105,7 @@ class PyCodeGenerator:
             self.emit(f"while {val}:")
             self.gen_block(kind.block.body)
         elif isinstance(kind, ast.TryStatement):
-            self.emit(f"try:")
+            self.emit("try:")
             self.gen_block(kind.try_block.body)
             parameter_name = self.gen_id(kind.parameter.id)
             ex_name = f"ex_{parameter_name}"
@@ -135,7 +135,7 @@ class PyCodeGenerator:
             if kind.value:
                 self.emit(f"return {self.gen_expression(kind.value, parens=False)}")
             else:
-                self.emit(f"return")
+                self.emit("return")
         else:
             raise NotImplementedError(str(kind))
 

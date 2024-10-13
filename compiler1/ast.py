@@ -1,12 +1,10 @@
-""" AST (abstract syntax tree) nodes to represent code.
-"""
+"""AST (abstract syntax tree) nodes to represent code."""
 
 import logging
 import rich
 import rich.tree
 import rich.markup
 from typing import Optional
-from lark.load_grammar import Definition
 from .location import Location, Span
 
 logger = logging.getLogger("ast")
@@ -215,26 +213,26 @@ class MyType:
             variant: EnumVariant = self.kind.tycon.scope.lookup(name)
             return variant
         else:
-            raise ValueError(f"No variant enum type")
+            raise ValueError("No variant enum type")
 
     def get_variant_types(self, name: str) -> list["MyType"]:
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, EnumDef):
             variant: EnumVariant = self.get_variant(name)
             return [subst(p, self.kind.m) for p in variant.payload]
         else:
-            raise ValueError(f"No variant enum type")
+            raise ValueError("No variant enum type")
 
     def get_variant_names(self) -> list[str]:
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, EnumDef):
             return [v.id.name for v in self.kind.tycon.variants]
         else:
-            raise ValueError(f"No variant enum type")
+            raise ValueError("No variant enum type")
 
     def get_method(self, name: str):
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, ClassDef):
             return self.kind.tycon.get_field(name)
         else:
-            raise ValueError(f"No class type")
+            raise ValueError("No class type")
 
     def __repr__(self):
         return f"{self.kind}"
@@ -908,7 +906,8 @@ class Statement(Node):
 
 
 class StatementKind:
-    pass
+    def __repr__(self):
+        return self.__class__.__name__.removesuffix("Statement")
 
 
 def compound_statement(statements: list[Statement], location: Location):
@@ -923,9 +922,6 @@ class CompoundStatement(StatementKind):
         super().__init__()
         self.statements = statements
 
-    def __repr__(self):
-        return f"CompoundStatement"
-
 
 def expression_statement(value: Expression, location: Location) -> Statement:
     kind = ExpressionStatement(value)
@@ -939,7 +935,7 @@ class ExpressionStatement(StatementKind):
         self.value = value
 
     def __repr__(self):
-        return f"ExpressionStatement"
+        return "ExpressionStatement"
 
 
 def let_statement(
@@ -975,9 +971,6 @@ class LoopStatement(StatementKind):
         assert isinstance(block, ScopedBlock)
         self.block = block
 
-    def __repr__(self):
-        return "Loop"
-
 
 def while_statement(condition: Expression, inner: Statement, location: Location):
     kind = WhileStatement(condition, inner)
@@ -991,9 +984,6 @@ class WhileStatement(StatementKind):
         assert isinstance(block, ScopedBlock)
         self.condition = condition
         self.block = block
-
-    def __repr__(self):
-        return "While"
 
 
 def if_statement(
@@ -1021,9 +1011,6 @@ class IfStatement(StatementKind):
         self.true_block = true_block
         self.false_block = false_block
 
-    def __repr__(self):
-        return "IfStatement"
-
 
 def case_statement(
     value: Expression,
@@ -1045,9 +1032,6 @@ class CaseStatement(StatementKind):
         self.value = value
         self.arms = arms
         self.else_clause = else_block
-
-    def __repr__(self):
-        return f"CaseStatement"
 
 
 class ScopedBlock:
@@ -1098,9 +1082,6 @@ class SwitchStatement(StatementKind):
         self.value = value
         self.arms = arms
         self.default_block = default_block
-
-    def __repr__(self):
-        return f"SwitchStatement"
 
 
 class SwitchArm(Node):
@@ -1163,8 +1144,7 @@ def break_statement(location: Location) -> Statement:
 
 
 class BreakStatement(StatementKind):
-    def __repr__(self):
-        return "Break"
+    pass
 
 
 def continue_statement(location: Location) -> Statement:
@@ -1172,8 +1152,7 @@ def continue_statement(location: Location) -> Statement:
 
 
 class ContinueStatement(StatementKind):
-    def __repr__(self):
-        return "Continue"
+    pass
 
 
 def pass_statement(location: Location) -> Statement:
@@ -1181,8 +1160,7 @@ def pass_statement(location: Location) -> Statement:
 
 
 class PassStatement(StatementKind):
-    def __repr__(self):
-        return "Pass"
+    pass
 
 
 def assignment_statement(
@@ -1213,9 +1191,6 @@ class ReturnStatement(StatementKind):
         super().__init__()
         self.value = value
 
-    def __repr__(self):
-        return "Return"
-
 
 def raise_statement(value: Expression, location: Location):
     kind = RaiseStatement(value)
@@ -1227,12 +1202,10 @@ class RaiseStatement(StatementKind):
         super().__init__()
         self.value = value
 
-    def __repr__(self):
-        return "Raise"
-
 
 class ExpressionKind:
-    pass
+    def __repr__(self):
+        return self.__class__.__name__
 
 
 class LabeledExpression(Node):
@@ -1259,9 +1232,6 @@ class FunctionCall(ExpressionKind):
         self.target = target
         assert all(isinstance(a, LabeledExpression) for a in args)
         self.args = args
-
-    def __repr__(self):
-        return f"FunctionCall"
 
 
 def binop(lhs: Expression, op: str, rhs: Expression, location: Location):
@@ -1308,9 +1278,6 @@ class TypeCast(ExpressionKind):
         super().__init__()
         self.ty = ty
         self.value = value
-
-    def __repr__(self):
-        return f"TypeCast"
 
 
 class StringConstant(ExpressionKind):
@@ -1401,9 +1368,6 @@ class ArrayLiteral2(ExpressionKind):
         assert isinstance(ty, MyType)
         self.ty = ty
 
-    def __repr__(self):
-        return f"ArrayLiteral2"
-
 
 def struct_literal(
     ty: MyType, values: list[Expression], location: Location
@@ -1418,9 +1382,6 @@ class StructLiteral(ExpressionKind):
         super().__init__()
         self.ty = ty
         self.values = values
-
-    def __repr__(self):
-        return f"StructLiteral"
 
 
 def union_literal(
@@ -1454,9 +1415,6 @@ class ToString(ExpressionKind):
     def __init__(self, expr: Expression):
         super().__init__()
         self.expr = expr
-
-    def __repr__(self):
-        return f"ToString"
 
 
 class GenericLiteral(ExpressionKind):
@@ -1579,9 +1537,6 @@ class ArrayIndex(ExpressionKind):
         self.base = base
         self.indici = indici
 
-    def __repr__(self):
-        return f"ArrayIndex"
-
 
 class Variable(Definition):
     def __init__(self, id: Id, ty: MyType, location: Location):
@@ -1630,9 +1585,6 @@ class Box(ExpressionKind):
         assert isinstance(value, Expression)
         self.value = value
 
-    def __repr__(self):
-        return "Box"
-
 
 class Unbox(ExpressionKind):
     def __init__(self, value: Expression, to_type: MyType):
@@ -1640,9 +1592,6 @@ class Unbox(ExpressionKind):
         assert isinstance(value, Expression)
         self.value = value
         self.to_type = to_type
-
-    def __repr__(self):
-        return "Unbox"
 
 
 class AstVisitor:

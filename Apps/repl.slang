@@ -1,5 +1,5 @@
-
-# A slang-lang REPL!
+""" A slang-lang REPL!
+"""
 
 from std import print, read_line
 from utils import log_info, log_debug, set_log_level

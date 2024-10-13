@@ -1,4 +1,4 @@
-""" Transform ast into a simpler ast.
+"""Transform ast into a simpler ast.
 
 Example transformations:
 - turn each 'loop' into a 'while-true'
@@ -549,7 +549,6 @@ class ClassRewriter(BaseTransformer):
             type_args.append(tp.get_ref())
 
         struct_type = struct_def.apply(type_args)
-        needs_label = False
         this_param: ast.Parameter = method.this_parameter
         this_param.ty = struct_type
         assert this_param

@@ -1,4 +1,4 @@
-""" Additional pass collection, somewhere during analysis. Roughly pass3...
+"""Additional pass collection, somewhere during analysis. Roughly pass3...
 
 TODO: figure out better name.
 """
@@ -7,7 +7,6 @@ import logging
 from . import ast
 from .location import Location
 from .basepass import BasePass
-from .typechecker import expand
 
 logger = logging.getLogger("pass3")
 

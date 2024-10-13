@@ -1,9 +1,10 @@
-""" Compiler driver.
-"""
+"""Compiler driver."""
 
 from dataclasses import dataclass
-import logging, io
-import sys, os
+import logging
+import io
+import sys
+import os
 from typing import TextIO, Optional
 
 import networkx as nx

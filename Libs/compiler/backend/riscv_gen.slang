@@ -1,23 +1,23 @@
+""" Turn bytecode into riscv code
 
-# Turn bytecode into riscv code
+ Register usage convention:    (saver)
+ x0 -> zero -> hardwired 0
+ x1 -> ra   -> return address  (caller)
+ x2 -> sp   -> stack pointer   (caller)
+ x3 -> gp   -> global pointer
+ x4 -> tp   -> thread pointer
+ x5-x7      -> temporaries     (caller)
+ x8
+ x9
+ x18-x27 -> s2-11 -> saved registers (callee)
+ x28-31 -> t3-6 -> temporaries (caller)
 
-# Register usage convention:    (saver)
-# x0 -> zero -> hardwired 0
-# x1 -> ra   -> return address  (caller)
-# x2 -> sp   -> stack pointer   (caller)
-# x3 -> gp   -> global pointer
-# x4 -> tp   -> thread pointer
-# x5-x7      -> temporaries     (caller)
-# x8
-# x9
-# x18-x27 -> s2-11 -> saved registers (callee)
-# x28-31 -> t3-6 -> temporaries (caller)
-
-# Pseudo instructions:
-# NOP  > ADDI x0, x0, 0
-# RET  > JALR x0, 0(ra)
-# J offset  > JAL x0, offset
-# MV rd, rs  > ADDI rd, rs, 0
+ Pseudo instructions:
+ NOP  > ADDI x0, x0, 0
+ RET  > JALR x0, 0(ra)
+ J offset  > JAL x0, offset
+ MV rd, rs  > ADDI rd, rs, 0
+"""
 
 import bc
 from std import print, ord

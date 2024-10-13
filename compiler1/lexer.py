@@ -1,5 +1,4 @@
-""" Lexical analysis.
-"""
+"""Lexical analysis."""
 
 from typing import Iterable, Any
 from dataclasses import dataclass
@@ -48,7 +47,7 @@ def detect_indentations(tokens: Iterable[Token]):
             if new_indentation < level_stack[-1]:
                 while new_indentation < level_stack[-1]:
                     yield Token("DEDENT", "", loc)
-                    old_indentation = level_stack.pop()
+                    level_stack.pop()
                 if new_indentation != level_stack[-1]:
                     lex_error(
                         loc,
@@ -94,52 +93,54 @@ KEYWORDS = {
     "while",
 }
 
+
 def spec_to_pattern(token_spec):
     regex = "|".join(f"(?P<{name}>{pattern})" for name, pattern in token_spec)
     return re.compile(regex, re.MULTILINE | re.DOTALL)
 
+
 def tokenize(code: str | tuple[Location, str]):
     newline_regex = r"\n"
-    main_pattern = spec_to_pattern([
-        ("HEXNUMBER", r"0x[0-9a-fA-F]+"),
-        ("BINNUMBER", r"0b[0-1]+"),
-        ("FNUMBER1", r"[0-9]+[eE][\-+]?[0-9]+"),  # 1e9
-        ("FNUMBER2", r"[0-9]+\.[0-9]+[eE][\-+]?[0-9]+"),  # 1.0e9
-        ("FNUMBER3", r"[0-9]+\.[0-9]+"),  # 1.0
-        ("NUMBER", r"[0-9]+"),
-        ("OP2", r"(->)|(\+=)|(\-=)|(<<)|(>>)|(==)|(<=)|(!=)|(>=)"),
-        ("OP", r"[\(\):+\-\*/\.,<>=^\|&{}\[\]\?]"),
-        ("ID", r"[A-Za-z][A-Za-z_0-9]*"),
-        ("SPACE", r"[ ]+"),
-        ("DOCSTRING", r"\"\"\".*?\"\"\""),
-        ("STRING_START", r"\""),
-        ("CHAR", r"\'[^\']\'"),
-        ("NEWLINE", newline_regex),
-        ("COMMENT", r"#[^\n]*\n"),
-        ("OTHER", r"."),
-    ])
-    string_pattern = spec_to_pattern([
-        ("STRING_LITERAL", r"[^\"\\\{]+"),
-        ("ESCAPESEQUENCE", r"\\."),
-        ("STRING_END", r"\""),
-        ("STRING_INTERP", r"\{"),
-        ("OTHER", r"."),
-    ])
+    main_pattern = spec_to_pattern(
+        [
+            ("HEXNUMBER", r"0x[0-9a-fA-F]+"),
+            ("BINNUMBER", r"0b[0-1]+"),
+            ("FNUMBER1", r"[0-9]+[eE][\-+]?[0-9]+"),  # 1e9
+            ("FNUMBER2", r"[0-9]+\.[0-9]+[eE][\-+]?[0-9]+"),  # 1.0e9
+            ("FNUMBER3", r"[0-9]+\.[0-9]+"),  # 1.0
+            ("NUMBER", r"[0-9]+"),
+            ("OP2", r"(->)|(\+=)|(\-=)|(<<)|(>>)|(==)|(<=)|(!=)|(>=)"),
+            ("OP", r"[\(\):+\-\*/\.,<>=^\|&{}\[\]\?]"),
+            ("ID", r"[A-Za-z][A-Za-z_0-9]*"),
+            ("SPACE", r"[ ]+"),
+            ("DOCSTRING", r"\"\"\".*?\"\"\""),
+            ("STRING_START", r"\""),
+            ("CHAR", r"\'[^\']\'"),
+            ("NEWLINE", newline_regex),
+            ("COMMENT", r"#[^\n]*\n"),
+            ("OTHER", r"."),
+        ]
+    )
+    string_pattern = spec_to_pattern(
+        [
+            ("STRING_LITERAL", r"[^\"\\\{]+"),
+            ("ESCAPESEQUENCE", r"\\."),
+            ("STRING_END", r"\""),
+            ("STRING_INTERP", r"\{"),
+            ("OTHER", r"."),
+        ]
+    )
     patterns = {
         "normal": main_pattern,
         "string": string_pattern,
     }
 
-    if isinstance(code, tuple):
-        start_location, code = code
-        start_row, start_col = start_location.begin.row, start_location.begin.column
-    else:
-        assert isinstance(code, str)
-        start_row = start_col = 1
+    assert isinstance(code, str)
+    start_row = start_col = 1
     row, col = start_row, start_col
     col_start = 0
     pos = 0
-    mode = "normal" # or string!
+    mode = "normal"  # or string!
     curly_stack = []
 
     while pos < len(code):
@@ -158,13 +159,13 @@ def tokenize(code: str | tuple[Location, str]):
         if mode == "normal":
             if kind == "OP" or kind == "OP2":
                 kind = value
-                if kind == '}':
+                if kind == "}":
                     x = curly_stack.pop()
                     if x == "STRING_INTERP":
                         mode = "string"
                     else:
                         raise NotImplementedError(f"Curly: {x}")
-                elif kind == '{':
+                elif kind == "{":
                     curly_stack.append(kind)
             elif kind == "ID":
                 if value in KEYWORDS:
@@ -220,7 +221,7 @@ def tokenize(code: str | tuple[Location, str]):
             elif kind == "STRING_INTERP":
                 curly_stack.append(kind)
                 mode = "normal"
-                kind = '{'
+                kind = "{"
             elif kind == "ESCAPESEQUENCE":
                 kind = "STRING_LITERAL"
                 value = value[1]
