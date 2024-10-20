@@ -16,12 +16,12 @@ class TypeEvaluation(BasePass):
 
     name = "type-evaluator"
 
-    def visit_type(self, ty: ast.MyType):
+    def visit_type(self, ty: ast.Type):
         super().visit_type(ty)
         if isinstance(ty.kind, ast.TypeExpression):
             ty.change_to(self.eval_type_expr(ty.kind.expr))
 
-    def eval_type_expr(self, expression: ast.Expression) -> ast.MyType:
+    def eval_type_expr(self, expression: ast.Expression) -> ast.Type:
         """Evaluate a type expression."""
         ty = try_as_type(expression)
         if ty:
@@ -34,8 +34,8 @@ class TypeEvaluation(BasePass):
         self,
         location: Location,
         tycon: ast.TypeConstructor,
-        type_arguments: list[ast.MyType],
-    ) -> ast.MyType:
+        type_arguments: list[ast.Type],
+    ) -> ast.Type:
         if len(tycon.type_parameters) == len(type_arguments):
             return tycon.apply(type_arguments)
         else:
@@ -78,7 +78,7 @@ class TypeEvaluation(BasePass):
             obj = kind.obj
             if isinstance(obj, ast.TypeConstructor):
                 expression.kind = ast.GenericLiteral(obj)
-            elif isinstance(obj, ast.MyType):
+            elif isinstance(obj, ast.Type):
                 expression.kind = ast.TypeLiteral(obj)
             elif isinstance(obj, ast.TypeParameter):
                 expression.kind = ast.TypeLiteral(ast.type_parameter_ref(obj))

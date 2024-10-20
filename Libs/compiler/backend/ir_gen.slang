@@ -134,9 +134,13 @@ class BytecodeGenerator:
             parameters.append(bc.TypedName(name: parameter.id.name, ty: get_bc_type(parameter.ty)))
 
         let return_type = Option.None()
-        if not function_def.info.return_type.is_void():
+        let no_return = false
+        if function_def.info.return_type.is_void():
+            pass
+        elif function_def.info.return_type.is_unreachable():
+            no_return = true
+        else:
             return_type = Option.Some(get_bc_type(function_def.info.return_type))
-        let no_return = function_def.info.no_return
 
         let extern_function = bc.ExternFunction(name, parameters, return_type, no_return)
         extern_functions.append(extern_function)
@@ -154,21 +158,33 @@ class BytecodeGenerator:
                     local_var_mapping.insert(key: ast.node_id_to_string(parameter.id), value: parameter_index)
                     parameters.append(p2)
                 let return_type = Option.None()
-                if not function_def.info.return_type.is_void():
+                let no_return = false
+                if function_def.info.return_type.is_void():
+                    pass
+                elif function_def.info.return_type.is_unreachable():
+                    no_return = true
+                else:
                     return_type = Option.Some(get_bc_type(function_def.info.return_type))
                 begin_code()
                 local_variables = List()
 
-                gen_scoped_block(scoped_block)
-
                 # Emit return to void function, or unreachable
-                if not scoped_block.body.is_terminator:
+                if scoped_block.body.ty.is_void():
+                    gen_scoped_block(scoped_block, target: Option.None())
                     emit(Instruction.Return(n_arg: 0))
+                elif scoped_block.body.ty.is_unreachable():
+                    gen_scoped_block(scoped_block, target: Option.None())
+                    emit(Instruction.Unreachable())
+                else:
+                    let ty = get_bc_type(scoped_block.body.ty)
+                    let index = new_local(name: "__SNAG", ty)
+                    gen_scoped_block(scoped_block, target: Option.Some(index))
+                    emit(Instruction.LocalGet(index))
+                    emit(Instruction.Return(n_arg: 1))
 
                 let instructions = get_relocated_instructions()
                 let locals = local_variables
                 let name = function_def.name
-                let no_return = function_def.info.no_return
                 functions.append(bc.Function(name, parameters, return_type, no_return, locals, instructions))
             Extern(libname):
                 pass
@@ -182,7 +198,7 @@ class BytecodeGenerator:
                 block_cleanup(block)
         panic("Not in a loop!")
 
-    fn gen_scoped_block(scoped_block?: ast.ScopedBlock):
+    fn gen_scoped_block(scoped_block?: ast.ScopedBlock, target: Option[int]):
         # scoped_block.scope
         # let variables: List[ast.Variable] = List()
         # scoped_block.scope.dump()
@@ -194,10 +210,10 @@ class BytecodeGenerator:
         #     else:
         #         pass
         # enter_block(block: ControlBlock.Scope(variables))
-        gen_statement(scoped_block.body)
+        gen_statement(scoped_block.body, target)
         # leave_block()
 
-    fn gen_statement(statement?: ast.Statement):
+    fn gen_statement(statement?: ast.Statement, target: Option[int]):
         case statement.kind:
             Pass:
                 pass
@@ -209,13 +225,26 @@ class BytecodeGenerator:
                 jump(target: inner_most_loop.continue_label)
             Expr(expr):
                 gen_expression(expr)
-                assert(condition: expr.ty.is_void(), message: "Expression must be void!")
+                if expr.ty.is_void():
+                    case target:
+                        Some(index):
+                            panic("No value to store.")
+                        None:
+                            pass
+                elif expr.ty.is_unreachable():
+                    pass
+                else:
+                    case target:
+                        Some(index):
+                            emit(Instruction.LocalSet(index))
+                        None:
+                            panic("Cannot store value")
             Assignment(target, op, value):
                 gen_assignment(target, op, value)
             While(while_statement):
                 gen_while_statement(while_statement)
             If(if_statement):
-                gen_if_statement(if_statement)
+                gen_if_statement(if_statement, target)
             Loop(loop_statement):
                 panic("Loop not implemented")
             For(for_statement):
@@ -229,8 +258,14 @@ class BytecodeGenerator:
                 let var_index = add_local(variable: let_statement.variable)
                 emit(Instruction.LocalSet(var_index))
             Compound(inner):
+                let n = inner.len()
+                let i = 0
                 for s in inner:
-                    gen_statement(s)
+                    i += 1
+                    if i == n:
+                        gen_statement(s, target)
+                    else:
+                        gen_statement(s, target: Option.None())
             Switch(switch_statement):
                 panic("Switch not implemented")
             Unreachable:
@@ -337,7 +372,7 @@ class BytecodeGenerator:
 
         set_label(try_label)
         enter_block(block: ControlBlock.TryBlock())
-        gen_scoped_block(try_statement.try_block)
+        gen_scoped_block(try_statement.try_block, target: Option.None())
         leave_block()
         jump(final_label)
 
@@ -346,7 +381,7 @@ class BytecodeGenerator:
         emit(Instruction.GetExceptionValue())
         emit(Instruction.FromOpaque(get_bc_type(try_statement.except_var.ty)))
         emit(Instruction.LocalSet(index: except_var_index))
-        gen_scoped_block(try_statement.except_block)
+        gen_scoped_block(try_statement.except_block, target: Option.None())
         jump(final_label)
 
         set_label(final_label)
@@ -362,13 +397,13 @@ class BytecodeGenerator:
         gen_condition(condition: while_statement.condition, true_label: body_label, false_label: final_label)
 
         set_label(body_label)
-        gen_scoped_block(while_statement.block)
+        gen_scoped_block(while_statement.block, target: Option.None())
         jump(test_label)
 
         leave_block()
         set_label(final_label)
 
-    fn gen_if_statement(if_statement: ast.IfStatement):
+    fn gen_if_statement(if_statement: ast.IfStatement, target: Option[int]):
         let true_label = new_label()
         let false_label = new_label()
         let final_label = new_label()
@@ -376,12 +411,12 @@ class BytecodeGenerator:
         gen_condition(condition: if_statement.condition, true_label, false_label)
         
         set_label(true_label)
-        gen_scoped_block(if_statement.true_block)
+        gen_scoped_block(if_statement.true_block, target)
         let reach1 = is_reachable
         jump(final_label)
 
         set_label(false_label)
-        gen_scoped_block(if_statement.false_block)
+        gen_scoped_block(if_statement.false_block, target)
         let reach2 = is_reachable
         jump(final_label)
 
@@ -555,10 +590,12 @@ class BytecodeGenerator:
                 let key = function_def.name
                 let funcidx = function_map.get(key)
                 emit(Instruction.Call(funcidx))
-                if function_def.info.no_return:
-                    is_reachable = false
         else:
             gen_indirect_call(callee: call.callee)
+
+        # ??
+        #if function_def.info.no_return:
+        #    is_reachable = false
 
     fn gen_indirect_call(callee: ast.Expression):
         gen_expression(callee)

@@ -76,6 +76,7 @@ class Function:
 
 
 class OpCode(Enum):
+    UNREACHABLE = 7
     CONST = 8
     DUP = 9
     JUMP = 10

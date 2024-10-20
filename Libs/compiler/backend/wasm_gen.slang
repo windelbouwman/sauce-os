@@ -167,7 +167,7 @@ class WasmGenerator:
                 gen_statement(body)
 
                 # Introduce an unreachable instruction, when we cannot reach this point.
-                if body.is_terminator:
+                if body.ty.is_unreachable():
                     emit(Instruction.ctrl_unreachable())
             Extern(libname):
                 panic("Function without body")

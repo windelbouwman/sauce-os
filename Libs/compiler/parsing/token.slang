@@ -96,160 +96,157 @@ enum TokenKind:
 
 fn token_to_string(tok: Token) -> str:
     # """ Convert token to txt """
-    let txt = "?"
     case tok.kind:
         KwAnd:
-            txt = "AND"
+            "AND"
         KwBreak:
-            txt = "BREAK"
+            "BREAK"
         KwCase:
-            txt = "CASE"
+            "CASE"
         KwClass:
-            txt = "CLASS"
+            "CLASS"
         KwContinue:
-            txt = "CONTINUE"
+            "CONTINUE"
         KwElse:
-            txt = "ELSE"
+            "ELSE"
         KwElif:
-            txt = "ELIF"
+            "ELIF"
         KwEnum:
-            txt = "ENUM"
+            "ENUM"
         KwExcept:
-            txt = "EXCEPT"
+            "EXCEPT"
         KwExtern:
-            txt = "EXTERN"
+            "EXTERN"
         KwFn:
-            txt = "FN"
+            "FN"
         KwFor:
-            txt = "FOR"
+            "FOR"
         KwFrom:
-            txt = "FROM"
+            "FROM"
         KwIf:
-            txt = "IF"
+            "IF"
         KwImport:
-            txt = "IMPORT"
+            "IMPORT"
         KwIn:
-            txt = "IN"
+            "IN"
         KwLet:
-            txt = "LET"
+            "LET"
         KwLoop:
-            txt = "LOOP"
+            "LOOP"
         KwMacro:
-            txt = "MACRO"
+            "MACRO"
         KwNot:
-            txt = "NOT"
+            "NOT"
         KwOr:
-            txt = "OR"
+            "OR"
         KwPass:
-            txt = "PASS"
+            "PASS"
         KwPub:
-            txt = "PUB"
+            "PUB"
         KwRaise:
-            txt = "RAISE"
+            "RAISE"
         KwReturn:
-            txt = "RETURN"
+            "RETURN"
         KwStruct:
-            txt = "STRUCT"
+            "STRUCT"
         KwSwitch:
-            txt = "SWITCH"
+            "SWITCH"
         KwTry:
-            txt = "TRY"
+            "TRY"
         KwVar:
-            txt = "VAR"
+            "VAR"
         KwWhile:
-            txt = "WHILE"
+            "WHILE"
         Identifier(id):
-            txt = "ID({id})"
+            "ID({id})"
         StringStart:
-            txt = "STRING_START"
+            "STRING_START"
         StringContent(content):
-            txt = "STRING_CONTENT({content})"
+            "STRING_CONTENT({content})"
         StringEnd:
-            txt = "STRING_END"
+            "STRING_END"
         Char(value):
-            txt = "CHAR({value})"
+            "CHAR({value})"
         Integer(value):
-            txt = "INT({value})"
+            "INT({value})"
         Float(v):
-            txt = "FLOAT(...)"
+            "FLOAT(...)"
         Bool(value):
             if value:
-                txt = "BOOL(yes)"
+                "BOOL(yes)"
             else:
-                txt = "BOOL(no)"
+                "BOOL(no)"
         Space(amount):
-            txt = "SPACE({amount})"
+            "SPACE({amount})"
         Comment(comment):
-            txt = "COMMENT({comment})"
+            "COMMENT({comment})"
         NewLine:
-            txt = "NEWLINE"
+            "NEWLINE"
         Indent:
-            txt = "INDENT"
+            "INDENT"
         Dedent:
-            txt = "DEDENT"
+            "DEDENT"
         Colon:
-            txt = "COLON"
+            "COLON"
         Arrow:
-            txt = "ARROW"
+            "ARROW"
         Question:
-            txt = "QUESTION"
+            "QUESTION"
         Comma:
-            txt = "COMMA"
+            "COMMA"
         Dot:
-            txt = "DOT"
+            "DOT"
         Plus:
-            txt = "+"
+            "+"
         Minus:
-            txt = "-"
+            "-"
         Slash:
-            txt = "/"
+            "/"
         Asterix:
-            txt = "*"
+            "*"
         Equals:
-            txt = "="
+            "="
         EqualsEquals:
-            txt = "=="
+            "=="
         NotEquals:
-            txt = "!="
+            "!="
         PlusEquals:
-            txt = "+="
+            "+="
         MinusEquals:
-            txt = "-="
+            "-="
         Less:
-            txt = "<"
+            "<"
         LessEquals:
-            txt = "<="
+            "<="
         Greater:
-            txt = ">"
+            ">"
         GreaterEquals:
-            txt = ">="
+            ">="
         ShiftRight:
-            txt = "shr"
+            "shr"
         ShiftLeft:
-            txt = "shl"
+            "shl"
         BitOr:
-            txt = "bitor"
+            "bitor"
         BitAnd:
-            txt = "bitand"
+            "bitand"
         BitXor:
-            txt = "bitxor"
+            "bitxor"
         ParenthesisOpen:
-            txt = "("
+            "("
         ParenthesisClose:
-            txt = ")"
+            ")"
         BracketOpen:
-            txt = "["
+            "["
         BracketClose:
-            txt = "]"
+            "]"
         BraceOpen:
-            txt = "\{"
+            "\{"
         BraceClose:
-            txt = "}"
+            "}"
         Error(message):
-            txt = "LEX-ERROR({message})"
+            "LEX-ERROR({message})"
         Eof:
-            txt = "EOF"
+            "EOF"
         None:
-            txt = "None"
-
-    return txt
+            "None"

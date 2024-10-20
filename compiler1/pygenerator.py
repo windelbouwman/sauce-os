@@ -5,6 +5,7 @@ Idea: Use python code as bootstrapping target!
 """
 
 import logging
+import contextlib
 
 from . import ast
 
@@ -18,10 +19,9 @@ def gen_pycode(modules: list[ast.Module], f):
     g.gen_header()
     g.gen_modules(modules)
     g.emit("if __name__ == '__main__':")
-    g.indent()
-    g.emit("import sys")
-    g.emit("sys.exit(main())")
-    g.dedent()
+    with g.indented():
+        g.emit("import sys")
+        g.emit("sys.exit(main())")
 
 
 class PyCodeGenerator:
@@ -52,10 +52,9 @@ class PyCodeGenerator:
             field_names = [f"f_{field.id.name}" for field in definition.fields]
             args = ", ".join(field_names)
             self.emit(f"def __init__(self, {args}):")
-            self.indent()
-            for field_name in field_names:
-                self.emit(f"self.{field_name} = {field_name}")
-            self.dedent()
+            with self.indented():
+                for field_name in field_names:
+                    self.emit(f"self.{field_name} = {field_name}")
             self.dedent()
         elif isinstance(definition, ast.BuiltinFunction):
             self.emit(f"from slangrt import {modname}_{definition.id.name}")
@@ -65,7 +64,6 @@ class PyCodeGenerator:
             )
         else:
             raise NotImplementedError(str(definition))
-        self.emit("")
 
     def gen_func(self, func_def: ast.FunctionDef):
         if func_def.parameters:
@@ -78,41 +76,43 @@ class PyCodeGenerator:
             global_decl = ", ".join(self.global_names)
             self.emit(f"global {global_decl}")
 
-        if func_def.statements:
-            self.gen_statement(func_def.statements)
+        if func_def.statement.ty.is_void() or func_def.statement.ty.is_unreachable():
+            self.gen_statement(func_def.statement, None)
         else:
-            self.emit("pass")
+            res = "__slang_snag"
+            self.gen_statement(func_def.statement, res)
+            self.emit(f"return {res}")
         self.dedent()
         self.emit("")
 
-    def gen_block(self, statement: ast.Statement):
-        self.indent()
-        self.gen_statement(statement)
-        self.dedent()
+    def gen_block(self, block: ast.ScopedBlock, target):
+        with self.indented():
+            self.gen_statement(block.body, target)
 
-    def gen_statement(self, statement: ast.Statement):
+    def gen_statement(self, statement: ast.Statement, target):
         kind = statement.kind
         if isinstance(kind, ast.LetStatement):
             val = self.gen_expression(kind.value)
             self.emit(f"{self.gen_id(kind.variable.id)} = {val}")
         elif isinstance(kind, ast.CompoundStatement):
-            for statement in kind.statements:
-                self.gen_statement(statement)
+            for statement in kind.statements[:-1]:
+                self.gen_statement(statement, None)
+            self.gen_statement(kind.statements[-1], target)
         elif isinstance(kind, ast.IfStatement):
-            self.gen_if_statement(kind)
+            res = self.gen_if_statement(kind, "if", target)
         elif isinstance(kind, ast.WhileStatement):
             val = self.gen_expression(kind.condition, parens=False)
             self.emit(f"while {val}:")
-            self.gen_block(kind.block.body)
+            self.gen_block(kind.block, None)
         elif isinstance(kind, ast.TryStatement):
             self.emit("try:")
-            self.gen_block(kind.try_block.body)
+            self.gen_block(kind.try_block, None)
             parameter_name = self.gen_id(kind.parameter.id)
             ex_name = f"ex_{parameter_name}"
             self.emit(f"except ValueError as {ex_name}:")
             self.indent()
             self.emit(f"{parameter_name} = {ex_name}.args[0]")
-            self.gen_statement(kind.except_block.body)
+            self.gen_statement(kind.except_block.body, None)
             self.dedent()
         elif isinstance(kind, ast.BreakStatement):
             self.emit("break")
@@ -120,13 +120,19 @@ class PyCodeGenerator:
             self.emit("continue")
         elif isinstance(kind, ast.PassStatement):
             self.emit("pass")
+        elif isinstance(kind, ast.UnreachableStatement):
+            self.emit("raise RuntimeError('unreachable')")
         elif isinstance(kind, ast.AssignmentStatement):
             target = self.gen_expression(kind.target)
             val = self.gen_expression(kind.value, parens=False)
             op = kind.op
             self.emit(f"{target} {op} {val}")
         elif isinstance(kind, ast.ExpressionStatement):
-            self.emit(self.gen_expression(kind.value))
+            x = self.gen_expression(kind.value)
+            if kind.value.ty.is_void() or kind.value.ty.is_unreachable():
+                self.emit(x)
+            else:
+                self.emit(f"{target} = {x}")
         elif isinstance(kind, ast.RaiseStatement):
             self.emit(
                 f"raise ValueError({self.gen_expression(kind.value, parens=False)})"
@@ -139,18 +145,18 @@ class PyCodeGenerator:
         else:
             raise NotImplementedError(str(kind))
 
-    def gen_if_statement(self, if_statement: ast.IfStatement, kw: str = "if"):
+    def gen_if_statement(self, if_statement: ast.IfStatement, kw: str, target):
         val = self.gen_expression(if_statement.condition, parens=False)
         self.emit(f"{kw} {val}:")
-        self.gen_block(if_statement.true_block.body)
+        self.gen_block(if_statement.true_block, target)
         if isinstance(if_statement.false_block.body.kind, ast.IfStatement):
             # We got el-if!
-            self.gen_if_statement(if_statement.false_block.body.kind, kw="elif")
+            self.gen_if_statement(if_statement.false_block.body.kind, "elif", target)
         elif isinstance(if_statement.false_block.body.kind, ast.PassStatement):
             pass
         else:
             self.emit("else:")
-            self.gen_block(if_statement.false_block.body)
+            self.gen_block(if_statement.false_block, target)
 
     def gen_expression(self, expression: ast.Expression, parens: bool = True) -> str:
         kind = expression.kind
@@ -231,6 +237,12 @@ class PyCodeGenerator:
 
     def dedent(self):
         self._level -= 1
+
+    @contextlib.contextmanager
+    def indented(self):
+        self.indent()
+        yield
+        self.dedent()
 
     def emit(self, txt: str):
         indent = self._level * "    "

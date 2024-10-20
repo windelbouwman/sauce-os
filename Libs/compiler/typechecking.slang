@@ -1,5 +1,6 @@
-
-# Type checking logic.
+"""
+Type checking logic.
+"""
 
 import ast
 from math import ceil, log2
@@ -8,7 +9,7 @@ from datatypes import Option, List, option_unwrap, option_is_none
 from strlib import str_join
 from settype import StringSet
 from location import Location, location_to_string
-from utils import log_info, panic, log_error
+from utils import log_info, panic, log_error, assert
 from errors import CompilationError, new_errors, new_error, display_error, SingleCompilationError
 
 fn type_check_modules(module_set: ast.ModuleSet) except CompilationError:
@@ -113,9 +114,8 @@ class TypeChecker:
         # Check if we return a value, if we need to return a value
         case function_def.body:
             Intern(scoped_block):
-                if not function_def.info.return_type.is_void():
-                    if not scoped_block.body.is_terminator:
-                        add_error(location: function_def.location, message: "Control reaches end of non-void function")
+                if not scoped_block.body.ty.is_unreachable():
+                    assert_statement_type(statement: scoped_block.body, ty: function_def.info.return_type)
             Extern(libname):
                 pass
 
@@ -188,40 +188,43 @@ class TypeChecker:
                     None:
                         let_statement.variable.ty = let_statement.value.ty
                 coerce(ty: let_statement.variable.ty, value: let_statement.value)
+                statement.ty = ast.void_type()
             Case(case_statement):
-                statement.is_terminator = true
+                let ty = ast.unreachable_type()
                 for arm in case_statement.arms:
-                    if not arm.block.body.is_terminator:
-                        statement.is_terminator = false
+                    ty = merge_paths(statement: arm.block.body, ty)
                 case case_statement.else_block:
                     Some(block):
-                        if not block.body.is_terminator:
-                            statement.is_terminator = false
+                        ty = merge_paths(statement: block.body, ty)
                     None:
                         pass
+                statement.ty = ty
+            Switch(switch_statement):
+                coerce(ty: ast.int_type(), value: switch_statement.value)
+                let ty = switch_statement.default_block.body.ty
+                for arm in switch_statement.arms:
+                    ty = merge_paths(statement: arm.block.body, ty)
+                statement.ty = ty
             Expr(expression):
-                # Check we are of void type.
-                if not expression.ty.is_void():
-                    add_error(location: expression.location, message: "Non-void expression")
-
-                case expression.kind:
-                    Call(call):
-                        case call.callee.kind:
-                            FunctionRef(function_def, type_arguments):
-                                statement.is_terminator = function_def.info.no_return
-                        else:
-                            statement.is_terminator = false
-                else:
-                    statement.is_terminator = false
+                statement.ty = expression.ty
             If(if_statement):
                 coerce(ty: ast.bool_type(), value: if_statement.condition)
-                statement.is_terminator = if_statement.true_block.body.is_terminator and if_statement.false_block.body.is_terminator
+                let ty = if_statement.true_block.body.ty
+                ty = merge_paths(statement: if_statement.false_block.body, ty)
+                statement.ty = ty
+            For(for_statement):
+                assert_void(statement: for_statement.block.body)
+                statement.ty = ast.void_type()
+            Loop(loop_statement):
+                assert_void(statement: loop_statement.block.body)
+                statement.ty = ast.void_type()
             While(while_statement):
                 coerce(ty: ast.bool_type(), value: while_statement.condition)
-                statement.is_terminator = false
+                assert_void(statement: while_statement.block.body)
+                statement.ty = ast.void_type()
             Assignment(target, op, value):
                 coerce(ty: target.ty, value)
-                statement.is_terminator = false
+                statement.ty = ast.void_type()
             Return(value):
                 let func = option_unwrap(current_function)
                 case value:
@@ -233,32 +236,37 @@ class TypeChecker:
                     None:
                         if not func.info.return_type.is_void():
                             add_error(location: statement.location, message: "Expected a value")
-                statement.is_terminator = true
+                statement.ty = ast.unreachable_type()
             Raise(value):
                 check_may_raise_exception(ty: value.ty, location: statement.location)
-                statement.is_terminator = true
+                statement.ty = ast.unreachable_type()
             Unreachable:
-                statement.is_terminator = true
-            Compound(x):
-                if x.is_empty():
-                    statement.is_terminator = false
-                else:
-                    statement.is_terminator = x.last().is_terminator
+                statement.ty = ast.unreachable_type()
+            Compound(inner):
+                assert(condition: not inner.is_empty(), message: "Compound statement must not be empty.")
+                let n = inner.len()
+                let i = 0
+                for x in inner:
+                    i += 1
+                    let is_last = i == n
+                    if is_last:
+                        statement.ty = x.ty
+                    else:
+                        assert_void(statement: x)
             Try(try_statement):
-                if not try_statement.try_block.body.is_terminator:
-                    statement.is_terminator = false
-                elif not try_statement.except_block.body.is_terminator:
-                    statement.is_terminator = false
-                else:
-                    statement.is_terminator = true
+                assert_void(statement: try_statement.try_block.body)
+                assert_void(statement: try_statement.except_block.body)
+                statement.ty = ast.void_type()
             Break:
                 if loops == 0:
                     add_error(location: statement.location, message: "Connot use break outside of a loop")
+                statement.ty = ast.unreachable_type()
             Continue:
                 if loops == 0:
                     add_error(location: statement.location, message: "Connot use continue outside of a loop")
-        else:
-            pass
+                statement.ty = ast.unreachable_type()
+            Pass:
+                statement.ty = ast.void_type()
 
     fn check_expression(expression: ast.Expression):
         if was_errors:
@@ -454,7 +462,24 @@ class TypeChecker:
             if not unify(ty1: ty, ty2: expected_exception_type):
                 add_error(location, message: "Raised {ty}, expected: {expected_exception_type}")
 
+    fn assert_void(statement: ast.Statement):
+        if not statement.ty.is_unreachable():
+            check_type(given_ty: statement.ty, expected_ty: ast.void_type(), location: statement.location)
+
+    fn assert_statement_type(statement: ast.Statement, ty: ast.Type):
+        check_type(given_ty: statement.ty, expected_ty: ty, location: statement.location)
+
+    fn merge_paths(statement: ast.Statement, ty: ast.Type) -> ast.Type:
+        if statement.ty.is_unreachable():
+            ty
+        elif ty.is_unreachable():
+            statement.ty
+        else:
+            check_type(given_ty: statement.ty, expected_ty: ty, location: statement.location)
+            ty
+
     fn coerce(ty: ast.Type, value: ast.Expression):
+        """ Fit an expression to a type. """
         # Try to auto-convert before check:
         if value.ty.is_int() and ty.is_float():
             # Auto-conv int to floats
@@ -462,18 +487,21 @@ class TypeChecker:
             value.kind = ast.ExpressionKind.TypeCast(ty, old_expr)
             value.ty = ty
 
-        if not unify(ty1: value.ty, ty2: ty):
-            add_error(location: value.location, message: "Got {value.ty}, expected {ty}")
+        check_type(given_ty: value.ty, expected_ty: ty, location: value.location)
     
+    fn check_type(given_ty: ast.Type, expected_ty: ast.Type, location: Location):
+        if not unify(ty1: given_ty, ty2: expected_ty):
+            add_error(location, message: "Got {given_ty}, expected {expected_ty}")
+
     fn unify(ty1: ast.Type, ty2: ast.Type) -> bool:
         if ty1.is_base_type() and ty2.is_base_type():
             let base_type1 = ty1.get_base_type()
             let base_type2 = ty2.get_base_type()
-            return ast.base_type_equal(base_type1, base_type2)
+            ast.base_type_equal(base_type1, base_type2)
         elif ty1.is_opaque() and ty2.is_opaque():
-            return true
+            true
         elif ty1.is_void() and ty2.is_void():
-            return true
+            true
         elif ty1.is_base_type() and ast.is_some_integer_type(ty2):
             let base_type1 = ty1.get_base_type()
             let needed_bits = ast.get_bits_from_some_integer_type(ty2)
@@ -515,7 +543,7 @@ class TypeChecker:
 
             return true
         elif ty1.is_array() and ty2.is_array():
-            return unify(ty1: ty1.get_element_type(), ty2: ty2.get_element_type())
+            unify(ty1: ty1.get_element_type(), ty2: ty2.get_element_type())
         elif ty1.is_type_var():
             let type_var1: ast.TypeVariable = ty1.get_type_var()
             case type_var1.ty:
@@ -531,9 +559,11 @@ class TypeChecker:
                     ty1.change_to(to_type: assigned_ty)
                     return unify(ty1, ty2)
         elif ty2.is_type_var():
-            return unify(ty1: ty2, ty2: ty1)
+            unify(ty1: ty2, ty2: ty1)
+        elif ty1.is_unreachable() and ty2.is_unreachable():
+            true
         else:
-            return false
+            false
     
     fn unify_many(typs1: List[ast.Type], typs2: List[ast.Type]) -> bool:
         if typs1.len() == typs2.len():

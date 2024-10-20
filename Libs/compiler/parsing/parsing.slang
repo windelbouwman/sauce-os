@@ -107,7 +107,7 @@ class Parser:
     fn parse_import() -> ast.Import except CompilationError:
         let modname = parse_name()
         parse_newline()
-        return ast.import_self(modname: modname.name, location: modname.location)
+        ast.import_self(modname: modname.name, location: modname.location)
 
     fn parse_from_import() -> ast.Import except CompilationError:
         let modname = parse_name()
@@ -241,7 +241,7 @@ class Parser:
             parse_newline()
             fields.append(ast.StructField(name: field_name_at.name, ty, location: field_name_at.location))
 
-        return ast.struct_def(name: name_at.name, id: new_id(), type_parameters, fields, location: name_at.location)
+        ast.struct_def(name: name_at.name, id: new_id(), type_parameters, fields, location: name_at.location)
 
     fn parse_class_def() -> ast.ClassDef except CompilationError:
         let name_at = parse_name()
@@ -309,7 +309,6 @@ class Parser:
         let body = ast.compound(inner, location)
 
         let function_def = ast.function_def(name: name_at.name, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
-        function_def.info.no_return = info.no_return
         return function_def
     
     fn parse_extern_func_def(libname: str) -> ast.FunctionDef except CompilationError:
@@ -321,7 +320,6 @@ class Parser:
         parse_newline()
 
         let function_def = ast.extern_function_def(libname, name, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
-        function_def.info.no_return = info.no_return
         return function_def
 
     fn parse_parameters() -> List[ast.ParameterDef] except CompilationError:
@@ -357,8 +355,9 @@ class Parser:
                 except_type = parse_type()
         else:
             unget_token(tok)
-        let no_return = has_parsed_question()
-        return ast.FunctionInfo(no_return, return_type, except_type)
+        if has_parsed_question():
+            return_type = ast.unreachable_type()
+        return ast.FunctionInfo(return_type, except_type)
 
     fn parse_optional_return_type() -> ast.Type except CompilationError:
         # Optional return type
@@ -461,7 +460,6 @@ class Parser:
                 let except_type = ast.void_type()
 
                 let info = ast.FunctionInfo:
-                    no_return: false
                     return_type
                     except_type
 
@@ -960,7 +958,9 @@ class Parser:
         else:
             let x = parts.pop_front()
             while not parts.is_empty():
-                x = ast.binop(lhs: x, op: ast.BinaryOperator.Add(), rhs: parts.pop_front(), ty: ast.str_type(), location)
+                let rhs = parts.pop_front()
+                let location = Location(begin: x.location.begin, end: rhs.location.end)
+                x = ast.binop(lhs: x, op: ast.BinaryOperator.Add(), rhs, ty: ast.str_type(), location)
             return x
 
     fn parse_index_suffix(base: ast.Expression) -> ast.Expression except CompilationError:

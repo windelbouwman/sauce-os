@@ -220,7 +220,7 @@ class CustomTransformer(LarkTransformer):
         if is_terminal(x[0], "KW_PUB"):
             x = x[1:]
         location, name, type_parameters = x[1]
-        parameters, return_type, except_type, no_return = x[2]
+        parameters, return_type, except_type = x[2]
         assert is_terminal(x[3], "COLON")
         assert is_terminal(x[4], "NEWLINE")
         assert is_terminal(x[5], "INDENT")
@@ -246,7 +246,7 @@ class CustomTransformer(LarkTransformer):
         libname = x[1]
         assert isinstance(libname, str)
         location, name, type_parameters = x[3]
-        parameters, return_type, except_type, no_return = x[4]
+        parameters, return_type, except_type = x[4]
         ptypes = [p.ty for p in parameters]
         return ast.BuiltinFunction(self._modname, name, ptypes, return_type, location)
 
@@ -273,11 +273,11 @@ class CustomTransformer(LarkTransformer):
             except_type = ast.void_type
 
         if x and is_terminal(x[0], "QUESTION"):
-            no_return = True
+            return_type = ast.unreachable_type()
         else:
-            no_return = False
+            pass
 
-        return parameters, return_type, except_type, no_return
+        return parameters, return_type, except_type
 
     def parameters(self, x):
         if len(x) == 1:

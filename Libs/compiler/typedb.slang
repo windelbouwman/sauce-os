@@ -152,7 +152,6 @@ class SymbolSaver:
     fn save_function_info(info: ast.FunctionInfo):
         save_type(attr: "return-type", ty: info.return_type)
         save_type(attr: "except-type", ty: info.except_type)
-        m_ser.add_boolean_attribute(attr: "no-return", value: info.no_return)
 
     fn save_struct_def(struct_def: ast.StructDef):
         log_debug("Saving meta-info for struct-def: {ast.node_id_to_string(struct_def.id)}")
@@ -198,6 +197,8 @@ class SymbolSaver:
             m_ser.add_text_attribute(attr: "kind", text: "char")
         elif ty.is_void():
             m_ser.add_text_attribute(attr: "kind", text: "void")
+        elif ty.is_unreachable():
+            m_ser.add_text_attribute(attr: "kind", text: "unreachable")
         elif ty.is_array():
             m_ser.add_text_attribute(attr: "kind", text: "array")
             let element_type = ty.get_element_type()
@@ -236,7 +237,7 @@ class SymbolSaver:
             save_type(attr: "return-type", ty: return_type)
             save_type(attr: "except-type", ty: except_type)
         else:
-            panic("Not-impl: {ty}")
+            panic("save_type: Not-impl: {ty}")
         m_ser.end_object_as_attribute(attr)
     
     fn save_tycon(tycon: ast.TyCon):
@@ -378,10 +379,9 @@ class SymbolLoader:
         return f
 
     fn load_function_info() -> ast.FunctionInfo:
-        let no_return = m_des.get_boolean_attribute(attr: "no-return")
         let return_type = load_type(attr: "return-type")
         let except_type = load_type(attr: "except-type")
-        let info = ast.FunctionInfo(no_return, return_type, except_type)
+        let info = ast.FunctionInfo(return_type, except_type)
         return info
 
     fn load_parameters() -> List[ast.ParameterDef]:
@@ -496,6 +496,8 @@ class SymbolLoader:
             ty = ast.char_type()
         elif type_name == "void":
             ty = ast.void_type()
+        elif type_name == "unreachable":
+            ty = ast.unreachable_type()
         elif type_name == "app":
             let type_arguments = load_types(attr: "type-arguments")
             let id = load_id()

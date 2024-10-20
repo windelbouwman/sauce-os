@@ -111,6 +111,13 @@ class Type:
         else:
             return false
 
+    fn is_unreachable() -> bool:
+        case kind:
+            Unreachable:
+                return true
+        else:
+            return false
+
     fn is_str() -> bool:
         case kind:
             Base(base):
@@ -439,7 +446,6 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
             for p in parameter_types:
                 parameter_types2.append(ParameterType(label: p.label, ty: subst(ty: p.ty, m)))
             let info2 = FunctionInfo:
-                no_return: info.no_return
                 return_type: subst(ty: info.return_type, m)
                 except_type: subst(ty: info.except_type, m)
             return function_type(parameter_types: parameter_types2, info: info2)
@@ -578,6 +584,7 @@ enum TypeKind:
     SomeInteger(bits: int)  # Integer type, requiring at least n bits
     Opaque
     Void
+    Unreachable
     TypeExpression(expression: Expression)
     Function(parameter_types: List[ParameterType], info: FunctionInfo)
     TypeParam(type_parameter: TypeParameter)
@@ -588,40 +595,40 @@ enum TypeKind:
     App(tycon: TyCon, type_arguments: List[Type])
 
 fn type_kind_to_string(kind: TypeKind) -> str:
-    let txt = "?"
     case kind:
         Base(base):
-            txt = base_type_to_str(base)
+            base_type_to_str(base)
         SomeInteger(bits):
-            txt = "SOME-INT-{bits}"
+            "SOME-INT-{bits}"
         Opaque:
-            txt = "OPAQUE"
+            "OPAQUE"
         Void:
-            txt = "VOID"
+            "VOID"
+        Unreachable:
+            "UNREACHABLE-TYPE"
         TypeExpression(expr):
-            txt = "TYPE-EXPR"
+            "TYPE-EXPR"
         Array(element_type, size):
-            txt = "ARRAY({element_type} x {size})"
+            "ARRAY({element_type} x {size})"
         Function(parameter_types, info):
             let typs = get_types_from_parameter_types(parameter_types)
-            txt = "FUNC-TYPE({types_to_string(typs)},{info.return_type},{info.except_type})"
+            "FUNC-TYPE({types_to_string(typs)},{info.return_type},{info.except_type})"
         Undefined:
-            txt = "UNDEFINED"
+            "UNDEFINED"
         TypeParam(param):
-            txt = "TYPE-PARAM({node_id_to_string(param.id)})"
+            "TYPE-PARAM({node_id_to_string(param.id)})"
         TypeVar(v):
             case v.ty:
                 None:
-                    txt = "TYPE-VAR(id={v.unique})"
+                    "TYPE-VAR(id={v.unique})"
                 Some(ty_assigned):
-                    txt = "TYPE-VAR(id={v.unique},{ty_assigned})"
+                    "TYPE-VAR(id={v.unique},{ty_assigned})"
         App(tycon, type_arguments):
             if type_arguments.is_empty():
-                txt = tycon_to_str(tycon)
+                tycon_to_str(tycon)
             else:
                 let args = types_to_string(typs: type_arguments)
-                txt = tycon_to_str(tycon) + args
-    return txt
+                tycon_to_str(tycon) + args
 
 struct ParameterType:
     label: Option[str]
@@ -742,6 +749,9 @@ fn tycon_get_type_parameters(tycon: TyCon) -> List[TypeParameter]:
 
 fn void_type() -> Type:
     return new_type(kind: TypeKind.Void())
+
+fn unreachable_type() -> Type:
+    return new_type(kind: TypeKind.Unreachable())
 
 fn new_base_type(base: BaseType) -> Type:
     return new_type(kind: TypeKind.Base(base))
@@ -879,7 +889,6 @@ enum ImportKind:
 
 fn extern_function_def(libname: str, name: str, type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
     let info = FunctionInfo:
-        no_return: false
         return_type
         except_type: void_type()
 
@@ -1113,7 +1122,6 @@ fn class_def_to_str(class_def: ClassDef) -> str:
 
 fn function_def(name: str, type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
     let info = FunctionInfo:
-        no_return: false
         return_type
         except_type
 
@@ -1129,7 +1137,6 @@ fn function_def(name: str, type_parameters: List[TypeParameter], this_parameter:
     return f
 
 struct FunctionInfo:
-    no_return: bool  # no_return attribute
     return_type: Type
     except_type: Type
 
@@ -1185,7 +1192,6 @@ fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: List
         parameter_types2.append(ParameterType(label: pt.label, ty: subst(ty: pt.ty, m)))
 
     let info2 = FunctionInfo:
-        no_return: info.no_return
         return_type: subst(ty: info.return_type, m)
         except_type: subst(ty: info.except_type, m)
     return function_type(parameter_types: parameter_types2, info: info2)
@@ -1226,13 +1232,14 @@ fn scoped_block(body: Statement) -> ScopedBlock:
 class Statement:
     var kind: StatementKind
     var location: Location
-    var is_terminator: bool = false
+    var ty: Type
 
     fn to_string() -> str:
         return statement_to_string(statement: this)
 
 fn statement(kind: StatementKind, location: Location) -> Statement:
-    return Statement(kind, location)
+    let ty = void_type()
+    return Statement(kind, location, ty)
 
 enum StatementKind:
     If(if_statement: IfStatement)
@@ -1754,8 +1761,6 @@ fn statement_to_string(statement: Statement) -> str:
         Unreachable:
             txt = "UNREACHABLE"
     
-    if statement.is_terminator:
-        txt = txt + " TERMINATES"
     return txt
 
 fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPhase):

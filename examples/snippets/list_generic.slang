@@ -54,8 +54,6 @@ fn list_iter_next[T](this: ListIter[T]) -> Option[T]:
         Some(next):
             this.next = next.next
             return Option[T].Some(next.data)
-    # TODO: below is a bug:
-    return Option[T].None()
 
 fn list_walk(x: List[Integer]):
     let i = 0

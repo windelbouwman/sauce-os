@@ -113,6 +113,7 @@ fn main() -> int:
         log_error("Errors found during compilation")
         display_error(error)
         return 1
+    0
 
 fn print_usage():
     print("Slang compiler written in slang!")

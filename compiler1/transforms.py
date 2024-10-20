@@ -25,9 +25,7 @@ class BaseTransformer(ast.AstVisitor):
         for module in modules:
             self.visit_module(module)
 
-    def new_variable(
-        self, name: str, ty: ast.MyType, location: Location
-    ) -> ast.Variable:
+    def new_variable(self, name: str, ty: ast.Type, location: Location) -> ast.Variable:
         id = self.new_id(name)
         return ast.Variable(id, ty, location)
 
@@ -147,8 +145,8 @@ class LoopRewriter(BaseTransformer):
         #         Some(element):
         #             print("Item[{n}]=" + std::int_to_str(element.value))
 
-        iter_ty: ast.MyType = kind.values.ty.get_field_type("iter").kind.return_type
-        opt_ty: ast.MyType = iter_ty.get_field_type("next").kind.return_type
+        iter_ty: ast.Type = kind.values.ty.get_field_type("iter").kind.return_type
+        opt_ty: ast.Type = iter_ty.get_field_type("next").kind.return_type
 
         it_var = self.new_variable("it", iter_ty, location)
         opt_var = self.new_variable("opt", opt_ty, location)
@@ -419,8 +417,7 @@ class EnumRewriterPhase2(BaseTransformer):
         if kind.else_clause:
             default_body = kind.else_clause
         else:
-            # Maybe insert panic instruction?
-            default_body = ast.ScopedBlock(ast.pass_statement(location))
+            default_body = ast.ScopedBlock(ast.unreachable_statement(location))
 
         # switch x.tag
         switch_1 = ast.switch_statement(
@@ -467,14 +464,14 @@ class EnumRewriterPhase3(BaseTransformer):
         super().__init__(id_context)
         self._enum_impls = enum_impls
 
-    def change_enum_type(self, ty: ast.MyType):
+    def change_enum_type(self, ty: ast.Type):
         # Change type into tagged union type
         assert ty.is_enum()
         enum_impl = self._enum_impls[id(ty.kind.tycon)]
         struct_def = enum_impl.struct_def
         ty.change_to(struct_def.apply(ty.kind.type_args))
 
-    def visit_type(self, ty: ast.MyType):
+    def visit_type(self, ty: ast.Type):
         super().visit_type(ty)
         if ty.is_enum():
             self.change_enum_type(ty)
@@ -610,7 +607,7 @@ class ClassRewriter(BaseTransformer):
 
         self._struct_defs[id(class_def)] = (struct_def, ctor_func)
 
-    def visit_type(self, ty: ast.MyType):
+    def visit_type(self, ty: ast.Type):
         super().visit_type(ty)
         if ty.is_class():
             # Change class type into tagged union type
@@ -657,7 +654,7 @@ class TypeReplacer(ast.AstVisitor):
         super().__init__()
         self.type_mapping = type_mapping
 
-    def visit_type(self, ty: ast.MyType):
+    def visit_type(self, ty: ast.Type):
         super().visit_type(ty)
         if ty.is_type_parameter_ref():
             if ty.kind.type_parameter in self.type_mapping:
@@ -780,7 +777,7 @@ class UnionEraser(BaseTransformer):
         module.definitions = new_defs
         super().visit_module(module)
 
-    def visit_type(self, ty: ast.MyType):
+    def visit_type(self, ty: ast.Type):
         super().visit_type(ty)
         if ty.is_union():
             ty.change_to(ast.ptr_type)

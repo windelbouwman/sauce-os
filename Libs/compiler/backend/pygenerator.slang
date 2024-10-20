@@ -52,19 +52,26 @@ class PyGenerator:
             Macro(macro_def):
                 pass
             Function(function_def):
-                let parameter_names: List[str] = List()
-                for parameter in function_def.parameters:
-                    parameter_names.append(get_id(id: parameter.id))
-                let params = str_join(parts: parameter_names, sep: ", ")
-                
                 case function_def.body:
                     Intern(scoped_block):
+                        let parameter_names: List[str] = List()
+                        for parameter in function_def.parameters:
+                            parameter_names.append(get_id(id: parameter.id))
+                        let params = str_join(parts: parameter_names, sep: ", ")
                         emit("def {function_def.name}({params}):")
                         if str_len(text: global_header) > 0:
                             indent()
                             emit(global_header)
                             dedent()
-                        gen_block(scoped_block)
+                        
+                        if scoped_block.body.ty.is_void() or scoped_block.body.ty.is_unreachable():
+                            gen_block(scoped_block, target: Option.None())
+                        else:
+                            let res = "__SLANG_SNAG"
+                            gen_block(scoped_block, target: Option.Some(res))
+                            indent()
+                            emit("return {res}")
+                            dedent()
                         emit("")
                         emit("")
                     Extern(libname):
@@ -98,20 +105,20 @@ class PyGenerator:
                     Extern(libname, initialized):
                         emit("# external: from {libname} import {get_id(id: variable_def.variable.id)}")
 
-    fn gen_block(block?: ast.ScopedBlock):
+    fn gen_block(block?: ast.ScopedBlock, target: Option[str]):
         indent()
-        gen_statement(block.body)
+        gen_statement(block.body, target)
         dedent()
 
-    fn gen_statement(statement?: ast.Statement):
+    fn gen_statement(statement?: ast.Statement, target: Option[str]):
         case statement.kind:
             While(while_statement):
                 emit("while {gen_expression(while_statement.condition, parens: false)}:")
-                gen_block(while_statement.block)
+                gen_block(while_statement.block, target: Option.None())
             Let(let_statement):
                 emit("{get_id(id: let_statement.variable.id)} = {gen_expression(let_statement.value, parens: false)}")
             If(if_statement):
-                gen_if_statement(if_statement, kw: "if")
+                gen_if_statement(if_statement, kw: "if", target)
             Pass:
                 emit("pass")
             Break:
@@ -120,12 +127,12 @@ class PyGenerator:
                 emit("continue")
             Try(try_statement):
                 emit("try:")
-                gen_block(try_statement.try_block)
+                gen_block(try_statement.try_block, target: Option.None())
                 let ex_name = "ex_{get_id(id: try_statement.except_var.id)}"
                 emit("except ValueError as {ex_name}:")
                 indent()
                 emit("{get_id(id: try_statement.except_var.id)} = {ex_name}.args[0]")
-                gen_statement(try_statement.except_block.body)
+                gen_statement(try_statement.except_block.body, target: Option.None())
                 dedent()
             Assignment(target, op, value):
                 let op_txt = ""
@@ -145,90 +152,104 @@ class PyGenerator:
             Raise(value):
                 emit("raise ValueError({gen_expression(value, parens: false)})")
             Compound(inner):
+                let n = inner.len()
+                let i = 0
                 for s in inner:
-                    gen_statement(s)
+                    i += 1
+                    if i == n:
+                        gen_statement(s, target)
+                    else:
+                        gen_statement(s, target: Option.None())
             Expr(expr):
-                emit(gen_expression(expr, parens: true))
+                let txt = gen_expression(expr, parens: true)
+                if expr.ty.is_void() or expr.ty.is_unreachable():
+                    emit(txt)
+                else:
+                    case target:
+                        Some(res):
+                            emit("{res} = {txt}")
+                        None:
+                            panic("gen_statement: Cannot store expression result.")
             Unreachable:
                 emit("raise RuntimeError('unreachable')")
         else:
             panic("gen_statement: Unsupported: {statement}")
 
-    fn gen_if_statement(if_statement: ast.IfStatement, kw: str):
+    fn gen_if_statement(if_statement: ast.IfStatement, kw: str, target: Option[str]):
+        let res = "__snag"
         emit("{kw} {gen_expression(if_statement.condition, parens: false)}:")
-        gen_block(if_statement.true_block)
+        gen_block(if_statement.true_block, target)
         case if_statement.false_block.body.kind:
             If(if2):
-                gen_if_statement(if_statement: if2, kw: "elif")
+                gen_if_statement(if_statement: if2, kw: "elif", target)
             Pass:
                 pass
         else:
             emit("else:")
-            gen_block(if_statement.false_block)
+            gen_block(if_statement.false_block, target)
 
     fn gen_expression(expression?: ast.Expression, parens: bool) -> str:
-        let txt = ""
         case expression.kind:
             BoolLiteral(v):
                 if v:
-                    txt = "True"
+                    "True"
                 else:
-                    txt = "False"
+                    "False"
             IntLiteral(v):
-                txt = "{v}"
+                "{v}"
             StringLiteral(s):
-                txt = "\"{escape_string(s)}\""
+                "\"{escape_string(s)}\""
             CharLiteral(c):
                 if c == '\' or c == '"':
-                    txt = "\"\\{c}\""
+                    "\"\\{c}\""
                 else:
-                    txt = "\"{c}\""
+                    "\"{c}\""
             Null:
-                txt = "None"
+                "None"
             FloatLiteral(value):
-                txt = float_to_str2(value, digits: 20)
+                float_to_str2(value, digits: 20)
             StructLiteral(ty, values):
                 let struct_def = ty.get_struct_def()
                 let name = get_id(id: struct_def.id)
                 let args = gen_expression_list(expressions: values)
-                txt = "{name}({args})"
+                "{name}({args})"
             ArrayLiteral(values):
                 let args = gen_expression_list(expressions: values)
-                txt = "[{args}]"
+                "[{args}]"
             ArrayLiteral2(size, ty):
                 let size_txt = gen_expression(size, parens: false)
-                txt = "[None] * {size_txt}"
+                "[None] * {size_txt}"
             GetAttr(base, attr):
                 let b = gen_expression(base, parens: true)
-                txt = "{b}.{attr}"
+                "{b}.{attr}"
             GetIndex(base, indici):
                 let b = gen_expression(base, parens: true)
                 let i = gen_expression_list(expressions: indici)
-                txt = "{b}[{i}]"
+                "{b}[{i}]"
             TypeCast(ty, value):
-                txt = gen_expression(value, parens: true)
+                let txt = gen_expression(value, parens: true)
                 if ty.is_float():
-                    txt = "float({txt})"
+                    "float({txt})"
                 elif ty.is_int():
-                    txt = "int({txt})"
+                    "int({txt})"
                 else:
                     panic("Cannot cast to {ty}")
             Box(value):
-                txt = gen_expression(value, parens: true)
+                gen_expression(value, parens: true)
             Unbox(value, to_type):
-                txt = gen_expression(value, parens: true)
+                gen_expression(value, parens: true)
             ParameterRef(parameter_def):
-                txt = get_id(id: parameter_def.id)
+                get_id(id: parameter_def.id)
             VarRef(variable):
-                txt = get_id(id: variable.id)
+                get_id(id: variable.id)
             FunctionRef(function_def, type_arguments):
-                txt = function_def.name
+                function_def.name
             Call(call):
                 let expressions: List[ast.Expression] = List()
                 for argument in call.arguments:
                     expressions.append(argument.value)
                 let argument_text = gen_expression_list(expressions)
-                txt = "{gen_expression(call.callee, parens: true)}({argument_text})"
+                "{gen_expression(call.callee, parens: true)}({argument_text})"
             Unop(op, value):
                 let op2 = "$"
                 case op:
@@ -236,24 +257,27 @@ class PyGenerator:
                         op2 = "not "
                     Minus:
                         op2 = "-"
-                txt = "{op2}{gen_expression(value, parens: true)}"
+                let txt = "{op2}{gen_expression(value, parens: true)}"
                 if parens:
-                    txt = "({txt})"
+                    "({txt})"
+                else:
+                    txt
             Binop(binop):
                 let float_division = binop.lhs.ty.is_float()
                 let op = binary_operator_to_str(op: binop.op, float_division)
-                txt = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
+                let txt = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
                 if parens:
-                    txt = "({txt})"
+                    "({txt})"
+                else:
+                    txt
         else:
             panic("Unsupported: {expression}")
-        return txt
     
     fn gen_expression_list(expressions: List[ast.Expression]) -> str:
         let parts: List[str] = List()
         for expression in expressions:
             parts.append(gen_expression(expression, parens: false))
-        return str_join(parts, sep: ", ")
+        str_join(parts, sep: ", ")
     
     fn get_id(id: ast.NodeId) -> str:
         return "X{id.id}_{id.name}"
@@ -268,47 +292,44 @@ class PyGenerator:
         out.dedent()
 
 fn binary_operator_to_str(op: ast.BinaryOperator, float_division: bool) -> str:
-    let op_txt = ""
     case op:
         And:
-            op_txt = "and"
+            "and"
         Or:
-            op_txt = "or"
+            "or"
         Greater:
-            op_txt = ">"
+            ">"
         GreaterEquals:
-            op_txt = ">="
+            ">="
         Less:
-            op_txt = "<"
+            "<"
         LessEquals:
-            op_txt = "<="
+            "<="
         Equals:
-            op_txt = "=="
+            "=="
         NotEquals:
-            op_txt = "!="
+            "!="
         Add:
-            op_txt = "+"
+            "+"
         Sub:
-            op_txt = "-"
+            "-"
         Mul:
-            op_txt = "*"
+            "*"
         Div:
             if float_division:
-                op_txt = "/"
+                "/"
             else:
-                op_txt = "//"
+                "//"
         BitAnd:
-            op_txt = "&"
+            "&"
         BitXor:
-            op_txt = "^"
+            "^"
         BitOr:
-            op_txt = "|"
+            "|"
         ShiftLeft:
-            op_txt = "<<"
+            "<<"
         ShiftRight:
-            op_txt = ">>"
-
-    return op_txt
+            ">>"
 
 fn escape_string(text?: str) -> str:
     """ Prefix double quotes and backslashes with an extra backslash """

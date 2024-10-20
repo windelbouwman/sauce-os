@@ -1,5 +1,4 @@
-""" Generate bytecode from AST.
-"""
+"""Generate bytecode from AST."""
 
 import logging
 from dataclasses import dataclass
@@ -67,7 +66,6 @@ class ByteCodeGenerator:
     def gen_module(self, module: ast.Module):
         # Forward declare types:
         cnt = 0
-        global_count = 0
         for definition in module.definitions:
             if isinstance(definition, ast.StructDef):
                 self._type_map[id(definition)] = cnt
@@ -92,7 +90,7 @@ class ByteCodeGenerator:
             else:
                 raise NotImplementedError(str(definition))
 
-    def get_bc_ty(self, ty: ast.MyType) -> bc.Typ:
+    def get_bc_ty(self, ty: ast.Type) -> bc.Typ:
         if ty.is_int():
             return bc.BaseTyp(bc.SimpleTyp.INT)
         elif ty.is_str():
@@ -108,6 +106,8 @@ class ByteCodeGenerator:
             return_type = self.get_bc_ty(ty.kind.return_type)
             return bc.FunctionType(param_types, return_type)
         elif ty.is_void():
+            return bc.BaseTyp(bc.SimpleTyp.VOID)
+        elif ty.is_unreachable():
             return bc.BaseTyp(bc.SimpleTyp.VOID)
         elif ty.is_type_parameter_ref():
             return bc.BaseTyp(bc.SimpleTyp.PTR)
@@ -133,12 +133,17 @@ class ByteCodeGenerator:
         for parameter in func_def.parameters:
             self._locals.append(parameter)
             params.append(self.get_bc_ty(parameter.ty))
-        self.gen_statement(func_def.statements)
+        self.gen_statement(func_def.statement)
         ret_ty = self.get_bc_ty(func_def.return_ty)
 
-        if len(self._code) == 0 or self._code[-1][0] != OpCode.RETURN:
+        if len(self._code) == 0:
             # TODO: emit implicit return?
             self.emit(OpCode.RETURN, 0)
+        elif self._code[-1][0] != OpCode.RETURN:
+            if func_def.return_ty.is_void():
+                self.emit(OpCode.RETURN, 0)
+            else:
+                self.emit(OpCode.RETURN, 1)
 
         # Fix labels:
         code = []
@@ -149,7 +154,6 @@ class ByteCodeGenerator:
                 operands = (self._label_map[operands[0]], self._label_map[operands[1]])
             elif opcode == OpCode.SETUP_EXCEPT:
                 operands = (self._label_map[operands[0]],)
-            # print(f'  {len(code)} OP2', opcode, operands)
             code.append((opcode, operands))
 
         self._functions.append(
@@ -190,6 +194,8 @@ class ByteCodeGenerator:
             self.emit(OpCode.JUMP, loop.start_label)
         elif isinstance(kind, ast.PassStatement):
             pass
+        elif isinstance(kind, ast.UnreachableStatement):
+            self.emit(OpCode.UNREACHABLE)
         elif isinstance(kind, ast.WhileStatement):
             start_label = self.new_label()
             body_label = self.new_label()

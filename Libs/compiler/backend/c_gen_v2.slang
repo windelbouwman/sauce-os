@@ -48,10 +48,9 @@ class CGenerator2:
                 case definition:
                     Function(function_def):
                         let decl = gen_function_decl(function_def)
-                        let no_return = ""
-                        if function_def.info.no_return:
-                            no_return = " __attribute__((noreturn));"
-                        emit("{decl}{no_return};")
+                        if function_def.info.return_type.is_unreachable():
+                            decl = "{decl} __attribute__((noreturn))"
+                        emit("{decl};")
 
                     Struct(struct_def):
                         # Create struct constructor function

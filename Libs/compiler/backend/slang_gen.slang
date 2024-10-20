@@ -33,10 +33,15 @@ class SlangGenerator:
                     parameter_texts.append("{get_id(parameter.id)}?: {gen_type(parameter.ty)}")
                 let params = str_join(parts: parameter_texts, sep: ", ")
                 let return_types = ""
-                if not function_def.info.return_type.is_void():
+                if function_def.info.return_type.is_void():
+                    pass
+                elif function_def.info.return_type.is_unreachable():
+                    return_types = return_types + " ?"
+                else:
                     return_types = return_types + " -> {gen_type(function_def.info.return_type)}"
+
                 if not function_def.info.except_type.is_void():
-                    return_types = return_types + " -> {gen_type(function_def.info.except_type)}"
+                    return_types = return_types + " except {gen_type(function_def.info.except_type)}"
 
                 case function_def.body:
                     Intern(scoped_block):

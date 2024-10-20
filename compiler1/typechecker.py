@@ -1,12 +1,10 @@
-""" Type checker.
-"""
+"""Type checker."""
 
 import logging
 
 from . import ast
 from .basepass import BasePass
 from .location import Location
-from .ast import bool_type, void_type
 
 logger = logging.getLogger("typechecker")
 
@@ -33,6 +31,8 @@ class TypeChecker(BasePass):
             if may_raise:
                 self._except_handlers.append(definition.except_type)
             super().visit_definition(definition)
+            if not definition.statement.ty.is_unreachable():
+                self.assert_statement_type(definition.statement, definition.return_ty)
             if may_raise:
                 self._except_handlers.pop(-1)
             self._function = None
@@ -45,7 +45,7 @@ class TypeChecker(BasePass):
                 pass
             elif isinstance(definition, ast.VarDef):
                 if definition.value:
-                    self.assert_type(definition.value, definition.ty)
+                    self.coerce(definition.value, definition.ty)
             else:
                 raise NotImplementedError(str(definition))
 
@@ -85,11 +85,16 @@ class TypeChecker(BasePass):
             else:
                 self.error(kind.value.location, f"Expected enum, not {kind.value.ty}")
 
+            ty = ast.unreachable_type()
             for arm in kind.arms:
                 self.visit_node(arm)
+                ty = self.merge_paths(arm.block.body, ty)
 
             if kind.else_clause:
                 self.visit_statement(kind.else_clause.body)
+                ty = self.merge_paths(kind.else_clause.body, ty)
+
+            statement.ty = ty
 
         elif isinstance(kind, ast.ForStatement):
             self.visit_expression(kind.values)
@@ -97,16 +102,14 @@ class TypeChecker(BasePass):
                 kind.variable.ty = kind.values.ty.kind.element_type
             elif kind.values.ty.is_iterable_like():
                 # If it quacks lite an iterator... it must be an iterator!
-                iter_ty: ast.MyType = kind.values.ty.get_field_type(
+                iter_ty: ast.Type = kind.values.ty.get_field_type(
                     "iter"
                 ).kind.return_type
-                opt_ty: ast.MyType = iter_ty.get_field_type("next").kind.return_type
+                opt_ty: ast.Type = iter_ty.get_field_type("next").kind.return_type
                 val_ty = opt_ty.get_variant_types("Some")[0]
                 kind.variable.ty = val_ty
             elif kind.values.ty.is_sequence_like():
-                val_ty: ast.MyType = kind.values.ty.get_field_type(
-                    "get"
-                ).kind.return_type
+                val_ty: ast.Type = kind.values.ty.get_field_type("get").kind.return_type
                 kind.variable.ty = val_ty
             else:
                 self.error(
@@ -114,11 +117,13 @@ class TypeChecker(BasePass):
                     f"Expected array, iterable or sequence. Got {kind.values.ty}",
                 )
             self.visit_statement(kind.block.body)
+            statement.ty = ast.void_type
         elif isinstance(kind, ast.TryStatement):
             self._except_handlers.append(kind.parameter.ty)
             self.visit_statement(kind.try_block.body)
             self._except_handlers.pop()
             self.visit_statement(kind.except_block.body)
+            statement.ty = ast.void_type
         else:
             super().visit_statement(statement)
 
@@ -126,21 +131,36 @@ class TypeChecker(BasePass):
                 return
 
             if isinstance(kind, ast.LoopStatement):
-                pass
+                self.assert_void(kind.block.body)
+                statement.ty = ast.void_type
             elif isinstance(kind, ast.WhileStatement):
-                self.assert_type(kind.condition, bool_type)
+                self.coerce(kind.condition, ast.bool_type)
+                self.assert_void(kind.block.body)
+                statement.ty = ast.void_type
             elif isinstance(kind, ast.IfStatement):
-                self.assert_type(kind.condition, bool_type)
+                self.coerce(kind.condition, ast.bool_type)
+                ty = self.merge_paths(kind.false_block.body, kind.true_block.body.ty)
+                statement.ty = ty
             elif isinstance(kind, ast.SwitchStatement):
-                self.assert_type(kind.value, ast.int_type)
+                self.coerce(kind.value, ast.int_type)
+                ty = kind.default_block.body.ty
+                for arm in kind.arms:
+                    ty = self.merge_paths(arm.block.body, ty)
+                statement.ty = ty
             elif isinstance(kind, ast.ExpressionStatement):
                 # Check void type: Good idea?
-                self.assert_type(kind.value, void_type)
+                statement.ty = kind.value.ty
             elif isinstance(kind, (ast.BreakStatement, ast.ContinueStatement)):
                 # TODO!
-                pass
-            elif isinstance(kind, (ast.PassStatement, ast.CompoundStatement)):
-                pass
+                statement.ty = ast.void_type
+            elif isinstance(kind, ast.PassStatement):
+                statement.ty = ast.void_type
+            elif isinstance(kind, ast.UnreachableStatement):
+                statement.ty = ast.unreachable_type()
+            elif isinstance(kind, ast.CompoundStatement):
+                for x in kind.statements[:-1]:
+                    self.assert_void(x)
+                statement.ty = kind.statements[-1].ty
             elif isinstance(kind, ast.ReturnStatement):
                 if kind.value:
                     if not self.unify(kind.value.ty, self._function.return_ty):
@@ -148,16 +168,20 @@ class TypeChecker(BasePass):
                             kind.value.location,
                             f"Expected {ast.str_ty(self._function.return_ty)}, got {ast.str_ty(kind.value.ty)}",
                         )
+                statement.ty = ast.unreachable_type()
             elif isinstance(kind, ast.RaiseStatement):
                 self.check_may_raise(kind.value.ty, statement.location)
+                statement.ty = ast.unreachable_type()
             elif isinstance(kind, ast.LetStatement):
                 if kind.ty:
-                    self.assert_type(kind.value, kind.ty)
+                    self.coerce(kind.value, kind.ty)
                     kind.variable.ty = kind.ty
                 else:
                     kind.variable.ty = kind.value.ty.clone()
+                statement.ty = ast.void_type
             elif isinstance(kind, ast.AssignmentStatement):
-                self.assert_type(kind.value, kind.target.ty)
+                self.coerce(kind.value, kind.target.ty)
+                statement.ty = ast.void_type
             else:
                 raise NotImplementedError(str(statement))
 
@@ -184,7 +208,7 @@ class TypeChecker(BasePass):
             expression.ty = ast.array_type(len(kind.values), kind.values[0].ty)
         elif isinstance(kind, ast.ArrayLiteral2):
             expression.ty = ast.array_type(None, kind.ty)
-            self.assert_type(kind.size, ast.int_type)
+            self.coerce(kind.size, ast.int_type)
         elif isinstance(kind, ast.Binop):
             # Introduce some heuristics...
             if kind.lhs.ty.is_int() and kind.rhs.ty.is_float():
@@ -192,22 +216,22 @@ class TypeChecker(BasePass):
             else:
                 ty = kind.lhs.ty
 
-            self.assert_type(kind.lhs, ty)
-            self.assert_type(kind.rhs, ty)
+            self.coerce(kind.lhs, ty)
+            self.coerce(kind.rhs, ty)
 
             if kind.op in ["<", ">", "<=", ">=", "==", "!="]:
-                expression.ty = bool_type
+                expression.ty = ast.bool_type
             elif kind.op in ["and", "or"]:
-                self.assert_type(kind.lhs, bool_type)
-                self.assert_type(kind.rhs, bool_type)
-                expression.ty = bool_type
+                self.coerce(kind.lhs, ast.bool_type)
+                self.coerce(kind.rhs, ast.bool_type)
+                expression.ty = ast.bool_type
             else:
                 expression.ty = ty
 
         elif isinstance(kind, ast.Unop):
             if kind.op == "not":
-                self.assert_type(kind.rhs, bool_type)
-                expression.ty = bool_type
+                self.coerce(kind.rhs, ast.bool_type)
+                expression.ty = ast.bool_type
             elif kind.op == "-":
                 # TODO: Assert numeric type?
                 # elif kind.lhs.ty.is_int() and kind.rhs.ty.is_float():
@@ -223,14 +247,14 @@ class TypeChecker(BasePass):
                     expression.location,
                     f"{ast.str_ty(kind.base.ty)} has no field '{kind.field}'",
                 )
-                expression.ty = void_type
+                expression.ty = ast.void_type
 
         elif isinstance(kind, ast.ArrayIndex):
             if isinstance(kind.base.ty.kind, ast.ArrayType):
                 expression.ty = kind.base.ty.kind.element_type
             elif kind.base.ty.has_field("get"):
                 # If it quacks lite an get/set... it must be an get/set interface!
-                val_ty: ast.MyType = kind.base.ty.get_field_type("get").kind.return_type
+                val_ty: ast.Type = kind.base.ty.get_field_type("get").kind.return_type
                 expression.ty = val_ty
             else:
                 self.error(
@@ -239,7 +263,7 @@ class TypeChecker(BasePass):
                 )
 
             if len(kind.indici) == 1:
-                self.assert_type(kind.indici[0], ast.int_type)
+                self.coerce(kind.indici[0], ast.int_type)
             else:
                 self.error(
                     expression.location,
@@ -298,11 +322,11 @@ class TypeChecker(BasePass):
             field_types = kind.ty.get_field_types()
             assert len(field_types) == len(kind.values)
             for field_type, value in zip(field_types, kind.values):
-                self.assert_type(value, field_type)
+                self.coerce(value, field_type)
             expression.ty = kind.ty
         elif isinstance(kind, ast.UnionLiteral):
             field_type = kind.ty.get_field_type(kind.field)
-            self.assert_type(kind.value, field_type)
+            self.coerce(kind.value, field_type)
             expression.ty = kind.ty
         elif isinstance(kind, ast.EnumLiteral):
             payload_types = kind.enum_ty.get_variant_types(kind.variant.id.name)
@@ -341,7 +365,7 @@ class TypeChecker(BasePass):
             elif kind.expr.ty.has_field("to_string"):
                 pass
             else:
-                self.assert_type(kind.expr, ast.str_type)
+                self.coerce(kind.expr, ast.str_type)
             expression.ty = ast.str_type
         elif isinstance(kind, ast.Box):
             expression.ty = ast.ptr_type
@@ -350,7 +374,7 @@ class TypeChecker(BasePass):
         else:
             raise NotImplementedError(str(expression.kind))
 
-    def check_may_raise(self, exc_type: ast.MyType, location: Location):
+    def check_may_raise(self, exc_type: ast.Type, location: Location):
         if self._except_handlers:
             expected_exc_type = self._except_handlers[-1]
             if not self.unify(exc_type, expected_exc_type):
@@ -363,17 +387,35 @@ class TypeChecker(BasePass):
             self.error(location, "Cannot raise exception here")
 
     def check_arguments(
-        self, types: list[ast.MyType], values: list[ast.Expression], location: Location
+        self, types: list[ast.Type], values: list[ast.Expression], location: Location
     ):
         """Check amount and types a list of values"""
         if len(values) == len(types):
             for arg, expected_ty in zip(values, types):
-                self.assert_type(arg, expected_ty)
+                self.coerce(arg, expected_ty)
         else:
             self.error(location, f"Got {len(values)} arguments, expected {len(types)}")
 
-    def assert_type(self, expression: ast.Expression, ty: ast.MyType):
+    def assert_void(self, statement: ast.Statement):
+        if not statement.ty.is_unreachable():
+            self.check_type(statement.ty, ast.void_type, statement.location)
+
+    def assert_statement_type(self, statement: ast.Statement, ty: ast.Type):
+        self.check_type(statement.ty, ty, statement.location)
+
+    def merge_paths(self, statement: ast.Statement, ty: ast.Type) -> ast.Type:
+        if ty.is_unreachable():
+            return statement.ty
+        elif statement.ty.is_unreachable():
+            return ty
+        else:
+            self.check_type(statement.ty, ty, statement.location)
+            return ty
+
+    def coerce(self, expression: ast.Expression, ty: ast.Type):
         """Check if expression is of given type, raise error otherwise."""
+        if not isinstance(expression, ast.Expression):
+            raise TypeError(f"{expression} must be an ast.Expression")
 
         # Try to auto-convert before check:
         if expression.ty.is_int() and ty.is_float():
@@ -384,16 +426,14 @@ class TypeChecker(BasePass):
 
         self.check_type(expression.ty, ty, expression.location)
 
-    def check_type(
-        self, given_ty: ast.MyType, expected_ty: ast.MyType, location: Location
-    ):
+    def check_type(self, given_ty: ast.Type, expected_ty: ast.Type, location: Location):
         if not self.unify(given_ty, expected_ty):
             self.error(
                 location,
                 f"Expected {ast.str_ty(expected_ty)}, got {ast.str_ty(given_ty)}",
             )
 
-    def unify(self, a: ast.MyType, b: ast.MyType) -> bool:
+    def unify(self, a: ast.Type, b: ast.Type) -> bool:
         """Unify types a and b."""
         if isinstance(a.kind, ast.App) and isinstance(b.kind, ast.App):
             # Check equal tycon:
@@ -404,7 +444,7 @@ class TypeChecker(BasePass):
             return self.unify_many(a.kind.type_args, b.kind.type_args)
         elif isinstance(a.kind, ast.BaseType) and isinstance(b.kind, ast.BaseType):
             return a.kind.equals(b.kind)
-        elif isinstance(a.kind, ast.VoidType) and isinstance(b.kind, ast.VoidType):
+        elif a.is_void() and b.is_void():
             return True
         elif isinstance(a.kind, ast.TypeParameterKind) and isinstance(
             b.kind, ast.TypeParameterKind
@@ -448,20 +488,13 @@ class TypeChecker(BasePass):
         elif isinstance(b.kind, ast.Meta):
             # Simply swap comparison
             return self.unify(b, a)
+        elif a.is_unreachable() and b.is_unreachable():
+            return True
         else:
             return False
 
-    def unify_many(self, types1: list[ast.MyType], types2: list[ast.MyType]) -> bool:
+    def unify_many(self, types1: list[ast.Type], types2: list[ast.Type]) -> bool:
         if len(types1) == len(types2):
             return all(self.unify(u, v) for u, v in zip(types1, types2))
         else:
             return False
-
-
-def expand(t: ast.MyType) -> ast.MyType:
-    if isinstance(t.kind, ast.App) and isinstance(t.kind.tycon, ast.TypeFunc):
-        assert len(t.kind.tycon.type_parameters) == len(t.kind.type_args)
-        m = dict(zip(t.kind.tycon.type_parameters, t.kind.type_args))
-        return expand(subst(t.kind.tycon.ty, m))
-    else:
-        return t
