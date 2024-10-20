@@ -37,11 +37,11 @@ class Type:
             App(tycon, type_arguments):
                 case tycon:
                     Enum(x):
-                        return true
+                        true
                 else:
-                    return false
+                    false
         else:
-            return false
+            false
 
     fn get_enum_def() -> EnumDef:
         case kind:
@@ -63,11 +63,11 @@ class Type:
             App(tycon, type_arguments):
                 case tycon:
                     Class(x):
-                        return true
+                        true
                 else:
-                    return false
+                    false
         else:
-            return false
+            false
 
     fn is_int() -> bool:
         case kind:
@@ -107,100 +107,100 @@ class Type:
     fn is_void() -> bool:
         case kind:
             Void:
-                return true
+                true
         else:
-            return false
+            false
 
     fn is_unreachable() -> bool:
         case kind:
             Unreachable:
-                return true
+                true
         else:
-            return false
+            false
 
     fn is_str() -> bool:
         case kind:
             Base(base):
                 case base:
                     Str:
-                        return true
+                        true
                 else:
-                    return false
+                    false
         else:
-            return false
+            false
 
     fn is_char() -> bool:
         case kind:
             Base(base):
                 case base:
                     Char:
-                        return true
+                        true
                 else:
-                    return false
+                    false
         else:
-            return false
+            false
 
     fn is_bool() -> bool:
         case kind:
             Base(base):
                 case base:
                     Bool:
-                        return true
+                        true
                 else:
-                    return false
+                    false
         else:
-            return false
+            false
 
     fn is_float() -> bool:
         case kind:
             Base(base):
                 case base:
                     Float(bits):
-                        return true
+                        true
                 else:
-                    return false
+                    false
         else:
-            return false
+            false
 
     fn is_base_type() -> bool:
         case kind:
             Base(base):
-                return true
+                true
         else:
-            return false
+            false
 
     fn get_base_type() -> BaseType:
         case kind:
             Base(base):
-                return base
+                base
         else:
             panic("get_base_type: Not a base type")
 
     fn is_opaque() -> bool:
         case kind:
             Opaque:
-                return true
+                true
         else:
-            return false
+            false
 
     fn is_array() -> bool:
         case kind:
             Array(element_type, size):
-                return true
+                true
         else:
-            return false
+            false
 
     fn get_element_type() -> Type:
         case kind:
             Array(element_type, size):
-                return element_type
+                element_type
         else:
             panic("No array type")
 
     fn get_array_size() -> int:
         case kind:
             Array(element_type, size):
-                return size
+                size
         else:
             panic("No array type")
 
@@ -348,49 +348,49 @@ class Type:
     fn is_tycon_app() -> bool:
         case kind:
             App(tycon, args):
-                return true
+                true
         else:
-            return false
+            false
 
     fn get_tycon() -> TyCon:
         case kind:
             App(tycon, args):
-                return tycon
+                tycon
         else:
             panic("Must be App type")
 
     fn get_type_arguments() -> List[Type]:
         case kind:
             App(tycon, args):
-                return args
+                args
         else:
             panic("Must be App type")
 
     fn is_type_parameter() -> bool:
         case kind:
             TypeParam(p):
-                return true
+                true
         else:
-            return false
+            false
 
     fn get_type_parameter() -> TypeParameter:
         case kind:
             TypeParam(p):
-                return p
+                p
         else:
             panic("Type must be type parameter")
 
     fn is_type_var() -> bool:
         case kind:
             TypeVar(v):
-                return true
+                true
         else:
-            return false
+            false
 
     fn get_type_var() -> TypeVariable:
         case kind:
             TypeVar(v):
-                return v
+                v
         else:
             panic("Type must be type variable reference")
 
@@ -1479,6 +1479,7 @@ enum ExpressionKind:
     TypeConstructor(tycon: TyCon)
     Variant(ty: Type, variant: EnumVariant)
     EnumLiteral(ty: Type, variant: EnumVariant, values: List[Expression])
+    Stmt(statement: Statement)
     Undefined
     Null
 
@@ -1529,6 +1530,12 @@ struct FunctionCall:
 
 fn subscript(base: Expression, indici: List[Expression], ty: Type, location: Location) -> Expression:
     let kind = ExpressionKind.GetIndex(base, indici)
+    return Expression(kind, ty, location)
+
+fn statement_expression(statement: Statement) -> Expression:
+    let kind = ExpressionKind.Stmt(statement)
+    let ty = statement.ty
+    let location = statement.location
     return Expression(kind, ty, location)
 
 fn cast(value: Expression, to_type: Type, location: Location) -> Expression:
@@ -1719,49 +1726,46 @@ fn print_ast_type(printer: AstPrinter, ty: Type, phase: VisitPhase):
         pass
 
 fn statement_to_string(statement: Statement) -> str:
-    let txt = "?"
     case statement.kind:
         Expr(x):
-            txt = "EXPR"
+            "EXPR"
         Assignment(target, op, expr):
             case op:
                 Some(op):
                     let op_txt = binary_op_to_str(op)
-                    txt = "ASSIGN({op_txt})"
+                    "ASSIGN({op_txt})"
                 None:
-                    txt = "ASSIGN"
+                    "ASSIGN"
         If(x):
-            txt = "IF"
+            "IF"
         Return(x):
-            txt = "RETURN"
+            "RETURN"
         Raise(x):
-            txt = "RAISE"
+            "RAISE"
         Compound(x):
-            txt = "COMPOUND"
+            "COMPOUND"
         Pass:
-            txt = "PASS"
+            "PASS"
         Break:
-            txt = "BREAK"
+            "BREAK"
         Continue:
-            txt = "CONTINUE"
+            "CONTINUE"
         Loop(loopy):
-            txt = "LOOP"
+            "LOOP"
         While(whilly):
-            txt = "WHILE"
+            "WHILE"
         For(f):
-            txt = "FOR"
+            "FOR"
         Try(t):
-            txt = "TRY"
+            "TRY"
         Case(f):
-            txt = "CASE"
+            "CASE"
         Let(letty):
-            txt = "LET {node_id_to_string(letty.variable.id)}"
+            "LET {node_id_to_string(letty.variable.id)}"
         Switch(switchy):
-            txt = "SWITCH"
+            "SWITCH"
         Unreachable:
-            txt = "UNREACHABLE"
-    
-    return txt
+            "UNREACHABLE"
 
 fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPhase):
     case phase:
@@ -1774,76 +1778,78 @@ fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPh
         pass
 
 fn expression_to_string(expression?: Expression) -> str:
-    let txt = "?"
     case expression.kind:
         StringLiteral(value):
-            txt = "String={value}"
+            "String={value}"
         CharLiteral(value):
-            txt = "Char={value}"
+            "Char={value}"
         IntLiteral(value):
-            txt = "Integer={value}"
+            "Integer={value}"
         FloatLiteral(val):
-            txt = "Float={float_to_str(val)}"
+            "Float={float_to_str(val)}"
         BoolLiteral(val):
             if val:
-                txt = "Bool(true)"
+                "Bool(true)"
             else:
-                txt = "Bool(false)"
+                "Bool(false)"
         Call(c):
-            txt = "CALL"
+            "CALL"
         NameRef(name):
-            txt = "REF({name})"
+            "REF({name})"
         LoadSymbol(symbol):
-            txt = "LOAD_SYM({symbol_to_str(symbol)})"
+            "LOAD_SYM({symbol_to_str(symbol)})"
         GetAttr(base, attr):
-            txt = "GET-ATTR({attr})"
+            "GET-ATTR({attr})"
         GetIndex(base, indici):
-            txt = "GET-INDEX"
+            "GET-INDEX"
         Undefined:
-            txt = "UNDEFINED"
+            "UNDEFINED"
         Null:
-            txt = "NULL"
+            "NULL"
         Binop(op):
             let op_txt = binary_op_to_str(op: op.op)
-            txt = "BINOP({op_txt})"
+            "BINOP({op_txt})"
         Unop(op, value):
             let op_txt = unary_op_to_str(op)
-            txt = "UNOP({op_txt})"
+            "UNOP({op_txt})"
         VarRef(v):
-            txt = "VAR-REF({node_id_to_string(v.id)})"
+            "VAR-REF({node_id_to_string(v.id)})"
         FunctionRef(function, type_arguments):
-            txt = "FN-{function.name}"
-            if not type_arguments.is_empty():
-                txt = txt + types_to_string(typs: type_arguments)
+            let txt = "FN-{function.name}"
+            if type_arguments.is_empty():
+                txt
+            else:
+                txt + types_to_string(typs: type_arguments)
         ParameterRef(parameter_def):
-            txt = "parameter:{node_id_to_string(parameter_def.id)}"
+            "parameter:{node_id_to_string(parameter_def.id)}"
         StructLiteral(ty, values):
-            txt = "STRUCT-LITERAL"
+            "STRUCT-LITERAL"
         UnionLiteral(ty, field, value):
-            txt = "UNION-LITERAL field={field}"
+            "UNION-LITERAL field={field}"
         ClassLiteral(ty, arguments):
-            txt = "CLASS-LITERAL"
+            "CLASS-LITERAL"
         ArrayLiteral(values):
-            txt = "ARRAY-LITERAL"
+            "ARRAY-LITERAL"
         ArrayLiteral2(size, ty):
-            txt = "ARRAY-LITERAL2"
+            "ARRAY-LITERAL2"
         TypeCast(ty, value):
-            txt = "TYPE-CAST"
+            "TYPE-CAST"
         Box(value):
-            txt = "BOX"
+            "BOX"
         Unbox(value, to_type):
-            txt = "UNBOX"
+            "UNBOX"
         ToString(value):
-            txt = "TOSTRING"
+            "TOSTRING"
         Typ(ty):
-            txt = "TYPE"
+            "TYPE"
         TypeConstructor(tycon):
-            txt = "TYPE-CONSTRUCTOR"
+            "TYPE-CONSTRUCTOR"
         Variant(ty, v):
-            txt = "VARIANT"
+            "VARIANT"
         EnumLiteral(ty, v, values):
-            txt = "ENUM-LITERAL"
-    return txt
+            "ENUM-LITERAL"
+        Stmt(statement):
+            statement_to_string(statement)
 
 fn print_ast_expression(printer: AstPrinter, expression: Expression, phase: VisitPhase):
     case phase:
@@ -1860,52 +1866,48 @@ fn print_ast_node(printer: AstPrinter, node: VisitNode, phase: VisitPhase):
     pass
 
 fn binary_op_to_str(op?: BinaryOperator) -> str:
-    let op_txt = "?"
     case op:
         And:
-            op_txt = "and"
+            "and"
         Or:
-            op_txt = "or"
+            "or"
         Greater:
-            op_txt = ">"
+            ">"
         GreaterEquals:
-            op_txt = ">="
+            ">="
         Less:
-            op_txt = "<"
+            "<"
         LessEquals:
-            op_txt = "<="
+            "<="
         Equals:
-            op_txt = "="
+            "="
         NotEquals:
-            op_txt = "!="
+            "!="
         BitAnd:
-            op_txt = "bitand"
+            "bitand"
         BitXor:
-            op_txt = "bitxor"
+            "bitxor"
         BitOr:
-            op_txt = "bitor"
+            "bitor"
         ShiftLeft:
-            op_txt = "shl"
+            "shl"
         ShiftRight:
-            op_txt = "shr"
+            "shr"
         Add:
-            op_txt = "+"
+            "+"
         Sub:
-            op_txt = "-"
+            "-"
         Mul:
-            op_txt = "*"
+            "*"
         Div:
-            op_txt = "/"
-    return op_txt
+            "/"
 
 fn unary_op_to_str(op: UnaryOperator) -> str:
-    let op_txt = "?"
     case op:
         Not:
-            op_txt = "not"
+            "not"
         Minus:
-            op_txt = "-"
-    return op_txt
+            "-"
 
 struct Visitor[D]:
     data: D
@@ -2136,6 +2138,8 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         EnumLiteral(ty, v, values):
             for value in values:
                 visit_expression(visitor, expression: value)
+        Stmt(statement):
+            visit_statement(visitor, statement)
     else:
         pass
 

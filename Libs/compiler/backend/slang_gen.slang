@@ -115,7 +115,14 @@ class SlangGenerator:
                 gen_if_statement(if_statement, kw: "if")
             Let(let_statement):
                 # TODO: insert type hint?
-                emit("let {get_id(let_statement.variable.id)} = {gen_expression(let_statement.value, parens: false)}")
+                let varname = get_id(let_statement.variable.id)
+                case let_statement.value.kind:
+                    Stmt(statement2):
+                        # TODO: this is invalid slang-lang:
+                        emit("let {varname} = ")
+                        gen_statement(statement2)
+                else:
+                    emit("let {varname} = {gen_expression(let_statement.value, parens: false)}")
             Pass:
                 emit("pass")
             Break:

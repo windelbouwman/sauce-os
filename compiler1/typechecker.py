@@ -371,6 +371,8 @@ class TypeChecker(BasePass):
             expression.ty = ast.ptr_type
         elif isinstance(kind, ast.Unbox):
             expression.ty = kind.to_type
+        elif isinstance(kind, ast.StatementExpression):
+            expression.ty = kind.statement.ty
         else:
             raise NotImplementedError(str(expression.kind))
 

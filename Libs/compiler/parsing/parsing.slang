@@ -346,29 +346,31 @@ class Parser:
 
     fn parse_function_info() -> ast.FunctionInfo except CompilationError:
         let return_type = parse_optional_return_type()
+        let except_type = parse_optional_except_type()
 
-        # Optional except type
-        let except_type: ast.Type = ast.void_type()
-        let tok = get_token()
-        case tok.kind:
-            KwExcept:
-                except_type = parse_type()
-        else:
-            unget_token(tok)
         if has_parsed_question():
             return_type = ast.unreachable_type()
         return ast.FunctionInfo(return_type, except_type)
 
     fn parse_optional_return_type() -> ast.Type except CompilationError:
         # Optional return type
-        let return_type: ast.Type = ast.void_type()
         let tok = get_token()
         case tok.kind:
             Arrow:
-                return_type = parse_type()
+                parse_type()
         else:
             unget_token(tok)
-        return return_type
+            ast.void_type()
+
+    fn parse_optional_except_type() -> ast.Type except CompilationError:
+        # Optional except type
+        let tok = get_token()
+        case tok.kind:
+            KwExcept:
+                parse_type()
+        else:
+            unget_token(tok)
+            ast.void_type()
 
     fn parse_parameter_def() -> ast.ParameterDef except CompilationError:
         let name_at = parse_name()
@@ -395,14 +397,13 @@ class Parser:
             return Option.None()
 
     fn has_parsed_question() -> bool:
-        let q = false
         let tok = get_token()
         case tok.kind:
             Question:
-                q = true
+                true
         else:
             unget_token(tok)
-        return q
+            false
 
     fn parse_var_def() -> ast.VariableDef except CompilationError:
         let name_at = parse_name()
@@ -490,37 +491,37 @@ class Parser:
         case tok.kind:
             KwPass:
                 parse_newline()
-                return ast.pass_statement(location: tok.location)
+                ast.pass_statement(location: tok.location)
             KwBreak:
                 parse_newline()
-                return ast.break_statement(location: tok.location)
+                ast.break_statement(location: tok.location)
             KwContinue:
                 parse_newline()
-                return ast.continue_statement(location: tok.location)
+                ast.continue_statement(location: tok.location)
             KwLet:
-                return parse_let_statement(location: tok.location)
+                parse_let_statement(location: tok.location)
             KwIf:
-                return parse_if_statement(location: tok.location)
+                parse_if_statement(location: tok.location)
             KwLoop:
                 let body = parse_block()
-                return ast.loop_statement(body, location: tok.location)
+                ast.loop_statement(body, location: tok.location)
             KwWhile:
-                return parse_while_statement(location: tok.location)
+                parse_while_statement(location: tok.location)
             KwCase:
-                return parse_case_statement(location: tok.location)
+                parse_case_statement(location: tok.location)
             KwSwitch:
-                return parse_switch_statement(location: tok.location)
+                parse_switch_statement(location: tok.location)
             KwFor:
-                return parse_for_statement(location: tok.location)
+                parse_for_statement(location: tok.location)
             KwTry:
-                return parse_try_statement(location: tok.location)
+                parse_try_statement(location: tok.location)
             KwReturn:
-                return parse_return_statement(location: tok.location)
+                parse_return_statement(location: tok.location)
             KwRaise:
-                return parse_raise_statement(location: tok.location)
+                parse_raise_statement(location: tok.location)
         else:
             unget_token(tok)
-            return parse_expression_statement()
+            parse_expression_statement()
 
     fn parse_expression_statement() -> ast.Statement except CompilationError:
         let expr = parse_expression()
@@ -555,27 +556,38 @@ class Parser:
         let var_type = ast.undefined_type()
         let variable = ast.variable(name: var_name, id: new_id(), ty: var_type, location: name_at.location)
         
-        let type_hint: Option[ast.Type] = Option.None()
-
         let tok2 = get_token()
-        case tok2.kind:
+        let type_hint: Option[ast.Type] = case tok2.kind:
             Colon:
                 # Type hint!
-                type_hint = Option.Some(parse_type())
+                Option.Some(parse_type())
         else:
             unget_token(tok2)
+            Option[ast.Type].None()
 
         parse_equals()
-        let value = parse_expression()
 
+        let value = ast.undefined_value()
         tok2 = get_token()
         case tok2.kind:
-            NewLine:
-                pass
-            Colon:
-                value = parse_obj_init(obj_ty: value, location: tok2.location)
+            KwIf:
+                value = ast.statement_expression(statement: parse_if_statement(location: tok2.location))
+            KwCase:
+                value = ast.statement_expression(statement: parse_case_statement(location: tok2.location))
+            KwSwitch:
+                value = ast.statement_expression(statement: parse_switch_statement(location: tok2.location))
         else:
-            raise unexpected_token(tok: tok2, expected: "newline or ':'")
+            unget_token(tok2)
+            value = parse_expression()
+
+            tok2 = get_token()
+            case tok2.kind:
+                NewLine:
+                    pass
+                Colon:
+                    value = parse_obj_init(obj_ty: value, location: tok2.location)
+            else:
+                raise unexpected_token(tok: tok2, expected: "newline or ':'")
         
         return ast.let_statement(variable, type_hint, value, location)
     
@@ -609,12 +621,11 @@ class Parser:
 
         # Parse expression
         let value = parse_expression()
-        let name: Option[str] = Option.None()
-        case value.kind:
+        let name: Option[str] = case value.kind:
             NameRef(name2):
-                name = Option.Some(name2)
+                Option.Some(name2)
         else:
-            pass
+            Option[str].None()
         return ast.LabeledExpression(location: value.location, name, value)
 
     fn parse_if_statement(location: Location) -> ast.Statement except CompilationError:
@@ -852,36 +863,36 @@ class Parser:
             KwNot:
                 let value = parse_unary()
                 let op = ast.UnaryOperator.Not()
-                return ast.unop(op, value, ty: ast.undefined_type(), location: tok.location)
+                ast.unop(op, value, ty: ast.undefined_type(), location: tok.location)
             Minus:
                 let value = parse_unary()
                 let op = ast.UnaryOperator.Minus()
-                return ast.unop(op, value, ty: ast.undefined_type(), location: tok.location)
+                ast.unop(op, value, ty: ast.undefined_type(), location: tok.location)
         else:
             unget_token(tok)
-            return parse_atom()
+            parse_atom()
 
     fn parse_atom() -> ast.Expression except CompilationError:
-        let expr = ast.undefined_value()
         let tok = get_token()
-        case tok.kind:
+        let expr = case tok.kind:
             Integer(value):
-                expr = ast.integer_literal(value, location: tok.location)
+                ast.integer_literal(value, location: tok.location)
             Float(value):
-                expr = ast.float_literal(value, location: tok.location)
+                ast.float_literal(value, location: tok.location)
             StringStart:
-                expr = parse_string(location: tok.location)
+                parse_string(location: tok.location)
             Char(value):
-                expr = ast.char_literal(value, location: tok.location)
+                ast.char_literal(value, location: tok.location)
             Bool(value):
-                expr = ast.bool_literal(value, location: tok.location)
+                ast.bool_literal(value, location: tok.location)
             Identifier(name):
-                expr = ast.name_ref(name, location: tok.location)
+                ast.name_ref(name, location: tok.location)
             ParenthesisOpen:
-                expr = parse_expression()
+                let expr = parse_expression()
                 parse_parenthesis_close()
+                expr
             BracketOpen:
-                expr = parse_array_literal(location: tok.location)
+                parse_array_literal(location: tok.location)
         else:
             raise unexpected_token(tok, expected: "integer, string, identifier, '('")
 

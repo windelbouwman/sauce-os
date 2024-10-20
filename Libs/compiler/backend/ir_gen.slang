@@ -254,9 +254,13 @@ class BytecodeGenerator:
             Case(case_statement):
                 panic("Case-statement not supported")
             Let(let_statement):
-                gen_expression(let_statement.value)
                 let var_index = add_local(variable: let_statement.variable)
-                emit(Instruction.LocalSet(var_index))
+                case let_statement.value.kind:
+                    Stmt(statement2):
+                        gen_statement(statement2, target: Option.Some(var_index))
+                else:
+                    gen_expression(let_statement.value)
+                    emit(Instruction.LocalSet(var_index))
             Compound(inner):
                 let n = inner.len()
                 let i = 0

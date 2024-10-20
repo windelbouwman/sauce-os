@@ -416,6 +416,9 @@ class CustomTransformer(LarkTransformer):
     def statement(self, x):
         return x[0]
 
+    def block_statement(self, x):
+        return x[0]
+
     def simple_statement(self, x):
         if isinstance(x[0], ast.Expression):
             return ast.expression_statement(x[0], x[0].location)
@@ -513,14 +516,22 @@ class CustomTransformer(LarkTransformer):
         return ast.SwitchArm(x[0], x[1], x[0].location)
 
     def let_statement(self, x):
-        """KW_LET ID (COLON typ)? EQUALS expression NEWLINE"""
+        """
+        let_statement: KW_LET ID (COLON typ)? EQUALS test NEWLINE
+                    | KW_LET ID (COLON typ)? EQUALS obj_init
+                    | KW_LET ID (COLON typ)? EQUALS block_statement
+        """
         variable = self.new_variable(x[1].value, ast.void_type, get_loc(x[1]))
         if is_terminal(x[2], "COLON"):
-            assert is_terminal(x[4], "EQUALS")
-            ty, value = x[3], x[5]
+            ty = x[3]
+            x = x[2:]
         else:
-            assert is_terminal(x[2], "EQUALS")
-            ty, value = None, x[3]
+            ty = None
+
+        assert is_terminal(x[2], "EQUALS")
+        value = x[3]
+        if isinstance(value, ast.Statement):
+            value = ast.statement_expression(value, value.location)
         return ast.let_statement(variable, ty, value, get_loc(x[0]))
 
     def while_statement(self, x):
@@ -818,15 +829,7 @@ ids: ID
 block: COLON NEWLINE INDENT statement+ DEDENT
 
 statement: simple_statement NEWLINE
-         | if_statement
-         | while_statement
-         | loop_statement
-         | let_statement
-         | for_statement
-         | case_statement
-         | switch_statement
-         | try_statement
-
+         | block_statement
 simple_statement: expression
                 | break_statement
                 | continue_statement
@@ -834,6 +837,14 @@ simple_statement: expression
                 | assignment_statement
                 | return_statement
                 | raise_statement
+block_statement: if_statement
+               | while_statement
+               | loop_statement
+               | let_statement
+               | for_statement
+               | case_statement
+               | switch_statement
+               | try_statement
 
 break_statement: KW_BREAK
 continue_statement: KW_CONTINUE
@@ -848,6 +859,7 @@ elif_clause: KW_ELIF test block
 else_clause: KW_ELSE block
 let_statement: KW_LET ID (COLON typ)? EQUALS test NEWLINE
              | KW_LET ID (COLON typ)? EQUALS obj_init
+             | KW_LET ID (COLON typ)? EQUALS block_statement
 while_statement: KW_WHILE test block
 loop_statement: KW_LOOP block
 for_statement: KW_FOR ID KW_IN expression block

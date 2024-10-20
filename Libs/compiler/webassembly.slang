@@ -33,17 +33,15 @@ struct Type:
     results: List[ValueType]
 
 fn value_type_to_string(ty?: ValueType) -> str:
-    let txt = "?"
     case ty:
         i32:
-            txt = "i32"
+            "i32"
         i64:
-            txt = "i64"
+            "i64"
         f32:
-            txt = "f32"
+            "f32"
         f64:
-            txt = "f64"
-    return txt
+            "f64"
 
 fn type_to_string(ty?: Type) -> str:
     let parts2: List[str] = List()

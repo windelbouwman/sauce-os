@@ -42,28 +42,28 @@ pub fn parse_json(text: str) -> JsonValue except JsonException:
 pub fn json_to_string(value?: JsonValue) -> str:
     case value:
         Integer(value):
-            return "{value}"
+            "{value}"
         Bool(value):
             if value:
-                return "true"
+                "true"
             else:
-                return "false"
+                "false"
         String(text):
-            return "\"{text}\""
+            "\"{text}\""
         Object(items):
             let parts: List[str] = List()
             for item in items:
                 parts.append("\"{item.key}\": {json_to_string(item.value)}")
             let txt = str_join(parts, sep: ", ")
-            return "\{ {txt} \}"
+            "\{ {txt} \}"
         Array(values):
             let parts: List[str] = List()
             for value in values:
                 parts.append(json_to_string(value))
             let txt = str_join(parts, sep: ", ")
-            return "[ {txt} ]"
+            "[ {txt} ]"
         Null:
-            return "null"
+            "null"
 
 struct JsonException:
     message: str
@@ -108,7 +108,7 @@ class JsonBrowser:
     fn get_array_values() -> List[JsonValue]:
         case m_value:
             Array(values):
-                return values
+                values
         else:
             panic("Not a JSON array")
 
@@ -140,7 +140,7 @@ class JsonBrowser:
         # Get text from current node
         case m_value:
             String(text):
-                return text
+                text
         else:
             panic("Not a JSON text")
 
@@ -148,7 +148,7 @@ class JsonBrowser:
         # Get integer from current node
         case m_value:
             Integer(value):
-                return value
+                value
         else:
             panic("Not a JSON integer")
 
@@ -156,7 +156,7 @@ class JsonBrowser:
         # Get boolean from current node
         case m_value:
             Bool(value):
-                return value
+                value
         else:
             panic("Not a JSON bool")
 
@@ -351,29 +351,29 @@ enum JsonTokenKind:
 fn token_to_str(token: JsonToken) -> str:
     case token.kind:
         BracketLeft:
-            return "BracketLeft"
+            "BracketLeft"
         BracketRight:
-            return "BracketRight"
+            "BracketRight"
         BraceLeft:
-            return "BraceLeft"
+            "BraceLeft"
         BraceRight:
-            return "BraceRight"
+            "BraceRight"
         Comma:
-            return "Comma"
+            "Comma"
         Colon:
-            return "Colon"
+            "Colon"
         Integer(value):
-            return "Integer({value})"
+            "Integer({value})"
         String(text):
-            return "String({text})"
+            "String({text})"
         Id(text):
-            return "Id({text})"
+            "Id({text})"
         Eof:
-            return "Eof"
+            "Eof"
         UnexpectedEof:
-            return "UnexpectedEof"
+            "UnexpectedEof"
         Error(c):
-            return "Error({ord(c)})"
+            "Error({ord(c)})"
 
 class Lexer:
     var text: str
@@ -439,12 +439,12 @@ class Lexer:
         panic("Unreachable")
     
     fn create_token(kind?: JsonTokenKind) -> JsonToken:
-        return JsonToken(kind, pos: index)
+        JsonToken(kind, pos: index)
 
 fn is_id(c: char) -> bool:
     let o = ord(c)
     if (o >= 97) and (o <= 122):
-        return true
+        true
     else:
-        return false
+        false
 

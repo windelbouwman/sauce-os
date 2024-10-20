@@ -1568,6 +1568,18 @@ class ArrayIndex(ExpressionKind):
         self.indici = indici
 
 
+def statement_expression(statement, location):
+    kind = StatementExpression(statement)
+    ty = void_type
+    return Expression(kind, ty, location)
+
+
+class StatementExpression(ExpressionKind):
+    def __init__(self, statement: "Statement"):
+        super().__init__()
+        self.statement = statement
+
+
 class Variable(Definition):
     def __init__(self, id: Id, ty: Type, location: Location):
         super().__init__(id, location)
@@ -1787,6 +1799,8 @@ class AstVisitor:
         elif isinstance(kind, Unbox):
             self.visit_type(kind.to_type)
             self.visit_expression(kind.value)
+        elif isinstance(kind, StatementExpression):
+            self.visit_statement(kind.statement)
 
 
 def print_ast(module: Module):

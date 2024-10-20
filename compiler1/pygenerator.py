@@ -92,14 +92,18 @@ class PyCodeGenerator:
     def gen_statement(self, statement: ast.Statement, target):
         kind = statement.kind
         if isinstance(kind, ast.LetStatement):
-            val = self.gen_expression(kind.value)
-            self.emit(f"{self.gen_id(kind.variable.id)} = {val}")
+            varname = self.gen_id(kind.variable.id)
+            if isinstance(kind.value.kind, ast.StatementExpression):
+                self.gen_statement(kind.value.kind.statement, varname)
+            else:
+                val = self.gen_expression(kind.value)
+                self.emit(f"{varname} = {val}")
         elif isinstance(kind, ast.CompoundStatement):
             for statement in kind.statements[:-1]:
                 self.gen_statement(statement, None)
             self.gen_statement(kind.statements[-1], target)
         elif isinstance(kind, ast.IfStatement):
-            res = self.gen_if_statement(kind, "if", target)
+            self.gen_if_statement(kind, "if", target)
         elif isinstance(kind, ast.WhileStatement):
             val = self.gen_expression(kind.condition, parens=False)
             self.emit(f"while {val}:")
@@ -132,6 +136,7 @@ class PyCodeGenerator:
             if kind.value.ty.is_void() or kind.value.ty.is_unreachable():
                 self.emit(x)
             else:
+                assert target
                 self.emit(f"{target} = {x}")
         elif isinstance(kind, ast.RaiseStatement):
             self.emit(
@@ -221,6 +226,8 @@ class PyCodeGenerator:
             callee = self.gen_expression(kind.target)
             args = self.gen_expressions([a.value for a in kind.args])
             return f"{callee}({args})"
+        elif isinstance(kind, ast.StatementExpression):
+            raise RuntimeError("Cannot generate statement expression on the stack")
         else:
             raise NotImplementedError(str(kind))
 

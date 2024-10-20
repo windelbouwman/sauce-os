@@ -7,6 +7,14 @@ fn main() -> int:
     std.print("Str: {test2(x: 1)}")
     let token = Token.Id(name: "w00t")
     std.print("Token: {test3(token)}")
+    let a = switch 3:
+        2:
+            1
+        3:
+            15
+    else:
+        100
+    std.print("a={a}")
     0
 
 enum Token:

@@ -133,17 +133,20 @@ class ByteCodeGenerator:
         for parameter in func_def.parameters:
             self._locals.append(parameter)
             params.append(self.get_bc_ty(parameter.ty))
-        self.gen_statement(func_def.statement)
-        ret_ty = self.get_bc_ty(func_def.return_ty)
 
-        if len(self._code) == 0:
-            # TODO: emit implicit return?
+        if func_def.statement.ty.is_void():
+            self.gen_statement(func_def.statement, None)
             self.emit(OpCode.RETURN, 0)
-        elif self._code[-1][0] != OpCode.RETURN:
-            if func_def.return_ty.is_void():
-                self.emit(OpCode.RETURN, 0)
-            else:
-                self.emit(OpCode.RETURN, 1)
+        elif func_def.statement.ty.is_unreachable():
+            self.gen_statement(func_def.statement, None)
+        else:
+            variable = ast.Variable(
+                ast.Id("_SNAG", 0), func_def.statement.ty, func_def.location
+            )
+            index = self.new_local(variable)
+            self.gen_statement(func_def.statement, index)
+            self.emit(OpCode.LOCAL_GET, index)
+            self.emit(OpCode.RETURN, 1)
 
         # Fix labels:
         code = []
@@ -156,6 +159,7 @@ class ByteCodeGenerator:
                 operands = (self._label_map[operands[0]],)
             code.append((opcode, operands))
 
+        ret_ty = self.get_bc_ty(func_def.return_ty)
         self._functions.append(
             bc.Function(
                 self.get_id(func_def.id), code, params, self._local_typs, ret_ty
@@ -176,16 +180,19 @@ class ByteCodeGenerator:
     def leave_block(self):
         self._loops.pop(0)
 
-    def gen_statement(self, statement: ast.Statement):
+    def gen_statement(self, statement: ast.Statement, target):
         kind = statement.kind
         if isinstance(kind, ast.LetStatement):
-            self.gen_expression(kind.value)
-            self._locals.append(kind.variable)
-            self._local_typs.append(self.get_bc_ty(kind.variable.ty))
-            self.emit(OpCode.LOCAL_SET, self._locals.index(kind.variable))
+            index = self.new_local(kind.variable)
+            if isinstance(kind.value.kind, ast.StatementExpression):
+                self.gen_statement(kind.value.kind.statement, index)
+            else:
+                self.gen_expression(kind.value)
+                self.emit(OpCode.LOCAL_SET, index)
         elif isinstance(kind, ast.CompoundStatement):
-            for s in kind.statements:
-                self.gen_statement(s)
+            for s in kind.statements[:-1]:
+                self.gen_statement(s, None)
+            self.gen_statement(kind.statements[-1], target)
         elif isinstance(kind, ast.BreakStatement):
             loop = self.goto_inner_loop()
             self.emit(OpCode.JUMP, loop.final_label)
@@ -210,7 +217,7 @@ class ByteCodeGenerator:
             self.emit(OpCode.JUMP_IF, body_label, final_label)
 
             self.set_label(body_label)
-            self.gen_statement(kind.block.body)
+            self.gen_statement(kind.block.body, None)
             self.emit(OpCode.JUMP, start_label)
 
             self.leave_block()
@@ -224,17 +231,24 @@ class ByteCodeGenerator:
             self.emit(OpCode.JUMP_IF, true_label, false_label)
 
             self.set_label(true_label)
-            self.gen_statement(kind.true_block.body)
+            self.gen_statement(kind.true_block.body, target)
             self.emit(OpCode.JUMP, final_label)
 
             self.set_label(false_label)
-            self.gen_statement(kind.false_block.body)
+            self.gen_statement(kind.false_block.body, target)
             self.emit(OpCode.JUMP, final_label)
 
             self.set_label(final_label)
 
         elif isinstance(kind, ast.ExpressionStatement):
             self.gen_expression(kind.value)
+            if kind.value.ty.is_void():
+                assert target is None
+            elif kind.value.ty.is_unreachable():
+                pass
+            else:
+                assert target is not None
+                self.emit(OpCode.LOCAL_SET, target)
 
         elif isinstance(kind, ast.SwitchStatement):
             raise NotImplementedError("switch")
@@ -302,7 +316,7 @@ class ByteCodeGenerator:
 
             self.emit(OpCode.SETUP_EXCEPT, except_label)
             self.enter_block(TryBlock())
-            self.gen_statement(kind.try_block.body)
+            self.gen_statement(kind.try_block.body, None)
             self.leave_block()
             self.emit(OpCode.POP_EXCEPT)
             self.emit(OpCode.JUMP, final_label)
@@ -311,7 +325,7 @@ class ByteCodeGenerator:
             local_index = self._locals.index(kind.parameter)
             self.emit(OpCode.LOCAL_SET, local_index)
 
-            self.gen_statement(kind.except_block.body)
+            self.gen_statement(kind.except_block.body, None)
             self.emit(OpCode.JUMP, final_label)
 
             self.set_label(final_label)
@@ -403,8 +417,15 @@ class ByteCodeGenerator:
                 self.emit(OpCode.BUILTIN, f"{obj.modname}_{obj.id.name}")
             else:
                 raise NotImplementedError(str(obj))
+        elif isinstance(kind, ast.StatementExpression):
+            raise RuntimeError("can not use StatementExpression")
         else:
             raise NotImplementedError(str(kind))
+
+    def new_local(self, variable):
+        self._locals.append(variable)
+        self._local_typs.append(self.get_bc_ty(variable.ty))
+        return self._locals.index(variable)
 
     def get_id(self, id: ast.Id) -> str:
         if id.name == "main":

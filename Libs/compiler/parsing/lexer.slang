@@ -114,16 +114,15 @@ class Lexer:
         if offset < source_length:
             # Start of new token:
             tok_begin = offset
-            let kind = TokenKind.None()
             let begin_column = tok_begin - col_start + start_col
             let begin = Position(row: row, column: begin_column)
 
             # Decide what to do based on char:
-            case m_mode:
+            let kind = case m_mode:
                 Normal:
-                    kind = parse_normal_token()
+                    parse_normal_token()
                 String:
-                    kind = parse_string_token()
+                    parse_string_token()
 
             let end_column = offset - 1
             end_column = end_column - col_start + start_col

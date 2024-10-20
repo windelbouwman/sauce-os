@@ -444,6 +444,8 @@ class TypeChecker:
                 expression.ty = ast.int_type()
             FloatLiteral(b):
                 expression.ty = ast.float_type()
+            Stmt(statement):
+                expression.ty = statement.ty
 
     fn check_arguments(location: Location, parameter_types: List[ast.Type], arguments: List[ast.Expression]):
         if parameter_types.len() == arguments.len():

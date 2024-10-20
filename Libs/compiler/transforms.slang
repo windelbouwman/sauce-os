@@ -1077,15 +1077,14 @@ class ClassRewriter:
                 let union_type = struct_type.get_field_type(attr: "data")
 
                 let union_field_name = "data_{variant.name}"
-                let union_value = ast.undefined_value()
-                if values.len() == 0:
+                let union_value = if values.len() == 0:
                     union_field_name = "nodata"
-                    union_value = ast.null_value(location)
+                    ast.null_value(location)
                 elif values.len() == 1:
-                    union_value = values.first()
-                elif values.len() > 1:
+                    values.first()
+                else:
                     let struct_type2 = union_type.get_field_type(attr: union_field_name)
-                    union_value = ast.struct_literal(ty: struct_type2, values, location)
+                    ast.struct_literal(ty: struct_type2, values, location)
                 let data = ast.union_literal(ty: union_type, field: union_field_name, value: union_value, location)
                 return ast.struct_literal(ty: struct_type, values: list2(tag, data), location)
 

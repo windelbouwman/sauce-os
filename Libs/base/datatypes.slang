@@ -9,30 +9,30 @@ enum Option[D]:
 fn option_unwrap[T](option?: Option[T]) -> T:
     case option:
         Some(value):
-            return value
+            value
         None:
             panic("Cannot unwrap None")
 
 fn option_unwrap_or[T](option: Option[T], default: T) -> T:
     case option:
         Some(value):
-            return value
+            value
         None:
-            return default
+            default
 
 fn option_is_some[T](opt?: Option[T]) -> bool:
     case opt:
         Some(v):
-            return true
+            true
         None:
-            return false
+            false
 
 fn option_is_none[T](opt?: Option[T]) -> bool:
     case opt:
         Some(v):
-            return false
+            false
         None:
-            return true
+            true
 
 enum Result[O,E]:
     Ok(value: O)
@@ -122,9 +122,9 @@ class List[T]:
     fn is_empty() -> bool:
         case head_element:
             None:
-                return true
+                true
         else:
-            return false
+            false
 
     fn len() -> int:
         # Retrieve length of the list
@@ -163,7 +163,7 @@ class List[T]:
             None:
                 panic("List.first on empty list!")
             Some(element):
-                return element.data
+                element.data
 
     fn drop_last():
         # Drop last item from list
@@ -204,12 +204,12 @@ class List[T]:
             None:
                 panic("List.last on empty list!")
             Some(element):
-                return element.data
+                element.data
     
     fn get(index: int) -> T:
         # Retrieve value at index
         let element = get_element(index)
-        return element.data
+        element.data
     
     fn set(index: int, value: T):
         # " Set value at index. "

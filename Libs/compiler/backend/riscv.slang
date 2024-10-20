@@ -192,87 +192,87 @@ fn encode_instruction(instruction: Instruction) -> int:
 fn instruction_to_string(instruction: Instruction) -> str:
     case instruction:
         LUI(rd, imm):
-            return "lui x{rd}, {imm}"
+            "lui x{rd}, {imm}"
         AUIPC(rd, imm):
-            return "auipc x{rd}, {imm}"
+            "auipc x{rd}, {imm}"
         JAL(rd, imm):
-            return "jal x{rd}, {imm}"
+            "jal x{rd}, {imm}"
         JALR(rd, rs1, imm):
-            return "jalr x{rd}, x{rs1}, {imm}"
+            "jalr x{rd}, x{rs1}, {imm}"
 
         BEQ(rs1, rs2, imm):
-            return "beq x{rs1}, x{rs2}, {imm}"
+            "beq x{rs1}, x{rs2}, {imm}"
         BNE(rs1, rs2, imm):
-            return "bne x{rs1}, x{rs2}, {imm}"
+            "bne x{rs1}, x{rs2}, {imm}"
         BLT(rs1, rs2, imm):
-            return "blt x{rs1}, x{rs2}, {imm}"
+            "blt x{rs1}, x{rs2}, {imm}"
         BGE(rs1, rs2, imm):
-            return "bge x{rs1}, x{rs2}, {imm}"
+            "bge x{rs1}, x{rs2}, {imm}"
         BLTU(rs1, rs2, imm):
-            return "bltu x{rs1}, x{rs2}, {imm}"
+            "bltu x{rs1}, x{rs2}, {imm}"
         BGEU(rs1, rs2, imm):
-            return "bgeu x{rs1}, x{rs2}, {imm}"
+            "bgeu x{rs1}, x{rs2}, {imm}"
 
         LB(rd, rs1, imm):
-            return "lb x{rd}, x{rs1}, {imm}"
+            "lb x{rd}, x{rs1}, {imm}"
         LH(rd, rs1, imm):
-            return "lh x{rd}, x{rs1}, {imm}"
+            "lh x{rd}, x{rs1}, {imm}"
         LW(rd, rs1, imm):
-            return "lw x{rd}, x{rs1}, {imm}"
+            "lw x{rd}, x{rs1}, {imm}"
         LBU(rd, rs1, imm):
-            return "lbu x{rd}, x{rs1}, {imm}"
+            "lbu x{rd}, x{rs1}, {imm}"
         LHU(rd, rs1, imm):
-            return "lhu x{rd}, x{rs1}, {imm}"
+            "lhu x{rd}, x{rs1}, {imm}"
 
         SB(rs1, rs2, imm):
-            return "sb x{rs1}, x{rs2}, {imm}"
+            "sb x{rs1}, x{rs2}, {imm}"
         SH(rs1, rs2, imm):
-            return "sh x{rs1}, x{rs2}, {imm}"
+            "sh x{rs1}, x{rs2}, {imm}"
         SW(rs1, rs2, imm):
-            return "sw x{rs1}, x{rs2}, {imm}"
+            "sw x{rs1}, x{rs2}, {imm}"
 
         ADDI(rd, rs1, imm):
-            return "addi x{rd}, x{rs1}, {imm}"
+            "addi x{rd}, x{rs1}, {imm}"
         SLTI(rd, rs1, imm):
-            return "slti x{rd}, x{rs1}, {imm}"
+            "slti x{rd}, x{rs1}, {imm}"
         SLTIU(rd, rs1, imm):
-            return "sltiu x{rd}, x{rs1}, {imm}"
+            "sltiu x{rd}, x{rs1}, {imm}"
         XORI(rd, rs1, imm):
-            return "xori x{rd}, x{rs1}, {imm}"
+            "xori x{rd}, x{rs1}, {imm}"
         ORI(rd, rs1, imm):
-            return "ori x{rd}, x{rs1}, {imm}"
+            "ori x{rd}, x{rs1}, {imm}"
         ANDI(rd, rs1, imm):
-            return "andi x{rd}, x{rs1}, {imm}"
+            "andi x{rd}, x{rs1}, {imm}"
         SLLI(rd, rs1, imm):
-            return "slli x{rd}, x{rs1}, {imm}"
+            "slli x{rd}, x{rs1}, {imm}"
         SRLI(rd, rs1, imm):
-            return "srli x{rd}, x{rs1}, {imm}"
+            "srli x{rd}, x{rs1}, {imm}"
         SRAI(rd, rs1, imm):
-            return "srai x{rd}, x{rs1}, {imm}"
+            "srai x{rd}, x{rs1}, {imm}"
 
         ADD(rd, rs1, rs2):
-            return "add x{rd}, x{rs1}, x{rs2}"
+            "add x{rd}, x{rs1}, x{rs2}"
         SUB(rd, rs1, rs2):
-            return "sub x{rd}, x{rs1}, x{rs2}"
+            "sub x{rd}, x{rs1}, x{rs2}"
         SLL(rd, rs1, rs2):
-            return "sll x{rd}, x{rs1}, x{rs2}"
+            "sll x{rd}, x{rs1}, x{rs2}"
         SLT(rd, rs1, rs2):
-            return "slt x{rd}, x{rs1}, x{rs2}"
+            "slt x{rd}, x{rs1}, x{rs2}"
         SLTU(rd, rs1, rs2):
-            return "sltu x{rd}, x{rs1}, x{rs2}"
+            "sltu x{rd}, x{rs1}, x{rs2}"
         XOR(rd, rs1, rs2):
-            return "xor x{rd}, x{rs1}, x{rs2}"
+            "xor x{rd}, x{rs1}, x{rs2}"
         SRL(rd, rs1, rs2):
-            return "srl x{rd}, x{rs1}, x{rs2}"
+            "srl x{rd}, x{rs1}, x{rs2}"
         SRA(rd, rs1, rs2):
-            return "sra x{rd}, x{rs1}, x{rs2}"
+            "sra x{rd}, x{rs1}, x{rs2}"
         OR(rd, rs1, rs2):
-            return "or x{rd}, x{rs1}, x{rs2}"
+            "or x{rd}, x{rs1}, x{rs2}"
         AND(rd, rs1, rs2):
-            return "and x{rd}, x{rs1}, x{rs2}"
+            "and x{rd}, x{rs1}, x{rs2}"
 
         # FENCE
         ECALL:
-            return "ecall"
+            "ecall"
         EBREAK:
-            return "ebreak"
+            "ebreak"

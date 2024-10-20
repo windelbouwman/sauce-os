@@ -155,144 +155,144 @@ enum BitOperator:
 fn literal_to_string(literal?: LiteralValue) -> str:
     case literal:
         Int(value):
-            return "int({value})"
+            "int({value})"
         Float(value):
-            return "float({float_to_str(value)})"
+            "float({float_to_str(value)})"
         Str(value):
-            return "str('{value}')"
+            "str('{value}')"
         Bool(value):
             if value:
-                return "bool(true)"
+                "bool(true)"
             else:
-                return "bool(false)"
+                "bool(false)"
         Char(value):
-            return "char('{value}')"
+            "char('{value}')"
         Null:
-            return "Null"
+            "Null"
 
 
 fn instruction_to_string(instruction?: Instruction) -> str:
     case instruction:
         Nop:
-            return "nop"
+            "nop"
         Dup:
-            return "dup"
+            "dup"
         Literal(literal):
-            return literal_to_string(literal)
+            literal_to_string(literal)
         Jump(v):
-            return "jump({v})"
+            "jump({v})"
         JumpIf(v1, v2):
-            return "jump-if({v1}, {v2})"
+            "jump-if({v1}, {v2})"
         Not:
-            return "not"
+            "not"
         Neg:
-            return "neg"
+            "neg"
         Binop(op):
-            return binop_to_string(op)
+            binop_to_string(op)
         Comparison(op):
-            return comparison_to_string(op)
+            comparison_to_string(op)
         Bitop(op):
-            return bitop_to_string(op)
+            bitop_to_string(op)
         IntCast(signed, bits):
             if signed:
-                return "to-int{bits}"
+                "to-int{bits}"
             else:
-                return "to-uint{bits}"
+                "to-uint{bits}"
         IntToFloat:
-            return "int-to-float"
+            "int-to-float"
         FloatToInt:
-            return "float-to-int"
+            "float-to-int"
 
         ToOpaque(t):
-            return "?-to-opaque"
+            "?-to-opaque"
         FromOpaque(t):
-            return "opaque-to-?"
+            "opaque-to-?"
 
         Call(index):
-            return "call({index})"
+            "call({index})"
         CallIndirect(parameter_types, return_type):
-            return "call-indirect({parameter_types.len()})"
+            "call-indirect({parameter_types.len()})"
         Return(v):
-            return "return({v})"
+            "return({v})"
         Unreachable:
-            return "unreachable"
+            "unreachable"
         SetupTry(try_label, except_label):
-            return "setup-try(try: {try_label}, except: {except_label})"
+            "setup-try(try: {try_label}, except: {except_label})"
         Raise:
-            return "raise"
+            "raise"
         PopTry:
-            return "pop-try"
+            "pop-try"
         DecRef(index):
-            return "dec ref {index}"
+            "dec ref {index}"
         GetExceptionValue:
-            return "get-exception-value"
+            "get-exception-value"
         LocalGet(index):
-            return "local-get({index})"
+            "local-get({index})"
         LocalSet(index):
-            return "local-set({index})"
+            "local-set({index})"
         GlobalGet(index):
-            return "global-get({index})"
+            "global-get({index})"
         GlobalSet(index):
-            return "global-set({index})"
+            "global-set({index})"
         ParameterGet(index):
-            return "parameter-get({index})"
+            "parameter-get({index})"
         ParameterSet(index):
-            return "parameter-set({index})"
+            "parameter-set({index})"
         GetAttr(index):
-            return "get-attr({index})"
+            "get-attr({index})"
         SetAttr(index):
-            return "set-attr({index})"
+            "set-attr({index})"
         GetIndex:
-            return "get-index"
+            "get-index"
         SetIndex:
-            return "set-index"
+            "set-index"
         LoadFunc(index):
-            return "load-func({index})"
+            "load-func({index})"
         StructLiteral(struct_index):
-            return "struct-literal(index={struct_index})"
+            "struct-literal(index={struct_index})"
         ArrayLiteral(count):
-            return "array-literal({count})"
+            "array-literal({count})"
         ArrayLiteral2(ty):
-            return "array-literal2"
+            "array-literal2"
 
 fn binop_to_string(op: BinaryOperator) -> str:
     case op:
         Add:
-            return "add"
+            "add"
         Sub:
-            return "sub"
+            "sub"
         Divide:
-            return "div"
+            "div"
         Multiply:
-            return "mul"
+            "mul"
 
 fn comparison_to_string(op: ComparisonOperator) -> str:
     case op:
         Less:
-            return "lt"
+            "lt"
         LessEquals:
-            return "lte"
+            "lte"
         GreaterEquals:
-            return "gte"
+            "gte"
         Greater:
-            return "gt"
+            "gt"
         Equals:
-            return "eq"
+            "eq"
         NotEquals:
-            return "ne"
+            "ne"
 
 fn bitop_to_string(op: BitOperator) -> str:
     case op:
         Shr:
-            return "bit-shr"
+            "bit-shr"
         Shl:
-            return "bit-shr"
+            "bit-shr"
         Xor:
-            return "bit-xor"
+            "bit-xor"
         And:
-            return "bit-and"
+            "bit-and"
         Or:
-            return "bit-or"
+            "bit-or"
 
 fn print_bc_program(program: Program):
     print("BYTECODE program")
@@ -344,22 +344,22 @@ fn type_to_string(ty?: Type) -> str:
     case ty:
         Int(signed, bits):
             if signed:
-                return "int{bits}"
+                "int{bits}"
             else:
-                return "uint{bits}"
+                "uint{bits}"
         Float(bits):
-            return "float{bits}"
+            "float{bits}"
         Bool:
-            return "bool"
+            "bool"
         Ptr:
-            return "ptr"
+            "ptr"
         Str:
-            return "str"
+            "str"
         Char:
-            return "char"
+            "char"
         StructRef(index):
-            return "struct-ref({index})"
+            "struct-ref({index})"
         Function(parameter_types, return_type):
-            return "func-ptr(...)"
+            "func-ptr(...)"
         Array(element_type):
-            return "array({type_to_string(element_type)})"
+            "array({type_to_string(element_type)})"

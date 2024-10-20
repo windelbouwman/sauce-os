@@ -116,7 +116,12 @@ class PyGenerator:
                 emit("while {gen_expression(while_statement.condition, parens: false)}:")
                 gen_block(while_statement.block, target: Option.None())
             Let(let_statement):
-                emit("{get_id(id: let_statement.variable.id)} = {gen_expression(let_statement.value, parens: false)}")
+                let varname = get_id(id: let_statement.variable.id)
+                case let_statement.value.kind:
+                    Stmt(statement2):
+                        gen_statement(statement2, target: Option.Some(varname))
+                else:
+                    emit("{varname} = {gen_expression(let_statement.value, parens: false)}")
             If(if_statement):
                 gen_if_statement(if_statement, kw: "if", target)
             Pass:
@@ -251,12 +256,11 @@ class PyGenerator:
                 let argument_text = gen_expression_list(expressions)
                 "{gen_expression(call.callee, parens: true)}({argument_text})"
             Unop(op, value):
-                let op2 = "$"
-                case op:
+                let op2 = case op:
                     Not:
-                        op2 = "not "
+                        "not "
                     Minus:
-                        op2 = "-"
+                        "-"
                 let txt = "{op2}{gen_expression(value, parens: true)}"
                 if parens:
                     "({txt})"
