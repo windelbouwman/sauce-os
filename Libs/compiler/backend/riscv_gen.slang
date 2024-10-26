@@ -51,7 +51,7 @@ class RiscvGen:
             b.pack_u32_le(code)
         let data = b.to_bytes()
         h.add_bytes(address: 0, data)
-        return h
+        h
 
     fn gen_function(function: bc.Function):
         for instruction in function.instructions:

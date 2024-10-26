@@ -265,7 +265,7 @@ fn load_symbol_table(filename: str) -> List[ast.Module]:
     except (oei : JsonException):
         panic("Invalid json at {oei.pos}: {oei.message}")
 
-    return loader.load_modules()
+    loader.load_modules()
 
 class SymbolLoader:
     var m_des: JsonBrowser = JsonBrowser()
@@ -289,7 +289,7 @@ class SymbolLoader:
             m_des.pop_value()
             modules.append(module)
 
-        return modules
+        modules
 
     fn load_module() -> ast.Module:
         let mod_name = m_des.get_text_attribute(attr: "name")
@@ -306,8 +306,7 @@ class SymbolLoader:
             m_des.push_value(value: definition_obj)
             definitions.append(load_definition())
             m_des.pop_value()
-        let module = ast.new_module(name: mod_name, filename: Option.None(), imports, definitions)
-        return module
+        ast.new_module(name: mod_name, filename: Option.None(), imports, definitions)
     
     fn load_import() -> ast.Import:
         let modname = m_des.get_text_attribute(attr: "modname")
@@ -319,10 +318,10 @@ class SymbolLoader:
                 names.append(m_des.get_text())
                 m_des.pop_value()
             let kind = ast.ImportKind.Names(names)
-            return ast.Import(modname, kind, location)
+            ast.Import(modname, kind, location)
         else:
             let kind = ast.ImportKind.Self()
-            return ast.Import(modname, kind, location)
+            ast.Import(modname, kind, location)
 
     fn load_definition() -> ast.Definition:
         let def_kind = m_des.get_text_attribute(attr: "kind")
@@ -331,22 +330,22 @@ class SymbolLoader:
         log_trace("  --> DEF-{def_kind}: {def_name} / {def_id}")
         if def_kind == "function":
             let function_def = load_function(def_name, def_id)
-            return ast.Definition.Function(function_def)
+            ast.Definition.Function(function_def)
         elif def_kind == "struct":
             let struct_def = load_struct_def(def_name, def_id)
             m_tycon_map.insert(key: "{struct_def.id.id}", value: ast.TyCon.Struct(struct_def))
-            return ast.Definition.Struct(struct_def)
+            ast.Definition.Struct(struct_def)
         elif def_kind == "enum":
             let enum_def = load_enum_def(def_name, def_id)
             m_tycon_map.insert(key: "{enum_def.id.id}", value: ast.TyCon.Enum(enum_def))
-            return ast.Definition.Enum(enum_def)
+            ast.Definition.Enum(enum_def)
         elif def_kind == "class":
             let class_def = load_class_def(def_name, def_id)
             m_tycon_map.insert(key: "{class_def.id.id}", value: ast.TyCon.Class(class_def))
-            return ast.Definition.Class(class_def)
+            ast.Definition.Class(class_def)
         elif def_kind == "variable":
             let variable_def = load_variable_def(def_name, def_id)
-            return ast.Definition.Var(variable_def)
+            ast.Definition.Var(variable_def)
         else:
             panic("Not implemented definition kind: {def_kind}")
 
@@ -356,7 +355,7 @@ class SymbolLoader:
         let location = location_default()
         let variable = ast.Variable(id, ty, location)
         let is_initialized = m_des.get_boolean_attribute(attr: "initialized")
-        return ast.VariableDef(variable, value: ast.VariableDefValue.Extern(libname: m_libname, is_initialized))
+        ast.VariableDef(variable, value: ast.VariableDefValue.Extern(libname: m_libname, is_initialized))
 
     fn load_function(def_name: str, def_id: int) -> ast.FunctionDef:
         let type_parameters = load_type_parameters()
@@ -376,13 +375,12 @@ class SymbolLoader:
                 f.this_parameter = Option.Some(this_parameter)
             None:
                 pass
-        return f
+        f
 
     fn load_function_info() -> ast.FunctionInfo:
         let return_type = load_type(attr: "return-type")
         let except_type = load_type(attr: "except-type")
-        let info = ast.FunctionInfo(return_type, except_type)
-        return info
+        ast.FunctionInfo(return_type, except_type)
 
     fn load_parameters() -> List[ast.ParameterDef]:
         let parameters: List[ast.ParameterDef] = List()
@@ -390,7 +388,7 @@ class SymbolLoader:
             m_des.push_value(value: parameter_obj)
             parameters.append(load_parameter())
             m_des.pop_value()
-        return parameters
+        parameters
     
     fn load_parameter() -> ast.ParameterDef:
         let name = m_des.get_text_attribute(attr: "name")
@@ -398,7 +396,7 @@ class SymbolLoader:
         let id = 0
         let ty = load_type(attr: "type")
         let location = location_default()
-        return ast.parameter_def(name, id, label_is_optional, ty, location)
+        ast.parameter_def(name, id, label_is_optional, ty, location)
 
     fn load_struct_def(def_name: str, def_id: int) -> ast.StructDef:
         let builder = ast.StructBuilder()
@@ -414,7 +412,7 @@ class SymbolLoader:
         let struct_def = builder.finish()
         struct_def.type_parameters = type_parameters
         struct_def.scope = ast.Scope()
-        return struct_def
+        struct_def
     
     fn load_enum_def(def_name: str, def_id: int) -> ast.EnumDef:
         let location = location_default()
@@ -430,7 +428,7 @@ class SymbolLoader:
             m_des.pop_value()
             tag_index += 1
 
-        return ast.enum_def(name: def_name, id: def_id, location, type_parameters, variants)
+        ast.enum_def(name: def_name, id: def_id, location, type_parameters, variants)
 
     fn load_class_def(def_name: str, def_id: int) -> ast.ClassDef:
         let id = ast.NodeId(name: def_name, id: def_id)
@@ -455,7 +453,7 @@ class SymbolLoader:
             type_arguments.append(ast.type_parameter_ref(type_parameter))
         this_type.change_to(to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
 
-        return class_def
+        class_def
 
     fn load_type_parameters() -> List[ast.TypeParameter]:
         let type_parameters: List[ast.TypeParameter] = List()
@@ -467,7 +465,7 @@ class SymbolLoader:
             m_type_parameter_map.insert(key: "{id.id}", value: type_parameter)
             type_parameters.append(type_parameter)
             m_des.pop_value()
-        return type_parameters
+        type_parameters
 
     fn load_types(attr: str) -> List[ast.Type]:
         let types: List[ast.Type] = List()
@@ -475,7 +473,7 @@ class SymbolLoader:
             m_des.push_value(value: type_argument_obj)
             types.append(load_type(attr: "type"))
             m_des.pop_value()
-        return types
+        types
 
     fn load_type(attr: str) -> ast.Type:
         let ty = ast.undefined_type()
@@ -524,10 +522,10 @@ class SymbolLoader:
             panic("Unsupported: {type_name}")
         
         m_des.pop_value()
-        return ty
+        ty
     
     fn load_id() -> ast.NodeId:
         let id = m_des.get_integer_attribute(attr: "id")
         let name = m_des.get_text_attribute(attr: "name")
-        return ast.NodeId(id, name)
+        ast.NodeId(id, name)
 

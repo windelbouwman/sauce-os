@@ -48,10 +48,10 @@ fn main() -> int:
         let argument = get_arg(arg: i)
         if argument == "-d":
             options.dump_ast = true
-        elif argument == "-h":
+        elif argument == "-h" or argument == "--help":
             print_usage()
             return 0
-        elif argument == "-o":
+        elif argument == "-o" or argument == "--output":
             i += 1
             if i < n:
                 options.output_filename = Option.Some(get_arg(arg: i))
@@ -120,10 +120,10 @@ fn print_usage():
     print("")
     print("Usage:")
     print("$ compiler.exe [-d] [-v] file1.slang file2.slang ..")
-    print("    -d : dump AST between compilation phases")
-    print("    -v : Increase verbosity")
-    print("    -o : Write output to given filename")
-    print("    -h : display usage information")
+    print("    -d              : dump AST between compilation phases")
+    print("    -v              : Increase verbosity")
+    print("    -o --output     : Write output to given filename")
+    print("    -h --help       : display usage information")
     print("    --add-import filename.json   : Additional importable modules in JSON")
     print("    --gen-export filename.json   : Create a JSON file for later importing")
     print("    --backend-bc    : Spit out bytecode")

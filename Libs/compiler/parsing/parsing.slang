@@ -17,7 +17,7 @@ pub fn parse_source(filename: str, id_gen: IdGen) -> ast.Module except Compilati
     let modname = basename(path: filename)
     let parser = Parser(id_gen)
     parser.feed(source)
-    return parser.parse_module(filename, name: modname)
+    parser.parse_module(filename, name: modname)
 
 fn parse_statement_from_text(source: str, id_gen: IdGen, p1: Position) -> ast.Statement except CompilationError:
     # Invoke parsing, purely on statement.
@@ -25,7 +25,7 @@ fn parse_statement_from_text(source: str, id_gen: IdGen, p1: Position) -> ast.St
     parser.feed(source)
     parser.lex.row = p1.row
     parser.lex.start_col = p1.column
-    return parser.parse_statement()
+    parser.parse_statement()
 
 fn parse_expr_from_text(source: str, id_gen: IdGen, p1: Position) -> ast.Expression except CompilationError:
     # Invoke parsing, purely on expression.
@@ -33,7 +33,7 @@ fn parse_expr_from_text(source: str, id_gen: IdGen, p1: Position) -> ast.Express
     parser.feed(source)
     parser.lex.row = p1.row
     parser.lex.start_col = p1.column
-    return parser.parse_expression()
+    parser.parse_expression()
 
 class Parser:
     # An attempt at a recursive descent parser.
@@ -101,8 +101,7 @@ class Parser:
             else:
                 raise unexpected_token(tok, expected: "import, fn, enum, struct, class, extern")
 
-        let program = ast.new_module(name, filename: this.filename, imports, definitions)
-        return program
+        ast.new_module(name, filename: this.filename, imports, definitions)
 
     fn parse_import() -> ast.Import except CompilationError:
         let modname = parse_name()
@@ -134,17 +133,16 @@ class Parser:
             else:
                 raise unexpected_token(tok: tok2, expected: "',' or newline")
 
-        return ast.import_names(modname: modname.name, location: modname.location, names)
+        ast.import_names(modname: modname.name, location: modname.location, names)
 
     fn parse_pub() -> bool:
-        let is_pub = false
         let tok = get_token()
         case tok.kind:
             KwPub:
-                is_pub = true
+                true
         else:
             unget_token(tok)
-        return is_pub
+            false
     
     fn parse_macro_def() -> ast.MacroDef except CompilationError:
         # unimplemented("macro-def")
@@ -158,7 +156,7 @@ class Parser:
         let statement = parse_statement()
         parse_dedent()
 
-        return ast.MacroDef(name, location)
+        ast.MacroDef(name, location)
 
     fn parse_enum_def(location: Location) -> ast.EnumDef except CompilationError:
         let name = parse_name().name
@@ -201,7 +199,7 @@ class Parser:
 
             parse_newline()
 
-        return ast.enum_def(name, id: new_id(), location, type_parameters, variants)
+        ast.enum_def(name, id: new_id(), location, type_parameters, variants)
 
     fn parse_type_parameters() -> List[ast.TypeParameter] except CompilationError:
         let type_parameters: List[ast.TypeParameter] = List()
@@ -223,7 +221,7 @@ class Parser:
                         raise unexpected_token(tok: tok2, expected: "',' or ']'")
         else:
             unget_token(tok)
-        return type_parameters
+        type_parameters
 
     fn parse_struct_def() -> ast.StructDef except CompilationError:
         let name_at = parse_name()
@@ -286,7 +284,7 @@ class Parser:
         for type_parameter in type_parameters:
             type_arguments.append(ast.type_parameter_ref(type_parameter))
         this_type.change_to(to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
-        return class_def
+        class_def
 
     fn parse_func_def(this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except CompilationError:
         let name_at = parse_name()
@@ -308,8 +306,7 @@ class Parser:
         let location = inner.first().location
         let body = ast.compound(inner, location)
 
-        let function_def = ast.function_def(name: name_at.name, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
-        return function_def
+        ast.function_def(name: name_at.name, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
     
     fn parse_extern_func_def(libname: str) -> ast.FunctionDef except CompilationError:
         let name_at = parse_name()
@@ -318,9 +315,7 @@ class Parser:
         let parameters = parse_parameters()
         let info = parse_function_info()
         parse_newline()
-
-        let function_def = ast.extern_function_def(libname, name, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
-        return function_def
+        ast.extern_function_def(libname, name, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
 
     fn parse_parameters() -> List[ast.ParameterDef] except CompilationError:
         let parameters: List[ast.ParameterDef] = List()
@@ -342,7 +337,7 @@ class Parser:
                         pass
                 else:
                     raise unexpected_token(tok: tok4, expected: "')' or ','")
-        return parameters
+        parameters
 
     fn parse_function_info() -> ast.FunctionInfo except CompilationError:
         let return_type = parse_optional_return_type()
@@ -350,7 +345,7 @@ class Parser:
 
         if has_parsed_question():
             return_type = ast.unreachable_type()
-        return ast.FunctionInfo(return_type, except_type)
+        ast.FunctionInfo(return_type, except_type)
 
     fn parse_optional_return_type() -> ast.Type except CompilationError:
         # Optional return type
@@ -378,7 +373,7 @@ class Parser:
         let label_is_optional = has_parsed_question()
         parse_colon()
         let ty = parse_type()
-        return ast.parameter_def(name: name_at.name, id: new_id(), label_is_optional, ty, location: name_at.location)
+        ast.parameter_def(name: name_at.name, id: new_id(), label_is_optional, ty, location: name_at.location)
     
     fn parse_optional_docstring() -> Option[str]:
         let tok = get_token()
@@ -387,14 +382,14 @@ class Parser:
                 let tok2 = get_token()
                 case tok2.kind:
                     NewLine:
-                        return Option.Some(value)
+                        Option.Some(value)
                 else:
                     unget_token(tok2)
                     unget_token(tok)
-                    return Option.None()
+                    Option[str].None()
         else:
             unget_token(tok)
-            return Option.None()
+            Option[str].None()
 
     fn has_parsed_question() -> bool:
         let tok = get_token()
@@ -412,63 +407,65 @@ class Parser:
         let ty = parse_type()
 
         # Optional '=' <expr>
-        let var_init: Option[ast.Expression] = Option.None()
         let tok = get_token()
-        case tok.kind:
+        let var_init: Option[ast.Expression] = case tok.kind:
             Equals:
-                var_init = Option.Some(parse_expression())
+                Option.Some(parse_expression())
         else:
             unget_token(tok)
+            Option[ast.Expression].None()
 
         parse_newline()
         let variable = ast.variable(name, id: new_id(), ty, location: name_at.location)
-        let var_def = ast.VariableDef(variable, value: ast.VariableDefValue.Intern(value: var_init))
-        return var_def
+        ast.VariableDef(variable, value: ast.VariableDefValue.Intern(value: var_init))
 
     fn parse_type() -> ast.Type except CompilationError:
         let tok0 = get_token()
         case tok0.kind:
             KwFn:
-                # Parse function signature.
-
-                # '('
-                parse_parenthesis_open()
-
-                let parameter_types: List[ast.ParameterType] = List()
-                # ')' or parameters and ')'
-                let tok2 = get_token()
-                case tok2.kind:
-                    ParenthesisClose:
-                        pass
-                else:
-                    unget_token(tok2)
-                    loop:
-                        let label: Option[str] = Option.None()
-                        let param_type = parse_type()
-                        parameter_types.append(ast.ParameterType(label, ty: param_type))
-
-                        let tok4 = get_token()
-                        case tok4.kind:
-                            ParenthesisClose:
-                                break
-                            Comma:
-                                continue
-                        else:
-                            raise unexpected_token(tok: tok4, expected: "')' or ','")
-
-                # Optional return type
-                let return_type = parse_optional_return_type()
-                let except_type = ast.void_type()
-
-                let info = ast.FunctionInfo:
-                    return_type
-                    except_type
-
-                return ast.function_type(parameter_types, info)
+                parse_function_type()
         else:
             unget_token(tok0)
             let expr = parse_expression()
-            return ast.type_expression(expr)
+            ast.type_expression(expr)
+    
+    fn parse_function_type() -> ast.Type except CompilationError:
+        """ Parse function signature. """
+
+        # '('
+        parse_parenthesis_open()
+
+        let parameter_types: List[ast.ParameterType] = List()
+        # ')' or parameters and ')'
+        let tok2 = get_token()
+        case tok2.kind:
+            ParenthesisClose:
+                pass
+        else:
+            unget_token(tok2)
+            loop:
+                let label: Option[str] = Option.None()
+                let param_type = parse_type()
+                parameter_types.append(ast.ParameterType(label, ty: param_type))
+
+                let tok4 = get_token()
+                case tok4.kind:
+                    ParenthesisClose:
+                        break
+                    Comma:
+                        continue
+                else:
+                    raise unexpected_token(tok: tok4, expected: "')' or ','")
+
+        # Optional return type
+        let return_type = parse_optional_return_type()
+        let except_type = ast.void_type()
+
+        let info = ast.FunctionInfo:
+            return_type
+            except_type
+
+        ast.function_type(parameter_types, info)
 
     fn parse_block() -> ast.Statement except CompilationError:
         # parse block of statements.
@@ -483,7 +480,7 @@ class Parser:
             let statement = parse_statement()
             inner.append(statement)
         let location = inner.first().location
-        return ast.compound(inner, location)
+        ast.compound(inner, location)
     
     fn parse_statement() -> ast.Statement except CompilationError:
         log_trace("parsing statement")
@@ -525,30 +522,27 @@ class Parser:
 
     fn parse_expression_statement() -> ast.Statement except CompilationError:
         let expr = parse_expression()
-        let stmt = ast.expression_statement(expr)
 
-        # Maybe we have an assignment
-        let is_assign = true
-        let assign_op = Option.None()
-        let tok2 = get_token()
-        case tok2.kind:
+        # Maybe we have an assignment or object initializer
+        let tok = get_token()
+        case tok.kind:
             Equals:
-                pass
-            PlusEquals:  # Assignment '+='
-                assign_op = Option.Some(ast.BinaryOperator.Add())
+                parse_assignement_expression(target: expr, op: Option.None(), location: tok.location)
+            PlusEquals:
+                parse_assignement_expression(target: expr, op: Option.Some(ast.BinaryOperator.Add()), location: tok.location)
             MinusEquals:
-                assign_op = Option.Some(ast.BinaryOperator.Sub())
+                parse_assignement_expression(target: expr, op: Option.Some(ast.BinaryOperator.Sub()), location: tok.location)
+            NewLine:
+                ast.expression_statement(expr)
+            Colon:
+                ast.expression_statement(expr: parse_obj_init(obj_ty: expr, location: tok.location))
         else:
-            is_assign = false
-            unget_token(tok2)
-        
-        if is_assign:
-            # Assignment!
-            let value = parse_expression()
-            stmt = ast.assignment_statement(target: expr, op: assign_op, value, location: tok2.location)
-
+            raise unexpected_token(tok, expected: "newline, ':', '=', '+=' or '-='")
+    
+    fn parse_assignement_expression(target: ast.Expression, op: Option[ast.BinaryOperator], location: Location) -> ast.Statement except CompilationError:
+        let value = parse_expression()
         parse_newline()
-        return stmt
+        ast.assignment_statement(target, op, value, location)
     
     fn parse_let_statement(location: Location) -> ast.Statement except CompilationError:
         let name_at = parse_name()
@@ -567,29 +561,28 @@ class Parser:
 
         parse_equals()
 
-        let value = ast.undefined_value()
         tok2 = get_token()
-        case tok2.kind:
+        let value = case tok2.kind:
             KwIf:
-                value = ast.statement_expression(statement: parse_if_statement(location: tok2.location))
+                ast.statement_expression(statement: parse_if_statement(location: tok2.location))
             KwCase:
-                value = ast.statement_expression(statement: parse_case_statement(location: tok2.location))
+                ast.statement_expression(statement: parse_case_statement(location: tok2.location))
             KwSwitch:
-                value = ast.statement_expression(statement: parse_switch_statement(location: tok2.location))
+                ast.statement_expression(statement: parse_switch_statement(location: tok2.location))
         else:
             unget_token(tok2)
-            value = parse_expression()
+            let value2 = parse_expression()
 
-            tok2 = get_token()
-            case tok2.kind:
+            let tok = get_token()
+            case tok.kind:
                 NewLine:
-                    pass
+                    value2
                 Colon:
-                    value = parse_obj_init(obj_ty: value, location: tok2.location)
+                    parse_obj_init(obj_ty: value2, location: tok.location)
             else:
-                raise unexpected_token(tok: tok2, expected: "newline or ':'")
+                raise unexpected_token(tok, expected: "newline or ':'")
         
-        return ast.let_statement(variable, type_hint, value, location)
+        ast.let_statement(variable, type_hint, value, location)
     
     fn parse_obj_init(obj_ty: ast.Expression, location: Location) -> ast.Expression except CompilationError:
         # Obj initializer!
@@ -600,7 +593,7 @@ class Parser:
         while not try_parse_dedent():
             obj_fields.append(parse_labeled_expression())
             parse_newline()
-        return ast.call(callee: obj_ty, arguments: obj_fields, ty: ast.undefined_type(), location)
+        ast.call(callee: obj_ty, arguments: obj_fields, ty: ast.undefined_type(), location)
     
     fn parse_labeled_expression() -> ast.LabeledExpression except CompilationError:
         # Parse ID ':' expression | expression
@@ -626,7 +619,7 @@ class Parser:
                 Option.Some(name2)
         else:
             Option[str].None()
-        return ast.LabeledExpression(location: value.location, name, value)
+        ast.LabeledExpression(location: value.location, name, value)
 
     fn parse_if_statement(location: Location) -> ast.Statement except CompilationError:
         # Parse if-statement (if or elif keyword already parsed)
@@ -645,12 +638,12 @@ class Parser:
         else:
             unget_token(tok2)
         
-        return ast.if_statement(condition, body: true_block, false_body: false_block, location)
+        ast.if_statement(condition, body: true_block, false_body: false_block, location)
     
     fn parse_while_statement(location: Location) -> ast.Statement except CompilationError:
         let condition = parse_expression()
         let body = parse_block()
-        return ast.while_statement(condition, body, location)
+        ast.while_statement(condition, body, location)
 
     fn parse_for_statement(location: Location) -> ast.Statement except CompilationError:
         let name_at = parse_name()
@@ -668,7 +661,7 @@ class Parser:
         # ':' + indented block:
         let body = parse_block()
         let iter_var = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
-        return ast.for_statement(iter_var, iter_value, body, location)
+        ast.for_statement(iter_var, iter_value, body, location)
 
     fn parse_try_statement(location: Location) -> ast.Statement except CompilationError:
         let try_body = parse_block()
@@ -689,7 +682,7 @@ class Parser:
         let except_var = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
 
         let except_body = parse_block()
-        return ast.try_statement(try_body, except_var, except_type, except_body, location)
+        ast.try_statement(try_body, except_var, except_type, except_body, location)
 
     fn parse_case_statement(location: Location) -> ast.Statement except CompilationError:
         # Value
@@ -704,15 +697,15 @@ class Parser:
             case_arms.append(parse_case_arm(name: name_at.name, location: name_at.location))
         
         # Parse optional 'else' block
-        let else_clause = Option.None()
         let tok2 = get_token()
-        case tok2.kind:
+        let else_clause = case tok2.kind:
             KwElse:
-                else_clause = Option.Some(parse_block())
+                Option.Some(parse_block())
         else:
             unget_token(tok2)
+            Option[ast.Statement].None()
         
-        return ast.case_statement(value: case_value, arms: case_arms, else_clause, location)
+        ast.case_statement(value: case_value, arms: case_arms, else_clause, location)
     
     fn parse_case_arm(name: str, location: Location) -> ast.CaseArm except CompilationError:
         let variables: List[ast.Variable] = List()
@@ -738,12 +731,11 @@ class Parser:
 
         # Arm body:
         let statement = parse_block()
-        let arm = ast.CaseArm:
+        ast.CaseArm:
             location
             name
             variables: variables
             block: ast.scoped_block(body: statement)
-        return arm
     
     fn parse_switch_statement(location: Location) -> ast.Statement except CompilationError:
         let switch_value = parse_expression()
@@ -758,30 +750,29 @@ class Parser:
         
         parse_kw_else()
         let default_body = parse_block()
-        return ast.switch_statement(value: switch_value, arms, default_body, location)
+        ast.switch_statement(value: switch_value, arms, default_body, location)
 
     fn parse_return_statement(location: Location) -> ast.Statement except CompilationError:
         # optionally parse expression (or newline)!
-        let res_value: Option[ast.Expression] = Option.None()
         let tok2 = get_token()
-        case tok2.kind:
+        let res_value: Option[ast.Expression] = case tok2.kind:
             NewLine:
-                pass
+                Option[ast.Expression].None()
         else:
             unget_token(tok2)
             let ret_val = parse_expression()
-            res_value = Option.Some(ret_val)
             parse_newline()
-        return ast.return_statement(value: res_value, location)
+            Option.Some(ret_val)
+        ast.return_statement(value: res_value, location)
 
     fn parse_raise_statement(location: Location) -> ast.Statement except CompilationError:
         let value = parse_expression()
         parse_newline()
-        return ast.raise_statement(value, location)
+        ast.raise_statement(value, location)
 
     fn parse_expression() -> ast.Expression except CompilationError:
-        log_trace("Parsing expression")
-        return parse_expression2(min_prec: 0)
+        # log_trace("Parsing expression")
+        parse_expression2(min_prec: 0)
 
     fn parse_expression2(min_prec: int) -> ast.Expression except CompilationError:
         let expr = parse_unary()
@@ -855,7 +846,7 @@ class Parser:
             let location = Location(begin: expr.location.begin, end: rhs.location.end)
             expr = ast.binop(lhs: expr, op, rhs, ty: ast.undefined_type(), location)
 
-        return expr
+        expr
 
     fn parse_unary() -> ast.Expression except CompilationError:
         let tok = get_token()
@@ -912,12 +903,10 @@ class Parser:
             else:
                 unget_token(tok)
                 break
-        return expr
+        expr
 
     fn parse_raw_string() -> str except CompilationError:
         """ Parse string without interpolation """
-        let text = ""
-
         let tok = get_token()
         case tok.kind:
             StringStart:
@@ -926,9 +915,9 @@ class Parser:
             raise unexpected_token(tok, expected: "string start")
 
         tok = get_token()
-        case tok.kind:
+        let text = case tok.kind:
             StringContent(value):
-                text = value
+                value
         else:
             raise unexpected_token(tok, expected: "string content")
 
@@ -939,7 +928,7 @@ class Parser:
         else:
             raise unexpected_token(tok, expected: "string end")
 
-        return text
+        text
 
     fn parse_string(location: Location) -> ast.Expression except CompilationError:
         """ Parse possibly interpolated string. """
@@ -965,14 +954,14 @@ class Parser:
 
         # Concatenate parts
         if parts.is_empty():
-            return ast.string_literal(value: "", location)
+            ast.string_literal(value: "", location)
         else:
             let x = parts.pop_front()
             while not parts.is_empty():
                 let rhs = parts.pop_front()
                 let location = Location(begin: x.location.begin, end: rhs.location.end)
                 x = ast.binop(lhs: x, op: ast.BinaryOperator.Add(), rhs, ty: ast.str_type(), location)
-            return x
+            x
 
     fn parse_index_suffix(base: ast.Expression) -> ast.Expression except CompilationError:
         let begin = base.location.begin
@@ -990,7 +979,7 @@ class Parser:
             else:
                 raise unexpected_token(tok: tok4, expected: "']' or ','")
         let location = Location(begin, end)
-        return ast.subscript(base, indici, ty: ast.undefined_type(), location)
+        ast.subscript(base, indici, ty: ast.undefined_type(), location)
     
     fn parse_call_suffix(callee: ast.Expression) -> ast.Expression except CompilationError:
         # print("CALL")
@@ -1021,7 +1010,7 @@ class Parser:
                     raise unexpected_token(tok: tok4, expected: "')' or ','")
 
         let location = Location(begin, end)
-        return ast.call(callee, arguments, ty: ast.undefined_type(), location)
+        ast.call(callee, arguments, ty: ast.undefined_type(), location)
     
     fn parse_array_literal(location: Location) -> ast.Expression except CompilationError:
         let values: List[ast.Expression] = List()
@@ -1040,7 +1029,7 @@ class Parser:
                     return parse_array_literal2(size: value, location)
             else:
                 raise unexpected_token(tok: tok5, expected: "',', ':' or ']'")
-        return ast.array_literal(values, location)
+        ast.array_literal(values, location)
     
     fn parse_array_literal2(size: ast.Expression, location: Location) -> ast.Expression except CompilationError:
         let ty = parse_type()
@@ -1052,13 +1041,13 @@ class Parser:
             raise unexpected_token(tok: tok5, expected: "']'")
 
         location = Location(begin: location.begin, end: tok5.location.end)
-        return ast.array_literal2(size, ty, location)
+        ast.array_literal2(size, ty, location)
 
     fn parse_name() -> NameAtLocation except CompilationError:
         let tok = get_token()
         case tok.kind:
             Identifier(name):
-                return NameAtLocation(name, location: tok.location)
+                NameAtLocation(name, location: tok.location)
         else:
             raise unexpected_token(tok, expected: "name")
 
@@ -1115,10 +1104,10 @@ class Parser:
         let tok = get_token()
         case tok.kind:
             Dedent:
-                return true
+                true
         else:
             unget_token(tok)
-            return false
+            false
 
     fn parse_kw_else() except CompilationError:
         let tok = get_token()
@@ -1146,20 +1135,20 @@ class Parser:
 
     fn get_token() -> Token:
         # Get token (EOF in case of end of file)
-        return lex.next_token()
+        lex.next_token()
 
     fn unget_token(token?: Token):
         lex.pushback_token(token)
 
     fn new_id() -> int:
-        return id_gen.new_id()
+        id_gen.new_id()
 
     fn unexpected_token(tok: Token, expected: str) -> CompilationError:
-        return new_error(location: tok.location, message: "Expected {expected}, got {token_to_string(tok)}")
+        new_error(location: tok.location, message: "Expected {expected}, got {token_to_string(tok)}")
 
     fn new_error(location: Location, message: str) -> CompilationError:
         let err = errors.new_error(location, message)
-        return errors.new_errors(filename: filename, errors: list1(err))
+        errors.new_errors(filename: filename, errors: list1(err))
 
 struct NameAtLocation:
     name: str

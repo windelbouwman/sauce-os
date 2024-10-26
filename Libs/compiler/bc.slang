@@ -52,7 +52,7 @@ enum Type:
 fn get_element_type_from_type(ty?: Type) -> Type:
     case ty:
         Array(element_type):
-            return element_type
+            element_type
     else:
         panic("get_element_type_from_type: No array type")
 
@@ -121,7 +121,7 @@ fn get_target_labels(instructions: Vector[Instruction]) -> IntegerSet:
                 target_labels.add(except_label)
         else:
             pass
-    return target_labels
+    target_labels
 
 enum LiteralValue:
     Int(value: int)

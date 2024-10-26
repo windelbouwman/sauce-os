@@ -34,13 +34,13 @@ fn is_heap(ty?: bc.Type) -> bool:
     # Test if type is heap like type
     case ty:
         StructRef(index):
-            return true
+            true
         Array(element_type):
-            return true
+            true
         Str:
-            return true
+            true
     else:
-        return false
+        false
 
 class CGenerator:
     # Generate C from bytecode
@@ -125,7 +125,7 @@ class CGenerator:
             let typed_var = get_type_txt(ty: parameter.ty, name)
             parameters2.append(typed_var)
             index += 1
-        return str_join(parts: parameters2, sep: ", ")
+        str_join(parts: parameters2, sep: ", ")
 
     fn gen_extern_function_decl(extern_function: bc.ExternFunction):
         let param_txt = get_parameter_text(parameters: extern_function.parameters)
@@ -190,7 +190,7 @@ class CGenerator:
             None:
                 return_type = "void"
 
-        return "{return_type} {function.name}({param_txt})"
+        "{return_type} {function.name}({param_txt})"
 
     fn gen_function(function: bc.Function):
         log_trace("Generating bytecode for {function.name}")
@@ -625,7 +625,7 @@ class CGenerator:
     fn get_struct_field(ty: bc.Type, index: int) -> bc.TypedName:
         case ty:
             StructRef(struct_index):
-                return structs.get(index: struct_index).fields.get(index)
+                structs.get(index: struct_index).fields.get(index)
         else:
             panic("No struct")
 
@@ -648,22 +648,22 @@ class CGenerator:
         case ty:
             Int(signed, bits):
                 if signed:
-                    return "slang_int{bits}_t {name}"
+                    "slang_int{bits}_t {name}"
                 else:
-                    return "slang_uint{bits}_t {name}"
+                    "slang_uint{bits}_t {name}"
             Str:
-                return "char* {name}"
+                "char* {name}"
             Char:
-                return "char {name}"
+                "char {name}"
             Bool:
-                return "slang_bool_t {name}"
+                "slang_bool_t {name}"
             Float(bits):
-                return "slang_float{bits}_t {name}"
+                "slang_float{bits}_t {name}"
             Ptr:
-                return "void* {name}"
+                "void* {name}"
             StructRef(index):
                 let struct_def = structs.get(index)
-                return "struct S{index}_{struct_def.name}* {name}"
+                "struct S{index}_{struct_def.name}* {name}"
             Function(parameter_types, return_type):
                 let parts: List[str] = List()
                 for p in parameter_types:
@@ -675,10 +675,10 @@ class CGenerator:
                         return_text = get_type_txt(ty, name: "")
                     None:
                         return_text = "void"
-                return "{return_text} (*{name})({param_text})"
+                "{return_text} (*{name})({param_text})"
             Array(element_type):
                 let e = get_type_txt(ty: element_type, name: "")
-                return "{e}* {name}"
+                "{e}* {name}"
 
     fn free_heap_refs():
         for v in local_variables:
@@ -706,23 +706,23 @@ class CGenerator:
             let val = pop()
             values.prepend(val)
             count -= 1
-        return values
+        values
 
     fn pop() -> Value:
-        return stack.pop_last()
+        stack.pop_last()
     
     fn get_label_str(index?: int) -> str:
-        return "L{index}"
+        "L{index}"
     
     fn new_local_var() -> str:
         let id = next_id
         next_id += 1
-        return "V{id}"
+        "V{id}"
 
     fn new_named_local_var(name: str) -> str:
         let id = next_id
         next_id += 1
-        return "V{id}_{name}"
+        "V{id}_{name}"
 
     fn indent():
         out.indent()
@@ -738,17 +738,17 @@ fn eval_code_sequence(code: Vector[bc.Instruction]) -> str:
     let value = vm.eval_code(vm: m, code)
     case value:
         Int(v):
-            return "{v}"
+            "{v}"
         Bool(v):
             if v:
-                return "1"
+                "1"
             else:
-                return "0"
+                "0"
         Float(value):
-            return float_to_str2(value, digits: 20)
+            float_to_str2(value, digits: 20)
         Str(v):
-            return "\"{v}\""
+            "\"{v}\""
         Char(v):
-            return "'{v}'"
+            "'{v}'"
     else:
         panic("Unsupported initial value")

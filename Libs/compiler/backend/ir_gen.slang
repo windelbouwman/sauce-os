@@ -15,12 +15,12 @@ fn gen_bytecode(module_set: ast.ModuleSet) -> bc.Program:
     g.forward_declarations(module_set)
     for module in module_set.modules:
         g.gen_prog(module)
-    return bc.Program(functions: g.functions, structs: g.structs, globals: g.global_variables, extern_functions: g.extern_functions)
+    bc.Program(functions: g.functions, structs: g.structs, globals: g.global_variables, extern_functions: g.extern_functions)
 
 fn gen_expression_bytecode(expression: ast.Expression) -> Vector[Instruction]:
     let g = BytecodeGenerator()
     g.gen_expression(expression)
-    return g.code
+    g.code
 
 enum ControlBlock:
     LoopBlock(loop_: Loop)
@@ -606,12 +606,11 @@ class BytecodeGenerator:
         let parameter_types: List[bc.TypedName] = List()
         for p2 in ast.get_parameter_types_from_type(callee.ty):
             parameter_types.append(bc.TypedName(name: "x", ty: get_bc_type(p2.ty)))
-        let return_type: Option[bc.Type] = Option.None()
         let return_type2 = callee.ty.get_return_type()
-        if return_type2.is_void():
-            return_type = Option.None()
+        let return_type: Option[bc.Type] = if return_type2.is_void():
+            Option[bc.Type].None()
         else:
-            return_type = Option.Some(get_bc_type(return_type2))
+            Option.Some(get_bc_type(return_type2))
         emit(Instruction.CallIndirect(parameter_types, return_type))
 
     fn gen_binop_expr(binop: ast.BinopExpression):
@@ -657,7 +656,7 @@ class BytecodeGenerator:
                 emit(Instruction.Bitop(op: bc.BitOperator.Shr()))
 
     fn new_label() -> int:
-        return gen_id()
+        gen_id()
 
     fn set_label(label?: int):
         let index = code.len()
@@ -665,7 +664,7 @@ class BytecodeGenerator:
         is_reachable = true
     
     fn translate_label(label?: int) -> int:
-        return label_mapping.get(key: "{label}")
+        label_mapping.get(key: "{label}")
 
     fn begin_code():
         label_mapping = Dictionary()
@@ -690,7 +689,7 @@ class BytecodeGenerator:
                     instructions.append(Instruction.SetupTry(try_label, except_label))
             else:
                 instructions.append(instruction)
-        return instructions
+        instructions
 
     fn jump(label?: int):
         emit(Instruction.Jump(target: label))
@@ -705,44 +704,43 @@ class BytecodeGenerator:
         let ty = get_bc_type(variable.ty)
         let index = new_local(name: variable.id.name, ty)
         local_var_mapping.insert(key: ast.node_id_to_string(variable.id), value: index)
-        return index
+        index
     
     fn new_local(name: str, ty: bc.Type) -> int:
         let index = local_variables.len()
         let local = bc.TypedName(name, ty)
         local_variables.append(local)
-        return index
+        index
     
     fn is_local_variable(variable: ast.Variable) -> bool:
-        return local_var_mapping.contains(key: ast.node_id_to_string(variable.id))
+        local_var_mapping.contains(key: ast.node_id_to_string(variable.id))
 
     fn get_local_index(variable: ast.Variable) -> int:
         let key = ast.node_id_to_string(variable.id)
-        return local_var_mapping.get(key)
+        local_var_mapping.get(key)
 
     fn get_global_index(variable: ast.Variable) -> int:
         let key = ast.node_id_to_string(variable.id)
-        return global_var_mapping.get(key)
+        global_var_mapping.get(key)
 
     fn get_parameter_index(parameter_def: ast.ParameterDef) -> int:
-        return local_var_mapping.get(key: ast.node_id_to_string(parameter_def.id))
+        local_var_mapping.get(key: ast.node_id_to_string(parameter_def.id))
 
     fn get_bc_type(ty2?: ast.Type) -> bc.Type:
         # Determine the bytecode type for the given ast type
-        let ty = bc.Type.Ptr()
         if ty2.is_int():
             let signed = ty2.is_signed_int()
             let bits = ty2.get_bits()
-            ty = bc.Type.Int(signed, bits)
+            bc.Type.Int(signed, bits)
         elif ty2.is_float():
             let bits = ty2.get_bits()
-            ty = bc.Type.Float(bits)
+            bc.Type.Float(bits)
         elif ty2.is_str():
-            ty = bc.Type.Str()
+            bc.Type.Str()
         elif ty2.is_struct():
             let struct_def = ty2.get_struct_def()
             let index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
-            ty = bc.Type.StructRef(index)
+            bc.Type.StructRef(index)
         elif ty2.is_function_type():
             let parameter_types2 = ast.get_parameter_types_from_type(ty2)
             let return_type2 = ty2.get_return_type()
@@ -754,21 +752,20 @@ class BytecodeGenerator:
                 return_type = Option.None()
             else:
                 return_type = Option.Some(get_bc_type(return_type2))
-            ty = bc.Type.Function(parameter_types, return_type)
+            bc.Type.Function(parameter_types, return_type)
         elif ty2.is_type_parameter():
-            ty = bc.Type.Ptr()
+            bc.Type.Ptr()
         elif ty2.is_bool():
-            ty = bc.Type.Bool()
+            bc.Type.Bool()
         elif ty2.is_char():
-            ty = bc.Type.Char()
+            bc.Type.Char()
         elif ty2.is_opaque():
-            ty = bc.Type.Ptr()
+            bc.Type.Ptr()
         elif ty2.is_array():
             let element_type2 = ty2.get_element_type()
-            ty = bc.Type.Array(get_bc_type(element_type2))
+            bc.Type.Array(get_bc_type(element_type2))
         else:
             panic("get_bc_type: Type {ty2} not supported")
-        return ty
     
     fn enter_block(block: ControlBlock):
         block_stack.prepend(block)
@@ -793,12 +790,12 @@ class BytecodeGenerator:
             code.append(instruction)
 
     fn get_name(id?: ast.NodeId) -> str:
-        return "X{id.id}_{id.name}"
+        "X{id.id}_{id.name}"
 
     fn gen_id() -> int:
         let x = id_counter
         id_counter += 1
-        return x
+        x
 
 
 fn get_attr_index(ty: ast.Type, attr: str) -> int:

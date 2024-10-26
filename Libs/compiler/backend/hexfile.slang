@@ -42,7 +42,7 @@ fn to_chunks(data: Bytes) -> List[Bytes]:
     if part.len() > 0:
         parts.append(part.to_bytes())
 
-    return parts
+    parts
 
 struct HexLine:
     address: int
@@ -61,5 +61,5 @@ fn hex_line_to_text(line: HexLine) -> str:
     crc = (0x100 - (crc & 0xff)) & 0xff
     x.append(crc)
     let txt = x.as_hex()
-    return ":{txt}"
+    ":{txt}"
 

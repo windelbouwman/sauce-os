@@ -21,7 +21,7 @@ class Function:
     var blocks: List[Block]
 
     fn to_string() -> str:
-        return "function {name}()"
+        "function {name}()"
 
     fn dump():
         print("{this}")
@@ -33,7 +33,7 @@ class Block:
     var instructions: List[Instruction]
 
     fn to_string() -> str:
-        return "  @{name}"
+        "  @{name}"
 
     fn dump():
         print("{this}")
@@ -44,68 +44,64 @@ class Instruction:
     var op: OpCode
 
     fn to_string() -> str:
-        let txt = ""
         case op:
             Nop:
-                txt = "nop"
+                "nop"
             Binop(dst, op2, lhs, rhs):
-                case op2:
+                let txt = case op2:
                     Add:
-                        txt = "add"
+                        "add"
                     Sub:
-                        txt = "sub"
+                        "sub"
                     Mul:
-                        txt = "mul"
+                        "mul"
                     Div:
-                        txt = "div"
-                txt = "{value_to_string(dst)} = {txt} {value_to_string(lhs)}, {value_to_string(rhs)}"
+                        "div"
+                "{value_to_string(dst)} = {txt} {value_to_string(lhs)}, {value_to_string(rhs)}"
             Compare(dst, op2, lhs, rhs):
-                # txt = "eq/gt?"
-                case op2:
+                let txt = case op2:
                     Eq:
-                        txt = "eq"
+                        "eq"
                     Neq:
-                        txt = "ne"
+                        "ne"
                     Gt:
-                        txt = "gt"
+                        "gt"
                     Gte:
-                        txt = "gte"
+                        "gte"
                     Lt:
-                        txt = "lt"
+                        "lt"
                     Lte:
-                        txt = "lte"
-                txt = "{value_to_string(dst)} = {txt} {value_to_string(lhs)}, {value_to_string(rhs)}"
+                        "lte"
+                "{value_to_string(dst)} = {txt} {value_to_string(lhs)}, {value_to_string(rhs)}"
             Alloc(addr, size):
-                txt = "{value_to_string(addr)} = alloc {size}"
+                "{value_to_string(addr)} = alloc {size}"
             Load(dst, addr):
-                txt = "{value_to_string(dst)} = load {value_to_string(addr)}"
+                "{value_to_string(dst)} = load {value_to_string(addr)}"
             Store(addr, value):
-                txt = "store {value_to_string(addr)}, {value_to_string(value)}"
+                "store {value_to_string(addr)}, {value_to_string(value)}"
             Jump(label):
-                txt = "jmp @{label}"
+                "jmp @{label}"
             JumpNonZero(condition, label1, label2):
-                txt = "jmp-non-zero {value_to_string(condition)} @{label1}, @{label2}"
+                "jmp-non-zero {value_to_string(condition)} @{label1}, @{label2}"
             Call(dst, callee, arguments):
                 let parts: List[str] = List()
                 for argument in arguments:
                     parts.append(value_to_string(argument))
                 let args = str_join(parts, sep: ", ")
-                txt = "call {value_to_string(callee)}({args})"
+                let txt = "call {value_to_string(callee)}({args})"
                 case dst:
                     Some(target):
-                        txt = "{value_to_string(target)} = {txt}"
+                        "{value_to_string(target)} = {txt}"
                     None:
-                        pass
+                        txt
             Return(value):
-                txt = "return"
                 case value:
                     Some(value2):
-                        txt = "{txt} {value_to_string(value2)}"
+                        "return {value_to_string(value2)}"
                     None:
-                        pass
+                        "return"
             Halt:
-                txt = "hlt"
-        return txt
+                "hlt"
 
 enum OpCode:
     Nop
@@ -142,8 +138,8 @@ enum Value:
 fn value_to_string(value?: Value) -> str:
     case value:
         Integer(value):
-            return "{value}"
+            "{value}"
         Tmp(name):
-            return "%{name}"
+            "%{name}"
         Global(name):
-            return "${name}"
+            "${name}"

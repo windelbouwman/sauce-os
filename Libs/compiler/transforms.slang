@@ -683,19 +683,18 @@ class ClassRewriter:
         let type_arguments = ty.get_type_arguments()
         let ctor_func_ref = ast.function_ref(function_def: ctor_func_def, type_arguments, location)
         let struct_ty: ast.Type = ast.undefined_type()
-        let ctor_call = ast.call(callee: ctor_func_ref, arguments, ty: struct_ty, location)
-        return ctor_call
+        ast.call(callee: ctor_func_ref, arguments, ty: struct_ty, location)
 
     fn get_unique_id() -> int:
-        return id_gen.new_id()
+        id_gen.new_id()
     
     fn new_variable(name: str, ty: ast.Type, location: Location) -> ast.Variable:
         # Create a new variable with unique id
         let id = get_unique_id()
-        return ast.variable(name, id, ty, location)
+        ast.variable(name, id, ty, location)
 
     fn get_enum_impl(id: ast.NodeId) -> EnumImpl:
-        return enum_impl_map.get(key: ast.node_id_to_string(id))
+        enum_impl_map.get(key: ast.node_id_to_string(id))
     
     fn load_std_function(name: str, location: Location) -> ast.Expression:
         # Get expression that loads a builtin runtime function.
@@ -703,7 +702,7 @@ class ClassRewriter:
         case symbol:
             Function(function_def):
                 let type_arguments: List[ast.Type] = List()
-                return ast.function_ref(function_def, type_arguments, location)
+                ast.function_ref(function_def, type_arguments, location)
         else:
             panic("{name} must be external function")
 
@@ -712,11 +711,11 @@ class ClassRewriter:
         log_debug("Rewrite for loop")
 
         if for_statement.iter_value.ty.is_array():
-            return transform_for_loop_over_array(for_statement, location)
+            transform_for_loop_over_array(for_statement, location)
         elif for_statement.iter_value.ty.is_iterable_like():
-            return transform_for_loop_over_iterator(for_statement, location)
+            transform_for_loop_over_iterator(for_statement, location)
         elif for_statement.iter_value.ty.is_sequence_like():
-            return transform_for_loop_over_sequence(for_statement, location)
+            transform_for_loop_over_sequence(for_statement, location)
         else:
             panic("Cannot for-loop over {for_statement.iter_value.ty}")
 
@@ -751,7 +750,7 @@ class ClassRewriter:
         let loop_body = ast.compound(inner: vec2(let_opt_var, case_statement), location)
         let loop_statement = ast.while_statement(condition: true_value, body: loop_body, location)
 
-        return ast.compound(inner: vec2(let_it_var, loop_statement), location)
+        ast.compound(inner: vec2(let_it_var, loop_statement), location)
 
     fn transform_for_loop_over_sequence(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
         let sequence_type = for_statement.iter_value.ty
@@ -796,7 +795,7 @@ class ClassRewriter:
         let loop_body1 = ast.compound(inner: vec3(let_v, inc_index, for_statement.block.body), location)
         let while_loop = ast.while_statement(condition, body: loop_body1, location)
 
-        return ast.compound(inner: vec4(let_x, let_index, let_size, while_loop), location)
+        ast.compound(inner: vec4(let_x, let_index, let_size, while_loop), location)
 
     fn transform_for_loop_over_array(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
         # Turn for loop into index / while loop
@@ -833,7 +832,7 @@ class ClassRewriter:
         let loop_body1 = ast.compound(inner: vec3(let_v, inc_index, for_statement.block.body), location)
         let while_loop = ast.while_statement(condition, body: loop_body1, location)
 
-        return ast.compound(inner: vec3(let_x, let_index, while_loop), location)
+        ast.compound(inner: vec3(let_x, let_index, while_loop), location)
 
     fn transform_switch(switch_statement: ast.SwitchStatement, location: Location) -> ast.StatementKind:
         # Turn switch into sequence of if-else
@@ -848,7 +847,7 @@ class ClassRewriter:
             let condition = ast.binop(lhs: x_ref, op: eq_op, rhs: arm.value, ty: eq_ty, location: arm.location)
             else_clause = ast.if_statement(condition, body: arm.block.body, false_body: else_clause, location: arm.location)
         
-        return ast.StatementKind.Compound(vec2(let_x, else_clause))
+        ast.StatementKind.Compound(vec2(let_x, else_clause))
 
     fn rewrite_enum_def(enum_def: ast.EnumDef):
         log_info("Rewriting enum def {enum_def.id.name}")
@@ -984,7 +983,7 @@ class ClassRewriter:
                 let switch_value = x_var_ref0.get_attr_typed(attr: "tag", location)
                 let switch_on_tag = ast.switch_statement(value: switch_value, arms: switch_arms, default_body: switch_default_code, location)
 
-                return ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
+                ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
             Nullable:
                 # Change case to if-null construction
                 let x_var = new_variable(name: "x", ty: ast.opaque_type(), location)
@@ -1031,7 +1030,7 @@ class ClassRewriter:
                 let condition = x_var_ref0.equals(rhs: null_test_value, location)
                 let choice = ast.if_statement(condition, body: true_body, false_body, location)
 
-                return ast.compound(inner: vec2(store_nullable, choice), location)
+                ast.compound(inner: vec2(store_nullable, choice), location)
             Int:
                 let switch_arms: List[ast.SwitchArm] = List()
                 for arm in case_statement.arms:
@@ -1052,7 +1051,7 @@ class ClassRewriter:
                     Some(else_block):
                         switch_default_code = else_block.body
 
-                return ast.switch_statement(value: case_statement.value, arms: switch_arms, default_body: switch_default_code, location)
+                ast.switch_statement(value: case_statement.value, arms: switch_arms, default_body: switch_default_code, location)
 
     fn rewrite_enum_literal(enum_ty: ast.Type, variant: ast.EnumVariant, values: List[ast.Expression], location: Location) -> ast.Expression:
         # log_info("Rewrite enum literal")
@@ -1061,16 +1060,14 @@ class ClassRewriter:
         let tag = ast.integer_literal(value: tag_value, location)
         case get_enum_impl(id: enum_def.id):
             Int:
-                return tag
+                tag
             Nullable:
-                let nullable_value = ast.null_value(location)
                 if values.len() == 0:
-                    pass
+                    ast.null_value(location)
                 elif values.len() == 1:
-                    nullable_value = ast.box(value: values.first(), location)
+                    ast.box(value: values.first(), location)
                 else:
                     panic("Bad nullable")
-                return nullable_value
             Struct(struct_def):
                 let type_arguments = enum_ty.get_type_arguments()
                 let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
@@ -1086,7 +1083,7 @@ class ClassRewriter:
                     let struct_type2 = union_type.get_field_type(attr: union_field_name)
                     ast.struct_literal(ty: struct_type2, values, location)
                 let data = ast.union_literal(ty: union_type, field: union_field_name, value: union_value, location)
-                return ast.struct_literal(ty: struct_type, values: list2(tag, data), location)
+                ast.struct_literal(ty: struct_type, values: list2(tag, data), location)
 
     fn erase_type(ft: ast.Type, value: ast.Expression, assign: bool):
         if ft.was_generic and not assign:
@@ -1163,13 +1160,13 @@ class ClassRewriter:
         # TODO: we could insert duplicate bridge functions.
         # TODO: check for duplicate bridge functions.
         new_definitions.append(ast.Definition.Function(bridge_function))
-        return bridge_function
+        bridge_function
 
 fn needs_opaque_cast(ty?: ast.Type) -> bool:
     if ty.was_generic:
         if ty.is_type_parameter():
-            return false
+            false
         else:
-            return true
+            true
     else:
-        return false
+        false

@@ -68,26 +68,26 @@ class SlangGenerator:
         if ty.is_int():
             let bits = ty.get_bits()
             if ty.is_signed_int():
-                return "int{bits}"
+                "int{bits}"
             else:
-                return "uint{bits}"
+                "uint{bits}"
         elif ty.is_bool():
-            return "bool"
+            "bool"
         elif ty.is_str():
-            return "str"
+            "str"
         elif ty.is_float():
-            return "float"
+            "float"
         elif ty.is_char():
-            return "char"
+            "char"
         elif ty.is_struct():
             let struct_def = ty.get_struct_def()
             let struct_name = get_id(struct_def.id)
-            return struct_name
+            struct_name
         elif ty.is_opaque():
-            return "ptr"
+            "ptr"
         elif ty.is_array():
             let ety = ty.get_element_type()
-            return "[{gen_type(ety)}]"
+            "[{gen_type(ety)}]"
         elif ty.is_function_type():
             let ret_ty = ty.get_return_type()
             let parts: List[str] = List()
@@ -97,7 +97,7 @@ class SlangGenerator:
             let suffix = ""
             if not ret_ty.is_void():
                 suffix = suffix + " -> {gen_type(ret_ty)}"
-            return "fn ({params}){suffix}"
+            "fn ({params}){suffix}"
         else:
             panic("gen_type: Unsupported: {ty}")
 
@@ -174,23 +174,22 @@ class SlangGenerator:
             gen_block(if_statement.false_block)
 
     fn gen_expression(expression?: ast.Expression, parens: bool) -> str:
-        let txt = "?"
         case expression.kind:
             Null:
-                txt = "null"
+                "null"
             BoolLiteral(v):
                 if v:
-                    txt = "true"
+                    "true"
                 else:
-                    txt = "false"
+                    "false"
             IntLiteral(v):
-                txt = "{v}"
+                "{v}"
             StringLiteral(s):
-                txt = "\"{s}\""
+                "\"{s}\""
             CharLiteral(s):
-                txt = "'{s}'"
+                "'{s}'"
             FloatLiteral(value):
-                txt = float_to_str(value)
+                float_to_str(value)
             StructLiteral(ty, values):
                 let struct_def = ty.get_struct_def()
                 let name = get_id(struct_def.id)
@@ -200,56 +199,57 @@ class SlangGenerator:
                     let value = option_unwrap(value_iter.next())
                     parts.append("{field.name}: {gen_expression(value, parens: false)}")
                 let args = str_join(parts, sep: ", ")
-                txt = "{name}({args})"
+                "{name}({args})"
             ArrayLiteral(values):
                 let args = gen_expression_list(expressions: values)
-                txt = "[{args}]"
+                "[{args}]"
             ArrayLiteral2(size, ty):
                 let size_txt = gen_expression(size, parens: false)
                 let ty_txt = gen_type(ty)
-                txt = "[{size_txt} : {ty_txt}]"
+                "[{size_txt} : {ty_txt}]"
             ParameterRef(parameter_def):
-                txt = get_id(parameter_def.id)
+                get_id(parameter_def.id)
             VarRef(variable):
-                txt = get_id(variable.id)
+                get_id(variable.id)
             FunctionRef(function_def, type_arguments):
-                txt = function_def.name
+                function_def.name
             TypeCast(ty, value):
-                txt = "cast {gen_type(ty)}({gen_expression(value, parens: true)})"
+                "cast {gen_type(ty)}({gen_expression(value, parens: true)})"
             Box(value):
-                txt = "box {gen_expression(value, parens: true)}"
+                "box {gen_expression(value, parens: true)}"
             Unbox(value, to_type):
-                txt = "unbox {gen_expression(value, parens: true)}"
+                "unbox {gen_expression(value, parens: true)}"
             Call(call):
                 let expressions: List[ast.Expression] = List()
                 for argument in call.arguments:
                     expressions.append(argument.value)
                 let argument_text = gen_expression_list(expressions)
-                txt = "{gen_expression(call.callee, parens: true)}({argument_text})"
+                "{gen_expression(call.callee, parens: true)}({argument_text})"
             GetAttr(base, attr):
                 let b = gen_expression(base, parens: true)
-                txt = "{b}.{attr}"
+                "{b}.{attr}"
             GetIndex(base, indici):
                 let b = gen_expression(base, parens: true)
                 let i = gen_expression_list(expressions: indici)
-                txt = "{b}[{i}]"
+                "{b}[{i}]"
             Binop(binop):
                 let op = ast.binary_op_to_str(op: binop.op)
-                txt = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
+                let txt = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
                 if parens:
-                    txt = "({txt})"
+                    "({txt})"
+                else:
+                    txt
         else:
             panic("Unsupported: {expression}")
-        return txt
 
     fn gen_expression_list(expressions: List[ast.Expression]) -> str:
         let parts: List[str] = List()
         for expression in expressions:
             parts.append(gen_expression(expression, parens: false))
-        return str_join(parts, sep: ", ")
+        str_join(parts, sep: ", ")
 
     fn get_id(id?: ast.NodeId) -> str:
-        return "X{id.id}_{id.name}"
+        "X{id.id}_{id.name}"
 
     fn emit(txt?: str):
         out.emit(txt)

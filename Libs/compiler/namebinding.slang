@@ -39,17 +39,14 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module], tycon_map:
     if not binder.errors.is_empty():
         raise new_errors(filename: module.filename, errors: binder.errors)
 
-    return
-
 fn new_bind_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
-    let bind_visitor = ast.Visitor:
+    ast.Visitor:
         data: binder
         on_definition: binder_on_definition
         on_type: binder_on_type
         on_statement: binder_on_statement
         on_expression: binder_on_expression
         on_node: binder_on_node
-    return bind_visitor
 
 fn bind_names_expression(expression: ast.Expression) except CompilationError:
     let tycon_map: Dictionary[ast.TyCon] = Dictionary()
@@ -81,21 +78,21 @@ fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
     # try to retrieve a scope, if we have one
     case definition:
         Macro(macro_def):
-            return Option.None()
+            Option.None()
         Function(function_def):
             case function_def.body:
                 Intern(scoped_block):
-                    return Option.Some(scoped_block.scope)
+                    Option.Some(scoped_block.scope)
                 Extern(libname):
-                    return Option.None()
+                    Option[ast.Scope].None()
         Enum(enum_def):
-            return Option.Some(enum_def.scope)
+            Option.Some(enum_def.scope)
         Struct(struct_def):
-            return Option.Some(struct_def.scope)
+            Option.Some(struct_def.scope)
         Class(class_def):
-            return Option.Some(class_def.scope)
+            Option.Some(class_def.scope)
         Var(v):
-            return Option.None()
+            Option[ast.Scope].None()
 
 fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: ast.VisitPhase):
     case phase:
@@ -306,15 +303,15 @@ fn binder_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.
 fn symbol_to_kind(symbol: ast.Symbol) -> ast.ExpressionKind:
     case symbol:
         Typ(ty):
-            return ast.ExpressionKind.Typ(ty)
+            ast.ExpressionKind.Typ(ty)
         TypeConstructor(tycon):
-            return ast.ExpressionKind.TypeConstructor(tycon)
+            ast.ExpressionKind.TypeConstructor(tycon)
         Var(variable):
-            return ast.ExpressionKind.VarRef(variable)
+            ast.ExpressionKind.VarRef(variable)
         Parameter(parameter_def):
-            return ast.ExpressionKind.ParameterRef(parameter_def)
+            ast.ExpressionKind.ParameterRef(parameter_def)
     else:
-        return ast.ExpressionKind.LoadSymbol(symbol)
+        ast.ExpressionKind.LoadSymbol(symbol)
 
 fn binder_on_expression(binder: NameBinder, expression: ast.Expression, phase: ast.VisitPhase):
     case phase:
@@ -383,7 +380,7 @@ fn base_scope() -> ast.Scope:
     s.define(name: "float", symbol: ast.Symbol.Typ(ty: ast.float_type()))
     s.define(name: "float32", symbol: ast.Symbol.Typ(ty: ast.float32_type()))
     s.define(name: "float64", symbol: ast.Symbol.Typ(ty: ast.float64_type()))
-    return s
+    s
 
 class NameBinder:
     var scopes: List[ast.Scope] = List()

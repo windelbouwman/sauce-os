@@ -60,7 +60,7 @@ fn type_to_string(ty?: Type) -> str:
         let results_txt = str_join(parts, sep: " ")
         parts2.append("(result {results_txt})")
 
-    return str_join(parts: parts2, sep: " ") 
+    str_join(parts: parts2, sep: " ") 
 
 struct Import:
     module: str
@@ -635,351 +635,347 @@ fn encode(instruction: Instruction):
             pack_byte(0xC4)
 
 fn to_string(instruction: Instruction) -> str:
-    let txt = ""
-
     case instruction:
         ctrl_unreachable:
-            txt = "unreachable"
+            "unreachable"
         ctrl_nop:
-            txt = "nop"
+            "nop"
         ctrl_block:
-            txt = "block"
+            "block"
         ctrl_loop:
-            txt = "loop"
+            "loop"
         ctrl_if:
-            txt = "if"
+            "if"
         ctrl_else:
-            txt = "else"
+            "else"
         ctrl_end:
-            txt = "end"
+            "end"
 
         ctrl_br(labelidx):
-            txt = "br {labelidx}"
+            "br {labelidx}"
         ctrl_br_if(labelidx):
-            txt = "br_if {labelidx}"
+            "br_if {labelidx}"
         ctrl_br_table:
-            txt = "br_table"
+            "br_table"
         ctrl_return:
-            txt = "return"
+            "return"
         ctrl_call(funcidx):
-            txt = "call {funcidx}"
+            "call {funcidx}"
         ctrl_call_indirect(tableidx):
-            txt = "call_indirect {tableidx}"
+            "call_indirect {tableidx}"
 
         local_get(localidx):
-            txt = "local.get {localidx}"
+            "local.get {localidx}"
         local_set(localidx):
-            txt = "local.set {localidx}"
+            "local.set {localidx}"
         local_tee(localidx):
-            txt = "local.tee {localidx}"
+            "local.tee {localidx}"
         global_get(globalidx):
-            txt = "global.get {globalidx}"
+            "global.get {globalidx}"
         global_set(globalidx):
-            txt = "global.set {globalidx}"
+            "global.set {globalidx}"
 
 
         i32_load(align, offset):
-            txt = "i32.load offset={offset} align={align}"
+            "i32.load offset={offset} align={align}"
 
         i64_load(align, offset):
-            txt = "i64.load offset={offset} align={align}"
+            "i64.load offset={offset} align={align}"
 
         f32_load(align, offset):
-            txt = "f32.load offset={offset} align={align}"
+            "f32.load offset={offset} align={align}"
 
         f64_load(align, offset):
-            txt = "f64.load offset={offset} align={align}"
+            "f64.load offset={offset} align={align}"
 
         i32_store(align, offset):
-            txt = "i32.store offset={offset} align={align}"
+            "i32.store offset={offset} align={align}"
 
         i64_store(align, offset):
-            txt = "i64.store offset={offset} align={align}"
+            "i64.store offset={offset} align={align}"
 
         f32_store(align, offset):
-            txt = "f32.store offset={offset} align={align}"
+            "f32.store offset={offset} align={align}"
 
         f64_store(align, offset):
-            txt = "f64.store offset={offset} align={align}"
+            "f64.store offset={offset} align={align}"
 
         i32_const(value):
-            txt = "i32.const {value}"
+            "i32.const {value}"
         i64_const(value):
-            txt = "i64.const {value}"
+            "i64.const {value}"
         f32_const(value):
-            txt = "f32.const {float_to_str(value)}"
+            "f32.const {float_to_str(value)}"
         f64_const(value):
-            txt = "f64.const {float_to_str(value)}"
+            "f64.const {float_to_str(value)}"
 
         i32_eqz:
-            txt = "i32.eqz"
+            "i32.eqz"
         i32_eq:
-            txt = "i32.eq"
+            "i32.eq"
         i32_ne:
-            txt = "i32.ne"
+            "i32.ne"
         i32_lt_s:
-            txt = "i32.lt_s"
+            "i32.lt_s"
         i32_lt_u:
-            txt = "i32.lt_u"
+            "i32.lt_u"
         i32_gt_s:
-            txt = "i32.gt_s"
+            "i32.gt_s"
         i32_gt_u:
-            txt = "i32.gt_u"
+            "i32.gt_u"
         i32_le_s:
-            txt = "i32.le_s"
+            "i32.le_s"
         i32_le_u:
-            txt = "i32.le_u"
+            "i32.le_u"
         i32_ge_s:
-            txt = "i32.ge_s"
+            "i32.ge_s"
         i32_ge_u:
-            txt = "i32.ge_u"
+            "i32.ge_u"
              
 
         i64_eqz:
-            txt = "i64.eqz"
+            "i64.eqz"
         i64_eq:
-            txt = "i64.eq"
+            "i64.eq"
         i64_ne:
-            txt = "i64.ne"
+            "i64.ne"
         i64_lt_s:
-            txt = "i64.lt_s"
+            "i64.lt_s"
         i64_lt_u:
-            txt = "i64.lt_u"
+            "i64.lt_u"
         i64_gt_s:
-            txt = "i64.gt_s"
+            "i64.gt_s"
         i64_gt_u:
-            txt = "i64.gt_u"
+            "i64.gt_u"
         i64_le_s:
-            txt = "i64.le_s"
+            "i64.le_s"
         i64_le_u:
-            txt = "i64.le_u"
+            "i64.le_u"
         i64_ge_s:
-            txt = "i64.ge_s"
+            "i64.ge_s"
         i64_ge_u:
-            txt = "i64.ge_u"
+            "i64.ge_u"
 
         f32_eq:
-            txt = "f32.eq"
+            "f32.eq"
         f32_ne:
-            txt = "f32.ne"
+            "f32.ne"
         f32_lt:
-            txt = "f32.lt"
+            "f32.lt"
         f32_gt:
-            txt = "f32.gt"
+            "f32.gt"
         f32_le:
-            txt = "f32.le"
+            "f32.le"
         f32_ge:
-            txt = "f32.ge"
+            "f32.ge"
 
         f64_eq:
-            txt = "f64.eq"
+            "f64.eq"
         f64_ne:
-            txt = "f64.ne"
+            "f64.ne"
         f64_lt:
-            txt = "f64.lt"
+            "f64.lt"
         f64_gt:
-            txt = "f64.gt"
+            "f64.gt"
         f64_le:
-            txt = "f64.le"
+            "f64.le"
         f64_ge:
-            txt = "f64.ge"
+            "f64.ge"
 
         i32_clz:
-            txt = "i32.clz"
+            "i32.clz"
         i32_ctz:
-            txt = "i32.ctz"
+            "i32.ctz"
         i32_popcnt:
-            txt = "i32.popcnt"
+            "i32.popcnt"
         i32_add:
-            txt = "i32.add"
+            "i32.add"
         i32_sub:
-            txt = "i32.sub"
+            "i32.sub"
         i32_mul:
-            txt = "i32.mul"
+            "i32.mul"
         i32_div_s:
-            txt = "i32.div_s"
+            "i32.div_s"
         i32_div_u:
-            txt = "i32.div_u"
+            "i32.div_u"
         i32_rem_s:
-            txt = "i32.rem_s"
+            "i32.rem_s"
         i32_rem_u:
-            txt = "i32.rem_u"
+            "i32.rem_u"
         i32_and:
-            txt = "i32.and"
+            "i32.and"
         i32_or:
-            txt = "i32.or"
+            "i32.or"
         i32_xor:
-            txt = "i32.xor"
+            "i32.xor"
         i32_shl:
-            txt = "i32.shl"
+            "i32.shl"
         i32_shr_s:
-            txt = "i32.shr_s"
+            "i32.shr_s"
         i32_shr_u:
-            txt = "i32.shr_u"
+            "i32.shr_u"
         i32_rotl:
-            txt = "i32.rotl"
+            "i32.rotl"
         i32_rotr:
-            txt = "i32.rotr"
+            "i32.rotr"
             
 
         i64_clz:
-            txt = "i64.clz"
+            "i64.clz"
         i64_ctz:
-            txt = "i64.ctz"
+            "i64.ctz"
         i64_popcnt:
-            txt = "i64.popcnt"
+            "i64.popcnt"
         i64_add:
-            txt = "i64.add"
+            "i64.add"
         i64_sub:
-            txt = "i64.sub"
+            "i64.sub"
         i64_mul:
-            txt = "i64.mul"
+            "i64.mul"
         i64_div_s:
-            txt = "i64.div_s"
+            "i64.div_s"
         i64_div_u:
-            txt = "i64.div_u"
+            "i64.div_u"
         i64_rem_s:
-            txt = "i64.rem_s"
+            "i64.rem_s"
         i64_rem_u:
-            txt = "i64.rem_u"
+            "i64.rem_u"
         i64_and:
-            txt = "i64.and"
+            "i64.and"
         i64_or:
-            txt = "i64.or"
+            "i64.or"
         i64_xor:
-            txt = "i64.xor"
+            "i64.xor"
         i64_shl:
-            txt = "i64.shl"
+            "i64.shl"
         i64_shr_s:
-            txt = "i64.shr_s"
+            "i64.shr_s"
         i64_shr_u:
-            txt = "i64.shr_u"
+            "i64.shr_u"
         i64_rotl:
-            txt = "i64.rotl"
+            "i64.rotl"
         i64_rotr:
-            txt = "i64.rotr"
+            "i64.rotr"
 
         f32_abs:
-            txt = "f32.abs"
+            "f32.abs"
         f32_neg:
-            txt = "f32.neg"
+            "f32.neg"
         f32_ceil:
-            txt = "f32.ceil"
+            "f32.ceil"
         f32_floor:
-            txt = "f32.floor"
+            "f32.floor"
         f32_trunc:
-            txt = "f32.trunc"
+            "f32.trunc"
         f32_nearest:
-            txt = "f32.nearest"
+            "f32.nearest"
         f32_sqrt:
-            txt = "f32.sqrt"
+            "f32.sqrt"
         f32_add:
-            txt = "f32.add"
+            "f32.add"
         f32_sub:
-            txt = "f32.sub"
+            "f32.sub"
         f32_mul:
-            txt = "f32.mul"
+            "f32.mul"
         f32_div:
-            txt = "f32.div"
+            "f32.div"
         f32_min:
-            txt = "f32.min"
+            "f32.min"
         f32_max:
-            txt = "f32.max"
+            "f32.max"
         f32_copysign:
-            txt = "f32.copysign"
+            "f32.copysign"
 
         f64_abs:
-            txt = "f64.abs"
+            "f64.abs"
         f64_neg:
-            txt = "f64.neg"
+            "f64.neg"
         f64_ceil:
-            txt = "f64.ceil"
+            "f64.ceil"
         f64_floor:
-            txt = "f64.floor"
+            "f64.floor"
         f64_trunc:
-            txt = "f64.trunc"
+            "f64.trunc"
         f64_nearest:
-            txt = "f64.nearest"
+            "f64.nearest"
         f64_sqrt:
-            txt = "f64.sqrt"
+            "f64.sqrt"
         f64_add:
-            txt = "f64.add"
+            "f64.add"
         f64_sub:
-            txt = "f64.sub"
+            "f64.sub"
         f64_mul:
-            txt = "f64.mul"
+            "f64.mul"
         f64_div:
-            txt = "f64.div"
+            "f64.div"
         f64_min:
-            txt = "f64.min"
+            "f64.min"
         f64_max:
-            txt = "f64.max"
+            "f64.max"
         f64_copysign:
-            txt = "f64.copysign"
+            "f64.copysign"
 
         i32_wrap_i64:
-            txt = "i32.wrap_i64"
+            "i32.wrap_i64"
         i32_trunc_f32_s:
-            txt = "i32.trunc_f32_s"
+            "i32.trunc_f32_s"
         i32_trunc_f32_u:
-            txt = "i32.trunc_f32_u"
+            "i32.trunc_f32_u"
         i32_trunc_f64_s:
-            txt = "i32.trunc_f64_s"
+            "i32.trunc_f64_s"
         i32_trunc_f64_u:
-            txt = "i32.trunc_f64_u"
+            "i32.trunc_f64_u"
         i64_extend_i32_s:
-            txt = "i64.extend_i32_s"
+            "i64.extend_i32_s"
         i64_extend_i32_u:
-            txt = "i64.extend_i32_u"
+            "i64.extend_i32_u"
         i64_trunc_f32_s:
-            txt = "i64.trunc_f32_s"
+            "i64.trunc_f32_s"
         i64_trunc_f32_u:
-            txt = "i64.trunc_f32_u"
+            "i64.trunc_f32_u"
         i64_trunc_f64_s:
-            txt = "i64.trunc_f64_s"
+            "i64.trunc_f64_s"
         i64_trunc_f64_u:
-            txt = "i64.trunc_f64_u"
+            "i64.trunc_f64_u"
         f32_convert_i32_s:
-            txt = "f32.convert_i32_s"
+            "f32.convert_i32_s"
         f32_convert_i32_u:
-            txt = "f32.convert_i32_u"
+            "f32.convert_i32_u"
         f32_convert_i64_s:
-            txt = "f32.convert_i64_s"
+            "f32.convert_i64_s"
         f32_convert_i64_u:
-            txt = "f32.convert_i64_u"
+            "f32.convert_i64_u"
         f32_demote_f64:
-            txt = "f32.demote_f64"
+            "f32.demote_f64"
         f64_convert_i32_s:
-            txt = "f64.convert_i32_s"
+            "f64.convert_i32_s"
         f64_convert_i32_u:
-            txt = "f64.convert_i32_u"
+            "f64.convert_i32_u"
         f64_convert_i64_s:
-            txt = "f64.convert_i64_s"
+            "f64.convert_i64_s"
         f64_convert_i64_u:
-            txt = "f64.convert_i64_u"
+            "f64.convert_i64_u"
         f64_promote_f32:
-            txt = "f64.promote_f32"
+            "f64.promote_f32"
         i32_reinterpret_f32:
-            txt = "i32.reinterpret_f32"
+            "i32.reinterpret_f32"
         i64_reinterpret_f64:
-            txt = "i64.reinterpret_f64"
+            "i64.reinterpret_f64"
         f32_reinterpret_i32:
-            txt = "f32.reinterpret_i32"
+            "f32.reinterpret_i32"
         f64_reinterpret_i64:
-            txt = "f64.reinterpret_i64"
+            "f64.reinterpret_i64"
 
         i32_extend8_s:
-            txt = "i32.extend8_s"
+            "i32.extend8_s"
         i32_extend16_s:
-            txt = "i32.extend16_s"
+            "i32.extend16_s"
         i64_extend8_s:
-            txt = "i64.extend8_s"
+            "i64.extend8_s"
         i64_extend16_s:
-            txt = "i64.extend16_s"
+            "i64.extend16_s"
         i64_extend32_s:
-            txt = "i64.extend32_s"
-
-    return txt
+            "i64.extend32_s"
 
 
 fn to_wat(module: Module):

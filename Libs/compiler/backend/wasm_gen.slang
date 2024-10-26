@@ -115,19 +115,19 @@ class WasmGenerator:
 
     fn get_wasm_type(ty?: ast.Type) -> webassembly.ValueType:
         if ty.is_int():
-            return webassembly.ValueType.i64()
+            webassembly.ValueType.i64()
         elif ty.is_opaque() or ty.is_tycon_app():
-            return webassembly.ValueType.i32()
+            webassembly.ValueType.i32()
         elif ty.is_str():
-            return webassembly.ValueType.i32()
+            webassembly.ValueType.i32()
         elif ty.is_float():
-            return webassembly.ValueType.f64()
+            webassembly.ValueType.f64()
         elif ty.is_char():
-            return webassembly.ValueType.i32()
+            webassembly.ValueType.i32()
         elif ty.is_bool():
-            return webassembly.ValueType.i32()
+            webassembly.ValueType.i32()
         elif ty.is_function_type():
-            return webassembly.ValueType.i32()
+            webassembly.ValueType.i32()
         else:
             panic("TODO: {ty}!")
 
@@ -491,11 +491,11 @@ class WasmGenerator:
 
     fn sizeof(ty: ast.Type) -> int:
         let layout = get_struct_layout(ty)
-        return layout.size
+        layout.size
 
     fn offsetof(ty: ast.Type, index: int) -> int:
         let layout = get_struct_layout(ty)
-        return layout.offsets.get(index)
+        layout.offsets.get(index)
 
     fn get_struct_layout(ty: ast.Type) -> StructLayout:
         # TODO: cache results.
@@ -507,7 +507,7 @@ class WasmGenerator:
             let field_size = 8
 
             size += field_size
-        return StructLayout(size, offsets)
+        StructLayout(size, offsets)
 
     fn gen_store(offset: int, ty: ast.Type):
         let wasm_ty = get_wasm_type(ty)
@@ -534,20 +534,20 @@ class WasmGenerator:
                 emit(Instruction.f64_load(align: 8, offset))
 
     fn get_local_index(id: ast.NodeId) -> int:
-        return index_mapping.get(key: ast.node_id_to_string(id))
+        index_mapping.get(key: ast.node_id_to_string(id))
 
     fn create_parameter(id: ast.NodeId, ty: ast.Type) -> int:
         let idx = n_parameters
         n_parameters += 1
         index_mapping.insert(key: ast.node_id_to_string(id), value: idx)
-        return idx
+        idx
 
     fn create_local(id: ast.NodeId, ty: ast.Type) -> int:
         let idx = local_variables.len() + n_parameters
         let wasm_ty = get_wasm_type(ty)
         local_variables.append(wasm_ty)
         index_mapping.insert(key: ast.node_id_to_string(id), value: idx)
-        return idx
+        idx
 
     fn emit(instruction?: Instruction):
         # log_info("WASM INSTR> {webassembly.to_string(instruction)}")
@@ -574,7 +574,7 @@ class WasmGenerator:
         literal_offset += str_len(text: data) + 3  # Some extra space for trailing zeroes
         datas.append(webassembly.Data(offset, text: data))
         log_debug("STRING LITERAL> {data}")
-        return offset
+        offset
 
 struct StructLayout:
     size: int

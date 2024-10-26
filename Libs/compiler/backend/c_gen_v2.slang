@@ -96,7 +96,7 @@ class CGenerator2:
 
     fn gen_struct_decl(struct_def: ast.StructDef) -> str:
         let name = gen_id(id: struct_def.id)
-        return "struct {name}"
+        "struct {name}"
 
     fn gen_struct(struct_def: ast.StructDef):
         let decl = gen_struct_decl(struct_def)
@@ -141,7 +141,7 @@ class CGenerator2:
             return_type_text = "void {name}"
         else:
             return_type_text = gen_type(ty: function_def.info.return_type, name)
-        return "{return_type_text}({parameter_text})"
+        "{return_type_text}({parameter_text})"
 
     fn gen_function(function_def: ast.FunctionDef):
         case function_def.body:
@@ -156,35 +156,35 @@ class CGenerator2:
     
     fn gen_type(ty: ast.Type, name: str) -> str:
         if ty.is_int():
-            return "intptr_t {name}"
+            "intptr_t {name}"
         elif ty.is_bool():
-            return "intptr_t {name}"
+            "intptr_t {name}"
         elif ty.is_str():
-            return "char* {name}"
+            "char* {name}"
         elif ty.is_float():
-            return "double {name}"
+            "double {name}"
         elif ty.is_char():
-            return "char {name}"
+            "char {name}"
         elif ty.is_opaque():
-            return "void* {name}"
+            "void* {name}"
         elif ty.is_struct():
             let struct_def = ty.get_struct_def()
             let struct_name = gen_id(id: struct_def.id)
-            return "struct {struct_name}* {name}"
+            "struct {struct_name}* {name}"
         elif ty.is_function_type():
             let ret_ty = ty.get_return_type()
             let parts: List[str] = List()
             for param_ty in ast.get_parameter_types_from_type(ty):
                 parts.append(gen_type(ty: param_ty.ty, name: ""))
             let param_text = str_join(parts, sep: ", ")
-            return gen_type(ty: ret_ty, name: "(*{name})({param_text})")
+            gen_type(ty: ret_ty, name: "(*{name})({param_text})")
         elif ty.is_void():
-            return "void {name}"
+            "void {name}"
         elif ty.is_array():
             let ety = ty.get_element_type()
             # return gen_type(ty: ety, name: "*{name}")
             let ety2 = gen_type(ty: ety, name)
-            return "{ety2}[]"
+            "{ety2}[]"
         else:
             panic("Type: {ty} not supported")
 
@@ -219,12 +219,11 @@ class CGenerator2:
 
             Assignment(target, operator, value):
                 let target_text = ""
-                let op_text = ""
-                case operator:
+                let op_text = case operator:
                     Some(op):
-                        op_text = "{binary_op_to_str(op)}="
+                        "{binary_op_to_str(op)}="
                     None:
-                        op_text = "="
+                        "="
 
                 case target.kind:
                     GetAttr(base, attr):
@@ -334,15 +333,15 @@ class CGenerator2:
                 let v1 = gen_expression(binop.lhs)
                 let v2 = gen_expression(binop.rhs)
                 let op = binary_op_to_str(op: binop.op)
-                return "({v1} {op} {v2})"
+                "({v1} {op} {v2})"
 
             Unop(op, rhs):
                 let v = gen_expression(rhs)
                 case op:
                     Minus:
-                        return "-{v}"
+                        "-{v}"
                     Not:
-                        return "({v} ? 0 : 1)"
+                        "({v} ? 0 : 1)"
 
             Call(call):
                 let callee = gen_expression(call.callee)
@@ -350,78 +349,78 @@ class CGenerator2:
                 for argument in call.arguments:
                     values.append(argument.value)
                 let args = gen_expression_list(values)
-                return "{callee}({args})"
+                "{callee}({args})"
 
             GetAttr(base, name):
                 let base_txt = gen_expression(base)
-                return "{base_txt}->{name}"
+                "{base_txt}->{name}"
             
             GetIndex(base, indici):
                 let base_txt = gen_expression(base)
                 let args = gen_expression_list(values: indici)
-                return "{base_txt}[{args}]"
+                "{base_txt}[{args}]"
             
             TypeCast(ty, value):
                 let source = gen_expression(value)
                 if ty.is_float():
-                    return "(double)({source})"
+                    "(double)({source})"
                 elif ty.is_opaque():
-                    return "(void*)({source})"
+                    "(void*)({source})"
                 elif ty.is_str():
-                    return "(char*)({source})"
+                    "(char*)({source})"
                 elif ty.is_int():
-                    return "(intptr_t)({source})"
+                    "(intptr_t)({source})"
                 elif ty.is_bool():
-                    return "(intptr_t)({source})"
+                    "(intptr_t)({source})"
                 elif ty.is_struct():
                     let to_type2 = gen_type(ty: ty, name: "")
-                    return "(({to_type2})({source}))"
+                    "(({to_type2})({source}))"
                 elif ty.is_char():
-                    return "(char)({source})"
+                    "(char)({source})"
                 else:
                     panic("Unsupported cast to: {ty}")
 
             ParameterRef(parameter_def):
-                return gen_id(id: parameter_def.id)
+                gen_id(id: parameter_def.id)
             
             FunctionRef(function_def, type_arguments):
-                return function_def.name
+                function_def.name
 
             VarRef(variable):
-                return gen_id(id: variable.id)
+                gen_id(id: variable.id)
             
             IntLiteral(value):
-                return "{value}"
+                "{value}"
 
             FloatLiteral(value):
-                return "{float_to_str(value)}"
+                "{float_to_str(value)}"
 
             BoolLiteral(value):
                 if value:
-                    return "1"
+                    "1"
                 else:
-                    return "0"
+                    "0"
 
             StringLiteral(value):
-                return "\"{value}\""
+                "\"{value}\""
 
             CharLiteral(value):
-                return "'{value}'"
+                "'{value}'"
             
             StructLiteral(ty, values):
                 let struct_def = ty.get_struct_def()
                 let name = gen_id(id: struct_def.id)
                 let args = gen_expression_list(values)
-                return "{name}_new({args})"
+                "{name}_new({args})"
             
             ArrayLiteral(values):
                 let args = gen_expression_list(values)
-                return "\{ {args} \}"
+                "\{ {args} \}"
 
             ArrayLiteral2(size, ty):
                 let size_2 = gen_expression(size)
                 let ty_2 = gen_type(ty, name: "")
-                return "calloc({size_2}, sizeof({ty_2}))"
+                "calloc({size_2}, sizeof({ty_2}))"
 
         else:
             panic("Unsupported: {expression}")
@@ -430,13 +429,13 @@ class CGenerator2:
         let parts: List[str] = List()
         for value in values:
             parts.append(gen_expression(value))
-        return str_join(parts, sep: ", ")
+        str_join(parts, sep: ", ")
 
     fn gen_id(id: ast.NodeId) -> str:
         if id.name == "main":
-            return "{id.name}2"
+            "{id.name}2"
         else:
-            return "X{id.id}_{id.name}"
+            "X{id.id}_{id.name}"
 
     fn indent():
         out.indent()
@@ -449,42 +448,38 @@ class CGenerator2:
 
 
 fn binary_op_to_str(op: ast.BinaryOperator) -> str:
-    let op_text = "$"
     case op:
         And:
-            op_text = "&&"
+            "&&"
         Or:
-            op_text = "||"
+            "||"
         Add:
-            op_text = "+"
+            "+"
         Sub:
-            op_text= "-"
+            "-"
         Mul:
-            op_text = "*"
+            "*"
         Div:
-            op_text = "/"
+            "/"
         Less:
-            op_text = "<"
+            "<"
         LessEquals:
-            op_text = "<="
+            "<="
         Greater:
-            op_text= ">"
+            ">"
         GreaterEquals:
-            op_text = ">="
+            ">="
         Equals:
-            op_text = "=="
+            "=="
         NotEquals:
-            op_text = "!="
+            "!="
         BitAnd:
-            op_text = "&"
+            "&"
         BitXor:
-            op_text = "^"
+            "^"
         BitOr:
-            op_text = "|"
+            "|"
         ShiftLeft:
-            op_text = "<<"
+            "<<"
         ShiftRight:
-            op_text = ">>"
-
-    return op_text
-
+            ">>"

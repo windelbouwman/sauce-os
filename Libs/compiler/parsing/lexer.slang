@@ -46,9 +46,9 @@ class Lexer:
             work_some()
 
         if pending.is_empty():
-            return Token(kind: TokenKind.Eof(), location: location_at(row: row, column: 1))
+            Token(kind: TokenKind.Eof(), location: location_at(row: row, column: 1))
         else:
-            return pending.pop_front()
+            pending.pop_front()
 
     fn pushback_token(token: Token):
         pending.prepend(token)
@@ -130,9 +130,9 @@ class Lexer:
             let end = Position(row: row, column: end_column)
             let location = Location(begin, end)
 
-            return Token(kind, location)
+            Token(kind, location)
         else:
-            return Token(kind: TokenKind.Eof(), location: location_at(row: row, column: 1))
+            Token(kind: TokenKind.Eof(), location: location_at(row: row, column: 1))
 
     fn parse_normal_token() -> TokenKind:
         # Get char:
@@ -252,10 +252,9 @@ class Lexer:
             offset += 1
         offset += 1
         col_start = offset
-        return TokenKind.Comment(comment: get_lexeme())
+        TokenKind.Comment(comment: get_lexeme())
 
     fn parse_identifier() -> TokenKind:
-        let kind = TokenKind.None()
         while is_id_or_digit(c: peek()):
             offset += 1
 
@@ -263,10 +262,9 @@ class Lexer:
         let txt = get_lexeme()
         case m_keywords.maybe_get(key: txt):
             Some(k2):
-                kind = k2
+                k2
             None:
-                kind = TokenKind.Identifier(txt)
-        return kind
+                TokenKind.Identifier(txt)
 
     fn parse_char() -> TokenKind:
         """ Char literal """
@@ -308,7 +306,6 @@ class Lexer:
 
     fn parse_number(c: char) -> TokenKind:
         let n = source_length
-        let kind = TokenKind.None()
         let is_hex = false
         let is_bin = false
         if c == '0':
@@ -328,7 +325,7 @@ class Lexer:
                     offset += 1
                 else:
                     break
-            kind = TokenKind.Integer(value)
+            TokenKind.Integer(value)
         elif is_bin:
             let value = 0
             loop:
@@ -338,7 +335,7 @@ class Lexer:
                     offset += 1
                 else:
                     break
-            kind = TokenKind.Integer(value)
+            TokenKind.Integer(value)
         else:
             # Calculate value as we go through the digits:
             let value = digit_to_int(c)
@@ -351,22 +348,21 @@ class Lexer:
                     break
             if peek() == '.':
                 offset += 1
-                kind = parse_float(before: value)
+                parse_float(before: value)
             elif peek() == 'e':
-                kind = parse_exponent(base: value)
+                parse_exponent(base: value)
             else:
                 # Normal decimal number
-                kind = TokenKind.Integer(value)
-        return kind
+                TokenKind.Integer(value)
 
     fn parse_float(before: int) -> TokenKind:
         while is_digit(c: peek()):
             offset += 1
         if peek() == 'e':
-            return parse_exponent(base: 0)
+            parse_exponent(base: 0)
         else:
             let float_value: float = str_to_float(get_lexeme())
-            return TokenKind.Float(float_value)
+            TokenKind.Float(float_value)
 
     fn parse_exponent(base: int) -> TokenKind:
         """ Parse the exponent notation after the 'e'"""
@@ -382,27 +378,26 @@ class Lexer:
             while is_digit(c: peek()):
                 offset += 1
             let float_value: float = str_to_float(get_lexeme())
-            return TokenKind.Float(float_value)
+            TokenKind.Float(float_value)
         else:
-            return TokenKind.Error("Invalid exponent notation")
+            TokenKind.Error("Invalid exponent notation")
 
     fn peek() -> char:
-        return peek_n(n: 0)
+        peek_n(n: 0)
 
     fn peek_n(n: int) -> char:
         let index = offset + n
         if index < source_length:
-            let c = std.str_get(text: source, index)
-            return c
+            std.str_get(text: source, index)
         else:
-            return chr(0)
+            chr(0)
 
     fn next_char() -> char:
         let n = source_length
         if offset < n:
             let c = std.str_get(text: source, index: offset)
             offset += 1
-            return c
+            c
         else:
             panic("Next char beyond input")
 
@@ -412,32 +407,32 @@ class Lexer:
             let c = std.str_get(text: source, index: offset)
             if c == txt:
                 offset += 1
-                return true
+                true
             else:
-                return false
+                false
         else:
-            return false
+            false
 
     fn get_lexeme() -> str:
-        return std.str_slice(text: source, begin: tok_begin, end: offset)
+        std.str_slice(text: source, begin: tok_begin, end: offset)
 
 fn is_lf(c: char) -> bool:
     let o = ord(c)
-    return o == 10
+    o == 10
 
 fn is_id(c: char) -> bool:
     let o = ord(c)
     if (o >= 97) and (o <= 122):  # 'a' .. 'z' (most common case)
-        return true
+        true
     elif (o >= 65) and (o <= 90):  # 'A' .. 'Z'
-        return true
+        true
     elif c == '_':
-        return true
+        true
     else:
-        return false
+        false
 
 fn is_id_or_digit(c: char) -> bool:
-    return is_id(c) or is_digit(c)
+    is_id(c) or is_digit(c)
 
 fn fill_keyword_dictionary(keywords: Dictionary[TokenKind]):
     keywords.insert(key: "and", value: TokenKind.KwAnd())

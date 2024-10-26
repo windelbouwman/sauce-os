@@ -414,17 +414,17 @@ class CustomTransformer(LarkTransformer):
         return ast.ScopedBlock(statement, span)
 
     def statement(self, x):
-        return x[0]
-
-    def block_statement(self, x):
-        return x[0]
-
-    def simple_statement(self, x):
         if isinstance(x[0], ast.Expression):
             return ast.expression_statement(x[0], x[0].location)
         else:
             assert isinstance(x[0], ast.Statement)
             return x[0]
+
+    def block_statement(self, x):
+        return x[0]
+
+    def simple_statement(self, x):
+        return x[0]
 
     def pass_statement(self, x):
         return ast.pass_statement(get_loc(x[0]))
@@ -517,9 +517,8 @@ class CustomTransformer(LarkTransformer):
 
     def let_statement(self, x):
         """
-        let_statement: KW_LET ID (COLON typ)? EQUALS test NEWLINE
-                    | KW_LET ID (COLON typ)? EQUALS obj_init
-                    | KW_LET ID (COLON typ)? EQUALS block_statement
+        let_statement: KW_LET ID (COLON typ)? EQUALS big_expression
+                     | KW_LET ID (COLON typ)? EQUALS block_statement
         """
         variable = self.new_variable(x[1].value, ast.void_type, get_loc(x[1]))
         if is_terminal(x[2], "COLON"):
@@ -749,6 +748,9 @@ class CustomTransformer(LarkTransformer):
         typ = x[3]
         return ast.array_literal2(size, typ, get_loc2(x[0], x[-1]))
 
+    def big_expression(self, x):
+        return x[0]
+
     def obj_init(self, x):
         "obj_init: expr COLON NEWLINE INDENT field_init+ DEDENT"
         ty, fields = x[0], x[4:-1]
@@ -830,8 +832,8 @@ block: COLON NEWLINE INDENT statement+ DEDENT
 
 statement: simple_statement NEWLINE
          | block_statement
-simple_statement: expression
-                | break_statement
+         | big_expression
+simple_statement: break_statement
                 | continue_statement
                 | pass_statement
                 | assignment_statement
@@ -850,15 +852,14 @@ break_statement: KW_BREAK
 continue_statement: KW_CONTINUE
 pass_statement: KW_PASS
 return_statement: KW_RETURN test?
-assignment_statement: expression (EQUALS | PLUS_EQUALS | MINUS_EQUALS) test
+assignment_statement: test (EQUALS | PLUS_EQUALS | MINUS_EQUALS) test
 
 raise_statement: KW_RAISE expression
 try_statement: KW_TRY block KW_EXCEPT LEFT_PARENTHESIS parameter RIGHT_PARENTHESIS block
 if_statement: KW_IF test block elif_clause* else_clause?
 elif_clause: KW_ELIF test block
 else_clause: KW_ELSE block
-let_statement: KW_LET ID (COLON typ)? EQUALS test NEWLINE
-             | KW_LET ID (COLON typ)? EQUALS obj_init
+let_statement: KW_LET ID (COLON typ)? EQUALS big_expression
              | KW_LET ID (COLON typ)? EQUALS block_statement
 while_statement: KW_WHILE test block
 loop_statement: KW_LOOP block
@@ -868,6 +869,8 @@ case_arm: ID (LEFT_PARENTHESIS ids RIGHT_PARENTHESIS)? block
 switch_statement: KW_SWITCH expression COLON NEWLINE INDENT switch_arm+ DEDENT else_clause
 switch_arm: expression block
 
+big_expression: test NEWLINE
+              | obj_init
 test: disjunction
 disjunction: disjunction KW_OR conjunction
            | conjunction

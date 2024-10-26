@@ -15,6 +15,7 @@ fn main() -> int:
     else:
         100
     std.print("a={a}")
+    std.print("x.b={get_x().b}")
     0
 
 enum Token:
@@ -56,3 +57,12 @@ fn ugh(token: Token) -> int:
 fn panic() ?:
     std.print("Oh noes!")
     std.exit(code: 2)
+
+struct X:
+    a: int
+    b: int
+
+fn get_x() -> X:
+    X:
+        a: 1
+        b: 2

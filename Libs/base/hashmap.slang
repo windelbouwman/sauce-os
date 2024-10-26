@@ -19,9 +19,9 @@ class HashMap[T]:
     fn maybe_get(key: str) -> Option[T]:
         if n_buckets > 0:
             let list = get_list(key)
-            return list.maybe_get(key)
+            list.maybe_get(key)
         else:
-            return Option.None()
+            Option.None()
     
     fn get_list(key: str) -> AssociationList[T]:
         # let index = modulo(value: hash_key(key), divisor: n_buckets)
@@ -32,12 +32,12 @@ class HashMap[T]:
     fn contains(key: str) -> bool:
         case maybe_get(key):
             Some(x):
-                return true
+                true
             None:
-                return false
+                false
     
     fn get(key: str) -> T:
-        return option_unwrap(maybe_get(key))
+        option_unwrap(maybe_get(key))
 
     fn insert(key: str, value: T):
         if n_buckets == 0:
@@ -61,7 +61,7 @@ class HashMap[T]:
     fn pop(key: str) -> Option[T]:
         # remove an item from this dictionary
         let list = get_list(key)
-        return list.pop(key)
+        list.pop(key)
 
     fn debug_display():
         print("n_buckets={n_buckets}")

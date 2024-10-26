@@ -25,14 +25,13 @@ fn type_check(module: ast.Module) except CompilationError:
         raise new_errors(filename: module.filename, errors: checker.errors)
 
 fn new_type_check_visitor(checker: TypeChecker) -> ast.Visitor[TypeChecker]:
-    let visitor = ast.Visitor:
+    ast.Visitor:
         data: checker
         on_definition: checker_on_definition
         on_type: checker_on_type
         on_statement: checker_on_statement
         on_expression: checker_on_expression
         on_node: checker_on_node
-    return visitor
 
 fn type_check_expression(expression: ast.Expression) except CompilationError:
     let checker = TypeChecker()
@@ -76,7 +75,7 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
     case phase:
         Pre:
             checker.was_errors = false
-            if ast.is_breakable(statement):
+            if statement.is_breakable():
                 checker.loops += 1
             case statement.kind:
                 Try(try_statement):
@@ -87,7 +86,7 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
             checker.check_statement_mid(statement)
         Post:
             checker.check_statement(statement)
-            if ast.is_breakable(statement):
+            if statement.is_breakable():
                 checker.loops -= 1
     else:
         pass
@@ -511,26 +510,26 @@ class TypeChecker:
                 Int(signed, bits):
                     if needed_bits <= bits:
                         ast.change_type_to(ty: ty2, to_type: ty1)
-                        return true
+                        true
                     else:
-                        return false
+                        false
             else:
-                return false
+                false
         elif ast.is_some_integer_type(ty1) and ty2.is_base_type():
-            return unify(ty1: ty2, ty2: ty1)  # Invoke swapped
+            unify(ty1: ty2, ty2: ty1)  # Invoke swapped
         elif ty1.is_tycon_app() and ty2.is_tycon_app():
             let tycon1 = ty1.get_tycon()
             let tycon2 = ty2.get_tycon()
             if ast.tycon_equal(tycon1, tycon2):
                 let type_arguments1 = ty1.get_type_arguments()
                 let type_arguments2 = ty2.get_type_arguments()
-                return unify_many(typs1: type_arguments1, typs2: type_arguments2)
+                unify_many(typs1: type_arguments1, typs2: type_arguments2)
             else:
-                return false
+                false
         elif ty1.is_type_parameter() and ty2.is_type_parameter():
             let tp1 = ty1.get_type_parameter()
             let tp2 = ty2.get_type_parameter()
-            return ast.type_parameter_equals(tp1, tp2)
+            ast.type_parameter_equals(tp1, tp2)
         elif ty1.is_function_type() and ty2.is_function_type():
             let ptys1 = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ty1))
             let ptys2 = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ty2))
@@ -543,7 +542,7 @@ class TypeChecker:
             if not unify(ty1: rty1, ty2: rty2):
                 return false
 
-            return true
+            true
         elif ty1.is_array() and ty2.is_array():
             unify(ty1: ty1.get_element_type(), ty2: ty2.get_element_type())
         elif ty1.is_type_var():
@@ -552,14 +551,14 @@ class TypeChecker:
                 None:
                     if ty2.is_type_var():
                         let type_var2: ast.TypeVariable = ty2.get_type_var()
-                        return ast.type_var_equals(type_var1, type_var2)
+                        ast.type_var_equals(type_var1, type_var2)
                     else:
                         type_var1.ty = Option.Some(ty2)
                         ty1.change_to(to_type: ty2)
-                        return true
+                        true
                 Some(assigned_ty):
                     ty1.change_to(to_type: assigned_ty)
-                    return unify(ty1, ty2)
+                    unify(ty1, ty2)
         elif ty2.is_type_var():
             unify(ty1: ty2, ty2: ty1)
         elif ty1.is_unreachable() and ty2.is_unreachable():
@@ -574,9 +573,9 @@ class TypeChecker:
                 let ty2 = option_unwrap(typs2_it.next())
                 if not unify(ty1, ty2):
                     return false
-            return true
+            true
         else:
-            return false
+            false
 
     fn add_error(location: Location, message: str):
         # This can be handy if type checking fails half way:

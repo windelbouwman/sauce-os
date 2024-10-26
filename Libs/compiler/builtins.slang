@@ -45,4 +45,4 @@ fn get_rt_module() -> ast.Module:
         location: location_default()
     ast.module_define_function(module, function_def: str_compare)
 
-    return module
+    module

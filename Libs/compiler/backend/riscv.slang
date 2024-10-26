@@ -14,7 +14,7 @@ fn encode_R_type(funct7: int, rs2: int, rs1: int, funct3: int, rd: int, opcode: 
     # funct3[14-12]
     # rd[11-7]
     # opcode[6-0]
-    return (funct7 << 25) | (rs2 << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | opcode
+    (funct7 << 25) | (rs2 << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | opcode
 
 fn encode_I_type(imm: int, rs1: int, funct3: int, rd: int, opcode: int) -> int:
     # imm[11:0][31-20]
@@ -22,7 +22,7 @@ fn encode_I_type(imm: int, rs1: int, funct3: int, rd: int, opcode: int) -> int:
     # funct3[14-12]
     # rd[11-7]
     # opcode[6-0]
-    return (imm << 25) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | opcode
+    (imm << 25) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | opcode
 
 fn encode_S_type(imm: int, rs2: int, rs1: int, funct3: int, opcode: int) -> int:
     # imm[11:5][31-25]
@@ -33,24 +33,24 @@ fn encode_S_type(imm: int, rs2: int, rs1: int, funct3: int, opcode: int) -> int:
     # opcode[6-0]
     let funct7 = imm >> 5
     let rd = imm & 0x1F
-    return encode_R_type(funct7, rs2, rs1, funct3, rd, opcode)
+    encode_R_type(funct7, rs2, rs1, funct3, rd, opcode)
 
 fn encode_U_type(imm: int, rd: int, opcode: int) -> int:
     # imm[31:12][31-12]
     # rd[11-7]
     # opcode[6-0]
-    return imm | (rd << 7) | (opcode)
+    imm | (rd << 7) | (opcode)
 
 fn encode_J_type(imm: int, rd: int, opcode: int) -> int:
     # special case of U type encoding
     imm =  ((imm & 0x100000) << 11) | ((imm & 0x7FE) << 20) | ((imm & 0x800) << 9) | (imm & 0xFF000)
-    return encode_U_type(imm, rd, opcode)
+    encode_U_type(imm, rd, opcode)
 
 fn encode_B_type(imm: int, rs2: int, rs1: int, funct3: int, opcode: int) -> int:
     # special case of S type encoding
     let funct7 = ((imm >> 6) & 0x40) | ((imm >> 5) & 0x3F)
     let rd = (imm & 0x1E) | ((imm >> 11) & 0x1)
-    return encode_R_type(funct7, rs2, rs1, funct3, rd, opcode)
+    encode_R_type(funct7, rs2, rs1, funct3, rd, opcode)
 
 enum Instruction:
     LUI(rd: int, imm: int)
@@ -103,57 +103,57 @@ enum Instruction:
 fn encode_instruction(instruction: Instruction) -> int:
     case instruction:
         LUI(rd, imm):
-            return encode_U_type(imm, rd, opcode: 0b0110111)
+            encode_U_type(imm, rd, opcode: 0b0110111)
         AUIPC(rd, imm):
-            return encode_U_type(imm, rd, opcode: 0b0010111)
+            encode_U_type(imm, rd, opcode: 0b0010111)
         JAL(rd, imm):
-            return encode_J_type(imm, rd, opcode: 0b1101111)
+            encode_J_type(imm, rd, opcode: 0b1101111)
         JALR(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b000, rd, opcode: 0b1100111)
+            encode_I_type(imm, rs1, funct3: 0b000, rd, opcode: 0b1100111)
 
         BEQ(rs1, rs2, imm):
-            return encode_B_type(imm, rs2, rs1, funct3: 0b000, opcode: 0b1100011)
+            encode_B_type(imm, rs2, rs1, funct3: 0b000, opcode: 0b1100011)
         BNE(rs1, rs2, imm):
-            return encode_B_type(imm, rs2, rs1, funct3: 0b001, opcode: 0b1100011)
+            encode_B_type(imm, rs2, rs1, funct3: 0b001, opcode: 0b1100011)
         BLT(rs1, rs2, imm):
-            return encode_B_type(imm, rs2, rs1, funct3: 0b100, opcode: 0b1100011)
+            encode_B_type(imm, rs2, rs1, funct3: 0b100, opcode: 0b1100011)
         BGE(rs1, rs2, imm):
-            return encode_B_type(imm, rs2, rs1, funct3: 0b101, opcode: 0b1100011)
+            encode_B_type(imm, rs2, rs1, funct3: 0b101, opcode: 0b1100011)
         BLTU(rs1, rs2, imm):
-            return encode_B_type(imm, rs2, rs1, funct3: 0b110, opcode: 0b1100011)
+            encode_B_type(imm, rs2, rs1, funct3: 0b110, opcode: 0b1100011)
         BGEU(rs1, rs2, imm):
-            return encode_B_type(imm, rs2, rs1, funct3: 0b111, opcode: 0b1100011)
+            encode_B_type(imm, rs2, rs1, funct3: 0b111, opcode: 0b1100011)
 
         LB(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b000, rd, opcode: 0b0000011)
+            encode_I_type(imm, rs1, funct3: 0b000, rd, opcode: 0b0000011)
         LH(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b001, rd, opcode: 0b0000011)
+            encode_I_type(imm, rs1, funct3: 0b001, rd, opcode: 0b0000011)
         LW(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b010, rd, opcode: 0b0000011)
+            encode_I_type(imm, rs1, funct3: 0b010, rd, opcode: 0b0000011)
         LBU(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b100, rd, opcode: 0b0000011)
+            encode_I_type(imm, rs1, funct3: 0b100, rd, opcode: 0b0000011)
         LHU(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b101, rd, opcode: 0b0000011)
+            encode_I_type(imm, rs1, funct3: 0b101, rd, opcode: 0b0000011)
 
         SB(rs1, rs2, imm):
-            return encode_S_type(imm, rs2, rs1, funct3: 0b000, opcode: 0b0100011)
+            encode_S_type(imm, rs2, rs1, funct3: 0b000, opcode: 0b0100011)
         SH(rs1, rs2, imm):
-            return encode_S_type(imm, rs2, rs1, funct3: 0b001, opcode: 0b0100011)
+            encode_S_type(imm, rs2, rs1, funct3: 0b001, opcode: 0b0100011)
         SW(rs1, rs2, imm):
-            return encode_S_type(imm, rs2, rs1, funct3: 0b010, opcode: 0b0100011)
+            encode_S_type(imm, rs2, rs1, funct3: 0b010, opcode: 0b0100011)
 
         ADDI(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b000, rd, opcode: 0b0010011)
+            encode_I_type(imm, rs1, funct3: 0b000, rd, opcode: 0b0010011)
         SLTI(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b010, rd, opcode: 0b0010011)
+            encode_I_type(imm, rs1, funct3: 0b010, rd, opcode: 0b0010011)
         SLTIU(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b011, rd, opcode: 0b0010011)
+            encode_I_type(imm, rs1, funct3: 0b011, rd, opcode: 0b0010011)
         XORI(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b100, rd, opcode: 0b0010011)
+            encode_I_type(imm, rs1, funct3: 0b100, rd, opcode: 0b0010011)
         ORI(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b110, rd, opcode: 0b0010011)
+            encode_I_type(imm, rs1, funct3: 0b110, rd, opcode: 0b0010011)
         ANDI(rd, rs1, imm):
-            return encode_I_type(imm, rs1, funct3: 0b111, rd, opcode: 0b0010011)
+            encode_I_type(imm, rs1, funct3: 0b111, rd, opcode: 0b0010011)
         SLLI(rd, rs1, imm):
             panic("shamt?")
         SRLI(rd, rs1, imm):
@@ -162,31 +162,31 @@ fn encode_instruction(instruction: Instruction) -> int:
             panic("shamt?")
 
         ADD(rd, rs1, rs2):
-            return encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b000, rd, opcode: 0b0110011)
+            encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b000, rd, opcode: 0b0110011)
         SUB(rd, rs1, rs2):
-            return encode_R_type(funct7: 0b0100000, rs2, rs1, funct3: 0b000, rd, opcode: 0b0110011)
+            encode_R_type(funct7: 0b0100000, rs2, rs1, funct3: 0b000, rd, opcode: 0b0110011)
         SLL(rd, rs1, rs2):
-            return encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b001, rd, opcode: 0b0110011)
+            encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b001, rd, opcode: 0b0110011)
         SLT(rd, rs1, rs2):
-            return encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b010, rd, opcode: 0b0110011)
+            encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b010, rd, opcode: 0b0110011)
         SLTU(rd, rs1, rs2):
-            return encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b011, rd, opcode: 0b0110011)
+            encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b011, rd, opcode: 0b0110011)
         XOR(rd, rs1, rs2):
-            return encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b100, rd, opcode: 0b0110011)
+            encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b100, rd, opcode: 0b0110011)
         SRL(rd, rs1, rs2):
-            return encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b101, rd, opcode: 0b0110011)
+            encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b101, rd, opcode: 0b0110011)
         SRA(rd, rs1, rs2):
-            return encode_R_type(funct7: 0b0100000, rs2, rs1, funct3: 0b101, rd, opcode: 0b0110011)
+            encode_R_type(funct7: 0b0100000, rs2, rs1, funct3: 0b101, rd, opcode: 0b0110011)
         OR(rd, rs1, rs2):
-            return encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b110, rd, opcode: 0b0110011)
+            encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b110, rd, opcode: 0b0110011)
         AND(rd, rs1, rs2):
-            return encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b111, rd, opcode: 0b0110011)
+            encode_R_type(funct7: 0b0000000, rs2, rs1, funct3: 0b111, rd, opcode: 0b0110011)
 
         # FENCE
         ECALL:
-            return encode_I_type(imm: 0b0, rs1: 0, funct3: 0, rd: 0, opcode: 0b1110011)
+            encode_I_type(imm: 0b0, rs1: 0, funct3: 0, rd: 0, opcode: 0b1110011)
         EBREAK:
-            return encode_I_type(imm: 0b1, rs1: 0, funct3: 0, rd: 0, opcode: 0b1110011)
+            encode_I_type(imm: 0b1, rs1: 0, funct3: 0, rd: 0, opcode: 0b1110011)
 
 
 fn instruction_to_string(instruction: Instruction) -> str:

@@ -14,12 +14,12 @@ struct NodeId:
 
 fn node_id_equal(node_id1: NodeId, node_id2: NodeId) -> bool:
     if node_id1.id == node_id2.id:
-        return true
+        true
     else:
-        return false
+        false
 
 fn node_id_to_string(id?: NodeId) -> str:
-    return "{id.name}${id.id}"
+    "{id.name}${id.id}"
 
 # TODO: implement type-defs!
 class Type:
@@ -27,7 +27,7 @@ class Type:
     var was_generic: bool = false
 
     fn to_string() -> str:
-        return type_to_string(this)
+        type_to_string(this)
     
     fn change_to(to_type: Type):
         change_type_to(ty: this, to_type)
@@ -48,7 +48,7 @@ class Type:
             App(tycon, type_arguments):
                 case tycon:
                     Enum(enum_def):
-                        return enum_def
+                        enum_def
                 else:
                     panic("get_enum_def: type must be enum")
         else:
@@ -56,7 +56,7 @@ class Type:
 
     fn get_enum_variant_from_type(attr: str) -> Option[EnumVariant]:
         let enum_def = get_enum_def()
-        return get_enum_variant(enum_def, attr)
+        get_enum_variant(enum_def, attr)
 
     fn is_class() -> bool:
         case kind:
@@ -74,31 +74,31 @@ class Type:
             Base(base):
                 case base:
                     Int(signed, bits):
-                        return true
+                        true
                 else:
-                    return false
+                    false
         else:
-            return false
+            false
 
     fn is_signed_int() -> bool:
         case kind:
             Base(base):
                 case base:
                     Int(signed, bits):
-                        return signed
+                        signed
                 else:
-                    return false
+                    false
         else:
-            return false
+            false
 
     fn get_bits() -> int:
         case kind:
             Base(base):
                 case base:
                     Int(signed, bits):
-                        return bits
+                        bits
                     Float(bits):
-                        return bits
+                        bits
                 else:
                     panic("get_bits: Not an integer or float type")
         else:
@@ -209,41 +209,41 @@ class Type:
             App(tycon, type_arguments):
                 case tycon:
                     Struct(struct_def):
-                        return true
+                        true
                 else:
-                    return false
+                    false
         else:
-            return false
+            false
 
     fn is_union_struct() -> bool:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
                     Struct(struct_def):
-                        return struct_def.is_union
+                        struct_def.is_union
                 else:
-                    return false
+                    false
         else:
-            return false
+            false
 
     fn get_struct_def() -> StructDef:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
                     Struct(struct_def):
-                        return struct_def
+                        struct_def
                 else:
                     panic("No struct type")
         else:
             panic("No struct type")
 
     fn has_field(attr: str) -> bool:
-        return option_is_some(maybe_get_field_type(attr))
+        option_is_some(maybe_get_field_type(attr))
 
     fn get_field_type(attr: str) -> Type:
         case maybe_get_field_type(attr):
             Some(ty):
-                return ty
+                ty
             None:
                 panic("No field: {attr}")
 
@@ -257,28 +257,28 @@ class Type:
                                 let m = create_subst_mapping(type_parameters: struct_def.type_parameters, type_arguments)
                                 case sym:
                                     Field(f):
-                                        return Option.Some(subst(ty: f.ty, m))
+                                        Option.Some(subst(ty: f.ty, m))
                                 else:
                                     panic("Struct field must be ")
                             None:
-                                return Option.None()
+                                Option[Type].None()
                     Class(class_def):
                         case class_def.scope.lookup(name: attr):
                             Some(sym):
                                 let m = create_subst_mapping(type_parameters: class_def.type_parameters, type_arguments)
                                 case sym:
                                     Function(function_def):
-                                        return Option.Some(subst(ty: get_function_type(function_def), m))
+                                        Option.Some(subst(ty: get_function_type(function_def), m))
                                     Var(v):
-                                        return Option.Some(subst(ty: v.ty, m))
+                                        Option.Some(subst(ty: v.ty, m))
                                 else:
                                     panic("class must contain func/vars")
                             None:
-                                return Option.None()
+                                Option[Type].None()
                 else:
-                    return Option.None()
+                    Option[Type].None()
         else:
-            return Option.None()
+            Option[Type].None()
 
     fn get_field_types() -> List[Type]:
         case kind:
@@ -289,7 +289,7 @@ class Type:
                         let field_types: List[Type] = List()
                         for field in struct_def.fields:
                             field_types.append(subst(ty: field.ty, m))
-                        return field_types
+                        field_types
                 else:
                     panic("Type without fields")
         else:
@@ -297,40 +297,40 @@ class Type:
 
     fn has_method(name?: str) -> bool:
         if has_field(attr: name):
-            return get_field_type(attr: name).is_function_type()
+            get_field_type(attr: name).is_function_type()
         else:
-            return false
+            false
 
     fn is_sequence_like() -> bool:
-        return has_method("len") and has_method("get")
+        has_method("len") and has_method("get")
 
     fn is_iterable_like() -> bool:
-        return has_method("iter")
+        has_method("iter")
 
     fn is_nullable() -> bool:
         # TODO
-        # return false
-        # return is_struct() or is_enum() or is_type_parameter()
-        return is_type_parameter()
+        # false
+        # is_struct() or is_enum() or is_type_parameter()
+        is_type_parameter()
 
     fn is_function_type() -> bool:
         case kind:
             Function(p, i):
-                return true
+                true
         else:
-            return false
+            false
 
     fn get_return_type() -> Type:
         case kind:
             Function(p, i):
-                return i.return_type
+                i.return_type
         else:
             panic("Type must be function type")
 
     fn get_except_type() -> Type:
         case kind:
             Function(p, i):
-                return i.except_type
+                i.except_type
         else:
             panic("Type must be function type")
 
@@ -339,7 +339,7 @@ class Type:
             App(tycon, type_arguments):
                 case tycon:
                     Class(class_def):
-                        return class_def
+                        class_def
                 else:
                     panic("No class type")
         else:
@@ -397,17 +397,16 @@ class Type:
 fn clone_type(ty?: Type) -> Type:
     let ty2 = new_type(kind: ty.kind)
     ty2.was_generic = ty.was_generic
-    return ty2
+    ty2
 
 fn new_type(kind: TypeKind) -> Type:
-    return Type(kind)
+    Type(kind)
 
 fn types_to_string(typs: List[Type]) -> str:
     let parts: List[str] = List()
     for ty in typs:
         parts.append(type_to_string(ty))
-    let txt = "[" + str_join(parts, sep: ", ") + "]"
-    return txt
+    "[" + str_join(parts, sep: ", ") + "]"
 
 fn type_to_string(ty?: Type) -> str:
     let txt = type_kind_to_string(kind: ty.kind)
@@ -415,7 +414,7 @@ fn type_to_string(ty?: Type) -> str:
     if ty.was_generic:
         txt = "@" + txt
 
-    return txt
+    txt
 
 fn change_type_to(ty: Type, to_type: Type):
     # Adjust ty to ty2
@@ -428,7 +427,7 @@ fn apply_tycon(tycon: TyCon, type_arguments: List[Type]) -> Type:
     let type_parameters = tycon_get_type_parameters(tycon)
     # Check lengths!
     assert(condition: type_parameters.len() == type_arguments.len(), message: "type arguments does not match amount of type parameters")
-    return new_type(kind: TypeKind.App(tycon, type_arguments))
+    new_type(kind: TypeKind.App(tycon, type_arguments))
 
 fn subst(ty: Type, m: Dictionary[Type]) -> Type:
     case ty.kind:
@@ -438,9 +437,9 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
                     # Idea is to record if we once were a type-parameter:
                     let ty4 = clone_type(ty3)
                     ty4.was_generic = true
-                    return ty4
+                    ty4
                 None:
-                    return ty
+                    ty
         Function(parameter_types, info):
             let parameter_types2: List[ParameterType] = List()
             for p in parameter_types:
@@ -448,20 +447,20 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
             let info2 = FunctionInfo:
                 return_type: subst(ty: info.return_type, m)
                 except_type: subst(ty: info.except_type, m)
-            return function_type(parameter_types: parameter_types2, info: info2)
+            function_type(parameter_types: parameter_types2, info: info2)
         Array(element_type, size):
             element_type = subst(ty: element_type, m)
-            return array_type(element_type, size)
+            array_type(element_type, size)
         App(tycon, type_arguments):
-            return apply_tycon(tycon, type_arguments: subst_many(typs: type_arguments, m))
+            apply_tycon(tycon, type_arguments: subst_many(typs: type_arguments, m))
     else:
-        return ty
+        ty
 
 fn subst_many(typs: List[Type], m: Dictionary[Type]) -> List[Type]:
     let typs2: List[Type] = List()
     for ty in typs:
         typs2.append(subst(ty, m))
-    return typs2
+    typs2
 
 fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: List[Type]) -> Dictionary[Type]:
     if type_parameters.len() != type_arguments.len():
@@ -475,20 +474,20 @@ fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: Li
     for ty in type_arguments:
         let tp = option_unwrap(tpi.next())
         m.insert(key: tp.id.name, value: ty)
-    return m
+    m
 
 
 fn is_some_integer_type(ty?: Type) -> bool:
     case ty.kind:
         SomeInteger(bits):
-            return true
+            true
     else:
-        return false
+        false
 
 fn get_bits_from_some_integer_type(ty?: Type) -> int:
     case ty.kind:
         SomeInteger(bits):
-            return bits
+            bits
     else:
         panic("get_bits_from_some_integer_type: Not a some-integer type")
 
@@ -501,14 +500,14 @@ fn deref_type_var(ty?: Type) -> Type:
                 Some(t):
                     t = clone_type(t)
                     t.was_generic = ty.was_generic
-                    return t
+                    t
     else:
-        return ty
+        ty
 
 fn get_parameter_types_from_type(ty?: Type) -> List[ParameterType]:
     case ty.kind:
         Function(p, i):
-            return p
+            p
     else:
         panic("Type must be function type")
 
@@ -516,42 +515,37 @@ fn get_types_from_parameter_types(p2?: List[ParameterType]) -> List[Type]:
     let t: List[Type] = List()
     for p in p2:
         t.append(p.ty)
-    return t
+    t
 
 fn get_enum_variant(enum_def: EnumDef, attr: str) -> Option[EnumVariant]:
     case enum_def.scope.lookup(name: attr):
         Some(symbol):
             case symbol:
                 Variant(v):
-                    return Option.Some(v)
+                    Option.Some(v)
             else:
                 # panic("get_enum_variant: symbol must be ")
-                return Option.None()
+                Option[EnumVariant].None()
         None:
-            return Option.None()
+            Option[EnumVariant].None()
 
 fn get_enum_variant_names_from_type(ty?: Type) -> List[str]:
     let enum_def = ty.get_enum_def()
     let names: List[str] = List()
     for variant in enum_def.variants:
         names.append(variant.name)
-    return names
+    names
 
 fn get_subst_map(ty: Type) -> Dictionary[Type]:
     case ty.kind:
         App(tycon, type_arguments):
-            return create_subst_mapping(type_parameters: tycon_get_type_parameters(tycon), type_arguments)
+            create_subst_mapping(type_parameters: tycon_get_type_parameters(tycon), type_arguments)
     else:
         panic("Must be App type")
 
 fn get_variant_payload_types(ty: Type, variant: EnumVariant) -> List[Type]:
     let m = get_subst_map(ty)
-    let payload = subst_many(typs: variant.payload, m)
-    return payload
-
-fn get_struct_name_from_type(ty: Type) -> str:
-    let struct_def = ty.get_struct_def()
-    return struct_def.id.name
+    subst_many(typs: variant.payload, m)
 
 fn get_struct_field_index(ty: Type, attr: str) -> int:
     let struct_def = ty.get_struct_def()
@@ -570,7 +564,7 @@ fn get_method_ref_from_type(ty: Type, attr: str, location: Location) -> Expressi
                     let sym = option_unwrap(c.scope.lookup(name: attr))
                     case sym:
                         Function(function_def):
-                            return function_ref(function_def, type_arguments, location)
+                            function_ref(function_def, type_arguments, location)
                     else:
                         panic("get_method_ref_from_type: class must contain func/vars")
             else:
@@ -642,55 +636,53 @@ enum BaseType:
     Float(bits: int)
 
 fn base_type_to_str(base: BaseType) -> str:
-    let txt = "?"
     case base:
         Str:
-            txt = "STR"
+            "STR"
         Char:
-            txt = "CHAR"
+            "CHAR"
         Int(signed, bits):
             if signed:
-                txt = "Int{bits}"
+                "Int{bits}"
             else:
-                txt = "Uint{bits}"
+                "Uint{bits}"
         Bool:
-            txt = "BOOL"
+            "BOOL"
         Float(bits):
-            txt = "FLOAT{bits}"
-    return txt
+            "FLOAT{bits}"
 
 fn base_type_equal(base_type1: BaseType, base_type2: BaseType) -> bool:
     case base_type1:
         Str:
             case base_type2:
                 Str:
-                    return true
+                    true
             else:
-                return false
+                false
         Char:
             case base_type2:
                 Char:
-                    return true
+                    true
             else:
-                return false
+                false
         Int(signed1, bits1):
             case base_type2:
                 Int(signed2, bits2):
-                    return (signed1 == signed2) and (bits1 == bits2)
+                    (signed1 == signed2) and (bits1 == bits2)
             else:
-                return false
+                false
         Bool:
             case base_type2:
                 Bool:
-                    return true
+                    true
             else:
-                return false
+                false
         Float(bits1):
             case base_type2:
                 Float(bits2):
-                    return bits1 == bits2
+                    bits1 == bits2
             else:
-                return false
+                false
 
 struct TypeVariable:
     unique: int
@@ -705,139 +697,139 @@ enum TyCon:
 fn tycon_to_str(tycon: TyCon) -> str:
     case tycon:
         Struct(struct_def):
-            return struct_def_to_str(struct_def)
+            struct_def_to_str(struct_def)
         Enum(enum_def):
-            return enum_def_to_str(enum_def)
+            enum_def_to_str(enum_def)
         Class(class_def):
-            return class_def_to_str(class_def)
+            class_def_to_str(class_def)
         Ref(key):
-            return "tycon-ref-{key}"
+            "tycon-ref-{key}"
 
 fn tycon_equal(tycon1: TyCon, tycon2: TyCon) -> bool:
     case tycon1:
         Struct(struct_def1):
             case tycon2:
                 Struct(struct_def2):
-                    return node_id_equal(node_id1: struct_def1.id, node_id2: struct_def2.id)
+                    node_id_equal(node_id1: struct_def1.id, node_id2: struct_def2.id)
             else:
-                return false
+                false
         Enum(enum_def1):
             case tycon2:
                 Enum(enum_def2):
-                    return node_id_equal(node_id1: enum_def1.id, node_id2: enum_def2.id)
+                    node_id_equal(node_id1: enum_def1.id, node_id2: enum_def2.id)
             else:
-                return false
+                false
         Class(class_def1):
             case tycon2:
                 Class(class_def2):
-                    return node_id_equal(node_id1: class_def1.id, node_id2: class_def2.id)
+                    node_id_equal(node_id1: class_def1.id, node_id2: class_def2.id)
             else:
-                return false
+                false
         Ref(key):
-            return false
+            false
 
 fn tycon_get_type_parameters(tycon: TyCon) -> List[TypeParameter]:
     case tycon:
         Struct(struct_def):
-            return struct_def.type_parameters
+            struct_def.type_parameters
         Enum(enum_def):
-            return enum_def.type_parameters
+            enum_def.type_parameters
         Class(class_def):
-            return class_def.type_parameters
+            class_def.type_parameters
         Ref(key):
             panic("reference has no type parameters")
 
 fn void_type() -> Type:
-    return new_type(kind: TypeKind.Void())
+    new_type(kind: TypeKind.Void())
 
 fn unreachable_type() -> Type:
-    return new_type(kind: TypeKind.Unreachable())
+    new_type(kind: TypeKind.Unreachable())
 
 fn new_base_type(base: BaseType) -> Type:
-    return new_type(kind: TypeKind.Base(base))
+    new_type(kind: TypeKind.Base(base))
 
 fn bool_type() -> Type:
-    return new_base_type(base: BaseType.Bool())
+    new_base_type(base: BaseType.Bool())
 
 fn int_type() -> Type:
-    return int64_type()
+    int64_type()
 
 fn some_int_type(bits: int) -> Type:
-    return new_type(kind: TypeKind.SomeInteger(bits))
+    new_type(kind: TypeKind.SomeInteger(bits))
 
 fn specific_int_type(signed: bool, bits: int) -> Type:
-    return new_base_type(base: BaseType.Int(signed, bits))
+    new_base_type(base: BaseType.Int(signed, bits))
 
 fn uint8_type() -> Type:
-    return specific_int_type(signed: false, bits: 8)
+    specific_int_type(signed: false, bits: 8)
 
 fn uint16_type() -> Type:
-    return specific_int_type(signed: false, bits: 16)
+    specific_int_type(signed: false, bits: 16)
 
 fn uint32_type() -> Type:
-    return specific_int_type(signed: false, bits: 32)
+    specific_int_type(signed: false, bits: 32)
 
 fn uint64_type() -> Type:
-    return specific_int_type(signed: false, bits: 64)
+    specific_int_type(signed: false, bits: 64)
 
 fn int8_type() -> Type:
-    return specific_int_type(signed: true, bits: 8)
+    specific_int_type(signed: true, bits: 8)
 
 fn int16_type() -> Type:
-    return specific_int_type(signed: true, bits: 16)
+    specific_int_type(signed: true, bits: 16)
 
 fn int32_type() -> Type:
-    return specific_int_type(signed: true, bits: 32)
+    specific_int_type(signed: true, bits: 32)
 
 fn int64_type() -> Type:
-    return specific_int_type(signed: true, bits: 64)
+    specific_int_type(signed: true, bits: 64)
 
 fn float_type() -> Type:
-    return float64_type()
+    float64_type()
 
 fn specific_float_type(bits: int) -> Type:
-    return new_base_type(base: BaseType.Float(bits))
+    new_base_type(base: BaseType.Float(bits))
 
 fn float32_type() -> Type:
-    return specific_float_type(bits: 32)
+    specific_float_type(bits: 32)
 
 fn float64_type() -> Type:
-    return specific_float_type(bits: 64)
+    specific_float_type(bits: 64)
 
 fn str_type() -> Type:
-    return new_base_type(base: BaseType.Str())
+    new_base_type(base: BaseType.Str())
 
 fn char_type() -> Type:
-    return new_base_type(base: BaseType.Char())
+    new_base_type(base: BaseType.Char())
 
 # Opaque type, void*
 fn opaque_type() -> Type:
-    return new_type(kind: TypeKind.Opaque())
+    new_type(kind: TypeKind.Opaque())
 
 fn undefined_type() -> Type:
-    return new_type(kind: TypeKind.Undefined())
+    new_type(kind: TypeKind.Undefined())
 
 fn array_type(element_type: Type, size: int) -> Type:
-    return new_type(kind: TypeKind.Array(element_type, size))
+    new_type(kind: TypeKind.Array(element_type, size))
 
 fn type_expression(expr: Expression) -> Type:
-    return new_type(kind: TypeKind.TypeExpression(expr))
+    new_type(kind: TypeKind.TypeExpression(expr))
 
 
 fn function_type(parameter_types: List[ParameterType], info: FunctionInfo) -> Type:
-    return new_type(kind: TypeKind.Function(parameter_types, info))
+    new_type(kind: TypeKind.Function(parameter_types, info))
 
 fn type_parameter_ref(type_parameter: TypeParameter) -> Type:
-    return new_type(kind: TypeKind.TypeParam(type_parameter))
+    new_type(kind: TypeKind.TypeParam(type_parameter))
 
 fn new_type_var_ref(type_var: TypeVariable) -> Type:
-    return new_type(kind: TypeKind.TypeVar(type_var))
+    new_type(kind: TypeKind.TypeVar(type_var))
 
 fn new_type_var(unique: int) -> TypeVariable:
-    return TypeVariable(unique, ty: Option.None())
+    TypeVariable(unique, ty: Option.None())
 
 fn type_var_equals(type_var1: TypeVariable, type_var2: TypeVariable) -> bool:
-    return type_var1.unique == type_var2.unique
+    type_var1.unique == type_var2.unique
 
 struct ModuleSet:
     modules: List[Module]
@@ -850,13 +842,12 @@ struct Module:
     scope: Scope
 
 fn new_module(name: str, filename: Option[str], imports: List[Import], definitions: List[Definition]) -> Module:
-    let m = Module:
+    Module:
         name
         filename
         imports
         definitions
         scope: Scope()
-    return m
 
 fn module_define_symbol(module: Module, name: str, definition: Definition):
     module.definitions.append(definition)
@@ -865,18 +856,16 @@ fn module_define_function(module: Module, function_def: FunctionDef):
     module_define_symbol(module, name: function_def.name, definition: Definition.Function(function_def))
 
 fn import_self(modname: str, location: Location) -> Import:
-    let i = Import:
+    Import:
         modname: modname
         location: location
         kind: ImportKind.Self()
-    return i
 
 fn import_names(modname: str, location: Location, names: List[str]) -> Import:
-    let i = Import:
+    Import:
         modname: modname
         location: location
         kind: ImportKind.Names(names)
-    return i
 
 struct Import:
     modname: str
@@ -892,7 +881,7 @@ fn extern_function_def(libname: str, name: str, type_parameters: List[TypeParame
         return_type
         except_type: void_type()
 
-    let f = FunctionDef:
+    FunctionDef:
         name
         is_pub: true
         info
@@ -901,7 +890,6 @@ fn extern_function_def(libname: str, name: str, type_parameters: List[TypeParame
         parameters
         location
         body: FunctionDefBody.Extern(libname)
-    return f
 
 class Scope:
     var symbols: Dictionary[Symbol] = Dictionary()
@@ -912,10 +900,10 @@ class Scope:
     
     fn is_defined(name: str) -> bool:
         # Check if given name is defined.
-        return option_is_some(lookup(name))
+        option_is_some(lookup(name))
 
     fn lookup(name: str) -> Option[Symbol]:
-        return symbols.maybe_get(key: name)
+        symbols.maybe_get(key: name)
     
     fn dump():
         log_info("Scope:")
@@ -923,7 +911,7 @@ class Scope:
             log_info(" - {name}")
 
     fn get_symbols() -> List[Symbol]:
-        return symbols.values()
+        symbols.values()
 
 enum Symbol:
     Mod(module: Module)
@@ -939,23 +927,23 @@ enum Symbol:
 fn symbol_to_str(symbol: Symbol) -> str:
     case symbol:
         Mod(m):
-            return "mod:{m.name}"
+            "mod:{m.name}"
         Macro(macro_def):
-            return macro_def_to_str(macro_def)
+            macro_def_to_str(macro_def)
         Function(function_def):
-            return function_def_to_str(function_def)
+            function_def_to_str(function_def)
         Parameter(p):
-            return "parameter:{node_id_to_string(p.id)}"
+            "parameter:{node_id_to_string(p.id)}"
         Var(variable):
-            return "var:{node_id_to_string(variable.id)}"
+            "var:{node_id_to_string(variable.id)}"
         TypeConstructor(t):
-            return "tycon"
+            "tycon"
         Typ(t):
-            return "typ"
+            "typ"
         Variant(v):
-            return "EnumVariant({v.name})"
+            "EnumVariant({v.name})"
         Field(f):
-            return "Field({f.name})"
+            "Field({f.name})"
 
 enum Definition:
     Macro(macro_def: MacroDef)
@@ -968,24 +956,24 @@ enum Definition:
 fn definition_to_str(definition: Definition) -> str:
     case definition:
         Macro(macro_def):
-            return macro_def_to_str(macro_def)
+            macro_def_to_str(macro_def)
         Function(function_def):
-            return function_def_to_str(function_def)
+            function_def_to_str(function_def)
         Enum(enum_def):
-            return enum_def_to_str(enum_def)
+            enum_def_to_str(enum_def)
         Struct(struct_def):
-            return struct_def_to_str(struct_def)
+            struct_def_to_str(struct_def)
         Class(class_def):
-            return class_def_to_str(class_def)
+            class_def_to_str(class_def)
         Var(variable_def):
-            return variable_def_to_str(variable_def)
+            variable_def_to_str(variable_def)
 
 struct MacroDef:
     name: str
     location: Location
 
 fn macro_def_to_str(macro_def: MacroDef) -> str:
-    return "Macro({macro_def.name})"
+    "Macro({macro_def.name})"
 
 struct VariableDef:
     variable: Variable
@@ -996,27 +984,26 @@ enum VariableDefValue:
     Extern(libname: str, initialized: bool)
 
 fn variable_def_to_str(variable_def: VariableDef) -> str:
-    return "var-def:{node_id_to_string(variable_def.variable.id)}"
+    "var-def:{node_id_to_string(variable_def.variable.id)}"
 
 fn new_type_parameter(name: str, id: int, location: Location) -> TypeParameter:
-    return TypeParameter(id: NodeId(name, id), location)
+    TypeParameter(id: NodeId(name, id), location)
 
 fn type_parameter_equals(tp1: TypeParameter, tp2: TypeParameter) -> bool:
-    return node_id_equal(node_id1: tp1.id, node_id2: tp2.id)
+    node_id_equal(node_id1: tp1.id, node_id2: tp2.id)
 
 struct TypeParameter:
     id: NodeId
     location: Location
 
 fn struct_def(name: str, id: int, type_parameters: List[TypeParameter], fields: List[StructField], location: Location) -> StructDef:
-    let s = StructDef:
+    StructDef:
         id: NodeId(name, id)
         is_union: false
         type_parameters: type_parameters
         fields: fields
         location: location
         scope: Scope()
-    return s
 
 struct StructDef:
     id: NodeId
@@ -1030,7 +1017,7 @@ fn struct_def_to_str(struct_def: StructDef) -> str:
     let t = "Struct"
     if struct_def.is_union:
         t = "Union"
-    return "{t}({node_id_to_string(struct_def.id)})"
+    "{t}({node_id_to_string(struct_def.id)})"
 
 class StructBuilder:
     var nodeId: NodeId = NodeId(name: "", id: 0)
@@ -1051,7 +1038,7 @@ class StructBuilder:
     fn add_type_parameter(name: str, id: int, location: Location) -> Type:
         let type_parameter = new_type_parameter(name, id, location)
         type_parameters.append(type_parameter)
-        return type_parameter_ref(type_parameter)
+        type_parameter_ref(type_parameter)
 
     fn add_field(name: str, ty: Type, location: Location):
         fields.append(StructField(name, ty, location))
@@ -1060,14 +1047,13 @@ class StructBuilder:
         let scope = Scope()
         for field in fields:
             scope.define(name: field.name, symbol: Symbol.Field(field))
-        let struct_def = StructDef:
+        StructDef:
             id: nodeId
             is_union: is_union
             type_parameters: type_parameters
             fields: fields
             location: location
             scope
-        return struct_def
 
 struct StructField:
     name: str
@@ -1075,13 +1061,12 @@ struct StructField:
     location: Location
 
 fn enum_def(name: str, id: int, location: Location, type_parameters: List[TypeParameter], variants: List[EnumVariant]) -> EnumDef:
-    let e = EnumDef:
+    EnumDef:
         id: NodeId(name, id)
         location: location
         type_parameters: type_parameters
         variants: variants
         scope: Scope()
-    return e
 
 struct EnumDef:
     id: NodeId
@@ -1091,7 +1076,7 @@ struct EnumDef:
     scope: Scope
 
 fn enum_def_to_str(enum_def: EnumDef) -> str:
-    return "enum({node_id_to_string(enum_def.id)})"
+    "enum({node_id_to_string(enum_def.id)})"
 
 struct EnumVariant:
     name: str
@@ -1100,14 +1085,13 @@ struct EnumVariant:
     payload: List[Type]
 
 fn new_class_def(id: NodeId, location: Location, type_parameters: List[TypeParameter], definitions: List[Definition]) -> ClassDef:
-    let c = ClassDef:
+    ClassDef:
         id
         location
         is_extern: Option.None()
         type_parameters
         definitions
         scope: Scope()
-    return c
 
 struct ClassDef:
     id: NodeId
@@ -1118,14 +1102,14 @@ struct ClassDef:
     scope: Scope
 
 fn class_def_to_str(class_def: ClassDef) -> str:
-    return "class({node_id_to_string(class_def.id)})"
+    "class({node_id_to_string(class_def.id)})"
 
 fn function_def(name: str, type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
     let info = FunctionInfo:
         return_type
         except_type
 
-    let f = FunctionDef:
+    FunctionDef:
         name
         is_pub: true
         info
@@ -1134,7 +1118,6 @@ fn function_def(name: str, type_parameters: List[TypeParameter], this_parameter:
         parameters
         location
         body: FunctionDefBody.Intern(scoped_block: scoped_block(body))
-    return f
 
 struct FunctionInfo:
     return_type: Type
@@ -1157,32 +1140,31 @@ enum FunctionDefBody:
     Extern(libname: str)
 
 fn function_def_to_str(function_def: FunctionDef) -> str:
-    return "function:{function_def.name}"
+    "function:{function_def.name}"
 
 fn function_ref(function_def: FunctionDef, type_arguments: List[Type], location: Location) -> Expression:
     let kind = ExpressionKind.FunctionRef(function_def, type_arguments)
     let ty = get_function_type2(function_def, type_arguments)
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn get_parameter_types_from_parameters(parameters: List[ParameterDef]) -> List[ParameterType]:
     let parameter_types: List[ParameterType] = List()
     for parameter in parameters:
-        let label: Option[str] = Option.None()
-        if parameter.label_is_optional:
-            label = Option.None()
+        let label: Option[str] = if parameter.label_is_optional:
+            Option[str].None()
         else:
-            label = Option.Some(parameter.id.name)
+            Option.Some(parameter.id.name)
         parameter_types.append(ParameterType(label, ty: parameter.ty))
-    return parameter_types
+    parameter_types
 
 fn get_function_type(function_def: FunctionDef) -> Type:
     assert(condition: function_def.type_parameters.is_empty(), message: "Get function type can only be used on a non-generic function")
     let parameter_types = get_parameter_types_from_parameters(parameters: function_def.parameters)
-    return function_type(parameter_types, info: function_def.info)
+    function_type(parameter_types, info: function_def.info)
 
 fn get_function_type2(function_def: FunctionDef, type_arguments: List[Type]) -> Type:
     let parameter_types = get_parameter_types_from_parameters(parameters: function_def.parameters)
-    return get_function_type3(type_parameters: function_def.type_parameters, type_arguments, parameter_types, info: function_def.info)
+    get_function_type3(type_parameters: function_def.type_parameters, type_arguments, parameter_types, info: function_def.info)
 
 fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: List[Type], parameter_types: List[ParameterType], info: FunctionInfo) -> Type:
     let m = create_subst_mapping(type_parameters, type_arguments)
@@ -1194,10 +1176,10 @@ fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: List
     let info2 = FunctionInfo:
         return_type: subst(ty: info.return_type, m)
         except_type: subst(ty: info.except_type, m)
-    return function_type(parameter_types: parameter_types2, info: info2)
+    function_type(parameter_types: parameter_types2, info: info2)
 
 fn parameter_def(name: str, id: int, label_is_optional: bool, ty: Type, location: Location) -> ParameterDef:
-    return ParameterDef(id: NodeId(name, id), label_is_optional, ty, location)
+    ParameterDef(id: NodeId(name, id), label_is_optional, ty, location)
 
 struct ParameterDef:
     id: NodeId
@@ -1206,13 +1188,13 @@ struct ParameterDef:
     location: Location
 
 fn unlabeled_parameter(ty: Type) -> ParameterDef:
-    return parameter_def(name: "noname", id: 0, label_is_optional: true, ty, location: location_default())
+    parameter_def(name: "noname", id: 0, label_is_optional: true, ty, location: location_default())
 
 fn labeled_parameter(name: str, ty: Type) -> ParameterDef:
-    return parameter_def(name, id: 0, label_is_optional: false, ty, location: location_default())
+    parameter_def(name, id: 0, label_is_optional: false, ty, location: location_default())
 
 fn variable(name: str, id: int, ty: Type, location: Location) -> Variable:
-    return Variable(id: NodeId(name, id), ty, location)
+    Variable(id: NodeId(name, id), ty, location)
 
 class Variable:
     var id: NodeId
@@ -1220,14 +1202,14 @@ class Variable:
     var location: Location
 
     fn ref(location: Location) -> Expression:
-        return var_ref(variable: this, location)
+        var_ref(variable: this, location)
 
 struct ScopedBlock:
     scope: Scope
     body: Statement
 
 fn scoped_block(body: Statement) -> ScopedBlock:
-    return ScopedBlock(scope: Scope(), body)
+    ScopedBlock(scope: Scope(), body)
 
 class Statement:
     var kind: StatementKind
@@ -1235,11 +1217,23 @@ class Statement:
     var ty: Type
 
     fn to_string() -> str:
-        return statement_to_string(statement: this)
+        statement_to_string(statement: this)
+
+    fn is_breakable() -> bool:
+        """ Can we use break / continue within this statement? """
+        case kind:
+            While(x):
+                true
+            Loop(x):
+                true
+            For(x):
+                true
+        else:
+            false
 
 fn statement(kind: StatementKind, location: Location) -> Statement:
     let ty = void_type()
-    return Statement(kind, location, ty)
+    Statement(kind, location, ty)
 
 enum StatementKind:
     If(if_statement: IfStatement)
@@ -1260,17 +1254,7 @@ enum StatementKind:
     Break
     Continue
 
-fn is_breakable(statement: Statement) -> bool:
-    # Can we use break / continue within this statement?
-    case statement.kind:
-        While(x):
-            return true
-        Loop(x):
-            return true
-        For(x):
-            return true
-    else:
-        return false
+
 
 fn if_statement(condition: Expression, body: Statement, false_body: Statement, location: Location) -> Statement:
     let if_statement = IfStatement:
@@ -1279,7 +1263,7 @@ fn if_statement(condition: Expression, body: Statement, false_body: Statement, l
         false_block: scoped_block(body: false_body)
 
     let kind = StatementKind.If(if_statement)
-    return statement(kind, location)
+    statement(kind, location)
 
 struct IfStatement:
     condition: Expression
@@ -1295,12 +1279,12 @@ fn while_statement(condition: Expression, body: Statement, location: Location) -
         condition
         block: scoped_block(body)
     let kind = StatementKind.While(while_statement)
-    return statement(kind, location)
+    statement(kind, location)
 
 fn loop_statement(body: Statement, location: Location) -> Statement:
     let block = scoped_block(body)
     let kind = StatementKind.Loop(loop_statement: LoopStatement(block))
-    return statement(kind, location)
+    statement(kind, location)
 
 struct LoopStatement:
     block: ScopedBlock
@@ -1310,7 +1294,7 @@ fn for_statement(iter_var: Variable, iter_value: Expression, body: Statement, lo
         iter_var
         iter_value
         block: scoped_block(body)
-    return statement(kind: StatementKind.For(for_statement), location)
+    statement(kind: StatementKind.For(for_statement), location)
 
 struct ForStatement:
     iter_var: Variable
@@ -1323,7 +1307,7 @@ fn try_statement(try_body: Statement, except_var: Variable, except_type: Type, e
         except_var
         except_type
         except_block: scoped_block(body: except_body)
-    return statement(kind: StatementKind.Try(try_statement), location)
+    statement(kind: StatementKind.Try(try_statement), location)
 
 struct TryStatement:
     try_block: ScopedBlock
@@ -1332,14 +1316,13 @@ struct TryStatement:
     except_block: ScopedBlock
 
 fn case_statement(value: Expression, arms: List[CaseArm], else_clause: Option[Statement], location: Location) -> Statement:
-    let else_block: Option[ScopedBlock] = Option.None()
-    case else_clause:
+    let else_block: Option[ScopedBlock] = case else_clause:
         Some(body):
-            else_block = Option.Some(scoped_block(body))
+            Option.Some(scoped_block(body))
         None:
-            else_block = Option.None()
+            Option[ScopedBlock].None()
     let case_statement = CaseStatement(value, arms, else_block)
-    return statement(kind: StatementKind.Case(case_statement), location)
+    statement(kind: StatementKind.Case(case_statement), location)
 
 struct CaseStatement:
     value: Expression
@@ -1355,7 +1338,7 @@ struct CaseArm:
 fn switch_statement(value: Expression, arms: List[SwitchArm], default_body: Statement, location: Location) -> Statement:
     let default_block = scoped_block(body: default_body)
     let switch_statement = SwitchStatement(value, arms, default_block)
-    return statement(kind: StatementKind.Switch(switch_statement), location)
+    statement(kind: StatementKind.Switch(switch_statement), location)
 
 struct SwitchStatement:
     value: Expression
@@ -1370,7 +1353,7 @@ struct SwitchArm:
 fn let_statement(variable: Variable, type_hint: Option[Type], value: Expression, location: Location) -> Statement:
     let let_statement = LetStatement(variable, type_hint, value)
     let kind = StatementKind.Let(let_statement)
-    return statement(kind, location)
+    statement(kind, location)
 
 struct LetStatement:
     variable: Variable
@@ -1379,36 +1362,36 @@ struct LetStatement:
 
 fn compound(inner: Vector[Statement], location: Location) -> Statement:
     if inner.len() == 1:
-        return inner[0]
+        inner[0]
     else:
         let kind = StatementKind.Compound(body: inner)
-        return statement(kind, location)
+        statement(kind, location)
 
 fn expression_statement(expr: Expression) -> Statement:
     let kind = StatementKind.Expr(expr)
-    return statement(kind, location: expr.location)
+    statement(kind, location: expr.location)
 
 fn assignment_statement(target: Expression, op: Option[BinaryOperator], value: Expression, location: Location) -> Statement:
     let kind = StatementKind.Assignment(target, op, value)
-    return statement(kind, location)
+    statement(kind, location)
 
 fn return_statement(value: Option[Expression], location: Location) -> Statement:
-    return statement(kind: StatementKind.Return(value), location)
+    statement(kind: StatementKind.Return(value), location)
 
 fn raise_statement(value: Expression, location: Location) -> Statement:
-    return statement(kind: StatementKind.Raise(value), location)
+    statement(kind: StatementKind.Raise(value), location)
 
 fn pass_statement(location: Location) -> Statement:
-    return statement(kind: StatementKind.Pass(), location)
+    statement(kind: StatementKind.Pass(), location)
 
 fn break_statement(location: Location) -> Statement:
-    return statement(kind: StatementKind.Break(), location)
+    statement(kind: StatementKind.Break(), location)
 
 fn continue_statement(location: Location) -> Statement:
-    return statement(kind: StatementKind.Continue(), location)
+    statement(kind: StatementKind.Continue(), location)
 
 fn unreachable_statement(location: Location) -> Statement:
-    return statement(kind: StatementKind.Unreachable(), location)
+    statement(kind: StatementKind.Unreachable(), location)
 
 class Expression:
     var kind: ExpressionKind
@@ -1416,35 +1399,35 @@ class Expression:
     var location: Location
 
     fn to_string() -> str:
-        return expression_to_string(this)
+        expression_to_string(this)
 
     fn call_method(method: str, arguments: List[LabeledExpression], location: Location) -> Expression:
         let callee = get_attr_typed(attr: method, location)
         let result_ty: Type = callee.ty.get_return_type()
-        return call(callee, arguments, ty: result_ty, location)
+        call(callee, arguments, ty: result_ty, location)
     
     fn call_it(arguments: List[LabeledExpression], location: Location) -> Expression:
         let return_type = ty.get_return_type()
-        return call(callee: this, arguments, ty: return_type, location)
+        call(callee: this, arguments, ty: return_type, location)
     
     fn add(rhs: Expression, location: Location) -> Expression:
-        return binop(lhs: this, op: BinaryOperator.Add(), rhs, ty, location)
+        binop(lhs: this, op: BinaryOperator.Add(), rhs, ty, location)
 
     fn less(rhs: Expression, location: Location) -> Expression:
-        return binop(lhs: this, op: BinaryOperator.Less(), rhs, ty: bool_type(), location)
+        binop(lhs: this, op: BinaryOperator.Less(), rhs, ty: bool_type(), location)
 
     fn equals(rhs: Expression, location: Location) -> Expression:
-        return binop(lhs: this, op: BinaryOperator.Equals(), rhs, ty: bool_type(), location)
+        binop(lhs: this, op: BinaryOperator.Equals(), rhs, ty: bool_type(), location)
 
     fn get_attr_typed(attr: str, location: Location) -> Expression:
         let attr_ty = ty.get_field_type(attr)
-        return get_attr(base: this, field: attr, ty: attr_ty, location)
+        get_attr(base: this, field: attr, ty: attr_ty, location)
     
     fn change_to(to: Expression):
         change_expression_to(expression: this, to)
 
 fn clone_expression(value: Expression) -> Expression:
-    return Expression(kind: value.kind, ty: value.ty, location: value.location)
+    Expression(kind: value.kind, ty: value.ty, location: value.location)
 
 fn change_expression_to(expression: Expression, to: Expression):
     expression.kind = to.kind
@@ -1489,40 +1472,40 @@ struct LabeledExpression:
     value: Expression
 
 fn struct_literal(ty: Type, values: List[Expression], location: Location) -> Expression:
-    return Expression(kind: ExpressionKind.StructLiteral(ty, values), ty, location)
+    Expression(kind: ExpressionKind.StructLiteral(ty, values), ty, location)
 
 fn union_literal(ty: Type, field: str, value: Expression, location: Location) -> Expression:
-    return Expression(kind: ExpressionKind.UnionLiteral(ty, field, value), ty, location)
+    Expression(kind: ExpressionKind.UnionLiteral(ty, field, value), ty, location)
 
 fn array_literal(values: List[Expression], location: Location) -> Expression:
-    return Expression(kind: ExpressionKind.ArrayLiteral(values), ty: undefined_type(), location)
+    Expression(kind: ExpressionKind.ArrayLiteral(values), ty: undefined_type(), location)
 
 fn array_literal2(size: Expression, ty: Type, location: Location) -> Expression:
-    return Expression(kind: ExpressionKind.ArrayLiteral2(size, ty), ty: undefined_type(), location)
+    Expression(kind: ExpressionKind.ArrayLiteral2(size, ty), ty: undefined_type(), location)
 
 fn load_symbol(symbol: Symbol, ty: Type, location: Location) -> Expression:
-    return Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
+    Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
 
 fn parameter_ref(parameter_def: ParameterDef, location: Location) -> Expression:
     let ty = parameter_def.ty
-    return Expression(kind: ExpressionKind.ParameterRef(parameter_def), ty, location)
+    Expression(kind: ExpressionKind.ParameterRef(parameter_def), ty, location)
 
 fn call(callee: Expression, arguments: List[LabeledExpression], ty: Type, location: Location) -> Expression:
     let c = FunctionCall(callee, arguments)
     let kind = ExpressionKind.Call(c)
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn get_attr(base: Expression, field: str, ty: Type, location: Location) -> Expression:
     let kind = ExpressionKind.GetAttr(base, field)
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn box(value: Expression, location: Location) -> Expression:
     let kind = ExpressionKind.Box(value)
-    return Expression(kind, ty: undefined_type(), location)
+    Expression(kind, ty: undefined_type(), location)
 
 fn unbox(value: Expression, to_type: Type, location: Location) -> Expression:
     let kind = ExpressionKind.Unbox(value, to_type)
-    return Expression(kind, ty: undefined_type(), location)
+    Expression(kind, ty: undefined_type(), location)
 
 struct FunctionCall:
     callee: Expression
@@ -1530,17 +1513,17 @@ struct FunctionCall:
 
 fn subscript(base: Expression, indici: List[Expression], ty: Type, location: Location) -> Expression:
     let kind = ExpressionKind.GetIndex(base, indici)
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn statement_expression(statement: Statement) -> Expression:
     let kind = ExpressionKind.Stmt(statement)
     let ty = statement.ty
     let location = statement.location
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn cast(value: Expression, to_type: Type, location: Location) -> Expression:
     let kind = ExpressionKind.TypeCast(to_type, value)
-    return Expression(kind, ty: to_type, location)
+    Expression(kind, ty: to_type, location)
 
 #fn array_index(base: Expression, index: Expression, location: Location) -> Expression:
 #    pass
@@ -1548,13 +1531,13 @@ fn cast(value: Expression, to_type: Type, location: Location) -> Expression:
 # Reference a variable:
 fn var_ref(variable: Variable, location: Location) -> Expression:
     let kind = ExpressionKind.VarRef(variable)
-    return Expression(kind, ty: variable.ty, location)
+    Expression(kind, ty: variable.ty, location)
 
 # Reference a symbol:
 fn name_ref(name: str, location: Location) -> Expression:
     let kind = ExpressionKind.NameRef(name)
     let ty = undefined_type()
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 struct BinopExpression:
     lhs: Expression
@@ -1583,24 +1566,24 @@ enum BinaryOperator:
 fn is_comparison_op(op: BinaryOperator) -> bool:
     case op:
         Less:
-            return true
+            true
         LessEquals:
-            return true
+            true
         Greater:
-            return true
+            true
         GreaterEquals:
-            return true
+            true
         Equals:
-            return true
+            true
         NotEquals:
-            return true
+            true
     else:
-        return false
+        false
 
 fn binop(lhs: Expression, op: BinaryOperator, rhs: Expression, ty: Type, location: Location) -> Expression:
     let b = BinopExpression(lhs, op, rhs)
     let kind = ExpressionKind.Binop(b)
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 enum UnaryOperator:
     Not
@@ -1608,43 +1591,43 @@ enum UnaryOperator:
 
 fn unop(op: UnaryOperator, value: Expression, ty: Type, location: Location) -> Expression:
     let kind = ExpressionKind.Unop(op, value)
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn bool_literal(value: bool, location: Location) -> Expression:
     let kind = ExpressionKind.BoolLiteral(value)
     let ty = bool_type()
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn integer_literal(value: int, location: Location) -> Expression:
     let kind = ExpressionKind.IntLiteral(value)
     let ty = int_type()
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn float_literal(value: float, location: Location) -> Expression:
     let kind = ExpressionKind.FloatLiteral(value)
     let ty = float_type()
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn string_literal(value: str, location: Location) -> Expression:
     let kind = ExpressionKind.StringLiteral(value)
     let ty = str_type()
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn char_literal(value: char, location: Location) -> Expression:
     let kind = ExpressionKind.CharLiteral(value)
     let ty = char_type()
-    return Expression(kind, ty, location)
+    Expression(kind, ty, location)
 
 fn to_string(value: Expression, location: Location) -> Expression:
     let kind = ExpressionKind.ToString(value)
-    return Expression(kind, ty: str_type(), location)
+    Expression(kind, ty: str_type(), location)
 
 fn undefined_value() -> Expression:
     let location = location_default()
-    return Expression(kind: ExpressionKind.Undefined(), ty: undefined_type(), location)
+    Expression(kind: ExpressionKind.Undefined(), ty: undefined_type(), location)
 
 fn null_value(location: Location) -> Expression:
-    return Expression(kind: ExpressionKind.Null(), ty: opaque_type(), location)
+    Expression(kind: ExpressionKind.Null(), ty: opaque_type(), location)
 
 fn print_ast2(module_set: ModuleSet):
     for module in module_set.modules:
@@ -1665,14 +1648,13 @@ fn print_ast(module: Module):
     printer.dedent()
 
 fn new_print_visitor(printer: AstPrinter) -> Visitor[AstPrinter]:
-    let visitor = Visitor:
+    Visitor:
         data: printer
         on_definition: print_ast_definition
         on_type: print_ast_type
         on_statement: print_ast_statement
         on_expression: print_ast_expression
         on_node: print_ast_node
-    return visitor
 
 class AstPrinter:
     var indent_level: int = 0
@@ -1684,7 +1666,7 @@ class AstPrinter:
         indent_level -= 1
     
     fn get_prefix() -> str:
-        return str_repeat(text: "   ", count: indent_level)
+        str_repeat(text: "   ", count: indent_level)
     
     fn print2(txt: str):
         let prefix = get_prefix()

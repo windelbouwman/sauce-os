@@ -13,10 +13,10 @@ struct SingleCompilationError:
     message: str
 
 fn new_error(location: Location, message: str) -> SingleCompilationError:
-    return SingleCompilationError(location, message)
+    SingleCompilationError(location, message)
 
 fn new_errors(filename: Option[str], errors: List[SingleCompilationError]) -> CompilationError:
-    return CompilationError(filename, errors)
+    CompilationError(filename, errors)
 
 fn display_error(error: CompilationError):
     for error2 in error.errors:

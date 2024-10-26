@@ -284,7 +284,7 @@ class PyGenerator:
         str_join(parts, sep: ", ")
     
     fn get_id(id: ast.NodeId) -> str:
-        return "X{id.id}_{id.name}"
+        "X{id.id}_{id.name}"
 
     fn emit(txt?: str):
         out.emit(txt)
@@ -351,8 +351,8 @@ fn escape_string(text?: str) -> str:
         index += 1
 
     if begin == 0:
-        return text
+        text
     else:
         if begin < index:
             res = res + str_slice(text, begin, end: index)
-        return res
+        res

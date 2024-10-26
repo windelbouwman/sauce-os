@@ -2,3 +2,4 @@ Int: 4
 Str: B
 Token: Id(w00t)
 a=15
+x.b=2

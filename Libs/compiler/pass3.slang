@@ -170,31 +170,31 @@ class NewOp:
         # Try to use this expression as a type.
         case expression.kind:
             Typ(ty2):
-                return Option.Some(ty2)
+                Option.Some(ty2)
             TypeConstructor(tycon):
                 let ty2 = turn_tycon_to_type(tycon)
-                return Option.Some(ty2)
+                Option.Some(ty2)
             ArrayLiteral(values):
                 if values.len() == 1:
                     case try_as_type(expression: values.first()):
                         Some(element_type):
-                            return Option.Some(ast.array_type(element_type, size: 0))
+                            Option.Some(ast.array_type(element_type, size: 0))
                         None:
-                            return Option.None()
+                            Option[ast.Type].None()
                 else:
-                    return Option.None()
+                    Option[ast.Type].None()
         else:
-            return Option.None()
+            Option[ast.Type].None()
 
     fn eval_type_expr(expression: ast.Expression) -> ast.Type:
         # Try to use this expression as a type.
         case try_as_type(expression):
             Some(ty2):
-                return ty2
+                ty2
             None:
                 let message = "Invalid type expression: {expression}"
                 add_error(location: expression.location, message)
-                return ast.undefined_type()
+                ast.undefined_type()
 
     fn add_error(location: Location, message: str):
         errors.append(new_error(location, message))
@@ -204,7 +204,7 @@ class NewOp:
         for tp in ast.tycon_get_type_parameters(tycon):
             let type_var: ast.TypeVariable = ast.new_type_var(unique: new_id())
             type_arguments.append(ast.new_type_var_ref(type_var))
-        return ast.apply_tycon(tycon, type_arguments)
+        ast.apply_tycon(tycon, type_arguments)
     
     fn new_type_arguments(type_parameters: List[ast.TypeParameter]) -> List[ast.Type]:
         let type_arguments: List[ast.Type] = List()
@@ -213,7 +213,7 @@ class NewOp:
             let type_arg = ast.new_type_var_ref(type_var)
             type_arg.was_generic = true
             type_arguments.append(type_arg)
-        return type_arguments
+        type_arguments
 
     fn new_id() -> int:
-        return id_gen.new_id()
+        id_gen.new_id()

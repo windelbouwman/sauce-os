@@ -7,4 +7,4 @@ class IdGen:
     fn new_id() -> int:
         let v = counter
         counter += 1
-        return v
+        v

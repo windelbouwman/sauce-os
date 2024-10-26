@@ -11,7 +11,7 @@ fn to_sil(program: bc.Program) -> sil.Program:
     let g = SilGen(m_bc_program: program)
     for function in program.functions:
         g.gen_function(function)
-    return sil.Program(functions: g.m_functions)
+    sil.Program(functions: g.m_functions)
 
 class SilGen:
     var m_bc_program: bc.Program
@@ -154,14 +154,14 @@ class SilGen:
     fn new_block(name: str) -> sil.Block:
         let block = sil.Block(name, instructions: List())
         m_blocks.append(block)
-        return block
+        block
     
     fn new_tmp() -> sil.Value:
         m_tmp_number += 1
-        return sil.Value.Tmp(name: "x{m_tmp_number}")
+        sil.Value.Tmp(name: "x{m_tmp_number}")
     
     fn new_global(name?: str) -> sil.Value:
-        return sil.Value.Global(name)
+        sil.Value.Global(name)
     
     fn push_int(value?: int):
         push(sil.Value.Integer(value))
@@ -170,7 +170,7 @@ class SilGen:
         m_value_stack.append(value)
 
     fn pop() -> sil.Value:
-        return m_value_stack.pop_last()
+        m_value_stack.pop_last()
 
     fn pop_n(count: int) -> List[sil.Value]:
         let values: List[sil.Value] = List()
@@ -178,7 +178,7 @@ class SilGen:
             let val = pop()
             values.prepend(val)
             count -= 1
-        return values
+        values
 
     fn set_current_block(block?: sil.Block):
         m_current_block = Option.Some(block)

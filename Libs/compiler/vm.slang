@@ -31,64 +31,64 @@ struct ListValue:
 fn value_to_string(value?: Value) -> str:
     case value:
         Int(value):
-            return "int({value})"
+            "int({value})"
         Str(value):
-            return "str({value})"
+            "str({value})"
         Char(value):
-            return "char({value})"
+            "char({value})"
         Float(value):
-            return "float({float_to_str(value)})"
+            "float({float_to_str(value)})"
         Bool(value):
             if value:
-                return "bool(true)"
+                "bool(true)"
             else:
-                return "bool(false)"
+                "bool(false)"
         List(values):
-            return "List(..)"
+            "List(..)"
         Null:
-            return "Null"
+            "Null"
         Undefined:
-            return "undefined"
+            "undefined"
 
 fn bool_from_value(value?: Value) -> bool:
     case value:
         Bool(value):
-            return value
+            value
     else:
         panic("bool_from_value: no boolean")
 
 fn str_from_value(value?: Value) -> str:
     case value:
         Str(value):
-            return value
+            value
     else:
         panic("str_from_value: no str")
 
 fn int_from_value(value?: Value) -> int:
     case value:
         Int(value):
-            return value
+            value
     else:
         panic("int_from_value: no int")
 
 fn char_from_value(value?: Value) -> char:
     case value:
         Char(value):
-            return value
+            value
     else:
         panic("char_from_value: no char")
 
 fn float_from_value(value?: Value) -> float:
     case value:
         Float(value):
-            return value
+            value
     else:
         panic("float_from_value: no float")
 
 fn list_from_value(value?: Value) -> ListValue:
     case value:
         List(list):
-            return list
+            list
     else:
         panic("list_from_value: no list")
 
@@ -98,75 +98,75 @@ struct ExternFunctionImpl:
 
 fn efi_std_ord(arguments: List[Value]) -> Option[Value]:
     let value = std.ord(char_from_value(arguments[0]))
-    return Option.Some(Value.Int(value))
+    Option.Some(Value.Int(value))
 
 fn efi_std_chr(arguments: List[Value]) -> Option[Value]:
     let value = std.chr(int_from_value(arguments[0]))
-    return Option.Some(Value.Char(value))
+    Option.Some(Value.Char(value))
 
 fn efi_std_float_to_str(arguments: List[Value]) -> Option[Value]:
     let value = std.float_to_str(float_from_value(arguments[0]))
-    return Option.Some(Value.Str(value))
+    Option.Some(Value.Str(value))
 
 fn efi_std_float_to_str2(arguments: List[Value]) -> Option[Value]:
     let value = std.float_to_str2(value: float_from_value(arguments[0]), digits: int_from_value(arguments[1]))
-    return Option.Some(Value.Str(value))
+    Option.Some(Value.Str(value))
 
 fn efi_std_str_to_float(arguments: List[Value]) -> Option[Value]:
     let value = std.str_to_float(str_from_value(arguments[0]))
-    return Option.Some(Value.Float(value))
+    Option.Some(Value.Float(value))
 
 fn efi_std_str_len(arguments: List[Value]) -> Option[Value]:
     let text = str_from_value(arguments[0])
     let value = std.str_len(text)
-    return Option.Some(Value.Int(value))
+    Option.Some(Value.Int(value))
 
 fn efi_std_str_get(arguments: List[Value]) -> Option[Value]:
     let text = str_from_value(arguments[0])
     let index = int_from_value(arguments[1])
     let value = std.str_get(text, index)
-    return Option.Some(Value.Char(value))
+    Option.Some(Value.Char(value))
 
 fn efi_std_str_slice(arguments: List[Value]) -> Option[Value]:
     let text = str_from_value(arguments[0])
     let begin = int_from_value(arguments[1])
     let end = int_from_value(arguments[2])
     let value = std.str_slice(text, begin, end)
-    return Option.Some(Value.Str(value))
+    Option.Some(Value.Str(value))
 
 fn efi_std_print(arguments: List[Value]) -> Option[Value]:
     std.print(str_from_value(arguments.first()))
-    return Option.None()
+    Option[Value].None()
 
 fn efi_std_read_line(arguments: List[Value]) -> Option[Value]:
     let value = std.read_line(prompt: str_from_value(arguments.first()))
-    return Option.Some(Value.Str(value))
+    Option.Some(Value.Str(value))
 
 fn efi_default(arguments: List[Value]) -> Option[Value]:
     panic("Not impl EFI")
-    return Option.None()
+    Option[Value].None()
 
 fn efi_rt_int_to_str(arguments: List[Value]) -> Option[Value]:
     let value = rt.int_to_str(int_from_value(arguments[0]))
-    return Option.Some(Value.Str(value))
+    Option.Some(Value.Str(value))
 
 fn efi_rt_char_to_str(arguments: List[Value]) -> Option[Value]:
     let value = rt.char_to_str(char_from_value(arguments[0]))
-    return Option.Some(Value.Str(value))
+    Option.Some(Value.Str(value))
 
 fn efi_rt_str_concat(arguments: List[Value]) -> Option[Value]:
     let a = str_from_value(arguments[0])
     let b = str_from_value(arguments[1])
     # let value = rt.str_concat(a, b)
     let value = a + b
-    return Option.Some(Value.Str(value))
+    Option.Some(Value.Str(value))
 
 fn efi_rt_str_compare(arguments: List[Value]) -> Option[Value]:
     let a = str_from_value(arguments[0])
     let b = str_from_value(arguments[1])
     # let value = rt.str_compare(a, b)
     let value = a == b
-    return Option.Some(Value.Bool(value))
+    Option.Some(Value.Bool(value))
 
 fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
     # Link in external functions:
@@ -199,7 +199,7 @@ fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
     efi_db.insert(key: "rt_char_to_str", value: ExternFunctionImpl(f: efi_rt_char_to_str, n: 1))
     efi_db.insert(key: "rt_str_concat", value: ExternFunctionImpl(f: efi_rt_str_concat, n: 2))
     efi_db.insert(key: "rt_str_compare", value: ExternFunctionImpl(f: efi_rt_str_compare, n: 2))
-    return efi_db
+    efi_db
 
 fn run_bytecode(program: Program, entry_function: str):
     let vm = VirtualMachine()
@@ -250,7 +250,7 @@ fn eval_code(vm: VirtualMachine, code: Vector[Instruction]) -> Value:
     while frame.pc < code.len():
         vm.step()
     vm.pop_frame()
-    return frame.stack.last()
+    frame.stack.last()
 
 
 fn frame_from_function(function: Function, arguments: List[Value]) -> Frame:
@@ -264,7 +264,7 @@ fn frame_from_function(function: Function, arguments: List[Value]) -> Frame:
     # Fill space for local variables:
     for x in function.locals:
         frame.locals.append(Value.Undefined())
-    return frame
+    frame
 
 struct ExceptionHandler:
     except_label: int
@@ -280,7 +280,7 @@ class Frame:
     fn fetch() -> Instruction:
         let instruction = code[pc]
         pc += 1
-        return instruction
+        instruction
 
 class VirtualMachine:
     var frames: List[Frame] = List()
@@ -294,7 +294,7 @@ class VirtualMachine:
         execute(instruction)
 
     fn fetch() -> Instruction:
-        return frames.last().fetch()
+        frames.last().fetch()
 
     fn execute(instruction: Instruction):
         log_debug("Executing: {instruction_to_string(instruction)}")
@@ -533,7 +533,7 @@ class VirtualMachine:
         frames.last().stack.append(value)
     
     fn pop() -> Value:
-        return frames.last().stack.pop_last()
+        frames.last().stack.pop_last()
     
     fn pop_n(count: int) -> List[Value]:
         let values: List[Value] = List()
@@ -541,25 +541,25 @@ class VirtualMachine:
             let val = pop()
             values.prepend(val)
             count -= 1
-        return values
+        values
     
     fn jump(pc?: int):
         frames.last().pc = pc
 
     fn get_local(index: int) -> Value:
-        return frames.last().locals.get(index)
+        frames.last().locals.get(index)
     
     fn set_local(index: int, value: Value):
         frames.last().locals.set(index, value)
     
     fn get_parameter(index: int) -> Value:
-        return frames.last().arguments.get(index)
+        frames.last().arguments.get(index)
 
     fn set_parameter(index: int, value: Value):
         frames.last().arguments.set(index, value)
 
     fn get_global(index: int) -> Value:
-        return globals.get(index)
+        globals.get(index)
 
     fn set_global(index: int, value: Value):
         globals.set(index, value)
@@ -574,64 +574,64 @@ class VirtualMachine:
 fn eval_binop_int(op: bc.BinaryOperator, lhs: int, rhs: int) -> int:
     case op:
         Add:
-            return lhs + rhs
+            lhs + rhs
         Sub:
-            return lhs - rhs
+            lhs - rhs
         Divide:
-            return lhs / rhs
+            lhs / rhs
         Multiply:
-            return lhs * rhs
+            lhs * rhs
 
 fn eval_comparison_int(op: bc.ComparisonOperator, lhs: int, rhs: int) -> bool:
     case op:
         Less:
-            return lhs < rhs
+            lhs < rhs
         LessEquals:
-            return lhs <= rhs
+            lhs <= rhs
         Greater:
-            return lhs > rhs
+            lhs > rhs
         GreaterEquals:
-            return lhs >= rhs
+            lhs >= rhs
         Equals:
-            return lhs == rhs
+            lhs == rhs
         NotEquals:
-            return lhs != rhs
+            lhs != rhs
 
 fn eval_binop_float(op: bc.BinaryOperator, lhs: float, rhs: float) -> float:
     case op:
         Add:
-            return lhs + rhs
+            lhs + rhs
         Sub:
-            return lhs - rhs
+            lhs - rhs
         Divide:
-            return lhs / rhs
+            lhs / rhs
         Multiply:
-            return lhs * rhs
+            lhs * rhs
 
 fn eval_comparison_float(op: bc.ComparisonOperator, lhs: float, rhs: float) -> bool:
     case op:
         Less:
-            return lhs < rhs
+            lhs < rhs
         LessEquals:
-            return lhs <= rhs
+            lhs <= rhs
         Greater:
-            return lhs > rhs
+            lhs > rhs
         GreaterEquals:
-            return lhs >= rhs
+            lhs >= rhs
         Equals:
-            return lhs == rhs
+            lhs == rhs
         NotEquals:
-            return lhs != rhs
+            lhs != rhs
 
 fn eval_bitop(op: bc.BitOperator, lhs: int, rhs: int) -> int:
     case op:
         Shr:
-            return lhs >> rhs
+            lhs >> rhs
         Shl:
-            return lhs << rhs
+            lhs << rhs
         And:
-            return lhs & rhs
+            lhs & rhs
         Or:
-            return lhs | rhs
+            lhs | rhs
         Xor:
-            return lhs ^ rhs
+            lhs ^ rhs
