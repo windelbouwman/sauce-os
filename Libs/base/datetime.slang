@@ -9,7 +9,7 @@ fn unix_to_str(seconds: int) -> str:
     # Convert unix timestamp to str
     # Unix epoch is 1-1-1970 00:00:00
     let d = unix_to_datetime(z: seconds)
-    return datetime_to_str(d)
+    datetime_to_str(d)
 
 fn unix_to_datetime(z: int) -> DateTime:
     let seconds_per_day = 24 * 60 * 60
@@ -26,16 +26,16 @@ fn unix_to_datetime(z: int) -> DateTime:
     let hour = minute / 60
     minute = modulo(value: minute, divisor: 60)
 
-    return DateTime(year, month, day, hour, minute, second)
+    DateTime(year, month, day, hour, minute, second)
 
 fn datetime_to_unix(dt: DateTime) -> int:
     let ymd = Civil(year: dt.year, month: dt.month, day: dt.day)
     let z = days_from_civil(ymd) * 24 * 3600
     z += dt.hour * 3600 + dt.minute * 60 + dt.second
-    return z
+    z
 
 fn two_digits(n?: int) -> str:
-    return str_pad_left(text: "{n}", length: 2, fill: "0")
+    str_pad_left(text: "{n}", length: 2, fill: "0")
 
 fn datetime_to_str(d: DateTime) -> str:
     let year = d.year
@@ -45,7 +45,7 @@ fn datetime_to_str(d: DateTime) -> str:
     let minute = two_digits(d.minute)
     let second = two_digits(d.second)
 
-    return "{year}-{month}-{day}-T-{hour}:{minute}:{second}"
+    "{year}-{month}-{day}-T-{hour}:{minute}:{second}"
 
 struct DateTime:
     year: int
@@ -89,7 +89,7 @@ fn days_from_civil(ymd: Civil) -> int:
     
     # Day of era [0, 146096]:
     let doe = yoe * 365 + yoe / 4 - yoe/100 + doy
-    return era * 146097 + doe - 719468
+    era * 146097 + doe - 719468
 
 fn civil_from_days(z: int) -> Civil:
     z = z + 719468
@@ -116,4 +116,4 @@ fn civil_from_days(z: int) -> Civil:
     if month <= 2:
         year += 1
 
-    return Civil(year, month, day)
+    Civil(year, month, day)

@@ -9,7 +9,7 @@ from urlparse import parse_url
 fn get(url: str) -> str:
     """ Get data from an url """
     let client = HttpClient()
-    return client.get(url)
+    client.get(url)
 
 fn post(url: str):
     """ Post to an url """
@@ -55,7 +55,7 @@ class HttpClient:
 
         # Content
         let content = read()
-        return content
+        content
 
     fn post(url: str):
         unimplemented("POST")
@@ -79,7 +79,7 @@ fn parse_header(line: str) -> Header:
     assert(condition: parts.len() == 2, message: "header line must contain a single ':' ")
     let name = parts[0]
     let value = parts[0]
-    return Header(name, value)
+    Header(name, value)
 
 struct Header:
     name: str

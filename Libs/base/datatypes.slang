@@ -41,20 +41,20 @@ enum Result[O,E]:
 fn list1[T](v1?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
-    return vec
+    vec
 
 fn list2[T](v1?: T, v2?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
-    return vec
+    vec
 
 fn list3[T](v1?: T, v2?: T, v3?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
     vec.append(v3)
-    return vec
+    vec
 
 fn list4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> List[T]:
     let vec: List[T] = List()
@@ -62,7 +62,7 @@ fn list4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> List[T]:
     vec.append(v2)
     vec.append(v3)
     vec.append(v4)
-    return vec
+    vec
 
 fn list5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> List[T]:
     let vec: List[T] = List()
@@ -71,7 +71,7 @@ fn list5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> List[T]:
     vec.append(v3)
     vec.append(v4)
     vec.append(v5)
-    return vec
+    vec
 
 fn list6[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T) -> List[T]:
     let vec: List[T] = List()
@@ -81,7 +81,7 @@ fn list6[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T) -> List[T]:
     vec.append(v4)
     vec.append(v5)
     vec.append(v6)
-    return vec
+    vec
 
 class List[T]:
     # Linked list based on a linked list of elements with next pointers.
@@ -128,7 +128,7 @@ class List[T]:
 
     fn len() -> int:
         # Retrieve length of the list
-        return length
+        length
 
     fn clear():
         while not is_empty():
@@ -155,7 +155,7 @@ class List[T]:
     fn iter() -> ListIter[T]:
         let it = ListIter()
         it.next_element = head_element
-        return it
+        it
 
     fn first() -> T:
         # Retrieve first element
@@ -275,7 +275,7 @@ class List[T]:
         let result: List[T] = List()
         for value in this:
             result.prepend(value)
-        return result
+        result
     
     fn extend(other?: List[T]):
         while not other.is_empty():
@@ -292,8 +292,8 @@ class ListIter[T]:
         let opt = next_element
         case opt:
             None:
-                return Option.None()
+                Option[T].None()
             Some(nxt_element):
                 let x = Option.Some(nxt_element.data)
                 next_element = nxt_element.next
-                return x
+                x

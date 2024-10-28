@@ -12,17 +12,16 @@ fn deflate_decompress(data?: Bytes) -> Bytes:
     # Decompress the given data using deflate
     # See: RFC 1951
     let reader = data.into_reader()
-    return deflate_decompress_from_reader(reader)
+    deflate_decompress_from_reader(reader)
 
 fn deflate_decompress_from_reader(reader: ByteReader) -> Bytes:
     let decoder = new_deflate_decoder(reader)
     decoder.deflate()
-    return decoder.m_output.to_bytes()
+    decoder.m_output.to_bytes()
 
 fn new_deflate_decoder(reader: ByteReader) -> DeflateDecoder:
     let bit_reader = BitReader(m_reader: reader)
-    let decoder = DeflateDecoder(m_bit_reader: bit_reader)
-    return decoder
+    DeflateDecoder(m_bit_reader: bit_reader)
 
 fn deflate_compress(data: Bytes) -> Bytes:
     # Implementation 1: copy uncompressed:
@@ -52,7 +51,7 @@ fn deflate_compress(data: Bytes) -> Bytes:
             index += 1
             i += 1
 
-    return out.to_bytes()
+    out.to_bytes()
 
 class DeflateDecoder:
     var m_bit_reader: BitReader
@@ -141,7 +140,7 @@ class DeflateDecoder:
         # Split vector
         let first = create_tree(lengths: lengths.take(hlit))
         let second = create_tree(lengths: lengths.skip(hlit))
-        return TreePair(first, second)
+        TreePair(first, second)
 
     fn inflate_block(pair: TreePair):
         # Decompress huffman coded data.
@@ -200,15 +199,15 @@ class DeflateDecoder:
         unimplemented("Decode symbol")
 
     fn read_bits(n?: int) -> int:
-        return m_bit_reader.read_bits(n)
+        m_bit_reader.read_bits(n)
 
     fn read_byte() -> int:
-        return m_bit_reader.m_reader.read_byte()
+        m_bit_reader.m_reader.read_byte()
 
     fn read_u16_le() -> int:
         m_bit_reader.m_bitbuf = 0
         m_bit_reader.m_bitcnt = 0
-        return m_bit_reader.m_reader.read_u16_le()
+        m_bit_reader.m_reader.read_u16_le()
 
     fn emit_byte(b?: int):
         assert(condition: b < 256, message: "Byte values must be smaller than 256")
@@ -277,15 +276,14 @@ fn create_tree(lengths: Vector[int]) -> Tree:
             offsets[length] = offsets[length] + 1
         symbol += 1
 
-    let tree = Tree:
+    Tree:
         counts
         symbols
-    return tree
 
 fn create_fixed_trees() -> TreePair:
     let first = create_fixed_literal_length_tree()
     let second = create_fixed_distance_tree()
-    return TreePair(first, second)
+    TreePair(first, second)
 
 fn create_fixed_literal_length_tree() -> Tree:
     let lengths: Vector[int] = new_vector()
@@ -302,7 +300,7 @@ fn create_fixed_literal_length_tree() -> Tree:
     while symbol < 288:
         lengths.append(8)
         symbol += 1
-    return create_tree(lengths)
+    create_tree(lengths)
 
 fn create_fixed_distance_tree() -> Tree:
     let lengths: Vector[int] = new_vector()
@@ -310,5 +308,5 @@ fn create_fixed_distance_tree() -> Tree:
     while symbol < 30:
         lengths.append(5)
         symbol += 1
-    return create_tree(lengths)
+    create_tree(lengths)
 

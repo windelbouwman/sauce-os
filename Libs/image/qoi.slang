@@ -28,7 +28,7 @@ fn read_whole_file_as_bytes(filename: str) -> Bytes:
             break
     std.file_close(handle)
 
-    return ba.to_bytes()
+    ba.to_bytes()
 
 fn write_bytes_to_file(filename: str, data: Bytes):
     let handle = std.file_open(filename, mode: "wb")
@@ -57,7 +57,7 @@ fn write_bytes_to_file(filename: str, data: Bytes):
 fn read_qoi_from_file(filename: str) -> Image:
     let data = read_whole_file_as_bytes(filename)
     let reader = QoiReader(m_reader: data.into_reader())
-    return reader.read_image()
+    reader.read_image()
 
 fn write_qoi_to_file(image: Image, filename: str):
     # Write image as QOI file.
@@ -151,7 +151,7 @@ class QoiReader:
                     panic("read_image: Invalid opcode: {tag2}")
                 # std.print("Pixel: {r} {g} {b} {a}")
         image.pixels = m_pixels
-        return image
+        image
     
     fn put_pixel(r: int, g: int, b: int, a: int):
         # std.print("Pixel: {r} {g} {b} {a}")
@@ -161,10 +161,10 @@ class QoiReader:
         m_pixels.append(pixel)
 
     fn read_bytes(size?: int) -> Bytes:
-        return m_reader.read_bytes(size)
+        m_reader.read_bytes(size)
     
     fn read_byte() -> int:
-        return m_reader.read_byte()
+        m_reader.read_byte()
 
 fn wrap8(value?: int) -> int:
     # Implement 8 bit wrapping
@@ -172,7 +172,7 @@ fn wrap8(value?: int) -> int:
         value += 256
     while value > 255:
         value -= 256
-    return value
+    value
 
 class QoiWriter:
     var m_writer: ByteArray = ByteArray()
@@ -195,7 +195,7 @@ class QoiWriter:
             write_byte(image.pixels[i].green)
             write_byte(image.pixels[i].blue)
             i += 1
-        return m_writer.to_bytes()
+        m_writer.to_bytes()
 
     fn write_byte(value?: int):
         m_writer.append(value)

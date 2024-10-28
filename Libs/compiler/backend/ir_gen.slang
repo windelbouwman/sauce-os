@@ -20,7 +20,8 @@ fn gen_bytecode(module_set: ast.ModuleSet) -> bc.Program:
 fn gen_expression_bytecode(expression: ast.Expression) -> Vector[Instruction]:
     let g = BytecodeGenerator()
     g.gen_expression(expression)
-    g.code
+    g.emit(Instruction.Return(n_args: 1))
+    g.get_relocated_instructions()
 
 enum ControlBlock:
     LoopBlock(loop_: Loop)
@@ -118,6 +119,7 @@ class BytecodeGenerator:
             Intern(ival):
                 begin_code()
                 gen_expression(option_unwrap(ival))
+                emit(Instruction.Return(n_args: 1))
                 value = Option.Some(get_relocated_instructions())
             Extern(libname, initialized):
                 pass
@@ -281,13 +283,12 @@ class BytecodeGenerator:
                 gen_raise(value)
     
     fn gen_return(opt_val: Option[ast.Expression]):
-        let n_args = 0
-        case opt_val:
+        let n_args = case opt_val:
             Some(val):
                 gen_expression(val)
-                n_args += 1
+                1
             None:
-                pass
+                0
 
         for block in block_stack:
             block_cleanup(block)
@@ -747,11 +748,10 @@ class BytecodeGenerator:
             let parameter_types: List[bc.Type] = List()
             for p2 in parameter_types2:
                 parameter_types.append(get_bc_type(p2.ty))
-            let return_type: Option[bc.Type] = Option.None()
-            if return_type2.is_void():
-                return_type = Option.None()
+            let return_type: Option[bc.Type] = if return_type2.is_void():
+                Option.None()
             else:
-                return_type = Option.Some(get_bc_type(return_type2))
+                Option.Some(get_bc_type(return_type2))
             bc.Type.Function(parameter_types, return_type)
         elif ty2.is_type_parameter():
             bc.Type.Ptr()

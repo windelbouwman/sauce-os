@@ -3,11 +3,10 @@ from vectype import Vector, new_vector
 
 fn new_image(width: int, height: int) -> Image:
     let pixels: Vector[Pixel] = new_vector()
-    let image = Image:
+    Image:
         width
         height
         pixels
-    return image
 
 class Image:
     var width: int
@@ -17,7 +16,7 @@ class Image:
     fn get_pixel(x: int, y: int) -> Pixel:
         let index = y * width + x
         let pixel = pixels[index]
-        return pixel
+        pixel
     
     fn set_pixel(x: int, y: int, red: int, green: int, blue: int, alpha: int):
         let pixel = get_pixel(x, y)
@@ -37,4 +36,4 @@ struct Pixel:
     alpha: int
 
 fn new_pixel() -> Pixel:
-    return Pixel(red: 0, green: 0, blue: 0, alpha: 0)
+    Pixel(red: 0, green: 0, blue: 0, alpha: 0)

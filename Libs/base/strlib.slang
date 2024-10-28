@@ -21,10 +21,10 @@ fn split_string(text: str, sep: char) -> List[str]:
         else:
             cur += 1
     parts.append(str_slice(text, begin: start, end: cur))
-    return parts
+    parts
 
 fn string_compare(a: str, b: str) -> bool:
-    return str_comparison(a, b) < 0
+    str_comparison(a, b) < 0
 
 fn str_repeat(text: str, count: int) -> str:
     let result = ""
@@ -58,7 +58,7 @@ fn str_join(parts: List[str], sep: str) -> str:
     return x
 
 fn is_space(c: char) -> bool:
-    return c == ' '
+    c == ' '
 
 fn str_to_int(text?: str) -> int:
     let n = str_len(text)
@@ -101,41 +101,38 @@ fn bin_to_int(bintext: str) -> int:
 fn is_digit(c: char) -> bool:
     """  Check if a character is a digit. """
     let o = ord(value: c)
-    return (o >= 48) and (o <= 57)
+    (o >= 48) and (o <= 57)
 
 fn digit_to_int(c: char) -> int:
     let cval = ord(c)
     if (cval >= 48) and (cval <= 57):     # 0..9
-        cval = cval - 48
+        cval - 48
     else:
         panic("Invalid integer char: {c}")
-    return cval
 
 fn hex_digit_to_int(c: char) -> int:
     let o = ord(c)
 
-    let cval = 0
     if (o >= 48) and (o <= 57):     # 0..9
-        cval = o - 48
+        o - 48
     elif (o >= 65) and (o <= 70):   # A..F
-        cval = o - 55
+        o - 55
     elif (o >= 97) and (o <= 102):  # a..f
-        cval = o - 87
+        o - 87
     else:
         panic("Invalid hex char: {c}")
-    return cval
 
 fn is_hex_digit(c: char) -> bool:
     """ Check if a character is a hex digit. """
     let o = ord(value: c)
     if (o >= 48) and (o <= 57):     # 0..9
-        return true
+        true
     elif (o >= 65) and (o <= 70):   # A..F
-        return true
+        true
     elif (o >= 97) and (o <= 102):  # a..f
-        return true
+        true
     else:
-        return false
+        false
 
 fn int_to_hex_string(value?: int) -> str:
     let text = ""
@@ -149,27 +146,26 @@ fn int_to_hex_string(value?: int) -> str:
 
 fn hex_char(value?: int) -> char:
     if value < 10:
-        return chr(value + 48)
+        chr(value + 48)
     elif value < 16:
-        return chr(value + 55)
+        chr(value + 55)
     else:
-        return '?'
+        panic("Invalid hex char value: {value}")
 
 fn is_bin_digit(c: char) -> bool:
     # Check if a character is a binary digit.
     let o = ord(value: c)
     if (o >= 48) and (o <= 49):     # 0..1
-        return true
+        true
     else:
-        return false
+        false
 
 fn bin_digit_to_int(c: char) -> int:
     let cval = ord(c)
     if (cval >= 48) and (cval <= 49):     # 0..1
-        cval = cval - 48
+        cval - 48
     else:
         panic("Invalid binary char: {c}")
-    return cval
 
 fn trim(text?: str) -> str:
     # Trim spaces

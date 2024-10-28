@@ -70,7 +70,7 @@ fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
     # Always add last point:
     sampled.append(values.last())
 
-    return sampled
+    sampled
 
 fn get_bucket_start(i: int, bucket_size: float) -> int:
-    return int(floor((i + 0) * bucket_size)) + 1
+    int(floor((i + 0) * bucket_size)) + 1

@@ -73,7 +73,7 @@ fn md5(data: Bytes) -> Bytes:
     digest.pack_u32_le(b0)
     digest.pack_u32_le(c0)
     digest.pack_u32_le(d0)
-    return digest.to_bytes()
+    digest.to_bytes()
 
 fn leftrotate(value: int, amount: int) -> int:
     return (0xffFFffFF & (value << amount)) | (value >> (32 - amount))
@@ -155,4 +155,4 @@ fn fill_md5_K(K: [int]):
     K[63] = 0xeb86d391
 
 fn wrap_u32(value?: int) -> int:
-    return value & 0xFFffFFff
+    value & 0xFFffFFff

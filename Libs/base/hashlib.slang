@@ -14,5 +14,4 @@ fn elf_hash(text: str) -> int:
         h = h & (0xFFFFFFFF ^ g)
         index += 1
         # assert h >= 0
-
-    return h
+    h

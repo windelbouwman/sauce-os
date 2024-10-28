@@ -8,40 +8,40 @@ var e: float = 2.718281828459045235360287471352
 
 fn min(a: int, b: int) -> int:
     if a < b:
-        return a
+        a
     else:
-        return b
+        b
 
 fn max(a: int, b: int) -> int:
     if a > b:
-        return a
+        a
     else:
-        return b
+        b
 
 # TODO: do something clever with traits / interfaces / generics
 fn fmin(a?: float, b?: float) -> float:
     if a < b:
-        return a
+        a
     else:
-        return b
+        b
 
 fn fmax(a?: float, b?: float) -> float:
     if a > b:
-        return a
+        a
     else:
-        return b
+        b
 
 fn abs(a?: int) -> int:
     if a < 0:
-        return -a
+        -a
     else:
-        return a
+        a
 
 fn fabs(a?: float) -> float:
     if a < 0:
-        return -a
+        -a
     else:
-        return a
+        a
 
 fn sqrt(x?: float) -> float:
     """ Take the square root """
@@ -52,24 +52,24 @@ fn sqrt(x?: float) -> float:
     let r = x
     while fabs(x - r*r) > eps:
         r = (r + x / r) / 2
-    return r
+    r
 
 fn factorial(x?: int) -> int:
     if x < 0:
         panic("Factorial undefined for negative numbers like {x}")
     elif x == 0:
-        return 1
+        1
     else:
         let r = x
         while x > 2:
             x -= 1
             r = r * x
-        return r
+        r
 
 fn sin(x?: float) -> float:
     if x < 0:
         # When negative, use symmetric 
-        return -sin(-x)
+        -sin(-x)
     else:
         # Reduce to the range of 0..2pi
         let two_pi = pi * 2.0
@@ -77,17 +77,17 @@ fn sin(x?: float) -> float:
         
         # Select the right quarter
         if x < 0.5* pi:
-            return sin_kernel(x)
+            sin_kernel(x)
         elif x < pi:
-            return sin_kernel(pi - x)
+            sin_kernel(pi - x)
         elif x < 1.5 * pi:
-            return -sin_kernel(x - pi)
+            -sin_kernel(x - pi)
         else:
-            return -sin_kernel(two_pi - x)
+            -sin_kernel(two_pi - x)
 
 fn cos(value?: float) -> float:
     # Use sine wave, by shifting pi/2:
-    return sin(value + (0.5 * pi))
+    sin(value + (0.5 * pi))
 
 fn sin_kernel(x?: float) -> float:
     """
@@ -110,29 +110,29 @@ fn sin_kernel(x?: float) -> float:
 
 fn tan(value?: float) -> float:
     # TODO: check division by 0
-    return sin(value) / cos(value)
+    sin(value) / cos(value)
 
 fn degrees(radians: float) -> float:
     """ Convert radians to degrees """
-    return radians * (180.0 / pi)
+    radians * (180.0 / pi)
 
 fn radians(degrees: float) -> float:
     """ Convert degrees to radians """
-    return degrees * (pi / 180.0)
+    degrees * (pi / 180.0)
 
 fn fmod(x?: float, divisor: float) -> float:
      # TODO: how about negative numbers?
     if x > divisor:
-        return x - int(x / divisor) * divisor
+        x - int(x / divisor) * divisor
     else:
-        return x
+        x
 
 fn hypot(x?: float, y: float) -> float:
-    return sqrt(x*x + y*y)
+    sqrt(x*x + y*y)
 
 fn modulo(value: int, divisor: int) -> int:
     let x = value / divisor
-    return value - (divisor * x)
+    value - (divisor * x)
 
 fn powf(x?: float, y?: float) -> float:
     """ Raise x to the power of y.
@@ -142,13 +142,13 @@ fn powf(x?: float, y?: float) -> float:
 
     This follow from: x^y = exp(log(x))^y = exp(y * log(x))
     """
-    return exp(y * log(x))
+    exp(y * log(x))
 
 fn log10(x?: float) -> float:
-    return log(x) / log(10)
+    log(x) / log(10)
 
 fn log2(x?: float) -> float:
-    return log(x) / log(2)
+    log(x) / log(2)
 
 fn log(x?: float) -> float:
     """ Natural logarithm
@@ -200,12 +200,12 @@ fn exp(x?: float) -> float:
 
     if x < 0:
         # exp(-z) = 1/exp(z)
-        return 1/exp(-x)
+        1/exp(-x)
     elif x > 1:
         # Use the fact that:
         # e^x = (e^(x/3))^3
         let r = exp(x / 3.0)
-        return r * r * r
+        r * r * r
     else:
         let sum = 1.0
         let term = 1.0
@@ -219,22 +219,22 @@ fn exp(x?: float) -> float:
                 break
             if n > 100:
                 break
-        return sum
+        sum
 
 fn floor(value?: float) -> float:
     let i = int(value)
     if float(i) == value:
-        return value
+        value
     elif value < 0:
-        return float(i - 1)
+        float(i - 1)
     else:
-        return float(int(value))
+        float(int(value))
 
 fn ceil(value?: float) -> float:
     let i = int(value)
     if float(i) == value:
-        return value
+        value
     elif value < 0:
-        return float(i)
+        float(i)
     else:
-        return float(i + 1)
+        float(i + 1)

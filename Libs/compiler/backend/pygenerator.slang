@@ -140,13 +140,12 @@ class PyGenerator:
                 gen_statement(try_statement.except_block.body, target: Option.None())
                 dedent()
             Assignment(target, op, value):
-                let op_txt = ""
-                case op:
+                let op_txt = case op:
                     None:
-                        op_txt = "="
+                        "="
                     Some(op3):
                         let float_division = value.ty.is_float()
-                        op_txt = "{binary_operator_to_str(op: op3, float_division)}="
+                        "{binary_operator_to_str(op: op3, float_division)}="
                 emit("{gen_expression(target, parens: true)} {op_txt} {gen_expression(value, parens: false)}")
             Return(value):
                 case value:

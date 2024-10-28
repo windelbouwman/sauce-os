@@ -1,5 +1,6 @@
-
-# Regex library
+"""
+Regex library
+"""
 
 from std import str_get, str_len, ord, print, chr, str_slice
 from integersetlib import IntegerSet, new_int_set
@@ -11,14 +12,14 @@ from utils import panic, assert
 fn find(pattern: str, text: str) -> Option[str]:
     let matches = find_all(pattern, text)
     if matches.len() > 0:
-        return Option.Some(matches.first())
+        Option.Some(matches.first())
     else:
-        return Option.None()
+        Option[str].None()
 
 fn find_all(pattern: str, text: str) -> List[str]:
-    # Find all regular expression in the given text.
+    """ Find all regular expression in the given text. """
     let machine = compile(pattern)
-    return machine_find_all(machine, text)
+    machine_find_all(machine, text)
 
 fn machine_find_all(machine: Machine, text: str) -> List[str]:
     let matches: List[str] = List()
@@ -66,7 +67,7 @@ fn machine_find_all(machine: Machine, text: str) -> List[str]:
         # print("Found: {part}")
     #    matches.append(part)
 
-    return matches
+    matches
 
 fn compile(pattern: str) -> Machine:
     # Turn regular expression into matching machine
@@ -75,7 +76,7 @@ fn compile(pattern: str) -> Machine:
     # print_regex(rx, level: 0)
     let machine = create_machine(rx)
     # print_machine(machine)
-    return machine
+    machine
 
 fn create_machine(rx: Regex) -> Machine:
     # Compile regex into state machine
@@ -147,7 +148,7 @@ class Machine:
     
     fn accepts(state_nr: int) -> bool:
         let state = states.get(index: state_nr)
-        return state.accepts
+        state.accepts
 
 struct State:
     transitions: List[Transition]
@@ -160,7 +161,7 @@ struct Transition:
 fn parse(pattern: str) -> Regex:
     # Parse a pattern into a regex
     let p = Parser(text: pattern)
-    return p.parse()
+    p.parse()
 
 fn print_machine(machine: Machine):
     let i = 0
@@ -248,7 +249,7 @@ class Parser:
                 index += 1
                 res = res.kleene()
 
-        return res
+        res
 
     fn parse_range() -> IntegerSet:
         assert(condition: index < n_size, message: "Cannot parse beyond input")
@@ -265,44 +266,42 @@ class Parser:
         let c3 = str_get(text, index)
         index += 1
 
-        # panic("TODO!")
-        return new_char_set2(c1, c2: c3)
+        new_char_set2(c1, c2: c3)
 
 
 fn new_char_set(c: char) -> IntegerSet:
-    # Single character set
+    """ Single character set """
     let begin = ord(c)
     let end = begin + 1
-    return new_int_set(begin, end)
+    new_int_set(begin, end)
 
 fn new_char_set2(c1: char, c2: char) -> IntegerSet:
-    # Range of characters
+    """ Range of characters """
     let begin = ord(c1)
     let end = ord(c2) + 1
-    return new_int_set(begin, end)
+    new_int_set(begin, end)
 
 fn sigma() -> IntegerSet:
-    # Return full ascii set
-    return new_int_set(begin: 0, end: 256)
+    """ Return full ascii set """
+    new_int_set(begin: 0, end: 256)
 
 fn symbol_regex(c: char) -> Regex:
-    # Regex for single character
+    """ Regex for single character """
     let s = new_char_set(c)
-    return symbol_set_regex(s)
+    symbol_set_regex(s)
 
 fn symbol_set_regex(s: IntegerSet) -> Regex:
-    # Regex for single character
-    return Regex(kind: PartKind.Symbol(s))
+    Regex(kind: PartKind.Symbol(s))
 
 fn epsilon_regex() -> Regex:
-    return Regex(kind: PartKind.Epsilon())
+    Regex(kind: PartKind.Epsilon())
 
 fn null_regex() -> Regex:
-    return Regex(kind: PartKind.Null())
+    Regex(kind: PartKind.Null())
 
 fn sigma_regex() -> Regex:
-    # Regex with all symbols!
-    return symbol_set_regex(s: sigma())
+    """ Regex with all symbols! """
+    symbol_set_regex(s: sigma())
 
 enum PartKind:
     Kleene(r: Regex)
@@ -316,232 +315,233 @@ enum PartKind:
 
 fn kleene_regex(r: Regex) -> Regex:
     if r.is_kleene():
-        return r
+        r
     elif r.is_epsilon():
-        return r
-    return Regex(kind: PartKind.Kleene(r))
+        r
+    else:
+        Regex(kind: PartKind.Kleene(r))
 
 fn concat_regex(left: Regex, right: Regex) -> Regex:
     if left.is_null():
-        return left
+        left
     elif right.is_null():
-        return right
+        right
     elif left.is_epsilon():
-        return right
+        right
     elif right.is_epsilon():
-        return left
-
-    return Regex(kind: PartKind.Concat(left, right))
+        left
+    else:
+        Regex(kind: PartKind.Concat(left, right))
 
 fn logical_and_regex(left: Regex, right: Regex) -> Regex:
     if left.is_null():
-        return left
+        left
     elif right.is_null():
-        return right
-    return Regex(kind: PartKind.LogicalAnd(left, right))
+        right
+    else:
+        Regex(kind: PartKind.LogicalAnd(left, right))
 
 fn logical_or_regex(left: Regex, right: Regex) -> Regex:
     if left.is_null():
-        return right
+        right
     elif right.is_null():
-        return left
-    return Regex(kind: PartKind.LogicalOr(left, right))
+        left
+    else:
+        Regex(kind: PartKind.LogicalOr(left, right))
 
 fn logical_not_regex(r: Regex) -> Regex:
-    return Regex(kind: PartKind.LogicalNot(r))
+    Regex(kind: PartKind.LogicalNot(r))
 
 class Regex:
     var kind: PartKind
 
     fn to_string() -> str:
-        let txt = "?"
         case kind:
             Epsilon:
-                txt = "epsilon"
+                "epsilon"
             Null:
-                txt = "null"
+                "null"
             Kleene(r):
-                txt = "*"
+                "*"
             Concat(left, right):
-                txt = "Concat"
+                "Concat"
             LogicalAnd(left, right):
-                txt = "LogicalAnd"
+                "LogicalAnd"
             LogicalOr(left, right):
-                txt = "LogicalOr"
+                "LogicalOr"
             LogicalNot(r):
-                txt = "LogicalNot"
+                "LogicalNot"
             Symbol(s):
-                txt = "Symbols({s.to_string()})"
-        return txt
+                "Symbols({s.to_string()})"
     
     fn equals(other: Regex) -> bool:
         case kind:
             Epsilon:
                 case other.kind:
                     Epsilon:
-                        return true
+                        true
                 else:
-                    return false
+                    false
             Null:
                 case other.kind:
                     Null:
-                        return true
+                        true
                 else:
-                    return false
+                    false
             Kleene(r):
                 case other.kind:
                     Kleene(r2):
-                        return r.equals(other: r2)
+                        r.equals(other: r2)
                 else:
-                    return false
+                    false
             Concat(left, right):
                 case other.kind:
                     Concat(left2, right2):
-                        return left.equals(other: left2) and right.equals(other: right2)
+                        left.equals(other: left2) and right.equals(other: right2)
                 else:
-                    return false
+                    false
             LogicalAnd(left, right):
                 case other.kind:
                     LogicalAnd(left2, right2):
-                        return left.equals(other: left2) and right.equals(other: right2)
+                        left.equals(other: left2) and right.equals(other: right2)
                 else:
-                    return false
+                    false
             LogicalOr(left, right):
                 case other.kind:
                     LogicalOr(left2, right2):
-                        return left.equals(other: left2) and right.equals(other: right2)
+                        left.equals(other: left2) and right.equals(other: right2)
                 else:
-                    return false
+                    false
             LogicalNot(r):
                 case other.kind:
                     LogicalNot(r2):
-                        return r.equals(other: r2)
+                        r.equals(other: r2)
                 else:
-                    return false
+                    false
             Symbol(s):
                 case other.kind:
                     Symbol(s2):
-                        return s.equals(other: s2)
+                        s.equals(other: s2)
                 else:
-                    return false
+                    false
 
     fn kleene() -> Regex:
-        return kleene_regex(r: this)
+        kleene_regex(r: this)
 
     fn concat(other: Regex) -> Regex:
-        return concat_regex(left: this, right: other)
+        concat_regex(left: this, right: other)
 
     fn logical_and(other: Regex) -> Regex:
-        return logical_and_regex(left: this, right: other)
+        logical_and_regex(left: this, right: other)
 
     fn logical_or(other: Regex) -> Regex:
-        return logical_or_regex(left: this, right: other)
+        logical_or_regex(left: this, right: other)
     
     fn is_null() -> bool:
         case kind:
             Null:
-                return true
+                true
         else:
-            return false
+            false
 
     fn is_epsilon() -> bool:
         case kind:
             Epsilon:
-                return true
+                true
         else:
-            return false
+            false
 
     fn is_kleene() -> bool:
         case kind:
             Kleene(r):
-                return true
+                true
         else:
-            return false
+            false
 
     fn is_logical_not() -> bool:
         case kind:
             LogicalNot(r):
-                return true
+                true
         else:
-            return false
+            false
 
     fn derivative(c: int) -> Regex:
         # Create new regex, taking a single character.
         case kind:
             Kleene(r):
-                return concat_regex(left: r.derivative(c), right: this)
+                concat_regex(left: r.derivative(c), right: this)
             Symbol(s):
                 if s.contains(value: c):
-                    return epsilon_regex()
+                    epsilon_regex()
                 else:
-                    return null_regex()
+                    null_regex()
             Concat(left, right):
                 let new_left = concat_regex(left: left.derivative(c), right)
                 let new_right = concat_regex(left: left.nu(), right: right.derivative(c))
-                return logical_or_regex(left: new_left, right: new_right)
+                logical_or_regex(left: new_left, right: new_right)
             LogicalAnd(left, right):
-                return logical_and_regex(left: left.derivative(c), right: right.derivative(c))
+                logical_and_regex(left: left.derivative(c), right: right.derivative(c))
             LogicalOr(left, right):
-                return logical_or_regex(left: left.derivative(c), right: right.derivative(c))
+                logical_or_regex(left: left.derivative(c), right: right.derivative(c))
             LogicalNot(r):
-                return logical_not_regex(r: r.derivative(c))
+                logical_not_regex(r: r.derivative(c))
             Null:
-                return null_regex()
+                null_regex()
             Epsilon:
-                return null_regex()
+                null_regex()
     
     fn derivative_classes() -> List[IntegerSet]:
         # Determine character classes that are interesting
         # cases to take the derivative for.
         case kind:
             Kleene(r):
-                return r.derivative_classes()
+                r.derivative_classes()
             Symbol(s):
-                return list2(s, sigma().difference(other: s))
+                list2(s, sigma().difference(other: s))
             Epsilon:
-                return list1(sigma())
+                list1(sigma())
             Concat(left, right):
                 if left.is_nullable():
-                    return product_intersections(left.derivative_classes(), right.derivative_classes())
+                    product_intersections(left.derivative_classes(), right.derivative_classes())
                 else:
-                    return left.derivative_classes()
+                    left.derivative_classes()
             Null:
-                return list1(sigma())
+                list1(sigma())
             LogicalAnd(left, right):
-                return product_intersections(left.derivative_classes(), right.derivative_classes())
+                product_intersections(left.derivative_classes(), right.derivative_classes())
             LogicalOr(left, right):
-                return product_intersections(left.derivative_classes(), right.derivative_classes())
+                product_intersections(left.derivative_classes(), right.derivative_classes())
             LogicalNot(r):
-                return r.derivative_classes()
+                r.derivative_classes()
 
     fn is_nullable() -> bool:
         let n = nu()
         assert(condition: n.is_epsilon() or n.is_null(), message: "nu must return null or epsilon")
-        return n.is_epsilon()
+        n.is_epsilon()
 
     fn nu() -> Regex:
         # Check if this regex is nullable.
         case kind:
             Kleene(r):
-                return epsilon_regex()
+                epsilon_regex()
             Symbol(s):
-                return null_regex()
+                null_regex()
             Epsilon:
-                return epsilon_regex()
+                epsilon_regex()
             Null:
-                return null_regex()
+                null_regex()
             Concat(left, right):
-                return logical_and_regex(left: left.nu(), right: right.nu())
+                logical_and_regex(left: left.nu(), right: right.nu())
             LogicalAnd(left, right):
-                return logical_and_regex(left: left.nu(), right: right.nu())
+                logical_and_regex(left: left.nu(), right: right.nu())
             LogicalOr(left, right):
-                return logical_or_regex(left: left.nu(), right: right.nu())
+                logical_or_regex(left: left.nu(), right: right.nu())
             LogicalNot(r):
                 let nu_r = r.nu()
                 if nu_r.is_null():
-                    return epsilon_regex()
+                    epsilon_regex()
                 else:
-                    return null_regex()
+                    null_regex()
 
 
 fn product_intersections(a?: List[IntegerSet], b?: List[IntegerSet]) -> List[IntegerSet]:
@@ -553,4 +553,4 @@ fn product_intersections(a?: List[IntegerSet], b?: List[IntegerSet]) -> List[Int
             let k = i.union(other: j)
             if not k.is_empty():
                 combos.append(k)
-    return combos
+    combos

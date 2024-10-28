@@ -1014,9 +1014,10 @@ struct StructDef:
     scope: Scope
 
 fn struct_def_to_str(struct_def: StructDef) -> str:
-    let t = "Struct"
-    if struct_def.is_union:
-        t = "Union"
+    let t = if struct_def.is_union:
+        "Union"
+    else:
+        "Struct"
     "{t}({node_id_to_string(struct_def.id)})"
 
 class StructBuilder:

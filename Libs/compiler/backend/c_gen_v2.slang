@@ -218,25 +218,24 @@ class CGenerator2:
                 emit("{value};")
 
             Assignment(target, operator, value):
-                let target_text = ""
                 let op_text = case operator:
                     Some(op):
                         "{binary_op_to_str(op)}="
                     None:
                         "="
 
-                case target.kind:
+                let target_text = case target.kind:
                     GetAttr(base, attr):
                         let base_txt = gen_expression(base)
-                        target_text = "{base_txt}->{attr}"
+                        "{base_txt}->{attr}"
                     GetIndex(base, indici):
                         let base_txt = gen_expression(base)
                         let args = gen_expression_list(values: indici)
-                        target_text = "{base_txt}[{args}]"
+                        "{base_txt}[{args}]"
                     VarRef(variable):
-                        target_text = gen_id(id: variable.id)
+                        gen_id(id: variable.id)
                     ParameterRef(parameter_def):
-                        target_text = gen_id(id: parameter_def.id)
+                        gen_id(id: parameter_def.id)
                 else:
                     panic("Unsupported assignment target: {target}")
 

@@ -14,25 +14,25 @@ class IntegerSet:
         let parts: List[str] = List()
         for r in ranges:
             parts.append(range_to_string(r))
-        return str_join(parts, sep: ",")
+        str_join(parts, sep: ",")
     
     fn equals(other: IntegerSet) -> bool:
-        return integer_set_equals(a: this, b: other)
+        integer_set_equals(a: this, b: other)
     
     fn is_empty() -> bool:
-        return ranges.len() == 0
+        ranges.len() == 0
 
     fn contains(value: int) -> bool:
         for range in ranges:
             if range_contains(self: range, value):
                 return true
-        return false
+        false
     
     fn difference(other: IntegerSet) -> IntegerSet:
-        return integer_set_difference(self: this, other)
+        integer_set_difference(self: this, other)
     
     fn union(other: IntegerSet) -> IntegerSet:
-        return integer_set_intersection(self: this, other)
+        integer_set_intersection(self: this, other)
 
     fn first() -> int:
         for range in ranges:
@@ -45,7 +45,7 @@ fn new_int_set(begin: int, end: int) -> IntegerSet:
     let ranges: List[Range] = List()
     assert(condition: begin < end, message: "Range must be valid (begin < end)")
     ranges.append(Range(begin, end))
-    return integer_set_from_ranges(ranges)
+    integer_set_from_ranges(ranges)
 
 fn integer_set_from_ranges(ranges: List[Range]) -> IntegerSet:
     # - check empty ranges and valid ranges. checks: 'begin < end'
@@ -54,21 +54,20 @@ fn integer_set_from_ranges(ranges: List[Range]) -> IntegerSet:
     # - glue overlapping ranges?
     for range in ranges:
         assert(condition: range.begin < range.end, message: "Range must be valid (begin < end)")
-    let s = IntegerSet(ranges)
-    return s
+    IntegerSet(ranges)
 
 fn range_equals(a: Range, b: Range) -> bool:
     if a.begin != b.begin:
         return false
-    return a.end == b.end
+    a.end == b.end
 
 fn integer_set_equals(a: IntegerSet, b: IntegerSet) -> bool:
     if a.ranges.len() != b.ranges.len():
         return false
-    return all(values: zip(left: a.ranges, right: b.ranges, merger: range_equals), check: is_true)
+    all(values: zip(left: a.ranges, right: b.ranges, merger: range_equals), check: is_true)
 
 fn is_true(b?: bool) -> bool:
-    return b
+    b
 
 fn integer_set_intersection(self: IntegerSet, other: IntegerSet) -> IntegerSet:
     # Create a new set with overlapping ranges
@@ -92,7 +91,7 @@ fn integer_set_intersection(self: IntegerSet, other: IntegerSet) -> IntegerSet:
         if not (ss.end > end):
             s = j.next()
 
-    return IntegerSet(ranges)
+    IntegerSet(ranges)
 
 fn integer_set_difference(self: IntegerSet, other: IntegerSet) -> IntegerSet:
     # Create a new set with integers, by removing other integers from self set.
@@ -126,5 +125,5 @@ fn integer_set_difference(self: IntegerSet, other: IntegerSet) -> IntegerSet:
         else:
             ranges.append(rr)
             r = i.next()
-    return IntegerSet(ranges)
+    IntegerSet(ranges)
 

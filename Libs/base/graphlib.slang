@@ -34,16 +34,16 @@ class DiGraph:
     fn has_edge(src: str, dst: str) -> bool:
         case succ.maybe_get(key: src):
             Some(s):
-                return s.contains(dst)
+                s.contains(dst)
             None:
-                return false
+                false
     
     fn has_preds(n?: str) -> bool:
         case pred.maybe_get(key: n):
             Some(p):
                 return not p.is_empty()
             None:
-                return false
+                false
     
     fn has_edges() -> bool:
         for n in nodes:

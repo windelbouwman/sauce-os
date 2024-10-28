@@ -244,13 +244,16 @@ fn run_bytecode(program: Program, entry_function: str):
         vm.step()
 
 fn eval_code(vm: VirtualMachine, code: Vector[Instruction]) -> Value:
-    # Evaluate a bytecode expression
+    """ Evaluate a bytecode expression """
+    let top_frame = Frame(code: new_vector())
+    vm.push_frame(frame: top_frame)
+
     let frame = Frame(code)
     vm.push_frame(frame)
-    while frame.pc < code.len():
+    while vm.frames.len() > 1:
         vm.step()
-    vm.pop_frame()
-    frame.stack.last()
+
+    vm.pop_frame().stack.last()
 
 
 fn frame_from_function(function: Function, arguments: List[Value]) -> Frame:
@@ -477,10 +480,10 @@ class VirtualMachine:
             Return(amount):
                 if amount == 1:
                     let value = pop()
-                    pop_frame()
+                    let stub_frame = pop_frame()
                     push(value)
                 else:
-                    pop_frame()
+                    let stub_frame = pop_frame()
             Unreachable:
                 panic("Reached unreachable")
             SetupTry(try_label, except_label):
@@ -564,8 +567,8 @@ class VirtualMachine:
     fn set_global(index: int, value: Value):
         globals.set(index, value)
 
-    fn pop_frame():
-        let stub_frame = frames.pop_last()
+    fn pop_frame() -> Frame:
+        frames.pop_last()
 
     fn push_frame(frame: Frame):
         frames.append(frame)

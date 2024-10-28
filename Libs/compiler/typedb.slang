@@ -476,39 +476,38 @@ class SymbolLoader:
         types
 
     fn load_type(attr: str) -> ast.Type:
-        let ty = ast.undefined_type()
         m_des.enter_attribute(attr)
         let type_name = m_des.get_text_attribute(attr: "kind")
-        if type_name == "int":
+        let ty = if type_name == "int":
             let signed = m_des.get_boolean_attribute(attr: "signed")
             let bits = m_des.get_integer_attribute(attr: "bits")
-            ty = ast.specific_int_type(signed, bits)
+            ast.specific_int_type(signed, bits)
         elif type_name == "str":
-            ty = ast.str_type()
+            ast.str_type()
         elif type_name == "bool":
-            ty = ast.bool_type()
+            ast.bool_type()
         elif type_name == "float":
             let bits = m_des.get_integer_attribute(attr: "bits")
-            ty = ast.specific_float_type(bits)
+            ast.specific_float_type(bits)
         elif type_name == "char":
-            ty = ast.char_type()
+            ast.char_type()
         elif type_name == "void":
-            ty = ast.void_type()
+            ast.void_type()
         elif type_name == "unreachable":
-            ty = ast.unreachable_type()
+            ast.unreachable_type()
         elif type_name == "app":
             let type_arguments = load_types(attr: "type-arguments")
             let id = load_id()
             let tycon = ast.TyCon.Ref(key: ast.node_id_to_string(id))
-            ty = ast.new_type(kind: ast.TypeKind.App(tycon, type_arguments))
+            ast.new_type(kind: ast.TypeKind.App(tycon, type_arguments))
         elif type_name == "type-parameter":
             let id = load_id()
             let type_parameter = m_type_parameter_map.get(key: "{id.id}")
-            ty = ast.type_parameter_ref(type_parameter)
+            ast.type_parameter_ref(type_parameter)
         elif type_name == "array":
             let element_type = load_type(attr: "element-type")
             let size = m_des.get_integer_attribute(attr: "size")
-            ty = ast.array_type(element_type, size)
+            ast.array_type(element_type, size)
         elif type_name == "function":
             let parameter_types: List[ast.ParameterType] = List()
             for parameter_obj in m_des.get_array_attribute(attr: "parameter-types"):
@@ -517,7 +516,7 @@ class SymbolLoader:
                 parameter_types.append(ast.ParameterType(label: Option.None(), ty: parameter_type))
                 m_des.pop_value()
             let info = load_function_info()
-            ty = ast.function_type(parameter_types, info)
+            ast.function_type(parameter_types, info)
         else:
             panic("Unsupported: {type_name}")
         

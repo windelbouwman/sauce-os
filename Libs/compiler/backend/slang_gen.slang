@@ -94,9 +94,10 @@ class SlangGenerator:
             for param_ty in ast.get_parameter_types_from_type(ty):
                 parts.append(gen_type(param_ty.ty))
             let params = str_join(parts, sep: ", ")
-            let suffix = ""
-            if not ret_ty.is_void():
-                suffix = suffix + " -> {gen_type(ret_ty)}"
+            let suffix = if ret_ty.is_void():
+                ""
+            else:
+                " -> {gen_type(ret_ty)}"
             "fn ({params}){suffix}"
         else:
             panic("gen_type: Unsupported: {ty}")
@@ -135,12 +136,11 @@ class SlangGenerator:
             Expr(expr):
                 emit(gen_expression(expr, parens: true))
             Assignment(target, op, value):
-                let op_txt = ""
-                case op:
+                let op_txt = case op:
                     None:
-                        op_txt = "="
+                        "="
                     Some(op3):
-                        op_txt = "{ast.binary_op_to_str(op3)}="
+                        "{ast.binary_op_to_str(op3)}="
                 emit("{gen_expression(target, parens: true)} {op_txt} {gen_expression(value, parens: false)}")
             Try(try_statement):
                 emit("try:")

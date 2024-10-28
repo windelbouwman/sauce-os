@@ -14,15 +14,15 @@ from image import Image, new_image, Pixel
 fn read_png_from_file(filename: str) -> Image:
     log_debug("Loading PNG from {filename}")
     let data = read_whole_file_as_bytes(filename)
-    return read_png_from_bytes(data)
+    read_png_from_bytes(data)
 
 fn read_png_from_bytes(data: Bytes) -> Image:
     let reader = data.into_reader()
-    return read_png_from_stream(reader)
+    read_png_from_stream(reader)
 
 fn read_png_from_stream(reader: ByteReader) -> Image:
     let decoder = PngDecoder(m_byte_reader: reader)
-    return decoder.read_image()
+    decoder.read_image()
 
 fn write_png_to_file(image: Image, filename: str):
     log_debug("Writing PNG image to {filename}")
@@ -112,7 +112,7 @@ class PngDecoder:
         let data3 = post_filter(data: data2, width, height, bpp)
         let image = new_image(width, height)
         to_pixels(data: data3, image, colortype)
-        return image
+        image
     
     fn read_chunk() -> Chunk:
         let chunk_length = read_u32_be()
@@ -125,13 +125,13 @@ class PngDecoder:
         # check crc:
         let crc = calc_crc32(data: crc_data.to_bytes())
         assert(condition: crc == chunk_crc, message: "CRC mismatch: {crc} != {chunk_crc}")
-        return Chunk(chunk_type, data)
+        Chunk(chunk_type, data)
 
     fn read_bytes(size?: int) -> Bytes:
-        return m_byte_reader.read_bytes(size)
+        m_byte_reader.read_bytes(size)
 
     fn read_u32_be() -> int:
-        return m_byte_reader.read_u32_be()
+        m_byte_reader.read_u32_be()
 
 class PngEncoder:
     var m_writer: ByteArray = ByteArray()
@@ -167,7 +167,7 @@ class PngEncoder:
         # Write IEND chunk
         let iend_chunk = Chunk(chunk_type: chunk_type_code(name: "IEND"), data: new_bytes())
         write_chunk(chunk: iend_chunk)
-        return m_writer.to_bytes()
+        m_writer.to_bytes()
 
     fn write_chunk(chunk: Chunk):
         # Write chunk to output.
@@ -194,7 +194,7 @@ fn pixels_to_buffer(image: Image) -> Bytes:
 
             x += 1
         scanline += 1
-    return out.to_bytes()
+    out.to_bytes()
 
 fn to_pixels(data: Bytes, image: Image, colortype: int):
     let scanline = 0
@@ -240,7 +240,7 @@ fn encode_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
     let filtered = out.to_bytes()
     let expected_data_size = (width * bpp + 1) * height
     assert(condition: filtered.len() == expected_data_size, message: "Expected {expected_data_size}, but created {filtered.len()}")
-    return filtered
+    filtered
 
 fn post_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
     # Perform post filtering on a byte basis.
@@ -306,10 +306,10 @@ fn post_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
             out.append(value)
             x += 1
         scanline += 1
-    return out.to_bytes()
+    out.to_bytes()
 
 fn average(a: int, b: int) -> int:
-    return (a + b) / 2
+    (a + b) / 2
 
 fn paeth_predictor(a: int, b: int, c: int) -> int:
     let p = a + b - c
@@ -317,11 +317,11 @@ fn paeth_predictor(a: int, b: int, c: int) -> int:
     let pb = abs(p - b)
     let pc = abs(p - c)
     if (pa <= pb) and (pa <= pc):
-        return a
+        a
     elif pb <= pc:
-        return b
+        b
     else:
-        return c
+        c
 
 struct Chunk:
     chunk_type: int
@@ -329,4 +329,4 @@ struct Chunk:
 
 fn chunk_type_code(name: str) -> int:
     let reader = bytes_from_ascii(text: name).into_reader()
-    return reader.read_u32_be()
+    reader.read_u32_be()

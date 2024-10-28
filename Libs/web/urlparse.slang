@@ -13,7 +13,7 @@ fn parse_url(url: str) -> ParsedUrl:
     assert(condition: parts2.len() == 2, message: "Url must contain a single '/' ")
     let host = parts2[0]
     let path = parts2[1]
-    return ParsedUrl(scheme, host, path)
+    ParsedUrl(scheme, host, path)
 
 struct ParsedUrl:
     scheme: str

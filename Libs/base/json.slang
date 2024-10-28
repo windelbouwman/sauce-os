@@ -30,14 +30,14 @@ fn write_json_to_file(filename: str, obj: JsonValue):
 
 fn read_json_from_file(filename: str) -> JsonValue except JsonException:
     let text = read_file(filename)
-    return parse_json(text)
+    parse_json(text)
 
 
 pub fn parse_json(text: str) -> JsonValue except JsonException:
     let lexer = Lexer(text)
     lexer.init()
     let parser = Parser(lexer)
-    return parser.parse_value()
+    parser.parse_value()
 
 pub fn json_to_string(value?: JsonValue) -> str:
     case value:
@@ -93,7 +93,7 @@ class JsonBrowser:
             panic("Not a JSON object")
 
     fn has_attribute(attr: str) -> bool:
-        return option_is_some(find_attribute(attr))
+        option_is_some(find_attribute(attr))
 
     fn find_attribute(attr: str) -> Option[JsonValue]:
         case m_value:
@@ -116,25 +116,25 @@ class JsonBrowser:
         enter_attribute(attr)
         let values = get_array_values()
         pop_value()
-        return values
+        values
 
     fn get_text_attribute(attr: str) -> str:
         enter_attribute(attr)
         let text = get_text()
         pop_value()
-        return text
+        text
 
     fn get_integer_attribute(attr: str) -> int:
         enter_attribute(attr)
         let value = get_integer()
         pop_value()
-        return value
+        value
 
     fn get_boolean_attribute(attr: str) -> bool:
         enter_attribute(attr)
         let value = get_boolean()
         pop_value()
-        return value
+        value
 
     fn get_text() -> str:
         # Get text from current node
@@ -187,7 +187,7 @@ class JsonBuilder:
 
     fn end_object() -> JsonValue:
         let builder = m_object_stack.pop_last()
-        return builder.finish()
+        builder.finish()
 
     fn end_object_as_element():
         # Complete object creation, and append to current array
@@ -207,7 +207,7 @@ class JsonBuilder:
 
     fn end_array() -> JsonValue:
         let builder = m_array_stack.pop_last()
-        return builder.finish()
+        builder.finish()
 
     fn end_array_as_attribute(attr: str):
         let array_obj = end_array()
@@ -221,7 +221,7 @@ class JsonObjectBuilder:
         m_attributes.append(KeyValue(key: attr, value))
 
     fn finish() -> JsonValue:
-        return JsonValue.Object(m_attributes)
+        JsonValue.Object(m_attributes)
 
 
 class JsonArrayBuilder:
@@ -231,7 +231,7 @@ class JsonArrayBuilder:
         m_values.append(value)
 
     fn finish() -> JsonValue:
-        return JsonValue.Array(m_values)
+        JsonValue.Array(m_values)
 
 class Parser:
     var m_buffer: List[JsonToken] = List()
@@ -241,20 +241,20 @@ class Parser:
         let token = get_token()
         case token.kind:
             BracketLeft:
-                return parse_array()
+                parse_array()
             BraceLeft:
-                return parse_object()
+                parse_object()
             Integer(value):
-                return JsonValue.Integer(value)
+                JsonValue.Integer(value)
             String(text):
-                return JsonValue.String(text)
+                JsonValue.String(text)
             Id(text):
                 if text == "true":
-                    return JsonValue.Bool(true)
+                    JsonValue.Bool(true)
                 elif text == "false":
-                    return JsonValue.Bool(false)
+                    JsonValue.Bool(false)
                 elif text == "null":
-                    return JsonValue.Null()
+                    JsonValue.Null()
                 else:
                     raise JsonException(message: "Invalid id: {text}", pos: token.pos)
         else:
@@ -276,7 +276,7 @@ class Parser:
                     break
             else:
                 raise unexpected(token, expected: ", or ]")
-        return JsonValue.Object(items)
+        JsonValue.Object(items)
 
     fn parse_array() -> JsonValue except JsonException:
         let values: List[JsonValue] = List()
@@ -300,13 +300,13 @@ class Parser:
                 else:
                     raise unexpected(token, expected: ", or ]")
 
-        return JsonValue.Array(values)
+        JsonValue.Array(values)
     
     fn parse_string() -> str except JsonException:
         let token = get_token()
         case token.kind:
             String(value):
-                return value
+                value
         else:
             raise unexpected(token, expected: ":")
 
@@ -320,15 +320,15 @@ class Parser:
 
     fn get_token() -> JsonToken:
         if m_buffer.is_empty():
-            return lexer.lex()
+            lexer.lex()
         else:
-            return m_buffer.pop_front()
+            m_buffer.pop_front()
 
     fn unget_token(token: JsonToken):
         m_buffer.prepend(token)
     
     fn unexpected(token: JsonToken, expected: str) -> JsonException:
-        return JsonException(message: "Unexpected token {token_to_str(token)}, expected {expected}", pos: token.pos)
+        JsonException(message: "Unexpected token {token_to_str(token)}, expected {expected}", pos: token.pos)
 
 struct JsonToken:
     kind: JsonTokenKind

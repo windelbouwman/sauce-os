@@ -12,12 +12,12 @@ from qoi import read_whole_file_as_bytes
 fn read_gif_from_file(filename: str) -> List[Image]:
     log_debug("Loading GIF from {filename}")
     let data = read_whole_file_as_bytes(filename)
-    return read_gif_from_bytes(data)
+    read_gif_from_bytes(data)
 
 fn read_gif_from_bytes(data: Bytes) -> List[Image]:
     let reader = data.into_reader()
     let gif_reader = GifReader(m_byte_reader: reader)
-    return gif_reader.read()
+    gif_reader.read()
 
 enum Version:
     GIF87a
@@ -56,7 +56,7 @@ class GifReader:
             else:
                 unimplemented("Block type: {block_type}")
 
-        return m_images
+        m_images
     
     fn read_extension():
         let label = read_u8()
@@ -116,8 +116,7 @@ class GifReader:
 
     fn read_block() -> Bytes:
         let size = read_u8()
-        let data = m_byte_reader.read_bytes(size)
-        return data
+        m_byte_reader.read_bytes(size)
 
     fn read_header():
         let header = read_text(size: 6)
@@ -151,17 +150,17 @@ class GifReader:
             let b = read_u8()
             palette.append(Color(r, g, b))
             index += 1
-        return palette
+        palette
     
     fn read_text(size: int) -> str:
         let data = m_byte_reader.read_bytes(size)
-        return bytes_to_ascii(data)
+        bytes_to_ascii(data)
 
     fn read_u16() -> int:
-        return m_byte_reader.read_u16_le()
+        m_byte_reader.read_u16_le()
     
     fn read_u8() -> int:
-        return m_byte_reader.read_byte()
+        m_byte_reader.read_byte()
 
 fn lzw_decode(data: Bytes) -> Bytes:
     """ Decompress LZW encodeded data. """
@@ -173,7 +172,7 @@ fn lzw_decode(data: Bytes) -> Bytes:
     let decompressed_size = decompressed.len()
     let factor = decompressed_size / compressed_size
     log_debug("Decompressed {decompressed_size} bytes (a factor {factor})")
-    return decompressed
+    decompressed
 
 class LzwDecoder:
     # var m_index: int = 0
@@ -229,10 +228,10 @@ class LzwDecoder:
     fn get_next_code() -> int:
         let code = read_bits(m_code_bit_size)
         # log_debug("Code = {code}")
-        return code
+        code
 
     fn read_byte() -> int:
-        return m_reader.read_byte()
+        m_reader.read_byte()
 
     fn read_bits(n?: int) -> int:
         let value = m_bitbuf
@@ -243,10 +242,10 @@ class LzwDecoder:
         m_bitbuf = value >> n
         m_bitcnt -= n
         let mask = ((1 << n) - 1)
-        return value & mask
+        value & mask
     
     fn emit(data?: Bytes):
         m_output.extend(data)
 
 fn first_char(data?: Bytes) -> Bytes:
-    return fill_bytes(n: 1, fill: data[0])
+    fill_bytes(n: 1, fill: data[0])

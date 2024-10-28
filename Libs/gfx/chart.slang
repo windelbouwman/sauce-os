@@ -23,14 +23,14 @@ class Chart:
         c.save_svg(filename)
 
     fn new_color() -> str:
-        return m_color_wheel.get_color()
+        m_color_wheel.get_color()
 
     fn new_curve(name: str) -> Curve:
         let points: List[DataPoint] = List()
         let color = new_color()
         let c = Curve(points, color)
         m_curves.append(c)
-        return c
+        c
     
     fn add_curve(name: str, points: List[DataPoint]):
         let color = new_color()
@@ -48,11 +48,11 @@ class Chart:
                     rects.append(span)
 
         if rects.is_empty():
-            return Option.None()
+            Option.None()
         else:
             let rect = reduce(values: rects, f: containing_rect)
             rect = grow_rect(source: rect, percent: 0.05)
-            return Option.Some(rect)
+            Option.Some(rect)
 
     fn autoscale():
         # adjust axis to view all data!
@@ -107,7 +107,7 @@ class Axis:
     var upper: float = 10.0
 
     fn domain() -> float:
-        return upper - lower
+        upper - lower
 
     fn scale(factor: float):
         lower = lower * factor
@@ -126,7 +126,7 @@ class Curve:
 
     fn get_data_bounds() -> Option[FRange]:
         if points.is_empty():
-            return Option.None()
+            Option.None()
         else:
             let p1 = points.first()
             let x_min = p1.x
@@ -142,7 +142,7 @@ class Curve:
                     y_max = point.y
                 if point.y < y_min:
                     y_min = point.y
-            return Option.Some(FRange(x_min, x_max, y_min, y_max))
+            Option.Some(FRange(x_min, x_max, y_min, y_max))
 
 struct DataPoint:
     x: float
@@ -160,7 +160,7 @@ fn containing_rect(left: FRange, right: FRange) -> FRange:
     let x_max = fmax(left.x_max, right.x_max)
     let y_min = fmin(left.y_min, right.y_min)
     let y_max = fmax(left.y_max, right.y_max)
-    return FRange(x_min, x_max, y_min, y_max)
+    FRange(x_min, x_max, y_min, y_max)
 
 fn grow_rect(source: FRange, percent: float) -> FRange:
     let dx = (source.x_max - source.x_min) * percent
@@ -169,7 +169,7 @@ fn grow_rect(source: FRange, percent: float) -> FRange:
     let x_max = source.x_max + dx
     let y_min = source.y_min - dy
     let y_max = source.y_max + dy
-    return FRange(x_min, x_max, y_min, y_max)
+    FRange(x_min, x_max, y_min, y_max)
 
 class ColorWheel:
     var m_index: int = 0
@@ -193,17 +193,17 @@ class ColorWheel:
         m_index += 1
         if m_index >= m_colors.len():
             m_index = 0
-        return color
+        color
 
 struct FVal:
     value: float
     distance: float
 
 fn new_fval(value: float, approx: float) -> FVal:
-    return FVal(value, distance: fabs(approx - value))
+    FVal(value, distance: fabs(approx - value))
 
 fn cmp_fval(a: FVal, b: FVal) -> bool:
-    return a.distance < b.distance
+    a.distance < b.distance
 
 struct TickValue:
     value: float
@@ -250,11 +250,11 @@ fn calc_tick_values(axis: Axis, n_ticks: int) -> List[TickValue]:
         tick_values.append(TickValue(value: x, text: "{float_to_str2(value: x, digits)}"))
         x += tick_width
 
-    return tick_values
+    tick_values
 
 fn round_to_multiple(value: float, base: float) -> float:
     let x = int(value / base)
-    return x * base
+    x * base
 
 class ChartDrawer:
     var m_chart: Chart
@@ -332,13 +332,13 @@ class ChartDrawer:
         # Scale float value to pixel using x axis
         let domain = m_chart.m_x_axis.domain()
         let fpix = (value - m_chart.m_x_axis.lower) * (m_width / domain)
-        return int(fpix)
+        int(fpix)
 
     fn to_y_pixel(value?: float) -> int:
         # Scale float value to pixel using y axis
         let domain = m_chart.m_y_axis.domain()
         let fpix = m_height - (value - m_chart.m_y_axis.lower) * (m_height / domain)
-        return int(fpix)
+        int(fpix)
 
     fn draw_path(points: List[Point]):
         let p_iter = points.iter()

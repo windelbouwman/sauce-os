@@ -9,13 +9,13 @@ from utils import panic, assert, unimplemented
 from datatypes import Option
 
 fn new_vector[T]() -> Vector[T]:
-    return new_vector_with_capacity(capacity: 7)
+    new_vector_with_capacity(capacity: 7)
 
 fn new_vector_with_capacity[T](capacity: int) -> Vector[T]:
     let m_capacity = capacity
     let m_elements = [m_capacity : T]
     let v: Vector[T] = Vector(m_capacity, m_elements)
-    return v
+    v
 
 fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
     let m_capacity = size
@@ -26,20 +26,20 @@ fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
         i += 1
     let v: Vector[T] = Vector(m_capacity, m_elements)
     v.m_size = size
-    return v
+    v
 
 fn vec2[T](v1?: T, v2?: T) -> Vector[T]:
     let vec: Vector[T] = new_vector()
     vec.append(v1)
     vec.append(v2)
-    return vec
+    vec
 
 fn vec3[T](v1?: T, v2?: T, v3?: T) -> Vector[T]:
     let vec: Vector[T] = new_vector()
     vec.append(v1)
     vec.append(v2)
     vec.append(v3)
-    return vec
+    vec
 
 fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> Vector[T]:
     let vec: Vector[T] = new_vector()
@@ -47,7 +47,7 @@ fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> Vector[T]:
     vec.append(v2)
     vec.append(v3)
     vec.append(v4)
-    return vec
+    vec
 
 class Vector[T]:
     var m_size: int = 0
@@ -55,7 +55,7 @@ class Vector[T]:
     var m_elements: [T]
 
     fn is_empty() -> bool:
-        return m_size == 0
+        m_size == 0
 
     fn append(value?: T):
         if m_size == m_capacity:
@@ -89,12 +89,12 @@ class Vector[T]:
             i += 1
         
     fn len() -> int:
-        return m_size
+        m_size
 
     fn get(index: int) -> T:
         # Retrieve value at index
         if index < m_size:
-            return m_elements[index]
+            m_elements[index]
         else:
             panic("Vector.get: index out of range.")
     
@@ -106,10 +106,10 @@ class Vector[T]:
             panic("Vector.get: index out of range.")
     
     fn first() -> T:
-        return get(index: 0)
+        get(index: 0)
 
     fn last() -> T:
-        return m_elements[m_size - 1]
+        m_elements[m_size - 1]
 
     fn take(amount?: int) -> Vector[T]:
         # Create a new vector with the given amount of items
@@ -119,7 +119,7 @@ class Vector[T]:
         while index < amount:
             v2.append(get(index))
             index += 1
-        return v2
+        v2
 
     fn skip(amount?: int) -> Vector[T]:
         let v2: Vector[T] = new_vector()
@@ -127,10 +127,10 @@ class Vector[T]:
         while index < m_size:
             v2.append(get(index))
             index += 1
-        return v2
+        v2
     
     fn concat(other: Vector[T]) -> Vector[T]:
         let v2: Vector[T] = new_vector_with_capacity(capacity: m_size + other.m_size)
         v2.extend(other: this)
         v2.extend(other)
-        return v2
+        v2

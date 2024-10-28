@@ -22,7 +22,7 @@ fn butter(n: int) -> DigitalFilter:
         ak = (cos(k * gamma) / sin((k+1) * gamma)) * ak
         a.append(ak)
         k += 1
-    return DigitalFilter(b, a)
+    DigitalFilter(b, a)
 
 fn cheby(n: int) -> DigitalFilter:
     # Create a butter worth filter
@@ -46,7 +46,7 @@ fn s_poly_to_str(coefficients: List[float]) -> str:
             part = "{part}*s^{i}"
         parts.append(part)
         i -= 1
-    return str_join(parts, sep: " + ")
+    str_join(parts, sep: " + ")
 
 fn filter(filt: DigitalFilter, values: List[float]):
     unimplemented("filter")

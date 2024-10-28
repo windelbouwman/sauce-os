@@ -9,7 +9,7 @@ struct Point:
     y: int
 
 fn str_point(p?: Point) -> str:
-    return "[{p.x},{p.y}]"
+    "[{p.x},{p.y}]"
 
 struct Path:
     points: List[Point]
@@ -35,6 +35,6 @@ fn shoelace(points: List[Point]) -> float:
         i += 1
     
     # TODO: is abs part of shoelacing?
-    return abs(s) / 2.0
+    abs(s) / 2.0
 
 

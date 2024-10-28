@@ -53,7 +53,7 @@ fn gzip_decompress(data?: Bytes) -> Bytes:
     let crc32_check = calc_crc32(data: decompressed)
     log_debug("isize = {isize}, crc32 = {crc32}, crc32_check = {crc32_check}")
     assert(condition: crc32_check == crc32, message: "CRC error: {crc32} != {crc32_check}")
-    return decompressed
+    decompressed
 
 fn gzip_compress(data: Bytes) -> Bytes:
     unimplemented("gzip_compress")
@@ -79,9 +79,7 @@ fn calc_crc32(data: Bytes) -> int:
     crc = crc ^ 0xffffffff
     for b in data:
         crc = crc_table[(crc ^ b) & 0xff] ^ (crc >> 8)
-    crc = crc ^ 0xffffffff
-
-    return crc
+    crc ^ 0xffffffff
 
 fn zlib_decompress(data: Bytes) -> Bytes:
     # See RFC 1950
@@ -111,8 +109,7 @@ fn zlib_decompress(data: Bytes) -> Bytes:
     let crc2 = calc_adler32(data: decompressed)
     let crc1 = reader.read_u32_be()
     assert(condition: crc1 == crc2, message: "CRC mismatch {crc1} != {crc2}")
-
-    return decompressed
+    decompressed
 
 fn zlib_compress(data: Bytes) -> Bytes:
     # Compress data in zlib format
@@ -133,7 +130,7 @@ fn zlib_compress(data: Bytes) -> Bytes:
     let crc = calc_adler32(data)
     out.pack_u32_be(crc)
 
-    return out.to_bytes()
+    out.to_bytes()
 
 fn calc_adler32(data: Bytes) -> int:
     let s1 = 1
@@ -143,5 +140,5 @@ fn calc_adler32(data: Bytes) -> int:
         s1 = modulo(value: s1 + data.get(index), divisor: 65521)
         s2 = modulo(value: s2 + s1, divisor: 65521)
         index += 1
-    return (s2 * 65536) + s1
+    (s2 * 65536) + s1
 

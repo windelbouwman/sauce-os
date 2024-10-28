@@ -1,7 +1,7 @@
 """ A slang-lang REPL!
 """
 
-from std import print, read_line
+from std import print, read_line, get_n_args, get_arg
 from utils import log_info, log_debug, set_log_level
 from basepass import IdGen
 from parsing import parse_expr_from_text, parse_statement_from_text
@@ -17,8 +17,17 @@ from vm import VirtualMachine, eval_code, value_to_string
 
 
 fn main() -> int:
+    let verbosity = 1
+    let n = get_n_args()
+    let i = 0
+    while i < n:
+        let argument = get_arg(arg: i)
+        if argument == "-v":
+            verbosity += 1
+        i += 1
+
     print("Welcome to the slang-lang REPL!")
-    set_log_level(level: 1)
+    set_log_level(level: verbosity)
     let r = Repl()
     loop:
         let line = read_line(prompt: "~~~> ")
