@@ -60,6 +60,10 @@ fn str_join(parts: List[str], sep: str) -> str:
 fn is_space(c: char) -> bool:
     c == ' '
 
+fn is_lf(c: char) -> bool:
+    let o = ord(c)
+    o == 10
+
 fn str_to_int(text?: str) -> int:
     let n = str_len(text)
     assert(condition: n > 0, message: "Integer string must be at least a single digit.")

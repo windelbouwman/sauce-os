@@ -8,7 +8,7 @@ from std import print
 from datatypes import Option, List, option_unwrap, option_is_none
 from strlib import str_join
 from settype import StringSet
-from location import Location, location_to_string
+from location import Location
 from utils import log_info, panic, log_error, assert
 from errors import CompilationError, new_errors, new_error, display_error, SingleCompilationError
 
@@ -108,6 +108,8 @@ class TypeChecker:
     var current_function: Option[ast.FunctionDef] = Option.None()
     var loops: int = 0
     var exception_handlers: List[ast.Type] = List()
+    var m_void_type: ast.Type = ast.void_type()
+    var m_bool_type: ast.Type = ast.bool_type()
 
     fn check_function_def(function_def: ast.FunctionDef):
         # Check if we return a value, if we need to return a value
@@ -187,7 +189,7 @@ class TypeChecker:
                     None:
                         let_statement.variable.ty = let_statement.value.ty
                 coerce(ty: let_statement.variable.ty, value: let_statement.value)
-                statement.ty = ast.void_type()
+                statement.ty = m_void_type
             Case(case_statement):
                 let ty = ast.unreachable_type()
                 for arm in case_statement.arms:
@@ -207,23 +209,23 @@ class TypeChecker:
             Expr(expression):
                 statement.ty = expression.ty
             If(if_statement):
-                coerce(ty: ast.bool_type(), value: if_statement.condition)
+                coerce(ty: m_bool_type, value: if_statement.condition)
                 let ty = if_statement.true_block.body.ty
                 ty = merge_paths(statement: if_statement.false_block.body, ty)
                 statement.ty = ty
             For(for_statement):
                 assert_void(statement: for_statement.block.body)
-                statement.ty = ast.void_type()
+                statement.ty = m_void_type
             Loop(loop_statement):
                 assert_void(statement: loop_statement.block.body)
-                statement.ty = ast.void_type()
+                statement.ty = m_void_type
             While(while_statement):
-                coerce(ty: ast.bool_type(), value: while_statement.condition)
+                coerce(ty: m_bool_type, value: while_statement.condition)
                 assert_void(statement: while_statement.block.body)
-                statement.ty = ast.void_type()
+                statement.ty = m_void_type
             Assignment(target, op, value):
                 coerce(ty: target.ty, value)
-                statement.ty = ast.void_type()
+                statement.ty = m_void_type
             Return(value):
                 let func = option_unwrap(current_function)
                 case value:
@@ -255,7 +257,7 @@ class TypeChecker:
             Try(try_statement):
                 assert_void(statement: try_statement.try_block.body)
                 assert_void(statement: try_statement.except_block.body)
-                statement.ty = ast.void_type()
+                statement.ty = m_void_type
             Break:
                 if loops == 0:
                     add_error(location: statement.location, message: "Connot use break outside of a loop")
@@ -265,7 +267,7 @@ class TypeChecker:
                     add_error(location: statement.location, message: "Connot use continue outside of a loop")
                 statement.ty = ast.unreachable_type()
             Pass:
-                statement.ty = ast.void_type()
+                statement.ty = m_void_type
 
     fn check_expression(expression: ast.Expression):
         if was_errors:
@@ -339,7 +341,7 @@ class TypeChecker:
                 coerce(ty, value: binop.lhs)
                 coerce(ty, value: binop.rhs)
                 if ast.is_comparison_op(op: binop.op):
-                    expression.ty = ast.bool_type()
+                    expression.ty = m_bool_type
                 else:
                     expression.ty = ty
             Unop(op, rhs):
@@ -429,7 +431,7 @@ class TypeChecker:
             CharLiteral(s):
                 expression.ty = ast.char_type()
             BoolLiteral(b):
-                expression.ty = ast.bool_type()
+                expression.ty = m_bool_type
             IntLiteral(i):
                 # Calculate how many bits we require to store this literal:
                 # let bits = 1
@@ -465,7 +467,7 @@ class TypeChecker:
 
     fn assert_void(statement: ast.Statement):
         if not statement.ty.is_unreachable():
-            check_type(given_ty: statement.ty, expected_ty: ast.void_type(), location: statement.location)
+            check_type(given_ty: statement.ty, expected_ty: m_void_type, location: statement.location)
 
     fn assert_statement_type(statement: ast.Statement, ty: ast.Type):
         check_type(given_ty: statement.ty, expected_ty: ty, location: statement.location)

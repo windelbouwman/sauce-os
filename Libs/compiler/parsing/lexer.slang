@@ -5,9 +5,9 @@ import std
 from utils import panic, assert
 from std import print, ord, chr, str_slice, str_len
 from std import str_to_float
-from token import Token, TokenKind, token_to_string
+from token import Token, TokenKind
 from location import Location, location_at, Position
-from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int
+from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf
 from datatypes import List, Option
 from dicttype import Dictionary
 
@@ -28,17 +28,14 @@ class Lexer:
     var m_mode: LexerMode = LexerMode.Normal()
     var tok_begin: int = 0
     var offset: int = 0
-    var row: int = 1
-    var col_start: int = 0  # Offset in source of this line
-    var start_col: int = 1  # Offset added to column
 
     fn init(source: str):
         fill_keyword_dictionary(keywords: m_keywords)
         this.source = source
+        offset = 0
         source_length = str_len(text: source)
         at_end = false
         at_bol = true
-        row = 1
         indent_stack.append(0)
 
     fn next_token() -> Token:
@@ -46,7 +43,7 @@ class Lexer:
             work_some()
 
         if pending.is_empty():
-            Token(kind: TokenKind.Eof(), location: location_at(row: row, column: 1))
+            Token(kind: TokenKind.Eof(), location: location_at(offset))
         else:
             pending.pop_front()
 
@@ -55,18 +52,18 @@ class Lexer:
 
     fn work_some():
         let tok = next_token2()
-        # print("EHHH: {token_to_string(tok)}")
+
         case tok.kind:
             Eof:
                 at_end = true
 
                 if not at_bol:
-                    emit_token(kind: TokenKind.NewLine(), location: location_at(row: row, column: 1))
+                    emit_token(kind: TokenKind.NewLine(), location: location_at(offset))
 
                 # Dedent to top level!
                 while indent_stack.len() > 1:
                     let tmp = indent_stack.pop_front()
-                    emit_token(kind: TokenKind.Dedent(), location: location_at(row: row, column: 1))
+                    emit_token(kind: TokenKind.Dedent(), location: location_at(offset))
             Space(x):
                 if at_bol:
                     spaces += x
@@ -94,7 +91,6 @@ class Lexer:
                     if spaces != indent_stack.last():
                         emit_token(kind: TokenKind.Error("Indentation error"), location: tok.location)
 
-            # print("ehhh -> " + token_to_string(tok))
             emit(tok)
 
     fn on_newline(tok: Token):
@@ -102,7 +98,6 @@ class Lexer:
             emit(tok)
         at_bol = true
         spaces = 0
-        row += 1
 
     fn emit(tok: Token):
         pending.append(tok)
@@ -114,30 +109,23 @@ class Lexer:
         if offset < source_length:
             # Start of new token:
             tok_begin = offset
-            let begin_column = tok_begin - col_start + start_col
-            let begin = Position(row: row, column: begin_column)
 
-            # Decide what to do based on char:
             let kind = case m_mode:
                 Normal:
                     parse_normal_token()
                 String:
                     parse_string_token()
 
-            let end_column = offset - 1
-            end_column = end_column - col_start + start_col
-
-            let end = Position(row: row, column: end_column)
-            let location = Location(begin, end)
-
+            let location = Location(begin: tok_begin, end: offset - 1)
             Token(kind, location)
         else:
-            Token(kind: TokenKind.Eof(), location: location_at(row: row, column: 1))
+            Token(kind: TokenKind.Eof(), location: location_at(offset))
 
     fn parse_normal_token() -> TokenKind:
         # Get char:
         let c = next_char()
 
+        # Decide what to do based on char:
         if is_id(c):
             parse_identifier()
         elif c == ' ':
@@ -184,7 +172,6 @@ class Lexer:
         elif c == '*':
             TokenKind.Asterix()
         elif is_lf(c):
-            col_start = offset
             TokenKind.NewLine()
         elif is_digit(c):
             parse_number(c)
@@ -251,7 +238,6 @@ class Lexer:
         while offset < n and not is_lf(c: peek()):
             offset += 1
         offset += 1
-        col_start = offset
         TokenKind.Comment(comment: get_lexeme())
 
     fn parse_identifier() -> TokenKind:
@@ -299,8 +285,6 @@ class Lexer:
                     break
             else:
                 z = 0
-            if is_lf(c: c2):
-                row += 1
         let text: str = get_lexeme()
         TokenKind.StringContent(text)
 
@@ -415,10 +399,6 @@ class Lexer:
 
     fn get_lexeme() -> str:
         std.str_slice(text: source, begin: tok_begin, end: offset)
-
-fn is_lf(c: char) -> bool:
-    let o = ord(c)
-    o == 10
 
 fn is_id(c: char) -> bool:
     let o = ord(c)

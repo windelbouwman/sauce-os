@@ -47,7 +47,11 @@ check-py: ${ALL_TEST_RUNS_PY}
 
 # Profiling
 profile: ${COMPILER5} | ${BUILDDIR}
-	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-null ${BASE_LIB_SRCS}
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-py ${BASE_LIB_SRCS}
+	kcachegrind build/callgrind.out
+
+profile2: ${BUILDDIR}/c/apps/write_image.exe | ${BUILDDIR}
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ${BUILDDIR}/c/apps/write_image.exe weather-map.gif build/tmp.qoi
 	kcachegrind build/callgrind.out
 
 pytest-compiler1:
@@ -184,7 +188,7 @@ ${BUILDDIR}/c/apps/%.c: Apps/%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/li
 	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libgfx.json --add-import ${BUILDDIR}/c/libcompiler.json
 
 ${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libgfx.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/slangrt.o
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libcompiler.so -l:libimage.so -l:libgfx.so -l:libscience.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.o -lm
+	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libcompiler.so -l:libgfx.so -l:libimage.so -l:libscience.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.o -lm
 
 # Bootstrap sequence:
 ${COMPILER1}: | ${BUILDDIR}

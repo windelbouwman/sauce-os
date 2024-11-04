@@ -2,7 +2,7 @@
 import ast
 import std
 from lexer import Lexer
-from token import token_to_string, Token
+from token import token_to_string, Token, default_token
 from location import Location, Position
 from datatypes import List, Result, Option, list1, option_unwrap
 from vectype import Vector, new_vector
@@ -19,31 +19,29 @@ pub fn parse_source(filename: str, id_gen: IdGen) -> ast.Module except Compilati
     parser.feed(source)
     parser.parse_module(filename, name: modname)
 
-fn parse_statement_from_text(source: str, id_gen: IdGen, p1: Position) -> ast.Statement except CompilationError:
+fn parse_statement_from_text(source: str, id_gen: IdGen) -> ast.Statement except CompilationError:
     # Invoke parsing, purely on statement.
     let parser = Parser(id_gen)
     parser.feed(source)
-    parser.lex.row = p1.row
-    parser.lex.start_col = p1.column
     parser.parse_statement()
 
-fn parse_expr_from_text(source: str, id_gen: IdGen, p1: Position) -> ast.Expression except CompilationError:
+fn parse_expr_from_text(source: str, id_gen: IdGen) -> ast.Expression except CompilationError:
     # Invoke parsing, purely on expression.
     let parser = Parser(id_gen)
     parser.feed(source)
-    parser.lex.row = p1.row
-    parser.lex.start_col = p1.column
     parser.parse_expression()
 
 class Parser:
     # An attempt at a recursive descent parser.
     var lex: Lexer = Lexer()
+    var m_peek: Token = default_token()
     var filename: Option[str] = Option.None()
     var id_gen: IdGen
     var modname: Option[str] = Option.None()
 
     fn feed(source: str):
         lex.init(source)
+        m_peek = lex.next_token()
     
     fn parse_module(filename: str, name: str) -> ast.Module except CompilationError:
         let definitions: List[ast.Definition] = List()
@@ -172,9 +170,9 @@ class Parser:
         while not try_parse_dedent():
             let name_at = parse_name()
             let payload_types: List[ast.Type] = List()
-            let tok3 = get_token()
-            case tok3.kind:
+            case m_peek.kind:
                 ParenthesisOpen:
+                    move_token()
                     loop:
                         payload_types.append(parse_parameter_def().ty)
 
@@ -187,7 +185,7 @@ class Parser:
                         else:
                             raise unexpected_token(tok: tok4, expected: "',' or ')'")
             else:
-                unget_token(tok3)
+                pass
             
             let variant = ast.EnumVariant:
                 name: name_at.name
@@ -203,9 +201,9 @@ class Parser:
 
     fn parse_type_parameters() -> List[ast.TypeParameter] except CompilationError:
         let type_parameters: List[ast.TypeParameter] = List()
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             BracketOpen:
+                move_token()
                 # take in type parameters
                 loop:
                     let name_at = parse_name()
@@ -220,7 +218,7 @@ class Parser:
                     else:
                         raise unexpected_token(tok: tok2, expected: "',' or ']'")
         else:
-            unget_token(tok)
+            pass
         type_parameters
 
     fn parse_struct_def() -> ast.StructDef except CompilationError:
@@ -321,22 +319,20 @@ class Parser:
         let parameters: List[ast.ParameterDef] = List()
         parse_parenthesis_open()
         # ')' or parameters and ')'
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             ParenthesisClose:
-                pass
+                move_token()
         else:
-            unget_token(tok)
             loop:
                 parameters.append(parse_parameter_def())
-                let tok4 = get_token()
-                case tok4.kind:
+                let tok = get_token()
+                case tok.kind:
                     ParenthesisClose:
                         break
                     Comma:
                         pass
                 else:
-                    raise unexpected_token(tok: tok4, expected: "')' or ','")
+                    raise unexpected_token(tok, expected: "')' or ','")
         parameters
 
     fn parse_function_info() -> ast.FunctionInfo except CompilationError:
@@ -349,22 +345,20 @@ class Parser:
 
     fn parse_optional_return_type() -> ast.Type except CompilationError:
         # Optional return type
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             Arrow:
+                move_token()
                 parse_type()
         else:
-            unget_token(tok)
             ast.void_type()
 
     fn parse_optional_except_type() -> ast.Type except CompilationError:
         # Optional except type
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             KwExcept:
+                move_token()
                 parse_type()
         else:
-            unget_token(tok)
             ast.void_type()
 
     fn parse_parameter_def() -> ast.ParameterDef except CompilationError:
@@ -392,12 +386,11 @@ class Parser:
             Option[str].None()
 
     fn has_parsed_question() -> bool:
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             Question:
+                move_token()
                 true
         else:
-            unget_token(tok)
             false
 
     fn parse_var_def() -> ast.VariableDef except CompilationError:
@@ -407,12 +400,11 @@ class Parser:
         let ty = parse_type()
 
         # Optional '=' <expr>
-        let tok = get_token()
-        let var_init: Option[ast.Expression] = case tok.kind:
+        let var_init: Option[ast.Expression] = case m_peek.kind:
             Equals:
+                move_token()
                 Option.Some(parse_expression())
         else:
-            unget_token(tok)
             Option[ast.Expression].None()
 
         parse_newline()
@@ -420,12 +412,11 @@ class Parser:
         ast.VariableDef(variable, value: ast.VariableDefValue.Intern(value: var_init))
 
     fn parse_type() -> ast.Type except CompilationError:
-        let tok0 = get_token()
-        case tok0.kind:
+        case m_peek.kind:
             KwFn:
+                move_token()
                 parse_function_type()
         else:
-            unget_token(tok0)
             let expr = parse_expression()
             ast.type_expression(expr)
     
@@ -437,12 +428,10 @@ class Parser:
 
         let parameter_types: List[ast.ParameterType] = List()
         # ')' or parameters and ')'
-        let tok2 = get_token()
-        case tok2.kind:
+        case m_peek.kind:
             ParenthesisClose:
-                pass
+                move_token()
         else:
-            unget_token(tok2)
             loop:
                 let label: Option[str] = Option.None()
                 let param_type = parse_type()
@@ -484,40 +473,42 @@ class Parser:
     
     fn parse_statement() -> ast.Statement except CompilationError:
         log_trace("parsing statement")
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             KwPass:
+                let location = get_token().location
                 parse_newline()
-                ast.pass_statement(location: tok.location)
+                ast.pass_statement(location)
             KwBreak:
+                let location = get_token().location
                 parse_newline()
-                ast.break_statement(location: tok.location)
+                ast.break_statement(location)
             KwContinue:
+                let location = get_token().location
                 parse_newline()
-                ast.continue_statement(location: tok.location)
+                ast.continue_statement(location)
             KwLet:
-                parse_let_statement(location: tok.location)
+                parse_let_statement()
             KwIf:
-                parse_if_statement(location: tok.location)
+                parse_if_statement()
             KwLoop:
+                let location = get_token().location
                 let body = parse_block()
-                ast.loop_statement(body, location: tok.location)
+                ast.loop_statement(body, location)
             KwWhile:
-                parse_while_statement(location: tok.location)
+                parse_while_statement()
             KwCase:
-                parse_case_statement(location: tok.location)
+                parse_case_statement()
             KwSwitch:
-                parse_switch_statement(location: tok.location)
+                parse_switch_statement()
             KwFor:
-                parse_for_statement(location: tok.location)
+                parse_for_statement()
             KwTry:
-                parse_try_statement(location: tok.location)
+                parse_try_statement()
             KwReturn:
-                parse_return_statement(location: tok.location)
+                parse_return_statement()
             KwRaise:
-                parse_raise_statement(location: tok.location)
+                parse_raise_statement()
         else:
-            unget_token(tok)
             parse_expression_statement()
 
     fn parse_expression_statement() -> ast.Statement except CompilationError:
@@ -544,33 +535,31 @@ class Parser:
         parse_newline()
         ast.assignment_statement(target, op, value, location)
     
-    fn parse_let_statement(location: Location) -> ast.Statement except CompilationError:
+    fn parse_let_statement() -> ast.Statement except CompilationError:
+        let location = get_token().location
         let name_at = parse_name()
         let var_name = name_at.name
         let var_type = ast.undefined_type()
         let variable = ast.variable(name: var_name, id: new_id(), ty: var_type, location: name_at.location)
         
-        let tok2 = get_token()
-        let type_hint: Option[ast.Type] = case tok2.kind:
+        let type_hint: Option[ast.Type] = case m_peek.kind:
             Colon:
+                move_token()
                 # Type hint!
                 Option.Some(parse_type())
         else:
-            unget_token(tok2)
             Option[ast.Type].None()
 
         parse_equals()
 
-        tok2 = get_token()
-        let value = case tok2.kind:
+        let value = case m_peek.kind:
             KwIf:
-                ast.statement_expression(statement: parse_if_statement(location: tok2.location))
+                ast.statement_expression(statement: parse_if_statement())
             KwCase:
-                ast.statement_expression(statement: parse_case_statement(location: tok2.location))
+                ast.statement_expression(statement: parse_case_statement())
             KwSwitch:
-                ast.statement_expression(statement: parse_switch_statement(location: tok2.location))
+                ast.statement_expression(statement: parse_switch_statement())
         else:
-            unget_token(tok2)
             let value2 = parse_expression()
 
             let tok = get_token()
@@ -621,31 +610,33 @@ class Parser:
             Option[str].None()
         ast.LabeledExpression(location: value.location, name, value)
 
-    fn parse_if_statement(location: Location) -> ast.Statement except CompilationError:
-        # Parse if-statement (if or elif keyword already parsed)
+    fn parse_if_statement() -> ast.Statement except CompilationError:
+        # Parse if-statement
+        let location = get_token().location
 
         let condition = parse_expression()
         let true_block = parse_block()
         
         # else-block or elif-block:
-        let false_block = ast.pass_statement(location)
-        let tok2 = get_token()
-        case tok2.kind:
+        let false_block = case m_peek.kind:
             KwElse:
-                false_block = parse_block()
+                move_token()
+                parse_block()
             KwElif:
-                false_block = parse_if_statement(location: tok2.location)
+                parse_if_statement()
         else:
-            unget_token(tok2)
+            ast.pass_statement(location)
         
         ast.if_statement(condition, body: true_block, false_body: false_block, location)
     
-    fn parse_while_statement(location: Location) -> ast.Statement except CompilationError:
+    fn parse_while_statement() -> ast.Statement except CompilationError:
+        let location = get_token().location
         let condition = parse_expression()
         let body = parse_block()
         ast.while_statement(condition, body, location)
 
-    fn parse_for_statement(location: Location) -> ast.Statement except CompilationError:
+    fn parse_for_statement() -> ast.Statement except CompilationError:
+        let location = get_token().location
         let name_at = parse_name()
 
         # 'in'
@@ -663,7 +654,8 @@ class Parser:
         let iter_var = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
         ast.for_statement(iter_var, iter_value, body, location)
 
-    fn parse_try_statement(location: Location) -> ast.Statement except CompilationError:
+    fn parse_try_statement() -> ast.Statement except CompilationError:
+        let location = get_token().location
         let try_body = parse_block()
 
         # 'except'
@@ -684,7 +676,9 @@ class Parser:
         let except_body = parse_block()
         ast.try_statement(try_body, except_var, except_type, except_body, location)
 
-    fn parse_case_statement(location: Location) -> ast.Statement except CompilationError:
+    fn parse_case_statement() -> ast.Statement except CompilationError:
+        let location = get_token().location
+
         # Value
         let case_value = parse_expression()
         parse_colon()
@@ -697,12 +691,11 @@ class Parser:
             case_arms.append(parse_case_arm(name: name_at.name, location: name_at.location))
         
         # Parse optional 'else' block
-        let tok2 = get_token()
-        let else_clause = case tok2.kind:
+        let else_clause = case m_peek.kind:
             KwElse:
+                move_token()
                 Option.Some(parse_block())
         else:
-            unget_token(tok2)
             Option[ast.Statement].None()
         
         ast.case_statement(value: case_value, arms: case_arms, else_clause, location)
@@ -710,24 +703,24 @@ class Parser:
     fn parse_case_arm(name: str, location: Location) -> ast.CaseArm except CompilationError:
         let variables: List[ast.Variable] = List()
         # Eventual payload values to unpack:
-        let tok4 = get_token()
-        case tok4.kind:
+        case m_peek.kind:
             ParenthesisOpen:
+                move_token()
                 loop:
                     let name_at = parse_name()
                     let variable = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
                     variables.append(variable)
                     
-                    let tok5 = get_token()
-                    case tok5.kind:
+                    let tok = get_token()
+                    case tok.kind:
                         ParenthesisClose:
                             break
                         Comma:
                             continue
                     else:
-                        raise unexpected_token(tok: tok5, expected: "',' or ')'")
+                        raise unexpected_token(tok, expected: "',' or ')'")
         else:
-            unget_token(tok4)
+            pass
 
         # Arm body:
         let statement = parse_block()
@@ -737,7 +730,8 @@ class Parser:
             variables: variables
             block: ast.scoped_block(body: statement)
     
-    fn parse_switch_statement(location: Location) -> ast.Statement except CompilationError:
+    fn parse_switch_statement() -> ast.Statement except CompilationError:
+        let location = get_token().location
         let switch_value = parse_expression()
         parse_colon()
         parse_newline()
@@ -752,20 +746,21 @@ class Parser:
         let default_body = parse_block()
         ast.switch_statement(value: switch_value, arms, default_body, location)
 
-    fn parse_return_statement(location: Location) -> ast.Statement except CompilationError:
+    fn parse_return_statement() -> ast.Statement except CompilationError:
         # optionally parse expression (or newline)!
-        let tok2 = get_token()
-        let res_value: Option[ast.Expression] = case tok2.kind:
+        let location = get_token().location
+        let res_value: Option[ast.Expression] = case m_peek.kind:
             NewLine:
+                move_token()
                 Option[ast.Expression].None()
         else:
-            unget_token(tok2)
             let ret_val = parse_expression()
             parse_newline()
             Option.Some(ret_val)
         ast.return_statement(value: res_value, location)
 
-    fn parse_raise_statement(location: Location) -> ast.Statement except CompilationError:
+    fn parse_raise_statement() -> ast.Statement except CompilationError:
+        let location = get_token().location
         let value = parse_expression()
         parse_newline()
         ast.raise_statement(value, location)
@@ -779,10 +774,9 @@ class Parser:
         
         loop:
             # Determine next token and new precedence
-            let tok = get_token()
             let prec = 0
             let op: ast.BinaryOperator = ast.BinaryOperator.Add()
-            case tok.kind:
+            case m_peek.kind:
                 KwOr:
                     op = ast.BinaryOperator.Or()
                     prec = 20
@@ -835,12 +829,12 @@ class Parser:
                     op = ast.BinaryOperator.Mul()
                     prec = 80
             else:
-                unget_token(tok)
                 break
             
             if prec < min_prec:
-                unget_token(tok)
                 break
+
+            move_token()
             
             let rhs = parse_expression2(min_prec: prec + 1)
             let location = Location(begin: expr.location.begin, end: rhs.location.end)
@@ -849,18 +843,20 @@ class Parser:
         expr
 
     fn parse_unary() -> ast.Expression except CompilationError:
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             KwNot:
+                let location = m_peek.location
+                move_token()
                 let value = parse_unary()
                 let op = ast.UnaryOperator.Not()
-                ast.unop(op, value, ty: ast.undefined_type(), location: tok.location)
+                ast.unop(op, value, ty: ast.undefined_type(), location)
             Minus:
+                let location = m_peek.location
+                move_token()
                 let value = parse_unary()
                 let op = ast.UnaryOperator.Minus()
-                ast.unop(op, value, ty: ast.undefined_type(), location: tok.location)
+                ast.unop(op, value, ty: ast.undefined_type(), location)
         else:
-            unget_token(tok)
             parse_atom()
 
     fn parse_atom() -> ast.Expression except CompilationError:
@@ -889,19 +885,20 @@ class Parser:
 
         # Attempt suffixes
         loop:
-            tok = get_token()
-            case tok.kind:
+            case m_peek.kind:
                 Dot:
+                    move_token()
                     # handle '.attribute' suffix
                     let attr_at = parse_name()
                     let location = Location(begin: expr.location.begin, end: attr_at.location.end)
                     expr = ast.get_attr(base: expr, field: attr_at.name, ty: ast.undefined_type(), location)
                 ParenthesisOpen:
+                    move_token()
                     expr = parse_call_suffix(callee: expr)
                 BracketOpen:
+                    move_token()
                     expr = parse_index_suffix(base: expr)
             else:
-                unget_token(tok)
                 break
         expr
 
@@ -986,15 +983,13 @@ class Parser:
         # Handle '(arg1,arg2)' suffix
         # Or '()' or '(arg1)'
         let arguments: List[ast.LabeledExpression] = List()
-        let tok2 = get_token()
         let begin = callee.location.begin
-        let end = tok2.location.end
-        case tok2.kind:
+        let end = m_peek.location.end
+        case m_peek.kind:
             ParenthesisClose:
                 # no args call
-                pass
+                move_token()
         else:
-            unget_token(tok2)
             # call with parameters
 
             loop:
@@ -1101,12 +1096,11 @@ class Parser:
 
     fn try_parse_dedent() -> bool:
         # expect dedent (eventually)
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             Dedent:
+                move_token()
                 true
         else:
-            unget_token(tok)
             false
 
     fn parse_kw_else() except CompilationError:
@@ -1118,27 +1112,30 @@ class Parser:
             raise unexpected_token(tok, expected: "'else'")
 
     fn parse_colon() except CompilationError:
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             Colon:
-                pass
+                move_token()
         else:
-            raise unexpected_token(tok, expected: "':'")
+            raise unexpected_token(tok: m_peek, expected: "':'")
 
     fn parse_equals() except CompilationError:
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             Equals:
-                pass
+                move_token()
         else:
-            raise unexpected_token(tok, expected: "'='")
+            raise unexpected_token(tok: m_peek, expected: "'='")
+
+    fn move_token():
+        m_peek = lex.next_token()
 
     fn get_token() -> Token:
-        # Get token (EOF in case of end of file)
-        lex.next_token()
+        let tok = m_peek
+        m_peek = lex.next_token()
+        tok
 
     fn unget_token(token?: Token):
-        lex.pushback_token(token)
+        lex.pushback_token(token: m_peek)
+        m_peek = token
 
     fn new_id() -> int:
         id_gen.new_id()

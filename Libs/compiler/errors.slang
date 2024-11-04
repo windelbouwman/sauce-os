@@ -1,8 +1,8 @@
 
-from std import print, read_file
+from std import print, read_file, str_get
 from datatypes import List, Option
-from strlib import split_lines, str_repeat, str_pad_right
-from location import Location, location_to_string
+from strlib import split_lines, str_repeat, str_pad_right, is_lf
+from location import Location, Position
 
 struct CompilationError:
     filename: Option[str]
@@ -24,14 +24,30 @@ fn display_error(error: CompilationError):
             Some(filename):
                 print_error(filename, location: error2.location, message: error2.message)
             None:
-                print("ERROR: {location_to_string(error2.location)} -> {error2.message}")
+                print("ERROR: {error2.message}")
+
+fn offset_to_position(offset: int, code: str) -> Position:
+    """ Calculate row and column from offset in string."""
+    let index = 0
+    let col_start = 0
+    let row = 1
+    while index < offset:
+        let c = str_get(text: code, index)
+        if is_lf(c):
+            row += 1
+            col_start = index + 1
+        index += 1
+    let column = offset - col_start + 1
+    Position(row, column)
 
 fn print_error(filename: str, location: Location, message: str):
     print("      +---------------[ {filename} ]-----------------")
     let code = read_file(filename)
-    let row = 1
-    let target_row = location.begin.row
+    let begin = offset_to_position(offset: location.begin, code)
+    let end = offset_to_position(offset: location.end, code)
+    let target_row = begin.row
     let nr_context_rows = 4
+    let row = 1
     for line in split_lines(text: code):
         if target_row - nr_context_rows <= row and row <= target_row + nr_context_rows:
             let row_text = str_pad_right(text: "{row}", length: 5, fill: " ")
@@ -39,10 +55,10 @@ fn print_error(filename: str, location: Location, message: str):
             let pre_text = "      |"
 
             if row == target_row:
-                let indent = pre_text + str_repeat(text: " ", count: location.begin.column)
+                let indent = pre_text + str_repeat(text: " ", count: begin.column)
                 let lexeme_width = 1
-                if location.end.column > location.begin.column:
-                    lexeme_width = location.end.column - location.begin.column + 1
+                if end.column > begin.column:
+                    lexeme_width = end.column - begin.column + 1
                 let pointer = str_repeat(text: "^", count: lexeme_width)
                 let indent2 = indent + str_repeat(text: " ", count: lexeme_width / 2)
                 print("{indent}{pointer}")
@@ -53,3 +69,15 @@ fn print_error(filename: str, location: Location, message: str):
         row += 1
     print("      +----------------------------------------------")
     print("")
+
+# fn print_error_line(line: str, location: Location, message: str):
+#     print(" {line}")
+#     let indent = str_repeat(text: " ", count: location.begin.column)
+#     let lexeme_width = 1
+#     if location.end.column > location.begin.column:
+#         lexeme_width = location.end.column - location.begin.column + 1
+#     let pointer = str_repeat(text: "^", count: lexeme_width)
+#     let indent2 = indent + str_repeat(text: " ", count: lexeme_width / 2)
+#     print("{indent}{pointer}")
+#     print("{indent2}|")
+#     print("{indent2}+-----< {message}")

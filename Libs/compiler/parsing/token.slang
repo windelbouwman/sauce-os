@@ -1,6 +1,11 @@
 
-from location import Location, location_to_string
+from location import Location
 import std
+
+fn default_token() -> Token:
+    Token:
+        location: Location(begin: 0, end: 0)
+        kind: TokenKind.None()
 
 struct Token:
     location: Location
