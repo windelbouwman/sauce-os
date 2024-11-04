@@ -8,7 +8,7 @@ fn main() -> int:
     print("OK")
     test_numbers()
     test_id_num()
-    return 0
+    0
 
 fn test_numbers():
     # TODO: fix code to allow zero at end of string

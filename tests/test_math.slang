@@ -15,7 +15,7 @@ fn main() -> int:
     test_log()
     test_exp()
     print("OK")
-    return 0
+    0
 
 fn test_float_literals():
     """ Test various notations of floating point numbers. """

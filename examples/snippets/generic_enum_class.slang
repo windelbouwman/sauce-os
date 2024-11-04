@@ -1,6 +1,6 @@
 
 fn main() -> int:
-    return 0
+    0
 
 class List[T]:
     var header: Option[ListItem[T]] = Option.None()
@@ -29,9 +29,9 @@ struct ListItem[V]:
 fn is_none[T](option: Option[T]) -> bool:
     case option:
         Some(value):
-            return true
+            true
         None:
-            return false
+            false
 
 enum Option[D]:
     Some(value: D)

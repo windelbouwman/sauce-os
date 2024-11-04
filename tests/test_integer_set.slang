@@ -7,7 +7,7 @@ fn main() -> int:
     print("OK")
     test_intersection()
     test_difference()
-    return 0
+    0
 
 fn test_intersection():
     let s1 = new_int_set(begin: 1, end: 10)

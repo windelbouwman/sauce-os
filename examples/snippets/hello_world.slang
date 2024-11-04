@@ -6,7 +6,7 @@ fn main() -> int:
     std.print(msg)
     # std.print(msg)
     foo()
-    return 0
+    0
 
 fn foo():
     if 2 < 7 - 1:

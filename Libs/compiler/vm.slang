@@ -136,7 +136,7 @@ fn efi_std_str_slice(arguments: List[Value]) -> Option[Value]:
 
 fn efi_std_print(arguments: List[Value]) -> Option[Value]:
     std.print(str_from_value(arguments.first()))
-    Option[Value].None()
+    Option.None()
 
 fn efi_std_read_line(arguments: List[Value]) -> Option[Value]:
     let value = std.read_line(prompt: str_from_value(arguments.first()))
@@ -144,7 +144,7 @@ fn efi_std_read_line(arguments: List[Value]) -> Option[Value]:
 
 fn efi_default(arguments: List[Value]) -> Option[Value]:
     panic("Not impl EFI")
-    Option[Value].None()
+    Option.None()
 
 fn efi_rt_int_to_str(arguments: List[Value]) -> Option[Value]:
     let value = rt.int_to_str(int_from_value(arguments[0]))

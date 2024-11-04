@@ -52,7 +52,7 @@ class DiGraph:
                 #for p in pred2:
                 #    print("{n} has pred: {p}")
                 return true
-        return false
+        false
 
 
 #class Node:
@@ -85,6 +85,6 @@ fn topological_sort(g?: DiGraph) -> Option[List[str]]:
     
     if g.has_edges():
         # We detected a dependency cycle
-        return Option.None()
+        Option.None()
     else:
-        return Option.Some(result)
+        Option.Some(result)

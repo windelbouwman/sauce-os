@@ -13,7 +13,7 @@ fn main() -> int:
     foo(val: val)
     let val2: Option = Option.None()
     foo(val: val2)
-    return 0
+    0
 
 
 fn foo(val: Option):

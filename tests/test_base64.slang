@@ -10,7 +10,7 @@ fn main() -> int:
     test_base64_example2()
     test_base64_padding()
     print("OK")
-    return 0
+    0
 
 fn test_base64_example1():
     let text = "Many hands make light work."

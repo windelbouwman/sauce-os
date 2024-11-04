@@ -248,7 +248,7 @@ class CustomTransformer(LarkTransformer):
         location, name, type_parameters = x[3]
         parameters, return_type, except_type = x[4]
         ptypes = [p.ty for p in parameters]
-        return ast.BuiltinFunction(self._modname, name, ptypes, return_type, location)
+        return ast.ExternFunction(self._modname, name, ptypes, return_type, location)
 
     def function_signature(self, x):
         # LEFT_PARENTHESIS parameters? RIGHT_PARENTHESIS (ARROW typ)?

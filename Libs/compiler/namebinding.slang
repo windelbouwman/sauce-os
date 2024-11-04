@@ -410,7 +410,7 @@ class NameBinder:
                         return Option.Some(kind)
                 None:
                     pass
-        return Option.None()
+        Option.None()
 
     fn lookup3(name: str, location: Location) -> Option[ast.Expression]:
         for scope in scopes:
@@ -421,7 +421,7 @@ class NameBinder:
                     return Option.Some(expr)
                 None:
                     pass
-        return Option.None()
+        Option.None()
 
     fn enter_scope(scope: ast.Scope):
         scopes.prepend(scope)

@@ -13,7 +13,7 @@ fn main() -> int:
     test_zlib_example2()
     test_adler32()
     print("OK")
-    return 0
+    0
 
 fn test_gzip_example1():
     # Data compressed using python:

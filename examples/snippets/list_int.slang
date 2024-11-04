@@ -24,12 +24,11 @@ fn list_iter_next(iter: ListIter) -> Option:
             pass
         Some(nxt_element):
             iter.next_element = nxt_element.next
-    return opt
+    opt
 
 fn list_iter_new(x: List) -> ListIter:
-    let i = ListIter:
+    ListIter:
         next_element: x.head_element
-    return i
 
 fn list_append(this: List, val: int):
     let new_tail_element = ListElement:
@@ -86,10 +85,9 @@ fn main() -> int:
                 break
             Some(element):
                 std.print("Item[" + str(n) + "]=" + str(element.data))
-    return 0
+    0
 
 
 fn list_new() -> List:
-    let x = List:
+    List:
         head_element: Option.None()
-    return x

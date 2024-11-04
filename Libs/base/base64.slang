@@ -41,7 +41,7 @@ fn base64_encode(data: Bytes) -> str:
         while pad_count < 3:
             result = result + "="
             pad_count += 1
-    return result
+    result
 
 fn base64_decode(text: str) -> Bytes:
     # Decode base64 text into bytes
@@ -98,6 +98,6 @@ fn base64_decode(text: str) -> Bytes:
     elif bufsize == 2:
         result.append((buf >> 4) & 0xFF)
 
-    return result.to_bytes()
+    result.to_bytes()
 
 

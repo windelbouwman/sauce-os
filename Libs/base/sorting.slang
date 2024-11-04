@@ -3,16 +3,16 @@ from datatypes import List
 
 fn find_min_value[T](values: List[T], cmp: fn(T, T) -> bool) -> T:
     let sorted = sort_list(values, cmp)
-    return sorted.first()
+    sorted.first()
 
 fn find_max_value[T](values: List[T], cmp: fn(T, T) -> bool) -> T:
     let sorted = sort_list(values, cmp)
-    return sorted.last()
+    sorted.last()
 
 fn sort_list[T](x?: List[T], cmp: fn(T, T) -> bool) -> List[T]:
     # Return a sorted list
     # API/proxy function, choose implementation here.
-    return merge_sort(m: x, cmp)
+    merge_sort(m: x, cmp)
 
 # Merge sort, simple to implement.
 # See: https://en.wikipedia.org/wiki/Merge_sort
@@ -20,7 +20,7 @@ fn sort_list[T](x?: List[T], cmp: fn(T, T) -> bool) -> List[T]:
 fn merge_sort[T](m: List[T], cmp: fn(T, T) -> bool) -> List[T]:
     if m.len() <= 1:
         # If we have a list of 0 or 1 elements, consider it sorted.
-        return m
+        m
     else:
         # Split list into two halfs, sort the halfs, and merge them
         let left: List[T] = List()
@@ -36,7 +36,7 @@ fn merge_sort[T](m: List[T], cmp: fn(T, T) -> bool) -> List[T]:
 
         left = merge_sort(m: left, cmp)
         right = merge_sort(m: right, cmp)
-        return merge_two(left, right, cmp)
+        merge_two(left, right, cmp)
 
 fn merge_two[T](left: List[T], right: List[T], cmp: fn(T, T) -> bool) -> List[T]:
     let result: List[T] = List()
@@ -50,4 +50,4 @@ fn merge_two[T](left: List[T], right: List[T], cmp: fn(T, T) -> bool) -> List[T]
         result.append(left.pop_front())
     while not right.is_empty():
         result.append(right.pop_front())
-    return result
+    result

@@ -120,7 +120,7 @@ fn create_machine(rx: Regex) -> Machine:
         nr += 1
     let machine = Machine(states)
     machine.error_state = error_state
-    return machine
+    machine
 
 fn contains_regex(lst: List[Regex], rx: Regex) -> int:
     let index = 0
@@ -129,7 +129,7 @@ fn contains_regex(lst: List[Regex], rx: Regex) -> int:
             return index
         else:
             index += 1
-    return -1
+    -1
 
 class Machine:
     # Regex matching machine
@@ -144,7 +144,7 @@ class Machine:
         for transition in state.transitions:
             if range_contains(self: transition.range, value):
                 return transition.to_state
-        return -1
+        -1
     
     fn accepts(state_nr: int) -> bool:
         let state = states.get(index: state_nr)

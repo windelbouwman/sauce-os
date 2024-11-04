@@ -37,13 +37,12 @@ fn main() -> int:
     let bla_i2 = new_bla(v2: 2, x2: 3)
     print("{get_v(v: bla_i2)}")
     # print(bla_s2.value.s)
-    return 0
+    0
 
 fn new_bla[T](v2: T, x2: int) -> Bla[T]:
-    let b2 = Bla[T]:
+    Bla[T]:
         value: v2
         x: x2
-    return b2
 
 fn get_v[T](v: Bla[T]) -> T:
-    return v.value
+    v.value

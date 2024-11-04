@@ -76,7 +76,7 @@ fn md5(data: Bytes) -> Bytes:
     digest.to_bytes()
 
 fn leftrotate(value: int, amount: int) -> int:
-    return (0xffFFffFF & (value << amount)) | (value >> (32 - amount))
+    (0xffFFffFF & (value << amount)) | (value >> (32 - amount))
 
 fn compute_md5_K(K: [int]):
     let i = 0

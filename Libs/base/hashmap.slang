@@ -27,7 +27,7 @@ class HashMap[T]:
         # let index = modulo(value: hash_key(key), divisor: n_buckets)
         let index = modulo(value: elf_hash(text: key), divisor: n_buckets)
         let list = buckets[index]
-        return list
+        list
 
     fn contains(key: str) -> bool:
         case maybe_get(key):
@@ -81,7 +81,7 @@ class HashMap[T]:
         while i < n_buckets:
             n += buckets[i].len()
             i += 1
-        return n
+        n
     
     fn clear():
         let i = 0
@@ -95,7 +95,7 @@ class HashMap[T]:
             if not buckets[i].is_empty():
                 return false
             i += 1
-        return true
+        true
     
     fn rehash():
         let old_buckets = buckets
@@ -129,11 +129,11 @@ class HashMap[T]:
                 res.append(v.value)
             i += 1
 
-        return res
+        res
 
     fn iter() -> HashMapIter[T]:
         let it: HashMapIter[T] = HashMapIter(m: this)
-        return it
+        it
 
 
 
@@ -144,7 +144,7 @@ fn hash_key(key: str) -> int:
     while i < n:
         hash += ord(str_get(text: key, index: i))
         i += 1
-    return hash
+    hash
 
 class HashMapIter[T]:
     var index: int = 0

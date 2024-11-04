@@ -6,7 +6,7 @@ from hashmap import HashMap
 fn main() -> int:
     test_hash_examples()
     print("OK")
-    return 0
+    0
 
 fn test_hash_examples():
     let m = HashMap()

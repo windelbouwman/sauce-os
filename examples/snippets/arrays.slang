@@ -15,7 +15,7 @@ fn main() -> int:
 
     print2(values: x)
     print2(values: y)
-    return 0
+    0
 
 fn print2(values: [int]):
     print("Value 1: {values[1]}")

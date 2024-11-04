@@ -14,11 +14,11 @@ fn load_image(filename: str) -> Image:
     # Load image from file
     let extension = get_extension(filename)
     if extension == "png":
-        return read_png_from_file(filename)
+        read_png_from_file(filename)
     elif extension == "qoi":
-        return read_qoi_from_file(filename)
+        read_qoi_from_file(filename)
     elif extension == "gif":
-        return read_gif_from_file(filename).first()
+        read_gif_from_file(filename).first()
     else:
         panic("Unsupported image extension for load_image: {extension}")
 
@@ -34,7 +34,7 @@ fn save_image(image: Image, filename: str):
         panic("Unsupported image extension for save_image: {extension}")
 
 fn get_extension(filename: str) -> str:
-    return split_string(text: filename, sep: '.').last()
+    split_string(text: filename, sep: '.').last()
 
 fn print_usage():
     print("Usage:")

@@ -11,7 +11,7 @@ fn main() -> int:
     strCombo.handler = str_handler  # We need the bridge function here again
     invoke(c: strCombo)
 
-    return 0
+    0
 
 fn invoke(c: Combo):
     c.handler(c.data, 42)

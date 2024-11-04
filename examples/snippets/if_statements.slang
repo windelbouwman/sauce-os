@@ -21,4 +21,4 @@ fn main() -> int:
 #    else:
 #        std.print("fubar")
 
-    return 0
+    0

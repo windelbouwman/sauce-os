@@ -10,7 +10,7 @@ from errors import CompilationError
 fn main() -> int:
     test_parse_13()
     print("OK")
-    return 0
+    0
 
 fn test_parse_13():
     let source = "13"

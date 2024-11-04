@@ -106,7 +106,7 @@ fn sin_kernel(x?: float) -> float:
         # Calculate the next factor, based on the previous factor:
         factor = factor * (-(x*x) / (i*(i+1)))
         i += 2
-    return result
+    result
 
 fn tan(value?: float) -> float:
     # TODO: check division by 0
@@ -171,7 +171,7 @@ fn log(x?: float) -> float:
             while x > q:
                 x = x / q
                 r += 1
-            return log(x) + r * log(q)
+            log(x) + r * log(q)
         else:
             # range 0 .. 1
             let ratio = (x - 1) / (x + 1)
@@ -185,7 +185,7 @@ fn log(x?: float) -> float:
                     break
                 F = F * ratio * ratio
                 n += 2
-            return 2 * y
+            2 * y
     else:
         panic("log({float_to_str(x)}) is undefined")
 

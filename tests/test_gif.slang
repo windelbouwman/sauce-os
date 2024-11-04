@@ -9,7 +9,7 @@ fn main() -> int:
     # set_log_level(level: 5)
     test_lzw_decode()
     print("OK")
-    return 0
+    0
 
 fn test_lzw_decode():
     """ Test example from https://en.wikipedia.org/wiki/GIF

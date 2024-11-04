@@ -15,7 +15,7 @@ fn main() -> int:
     foo(val: val2)
     let val3: Option = Option.Money(a: 5, b: 2.3)
     foo(val: val3)
-    return 0
+    0
 
 
 fn foo(val: Option):

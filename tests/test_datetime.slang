@@ -11,7 +11,7 @@ fn main() -> int:
     test_roundtrip()
     test_12_months_and_14_years()
     print("OK")
-    return 0
+    0
 
 fn test_example1():
     # Epoch on Saturday, April 13, 2024 7:25:11 PM

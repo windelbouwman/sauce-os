@@ -18,4 +18,4 @@ fn main() -> int:
             None:
                 pass
 
-    return 0
+    0

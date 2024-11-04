@@ -8,7 +8,7 @@ fn main() -> int:
     test_shoelace_square()
     test_shoelace_wikipedia_example()
     print("OK")
-    return 0
+    0
 
 fn test_shoelace_square():
     let p1 = Point(x: 1, y: 1)

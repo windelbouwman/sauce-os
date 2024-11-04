@@ -15,13 +15,13 @@ class AssociationList[T]:
         items.append(new_item)
 
     fn get(key: str) -> T:
-        return option_unwrap(maybe_get(key))
+        option_unwrap(maybe_get(key))
 
     fn maybe_get(key: str) -> Option[T]:
         for item in items:
             if item.key == key:
                 return Option.Some(item.value)
-        return Option.None()
+        Option.None()
 
     fn pop(key: str) -> Option[T]:
         # remove an item from this dictionary
@@ -36,17 +36,17 @@ class AssociationList[T]:
         return Option.None()
 
     fn len() -> int:
-        return items.len()
+        items.len()
 
     fn is_empty() -> bool:
-        return items.is_empty()
+        items.is_empty()
     
     fn clear():
         items.clear()
 
     fn iter() -> AssociationListIter[T]:
         let it = AssociationListIter(it2: items.iter())
-        return it
+        it
 
 struct AssociationListItem[T]:
     key: str
@@ -58,7 +58,7 @@ class AssociationListIter[T]:
     fn next() -> Option[str]:
         case it2.next():
             None:
-                return Option.None()
+                Option.None()
             Some(i):
-                return Option.Some(i.key)
+                Option.Some(i.key)
 

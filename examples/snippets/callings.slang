@@ -5,7 +5,7 @@ fn main() -> int:
     let a = foo(a: 2, b: 5, message: "Fiir")
     let message = "No sir"
     let b = foo(a: 9, b: 5, message)
-    return 0
+    0
 
 enum Option[T]:
     Some(value: T)
@@ -20,5 +20,5 @@ fn foo(a: int, b: int, message: str) -> Option[Symbol]:
     else:
         std.print(message)
     
-    return Option.Some(Symbol.B())
+    Option.Some(Symbol.B())
 

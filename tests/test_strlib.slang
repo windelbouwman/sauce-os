@@ -16,7 +16,7 @@ fn main() -> int:
     test_int_to_str()
     test_float_to_str()
     print("OK")
-    return 0
+    0
 
 fn test_trim():
     assert_str_equals(trim(" bla "), "bla")

@@ -17,9 +17,8 @@ struct ListIter[T]:
     next: Option[ListElement[T]]
 
 fn list_new[T]() -> List[T]:
-    let x = List[T]:
+    List[T]:
         head_element: Option[ListElement[T]].None()
-    return x
 
 fn list_append[T](this: List[T], value: T):
     let new_tail_element = ListElement[T]:
@@ -41,19 +40,18 @@ fn list_append[T](this: List[T], value: T):
 
 fn list_iter_new[T](this: List[T]) -> ListIter[T]:
     # " Create an iterator looping over a list "
-    let i = ListIter[T]:
+    ListIter[T]:
         next: this.head_element
-    return i
 
 fn list_iter_next[T](this: ListIter[T]) -> Option[T]:
     # " Retrieve next item "
     let x = this.next
     case x:
         None:
-            return Option[T].None()
+            Option[T].None()
         Some(next):
             this.next = next.next
-            return Option[T].Some(next.data)
+            Option[T].Some(next.data)
 
 fn list_walk(x: List[Integer]):
     let i = 0
@@ -107,21 +105,19 @@ fn main() -> int:
                 break
             Some(value):
                 std.print("Iter value: " + value.value)
-    return 0
+    0
 
 
 struct Integer:
     value: int
 
 fn new_integer(value?: int) -> Integer:
-    let i = Integer:
+    Integer:
         value: value
-    return i
 
 struct String:
     value: str
 
 fn new_string(value?: str) -> String:
-    let i = String:
+    String:
         value: value
-    return i

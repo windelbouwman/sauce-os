@@ -32,19 +32,19 @@ fn str_repeat(text: str, count: int) -> str:
     while i < count:
         i += 1
         result = result + text
-    return result
+    result
 
 fn str_pad_right(text: str, length: int, fill: str) -> str:
     let result = text
     while str_len(text: result) < length:
         result = result + fill
-    return result
+    result
 
 fn str_pad_left(text: str, length: int, fill: str) -> str:
     let result = text
     while str_len(text: result) < length:
         result = fill + result
-    return result
+    result
 
 fn str_join(parts: List[str], sep: str) -> str:
     let x = ""
@@ -55,7 +55,7 @@ fn str_join(parts: List[str], sep: str) -> str:
         if counter > 1:
             x = x + sep
             counter -= 1
-    return x
+    x
 
 fn is_space(c: char) -> bool:
     c == ' '
@@ -70,7 +70,7 @@ fn str_to_int(text?: str) -> int:
         let cval = digit_to_int(c)
         value = value * 10 + cval
         index += 1
-    return value
+    value
 
 fn hex_to_int(hextext: str) -> int:
     """ Convert hex text """
@@ -82,7 +82,7 @@ fn hex_to_int(hextext: str) -> int:
         let c = str_get(text: hextext, index)
         value = value * 16 + hex_digit_to_int(c)
         index += 1
-    return value
+    value
 
 fn bin_to_int(bintext: str) -> int:
     """ Convert bin text to integer value
@@ -96,7 +96,7 @@ fn bin_to_int(bintext: str) -> int:
         let c = str_get(text: bintext, index)
         value = value * 2 + bin_digit_to_int(c)
         index += 1
-    return value
+    value
 
 fn is_digit(c: char) -> bool:
     """  Check if a character is a digit. """
@@ -142,7 +142,7 @@ fn int_to_hex_string(value?: int) -> str:
         value = value / 16
         text = "{c}{text}"
         n -= 1
-    return text
+    text
 
 fn hex_char(value?: int) -> char:
     if value < 10:
@@ -187,7 +187,7 @@ fn trim(text?: str) -> str:
             n += 1
             break
 
-    return str_slice(text, begin: i, end: n)
+    str_slice(text, begin: i, end: n)
 
 fn find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
     let i = 0
@@ -197,7 +197,7 @@ fn find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
         if criterium(c):
             return Option.Some(i)
         i += 1
-    return Option.None()
+    Option.None()
 
 
 fn reverse_find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
@@ -208,7 +208,7 @@ fn reverse_find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
         let c = str_get(text, index: i)
         if criterium(c):
             return Option.Some(i)
-    return Option.None()
+    Option.None()
 
 
 # TODO: duplicate with rt_str_compare in C
@@ -227,7 +227,7 @@ fn str_comparison(a: str, b: str) -> int:
             return -1
         elif c_a > c_b:
             return 1
-    return 0
+    0
 
 fn split_lines(text: str) -> List[str]:
     # TODO: use split_string here?
@@ -246,4 +246,4 @@ fn split_lines(text: str) -> List[str]:
         index += 1
     if index > line_start:
         lines.append(str_slice(text, begin: line_start, end: index))
-    return lines
+    lines

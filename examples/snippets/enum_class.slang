@@ -18,7 +18,7 @@ fn main() -> int:
             print_instructions(value)
         None:
             pass
-    return 0
+    0
 
 
 fn print_instructions(value: Vector[Instruction]):

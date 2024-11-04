@@ -82,7 +82,7 @@ class ByteCodeGenerator:
                 self.gen_function(definition)
             elif isinstance(definition, ast.StructDef):
                 self.gen_struct(definition)
-            elif isinstance(definition, ast.BuiltinFunction):
+            elif isinstance(definition, ast.ExternFunction):
                 # TODO: maybe generate import clause?
                 pass
             elif isinstance(definition, ast.VarDef):
@@ -413,7 +413,7 @@ class ByteCodeGenerator:
             elif isinstance(obj, ast.VarDef):
                 global_index = self._type_map[id(obj)]
                 self.emit(OpCode.GLOBAL_GET, global_index)
-            elif isinstance(obj, ast.BuiltinFunction):
+            elif isinstance(obj, ast.ExternFunction):
                 self.emit(OpCode.BUILTIN, f"{obj.modname}_{obj.id.name}")
             else:
                 raise NotImplementedError(str(obj))

@@ -21,5 +21,5 @@ fn main() -> int:
 
     # This should error:
     # 2 = 5
-    return 0
+    0
 

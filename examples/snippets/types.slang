@@ -22,7 +22,7 @@ fn main() -> int:
 
     let ee = add16(a: uint16(7), b: e)
     # d = 255
-    return 0
+    0
 
 fn add16(a: uint16, b: uint16) -> uint16:
-    return a + b
+    a + b

@@ -41,7 +41,7 @@ class TypeChecker(BasePass):
 
             if isinstance(definition, (ast.StructDef, ast.EnumDef, ast.TypeDef)):
                 pass
-            elif isinstance(definition, (ast.ClassDef, ast.BuiltinFunction)):
+            elif isinstance(definition, (ast.ClassDef, ast.ExternFunction)):
                 pass
             elif isinstance(definition, ast.VarDef):
                 if definition.value:
@@ -346,7 +346,7 @@ class TypeChecker(BasePass):
                 expression.ty = obj.ty.clone()
             elif isinstance(obj, ast.VarDef):
                 expression.ty = obj.ty.clone()
-            elif isinstance(obj, ast.BuiltinFunction):
+            elif isinstance(obj, ast.ExternFunction):
                 expression.ty = obj.ty
             elif isinstance(obj, ast.FunctionDef):
                 expression.ty = obj.get_type()

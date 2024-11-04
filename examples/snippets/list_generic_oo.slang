@@ -9,9 +9,8 @@ struct Integer:
     value: int
 
 fn new_integer(value?: int) -> Integer:
-    let i = Integer:
+    Integer:
         value: value
-    return i
 
 class List[T]:
     var head_element: Option[ListElement[T]] = Option.None()
@@ -36,7 +35,7 @@ class List[T]:
     fn iter() -> ListIter[T]:
         let it = ListIter()
         it.next_element = this.head_element
-        return it
+        it
 
 enum Option[D]:
     Some(value: D)
@@ -53,12 +52,11 @@ class ListIter[T]:
         let opt = this.next_element
         case opt:
             None:
-                return Option.None()
+                Option.None()
             Some(nxt_element):
                 let x = Option.Some(nxt_element.data)
                 this.next_element = nxt_element.next
-                return x
-        # return Option.None()
+                x
 
 fn main() -> int:
     let x: List[Integer] = List()
@@ -87,4 +85,4 @@ fn main() -> int:
         print("Item[{n}]= {e.value}")
         n = n + 1
     
-    return 0
+    0

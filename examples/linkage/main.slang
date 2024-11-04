@@ -23,5 +23,5 @@ fn main() -> int:
     let b = dev.exe()
     print("b={b}")
 
-    return 0
+    0
 

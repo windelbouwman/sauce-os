@@ -28,7 +28,7 @@ fn main() -> int:
         msg: "BOOM2"
         b: 55
     bar(kung, messages)
-    return 0
+    0
 
 fn foo(messages: Holder):
     print(messages.msg1)

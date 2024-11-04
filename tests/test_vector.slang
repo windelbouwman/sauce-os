@@ -8,7 +8,7 @@ from unittest import assert_str_equals, assert_int_equals, assert_true
 fn main() -> int:
     test_vector()
     print("OK")
-    return 0
+    0
 
 
 fn test_vector():

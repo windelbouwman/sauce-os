@@ -228,7 +228,7 @@ class BitReader:
         m_bitbuf = value >> n
         m_bitcnt -= n
         let mask = (1 << n) - 1
-        return value & mask
+        value & mask
 
 struct Tree:
     counts: [int]
@@ -244,7 +244,7 @@ fn zero_int_array(size: int) -> [int]:
     while i < size:
         array[i] = 0
         i += 1
-    return array
+    array
 
 fn create_tree(lengths: Vector[int]) -> Tree:
     # Given a set of lengths, calculate the Huffman tree.

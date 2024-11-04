@@ -10,7 +10,7 @@ fn main() -> int:
     test_K_table()
     test_examples()
     print("OK")
-    return 0
+    0
 
 fn test_examples():
     # Wikipedia examples:

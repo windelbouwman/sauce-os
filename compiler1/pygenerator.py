@@ -56,7 +56,7 @@ class PyCodeGenerator:
                 for field_name in field_names:
                     self.emit(f"self.{field_name} = {field_name}")
             self.dedent()
-        elif isinstance(definition, ast.BuiltinFunction):
+        elif isinstance(definition, ast.ExternFunction):
             self.emit(f"from slangrt import {modname}_{definition.id.name}")
         elif isinstance(definition, ast.VarDef):
             self.emit(
@@ -210,7 +210,7 @@ class PyCodeGenerator:
                 obj, (ast.Variable, ast.FunctionDef, ast.Parameter, ast.VarDef)
             ):
                 return self.gen_id(obj.id)
-            elif isinstance(obj, ast.BuiltinFunction):
+            elif isinstance(obj, ast.ExternFunction):
                 modname = obj.modname
                 return f"{modname}_{obj.id.name}"
             else:

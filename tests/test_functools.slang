@@ -5,7 +5,7 @@ from unittest import assert_int_equals
 
 fn main() -> int:
     test_sum()
-    return 0
+    0
 
 fn test_sum():
     let values = list4(1, 2, 3, 4)

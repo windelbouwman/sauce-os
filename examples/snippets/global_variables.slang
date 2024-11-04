@@ -5,7 +5,7 @@ fn main() -> int:
     display()
     modify()
     display()
-    return 0
+    0
 
 
 var x : int = 3

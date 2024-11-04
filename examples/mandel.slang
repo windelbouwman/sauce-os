@@ -36,7 +36,5 @@ fn main() -> int:
         # std.putc('\n')
         std.print(line)
         y += 1
-    
-    # TODO: fix implicit return somehow.
-    return  0  
- 
+
+    0  

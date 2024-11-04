@@ -48,5 +48,4 @@ fn main() -> int:
         b: 9.2
     let z = [z1, z2]
     std.print("z[1].a = {z[1].a}")
-    return 0
-    
+    0

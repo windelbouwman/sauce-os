@@ -21,4 +21,4 @@ fn main() -> int:
         std.print("2: x = {x}")
         continue
 
-    return 0
+    0

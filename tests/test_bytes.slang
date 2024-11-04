@@ -8,7 +8,7 @@ fn main() -> int:
     test_pack()
     test_concatenation()
     print("OK")
-    return 0
+    0
 
 fn test_hex_text_conversion():
     let hex_text = "112233BCF2"

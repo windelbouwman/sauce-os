@@ -8,7 +8,7 @@ class Bar[V]:
 
     fn info(v: V) -> V:
         std.print("Instance: {this.val1} " + this.val3)
-        return v
+        v
 
 
 fn main() -> int:
@@ -22,7 +22,7 @@ fn main() -> int:
     baz.val3 = "Hello world"
     let y = baz.info(v: String())
     std.print("String:" + y.v)
-    return 0
+    0
 
 class Integer:
     var v: int = 0

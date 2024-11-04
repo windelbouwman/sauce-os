@@ -52,7 +52,7 @@ fn main() -> int:
     std.print(triple_b.message)
     std.print(triple_b.value.message)
     std.print(triple_b.value.value.message)
-    return 0
+    0
 
 fn display_fuu(fu_b: Fuu[Bool]):
     std.print(fu_b.bla.message)

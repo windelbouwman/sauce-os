@@ -6,7 +6,7 @@ from hashlib import elf_hash
 fn main() -> int:
     test_hash_examples()
     print("OK")
-    return 0
+    0
 
 fn test_hash_examples():
     check_hash("jdfgsdhfsdfsd 6445dsfsd7fg/*/+bfjsdgf%$^",  248446350)

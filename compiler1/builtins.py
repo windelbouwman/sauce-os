@@ -1,6 +1,4 @@
-""" A set of builtin functions.
-
-"""
+"""A set of builtin functions."""
 
 from .location import Location, Span
 from . import ast
@@ -11,12 +9,12 @@ def create_rt_module() -> ast.Module:
     span = Span.default()
     mod = ast.Module(modname, [], [], span)
     mod.add_definition(
-        ast.BuiltinFunction(
+        ast.ExternFunction(
             modname, "int_to_str", [ast.int_type], ast.str_type, Location.default()
         ),
     )
     mod.add_definition(
-        ast.BuiltinFunction(
+        ast.ExternFunction(
             modname, "char_to_str", [ast.char_type], ast.str_type, Location.default()
         )
     )

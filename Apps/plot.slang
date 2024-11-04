@@ -23,16 +23,16 @@ fn main() -> int:
     # c.zoom_out()
     # c.zoom(factor: 0.001)
     c.to_svg(filename: "data-plot.svg")
-    return 0
+    0
 
 fn f_linear(x: float) -> float:
-    return x
+    x
 
 fn f_parabola(x: float) -> float:
-    return (x * x) / 10.0
+    (x * x) / 10.0
 
 fn f_cubic(x: float) -> float:
-    return (x - 4) * x * (x + 4) / 5.0
+    (x - 4) * x * (x + 4) / 5.0
 
 fn plot_function(chart: Chart, name: str, x_min: float, x_max: float, dx: float, f: fn (float) -> float):
     # Plot a function in the given chart.

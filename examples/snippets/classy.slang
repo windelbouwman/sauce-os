@@ -20,4 +20,4 @@ fn main() -> int:
 
     let baz = Bar(val3: "Hello world")
     baz.info(x: 3)
-    return 0
+    0

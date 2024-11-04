@@ -21,4 +21,4 @@ fn main() -> int:
                 print("Muchos!")
         else:
             print("Defaulty!")
-    return 0
+    0

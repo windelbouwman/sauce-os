@@ -46,19 +46,19 @@ fn main() -> int:
     except(err3: str):
         print("outer handler: {err3}")
 
-    return 0
+    0
 
 fn foo(x: bool) -> int except str:
     let x1 = may_bork(do_bork: false)
     let x2 = may_bork(do_bork: x)
-    return x1 + x2
+    x1 + x2
 
 fn may_bork(do_bork: bool) -> int except str:
     print("We might bork!")
     if do_bork:
         raise "Oh noes"
     else:
-        return 42
+        42
 
 
 fn return_in_try():

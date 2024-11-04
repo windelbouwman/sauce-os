@@ -1,5 +1,6 @@
-
-# Snake implemented in slang
+"""
+Snake implemented in slang
+"""
 
 from std import print
 
@@ -16,7 +17,7 @@ fn main() -> int:
         game.move()
         game.draw()
         n += 1
-    return 0
+    0
 
 class Game:
     var width: int = 25
@@ -71,24 +72,24 @@ class Game:
 fn rotate_right(d?: Direction) -> Direction:
     case d:
         Up:
-            return Direction.Right()
+            Direction.Right()
         Down:
-            return Direction.Left()
+            Direction.Left()
         Left:
-            return Direction.Up()
+            Direction.Up()
         Right:
-            return Direction.Down()
+            Direction.Down()
 
 fn rotate_left(d?: Direction) -> Direction:
     case d:
         Up:
-            return Direction.Left()
+            Direction.Left()
         Down:
-            return Direction.Right()
+            Direction.Right()
         Left:
-            return Direction.Down()
+            Direction.Down()
         Right:
-            return Direction.Up()
+            Direction.Up()
 
 struct BodyElement:
     position: Position

@@ -5,7 +5,7 @@ fn main() -> int:
     let choice = Choice.Yes()
     let x = foo(choice)
     print("x = {x}")
-    return 0
+    0
 
 enum Choice:
     Yes

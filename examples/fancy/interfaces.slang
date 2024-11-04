@@ -11,7 +11,7 @@ fn main() -> int:
         print("EQ")
     else:
         print("NOPE")
-    return 0
+    0
 
 fn check_hash[T: Hashable](v1: T, v2: T) -> bool:
     let h1 = Hashable.hash(one: v1)

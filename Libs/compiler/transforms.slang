@@ -325,29 +325,37 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                 ToString(value):
                     # Rewrite To String
                     # log_info("Rewrite to-string")
-                    if value.ty.is_str():
-                        expression.change_to(to: value)
-                    elif value.ty.is_int():
-                        # call int-to-str
-                        let int_to_str_func = transformer.class_rewriter.load_std_function(name: "int_to_str", location: expression.location)
-                        let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
-                        let arguments = list1(arg1)
-                        let call = int_to_str_func.call_it(arguments, location: expression.location)
-                        expression.change_to(to: call)
-                    elif value.ty.is_char():
-                        # call char-to-str
-                        let char_to_str_func = transformer.class_rewriter.load_std_function(name: "char_to_str", location: expression.location)
-                        let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
-                        let arguments = list1(arg1)
-                        let call = char_to_str_func.call_it(arguments, location: expression.location)
-                        expression.change_to(to: call)
-                    elif value.ty.has_method("to_string"):
-                        # Invoke to_string method
-                        let arguments: List[ast.LabeledExpression] = List()
-                        let call_to_string = value.call_method(method: "to_string", arguments, location: expression.location)
-                        expression.change_to(to: call_to_string)
+                    case value.kind:
+                        IntLiteral(value):
+                            let new_literal = ast.string_literal(value: str(value), location: expression.location)
+                            expression.change_to(to: new_literal)
+                        StringLiteral(value):
+                            let new_literal = ast.string_literal(value, location: expression.location)
+                            expression.change_to(to: new_literal)
                     else:
-                        panic("Invalid type for to-string")
+                        if value.ty.is_str():
+                            expression.change_to(to: value)
+                        elif value.ty.is_int():
+                            # call int-to-str
+                            let int_to_str_func = transformer.class_rewriter.load_std_function(name: "int_to_str", location: expression.location)
+                            let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
+                            let arguments = list1(arg1)
+                            let call = int_to_str_func.call_it(arguments, location: expression.location)
+                            expression.change_to(to: call)
+                        elif value.ty.is_char():
+                            # call char-to-str
+                            let char_to_str_func = transformer.class_rewriter.load_std_function(name: "char_to_str", location: expression.location)
+                            let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
+                            let arguments = list1(arg1)
+                            let call = char_to_str_func.call_it(arguments, location: expression.location)
+                            expression.change_to(to: call)
+                        elif value.ty.has_method("to_string"):
+                            # Invoke to_string method
+                            let arguments: List[ast.LabeledExpression] = List()
+                            let call_to_string = value.call_method(method: "to_string", arguments, location: expression.location)
+                            expression.change_to(to: call_to_string)
+                        else:
+                            panic("Invalid type for to-string")
                 GetIndex(base, indici):
                     if base.ty.has_method("get"):
                         assert(condition: indici.len() == 1, message: "Only support single indexing.")
@@ -387,6 +395,23 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                                             log_info("Folding integer sub")
                                             let value = lhs_value - rhs_value
                                             let new_literal = ast.integer_literal(value, location: expression.location)
+                                            expression.change_to(to: new_literal)
+                                        Mul:
+                                            log_info("Folding integer mul")
+                                            let value = lhs_value * rhs_value
+                                            let new_literal = ast.integer_literal(value, location: expression.location)
+                                            expression.change_to(to: new_literal)
+                                    else:
+                                        pass
+                            else:
+                                pass
+                        StringLiteral(lhs_value):
+                            case binop.rhs.kind:
+                                StringLiteral(rhs_value):
+                                    case binop.op:
+                                        Add:
+                                            let value = lhs_value + rhs_value
+                                            let new_literal = ast.string_literal(value, location: expression.location)
                                             expression.change_to(to: new_literal)
                                     else:
                                         pass

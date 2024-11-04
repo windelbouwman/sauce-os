@@ -18,8 +18,7 @@ fn main() -> int:
         func2: baz
 
     complexor(x: z)
-
-    return 0
+    0
 
 struct A:
     func1: fn()
@@ -33,11 +32,9 @@ fn complexor(x: A):
 
 fn bla():
     print("In bla!")
-    return
 
 fn baz():
     print("In baz!")
-    return
 
 fn call_f(x: fn()):
     print("pre-fn!")

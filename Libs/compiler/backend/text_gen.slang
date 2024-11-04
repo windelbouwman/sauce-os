@@ -9,7 +9,7 @@ class TextGenerator:
     var m_indentation: int = 0
     var use_file: bool = false
     var outf: int = 0
-    var m_one_tab: int = 4
+    var m_one_tab: str = "    "
 
     fn begin(output_filename: Option[str]):
         if option_is_some(output_filename):
@@ -27,7 +27,7 @@ class TextGenerator:
         m_indentation -= 1
 
     fn emit(text?: str):
-        let indent = str_repeat(text: " ", count: m_indentation * m_one_tab)
+        let indent = str_repeat(text: m_one_tab, count: m_indentation)
         let line = indent + text
         if use_file:
             file_writeln(handle: outf, line)

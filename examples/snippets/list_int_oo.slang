@@ -39,7 +39,7 @@ class List:
     fn iter() -> ListIter:
         let it = ListIter()
         it.next_element = this.head_element
-        return it
+        it
 
 # TODO: replace by Option<ListElement>
 enum Option:
@@ -60,7 +60,7 @@ class ListIter:
                 pass
             Some(nxt_element):
                 this.next_element = nxt_element.next
-        return opt
+        opt
 
 
 fn main() -> int:
@@ -90,4 +90,4 @@ fn main() -> int:
             Some(element):
                 std.print("Item[" + str(n) + "]=" + str(element.data))
         n = n + 1
-    return 0
+    0

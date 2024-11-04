@@ -147,7 +147,7 @@ class WasmGenerator:
             index = types.len()
             index_mapping.insert(key, value: index)
             types.append(ft)
-        return index
+        index
 
     fn gen_function(function_def: ast.FunctionDef):
         log_info("Generating code for: {ast.function_def_to_str(function_def)}")

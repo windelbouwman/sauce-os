@@ -15,5 +15,5 @@ fn main() -> int:
     for t in touching:
         print("Found match: {t}")
 
-    return 0
+    0
 

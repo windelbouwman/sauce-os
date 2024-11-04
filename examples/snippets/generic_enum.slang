@@ -11,7 +11,7 @@ fn main() -> int:
 
     display(value: value1)
     display(value: value2)
-    return 0
+    0
 
 
 fn display(value: Option[Integer]):
@@ -30,6 +30,5 @@ struct Integer:
     value: int
 
 fn new_integer(value?: int) -> Integer:
-    let i_value = Integer:
-        value: value
-    return i_value
+    Integer:
+        value

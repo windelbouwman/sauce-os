@@ -69,6 +69,7 @@ let size = x.len()
 let index = 0
 while index < size:
     let element = x.get(index)
+    index += 1
     process_element(element)
 ```
 

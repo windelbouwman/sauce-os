@@ -1594,7 +1594,7 @@ class Variable(Definition):
         return obj_ref(self, self.ty, location)
 
 
-class BuiltinFunction(Definition):
+class ExternFunction(Definition):
     def __init__(
         self,
         modname: str,
@@ -1664,7 +1664,7 @@ class AstVisitor:
                 self.visit_expression(definition.value)
         elif isinstance(definition, TypeDef):
             self.visit_type(definition.ty)
-        elif isinstance(definition, BuiltinFunction):
+        elif isinstance(definition, ExternFunction):
             self.visit_type(definition.ty)
 
     def visit_node(self, node: Node):

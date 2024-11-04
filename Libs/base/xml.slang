@@ -79,11 +79,10 @@ class XmlWriter:
         let parts: List[str] = List()
         for attribute in attributes:
             parts.append(attribute_to_string(attribute))
-        let attrs_text = str_join(parts, sep: " ")
-        return attrs_text
+        str_join(parts, sep: " ")
     
     fn attribute_to_string(attribute: Attribute) -> str:
-        return "{attribute.name}=\"{attribute.value}\""
+        "{attribute.name}=\"{attribute.value}\""
 
     fn indent():
         indentation += 1
