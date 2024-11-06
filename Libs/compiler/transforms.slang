@@ -494,9 +494,9 @@ fn transformer_on_expression7(transformer: Transformer, expression: ast.Expressi
                     let parameter_types = ast.get_parameter_types_from_type(call.callee.ty)
                     
                     assert(condition: call.arguments.len() == parameter_types.len(), message: "arguments and parameters types must be the same length")
-                    let pti = parameter_types.iter()
-                    for argument in call.arguments:
-                        let pt = option_unwrap(pti.next())
+                    let ati = call.arguments.iter()
+                    for pt in parameter_types:
+                        let argument = option_unwrap(ati.next())
                         transformer.class_rewriter.erase_type(ft: pt.ty, value: argument.value, assign: false)
 
                     upcast_type(expression)

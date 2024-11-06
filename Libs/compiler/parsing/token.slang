@@ -55,6 +55,7 @@ enum TokenKind:
     StringStart
     StringContent(value: str)
     StringEnd
+    DocString(value: str)
 
     # Punctuation:
     Colon
@@ -170,6 +171,8 @@ fn token_to_string(tok: Token) -> str:
             "STRING_CONTENT({content})"
         StringEnd:
             "STRING_END"
+        DocString(value):
+            "DOC_STRING({value})"
         Char(value):
             "CHAR({value})"
         Integer(value):

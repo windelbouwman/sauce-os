@@ -110,6 +110,8 @@ class TypeChecker:
     var exception_handlers: List[ast.Type] = List()
     var m_void_type: ast.Type = ast.void_type()
     var m_bool_type: ast.Type = ast.bool_type()
+    var m_int_type: ast.Type = ast.int_type()
+    var m_str_type: ast.Type = ast.str_type()
 
     fn check_function_def(function_def: ast.FunctionDef):
         # Check if we return a value, if we need to return a value
@@ -201,7 +203,7 @@ class TypeChecker:
                         pass
                 statement.ty = ty
             Switch(switch_statement):
-                coerce(ty: ast.int_type(), value: switch_statement.value)
+                coerce(ty: m_int_type, value: switch_statement.value)
                 let ty = switch_statement.default_block.body.ty
                 for arm in switch_statement.arms:
                     ty = merge_paths(statement: arm.block.body, ty)
@@ -280,9 +282,9 @@ class TypeChecker:
                     let return_type = call.callee.ty.get_return_type()
 
                     if parameter_types.len() == call.arguments.len():
-                        let p_iter = parameter_types.iter()
-                        for argument in call.arguments:
-                            let p_ty = option_unwrap(p_iter.next())
+                        let a_iter = call.arguments.iter()
+                        for p_ty in parameter_types:
+                            let argument = option_unwrap(a_iter.next())
                             coerce(ty: p_ty.ty, value: argument.value)
 
                             # Check named arguments:
@@ -328,7 +330,7 @@ class TypeChecker:
             ToString(value):
                 if not (value.ty.is_int() or value.ty.is_str() or value.ty.is_char() or value.ty.has_method("to_string")):
                     add_error(location: expression.location, message: "Cannot convert {value.ty} to string automatically")
-                expression.ty = ast.str_type()
+                expression.ty = m_str_type
             Typ(t):
                 add_error(location: expression.location, message: "Cannot use a type here")
             Binop(binop):
@@ -388,7 +390,7 @@ class TypeChecker:
 
                 if indici.len() == 1:
                     let index: ast.Expression = indici.first()
-                    coerce(ty: ast.int_type(), value: index)
+                    coerce(ty: m_int_type, value: index)
                 else:
                     add_error(location: expression.location, message: "Only 1 dimensional indexing supported.")
             EnumLiteral(ty, variant, values):
@@ -427,7 +429,7 @@ class TypeChecker:
             ArrayLiteral2(size, element_type):
                 expression.ty = ast.array_type(element_type, size: 0)
             StringLiteral(s):
-                expression.ty = ast.str_type()
+                expression.ty = m_str_type
             CharLiteral(s):
                 expression.ty = ast.char_type()
             BoolLiteral(b):
@@ -442,7 +444,7 @@ class TypeChecker:
                 # else:  # i = 0, 1 bit required.
                 #     bits = 1
                 # expression.ty = ast.some_int_type(bits)
-                expression.ty = ast.int_type()
+                expression.ty = m_int_type
             FloatLiteral(b):
                 expression.ty = ast.float_type()
             Stmt(statement):

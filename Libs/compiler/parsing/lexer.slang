@@ -9,6 +9,7 @@ from token import Token, TokenKind
 from location import Location, location_at, Position
 from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf
 from datatypes import List, Option
+from deque import Queue, new_queue
 from dicttype import Dictionary
 
 enum LexerMode:
@@ -16,7 +17,7 @@ enum LexerMode:
     String
 
 class Lexer:
-    var pending: List[Token] = List()
+    var pending: Queue[Token] = new_queue(capacity: 7)
     var indent_stack: List[int] = List()
     var at_bol: bool = true  # at begin-of-line (bol)
     var at_end: bool = false
@@ -45,10 +46,7 @@ class Lexer:
         if pending.is_empty():
             Token(kind: TokenKind.Eof(), location: location_at(offset))
         else:
-            pending.pop_front()
-
-    fn pushback_token(token: Token):
-        pending.prepend(token)
+            pending.pop()
 
     fn work_some():
         let tok = next_token2()
@@ -100,7 +98,7 @@ class Lexer:
         spaces = 0
 
     fn emit(tok: Token):
-        pending.append(tok)
+        pending.push(tok)
 
     fn emit_token(kind: TokenKind, location: Location):
         emit(tok: Token(kind, location))
@@ -286,7 +284,7 @@ class Lexer:
             else:
                 z = 0
         let text: str = get_lexeme()
-        TokenKind.StringContent(text)
+        TokenKind.DocString(text)
 
     fn parse_number(c: char) -> TokenKind:
         let n = source_length

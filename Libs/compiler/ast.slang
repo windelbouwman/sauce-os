@@ -4,7 +4,7 @@ from strlib import str_repeat, str_join
 from utils import panic, assert, log_info, log_error
 from location import Location, location_default
 from datatypes import List, Option, option_unwrap, option_is_some
-from vectype import Vector
+from vectype import Vector, new_vector
 from dicttype import Dictionary
 
 # Name coupled with global unique ID:
@@ -441,7 +441,7 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
                 None:
                     ty
         Function(parameter_types, info):
-            let parameter_types2: List[ParameterType] = List()
+            let parameter_types2: Vector[ParameterType] = new_vector()
             for p in parameter_types:
                 parameter_types2.append(ParameterType(label: p.label, ty: subst(ty: p.ty, m)))
             let info2 = FunctionInfo:
@@ -504,14 +504,14 @@ fn deref_type_var(ty?: Type) -> Type:
     else:
         ty
 
-fn get_parameter_types_from_type(ty?: Type) -> List[ParameterType]:
+fn get_parameter_types_from_type(ty?: Type) -> Vector[ParameterType]:
     case ty.kind:
         Function(p, i):
             p
     else:
         panic("Type must be function type")
 
-fn get_types_from_parameter_types(p2?: List[ParameterType]) -> List[Type]:
+fn get_types_from_parameter_types(p2?: Vector[ParameterType]) -> List[Type]:
     let t: List[Type] = List()
     for p in p2:
         t.append(p.ty)
@@ -580,7 +580,7 @@ enum TypeKind:
     Void
     Unreachable
     TypeExpression(expression: Expression)
-    Function(parameter_types: List[ParameterType], info: FunctionInfo)
+    Function(parameter_types: Vector[ParameterType], info: FunctionInfo)
     TypeParam(type_parameter: TypeParameter)
     TypeVar(type_variable: TypeVariable)
     Array(element_type: Type, size: int)
@@ -816,7 +816,7 @@ fn type_expression(expr: Expression) -> Type:
     new_type(kind: TypeKind.TypeExpression(expr))
 
 
-fn function_type(parameter_types: List[ParameterType], info: FunctionInfo) -> Type:
+fn function_type(parameter_types: Vector[ParameterType], info: FunctionInfo) -> Type:
     new_type(kind: TypeKind.Function(parameter_types, info))
 
 fn type_parameter_ref(type_parameter: TypeParameter) -> Type:
@@ -1148,8 +1148,8 @@ fn function_ref(function_def: FunctionDef, type_arguments: List[Type], location:
     let ty = get_function_type2(function_def, type_arguments)
     Expression(kind, ty, location)
 
-fn get_parameter_types_from_parameters(parameters: List[ParameterDef]) -> List[ParameterType]:
-    let parameter_types: List[ParameterType] = List()
+fn get_parameter_types_from_parameters(parameters: List[ParameterDef]) -> Vector[ParameterType]:
+    let parameter_types: Vector[ParameterType] = new_vector()
     for parameter in parameters:
         let label: Option[str] = if parameter.label_is_optional:
             Option[str].None()
@@ -1167,10 +1167,10 @@ fn get_function_type2(function_def: FunctionDef, type_arguments: List[Type]) -> 
     let parameter_types = get_parameter_types_from_parameters(parameters: function_def.parameters)
     get_function_type3(type_parameters: function_def.type_parameters, type_arguments, parameter_types, info: function_def.info)
 
-fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: List[Type], parameter_types: List[ParameterType], info: FunctionInfo) -> Type:
+fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: List[Type], parameter_types: Vector[ParameterType], info: FunctionInfo) -> Type:
     let m = create_subst_mapping(type_parameters, type_arguments)
 
-    let parameter_types2: List[ParameterType] = List()
+    let parameter_types2: Vector[ParameterType] = new_vector()
     for pt in parameter_types:
         parameter_types2.append(ParameterType(label: pt.label, ty: subst(ty: pt.ty, m)))
 

@@ -35,6 +35,7 @@ class Parser:
     # An attempt at a recursive descent parser.
     var lex: Lexer = Lexer()
     var m_peek: Token = default_token()
+    var m_peek2: Token = default_token()
     var filename: Option[str] = Option.None()
     var id_gen: IdGen
     var modname: Option[str] = Option.None()
@@ -42,6 +43,7 @@ class Parser:
     fn feed(source: str):
         lex.init(source)
         m_peek = lex.next_token()
+        m_peek2 = lex.next_token()
     
     fn parse_module(filename: str, name: str) -> ast.Module except CompilationError:
         let definitions: List[ast.Definition] = List()
@@ -134,12 +136,11 @@ class Parser:
         ast.import_names(modname: modname.name, location: modname.location, names)
 
     fn parse_pub() -> bool:
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             KwPub:
+                move_token()
                 true
         else:
-            unget_token(tok)
             false
     
     fn parse_macro_def() -> ast.MacroDef except CompilationError:
@@ -369,20 +370,13 @@ class Parser:
         let ty = parse_type()
         ast.parameter_def(name: name_at.name, id: new_id(), label_is_optional, ty, location: name_at.location)
     
-    fn parse_optional_docstring() -> Option[str]:
-        let tok = get_token()
-        case tok.kind:
-            StringContent(value):
-                let tok2 = get_token()
-                case tok2.kind:
-                    NewLine:
-                        Option.Some(value)
-                else:
-                    unget_token(tok2)
-                    unget_token(tok)
-                    Option[str].None()
+    fn parse_optional_docstring() -> Option[str] except CompilationError:
+        case m_peek.kind:
+            DocString(value):
+                move_token()
+                parse_newline()
+                Option.Some(value)
         else:
-            unget_token(tok)
             Option[str].None()
 
     fn has_parsed_question() -> bool:
@@ -426,7 +420,7 @@ class Parser:
         # '('
         parse_parenthesis_open()
 
-        let parameter_types: List[ast.ParameterType] = List()
+        let parameter_types: Vector[ast.ParameterType] = new_vector()
         # ')' or parameters and ')'
         case m_peek.kind:
             ParenthesisClose:
@@ -586,20 +580,20 @@ class Parser:
     
     fn parse_labeled_expression() -> ast.LabeledExpression except CompilationError:
         # Parse ID ':' expression | expression
-        let tok = get_token()
-        case tok.kind:
+        case m_peek.kind:
             Identifier(name):
-                let tok2 = get_token()
-                case tok2.kind:
+                case m_peek2.kind:
                     Colon:
+                        let location = m_peek.location
+                        move_token()
+                        move_token()
                         # Parse ID ':' expression
                         let value = parse_expression()
-                        return ast.LabeledExpression(location: tok.location, name: Option.Some(name), value)
+                        return ast.LabeledExpression(location, name: Option.Some(name), value)
                 else:
-                    unget_token(tok2)
-                    unget_token(tok)
+                    pass
         else:
-            unget_token(tok)
+            pass
 
         # Parse expression
         let value = parse_expression()
@@ -1126,16 +1120,13 @@ class Parser:
             raise unexpected_token(tok: m_peek, expected: "'='")
 
     fn move_token():
-        m_peek = lex.next_token()
+        m_peek = m_peek2
+        m_peek2 = lex.next_token()
 
     fn get_token() -> Token:
         let tok = m_peek
-        m_peek = lex.next_token()
+        move_token()
         tok
-
-    fn unget_token(token?: Token):
-        lex.pushback_token(token: m_peek)
-        m_peek = token
 
     fn new_id() -> int:
         id_gen.new_id()

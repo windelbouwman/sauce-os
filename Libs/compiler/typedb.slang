@@ -5,6 +5,7 @@ from std import print
 from utils import unimplemented, panic
 from utils import log_error, log_info, log_debug, log_trace
 from datatypes import List, Option, option_is_some
+from vectype import Vector, new_vector
 from hashmap import HashMap
 from pathlib import basename
 from json import JsonBuilder, JsonException, write_json_to_file, read_json_from_file
@@ -509,7 +510,7 @@ class SymbolLoader:
             let size = m_des.get_integer_attribute(attr: "size")
             ast.array_type(element_type, size)
         elif type_name == "function":
-            let parameter_types: List[ast.ParameterType] = List()
+            let parameter_types: Vector[ast.ParameterType] = new_vector()
             for parameter_obj in m_des.get_array_attribute(attr: "parameter-types"):
                 m_des.push_value(value: parameter_obj)
                 let parameter_type = load_type(attr: "type")
