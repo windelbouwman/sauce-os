@@ -170,7 +170,7 @@ class Parser:
         let tag_index = 0
         while not try_parse_dedent():
             let name_at = parse_name()
-            let payload_types: List[ast.Type] = List()
+            let payload_types: Vector[ast.Type] = new_vector()
             case m_peek.kind:
                 ParenthesisOpen:
                     move_token()
@@ -279,7 +279,7 @@ class Parser:
         class_def.scope.class_scope = true
         
         # Prepare 'this' parameter:
-        let type_arguments: List[ast.Type] = List()
+        let type_arguments: Vector[ast.Type] = new_vector()
         for type_parameter in type_parameters:
             type_arguments.append(ast.type_parameter_ref(type_parameter))
         this_type.change_to(to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))

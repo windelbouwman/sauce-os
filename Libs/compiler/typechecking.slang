@@ -6,6 +6,7 @@ import ast
 from math import ceil, log2
 from std import print
 from datatypes import Option, List, option_unwrap, option_is_none
+from vectype import Vector
 from strlib import str_join
 from settype import StringSet
 from location import Location
@@ -46,6 +47,7 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
             case definition:
                 Function(function_def):
                     checker.current_function = Option.Some(function_def)
+                    checker.was_errors = false
                     if not function_def.info.except_type.is_void():
                         checker.exception_handlers.append(function_def.info.except_type)
             else:
@@ -65,16 +67,15 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
 fn checker_on_type(checker: TypeChecker, ty: ast.Type, phase: ast.VisitPhase):
     pass
 
-fn assign_types(variables: List[ast.Variable], types: List[ast.Type]):
-    let pi = types.iter()
+fn assign_types(variables: List[ast.Variable], types: Vector[ast.Type]):
+    let index = 0
     for v in variables:
-        let ty = option_unwrap(pi.next())
-        v.ty = ty
+        v.ty = types[index]
+        index += 1
 
 fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: ast.VisitPhase):
     case phase:
         Pre:
-            checker.was_errors = false
             if statement.is_breakable():
                 checker.loops += 1
             case statement.kind:
@@ -450,12 +451,13 @@ class TypeChecker:
             Stmt(statement):
                 expression.ty = statement.ty
 
-    fn check_arguments(location: Location, parameter_types: List[ast.Type], arguments: List[ast.Expression]):
+    fn check_arguments(location: Location, parameter_types: Vector[ast.Type], arguments: List[ast.Expression]):
         if parameter_types.len() == arguments.len():
-            let p_iter = parameter_types.iter()
+            let index = 0
             for argument in arguments:
-                let p_ty = option_unwrap(p_iter.next())
+                let p_ty = parameter_types[index]
                 coerce(ty: p_ty, value: argument)
+                index += 1
         else:
             add_error(location, message: "got {arguments.len()} arguments, expected {parameter_types.len()}")
 
@@ -570,13 +572,16 @@ class TypeChecker:
         else:
             false
     
-    fn unify_many(typs1: List[ast.Type], typs2: List[ast.Type]) -> bool:
+    fn unify_many(typs1: Vector[ast.Type], typs2: Vector[ast.Type]) -> bool:
         if typs1.len() == typs2.len():
-            let typs2_it = typs2.iter()
-            for ty1 in typs1:
-                let ty2 = option_unwrap(typs2_it.next())
+            let n = typs1.len()
+            let index = 0
+            while index < n:
+                let ty1 = typs1[index]
+                let ty2 = typs2[index]
                 if not unify(ty1, ty2):
                     return false
+                index += 1
             true
         else:
             false

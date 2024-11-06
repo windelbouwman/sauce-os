@@ -9,8 +9,7 @@ from namebinding import bind_names_expression
 from typechecking import type_check_expression
 from ir_gen import gen_expression_bytecode
 import bc
-from location import Position
-from errors import CompilationError, display_error
+from errors import CompilationError, display_error #, print_error_line
 import ast
 import vm
 from vm import VirtualMachine, eval_code, value_to_string
@@ -24,6 +23,9 @@ fn main() -> int:
         let argument = get_arg(arg: i)
         if argument == "-v":
             verbosity += 1
+        else:
+            print("Unknown argument {argument}")
+            return 1
         i += 1
 
     print("Welcome to the slang-lang REPL!")
@@ -32,7 +34,7 @@ fn main() -> int:
     loop:
         let line = read_line(prompt: "~~~> ")
         r.eval(line)
-    return 0
+    0
 
 
 class Repl:
@@ -42,8 +44,7 @@ class Repl:
     fn eval(line: str):
         try:
             log_info("Parsing [{line}]")
-            let p1 = Position(row: 1, column: 1)
-            let statement = parse_statement_from_text(source: line, id_gen, p1)
+            let statement = parse_statement_from_text(source: line, id_gen)
             case statement.kind:
                 Expr(expression):
                     let x = eval_expression(expression)
@@ -54,7 +55,9 @@ class Repl:
 
         except (error: CompilationError):
             display_error(error)
-    
+            #for error2 in error.errors:
+            #    print_error_line(line, location: error2.location, message: error2.message)
+
     fn eval_expression(expression: ast.Expression) -> vm.Value except CompilationError:
         # print_expression_ast(expression)
         bind_names_expression(expression)

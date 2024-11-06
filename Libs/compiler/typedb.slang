@@ -5,7 +5,7 @@ from std import print
 from utils import unimplemented, panic
 from utils import log_error, log_info, log_debug, log_trace
 from datatypes import List, Option, option_is_some
-from vectype import Vector, new_vector
+from vectype import Vector, new_vector, new_vector_with_capacity
 from hashmap import HashMap
 from pathlib import basename
 from json import JsonBuilder, JsonException, write_json_to_file, read_json_from_file
@@ -449,7 +449,7 @@ class SymbolLoader:
         let class_def = ast.ClassDef(id, location, is_extern: Option.Some(m_libname), type_parameters, definitions, scope: ast.Scope())
 
         # Patch the this type:
-        let type_arguments: List[ast.Type] = List()
+        let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: type_parameters.len())
         for type_parameter in type_parameters:
             type_arguments.append(ast.type_parameter_ref(type_parameter))
         this_type.change_to(to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
@@ -468,8 +468,8 @@ class SymbolLoader:
             m_des.pop_value()
         type_parameters
 
-    fn load_types(attr: str) -> List[ast.Type]:
-        let types: List[ast.Type] = List()
+    fn load_types(attr: str) -> Vector[ast.Type]:
+        let types: Vector[ast.Type] = new_vector()
         for type_argument_obj in m_des.get_array_attribute(attr):
             m_des.push_value(value: type_argument_obj)
             types.append(load_type(attr: "type"))

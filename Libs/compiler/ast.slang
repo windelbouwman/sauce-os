@@ -4,7 +4,7 @@ from strlib import str_repeat, str_join
 from utils import panic, assert, log_info, log_error
 from location import Location, location_default
 from datatypes import List, Option, option_unwrap, option_is_some
-from vectype import Vector, new_vector
+from vectype import Vector, new_vector, new_vector_with_capacity
 from dicttype import Dictionary
 
 # Name coupled with global unique ID:
@@ -280,13 +280,13 @@ class Type:
         else:
             Option[Type].None()
 
-    fn get_field_types() -> List[Type]:
+    fn get_field_types() -> Vector[Type]:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
                     Struct(struct_def):
                         let m = create_subst_mapping(type_parameters: struct_def.type_parameters, type_arguments)
-                        let field_types: List[Type] = List()
+                        let field_types: Vector[Type] = new_vector_with_capacity(capacity: struct_def.fields.len())
                         for field in struct_def.fields:
                             field_types.append(subst(ty: field.ty, m))
                         field_types
@@ -359,7 +359,7 @@ class Type:
         else:
             panic("Must be App type")
 
-    fn get_type_arguments() -> List[Type]:
+    fn get_type_arguments() -> Vector[Type]:
         case kind:
             App(tycon, args):
                 args
@@ -402,7 +402,7 @@ fn clone_type(ty?: Type) -> Type:
 fn new_type(kind: TypeKind) -> Type:
     Type(kind)
 
-fn types_to_string(typs: List[Type]) -> str:
+fn types_to_string(typs: Vector[Type]) -> str:
     let parts: List[str] = List()
     for ty in typs:
         parts.append(type_to_string(ty))
@@ -422,7 +422,7 @@ fn change_type_to(ty: Type, to_type: Type):
     # TBD: copy was generic?
     # ty.was_generic = ty.was_generic
 
-fn apply_tycon(tycon: TyCon, type_arguments: List[Type]) -> Type:
+fn apply_tycon(tycon: TyCon, type_arguments: Vector[Type]) -> Type:
     # if type_arguments
     let type_parameters = tycon_get_type_parameters(tycon)
     # Check lengths!
@@ -441,7 +441,7 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
                 None:
                     ty
         Function(parameter_types, info):
-            let parameter_types2: Vector[ParameterType] = new_vector()
+            let parameter_types2: Vector[ParameterType] = new_vector_with_capacity(capacity: parameter_types.len())
             for p in parameter_types:
                 parameter_types2.append(ParameterType(label: p.label, ty: subst(ty: p.ty, m)))
             let info2 = FunctionInfo:
@@ -456,13 +456,13 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
     else:
         ty
 
-fn subst_many(typs: List[Type], m: Dictionary[Type]) -> List[Type]:
-    let typs2: List[Type] = List()
+fn subst_many(typs: Vector[Type], m: Dictionary[Type]) -> Vector[Type]:
+    let typs2: Vector[Type] = new_vector_with_capacity(capacity: typs.len())
     for ty in typs:
         typs2.append(subst(ty, m))
     typs2
 
-fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: List[Type]) -> Dictionary[Type]:
+fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: Vector[Type]) -> Dictionary[Type]:
     if type_parameters.len() != type_arguments.len():
         for type_parameter in type_parameters:
             log_error("type parameter: {node_id_to_string(type_parameter.id)}")
@@ -511,8 +511,8 @@ fn get_parameter_types_from_type(ty?: Type) -> Vector[ParameterType]:
     else:
         panic("Type must be function type")
 
-fn get_types_from_parameter_types(p2?: Vector[ParameterType]) -> List[Type]:
-    let t: List[Type] = List()
+fn get_types_from_parameter_types(p2?: Vector[ParameterType]) -> Vector[Type]:
+    let t: Vector[Type] = new_vector_with_capacity(capacity: p2.len())
     for p in p2:
         t.append(p.ty)
     t
@@ -543,7 +543,7 @@ fn get_subst_map(ty: Type) -> Dictionary[Type]:
     else:
         panic("Must be App type")
 
-fn get_variant_payload_types(ty: Type, variant: EnumVariant) -> List[Type]:
+fn get_variant_payload_types(ty: Type, variant: EnumVariant) -> Vector[Type]:
     let m = get_subst_map(ty)
     subst_many(typs: variant.payload, m)
 
@@ -586,7 +586,7 @@ enum TypeKind:
     Array(element_type: Type, size: int)
     
     # Application of a type-constructor:
-    App(tycon: TyCon, type_arguments: List[Type])
+    App(tycon: TyCon, type_arguments: Vector[Type])
 
 fn type_kind_to_string(kind: TypeKind) -> str:
     case kind:
@@ -1083,7 +1083,7 @@ struct EnumVariant:
     name: str
     tag_value: int
     location: Location
-    payload: List[Type]
+    payload: Vector[Type]
 
 fn new_class_def(id: NodeId, location: Location, type_parameters: List[TypeParameter], definitions: List[Definition]) -> ClassDef:
     ClassDef:
@@ -1143,13 +1143,13 @@ enum FunctionDefBody:
 fn function_def_to_str(function_def: FunctionDef) -> str:
     "function:{function_def.name}"
 
-fn function_ref(function_def: FunctionDef, type_arguments: List[Type], location: Location) -> Expression:
+fn function_ref(function_def: FunctionDef, type_arguments: Vector[Type], location: Location) -> Expression:
     let kind = ExpressionKind.FunctionRef(function_def, type_arguments)
     let ty = get_function_type2(function_def, type_arguments)
     Expression(kind, ty, location)
 
 fn get_parameter_types_from_parameters(parameters: List[ParameterDef]) -> Vector[ParameterType]:
-    let parameter_types: Vector[ParameterType] = new_vector()
+    let parameter_types: Vector[ParameterType] = new_vector_with_capacity(capacity: parameters.len())
     for parameter in parameters:
         let label: Option[str] = if parameter.label_is_optional:
             Option[str].None()
@@ -1163,14 +1163,14 @@ fn get_function_type(function_def: FunctionDef) -> Type:
     let parameter_types = get_parameter_types_from_parameters(parameters: function_def.parameters)
     function_type(parameter_types, info: function_def.info)
 
-fn get_function_type2(function_def: FunctionDef, type_arguments: List[Type]) -> Type:
+fn get_function_type2(function_def: FunctionDef, type_arguments: Vector[Type]) -> Type:
     let parameter_types = get_parameter_types_from_parameters(parameters: function_def.parameters)
     get_function_type3(type_parameters: function_def.type_parameters, type_arguments, parameter_types, info: function_def.info)
 
-fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: List[Type], parameter_types: Vector[ParameterType], info: FunctionInfo) -> Type:
+fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: Vector[Type], parameter_types: Vector[ParameterType], info: FunctionInfo) -> Type:
     let m = create_subst_mapping(type_parameters, type_arguments)
 
-    let parameter_types2: Vector[ParameterType] = new_vector()
+    let parameter_types2: Vector[ParameterType] = new_vector_with_capacity(capacity: parameter_types.len())
     for pt in parameter_types:
         parameter_types2.append(ParameterType(label: pt.label, ty: subst(ty: pt.ty, m)))
 
@@ -1442,7 +1442,7 @@ enum ExpressionKind:
     Unop(op: UnaryOperator, rhs: Expression)
     NameRef(name: str)
     VarRef(variable: Variable)
-    FunctionRef(function: FunctionDef, type_arguments: List[Type])
+    FunctionRef(function: FunctionDef, type_arguments: Vector[Type])
     ParameterRef(parameter: ParameterDef)
     LoadSymbol(symbol: Symbol)
     IntLiteral(value: int)

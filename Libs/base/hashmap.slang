@@ -6,7 +6,7 @@ from utils import panic
 from datatypes import List, ListIter, Option, option_unwrap
 from assoclist import AssociationList, AssociationListIter
 from std import print, ord, str_len, str_get
-from hashlib import elf_hash
+from hashlib import elf_hash, djb2
 from math import modulo
 
 class HashMap[T]:
@@ -25,7 +25,7 @@ class HashMap[T]:
     
     fn get_list(key: str) -> AssociationList[T]:
         # let index = modulo(value: hash_key(key), divisor: n_buckets)
-        let index = modulo(value: elf_hash(text: key), divisor: n_buckets)
+        let index = modulo(value: djb2(text: key), divisor: n_buckets)
         let list = buckets[index]
         list
 

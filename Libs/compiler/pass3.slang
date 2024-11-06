@@ -7,6 +7,7 @@ from utils import log_info, panic
 from errors import new_error, new_errors, CompilationError, SingleCompilationError
 from datatypes import List, Option
 from dicttype import Dictionary
+from vectype import Vector, new_vector, new_vector_with_capacity
 
 
 fn resolve_newops(module: ast.Module, id_gen: IdGen) except CompilationError:
@@ -48,7 +49,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                 GetIndex(base, indici):
                     case base.kind:
                         TypeConstructor(tycon):
-                            let type_arguments: List[ast.Type] = List()
+                            let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: indici.len())
                             for index in indici:
                                 type_arguments.append(newop.eval_type_expr(expression: index))
                             let ty = ast.apply_tycon(tycon, type_arguments)
@@ -200,14 +201,14 @@ class NewOp:
         errors.append(new_error(location, message))
     
     fn turn_tycon_to_type(tycon: ast.TyCon) -> ast.Type:
-        let type_arguments: List[ast.Type] = List()
+        let type_arguments: Vector[ast.Type] = new_vector()
         for tp in ast.tycon_get_type_parameters(tycon):
             let type_var: ast.TypeVariable = ast.new_type_var(unique: new_id())
             type_arguments.append(ast.new_type_var_ref(type_var))
         ast.apply_tycon(tycon, type_arguments)
     
-    fn new_type_arguments(type_parameters: List[ast.TypeParameter]) -> List[ast.Type]:
-        let type_arguments: List[ast.Type] = List()
+    fn new_type_arguments(type_parameters: List[ast.TypeParameter]) -> Vector[ast.Type]:
+        let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: type_parameters.len())
         for tp in type_parameters:
             let type_var = ast.new_type_var(unique: new_id())
             let type_arg = ast.new_type_var_ref(type_var)

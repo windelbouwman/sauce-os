@@ -16,7 +16,7 @@ from basepass import IdGen
 from typechecking import type_check_modules
 from datatypes import List, list1, list2, list3, list4
 from datatypes import Option, option_unwrap_or, option_unwrap, option_is_none, option_is_some
-from vectype import vec2, vec3, vec4, Vector, new_vector
+from vectype import vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
 from dicttype import Dictionary
 from errors import CompilationError
 import ast
@@ -509,10 +509,11 @@ fn transformer_on_expression7(transformer: Transformer, expression: ast.Expressi
                     # Perform type erasure on struct literal values
                     let field_types = ty.get_field_types()
                     assert(condition: values.len() == field_types.len(), message: "values and field-types must be the same length")
-                    let fti = field_types.iter()
+                    let index = 0
                     for value in values:
-                        let ft = option_unwrap(fti.next())
+                        let ft = field_types[index]
                         transformer.class_rewriter.erase_type(ft, value, assign: false)
+                        index += 1
 
                 UnionLiteral(ty, attr, value):
                     # Perform type erasure on union literal value
@@ -608,7 +609,7 @@ class ClassRewriter:
         builder.set_name(name: class_def.id.name)
         builder.set_id(id: get_unique_id())
 
-        let type_arguments: List[ast.Type] = List()
+        let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: class_def.type_parameters.len())
         for type_parameter in class_def.type_parameters:
             let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
             type_arguments.append(type_parameter_ref)
@@ -635,7 +636,7 @@ class ClassRewriter:
         create_constructor(class_def, struct_def)
 
     fn lift_method(method: ast.FunctionDef, class_def: ast.ClassDef, struct_def: ast.StructDef):
-        let type_arguments: List[ast.Type] = List()
+        let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: class_def.type_parameters.len())
         for type_parameter in class_def.type_parameters:
             type_parameter = ast.new_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
             method.type_parameters.append(type_parameter)
@@ -654,7 +655,7 @@ class ClassRewriter:
         let ctor_name = "{class_def.id.name}_ctor"
         let type_parameters: List[ast.TypeParameter] = List()
         let except_type = ast.void_type()
-        let type_arguments: List[ast.Type] = List()
+        let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: class_def.type_parameters.len())
         for type_parameter in class_def.type_parameters:
             type_parameter = ast.new_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
             type_parameters.append(type_parameter)
@@ -726,7 +727,7 @@ class ClassRewriter:
         let symbol = option_unwrap(rt_module.scope.lookup(name))
         case symbol:
             Function(function_def):
-                let type_arguments: List[ast.Type] = List()
+                let type_arguments: Vector[ast.Type] = new_vector()
                 ast.function_ref(function_def, type_arguments, location)
         else:
             panic("{name} must be external function")
@@ -903,7 +904,7 @@ class ClassRewriter:
             builder2.set_id(get_unique_id())
             builder2.set_is_union(true)
 
-            let type_arguments2: List[ast.Type] = List()
+            let type_arguments2: Vector[ast.Type] = new_vector_with_capacity(capacity: enum_def.type_parameters.len())
             for type_parameter in enum_def.type_parameters:
                 let type_parameter_ref2 = builder2.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
                 type_arguments2.append(type_parameter_ref2)
@@ -938,7 +939,7 @@ class ClassRewriter:
             builder.set_name(name: enum_def.id.name)
             builder.set_id(get_unique_id())
 
-            let type_arguments: List[ast.Type] = List()
+            let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: enum_def.type_parameters.len())
             for type_parameter in enum_def.type_parameters:
                 let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
                 type_arguments.append(type_parameter_ref)
@@ -1133,11 +1134,11 @@ class ClassRewriter:
                     FunctionRef(function_def, type_arguments):
                         # TODO: check for existing bridge functions!
                         let bridge_function = create_bridge_function(function_def, parameter_types, return_type)
-                        value.kind = ast.ExpressionKind.FunctionRef(bridge_function, type_arguments: List())
+                        value.kind = ast.ExpressionKind.FunctionRef(bridge_function, type_arguments: new_vector())
                 else:
                     panic("Can only bridge a function reference")
 
-    fn create_bridge_function(function_def: ast.FunctionDef, parameter_types: List[ast.Type], return_type: ast.Type) -> ast.FunctionDef:
+    fn create_bridge_function(function_def: ast.FunctionDef, parameter_types: Vector[ast.Type], return_type: ast.Type) -> ast.FunctionDef:
         # Create a bridge function which takes potential opaque parameters
         # and calls the specific function with opaque types casted.
         let location = function_def.location
@@ -1148,9 +1149,10 @@ class ClassRewriter:
         let return_type2 = function_def.info.return_type
         assert(condition: function_def.info.except_type.is_void(), message: "Bridge function only supports non-throwing functions")
         let except_type = ast.void_type()
-        let pti = parameter_types.iter()
+        let index = 0
         for parameter in function_def.parameters:
-            let pt = option_unwrap(pti.next())
+            let pt = parameter_types[index]
+            index += 1
             let needs_cast = needs_opaque_cast(pt)
 
             let ty = parameter.ty
@@ -1168,7 +1170,7 @@ class ClassRewriter:
                 argument.value = ast.unbox(value: argument.value, to_type: parameter.ty, location)
             arguments.append(argument)
 
-        let function_ref = ast.function_ref(function_def, type_arguments: List(), location)
+        let function_ref = ast.function_ref(function_def, type_arguments: new_vector(), location)
         let function_call = ast.call(callee: function_ref, arguments, ty: ast.void_type(), location)
         let body = ast.pass_statement(location)
         if return_type2.is_void():
