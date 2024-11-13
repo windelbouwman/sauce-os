@@ -86,6 +86,8 @@ class CustomLarkLexer(LarkLexer):
             "!=": "NOT_EQUALS",
             "+=": "PLUS_EQUALS",
             "-=": "MINUS_EQUALS",
+            "*=": "ASTERIX_EQUALS",
+            "/=": "SLASH_EQUALS",
             "-": "MINUS",
             "+": "PLUS",
             "*": "ASTERIX",
@@ -852,7 +854,7 @@ break_statement: KW_BREAK
 continue_statement: KW_CONTINUE
 pass_statement: KW_PASS
 return_statement: KW_RETURN test?
-assignment_statement: test (EQUALS | PLUS_EQUALS | MINUS_EQUALS) test
+assignment_statement: test (EQUALS | PLUS_EQUALS | MINUS_EQUALS | ASTERIX_EQUALS | SLASH_EQUALS) test
 
 raise_statement: KW_RAISE expression
 try_statement: KW_TRY block KW_EXCEPT LEFT_PARENTHESIS parameter RIGHT_PARENTHESIS block
@@ -943,7 +945,7 @@ labeled_expression: test
 %declare COLON COMMA DOT ARROW QUESTION
 %declare MINUS PLUS ASTERIX SLASH
 %declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS NOT_EQUALS
-%declare EQUALS PLUS_EQUALS MINUS_EQUALS
+%declare EQUALS PLUS_EQUALS MINUS_EQUALS ASTERIX_EQUALS SLASH_EQUALS
 %declare BITAND BITOR BITXOR SHR SHL
 
 %declare INDENT DEDENT NEWLINE EOF

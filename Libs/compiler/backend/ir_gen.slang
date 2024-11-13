@@ -609,7 +609,7 @@ class BytecodeGenerator:
             parameter_types.append(bc.TypedName(name: "x", ty: get_bc_type(p2.ty)))
         let return_type2 = callee.ty.get_return_type()
         let return_type: Option[bc.Type] = if return_type2.is_void():
-            Option[bc.Type].None()
+            Option.None()
         else:
             Option.Some(get_bc_type(return_type2))
         emit(Instruction.CallIndirect(parameter_types, return_type))

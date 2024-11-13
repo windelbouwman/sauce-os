@@ -261,7 +261,7 @@ class Type:
                                 else:
                                     panic("Struct field must be ")
                             None:
-                                Option[Type].None()
+                                Option.None()
                     Class(class_def):
                         case class_def.scope.lookup(name: attr):
                             Some(sym):
@@ -274,11 +274,11 @@ class Type:
                                 else:
                                     panic("class must contain func/vars")
                             None:
-                                Option[Type].None()
+                                Option.None()
                 else:
-                    Option[Type].None()
+                    Option.None()
         else:
-            Option[Type].None()
+            Option.None()
 
     fn get_field_types() -> Vector[Type]:
         case kind:
@@ -451,6 +451,9 @@ fn subst(ty: Type, m: Dictionary[Type]) -> Type:
         Array(element_type, size):
             element_type = subst(ty: element_type, m)
             array_type(element_type, size)
+        Pointer(pointed_type):
+            pointed_type = subst(ty: pointed_type, m)
+            pointer_type(pointed_type)
         App(tycon, type_arguments):
             apply_tycon(tycon, type_arguments: subst_many(typs: type_arguments, m))
     else:
@@ -525,9 +528,9 @@ fn get_enum_variant(enum_def: EnumDef, attr: str) -> Option[EnumVariant]:
                     Option.Some(v)
             else:
                 # panic("get_enum_variant: symbol must be ")
-                Option[EnumVariant].None()
+                Option.None()
         None:
-            Option[EnumVariant].None()
+            Option.None()
 
 fn get_enum_variant_names_from_type(ty?: Type) -> List[str]:
     let enum_def = ty.get_enum_def()
@@ -584,6 +587,7 @@ enum TypeKind:
     TypeParam(type_parameter: TypeParameter)
     TypeVar(type_variable: TypeVariable)
     Array(element_type: Type, size: int)
+    Pointer(pointed_type: Type)
     
     # Application of a type-constructor:
     App(tycon: TyCon, type_arguments: Vector[Type])
@@ -604,6 +608,8 @@ fn type_kind_to_string(kind: TypeKind) -> str:
             "TYPE-EXPR"
         Array(element_type, size):
             "ARRAY({element_type} x {size})"
+        Pointer(pointed_type):
+            "PTR({pointed_type})"
         Function(parameter_types, info):
             let typs = get_types_from_parameter_types(parameter_types)
             "FUNC-TYPE({types_to_string(typs)},{info.return_type},{info.except_type})"
@@ -808,6 +814,9 @@ fn opaque_type() -> Type:
 
 fn undefined_type() -> Type:
     new_type(kind: TypeKind.Undefined())
+
+fn pointer_type(pointed_type: Type) -> Type:
+    new_type(kind: TypeKind.Pointer(pointed_type))
 
 fn array_type(element_type: Type, size: int) -> Type:
     new_type(kind: TypeKind.Array(element_type, size))
@@ -1152,7 +1161,7 @@ fn get_parameter_types_from_parameters(parameters: List[ParameterDef]) -> Vector
     let parameter_types: Vector[ParameterType] = new_vector_with_capacity(capacity: parameters.len())
     for parameter in parameters:
         let label: Option[str] = if parameter.label_is_optional:
-            Option[str].None()
+            Option.None()
         else:
             Option.Some(parameter.id.name)
         parameter_types.append(ParameterType(label, ty: parameter.ty))
@@ -1321,7 +1330,7 @@ fn case_statement(value: Expression, arms: List[CaseArm], else_clause: Option[St
         Some(body):
             Option.Some(scoped_block(body))
         None:
-            Option[ScopedBlock].None()
+            Option.None()
     let case_statement = CaseStatement(value, arms, else_block)
     statement(kind: StatementKind.Case(case_statement), location)
 
@@ -1990,6 +1999,8 @@ fn visit_type[T](visitor: Visitor[T], ty: Type):
                     pass
         Array(element_type, size):
             visit_type(visitor, ty: element_type)
+        Pointer(pointed_type):
+            visit_type(visitor, ty: pointed_type)
     else:
         pass
     visitor.on_type(data: visitor.data, ty, phase: VisitPhase.Post())

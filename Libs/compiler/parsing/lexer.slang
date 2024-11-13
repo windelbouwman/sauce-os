@@ -166,9 +166,15 @@ class Lexer:
         elif c == '?':
             TokenKind.Question()
         elif c == '/':
-            TokenKind.Slash()
+            if match('='):
+                TokenKind.SlashEquals()
+            else:
+                TokenKind.Slash()
         elif c == '*':
-            TokenKind.Asterix()
+            if match('='):
+                TokenKind.AsterixEquals()
+            else:
+                TokenKind.Asterix()
         elif is_lf(c):
             TokenKind.NewLine()
         elif is_digit(c):

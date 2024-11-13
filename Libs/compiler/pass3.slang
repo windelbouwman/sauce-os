@@ -181,11 +181,11 @@ class NewOp:
                         Some(element_type):
                             Option.Some(ast.array_type(element_type, size: 0))
                         None:
-                            Option[ast.Type].None()
+                            Option.None()
                 else:
-                    Option[ast.Type].None()
+                    Option.None()
         else:
-            Option[ast.Type].None()
+            Option.None()
 
     fn eval_type_expr(expression: ast.Expression) -> ast.Type:
         # Try to use this expression as a type.

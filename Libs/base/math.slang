@@ -63,7 +63,7 @@ fn factorial(x?: int) -> int:
         let r = x
         while x > 2:
             x -= 1
-            r = r * x
+            r *= x
         r
 
 fn sin(x?: float) -> float:
@@ -169,7 +169,7 @@ fn log(x?: float) -> float:
             # log(x) = log(p*q^r) = log(p) + r * log(q)
             let r = 0
             while x > q:
-                x = x / q
+                x /= q
                 r += 1
             log(x) + r * log(q)
         else:

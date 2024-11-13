@@ -110,12 +110,12 @@ class Axis:
         upper - lower
 
     fn scale(factor: float):
-        lower = lower * factor
-        upper = upper * factor
+        lower *= factor
+        upper *= factor
     
     fn pan(delta: float):
-        lower = lower + delta
-        upper = upper + delta
+        lower += delta
+        upper += delta
 
 class Curve:
     var points: List[DataPoint]

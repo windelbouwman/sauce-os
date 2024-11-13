@@ -88,6 +88,8 @@ enum TokenKind:
     NotEquals
     PlusEquals
     MinusEquals
+    AsterixEquals
+    SlashEquals
 
     # White-space:
     Space(amount: int)
@@ -222,6 +224,10 @@ fn token_to_string(tok: Token) -> str:
             "+="
         MinusEquals:
             "-="
+        AsterixEquals:
+            "*="
+        SlashEquals:
+            "/="
         Less:
             "<"
         LessEquals:

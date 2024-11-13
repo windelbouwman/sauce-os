@@ -292,7 +292,7 @@ class ListIter[T]:
         let opt = next_element
         case opt:
             None:
-                Option[T].None()
+                Option.None()
             Some(nxt_element):
                 let x = Option.Some(nxt_element.data)
                 next_element = nxt_element.next

@@ -84,7 +84,7 @@ fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
                 Intern(scoped_block):
                     Option.Some(scoped_block.scope)
                 Extern(libname):
-                    Option[ast.Scope].None()
+                    Option.None()
         Enum(enum_def):
             Option.Some(enum_def.scope)
         Struct(struct_def):
@@ -92,7 +92,7 @@ fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
         Class(class_def):
             Option.Some(class_def.scope)
         Var(v):
-            Option[ast.Scope].None()
+            Option.None()
 
 fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: ast.VisitPhase):
     case phase:

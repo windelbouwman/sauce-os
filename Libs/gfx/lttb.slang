@@ -47,8 +47,8 @@ fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
             avg_x += p3.x
             avg_y += p3.y
             j += 1
-        avg_x = avg_x / count3
-        avg_y = avg_y / count3
+        avg_x /= count3
+        avg_y /= count3
 
         # Pick point that makes maximum triangle from bucket 2 (current):
         j = start2

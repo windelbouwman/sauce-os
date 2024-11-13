@@ -74,6 +74,8 @@ fn assign_types(variables: List[ast.Variable], types: Vector[ast.Type]):
         index += 1
 
 fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: ast.VisitPhase):
+    if checker.was_errors:
+        return
     case phase:
         Pre:
             if statement.is_breakable():
@@ -93,6 +95,8 @@ fn checker_on_statement(checker: TypeChecker, statement: ast.Statement, phase: a
         pass
 
 fn checker_on_expression(checker: TypeChecker, expression: ast.Expression, phase: ast.VisitPhase):
+    if checker.was_errors:
+        return
     case phase:
         Post:
             checker.check_expression(expression)
@@ -181,9 +185,6 @@ class TypeChecker:
             pass
 
     fn check_statement(statement: ast.Statement):
-        if was_errors:
-            return
-
         case statement.kind:
             Let(let_statement):
                 case let_statement.type_hint:
@@ -273,9 +274,6 @@ class TypeChecker:
                 statement.ty = m_void_type
 
     fn check_expression(expression: ast.Expression):
-        if was_errors:
-            return
-
         case expression.kind:
             Call(call):
                 if call.callee.ty.is_function_type():
@@ -557,7 +555,13 @@ class TypeChecker:
                 None:
                     if ty2.is_type_var():
                         let type_var2: ast.TypeVariable = ty2.get_type_var()
-                        ast.type_var_equals(type_var1, type_var2)
+                        case type_var2.ty:
+                            None:
+                                ast.type_var_equals(type_var1, type_var2)
+                            Some(assigned_ty):
+                                type_var1.ty = Option.Some(assigned_ty)
+                                ty1.change_to(to_type: assigned_ty)
+                                true
                     else:
                         type_var1.ty = Option.Some(ty2)
                         ty1.change_to(to_type: ty2)

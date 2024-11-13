@@ -143,7 +143,7 @@ fn int_to_hex_string(value?: int) -> str:
     let n = 8
     while n > 0:
         let c = hex_char(value & 0xF)
-        value = value / 16
+        value /= 16
         text = "{c}{text}"
         n -= 1
     text

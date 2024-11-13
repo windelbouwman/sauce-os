@@ -14,7 +14,7 @@ fn find(pattern: str, text: str) -> Option[str]:
     if matches.len() > 0:
         Option.Some(matches.first())
     else:
-        Option[str].None()
+        Option.None()
 
 fn find_all(pattern: str, text: str) -> List[str]:
     """ Find all regular expression in the given text. """

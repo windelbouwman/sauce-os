@@ -46,12 +46,23 @@ class Parser:
         m_peek2 = lex.next_token()
     
     fn parse_module(filename: str, name: str) -> ast.Module except CompilationError:
-        let definitions: List[ast.Definition] = List()
-        let imports: List[ast.Import] = List()
         this.filename = Option.Some(filename)
         this.modname = Option.Some(name)
         let docstring = parse_optional_docstring()
 
+        let imports: List[ast.Import] = List()
+        loop:
+            case m_peek.kind:
+                KwImport:
+                    move_token()
+                    imports.append(parse_import())
+                KwFrom:
+                    move_token()
+                    imports.append(parse_from_import())
+            else:
+                break
+
+        let definitions: List[ast.Definition] = List()
         loop:
             let tok = get_token()
             let is_pub = false
@@ -59,17 +70,13 @@ class Parser:
                 KwPub:
                     is_pub = true
                     tok = get_token()
+                Eof:
+                    # We are done!
+                    break
             else:
                 pass
             
             case tok.kind:
-                Eof:
-                    # We are done!
-                    break
-                KwImport:
-                    imports.append(parse_import())
-                KwFrom:
-                    imports.append(parse_from_import())
                 KwMacro:
                     let macro_def = parse_macro_def()
                     definitions.append(ast.Definition.Macro(macro_def))
@@ -351,7 +358,7 @@ class Parser:
                 move_token()
                 parse_type()
         else:
-            ast.void_type()
+            id_gen.m_void_type
 
     fn parse_optional_except_type() -> ast.Type except CompilationError:
         # Optional except type
@@ -360,7 +367,7 @@ class Parser:
                 move_token()
                 parse_type()
         else:
-            ast.void_type()
+            id_gen.m_void_type
 
     fn parse_parameter_def() -> ast.ParameterDef except CompilationError:
         let name_at = parse_name()
@@ -377,7 +384,7 @@ class Parser:
                 parse_newline()
                 Option.Some(value)
         else:
-            Option[str].None()
+            Option.None()
 
     fn has_parsed_question() -> bool:
         case m_peek.kind:
@@ -399,7 +406,7 @@ class Parser:
                 move_token()
                 Option.Some(parse_expression())
         else:
-            Option[ast.Expression].None()
+            Option.None()
 
         parse_newline()
         let variable = ast.variable(name, id: new_id(), ty, location: name_at.location)
@@ -442,7 +449,7 @@ class Parser:
 
         # Optional return type
         let return_type = parse_optional_return_type()
-        let except_type = ast.void_type()
+        let except_type = id_gen.m_void_type
 
         let info = ast.FunctionInfo:
             return_type
@@ -517,12 +524,16 @@ class Parser:
                 parse_assignement_expression(target: expr, op: Option.Some(ast.BinaryOperator.Add()), location: tok.location)
             MinusEquals:
                 parse_assignement_expression(target: expr, op: Option.Some(ast.BinaryOperator.Sub()), location: tok.location)
+            AsterixEquals:
+                parse_assignement_expression(target: expr, op: Option.Some(ast.BinaryOperator.Mul()), location: tok.location)
+            SlashEquals:
+                parse_assignement_expression(target: expr, op: Option.Some(ast.BinaryOperator.Div()), location: tok.location)
             NewLine:
                 ast.expression_statement(expr)
             Colon:
                 ast.expression_statement(expr: parse_obj_init(obj_ty: expr, location: tok.location))
         else:
-            raise unexpected_token(tok, expected: "newline, ':', '=', '+=' or '-='")
+            raise unexpected_token(tok, expected: "newline, ':', '=', '+=', '-=', '*=' or '/='")
     
     fn parse_assignement_expression(target: ast.Expression, op: Option[ast.BinaryOperator], location: Location) -> ast.Statement except CompilationError:
         let value = parse_expression()
@@ -542,7 +553,7 @@ class Parser:
                 # Type hint!
                 Option.Some(parse_type())
         else:
-            Option[ast.Type].None()
+            Option.None()
 
         parse_equals()
 
@@ -601,7 +612,7 @@ class Parser:
             NameRef(name2):
                 Option.Some(name2)
         else:
-            Option[str].None()
+            Option.None()
         ast.LabeledExpression(location: value.location, name, value)
 
     fn parse_if_statement() -> ast.Statement except CompilationError:
@@ -690,7 +701,7 @@ class Parser:
                 move_token()
                 Option.Some(parse_block())
         else:
-            Option[ast.Statement].None()
+            Option.None()
         
         ast.case_statement(value: case_value, arms: case_arms, else_clause, location)
     
@@ -746,7 +757,7 @@ class Parser:
         let res_value: Option[ast.Expression] = case m_peek.kind:
             NewLine:
                 move_token()
-                Option[ast.Expression].None()
+                Option.None()
         else:
             let ret_val = parse_expression()
             parse_newline()

@@ -261,6 +261,9 @@ def subst(t: Type, m: dict["TypeParameter", Type]) -> Type:
         size = t.kind.size
         element_type = subst(t.kind.element_type, m)
         return array_type(size, element_type)
+    elif isinstance(t.kind, PointerType):
+        element_type = subst(t.kind.element_type, m)
+        return pointer_type(element_type)
     else:
         return t
 
@@ -459,6 +462,16 @@ class ArrayType(TypeKind):
 
     def __repr__(self):
         return f"Array({self.size} x {self.element_type})"
+
+
+class PointerType(TypeKind):
+    def __init__(self, element_type: Type):
+        super().__init__()
+        self.element_type = element_type
+
+
+def pointer_type(element_type) -> Type:
+    return Type(PointerType(element_type))
 
 
 def tycon_apply(tycon: TypeConstructor, type_args: list[Type]) -> Type:
