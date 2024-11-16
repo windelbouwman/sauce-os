@@ -180,7 +180,6 @@ class PyGenerator:
             panic("gen_statement: Unsupported: {statement}")
 
     fn gen_if_statement(if_statement: ast.IfStatement, kw: str, target: Option[str]):
-        let res = "__snag"
         emit("{kw} {gen_expression(if_statement.condition, parens: false)}:")
         gen_block(if_statement.true_block, target)
         case if_statement.false_block.body.kind:

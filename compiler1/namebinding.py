@@ -1,5 +1,4 @@
-""" Fill scopes with symbols and resolve names using these filled scopes.
-"""
+"""Fill scopes with symbols and resolve names using these filled scopes."""
 
 import logging
 from . import ast
@@ -30,6 +29,7 @@ def base_scope() -> ast.Scope:
     # Take a short-cut, and assume all float types are 'float':
     top_scope.define("float32", ast.float_type)
     top_scope.define("float64", ast.float_type)
+    top_scope.define("unreachable", ast.unreachable_type())
 
     return top_scope
 

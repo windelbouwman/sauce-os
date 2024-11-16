@@ -1,10 +1,9 @@
 
 # Data types for bytes
 
-from std import str_len, str_slice, ord, chr, str_get
+from std import str_len, ord, chr, str_get
 from utils import assert, panic
 from vectype import Vector, new_vector
-from datatypes import Option
 from strlib import hex_char, hex_digit_to_int, is_hex_digit, is_space
 
 class Bytes:

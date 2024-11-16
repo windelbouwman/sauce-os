@@ -1,7 +1,7 @@
 
 # Implement base64 encoding scheme
 
-from utils import unimplemented, panic
+from utils import panic
 from math import modulo
 from bytes import Bytes, ByteArray
 from std import str_get, str_len, ord

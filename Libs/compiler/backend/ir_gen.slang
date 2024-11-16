@@ -178,10 +178,14 @@ class BytecodeGenerator:
                     gen_scoped_block(scoped_block, target: Option.None())
                     emit(Instruction.Unreachable())
                 else:
-                    let ty = get_bc_type(scoped_block.body.ty)
-                    let index = new_local(name: "__SNAG", ty)
-                    gen_scoped_block(scoped_block, target: Option.Some(index))
-                    emit(Instruction.LocalGet(index))
+                    # If the last statement is an expression, we do not need the SNAG variable.
+                    if scoped_block.body.last_is_expr():
+                        gen_scoped_block(scoped_block, target: Option.None())
+                    else:
+                        let ty = get_bc_type(scoped_block.body.ty)
+                        let index = new_local(name: "__SNAG", ty)
+                        gen_scoped_block(scoped_block, target: Option.Some(index))
+                        emit(Instruction.LocalGet(index))
                     emit(Instruction.Return(n_arg: 1))
 
                 let instructions = get_relocated_instructions()
@@ -240,7 +244,7 @@ class BytecodeGenerator:
                         Some(index):
                             emit(Instruction.LocalSet(index))
                         None:
-                            panic("Cannot store value")
+                            pass
             Assignment(target, op, value):
                 gen_assignment(target, op, value)
             While(while_statement):

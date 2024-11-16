@@ -3,12 +3,12 @@
 
 import std
 from utils import panic, assert
-from std import print, ord, chr, str_slice, str_len
+from std import ord, chr, str_slice, str_len
 from std import str_to_float
 from token import Token, TokenKind
-from location import Location, location_at, Position
+from location import Location, location_at
 from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf
-from datatypes import List, Option
+from datatypes import List
 from deque import Queue, new_queue
 from dicttype import Dictionary
 
@@ -16,7 +16,7 @@ enum LexerMode:
     Normal
     String
 
-class Lexer:
+pub class Lexer:
     var pending: Queue[Token] = new_queue(capacity: 7)
     var indent_stack: List[int] = List()
     var at_bol: bool = true  # at begin-of-line (bol)

@@ -1,11 +1,11 @@
 
 from std import print, exit
 
-fn panic(message?: str) ?:
+fn panic(message?: str) -> unreachable:
     print("PANIC: {message}")
     exit(code: 1)
 
-fn unimplemented(message?: str) ?:
+fn unimplemented(message?: str) -> unreachable:
     panic("UNIMPLEMENTED: {message}")
 
 fn assert(condition: bool, message: str):

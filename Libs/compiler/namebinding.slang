@@ -1,5 +1,5 @@
 
-from utils import log_info, log_trace
+from utils import log_info, log_trace, log_error
 from location import Location
 from datatypes import List, Option, option_unwrap
 from dicttype import Dictionary
@@ -33,6 +33,17 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module], tycon_map:
     binder.enter_scope(scope: base_scope())
     binder.enter_scope(scope: module.scope)
     ast.visit_module(visitor: bind_visitor, module)
+    if false:
+        # check for unused imports
+        for imp in module.imports:
+            case imp.kind:
+                Self:
+                    pass
+                Names(names):
+                    for name in names:
+                        if module.scope.get_references(name) == 0:
+                            binder.add_error(location: imp.location, message:"Imported but unused: {name}")
+
     binder.leave_scope()
     binder.leave_scope()
 
@@ -380,6 +391,7 @@ fn base_scope() -> ast.Scope:
     s.define(name: "float", symbol: ast.Symbol.Typ(ty: ast.float_type()))
     s.define(name: "float32", symbol: ast.Symbol.Typ(ty: ast.float32_type()))
     s.define(name: "float64", symbol: ast.Symbol.Typ(ty: ast.float64_type()))
+    s.define(name: "unreachable", symbol: ast.Symbol.Typ(ty: ast.unreachable_type()))
     s
 
 class NameBinder:
@@ -391,15 +403,17 @@ class NameBinder:
         for scope in scopes:
             case scope.lookup(name):
                 Some(symbol):
-                    let introduce_this = false
-                    if scope.class_scope:
+                    scope.add_reference(name)
+                    let introduce_this = if scope.class_scope:
                         case symbol:
                             Function(function_def):
-                                introduce_this = true
+                                true
                             Var(var_def):
-                                introduce_this = true
+                                true
                         else:
-                            pass
+                            false
+                    else:
+                        false
 
                     if introduce_this:
                         let base = option_unwrap(lookup3(name: "this", location))
@@ -427,7 +441,7 @@ class NameBinder:
         scopes.prepend(scope)
     
     fn leave_scope():
-        let unused = scopes.pop_front()
+        scopes.drop_front()
     
     fn add_error(location: Location, message: str):
         let err = new_error(location, message)

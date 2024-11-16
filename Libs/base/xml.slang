@@ -3,7 +3,7 @@
 
 from std import print, str_len
 from std import file_writeln, file_open, file_close
-from utils import panic, unimplemented
+from utils import unimplemented
 from datatypes import List
 from datatypes import Option, option_unwrap, option_is_some
 from strlib import str_join, str_repeat

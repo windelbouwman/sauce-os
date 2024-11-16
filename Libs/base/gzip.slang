@@ -2,11 +2,10 @@
 # See RFC-1952: GZIP file format.
 
 from datetime import unix_to_str
-from std import print
 from math import modulo
 from utils import unimplemented, assert, log_debug
-from bytes import Bytes, ByteReader, ByteArray
-from deflate import new_deflate_decoder, BitReader
+from bytes import Bytes, ByteArray
+from deflate import new_deflate_decoder
 from deflate import deflate_compress
 
 fn gzip_decompress(data?: Bytes) -> Bytes:

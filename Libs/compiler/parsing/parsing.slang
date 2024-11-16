@@ -31,7 +31,7 @@ fn parse_expr_from_text(source: str, id_gen: IdGen) -> ast.Expression except Com
     parser.feed(source)
     parser.parse_expression()
 
-class Parser:
+pub class Parser:
     # An attempt at a recursive descent parser.
     var lex: Lexer = Lexer()
     var m_peek: Token = default_token()
@@ -50,7 +50,7 @@ class Parser:
         this.modname = Option.Some(name)
         let docstring = parse_optional_docstring()
 
-        let imports: List[ast.Import] = List()
+        let imports: Vector[ast.Import] = new_vector()
         loop:
             case m_peek.kind:
                 KwImport:
@@ -142,14 +142,6 @@ class Parser:
 
         ast.import_names(modname: modname.name, location: modname.location, names)
 
-    fn parse_pub() -> bool:
-        case m_peek.kind:
-            KwPub:
-                move_token()
-                true
-        else:
-            false
-    
     fn parse_macro_def() -> ast.MacroDef except CompilationError:
         # unimplemented("macro-def")
         let name_at = parse_name()
@@ -261,7 +253,17 @@ class Parser:
         let this_type = ast.undefined_type()
         loop:
             # expect var/fn def or dedent (eventually)
+            let is_pub = false
             let tok = get_token()
+            case tok.kind:
+                KwPub:
+                    is_pub = true
+                    tok = get_token()
+                Dedent:
+                    break
+            else:
+                pass
+
             case tok.kind:
                 KwVar:
                     let var_def = parse_var_def()
@@ -270,10 +272,8 @@ class Parser:
                     let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
                     let func_def = parse_func_def(this_parameter: Option.Some(this_parameter))
                     inner_defs.append(ast.Definition.Function(func_def))
-                Dedent:
-                    break
             else:
-                raise unexpected_token(tok, expected: "field or dedent")
+                raise unexpected_token(tok, expected: "'var' or 'fn'")
 
         let class_def = ast.ClassDef:
             id: ast.NodeId(name: name_at.name, id: new_id())
@@ -346,9 +346,6 @@ class Parser:
     fn parse_function_info() -> ast.FunctionInfo except CompilationError:
         let return_type = parse_optional_return_type()
         let except_type = parse_optional_except_type()
-
-        if has_parsed_question():
-            return_type = ast.unreachable_type()
         ast.FunctionInfo(return_type, except_type)
 
     fn parse_optional_return_type() -> ast.Type except CompilationError:
@@ -415,7 +412,6 @@ class Parser:
     fn parse_type() -> ast.Type except CompilationError:
         case m_peek.kind:
             KwFn:
-                move_token()
                 parse_function_type()
         else:
             let expr = parse_expression()
@@ -423,6 +419,7 @@ class Parser:
     
     fn parse_function_type() -> ast.Type except CompilationError:
         """ Parse function signature. """
+        move_token()
 
         # '('
         parse_parenthesis_open()

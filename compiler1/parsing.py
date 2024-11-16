@@ -179,13 +179,13 @@ class CustomTransformer(LarkTransformer):
         return x[0]
 
     def class_def(self, x):
-        # class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
-        location, name, type_parameters = x[1]
-        assert is_terminal(x[2], "COLON")
-        assert is_terminal(x[3], "NEWLINE")
-        assert is_terminal(x[4], "INDENT")
-        docstring = x[5]
-        members = x[6:-1]
+        # class_def: is_pub KW_CLASS id_and_type_parameters COLON NEWLINE INDENT (func_def | var_def)+ DEDENT
+        location, name, type_parameters = x[2]
+        assert is_terminal(x[3], "COLON")
+        assert is_terminal(x[4], "NEWLINE")
+        assert is_terminal(x[5], "INDENT")
+        _docstring = x[6]
+        members = x[7:-1]
         assert is_terminal(x[-1], "DEDENT")
         this_type = ast.void_type.clone()
         for member in members:
@@ -194,7 +194,7 @@ class CustomTransformer(LarkTransformer):
                     self.new_id("this"), False, this_type, member.location
                 )
                 member.this_parameter = this_parameter
-        span = get_loc2(x[4], x[-1])
+        span = get_loc2(x[5], x[-1])
         class_def = ast.class_def(
             self.new_id(name), type_parameters, members, location, span
         )
@@ -207,29 +207,37 @@ class CustomTransformer(LarkTransformer):
         return class_def
 
     def var_def(self, x):
-        # var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
-        location = get_loc(x[1])
-        name = x[1].value
-        ty = x[3]
-        if is_terminal(x[4], "EQUALS"):
-            value = x[5]
+        # var_def: is_pub KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
+        location = get_loc(x[2])
+        name = x[2].value
+        ty = x[4]
+        if is_terminal(x[5], "EQUALS"):
+            value = x[6]
+            assert is_terminal(x[7], "NEWLINE")
         else:
             value = None
+            assert is_terminal(x[5], "NEWLINE")
         return ast.var_def(self.new_id(name), ty, value, location)
 
+    def is_pub(self, x):
+        if len(x) == 1:
+            assert is_terminal(x[0], "KW_PUB")
+            return True
+        else:
+            return False
+
     def func_def(self, x):
-        # KW_PUB? KW_FN id_and_type_parameters function_signature COLON NEWLINE INDENT docstring statement+ DEDENT
-        if is_terminal(x[0], "KW_PUB"):
-            x = x[1:]
-        location, name, type_parameters = x[1]
-        parameters, return_type, except_type = x[2]
-        assert is_terminal(x[3], "COLON")
-        assert is_terminal(x[4], "NEWLINE")
-        assert is_terminal(x[5], "INDENT")
-        docstring = x[6]
-        statements = x[7:-1]
-        span = get_loc2(x[3], x[-1])
-        body = ast.compound_statement(statements, get_loc(x[5]))
+        # is_pub KW_FN id_and_type_parameters function_signature COLON NEWLINE INDENT docstring statement+ DEDENT
+        # x = x[1:]
+        location, name, type_parameters = x[2]
+        parameters, return_type, except_type = x[3]
+        assert is_terminal(x[4], "COLON")
+        assert is_terminal(x[5], "NEWLINE")
+        assert is_terminal(x[6], "INDENT")
+        _docstring = x[7]
+        statements = x[8:-1]
+        span = get_loc2(x[4], x[-1])
+        body = ast.compound_statement(statements, get_loc(x[6]))
         assert is_terminal(x[-1], "DEDENT")
 
         return ast.function_def(
@@ -274,11 +282,6 @@ class CustomTransformer(LarkTransformer):
         else:
             except_type = ast.void_type
 
-        if x and is_terminal(x[0], "QUESTION"):
-            return_type = ast.unreachable_type()
-        else:
-            pass
-
         return parameters, return_type, except_type
 
     def parameters(self, x):
@@ -308,7 +311,7 @@ class CustomTransformer(LarkTransformer):
         assert is_terminal(x[2], "COLON")
         assert is_terminal(x[3], "NEWLINE")
         assert is_terminal(x[4], "INDENT")
-        docstring = x[5]
+        _docstring = x[5]
         fields = x[6:-1]
         assert is_terminal(x[-1], "DEDENT")
         span = get_loc2(x[4], x[-1])
@@ -326,7 +329,7 @@ class CustomTransformer(LarkTransformer):
         assert is_terminal(x[2], "COLON")
         assert is_terminal(x[3], "NEWLINE")
         assert is_terminal(x[4], "INDENT")
-        docstring = x[5]
+        _docstring = x[5]
         variants = x[6:-1]
         assert is_terminal(x[-1], "DEDENT")
         span = get_loc2(x[4], x[-1])
@@ -670,6 +673,8 @@ class CustomTransformer(LarkTransformer):
             return ast.function_call(callee, arguments, span)
         elif len(x) > 2 and is_terminal(x[0], "LEFT_PARENTHESIS"):
             return x[1]
+        elif len(x) > 2 and is_terminal(x[0], "KW_NEW"):
+            raise NotImplementedError(str(x))
         elif len(x) > 2 and is_terminal(x[1], "LEFT_BRACKET"):
             base = x[0]
             index = x[2]
@@ -804,14 +809,15 @@ definition: func_def
           | extern_func_def
           | interface_def
 
-class_def: KW_CLASS id_and_type_parameters COLON NEWLINE INDENT docstring (func_def | var_def)+ DEDENT
-var_def: KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
-func_def: KW_PUB? KW_FN id_and_type_parameters function_signature COLON NEWLINE INDENT docstring statement+ DEDENT
+is_pub: KW_PUB?
+class_def: is_pub KW_CLASS id_and_type_parameters COLON NEWLINE INDENT docstring (func_def | var_def)+ DEDENT
+var_def: is_pub KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
+func_def: is_pub KW_FN id_and_type_parameters function_signature COLON NEWLINE INDENT docstring statement+ DEDENT
 extern_func_def: KW_EXTERN rawstring KW_FN id_and_type_parameters function_signature NEWLINE
 func_decl: KW_FN id_and_type_parameters function_signature NEWLINE
 interface_def: KW_INTERFACE id_and_type_parameters COLON NEWLINE INDENT func_decl+ DEDENT
 docstring: (DOCSTRING NEWLINE)?
-function_signature: LEFT_PARENTHESIS parameters? RIGHT_PARENTHESIS (ARROW typ)? (KW_EXCEPT typ)? QUESTION?
+function_signature: LEFT_PARENTHESIS parameters? RIGHT_PARENTHESIS (ARROW typ)? (KW_EXCEPT typ)?
 parameters: parameter
           | parameters COMMA parameter
 parameter: ID QUESTION? COLON typ
@@ -902,6 +908,8 @@ term: term mulop factor
 mulop: ASTERIX | SLASH
 factor: atom
       | MINUS factor
+      | PLUS factor
+      | BITAND factor
 
 atom: obj_ref
     | literal
@@ -939,7 +947,7 @@ labeled_expression: test
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
 %declare KW_RETURN KW_STRUCT KW_UNION KW_SWITCH KW_TYPE KW_VAR KW_WHILE
 %declare KW_RAISE KW_TRY KW_EXCEPT KW_EXTERN
-%declare KW_INTERFACE
+%declare KW_INTERFACE KW_NEW
 
 %declare LEFT_PARENTHESIS RIGHT_PARENTHESIS LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON COMMA DOT ARROW QUESTION

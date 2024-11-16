@@ -2,7 +2,6 @@
 # A graph consists of nodes and edges between them.
 # There are directed and undirected graph types.
 
-from std import print
 from datatypes import List, Option
 from settype import StringSet
 from dicttype import Dictionary

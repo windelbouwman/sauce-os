@@ -54,7 +54,7 @@ fn ugh(token: Token) -> int:
         Id(name):
             4
 
-fn panic() ?:
+fn panic() -> unreachable:
     std.print("Oh noes!")
     std.exit(code: 2)
 

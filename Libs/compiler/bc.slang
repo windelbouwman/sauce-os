@@ -1,9 +1,10 @@
 
-from std import print, float_to_str
+from std import float_to_str
 from datatypes import List, Option
 from settype import IntegerSet
 from vectype import Vector
 from utils import panic
+from text_gen import TextGenerator
 
 struct Program:
     extern_functions: List[ExternFunction]
@@ -294,51 +295,87 @@ fn bitop_to_string(op: BitOperator) -> str:
         Or:
             "bit-or"
 
+fn print_bc_program_to_file(program: Program, filename: Option[str]):
+    let p = Printer()
+    p.m_out.begin(output_filename: filename)
+    p.m_out.m_one_tab = "  "
+    p.write_program(program)
+    p.m_out.end()
+
 fn print_bc_program(program: Program):
-    print("BYTECODE program")
-    let index = 0
-    let func_index = 0
-
-    for extern_function in program.extern_functions:
-        print("  EXTERN FUNC {func_index} {extern_function.name}")
-        func_index += 1
-
-    for struct0 in program.structs:
-        print("  STRUCT {index}")
-        for field in struct0.fields:
-            print("    -> {field.name}: {type_to_string(ty: field.ty)}")
-        index += 1
-
-    for global in program.globals:
-        print("  GLOBAL {global.name} {type_to_string(global.ty)}")
-        case global.value:
-            Some(value):
-                print_bc_instructions(instructions: value)
-            None:
-                pass
-
-    for function in program.functions:
-        print("  FUNC {func_index}: {function.name}")
-        func_index += 1
-        print("    PARAMETERS:")
-        for parameter in function.parameters:
-            print("      > {parameter.name}: {type_to_string(ty: parameter.ty)}")
-        case function.return_type:
-            Some(ty):
-                print("    RETURNS: {type_to_string(ty)}")
-            None:
-                pass
-        print("    LOCALS:")
-        for local in function.locals:
-            print("      > {local.name}: {type_to_string(ty: local.ty)}")
-        print("    CODE:")
-        print_bc_instructions(instructions: function.instructions)
+    print_bc_program_to_file(program, filename: Option.None())
 
 fn print_bc_instructions(instructions: Vector[Instruction]):
-    let index = 0
-    for instruction in instructions:
-        print("      {index}: {instruction_to_string(instruction)}")
-        index += 1
+    Printer().write_instructions(instructions)
+
+class Printer:
+    var m_out: TextGenerator = TextGenerator()
+
+    fn write_program(program: Program):
+        emit("BYTECODE program")
+        indent()
+        let index = 0
+        let func_index = 0
+
+        for extern_function in program.extern_functions:
+            emit("EXTERN FUNC {func_index} {extern_function.name}")
+            func_index += 1
+
+        for struct0 in program.structs:
+            emit("STRUCT {index}")
+            for field in struct0.fields:
+                emit("-> {field.name}: {type_to_string(ty: field.ty)}")
+            index += 1
+
+        for global in program.globals:
+            emit("GLOBAL {global.name} {type_to_string(global.ty)}")
+            case global.value:
+                Some(value):
+                    write_instructions(instructions: value)
+                None:
+                    pass
+
+        for function in program.functions:
+            emit("FUNC {func_index}: {function.name}")
+            indent()
+            func_index += 1
+            emit("PARAMETERS:")
+            indent()
+            for parameter in function.parameters:
+                emit("> {parameter.name}: {type_to_string(ty: parameter.ty)}")
+            dedent()
+            case function.return_type:
+                Some(ty):
+                    emit("RETURNS: {type_to_string(ty)}")
+                None:
+                    pass
+            emit("LOCALS:")
+            indent()
+            for local in function.locals:
+                emit("> {local.name}: {type_to_string(ty: local.ty)}")
+            dedent()
+            emit("CODE:")
+            indent()
+            write_instructions(instructions: function.instructions)
+            dedent()
+
+            dedent()
+        dedent()
+
+    fn write_instructions(instructions: Vector[Instruction]):
+        let index = 0
+        for instruction in instructions:
+            emit("{index}: {instruction_to_string(instruction)}")
+            index += 1
+    
+    fn indent():
+        m_out.indent()
+
+    fn dedent():
+        m_out.dedent()
+
+    fn emit(text?: str):
+        m_out.emit(text)
 
 fn type_to_string(ty?: Type) -> str:
     case ty:

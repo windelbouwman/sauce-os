@@ -1,6 +1,6 @@
 
-from std import float_to_str, print
-from utils import panic, unimplemented
+from std import float_to_str
+from utils import panic
 
 # TODO: make constant
 var pi: float = 3.1415926535897932384626433

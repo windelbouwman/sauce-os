@@ -1,6 +1,5 @@
 
 from utils import panic
-from std import str_len, str_slice, str_get
 
 enum Option[D]:
     Some(value?: D)

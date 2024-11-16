@@ -5,8 +5,7 @@
 # and when appendingwe might need to re-allocate the array and copy
 # the old values.
 
-from utils import panic, assert, unimplemented
-from datatypes import Option
+from utils import panic, assert
 
 fn new_vector[T]() -> Vector[T]:
     new_vector_with_capacity(capacity: 7)
@@ -60,7 +59,7 @@ class Vector[T]:
     fn is_empty() -> bool:
         m_size == 0
 
-    fn append(value?: T):
+    pub fn append(value?: T):
         if m_size == m_capacity:
             grow()
         m_elements[m_size] = value

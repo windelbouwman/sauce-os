@@ -4,14 +4,11 @@
 # - An association list
 # - A hashmap
 
-from datatypes import List, ListIter
+from datatypes import List
 from datatypes import Option, option_unwrap
 from hashmap import HashMap, HashMapIter
-from assoclist import AssociationList, AssociationListIter
 
 class Dictionary[T]:
-    # var items: AssociationList[T] = AssociationList()
-    # Or, use a hashmap:
     var items: HashMap[T] = HashMap()
 
     fn get(key: str) -> T:
@@ -48,7 +45,6 @@ class Dictionary[T]:
 
 class DictionaryIter[T]:
     var it2: HashMapIter[T]
-    # var it2: AssociationListIter[T]
 
     fn next() -> Option[str]:
         it2.next()

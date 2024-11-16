@@ -19,7 +19,7 @@ extern "slangrt" fn get_path_separator() -> char
 
 # '?' indicates that function does not return.
 # TODO: improve syntax for noreturn functions
-extern "slangrt" fn exit(code: int) ?
+extern "slangrt" fn exit(code: int) -> unreachable
 
 extern "slangrt" fn read_file(filename: str) -> str
 extern "slangrt" fn file_open(filename: str, mode: str) -> int

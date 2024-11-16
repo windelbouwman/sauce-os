@@ -296,7 +296,7 @@ class SymbolLoader:
         let mod_name = m_des.get_text_attribute(attr: "name")
         log_info("Load info for module: {mod_name}")
 
-        let imports: List[ast.Import] = List()
+        let imports: Vector[ast.Import] = new_vector()
         for import_obj in m_des.get_array_attribute(attr: "imports"):
             m_des.push_value(value: import_obj)
             imports.append(load_import())

@@ -2,11 +2,10 @@
 # Hash map data type.
 # Idea: have an array with buckets.
 
-from utils import panic
-from datatypes import List, ListIter, Option, option_unwrap
+from datatypes import List, Option, option_unwrap
 from assoclist import AssociationList, AssociationListIter
 from std import print, ord, str_len, str_get
-from hashlib import elf_hash, djb2
+from hashlib import djb2
 from math import modulo
 
 class HashMap[T]:
@@ -165,7 +164,6 @@ class HashMapIter[T]:
                     if index < m.n_buckets:
                         it2 = Option.Some(m.buckets[index].iter())
                         index += 1
-                        # panic("TODO")
                     else:
                         break
 

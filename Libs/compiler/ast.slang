@@ -4,7 +4,7 @@ from strlib import str_repeat, str_join
 from utils import panic, assert, log_info, log_error
 from location import Location, location_default
 from datatypes import List, Option, option_unwrap, option_is_some
-from vectype import Vector, new_vector, new_vector_with_capacity
+from vectype import Vector, new_vector_with_capacity
 from dicttype import Dictionary
 
 # Name coupled with global unique ID:
@@ -846,11 +846,11 @@ struct ModuleSet:
 struct Module:
     name: str
     filename: Option[str]
-    imports: List[Import]
+    imports: Vector[Import]
     definitions: List[Definition]
     scope: Scope
 
-fn new_module(name: str, filename: Option[str], imports: List[Import], definitions: List[Definition]) -> Module:
+fn new_module(name: str, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> Module:
     Module:
         name
         filename
@@ -902,6 +902,7 @@ fn extern_function_def(libname: str, name: str, type_parameters: List[TypeParame
 
 class Scope:
     var symbols: Dictionary[Symbol] = Dictionary()
+    var references: Dictionary[int] = Dictionary()
     var class_scope: bool = false
 
     fn define(name: str, symbol: Symbol):
@@ -913,6 +914,21 @@ class Scope:
 
     fn lookup(name: str) -> Option[Symbol]:
         symbols.maybe_get(key: name)
+    
+    fn add_reference(name: str):
+        # Register a reference to a symbol
+        case references.maybe_get(key: name):
+            None:
+                references.insert(key: name, value: 1)
+            Some(v):
+                references.insert(key: name, value: v + 1)
+
+    fn get_references(name: str) -> int:
+        case references.maybe_get(key: name):
+            None:
+                0
+            Some(v):
+                v
     
     fn dump():
         log_info("Scope:")
@@ -1238,6 +1254,16 @@ class Statement:
                 true
             For(x):
                 true
+        else:
+            false
+
+    fn last_is_expr() -> bool:
+        """ Determine if the last statement is an expression """
+        case kind:
+            Expr(e):
+                true
+            Compound(inner):
+                inner.last().last_is_expr()
         else:
             false
 
