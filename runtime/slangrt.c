@@ -114,12 +114,6 @@ SLANG_API char *std_float_to_str2(slang_float_t x, slang_int_t digits)
     return text;
 }
 
-SLANG_API slang_float_t std_str_to_float(char *x)
-{
-    double value = strtod(x, NULL);
-    return value;
-}
-
 char *rt_char_to_str(char x)
 {
     char *text = rt_malloc(2);

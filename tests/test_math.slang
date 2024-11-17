@@ -49,24 +49,19 @@ fn test_sqrt():
     assert_are_close(sqrt(25), 5)
 
 fn test_sin():
-    let x = 0.0
-    while x < 10:
-        # print("x={float_to_str(x)} sin(x)={float_to_str2(value: sin(x), digits: 20)} cos(x)={float_to_str2(value: cos(x), digits: 20)}")
-        x += 0.1
-
-    let pi = 3.1415926535897932384626433
+    let pi = 3.141592653589793
     check_sin(angle: 0, 0)
     check_sin(angle:0.5 * pi, 1)
     check_sin(angle: pi, 0)
     check_sin(angle: 1.5 * pi, -1)
     check_sin(angle: 2 * pi, 0)
-    check_sin(angle: 2, 0.9092974268256817)
+    check_sin(angle: 2, 0.90929742682568)
 
 fn check_sin(angle: float, value?: float):
     assert_are_close(sin(angle), value)
 
 fn test_cos():
-    let pi = 3.1415926535897932384626433
+    let pi = 3.141592653589793
     check_cos(angle: 0, 1)
     check_cos(angle: 0.5 * pi, 0)
     check_cos(angle: pi, -1)
@@ -79,7 +74,7 @@ fn check_cos(angle: float, value?: float):
 fn test_log():
     check_log10(10, expected: 1)
     check_log10(100, expected: 2)
-    check_log10(200, expected: 2.3010299956639813)
+    check_log10(200, expected: 2.30102999566398)
     check_log10(1, expected: 0)
     check_log10(1000, expected: 3)
 
@@ -89,10 +84,10 @@ fn check_log10(value?: float, expected: float):
 fn test_exp():
     check_exp(0, expected: 1)
     check_exp(1, expected: 2.718281828459045)
-    check_exp(3.14, expected: 23.103866858722185)
+    check_exp(3.14, expected: 23.1038668587221)
     # check_exp(10, expected: 22026.465794806718)
     check_exp(-4, expected: 0.01831563888873418)
-    check_exp(-7, expected: 0.0009118819655545162)
+    check_exp(-7, expected: 0.000911881965554516)
 
 fn check_exp(value?: float, expected: float):
     assert_are_close(exp(value), expected)

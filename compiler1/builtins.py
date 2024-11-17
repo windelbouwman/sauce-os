@@ -57,7 +57,6 @@ def get_builtins(args=(), stdout=None):
         "rt_int_to_str": str,
         "std_float_to_str": lambda x: f"{x:f}",
         "std_float_to_str2": std_float_to_str2,
-        "std_str_to_float": float,
         "rt_char_to_str": str,
         "std_str_len": len,
         "std_str_get": lambda s, i: s[i],

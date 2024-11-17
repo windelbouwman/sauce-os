@@ -6,7 +6,6 @@ extern "slangrt" fn chr(value?: int) -> char
 
 extern "slangrt" fn float_to_str(value?: float) -> str
 extern "slangrt" fn float_to_str2(value: float, digits: int) -> str
-extern "slangrt" fn str_to_float(value?: str) -> float
 
 extern "slangrt" fn str_len(text: str) -> int
 extern "slangrt" fn str_get(text: str, index: int) -> char

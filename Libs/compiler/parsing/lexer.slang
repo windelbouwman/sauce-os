@@ -4,7 +4,6 @@
 import std
 from utils import panic, assert
 from std import ord, chr, str_slice, str_len
-from std import str_to_float
 from token import Token, TokenKind
 from location import Location, location_at
 from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf
@@ -336,39 +335,74 @@ pub class Lexer:
                     break
             if peek() == '.':
                 offset += 1
-                parse_float(before: value)
+                parse_float(base: value)
             elif peek() == 'e':
-                parse_exponent(base: value)
+                parse_exponent(base: value, exponent: 0)
             else:
                 # Normal decimal number
                 TokenKind.Integer(value)
 
-    fn parse_float(before: int) -> TokenKind:
-        while is_digit(c: peek()):
-            offset += 1
+    fn parse_float(base: int) -> TokenKind:
+        let exponent = 0
+        loop:
+            let c = peek()
+            if is_digit(c):
+                exponent -= 1
+                base = base * 10 + digit_to_int(c)
+                if base > 9007199254740992:
+                    return TokenKind.Error("Number too large for precision")
+                offset += 1
+            else:
+                break
         if peek() == 'e':
-            parse_exponent(base: 0)
+            parse_exponent(base, exponent)
         else:
-            let float_value: float = str_to_float(get_lexeme())
-            TokenKind.Float(float_value)
+            create_float(base, exponent)
 
-    fn parse_exponent(base: int) -> TokenKind:
+    fn parse_exponent(base: int, exponent: int) -> TokenKind:
         """ Parse the exponent notation after the 'e'"""
         offset += 1
-        let sign = 1
+        let negative_exponent = false
         if peek() == '+':
             offset += 1
         elif peek() == '-':
-            sign = -1
+            negative_exponent = true
             offset += 1
 
         if is_digit(c: peek()):
-            while is_digit(c: peek()):
-                offset += 1
-            let float_value: float = str_to_float(get_lexeme())
-            TokenKind.Float(float_value)
+            let add_exponent = 0
+            loop:
+                let c = peek()
+                if is_digit(c):
+                    add_exponent = add_exponent * 10 + digit_to_int(c)
+                    offset += 1
+                else:
+                    break
+            if negative_exponent:
+                exponent -= add_exponent
+            else:
+                exponent += add_exponent
+            create_float(base, exponent)
         else:
             TokenKind.Error("Invalid exponent notation")
+
+    fn create_float(base: int, exponent: int) -> TokenKind:
+
+        # Check for 53 bits base:
+        if base > 9007199254740992:
+            return TokenKind.Error("Number too large")
+
+        let pow10s: [float] = [1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22]
+        let float_value = if exponent < -22:
+            return TokenKind.Error("Exponent below -22: {exponent}")
+        elif exponent < 0:
+            float(base) / pow10s[-exponent]
+        elif exponent < 23:
+            float(base) * pow10s[exponent]
+        else:
+            return TokenKind.Error("Exponent above 22: {exponent}")
+
+        TokenKind.Float(float_value)
 
     fn peek() -> char:
         peek_n(n: 0)

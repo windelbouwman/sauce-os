@@ -3,8 +3,8 @@ from std import float_to_str
 from utils import panic
 
 # TODO: make constant
-var pi: float = 3.1415926535897932384626433
-var e: float = 2.718281828459045235360287471352
+var pi: float = 3.141592653589793
+var e: float = 2.718281828459045
 
 fn min(a: int, b: int) -> int:
     if a < b:

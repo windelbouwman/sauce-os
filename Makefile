@@ -47,7 +47,7 @@ check-py: ${ALL_TEST_RUNS_PY}
 
 # Profiling
 profile: ${COMPILER5} | ${BUILDDIR}
-	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-py ${BASE_LIB_SRCS}
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-null ${BASE_LIB_SRCS}
 	kcachegrind build/callgrind.out
 
 profile2: ${BUILDDIR}/c/apps/write_image.exe | ${BUILDDIR}
@@ -64,7 +64,7 @@ pytest-compiler: $(C_EXAMPLES)
 all-examples-bc: $(BC_EXAMPLES)
 
 ${BUILDDIR}/bc/%.txt: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/bc
-	${SLANGC} --backend-bc $< runtime/std.slang > $@
+	${SLANGC} -o $@ --backend-bc $< runtime/std.slang
 
 # Example compiled to slang-code!
 all-examples-slang2: $(SLANG2_EXAMPLES)

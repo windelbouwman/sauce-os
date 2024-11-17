@@ -86,11 +86,6 @@ const importObject = {
             console.log(text2);
         },
 
-        str_to_float: function (value) {
-            console.log("In std_str_to_float");
-            return 13;
-        },
-
         float_to_str: function (value) {
             // console.log("In std_float_to_str");
             return alloc_string(memory, value.toString());

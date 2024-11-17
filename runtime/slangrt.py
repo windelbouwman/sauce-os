@@ -39,7 +39,6 @@ def std_float_to_str2(value: float, digits: int) -> str:
     return f"{value:.{digits}f}"
 
 
-std_str_to_float = float
 std_str_len = len
 std_ord = ord
 std_chr = chr
@@ -86,4 +85,3 @@ def std_file_write_n_bytes(handle: int, buf: list, bufsize: int) -> int:
 
 def std_file_close(handle: int):
     handle.close()
-
