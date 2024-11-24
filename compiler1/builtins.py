@@ -18,6 +18,20 @@ def create_rt_module() -> ast.Module:
             modname, "char_to_str", [ast.char_type], ast.str_type, Location.default()
         )
     )
+    mod.add_definition(
+        ast.ExternFunction(
+            modname, "str_len", [ast.str_type], ast.int_type, Location.default()
+        )
+    )
+    mod.add_definition(
+        ast.ExternFunction(
+            modname,
+            "str_get",
+            [ast.str_type, ast.int_type],
+            ast.char_type,
+            Location.default(),
+        )
+    )
     return mod
 
 
@@ -61,6 +75,8 @@ def get_builtins(args=(), stdout=None):
         "std_str_len": len,
         "std_str_get": lambda s, i: s[i],
         "std_str_slice": lambda s, b, e: s[b:e],
+        "rt_str_len": len,
+        "rt_str_get": lambda s, i: s[i],
         "rt_str_concat": lambda a, b: a + b,
         "rt_str_compare": lambda a, b: a == b,
         "std_ord": ord,

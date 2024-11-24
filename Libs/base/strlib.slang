@@ -67,25 +67,18 @@ fn is_lf(c: char) -> bool:
 fn str_to_int(text?: str) -> int:
     let n = str_len(text)
     assert(condition: n > 0, message: "Integer string must be at least a single digit.")
-    let index = 0
     let value = 0
-    while index < n:
-        let c = str_get(text, index)
-        let cval = digit_to_int(c)
-        value = value * 10 + cval
-        index += 1
+    for c in text:
+        value = value * 10 + digit_to_int(c)
     value
 
 fn hex_to_int(hextext: str) -> int:
     """ Convert hex text """
     let n = str_len(text: hextext)
     assert(condition: n > 0, message: "Hex string must be at least a single digit.")
-    let index = 0
     let value = 0
-    while index < n:
-        let c = str_get(text: hextext, index)
+    for c in hextext:
         value = value * 16 + hex_digit_to_int(c)
-        index += 1
     value
 
 fn bin_to_int(bintext: str) -> int:
@@ -94,12 +87,9 @@ fn bin_to_int(bintext: str) -> int:
     """
     let n = str_len(text: bintext)
     assert(condition: n > 0, message: "Binary string must be at least a single digit.")
-    let index = 0
     let value = 0
-    while index < n:
-        let c = str_get(text: bintext, index)
+    for c in bintext:
         value = value * 2 + bin_digit_to_int(c)
-        index += 1
     value
 
 fn is_digit(c: char) -> bool:
@@ -176,16 +166,14 @@ fn trim(text?: str) -> str:
     let i = 0
     let n = str_len(text)
     while i < n:
-        let c = str_get(text, index: i)
-        if c == ' ':
+        if text[i] == ' ':
             i += 1
         else:
             break
     
     while n > i:
         n -= 1
-        let c = str_get(text, index: n)
-        if c == ' ':
+        if text[n] == ' ':
             pass
         else:
             n += 1
@@ -197,7 +185,7 @@ fn find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
     let i = 0
     let n = str_len(text)
     while i < n:
-        let c = str_get(text, index: i)
+        let c = text[i]
         if criterium(c):
             return Option.Some(i)
         i += 1
@@ -209,7 +197,7 @@ fn reverse_find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
     let i = n
     while i > 0:
         i -= 1
-        let c = str_get(text, index: i)
+        let c = text[i]
         if criterium(c):
             return Option.Some(i)
     Option.None()
@@ -225,8 +213,8 @@ fn str_comparison(a: str, b: str) -> int:
         n = n_b
     while index < n:
         index += 1
-        let c_a = ord(str_get(text: a, index))
-        let c_b = ord(str_get(text: b, index))
+        let c_a = ord(a[index])
+        let c_b = ord(b[index])
         if c_a < c_b:
             return -1
         elif c_a > c_b:

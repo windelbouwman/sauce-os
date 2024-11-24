@@ -16,9 +16,12 @@ fn main() -> int:
     let k: int64 = int64(11)
     let l: float32 = float32(12.12)
     let m: float64 = 13.13
+    let p: char = 'x'
 
     print("a = {a}")
     print("c = {c}")
+    print("p = {p}")
+    print("c[2] = {c[2]}")
 
     let ee = add16(a: uint16(7), b: e)
     # d = 255

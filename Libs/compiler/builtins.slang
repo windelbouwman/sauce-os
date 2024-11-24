@@ -46,4 +46,22 @@ fn get_rt_module() -> ast.Module:
         location: location_default()
     ast.module_define_function(module, function_def: str_compare)
 
+    let str_len = ast.extern_function_def:
+        libname
+        name: "str_len"
+        type_parameters
+        parameters: list1(ast.labeled_parameter(name: "text", ty: ast.str_type()))
+        return_type: ast.int_type()
+        location: location_default()
+    ast.module_define_function(module, function_def: str_len)
+
+    let str_get = ast.extern_function_def:
+        libname
+        name: "str_get"
+        type_parameters
+        parameters: list2(ast.labeled_parameter(name: "text", ty: ast.str_type()), ast.labeled_parameter(name: "index", ty: ast.int_type()))
+        return_type: ast.char_type()
+        location: location_default()
+    ast.module_define_function(module, function_def: str_get)
+
     module

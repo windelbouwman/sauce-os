@@ -194,6 +194,8 @@ fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
     efi_db.insert(key: "rt_char_to_str", value: ExternFunctionImpl(f: efi_rt_char_to_str, n: 1))
     efi_db.insert(key: "rt_str_concat", value: ExternFunctionImpl(f: efi_rt_str_concat, n: 2))
     efi_db.insert(key: "rt_str_compare", value: ExternFunctionImpl(f: efi_rt_str_compare, n: 2))
+    efi_db.insert(key: "rt_str_len", value: ExternFunctionImpl(f: efi_std_str_len, n: 1))
+    efi_db.insert(key: "rt_str_get", value: ExternFunctionImpl(f: efi_std_str_get, n: 2))
     efi_db
 
 fn run_bytecode(program: Program, entry_function: str):

@@ -51,6 +51,9 @@ fn main() -> int:
         elif argument == "-h" or argument == "--help":
             print_usage()
             return 0
+        elif argument == "--version":
+            print("Latest")
+            return 0
         elif argument == "-o" or argument == "--output":
             i += 1
             if i < n:
@@ -122,6 +125,7 @@ fn print_usage():
     print("$ compiler.exe [-d] [-v] file1.slang file2.slang ..")
     print("    -d              : dump AST between compilation phases")
     print("    -v              : Increase verbosity")
+    print("    --version       : Print version")
     print("    -o --output     : Write output to given filename")
     print("    -h --help       : display usage information")
     print("    --add-import filename.json   : Additional importable modules in JSON")
@@ -228,7 +232,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
                 log_info("Now running code")
                 run_bytecode(program, entry_function: "main2")
             else:
-                bc.print_bc_program(program)
+                bc.print_bc_program_to_file(program, filename: options.output_filename)
         C:
             let use_v2 = false
             if use_v2:

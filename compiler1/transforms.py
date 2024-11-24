@@ -64,6 +64,8 @@ class LoopRewriter(BaseTransformer):
                 statement.kind = self.rewrite_loop_over_sequence(
                     kind, statement.location
                 )
+            elif kind.values.ty.is_str():
+                statement.kind = self.rewrite_loop_over_str(kind, statement.location)
             else:
                 raise RuntimeError(f"Invalid for loop type: {kind.values.ty}")
 
@@ -223,6 +225,59 @@ class LoopRewriter(BaseTransformer):
 
         return ast.CompoundStatement([let_x, let_index, let_size, while_loop])
 
+    def rewrite_loop_over_str(
+        self, kind: ast.ForStatement, location: Location
+    ) -> ast.CompoundStatement:
+        # x = arr
+        x_var = self.new_variable("x", kind.values.ty, location)
+        let_x = ast.let_statement(x_var, None, kind.values, location)
+
+        # index = 0
+        index_var = self.new_variable("index", ast.int_type, location)
+        zero = ast.numeric_constant(0, location)
+        let_index = ast.let_statement(index_var, None, zero, location)
+
+        # size = str_len(x)
+        size_var = self.new_variable("size", ast.int_type, location)
+        str_len = self.ref_rt_function("str_len", location)
+        arguments = [ast.LabeledExpression("text", x_var.ref_expr(location), location)]
+        let_size = ast.let_statement(size_var, None, str_len.call(arguments), location)
+
+        # index < size
+        loop_condition = index_var.ref_expr(location).binop(
+            "<", size_var.ref_expr(location)
+        )
+
+        # v = str_get(x, index)
+        arguments = [
+            ast.LabeledExpression("text", x_var.ref_expr(location), location),
+            ast.LabeledExpression("index", index_var.ref_expr(location), location),
+        ]
+        str_get = self.ref_rt_function("str_get", location)
+        let_v = ast.let_statement(
+            kind.variable,
+            None,
+            str_get.call(arguments),
+            location,
+        )
+
+        # index += 1
+        one = ast.numeric_constant(1, location)
+        inc_index = ast.assignment_statement(
+            index_var.ref_expr(location),
+            "+=",
+            one,
+            location,
+        )
+
+        loop_body = ast.compound_statement(
+            [let_v, inc_index, kind.block.body], kind.block.body.location
+        )
+        loop_block = ast.ScopedBlock(loop_body)
+        while_loop = ast.while_statement(loop_condition, loop_block, location)
+
+        return ast.CompoundStatement([let_x, let_index, let_size, while_loop])
+
     def visit_expression(self, expression: ast.Expression):
         """Rewrite To-String operator"""
         super().visit_expression(expression)
@@ -233,14 +288,12 @@ class LoopRewriter(BaseTransformer):
                 expression.kind = kind.expr.kind
             elif kind.expr.ty.is_int():
                 # call built-in int_to_str
-                int_to_str = self.get_rt_function("int_to_str")
-                callee = ast.obj_ref(int_to_str, ast.void_type, expression.location)
+                callee = self.ref_rt_function("int_to_str", expression.location)
                 args = [ast.LabeledExpression("value", kind.expr, kind.expr.location)]
                 expression.kind = ast.FunctionCall(callee, args)
             elif kind.expr.ty.is_char():
                 # call built-in char_to_str
-                char_to_str = self.get_rt_function("char_to_str")
-                callee = ast.obj_ref(char_to_str, ast.void_type, expression.location)
+                callee = self.ref_rt_function("char_to_str", expression.location)
                 args = [ast.LabeledExpression("value", kind.expr, kind.expr.location)]
                 expression.kind = ast.FunctionCall(callee, args)
             elif kind.expr.ty.has_field("to_string"):
@@ -259,9 +312,20 @@ class LoopRewriter(BaseTransformer):
                 args = [ast.LabeledExpression("index", index, index.location)]
                 call_get = kind.base.call_method("get", args)
                 expression.kind = call_get.kind
+            elif kind.base.ty.is_str():
+                assert len(kind.indici) == 1
+                index = kind.indici[0]
+                arguments = [
+                    ast.LabeledExpression("text", kind.base, kind.base.location),
+                    ast.LabeledExpression("index", index, index.location),
+                ]
+                str_get = self.ref_rt_function("str_get", index.location)
+                call_get = str_get.call(arguments)
+                expression.kind = call_get.kind
 
-    def get_rt_function(self, name: str):
-        return self._rt_module.get_field(name)
+    def ref_rt_function(self, name: str, location: Location):
+        func = self._rt_module.get_field(name)
+        return ast.obj_ref(func, ast.void_type, location)
 
 
 def rewrite_enums(id_context: ast.IdContext, modules: list[ast.Module]):

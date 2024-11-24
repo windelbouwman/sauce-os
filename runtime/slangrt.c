@@ -129,6 +129,11 @@ SLANG_API slang_int_t std_str_len(char *txt)
     return len;
 }
 
+SLANG_API slang_int_t rt_str_len(char *txt)
+{
+    return std_str_len(txt);
+}
+
 SLANG_API slang_int_t std_ord(char c)
 {
     return c;
@@ -153,6 +158,11 @@ SLANG_API char *std_str_slice(char *txt, slang_int_t begin, slang_int_t end)
 SLANG_API char std_str_get(char *txt, slang_int_t pos)
 {
     return txt[pos];
+}
+
+SLANG_API char rt_str_get(char *txt, slang_int_t pos)
+{
+    return std_str_get(txt, pos);
 }
 
 SLANG_API char *std_read_file(char *filename)

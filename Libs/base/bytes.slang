@@ -1,7 +1,7 @@
 
 # Data types for bytes
 
-from std import str_len, ord, chr, str_get
+from std import ord, chr
 from utils import assert, panic
 from vectype import Vector, new_vector
 from strlib import hex_char, hex_digit_to_int, is_hex_digit, is_space
@@ -140,12 +140,9 @@ fn byte_as_hex(byte?: uint8) -> str:
 
 fn bytes_from_hex_text(text: str) -> Bytes:
     let output = ByteArray()
-    let n = str_len(text)
-    let i = 0
     let value = 0
     let n_bits = 0
-    while i < n:
-        let c = str_get(text, index: i)
+    for c in text:
         if is_hex_digit(c):
             value = (value << 4) | hex_digit_to_int(c)
             n_bits += 4
@@ -157,7 +154,6 @@ fn bytes_from_hex_text(text: str) -> Bytes:
             pass
         else:
             panic("Invalid hex char '{c}'")
-        i += 1
     assert(condition: n_bits == 0, message: "Hexadecimal text must contain whole bytes")
     output.to_bytes()
 
@@ -174,12 +170,8 @@ fn fill_bytes(n: int, fill: int) -> Bytes:
 
 fn bytes_from_ascii(text: str) -> Bytes:
     let output = ByteArray()
-    let n = str_len(text)
-    let i = 0
-    while i < n:
-        let c = str_get(text, index: i)
+    for c in text:
         output.append(ord(c))
-        i += 1
     output.to_bytes()
 
 fn bytes_to_ascii(data: Bytes) -> str:

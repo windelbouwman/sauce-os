@@ -70,7 +70,7 @@ fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module) ex
             else:
                 new_defs2.append(def2)
 
-        new_defs2.extend(transformer.class_rewriter.new_definitions)
+        new_defs2.take_extend(transformer.class_rewriter.new_definitions)
         module.definitions = new_defs2
 
     # ast.print_ast(module)
@@ -364,6 +364,15 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
                         let arguments = list1(arg1)
                         let call_get = base.call_method(method: "get", arguments, location: expression.location)
                         expression.change_to(to: call_get)
+                    elif base.ty.is_str():
+                        assert(condition: indici.len() == 1, message: "Only support single indexing.")
+                        let index = indici.first()
+                        let arg1 = ast.LabeledExpression(name: Option.Some("text"), value: base, location: index.location)
+                        let arg2 = ast.LabeledExpression(name: Option.Some("index"), value: index, location: index.location)
+                        let arguments = list2(arg1, arg2)
+                        let str_get_func = transformer.class_rewriter.load_std_function(name: "str_get", location: expression.location)
+                        let call_str_get = str_get_func.call_it(arguments, location: expression.location)
+                        expression.change_to(to: call_str_get)
                 Binop(binop):
                     # Try constant folding
                     case binop.lhs.kind:
@@ -544,7 +553,7 @@ fn transformer_on_node7(transformer: Transformer, node: ast.VisitNode, phase: as
         Post:
             case node:
                 ModuleNode(module):
-                    module.definitions.extend(transformer.class_rewriter.new_definitions)
+                    module.definitions.take_extend(transformer.class_rewriter.new_definitions)
             else:
                 pass
     else:
@@ -742,6 +751,8 @@ class ClassRewriter:
             transform_for_loop_over_iterator(for_statement, location)
         elif for_statement.iter_value.ty.is_sequence_like():
             transform_for_loop_over_sequence(for_statement, location)
+        elif for_statement.iter_value.ty.is_str():
+            transform_for_loop_over_str(for_statement, location)
         else:
             panic("Cannot for-loop over {for_statement.iter_value.ty}")
 
@@ -859,6 +870,55 @@ class ClassRewriter:
         let while_loop = ast.while_statement(condition, body: loop_body1, location)
 
         ast.compound(inner: vec3(let_x, let_index, while_loop), location)
+
+    fn transform_for_loop_over_str(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
+        let str_type = for_statement.iter_value.ty
+
+        # let x = iter_value
+        let x_var = new_variable(name: "x", ty: str_type, location)
+        let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: for_statement.iter_value, location)
+
+        # let index = 0
+        let index_var = new_variable(name: "index", ty: ast.int_type(), location)
+        let zero = ast.integer_literal(value: 0, location)
+        let let_index = ast.let_statement(variable: index_var, type_hint: Option.None(), value: zero, location)
+
+        # let size = str_len(text: x)
+        let size_var = new_variable(name: "size", ty: ast.int_type(), location)
+        let str_len_func = load_std_function(name: "str_len", location)
+        let x_ref1 = x_var.ref(location)
+        let arguments_for_str_len: List[ast.LabeledExpression] = List()
+        arguments_for_str_len.append(ast.LabeledExpression(name: Option.Some("text"), value: x_ref1, location))
+        let call_str_len = str_len_func.call_it(arguments: arguments_for_str_len, location)
+        let let_size = ast.let_statement(variable: size_var, type_hint: Option.None(), value: call_str_len, location)
+
+        # index < size
+        let index_ref1 = index_var.ref(location)
+        let size_ref1 = size_var.ref(location)
+        let condition = ast.binop(lhs: index_ref1, op: ast.BinaryOperator.Less(), rhs: size_ref1, ty: ast.bool_type(), location)
+
+        # v = str_get(text: x, index: index)
+        let str_get_func = load_std_function(name: "str_get", location)
+        let x_ref2 = x_var.ref(location)
+        let index_ref2 = index_var.ref(location)
+        let arguments_for_str_get: List[ast.LabeledExpression] = List()
+        arguments_for_str_get.append(ast.LabeledExpression(name: Option.Some("text"), value: x_ref2, location))
+        arguments_for_str_get.append(ast.LabeledExpression(name: Option.Some("index"), value: index_ref2, location))
+        let call_str_get = str_get_func.call_it(arguments: arguments_for_str_get, location)
+        let let_v = ast.let_statement(variable: for_statement.iter_var, type_hint: Option.None(), value: call_str_get, location)
+
+        # index = index + 1
+        let index_ref3 = index_var.ref(location)
+        let index_ref4 = index_var.ref(location)
+        let one = ast.integer_literal(value: 1, location)
+        let index_plus_1 = index_ref4.add(rhs: one, location)
+        let inc_index = ast.assignment_statement(target: index_ref3, op: Option.None(), value: index_plus_1, location)
+
+        # While loop:
+        let loop_body1 = ast.compound(inner: vec3(let_v, inc_index, for_statement.block.body), location)
+        let while_loop = ast.while_statement(condition, body: loop_body1, location)
+
+        ast.compound(inner: vec4(let_x, let_index, let_size, while_loop), location)
 
     fn transform_switch(switch_statement: ast.SwitchStatement, location: Location) -> ast.StatementKind:
         # Turn switch into sequence of if-else

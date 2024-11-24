@@ -122,8 +122,9 @@ class TypeChecker:
         # Check if we return a value, if we need to return a value
         case function_def.body:
             Intern(scoped_block):
-                if not scoped_block.body.ty.is_unreachable():
-                    assert_statement_type(statement: scoped_block.body, ty: function_def.info.return_type)
+                if not was_errors:
+                    if not scoped_block.body.ty.is_unreachable():
+                        assert_statement_type(statement: scoped_block.body, ty: function_def.info.return_type)
             Extern(libname):
                 pass
 
@@ -176,6 +177,8 @@ class TypeChecker:
                 elif for_statement.iter_value.ty.is_sequence_like():
                     let val_ty: ast.Type = for_statement.iter_value.ty.get_field_type(attr: "get").get_return_type()
                     for_statement.iter_var.ty = val_ty
+                elif for_statement.iter_value.ty.is_str():
+                    for_statement.iter_var.ty = ast.char_type()
                 else:
                     add_error(location: for_statement.iter_value.location, message: "Value cannot be iterated: {for_statement.iter_value.ty}")
             Try(try_statement):
@@ -384,6 +387,8 @@ class TypeChecker:
                     # TODO: we have a few assumptions here, which panic. Should be proper warning:
                     let val_ty: ast.Type = base.ty.get_field_type(attr: "get").get_return_type()
                     expression.ty = val_ty
+                elif base.ty.is_str():
+                    expression.ty = ast.char_type()
                 else:
                     add_error(location: expression.location, message: "Got {base.ty}, expected array or indexable type")
 

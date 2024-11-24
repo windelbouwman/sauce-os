@@ -99,6 +99,8 @@ class ByteCodeGenerator:
             return bc.BaseTyp(bc.SimpleTyp.FLOAT)
         elif ty.is_bool():
             return bc.BaseTyp(bc.SimpleTyp.BOOL)
+        elif ty.is_char():
+            return bc.BaseTyp(bc.SimpleTyp.CHAR)
         elif ty.is_struct():
             return bc.StructTyp(self._type_map[id(ty.kind.tycon)])
         elif ty.is_function():
@@ -341,6 +343,8 @@ class ByteCodeGenerator:
             self.emit(OpCode.CONST, kind.text)
         elif isinstance(kind, ast.BoolLiteral):
             self.emit(OpCode.CONST, kind.value)
+        elif isinstance(kind, ast.CharConstant):
+            self.emit(OpCode.CONST, kind.text)
         elif isinstance(kind, ast.StructLiteral):
             for value in kind.values:
                 self.gen_expression(value)

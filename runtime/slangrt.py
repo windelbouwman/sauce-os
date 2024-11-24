@@ -40,6 +40,7 @@ def std_float_to_str2(value: float, digits: int) -> str:
 
 
 std_str_len = len
+rt_str_len = len
 std_ord = ord
 std_chr = chr
 
@@ -47,6 +48,10 @@ rt_char_to_str = str
 
 
 def std_str_get(s, i):
+    return s[i]
+
+
+def rt_str_get(s, i):
     return s[i]
 
 

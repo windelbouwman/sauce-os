@@ -20,6 +20,7 @@ class SimpleTyp(Enum):
     FLOAT = 4
     STR = 5
     BOOL = 7
+    CHAR = 8
     PTR = 10
 
 

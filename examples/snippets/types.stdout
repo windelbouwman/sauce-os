@@ -1,2 +1,4 @@
 a = 1
 c = drie
+p = x
+c[2] = i

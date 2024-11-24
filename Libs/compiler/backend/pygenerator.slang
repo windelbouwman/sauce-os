@@ -3,7 +3,7 @@
 import ast
 from utils import panic, log_info
 from datatypes import List, option_is_some, option_unwrap, Option
-from std import float_to_str2, str_len, str_get, str_slice
+from std import float_to_str2, str_len, str_slice
 from strlib import str_join
 from text_gen import TextGenerator
 
@@ -340,7 +340,7 @@ fn escape_string(text?: str) -> str:
     let begin = 0
     let n = str_len(text)
     while index < n:
-        let c = str_get(text, index)
+        let c = text[index]
         if c == '\' or c == '"':
             if begin < index:
                 res = res + str_slice(text, begin, end: index)

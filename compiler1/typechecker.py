@@ -111,10 +111,12 @@ class TypeChecker(BasePass):
             elif kind.values.ty.is_sequence_like():
                 val_ty: ast.Type = kind.values.ty.get_field_type("get").kind.return_type
                 kind.variable.ty = val_ty
+            elif kind.values.ty.is_str():
+                kind.variable.ty = ast.char_type
             else:
                 self.error(
                     kind.values.location,
-                    f"Expected array, iterable or sequence. Got {kind.values.ty}",
+                    f"Expected array, str, iterable or sequence. Got {kind.values.ty}",
                 )
             self.visit_statement(kind.block.body)
             statement.ty = ast.void_type
@@ -256,6 +258,8 @@ class TypeChecker(BasePass):
                 # If it quacks lite an get/set... it must be an get/set interface!
                 val_ty: ast.Type = kind.base.ty.get_field_type("get").kind.return_type
                 expression.ty = val_ty
+            elif kind.base.ty.is_str():
+                expression.ty = ast.char_type
             else:
                 self.error(
                     expression.location,

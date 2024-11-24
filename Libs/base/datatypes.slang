@@ -276,9 +276,13 @@ class List[T]:
             result.prepend(value)
         result
     
-    fn extend(other?: List[T]):
+    fn take_extend(other?: List[T]):
         while not other.is_empty():
             append(other.pop_front())
+
+    fn extend2(other?: List[T]):
+        for value in other:
+            append(value)
 
 struct ListElement[T]:
     next: Option[ListElement[T]]
