@@ -154,7 +154,7 @@ class TypeChecker(BasePass):
                 statement.ty = kind.value.ty
             elif isinstance(kind, (ast.BreakStatement, ast.ContinueStatement)):
                 # TODO!
-                statement.ty = ast.void_type
+                statement.ty = ast.unreachable_type()
             elif isinstance(kind, ast.PassStatement):
                 statement.ty = ast.void_type
             elif isinstance(kind, ast.UnreachableStatement):

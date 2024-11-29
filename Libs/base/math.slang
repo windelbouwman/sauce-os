@@ -12,7 +12,7 @@ fn min(a: int, b: int) -> int:
     else:
         b
 
-fn max(a: int, b: int) -> int:
+fn max(a?: int, b?: int) -> int:
     if a > b:
         a
     else:
