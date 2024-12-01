@@ -6,7 +6,7 @@ from utils import unimplemented, panic
 from utils import log_error, log_info, log_debug, log_trace
 from datatypes import List, Option, option_is_some
 from vectype import Vector, new_vector, new_vector_with_capacity
-from hashmap import HashMap
+from dicttype import Dictionary
 from pathlib import basename
 from json import JsonBuilder, JsonException, write_json_to_file, read_json_from_file
 from json import JsonValue, JsonBrowser
@@ -270,8 +270,8 @@ fn load_symbol_table(filename: str) -> List[ast.Module]:
 
 class SymbolLoader:
     var m_des: JsonBrowser = JsonBrowser()
-    var m_tycon_map: HashMap[ast.TyCon] = HashMap()
-    var m_type_parameter_map: HashMap[ast.TypeParameter] = HashMap()
+    var m_tycon_map: Dictionary[ast.TyCon] = Dictionary()
+    var m_type_parameter_map: Dictionary[ast.TypeParameter] = Dictionary()
     var m_this_type: Option[ast.Type] = Option.None()
     var m_libname: str = "?"
 

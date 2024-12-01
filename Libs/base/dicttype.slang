@@ -6,10 +6,10 @@
 
 from datatypes import List
 from datatypes import Option, option_unwrap
-from hashmap import HashMap, HashMapIter
+from hashmap import HashMapStr, HashMapStrIter
 
 class Dictionary[T]:
-    var items: HashMap[T] = HashMap()
+    var items: HashMapStr[T] = HashMapStr()
 
     fn get(key: str) -> T:
         option_unwrap(maybe_get(key))
@@ -44,8 +44,7 @@ class Dictionary[T]:
         DictionaryIter(it2: items.iter())
 
 class DictionaryIter[T]:
-    var it2: HashMapIter[T]
+    var it2: HashMapStrIter[T]
 
     fn next() -> Option[str]:
         it2.next()
-

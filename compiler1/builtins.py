@@ -32,6 +32,15 @@ def create_rt_module() -> ast.Module:
             Location.default(),
         )
     )
+    mod.add_definition(
+        ast.ExternFunction(
+            modname,
+            "str_compare",
+            [ast.str_type, ast.str_type],
+            ast.bool_type,
+            Location.default(),
+        )
+    )
     return mod
 
 

@@ -3,31 +3,35 @@
 # Most simple dictionary implementation: a list of key value pairs.
 from datatypes import List, ListIter, Option, option_unwrap
 
-class AssociationList[T]:
-    var items: List[AssociationListItem[T]] = List()
+struct HashableApi[T]:
+    f_hash: fn(T) -> int
+    f_eq: fn(T,T) -> bool
 
-    fn insert(key: str, value: T):
+class AssociationList[K, V]:
+    var items: List[AssociationListItem[K,V]] = List()
+
+    fn insert(key: K, value: V, f_eq: fn(K,K) -> bool):
         for item in items:
-            if item.key == key:
+            if f_eq(item.key, key):
                 item.value = value
                 return
-        let new_item = AssociationListItem[T](key, value)
+        let new_item: AssociationListItem[K,V] = AssociationListItem(key, value)
         items.append(new_item)
 
-    fn get(key: str) -> T:
-        option_unwrap(maybe_get(key))
+    fn get(key: K, f_eq: fn(K,K) -> bool) -> V:
+        option_unwrap(maybe_get(key, f_eq))
 
-    fn maybe_get(key: str) -> Option[T]:
+    fn maybe_get(key: K, f_eq: fn(K,K) -> bool) -> Option[V]:
         for item in items:
-            if item.key == key:
+            if f_eq(item.key, key):
                 return Option.Some(item.value)
         Option.None()
 
-    fn pop(key: str) -> Option[T]:
+    fn pop(key: K, f_eq: fn(K,K) -> bool) -> Option[V]:
         # remove an item from this dictionary
         let index = 0
         for item in items:
-            if item.key == key:
+            if f_eq(item.key, key):
                 # patch list:
                 items.delete_at(index)
                 return Option.Some(item.value)
@@ -44,21 +48,20 @@ class AssociationList[T]:
     fn clear():
         items.clear()
 
-    fn iter() -> AssociationListIter[T]:
+    fn iter() -> AssociationListIter[K,V]:
         let it = AssociationListIter(it2: items.iter())
         it
 
-struct AssociationListItem[T]:
-    key: str
-    value: T
+struct AssociationListItem[K,V]:
+    key: K
+    value: V
 
-class AssociationListIter[T]:
-    var it2: ListIter[AssociationListItem[T]]
+class AssociationListIter[K,V]:
+    var it2: ListIter[AssociationListItem[K,V]]
 
-    fn next() -> Option[str]:
+    fn next() -> Option[K]:
         case it2.next():
             None:
                 Option.None()
             Some(i):
                 Option.Some(i.key)
-
