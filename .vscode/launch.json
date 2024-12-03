@@ -8,16 +8,23 @@
       "name": "Python: tmp-compiler",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceFolder}/tmp-compiler.py",
+      "program": "${workspaceFolder}/build/tmp-compiler3.py",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "args": ["${file}", "-d"]
+      "args": [
+        "${file}",
+        "${workspaceFolder}/runtime/std.slang",
+        "--backend-bc",
+        "--run",
+      ]
     },
     {
       "name": "Slang Lang VS-code Extension",
       "type": "extensionHost",
       "request": "launch",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}/language-server"]
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/language-server"
+      ]
     }
   ]
 }
