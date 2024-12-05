@@ -328,6 +328,14 @@ class TypeChecker:
             TypeConstructor(tycon):
                 add_error(location: expression.location, message: "Cannot use a type constructor here")
             TypeCast(ty, value):
+                if ty.is_int():
+                    if not (value.ty.is_int() or value.ty.is_float()):
+                        add_error(location: expression.location, message: "Cannot cast to int from {value.ty}")
+                elif ty.is_float():
+                    if not (value.ty.is_int() or value.ty.is_float()):
+                        add_error(location: expression.location, message: "Cannot cast to float from {value.ty}")
+                else:
+                    add_error(location: expression.location, message: "Cannot cast to {ty}")
                 expression.ty = ty
             ToString(value):
                 if not (value.ty.is_int() or value.ty.is_str() or value.ty.is_char() or value.ty.has_method("to_string")):
@@ -601,4 +609,3 @@ class TypeChecker:
         let err = new_error(location, message)
         errors.append(err)
         was_errors = true
-

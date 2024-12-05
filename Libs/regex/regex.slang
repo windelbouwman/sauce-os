@@ -3,26 +3,44 @@ Regex library
 """
 
 from std import str_get, str_len, ord, print, chr, str_slice
-from integersetlib import IntegerSet, new_int_set
+from integersetlib import IntegerSet, new_int_set, new_empty_int_set, integer_set_from_ranges, integer_set_difference
 from datatypes import List, list1, list2, Option
 from rangelib import Range, range_to_string, range_contains
+from functools import map
 from strlib import str_repeat
 from utils import panic, assert
 
-fn find(pattern: str, text: str) -> Option[str]:
+fn find(pattern: str, text: str) -> Option[Match]:
     let matches = find_all(pattern, text)
     if matches.len() > 0:
         Option.Some(matches.first())
     else:
         Option.None()
 
-fn find_all(pattern: str, text: str) -> List[str]:
+pub fn find_all(pattern: str, text: str) -> List[Match]:
     """ Find all regular expression in the given text. """
     let machine = compile(pattern)
     machine_find_all(machine, text)
 
-fn machine_find_all(machine: Machine, text: str) -> List[str]:
-    let matches: List[str] = List()
+pub fn find_all_text(pattern: str, text: str) -> List[str]:
+    let values = find_all(pattern, text)
+    map(values, function: get_text)
+
+fn get_text(m: Match) -> str:
+    m.text
+
+fn split_at_pattern(text: str, pattern: str) -> List[str]:
+    """ Split a string at the given regex """
+    let parts: List[str] = List()
+    let begin = 0
+    for m in find_all(pattern, text):
+        parts.append(str_slice(text, begin, end: m.begin))
+        begin = m.end
+    parts.append(str_slice(text, begin, end: str_len(text)))
+    parts
+
+fn machine_find_all(machine: Machine, text: str) -> List[Match]:
+    let matches: List[Match] = List()
 
     # Matching state machine:
     let state_nr = machine.start_state
@@ -39,7 +57,6 @@ fn machine_find_all(machine: Machine, text: str) -> List[str]:
 
         # Determine the next state:
         let c = str_get(text, index)
-        # print("Index={index} c={c} state={state_nr}")
         state_nr = machine.next_state(state_nr, c)
         # print("   > state={state_nr}")
 
@@ -48,8 +65,7 @@ fn machine_find_all(machine: Machine, text: str) -> List[str]:
         if state_nr == machine.error_state:
             if accept:
                 let part = str_slice(text, begin, end)
-                # print("Found: {part}")
-                matches.append(part)
+                matches.append(Match(begin, end, text: part))
                 # Set index back to character after last match:
                 index = end
             else:
@@ -62,12 +78,19 @@ fn machine_find_all(machine: Machine, text: str) -> List[str]:
             index += 1
 
     # Add last match
-    #if accept:
-    #    let part = str_slice(text, begin, end)
-        # print("Found: {part}")
-    #    matches.append(part)
+    if machine.accepts(state_nr):
+        accept = true
+        end = index
+    if accept:
+        let part = str_slice(text, begin, end)
+        matches.append(Match(begin, end, text: part))
 
     matches
+
+struct Match:
+    begin: int
+    end: int
+    text: str
 
 fn compile(pattern: str) -> Machine:
     # Turn regular expression into matching machine
@@ -161,7 +184,12 @@ struct Transition:
 fn parse(pattern: str) -> Regex:
     # Parse a pattern into a regex
     let p = Parser(text: pattern)
-    p.parse()
+    let res = null_regex()
+    try:
+        res = p.parse()
+    except (e: ParseError):
+        panic("Error: {e.message}")
+    res
 
 fn print_machine(machine: Machine):
     let i = 0
@@ -174,7 +202,7 @@ fn print_machine(machine: Machine):
 fn print_regex(rx: Regex, level: int):
     let txt = rx.to_string()
         
-    let space = str_repeat(text: " ", count: level * 4)
+    let space = str_repeat(text: "    ", count: level)
     print("{space}RE: {txt}")
     level += 1
     case rx.kind:
@@ -203,82 +231,109 @@ class Parser:
     var n_size: int = 0
     var text: str
 
-    fn parse() -> Regex:
-        # Parse a regular expression.
+    fn parse() -> Regex except ParseError:
+        """ Parse a regular expression. """
         n_size = str_len(text)
-        if index < n_size:
-            let item = parse_item()
-            while index < n_size:
-                let item2 = parse_item()
+        if peek() != chr(0):
+            let item = parse_term()
+            while peek() == '|':
+                index += 1
+                let item2 = parse_term()
+                item = item.logical_or(other: item2)
+            return item
+        else:
+            panic("TODO: empty regex")
+
+    fn parse_term() -> Regex except ParseError:
+        if peek() != '|' and peek() != chr(0):
+            let item = parse_factor()
+            while peek() != '|' and peek() != chr(0):
+                let item2 = parse_factor()
                 item = item.concat(other: item2)
             return item
         else:
             panic("TODO: empty regex")
 
-    fn parse_item() -> Regex:
+    fn parse_factor() -> Regex except ParseError:
         # Parse regex element, for example '[0-9]+' or 'a' or 'b+'
 
         # Parse base 'a', 'b' or '[0-9]'
-        assert(condition: index < n_size, message: "Cannot parse beyond string length")
-        let c = str_get(text, index)
-        index += 1
+        let c = eat()
 
-        let res = null_regex()
-        if c == '[':
-            let s = parse_range()
-            loop:
-                c = str_get(text, index)
-                if c == ']':
-                    index += 1
-                    break
-                else:
-                    panic("TODO!")
-            res = symbol_set_regex(s)
+        let res = if c == '[':
+            parse_range()
         else:
-            res = symbol_regex(c)
+            symbol_regex(c)
 
         # Check suffix '*' or '+'
-        if index < n_size:
-            let c2 = str_get(text, index)
-            if c2 == '+':
-                # '+' suffix, one or more
-                index += 1
-                res = res.concat(other: res.kleene())
-            elif c2 == '*':
-                # '*' suffix, zero or more, kleene star
-                index += 1
-                res = res.kleene()
+        let c2 = peek()
+        if c2 == '+':
+            index += 1
+            res = res.concat(other: res.kleene())
+        elif c2 == '*':
+            index += 1
+            res = res.kleene()
 
         res
 
-    fn parse_range() -> IntegerSet:
-        assert(condition: index < n_size, message: "Cannot parse beyond input")
-        let c1 = str_get(text, index)
-        index += 1
+    fn parse_range() -> Regex except ParseError:
+        """ Parse [0-9:a-z] or [^abc] """
+        let invert = if peek() == '^':
+            index += 1
+            true
+        else:
+            false
 
-        # Assume [0-9] for now
-        assert(condition: index < n_size, message: "Cannot parse beyond input")
-        let c2 = str_get(text, index)
-        index += 1
-        # assume '-' for now.
+        # let res = new_empty_int_set()
+        let ranges: List[Range] = List()
+        while peek() != ']':
+            let c1 = eat()
+            let begin = ord(c1)
+            if peek() == '-':
+                index += 1
+                let c2 = eat()
+                let end = ord(c2) + 1
+                if begin < end:
+                    ranges.append(Range(begin, end))
+                else:
+                    raise error(message: "Invalid range: {c1}-{c2}")
+            else:
+                let end = begin + 1
+                ranges.append(Range(begin, end))
 
-        assert(condition: index < n_size, message: "Cannot parse beyond input")
-        let c3 = str_get(text, index)
-        index += 1
+        let c = eat()
+        if c != ']':
+            raise error(message: "Expected '['")
+        let s = integer_set_from_ranges(ranges)
+        if invert:
+            s = integer_set_difference(self: sigma(), other: s)
+        symbol_set_regex(s)
+    
+    fn peek() -> char:
+        if index < n_size:
+            str_get(text, index)
+        else:
+            chr(0)
 
-        new_char_set2(c1, c2: c3)
+    fn eat() -> char except ParseError:
+        if index < n_size:
+            let c = str_get(text, index)
+            index += 1
+            c
+        else:
+            raise error(message: "Cannot parse beyond input")
+    
+    fn error(message: str) -> ParseError:
+        ParseError(position: index, message)
 
+struct ParseError:
+    position: int
+    message: str
 
 fn new_char_set(c: char) -> IntegerSet:
     """ Single character set """
     let begin = ord(c)
     let end = begin + 1
-    new_int_set(begin, end)
-
-fn new_char_set2(c1: char, c2: char) -> IntegerSet:
-    """ Range of characters """
-    let begin = ord(c1)
-    let end = ord(c2) + 1
     new_int_set(begin, end)
 
 fn sigma() -> IntegerSet:
@@ -342,7 +397,9 @@ fn logical_and_regex(left: Regex, right: Regex) -> Regex:
         Regex(kind: PartKind.LogicalAnd(left, right))
 
 fn logical_or_regex(left: Regex, right: Regex) -> Regex:
-    if left.is_null():
+    if left.equals(other: right):
+        left
+    elif left.is_null():
         right
     elif right.is_null():
         left
@@ -368,7 +425,7 @@ class Regex:
             LogicalAnd(left, right):
                 "LogicalAnd"
             LogicalOr(left, right):
-                "LogicalOr"
+                "LogicalOr({left}, {right})"
             LogicalNot(r):
                 "LogicalNot"
             Symbol(s):
@@ -516,7 +573,7 @@ class Regex:
 
     fn is_nullable() -> bool:
         let n = nu()
-        assert(condition: n.is_epsilon() or n.is_null(), message: "nu must return null or epsilon")
+        assert(condition: n.is_epsilon() or n.is_null(), message: "nu must return null or epsilon, not {n}")
         n.is_epsilon()
 
     fn nu() -> Regex:

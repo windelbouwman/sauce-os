@@ -1,5 +1,7 @@
 {
   "editor.formatOnSave": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
   "python.autoComplete.extraPaths": ["${workspaceFolder}"],
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",

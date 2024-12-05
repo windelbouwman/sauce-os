@@ -39,9 +39,13 @@ class IntegerSet:
             return range.begin
         panic("Empty integer set!")
 
+fn new_empty_int_set() -> IntegerSet:
+    """ Create an new empty integer set """
+    let ranges: List[Range] = List()
+    integer_set_from_ranges(ranges)
 
 fn new_int_set(begin: int, end: int) -> IntegerSet:
-    # Create a new integer set with a single range
+    """ Create a new integer set with a single range """
     let ranges: List[Range] = List()
     assert(condition: begin < end, message: "Range must be valid (begin < end)")
     ranges.append(Range(begin, end))
@@ -126,4 +130,3 @@ fn integer_set_difference(self: IntegerSet, other: IntegerSet) -> IntegerSet:
             ranges.append(rr)
             r = i.next()
     IntegerSet(ranges)
-
