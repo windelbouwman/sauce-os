@@ -1,7 +1,7 @@
 
 from std import print
 from unittest import assert_int_equals
-from hashmap import HashMapStr
+from hashmap import HashMap, new_hashmap_str
 
 fn main() -> int:
     test_hash_examples()
@@ -9,7 +9,7 @@ fn main() -> int:
     0
 
 fn test_hash_examples():
-    let m = HashMapStr()
+    let m: HashMap[str,int] = new_hashmap_str()
     m.insert(key: "printf", value: 1)
     m.insert(key: "putc", value: 2)
     m.insert(key: "open", value: 3)
@@ -29,4 +29,3 @@ fn test_hash_examples():
     # Test iteration over hashmap:
     for x in m:
         print("x = {x}")
-

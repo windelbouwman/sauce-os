@@ -3,6 +3,23 @@
 
 from datatypes import Option
 from dicttype import Dictionary, DictionaryIter
+from hashmap import HashMap, new_hashmap
+
+class Set[T]:
+    var m_items: HashMap[T, bool]
+
+    fn add(value?: T):
+        m_items.insert(key: value, value: true)
+
+    fn contains(value?: T) -> bool:
+        m_items.contains(key: value)
+
+    fn len() -> int:
+        m_items.len()
+
+fn new_set[T](f_hash: fn(T) -> int, f_eq: fn(T,T) -> bool) -> Set[T]:
+    let m_items = new_hashmap(f_hash, f_eq)
+    Set(m_items)
 
 class StringSet:
     """ Use a dictionary to emulate a set datatype. """
@@ -22,6 +39,9 @@ class StringSet:
 
     fn iter() -> StringSetIter:
         StringSetIter(it2: items.iter())
+    
+    fn len() -> int:
+        items.len()
 
 
 class StringSetIter:

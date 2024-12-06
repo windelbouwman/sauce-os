@@ -9,11 +9,10 @@ fn main() -> int:
 
     let numbers = find_all(pattern: "[0-9]+", text: "bla bla 1337 oei ai 42 wow 0")
     for number in numbers:
-        print("Found match: {number}")
+        print("Found match: {number.text}")
 
     let touching = find_all(pattern: "[a-z]+[0-9]+", text: "bla1337wow5a3w00t")
     for t in touching:
-        print("Found match: {t}")
+        print("Found match: {t.text}")
 
     0
-

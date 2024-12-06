@@ -1,13 +1,28 @@
+"""
+Hash map data type.
 
-# Hash map data type.
-# Idea: have an array with buckets.
+Idea: have an array with buckets.
+"""
 
-from datatypes import List, Option, option_unwrap
-from assoclist import AssociationList, AssociationListIter, HashableApi
-from std import print, ord
+from datatypes import List, ListIter, Option, option_unwrap, option_is_some
+from std import print
+from utils import panic
 from rt import str_compare
 from hashlib import djb2
 from math import modulo
+
+fn new_hashmap_int[V]() -> HashMap[int,V]:
+    """ Create a new hashmap with integer keys """
+    new_hashmap(f_hash: int_hash, f_eq: int_compare)
+
+fn new_hashmap_str[V]() -> HashMap[str,V]:
+    """ Create a new hashmap with string keys """
+    new_hashmap(f_hash: djb2, f_eq: str_compare)
+
+fn new_hashmap[K,V](f_hash: fn(K) -> int, f_eq: fn(K, K) -> bool) -> HashMap[K,V]:
+    let m: HashMap[K,V] = HashMap(f: HashableApi(f_hash, f_eq))
+    m.create_buckets(n: 16)
+    m
 
 fn int_compare(a: int, b: int) -> bool:
     a == b
@@ -15,127 +30,70 @@ fn int_compare(a: int, b: int) -> bool:
 fn int_hash(x: int) -> int:
     x
 
-class HashMapInt[T]:
-    var m_inner: HashMap2[int, T] = HashMap2(f: HashableApi(f_hash: int_hash, f_eq: int_compare))
-
-    fn is_empty() -> bool:
-        m_inner.is_empty()
-    
-    fn len() -> int:
-        m_inner.len()
-
-    fn clear():
-        m_inner.clear()
-    
-    fn contains(key: int) -> bool:
-        m_inner.contains(key)
-
-    fn insert(key: int, value: T):
-        m_inner.insert(key, value)
-
-    fn get(key: int) -> T:
-        m_inner.get(key)
-
-class HashMapStr[T]:
-    var m_inner: HashMap2[str, T] = HashMap2(f: HashableApi(f_hash: djb2, f_eq: str_compare))
-
-    fn maybe_get(key: str) -> Option[T]:
-        m_inner.maybe_get(key)
-    
-    fn is_empty() -> bool:
-        m_inner.is_empty()
-    
-    fn len() -> int:
-        m_inner.len()
-
-    fn clear():
-        m_inner.clear()
-    
-    fn contains(key: str) -> bool:
-        m_inner.contains(key)
-
-    fn insert(key: str, value: T):
-        m_inner.insert(key, value)
-
-    fn pop(key: str) -> Option[T]:
-        m_inner.pop(key)
-
-    fn values() -> List[T]:
-        m_inner.values()
-    
-    fn iter() -> HashMapStrIter[T]:
-        HashMapStrIter(m_inner: m_inner.iter())
-    
-    fn get(key: str) -> T:
-        m_inner.get(key)
-
-class HashMapStrIter[T]:
-    var m_inner: HashMap2Iter[str, T]
-
-    fn next() -> Option[str]:
-        m_inner.next()
-
-class HashMap2[K,V]:
+class HashMap[K,V]:
     # A list of association lists.
     # Association list is indexed by hash function
-    var n_buckets: int = 0
-    var n_rehash: int = 0
-    var buckets: [AssociationList[K,V]] = [AssociationList()]
+    var num_buckets: int = 0
+    var m_threshold: int = 0
+    var m_size: int = 0
+    var m_buckets: [List[KeyValuePair[K,V]]] = [List()]
     var f: HashableApi[K]
 
     fn maybe_get(key: K) -> Option[V]:
-        if n_buckets > 0:
-            let list = get_list(key)
-            list.maybe_get(key, f_eq: f.f_eq)
-        else:
-            Option.None()
-    
-    fn get_list(key: K) -> AssociationList[K,V]:
-        # let index = modulo(value: hash_key(key), divisor: n_buckets)
-        let index = modulo(value: this.f.f_hash(key), divisor: n_buckets)
-        let list = buckets[index]
+        let list = get_list(key)
+        for pair in list:
+            if f.f_eq(pair.key, key):
+                return Option.Some(pair.value)
+        Option.None()
+
+    fn get_list(key: K) -> List[KeyValuePair[K,V]]:
+        if num_buckets == 0:
+            panic("Uninitialized hashmap!")
+        let index = modulo(value: this.f.f_hash(key), divisor: num_buckets)
+        let list = m_buckets[index]
         list
 
     fn contains(key: K) -> bool:
-        case maybe_get(key):
-            Some(x):
-                true
-            None:
-                false
+        option_is_some(maybe_get(key))
     
     fn get(key: K) -> V:
         option_unwrap(maybe_get(key))
 
     fn insert(key: K, value: V):
-        if n_buckets == 0:
-            # Start with 3 buckets:
-            create_buckets(n: 3)
-        else:
-            n_rehash += 1
-            if n_rehash > 2000:
-                # Check each n insertions if we need a rehash
-                # debug_display()
-                n_rehash = 0
-                # print("Rehash?")
+        # Re-hash if above some threshold
+        if m_size > m_threshold:
+            rehash()
 
-                let n_size = len()
-                if n_size > 2 * n_buckets:
-                    rehash()
-        # TODO: maybe rehash when lists get too long?
         let list = get_list(key)
-        list.insert(key, value, f_eq: f.f_eq)
+        for item in list:
+            if f.f_eq(item.key, key):
+                item.value = value
+                return
+        let pair: KeyValuePair[K,V] = KeyValuePair(key, value)
+        list.append(pair)
+        m_size += 1
 
     fn pop(key: K) -> Option[V]:
-        # remove an item from this dictionary
+        """ remove an item from this dictionary """
         let list = get_list(key)
-        list.pop(key, f_eq: f.f_eq)
+
+        let index = 0
+        for item in list:
+            if f.f_eq(item.key, key):
+                # patch list:
+                list.delete_at(index)
+                m_size -= 1
+                return Option.Some(item.value)
+            index += 1
+
+        return Option.None()
 
     fn debug_display():
-        print("n_buckets={n_buckets}")
+        print("n_buckets={num_buckets}")
         let x = 0
         let i = 0
-        while i < n_buckets:
-            let b = buckets[i]
+        while i < num_buckets:
+            let b = m_buckets[i]
             print("  bucket-{x}: {b.len()}")
             x += 1
             if x > 30:
@@ -143,70 +101,59 @@ class HashMap2[K,V]:
             i += 1
 
     fn len() -> int:
-        let n = 0
-        let i = 0
-        while i < n_buckets:
-            n += buckets[i].len()
-            i += 1
-        n
+        m_size
     
     fn clear():
         let i = 0
-        while i < n_buckets:
-            buckets[i].clear()
+        while i < num_buckets:
+            m_buckets[i].clear()
             i += 1
-    
+        m_size = 0
+
     fn is_empty() -> bool:
-        let i = 0
-        while i < n_buckets:
-            if not buckets[i].is_empty():
-                return false
-            i += 1
-        true
+        m_size == 0
     
     fn rehash():
-        let old_buckets = buckets
-        let old_n_buckets = n_buckets
+        let old_buckets = m_buckets
+        let old_n_buckets = num_buckets
         # Double the amount of buckets:
-        create_buckets(n: n_buckets * 2)
+        create_buckets(n: num_buckets * 2)
         let i = 0
         while i < old_n_buckets:
             let b = old_buckets[i]
-            for item in b.items:
-                let list = get_list(key: item.key)
-                list.insert(key: item.key, value: item.value, f_eq: f.f_eq)
+            for pair in b:
+                insert(key: pair.key, value: pair.value)
             i += 1
     
     fn create_buckets(n: int):
-        n_buckets = n
-        buckets = [n : AssociationList[K,V]]
+        num_buckets = n
+        m_threshold = (n * 3) / 4  # Rehash at load factor of 75%
+        m_buckets = [n : List[KeyValuePair[K,V]]]
         let i = 0
         while i < n:
-            let new_list: AssociationList[K,V] = AssociationList()
-            buckets[i] = new_list
+            let new_list: List[KeyValuePair[K,V]] = List()
+            m_buckets[i] = new_list
             i += 1
-        # print("Created {n_buckets} buckets")
+        m_size = 0
 
     fn values() -> List[V]:
         let res: List[V] = List()
 
         let i = 0
-        while i < n_buckets:
-            for v in buckets[i].items:
+        while i < num_buckets:
+            for v in m_buckets[i]:
                 res.append(v.value)
             i += 1
-
         res
 
-    fn iter() -> HashMap2Iter[K,V]:
-        let it: HashMap2Iter[K,V] = HashMap2Iter(m: this)
+    fn iter() -> HashMapIter[K,V]:
+        let it: HashMapIter[K,V] = HashMapIter(m: this)
         it
 
-
-class HashMap2Iter[K,V]:
+class HashMapIter[K,V]:
     var index: int = 0
-    var it2: Option[AssociationListIter[K,V]] = Option.None()
-    var m: HashMap2[K,V]
+    var it2: Option[ListIter[KeyValuePair[K,V]]] = Option.None()
+    var m: HashMap[K,V]
 
     fn next() -> Option[K]:
         loop:
@@ -214,15 +161,23 @@ class HashMap2Iter[K,V]:
                 Some(it3):
                     case it3.next():
                         Some(v):
-                            return Option.Some(v)
+                            return Option.Some(v.key)
                         None:
                             it2 = Option.None()
                 None:
                     # Get next iterator!
-                    if index < m.n_buckets:
-                        it2 = Option.Some(m.buckets[index].iter())
+                    if index < m.num_buckets:
+                        it2 = Option.Some(m.m_buckets[index].iter())
                         index += 1
                     else:
                         break
 
         return Option.None()
+
+struct HashableApi[T]:
+    f_hash: fn(T) -> int
+    f_eq: fn(T,T) -> bool
+
+struct KeyValuePair[K,V]:
+    key: K
+    value: V
