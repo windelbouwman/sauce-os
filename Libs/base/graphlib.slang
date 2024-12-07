@@ -3,21 +3,21 @@
 # There are directed and undirected graph types.
 
 from datatypes import List, Option
-from settype import StringSet
+from settype import new_str_set, Set
 from dicttype import Dictionary
 
 class DiGraph:
     # A directed graph
-    var nodes: StringSet = StringSet()
-    var pred: Dictionary[StringSet] = Dictionary()
-    var succ: Dictionary[StringSet] = Dictionary()
+    var nodes: Set[str] = new_str_set()
+    var pred: Dictionary[Set[str]] = Dictionary()
+    var succ: Dictionary[Set[str]] = Dictionary()
 
     fn add_node(n?: str):
         if not nodes.contains(key: n):
             nodes.add(n)
             # TODO: assert n not in pred and succ?
-            pred.insert(key: n, value: StringSet())
-            succ.insert(key: n, value: StringSet())
+            pred.insert(key: n, value: new_str_set())
+            succ.insert(key: n, value: new_str_set())
     
     fn add_edge(src: str, dst: str):
         add_node(src)

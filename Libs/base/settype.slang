@@ -3,7 +3,17 @@
 
 from datatypes import Option
 from dicttype import Dictionary, DictionaryIter
-from hashmap import HashMap, new_hashmap
+from hashmap import HashMap, HashMapIter, new_hashmap, int_hash, int_eq, str_hash, str_eq
+
+fn new_set[T](f_hash: fn(T) -> int, f_eq: fn(T,T) -> bool) -> Set[T]:
+    let m_items = new_hashmap(f_hash, f_eq)
+    Set(m_items)
+
+fn new_str_set() -> Set[str]:
+    new_set(f_hash: str_hash, f_eq: str_eq)
+
+fn new_int_set() -> Set[int]:
+    new_set(f_hash: int_hash, f_eq: int_eq)
 
 class Set[T]:
     var m_items: HashMap[T, bool]
@@ -14,49 +24,20 @@ class Set[T]:
     fn contains(value?: T) -> bool:
         m_items.contains(key: value)
 
+    fn remove(value?: T):
+        let stub = m_items.pop(key: value)
+
     fn len() -> int:
         m_items.len()
 
-fn new_set[T](f_hash: fn(T) -> int, f_eq: fn(T,T) -> bool) -> Set[T]:
-    let m_items = new_hashmap(f_hash, f_eq)
-    Set(m_items)
-
-class StringSet:
-    """ Use a dictionary to emulate a set datatype. """
-    var items: Dictionary[bool] = Dictionary()
-
-    fn add(value?: str):
-        items.insert(key: value, value: true)
-    
-    fn remove(value?: str):
-        let stub = items.pop(key: value)
-    
-    fn contains(value?: str) -> bool:
-        items.contains(key: value)
-
     fn is_empty() -> bool:
-        items.is_empty()
+        m_items.is_empty()
 
-    fn iter() -> StringSetIter:
-        StringSetIter(it2: items.iter())
-    
-    fn len() -> int:
-        items.len()
+    fn iter() -> SetIter[T]:
+        SetIter(m_it: m_items.iter())
 
+class SetIter[T]:
+    var m_it: HashMapIter[T, bool]
 
-class StringSetIter:
-    var it2: DictionaryIter[bool]
-
-    fn next() -> Option[str]:
-        it2.next()
-
-
-class IntegerSet:
-    """ A type for a set of integers. """
-    var m_string_set: StringSet = StringSet()
-
-    fn add(value?: int):
-        m_string_set.add(str(value))
-
-    fn contains(value?: int) -> bool:
-        m_string_set.contains(str(value))
+    fn next() -> Option[T]:
+        m_it.next()

@@ -2164,4 +2164,3 @@ fn visit_expression[T](visitor: Visitor[T], expression: Expression):
         pass
 
     visitor.on_expression(data: visitor.data, expression, phase: VisitPhase.Post())
-

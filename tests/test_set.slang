@@ -1,7 +1,7 @@
 
 
 from std import print
-from settype import StringSet
+from settype import new_str_set
 from unittest import assert_str_equals, assert_int_equals, assert_true, assert_false
 
 
@@ -12,7 +12,7 @@ fn main() -> int:
 
 
 fn test_set():
-    let x = StringSet()
+    let x = new_str_set()
     assert_true(x.is_empty())
     x.add("one")
     x.add("two")
@@ -26,4 +26,3 @@ fn test_set():
     x.remove("one")
     assert_true(x.is_empty())
     x.remove("one")
-

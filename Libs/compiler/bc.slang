@@ -1,7 +1,7 @@
 
 from std import float_to_str
 from datatypes import List, Option
-from settype import IntegerSet
+from settype import Set, new_int_set
 from vectype import Vector
 from utils import panic
 from text_gen import TextGenerator
@@ -107,9 +107,9 @@ enum Instruction:
     ArrayLiteral(size: int)
     ArrayLiteral2(ty: Type)
 
-fn get_target_labels(instructions: Vector[Instruction]) -> IntegerSet:
+fn get_target_labels(instructions: Vector[Instruction]) -> Set[int]:
     """ Get a set of labels to which is being jumped """
-    let target_labels = IntegerSet()
+    let target_labels = new_int_set()
     for instruction in instructions:
         case instruction:
             Jump(index):
