@@ -4,11 +4,11 @@
 
 from utils import panic, assert
 
-fn new_queue[T](capacity: int) -> Queue[T]:
+pub fn new_queue[T](capacity: int) -> Queue[T]:
     assert(condition: capacity > 0, message: "capacity must larger than zero.")
     Queue(m_items: [capacity : T], m_capacity: capacity)
 
-class Queue[T]:
+pub class Queue[T]:
     """ Implement a FIFO queue data type """
     var m_items: [T]
     var m_capacity: int

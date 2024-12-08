@@ -1,7 +1,7 @@
 
 from std import print
 
-fn main() -> int:
+pub fn main() -> int:
     display()
     modify()
     display()

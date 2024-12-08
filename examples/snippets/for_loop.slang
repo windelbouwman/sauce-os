@@ -14,7 +14,7 @@ struct Holder:
     a: int
     b: float
 
-fn main() -> int:
+pub fn main() -> int:
     # let x: list<float> = [1,7,11,2]
     # let x: float = [1,7,11,2]
     let x = [1,7,11,2,550,232,12,2]

@@ -12,7 +12,7 @@ fn elf_hash(text: str) -> int:
         # assert h >= 0
     h
 
-fn djb2(text: str) -> int:
+pub fn djb2(text: str) -> int:
     let hash = 5381
     for c in text:
         # hash = 33 * hash + c

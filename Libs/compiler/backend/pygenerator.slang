@@ -2,12 +2,12 @@
 
 import ast
 from utils import panic, log_info
-from datatypes import List, option_is_some, option_unwrap, Option
+from datatypes import List, option_unwrap, Option
 from std import float_to_str2, str_len, str_slice
 from strlib import str_join
 from text_gen import TextGenerator
 
-fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_filename: Option[str]):
+pub fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_filename: Option[str]):
     log_info("Generating python code")
     let g = PyGenerator()
     g.out.begin(output_filename)
@@ -333,7 +333,7 @@ fn binary_operator_to_str(op: ast.BinaryOperator, float_division: bool) -> str:
         ShiftRight:
             ">>"
 
-fn escape_string(text?: str) -> str:
+pub fn escape_string(text?: str) -> str:
     """ Prefix double quotes and backslashes with an extra backslash """
     let res = ""
     let index = 0

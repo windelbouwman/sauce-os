@@ -2,7 +2,7 @@
 # Unique number generator
 import ast
 
-class IdGen:
+pub class IdGen:
     var counter: int = 1
     var m_void_type: ast.Type = ast.void_type()
 

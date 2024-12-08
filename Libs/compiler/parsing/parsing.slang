@@ -3,13 +3,13 @@ import ast
 import std
 from lexer import Lexer
 from token import token_to_string, Token, default_token
-from location import Location, Position
-from datatypes import List, Result, Option, list1, option_unwrap
+from location import Location
+from datatypes import List, Option, list1
 from vectype import Vector, new_vector
 from pathlib import basename
 from basepass import IdGen
-from utils import log_debug, log_trace, log_info
-from errors import CompilationError, SingleCompilationError
+from utils import log_debug, log_trace
+from errors import CompilationError
 import errors
 
 pub fn parse_source(filename: str, id_gen: IdGen) -> ast.Module except CompilationError:
@@ -81,7 +81,7 @@ pub class Parser:
                     let macro_def = parse_macro_def()
                     definitions.append(ast.Definition.Macro(macro_def))
                 KwFn:
-                    let func_def = parse_func_def(this_parameter: Option.None())
+                    let func_def = parse_func_def(is_pub, this_parameter: Option.None())
                     definitions.append(ast.Definition.Function(func_def))
                 KwExtern:
                     let libname = parse_raw_string()
@@ -94,13 +94,13 @@ pub class Parser:
                     else:
                         raise unexpected_token(tok, expected: "'fn'")
                 KwEnum:
-                    let enum_def = parse_enum_def(location: tok.location)
+                    let enum_def = parse_enum_def(is_pub)
                     definitions.append(ast.Definition.Enum(enum_def))
                 KwStruct:
-                    let struct_def = parse_struct_def()
+                    let struct_def = parse_struct_def(is_pub)
                     definitions.append(ast.Definition.Struct(struct_def))
                 KwClass:
-                    let class_def = parse_class_def()
+                    let class_def = parse_class_def(is_pub)
                     definitions.append(ast.Definition.Class(class_def))
                 KwVar:
                     let var_def = parse_var_def()
@@ -126,11 +126,11 @@ pub class Parser:
         else:
             raise unexpected_token(tok, expected: "'import'")
         
-        let names: List[str] = List()
+        let names: List[ast.NameAtLocation] = List()
 
         # list of names until newline:
         loop:
-            names.append(parse_name().name)
+            names.append(parse_name())
             let tok2 = get_token()
             case tok2.kind:
                 Comma:
@@ -145,8 +145,6 @@ pub class Parser:
     fn parse_macro_def() -> ast.MacroDef except CompilationError:
         # unimplemented("macro-def")
         let name_at = parse_name()
-        let name = name_at.name
-        let location = name_at.location
 
         parse_colon()
         parse_newline()
@@ -154,10 +152,10 @@ pub class Parser:
         let statement = parse_statement()
         parse_dedent()
 
-        ast.MacroDef(name, location)
+        ast.MacroDef(name: name_at.name, location: name_at.location)
 
-    fn parse_enum_def(location: Location) -> ast.EnumDef except CompilationError:
-        let name = parse_name().name
+    fn parse_enum_def(is_pub: bool) -> ast.EnumDef except CompilationError:
+        let name_at = parse_name()
         let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
 
         parse_colon()
@@ -168,7 +166,7 @@ pub class Parser:
         let variants: List[ast.EnumVariant] = List()
         let tag_index = 0
         while not try_parse_dedent():
-            let name_at = parse_name()
+            let variant_name_at = parse_name()
             let payload_types: Vector[ast.Type] = new_vector()
             case m_peek.kind:
                 ParenthesisOpen:
@@ -188,16 +186,16 @@ pub class Parser:
                 pass
             
             let variant = ast.EnumVariant:
-                name: name_at.name
+                name: variant_name_at.name
                 tag_value: tag_index
                 payload: payload_types
-                location: name_at.location
+                location: variant_name_at.location
             variants.append(variant)
             tag_index += 1
 
             parse_newline()
 
-        ast.enum_def(name, id: new_id(), location, type_parameters, variants)
+        ast.enum_def(is_pub, name: name_at.name, id: new_id(), location: name_at.location, type_parameters, variants)
 
     fn parse_type_parameters() -> List[ast.TypeParameter] except CompilationError:
         let type_parameters: List[ast.TypeParameter] = List()
@@ -221,7 +219,7 @@ pub class Parser:
             pass
         type_parameters
 
-    fn parse_struct_def() -> ast.StructDef except CompilationError:
+    fn parse_struct_def(is_pub: bool) -> ast.StructDef except CompilationError:
         let name_at = parse_name()
         let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
         parse_colon()
@@ -237,9 +235,9 @@ pub class Parser:
             parse_newline()
             fields.append(ast.StructField(name: field_name_at.name, ty, location: field_name_at.location))
 
-        ast.struct_def(name: name_at.name, id: new_id(), type_parameters, fields, location: name_at.location)
+        ast.struct_def(is_pub, name: name_at.name, id: new_id(), type_parameters, fields, location: name_at.location)
 
-    fn parse_class_def() -> ast.ClassDef except CompilationError:
+    fn parse_class_def(is_pub: bool) -> ast.ClassDef except CompilationError:
         let name_at = parse_name()
         log_debug("Parsing class: {name_at.name}")
         let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
@@ -253,11 +251,11 @@ pub class Parser:
         let this_type = ast.undefined_type()
         loop:
             # expect var/fn def or dedent (eventually)
-            let is_pub = false
+            let is_pub2 = false
             let tok = get_token()
             case tok.kind:
                 KwPub:
-                    is_pub = true
+                    is_pub2 = true
                     tok = get_token()
                 Dedent:
                     break
@@ -270,12 +268,13 @@ pub class Parser:
                     inner_defs.append(ast.Definition.Var(var_def))
                 KwFn:
                     let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
-                    let func_def = parse_func_def(this_parameter: Option.Some(this_parameter))
+                    let func_def = parse_func_def(is_pub: is_pub2, this_parameter: Option.Some(this_parameter))
                     inner_defs.append(ast.Definition.Function(func_def))
             else:
                 raise unexpected_token(tok, expected: "'var' or 'fn'")
 
         let class_def = ast.ClassDef:
+            is_pub
             id: ast.NodeId(name: name_at.name, id: new_id())
             location: name_at.location
             is_extern: Option.None()
@@ -292,7 +291,7 @@ pub class Parser:
         this_type.change_to(to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
         class_def
 
-    fn parse_func_def(this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except CompilationError:
+    fn parse_func_def(is_pub: bool, this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except CompilationError:
         let name_at = parse_name()
         log_debug("Parsing function: {name_at.name}")
         let type_parameters = parse_type_parameters()
@@ -312,7 +311,7 @@ pub class Parser:
         let location = inner.first().location
         let body = ast.compound(inner, location)
 
-        ast.function_def(name: name_at.name, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
+        ast.function_def(is_pub, name: name_at.name, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
     
     fn parse_extern_func_def(libname: str) -> ast.FunctionDef except CompilationError:
         let name_at = parse_name()
@@ -1040,11 +1039,11 @@ pub class Parser:
         location = Location(begin: location.begin, end: tok5.location.end)
         ast.array_literal2(size, ty, location)
 
-    fn parse_name() -> NameAtLocation except CompilationError:
+    fn parse_name() -> ast.NameAtLocation except CompilationError:
         let tok = get_token()
         case tok.kind:
             Identifier(name):
-                NameAtLocation(name, location: tok.location)
+                ast.NameAtLocation(name, location: tok.location)
         else:
             raise unexpected_token(tok, expected: "name")
 
@@ -1145,9 +1144,3 @@ pub class Parser:
     fn new_error(location: Location, message: str) -> CompilationError:
         let err = errors.new_error(location, message)
         errors.new_errors(filename: filename, errors: list1(err))
-
-struct NameAtLocation:
-    name: str
-    location: Location
-
-

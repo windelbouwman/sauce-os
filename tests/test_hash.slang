@@ -3,7 +3,7 @@ from std import print
 from unittest import assert_int_equals
 from hashlib import elf_hash
 
-fn main() -> int:
+pub fn main() -> int:
     test_hash_examples()
     print("OK")
     0

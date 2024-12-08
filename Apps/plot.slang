@@ -1,13 +1,11 @@
 
 # A plotting example program.
 
-import std
 from utils import log_info, set_log_level
-from strlib import split_lines
 from chart import Chart
 from lttb import lttb
 
-fn main() -> int:
+pub fn main() -> int:
     set_log_level(level: 2)
     log_info("Plotting curves")
     let c = Chart()

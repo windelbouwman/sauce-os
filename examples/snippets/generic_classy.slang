@@ -11,7 +11,7 @@ class Bar[V]:
         v
 
 
-fn main() -> int:
+pub fn main() -> int:
     let bar: Bar[Integer] = Bar()
     bar.val3 = "Woei!"
     bar.val1 = 1337

@@ -2,10 +2,10 @@
 
 from std import print
 from datatypes import List
-from unittest import assert_str_equals, assert_int_equals, assert_true
+from unittest import assert_int_equals, assert_true
 
 
-fn main() -> int:
+pub fn main() -> int:
     test_list()
     print("OK")
     0

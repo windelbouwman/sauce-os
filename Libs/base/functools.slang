@@ -28,7 +28,7 @@ fn reduce[T](values: List[T], f: fn(T, T) -> T) -> T:
         res = f(res, other)
     res
 
-fn map[T,V](values: List[T], function: fn(T) -> V) -> List[V]:
+pub fn map[T,V](values: List[T], function: fn(T) -> V) -> List[V]:
     let mapped: List[V] = List()
     for value in values:
         mapped.append(function(value))

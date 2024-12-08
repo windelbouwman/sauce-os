@@ -7,7 +7,7 @@ from strlib import str_join
 from math import max, min
 from functools import zip, all
 
-class IntegerSet:
+pub class IntegerSet:
     var ranges: List[Range]
 
     fn to_string() -> str:
@@ -39,19 +39,19 @@ class IntegerSet:
             return range.begin
         panic("Empty integer set!")
 
-fn new_empty_int_set() -> IntegerSet:
+pub fn new_empty_int_set() -> IntegerSet:
     """ Create an new empty integer set """
     let ranges: List[Range] = List()
     integer_set_from_ranges(ranges)
 
-fn new_int_set(begin: int, end: int) -> IntegerSet:
+pub fn new_int_set(begin: int, end: int) -> IntegerSet:
     """ Create a new integer set with a single range """
     let ranges: List[Range] = List()
     assert(condition: begin < end, message: "Range must be valid (begin < end)")
     ranges.append(Range(begin, end))
     integer_set_from_ranges(ranges)
 
-fn integer_set_from_ranges(ranges: List[Range]) -> IntegerSet:
+pub fn integer_set_from_ranges(ranges: List[Range]) -> IntegerSet:
     # - check empty ranges and valid ranges. checks: 'begin < end'
     # TODO
     # - sort ranges?
@@ -97,7 +97,7 @@ fn integer_set_intersection(self: IntegerSet, other: IntegerSet) -> IntegerSet:
 
     IntegerSet(ranges)
 
-fn integer_set_difference(self: IntegerSet, other: IntegerSet) -> IntegerSet:
+pub fn integer_set_difference(self: IntegerSet, other: IntegerSet) -> IntegerSet:
     # Create a new set with integers, by removing other integers from self set.
     let ranges: List[Range] = List()
 

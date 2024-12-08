@@ -6,38 +6,48 @@ Idea: have an array with buckets.
 
 from datatypes import Option, option_unwrap, option_is_some
 from datatypes import List
-from std import print
+from std import print, ord
 from utils import panic
 from rt import str_compare
 from hashlib import djb2
 from math import modulo
 
-fn new_hashmap_int[V]() -> HashMap[int,V]:
+pub fn new_hashmap_int[V]() -> HashMap[int,V]:
     """ Create a new hashmap with integer keys """
     new_hashmap(f_hash: int_hash, f_eq: int_eq)
 
-fn new_hashmap_str[V]() -> HashMap[str,V]:
+pub fn new_hashmap_str[V]() -> HashMap[str,V]:
     """ Create a new hashmap with string keys """
     new_hashmap(f_hash: str_hash, f_eq: str_eq)
 
-fn new_hashmap[K,V](f_hash: fn(K) -> int, f_eq: fn(K, K) -> bool) -> HashMap[K,V]:
+pub fn new_hashmap_char[V]() -> HashMap[char,V]:
+    """ Create a new hashmap with char keys """
+    new_hashmap(f_hash: char_hash, f_eq: char_eq)
+
+pub fn new_hashmap[K,V](f_hash: fn(K) -> int, f_eq: fn(K, K) -> bool) -> HashMap[K,V]:
     let m: HashMap[K,V] = HashMap(f: HashableApi(f_hash, f_eq))
     m.create_buckets(n: 16)
     m
 
-fn str_hash(text?: str) -> int:
+pub fn str_hash(text?: str) -> int:
     djb2(text)
 
-fn str_eq(a?: str, b?: str) -> bool:
+pub fn str_eq(a?: str, b?: str) -> bool:
     str_compare(a, b)
 
-fn int_eq(a: int, b: int) -> bool:
+pub fn int_eq(a: int, b: int) -> bool:
     a == b
 
-fn int_hash(x: int) -> int:
+pub fn int_hash(x: int) -> int:
     x
 
-class HashMap[K,V]:
+pub fn char_eq(a: char, b: char) -> bool:
+    a == b
+
+pub fn char_hash(x: char) -> int:
+    ord(x)
+
+pub class HashMap[K,V]:
     var num_buckets: int = 0
     var m_threshold: int = 0
     var m_size: int = 0
@@ -195,7 +205,7 @@ class HashMap[K,V]:
         let it: HashMapIter[K,V] = HashMapIter(m: this)
         it
 
-class HashMapIter[K,V]:
+pub class HashMapIter[K,V]:
     var index: int = 0
     var m_pair_ptr: Option[KeyValuePair[K,V]] = Option.None()
     var m: HashMap[K,V]

@@ -5,7 +5,7 @@ from std import print, file_writeln, file_open, file_close
 from datatypes import Option, option_is_some, option_unwrap
 from strlib import str_repeat
 
-class TextGenerator:
+pub class TextGenerator:
     var m_indentation: int = 0
     var use_file: bool = false
     var outf: int = 0
@@ -33,4 +33,3 @@ class TextGenerator:
             file_writeln(handle: outf, line)
         else:
             print(line)
-

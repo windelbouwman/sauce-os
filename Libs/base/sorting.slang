@@ -9,7 +9,7 @@ fn find_max_value[T](values: List[T], cmp: fn(T, T) -> bool) -> T:
     let sorted = sort_list(values, cmp)
     sorted.last()
 
-fn sort_list[T](x?: List[T], cmp: fn(T, T) -> bool) -> List[T]:
+pub fn sort_list[T](x?: List[T], cmp: fn(T, T) -> bool) -> List[T]:
     # Return a sorted list
     # API/proxy function, choose implementation here.
     merge_sort(m: x, cmp)

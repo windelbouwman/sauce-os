@@ -1,9 +1,9 @@
 
 from std import print
-from integersetlib import new_int_set, IntegerSet, integer_set_equals
+from integersetlib import new_int_set, integer_set_equals
 from unittest import assert_true
 
-fn main() -> int:
+pub fn main() -> int:
     print("OK")
     test_intersection()
     test_difference()

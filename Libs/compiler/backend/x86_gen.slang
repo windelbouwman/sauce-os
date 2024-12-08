@@ -1,13 +1,13 @@
 
 # x86 backend
 
-from utils import log_debug, log_info
+from utils import log_info
 from std import print
 import bc
 import sil
 from bc_to_sil import to_sil
 
-fn gen_x86(program: bc.Program):
+pub fn gen_x86(program: bc.Program):
     log_info("Generating x86 instructions")
 
     # Turn bytecode into graph of basic blocks?
@@ -25,4 +25,3 @@ class X86Generator:
 
     fn gen_function(function: sil.Function):
         print("FUNC: {function.name}")
-

@@ -1,10 +1,10 @@
 
-from std import print, float_to_str, float_to_str2
+from std import print, float_to_str2
 from utils import assert
 from math import modulo, fabs, floor, ceil, factorial, sin, cos, log10, exp, sqrt
 from unittest import assert_int_equals
 
-fn main() -> int:
+pub fn main() -> int:
     test_float_literals()
     test_modulo()
     test_factorial()

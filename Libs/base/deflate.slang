@@ -18,11 +18,11 @@ fn deflate_decompress_from_reader(reader: ByteReader) -> Bytes:
     decoder.deflate()
     decoder.m_output.to_bytes()
 
-fn new_deflate_decoder(reader: ByteReader) -> DeflateDecoder:
+pub fn new_deflate_decoder(reader: ByteReader) -> DeflateDecoder:
     let bit_reader = BitReader(m_reader: reader)
     DeflateDecoder(m_bit_reader: bit_reader)
 
-fn deflate_compress(data: Bytes) -> Bytes:
+pub fn deflate_compress(data: Bytes) -> Bytes:
     # Implementation 1: copy uncompressed:
     let out = ByteArray()
     let index = 0
@@ -308,4 +308,3 @@ fn create_fixed_distance_tree() -> Tree:
         lengths.append(5)
         symbol += 1
     create_tree(lengths)
-

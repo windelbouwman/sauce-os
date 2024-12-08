@@ -2,7 +2,7 @@
 # Example with some basic types
 from std import print
 
-fn main() -> int:
+pub fn main() -> int:
     let a: int = 1
     let b: float = 2.0
     let c: str = "drie"

@@ -1,7 +1,7 @@
 
 import std
 
-fn main() -> int:
+pub fn main() -> int:
     let a = foo(a: 2, b: 5, message: "Fiir")
     let message = "No sir"
     let b = foo(a: 9, b: 5, message)
@@ -21,4 +21,3 @@ fn foo(a: int, b: int, message: str) -> Option[Symbol]:
         std.print(message)
     
     Option.Some(Symbol.B())
-

@@ -1,6 +1,5 @@
 
 import ast
-from std import print
 from location import Location
 from basepass import IdGen
 from utils import log_info, panic
@@ -9,8 +8,7 @@ from datatypes import List, Option
 from dicttype import Dictionary
 from vectype import Vector, new_vector, new_vector_with_capacity
 
-
-fn resolve_newops(module: ast.Module, id_gen: IdGen) except CompilationError:
+pub fn resolve_newops(module: ast.Module, id_gen: IdGen) except CompilationError:
     log_info("resolve new-ops for {module.name}")
     let newop = NewOp(id_gen)
     let visitor = ast.Visitor[NewOp]:
@@ -52,8 +50,12 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                             let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: indici.len())
                             for index in indici:
                                 type_arguments.append(newop.eval_type_expr(expression: index))
-                            let ty = ast.apply_tycon(tycon, type_arguments)
-                            expression.kind = ast.ExpressionKind.Typ(ty)
+                            let type_parameters = ast.tycon_get_type_parameters(tycon)
+                            if type_parameters.len() == type_arguments.len():
+                                let ty = ast.apply_tycon(tycon, type_arguments)
+                                expression.kind = ast.ExpressionKind.Typ(ty)
+                            else:
+                                newop.add_error(location: expression.location, message: "Got {type_arguments.len()} type arguments, expected {type_parameters.len()}")
                     else:
                         pass
 
@@ -147,7 +149,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                             None:
                                 pass
                 LoadSymbol(symbol):
-                    case symbol:
+                    case symbol.kind:
                         Function(function_def):
                             # Ha, create type variables!
                             let type_arguments = newop.new_type_arguments(type_parameters: function_def.type_parameters)

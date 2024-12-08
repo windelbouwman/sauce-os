@@ -305,16 +305,16 @@ class CustomTransformer(LarkTransformer):
         )
 
     def struct_def(self, x):
-        # KW_STRUCT id_and_type_parameters COLON NEWLINE INDENT docstring struct_field+ DEDENT
-        is_union = is_terminal(x[0], "KW_UNION")
-        location, name, type_parameters = x[1]
-        assert is_terminal(x[2], "COLON")
-        assert is_terminal(x[3], "NEWLINE")
-        assert is_terminal(x[4], "INDENT")
-        _docstring = x[5]
-        fields = x[6:-1]
+        # is_pub KW_STRUCT id_and_type_parameters COLON NEWLINE INDENT docstring struct_field+ DEDENT
+        is_union = is_terminal(x[1], "KW_UNION")
+        location, name, type_parameters = x[2]
+        assert is_terminal(x[3], "COLON")
+        assert is_terminal(x[4], "NEWLINE")
+        assert is_terminal(x[5], "INDENT")
+        _docstring = x[6]
+        fields = x[7:-1]
         assert is_terminal(x[-1], "DEDENT")
-        span = get_loc2(x[4], x[-1])
+        span = get_loc2(x[5], x[-1])
         return ast.StructDef(
             self.new_id(name), type_parameters, is_union, fields, location, span
         )
@@ -323,16 +323,16 @@ class CustomTransformer(LarkTransformer):
         return ast.StructFieldDef(x[0], x[2], get_loc(x[0]))
 
     def enum_def(self, x):
-        # KW_ENUM id_and_type_parameters COLON NEWLINE INDENT docstring enum_variant+ DEDENT
-        assert is_terminal(x[0], "KW_ENUM")
-        location, name, type_parameters = x[1]
-        assert is_terminal(x[2], "COLON")
-        assert is_terminal(x[3], "NEWLINE")
-        assert is_terminal(x[4], "INDENT")
-        _docstring = x[5]
-        variants = x[6:-1]
+        # is_pub KW_ENUM id_and_type_parameters COLON NEWLINE INDENT docstring enum_variant+ DEDENT
+        assert is_terminal(x[1], "KW_ENUM")
+        location, name, type_parameters = x[2]
+        assert is_terminal(x[3], "COLON")
+        assert is_terminal(x[4], "NEWLINE")
+        assert is_terminal(x[5], "INDENT")
+        _docstring = x[6]
+        variants = x[7:-1]
         assert is_terminal(x[-1], "DEDENT")
-        span = get_loc2(x[4], x[-1])
+        span = get_loc2(x[5], x[-1])
         return ast.EnumDef(self.new_id(name), type_parameters, variants, location, span)
 
     def enum_variant(self, x):
@@ -821,9 +821,9 @@ function_signature: LEFT_PARENTHESIS parameters? RIGHT_PARENTHESIS (ARROW typ)? 
 parameters: parameter
           | parameters COMMA parameter
 parameter: ID QUESTION? COLON typ
-struct_def: (KW_STRUCT | KW_UNION) id_and_type_parameters COLON NEWLINE INDENT docstring struct_field+ DEDENT
+struct_def: is_pub (KW_STRUCT | KW_UNION) id_and_type_parameters COLON NEWLINE INDENT docstring struct_field+ DEDENT
 struct_field: ID COLON typ NEWLINE
-enum_def: KW_ENUM id_and_type_parameters COLON NEWLINE INDENT docstring enum_variant+ DEDENT
+enum_def: is_pub KW_ENUM id_and_type_parameters COLON NEWLINE INDENT docstring enum_variant+ DEDENT
 enum_variant: ID NEWLINE
             | ID LEFT_PARENTHESIS parameters RIGHT_PARENTHESIS NEWLINE
 type_def: KW_TYPE ID EQUALS typ NEWLINE

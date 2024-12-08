@@ -12,14 +12,13 @@
 import webassembly
 import ast
 from webassembly import Instruction
-from datatypes import List, list1, Option, option_is_none, option_is_some, option_unwrap
+from datatypes import List, list1
 from dicttype import Dictionary
 from location import location_default
-from std import print, str_len, ord
-from utils import panic, log_info, log_debug, assert, log_error
+from std import str_len, ord
+from utils import panic, log_info, log_debug, assert
 
-
-fn gen_webassembly(module_set: ast.ModuleSet):
+pub fn gen_webassembly(module_set: ast.ModuleSet):
     log_info("Generating WebAssembly")
     let generator = WasmGenerator()
     generator.gen_module_set(modules: module_set.modules)

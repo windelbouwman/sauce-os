@@ -1,16 +1,14 @@
 # generate bytecode
 
 import ast
-from std import print
-from datatypes import List, option_unwrap, Option, option_is_some, option_is_none
+from datatypes import List, option_unwrap, Option
 from dicttype import Dictionary
 from vectype import Vector, new_vector
 from utils import panic, log_info, log_debug, assert, log_trace
 from bc import Instruction
 import bc
 
-
-fn gen_bytecode(module_set: ast.ModuleSet) -> bc.Program:
+pub fn gen_bytecode(module_set: ast.ModuleSet) -> bc.Program:
     let g = BytecodeGenerator()
     g.forward_declarations(module_set)
     for module in module_set.modules:

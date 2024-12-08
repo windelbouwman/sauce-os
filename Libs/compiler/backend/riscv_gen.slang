@@ -28,7 +28,7 @@ from strlib import int_to_hex_string
 from hexfile import HexFile
 from bytes import ByteArray
 
-fn gen_riscv(program: bc.Program):
+pub fn gen_riscv(program: bc.Program):
     log_info("Generating riscv code")
     let g = RiscvGen()
     for function in program.functions:
@@ -207,4 +207,3 @@ class RiscvGen:
         let code = riscv.encode_instruction(instruction)
         print("--> {int_to_hex_string(code)} -> {txt} ")
         codes.append(code)
-

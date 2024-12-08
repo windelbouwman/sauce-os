@@ -1,18 +1,18 @@
 
 
-struct Location:
+pub struct Location:
     begin: int
     end: int
 
-fn location_default() -> Location:
+pub fn location_default() -> Location:
     location_at(offset: 0)
 
-fn location_at(offset: int) -> Location:
+pub fn location_at(offset: int) -> Location:
     let begin = offset
     let end = offset
     Location(begin, end)
 
-struct Position:
+pub struct Position:
     row: int
     column: int
 

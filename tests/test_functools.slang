@@ -1,9 +1,9 @@
 
-from datatypes import List, list4
+from datatypes import list4
 from functools import sum_integers
 from unittest import assert_int_equals
 
-fn main() -> int:
+pub fn main() -> int:
     test_sum()
     0
 

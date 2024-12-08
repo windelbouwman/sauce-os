@@ -5,7 +5,7 @@ from unittest import assert_int_equals, assert_bytes_equals
 from crypto import md5, leftrotate, compute_md5_K, fill_md5_K
 
 
-fn main() -> int:
+pub fn main() -> int:
     test_bit_rotations()
     test_K_table()
     test_examples()
@@ -49,4 +49,3 @@ fn check_left_rotation(value: int, amount: int, expected: int):
 fn check_md5(input: str, digest: str):
     let digest2 = md5(data: bytes_from_ascii(text: input))
     assert_bytes_equals(bytes_from_hex_text(text: digest), digest2)
-

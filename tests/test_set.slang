@@ -2,10 +2,10 @@
 
 from std import print
 from settype import new_str_set
-from unittest import assert_str_equals, assert_int_equals, assert_true, assert_false
+from unittest import assert_true, assert_false
 
 
-fn main() -> int:
+pub fn main() -> int:
     test_set()
     print("OK")
     0

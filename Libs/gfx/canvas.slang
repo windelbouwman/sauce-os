@@ -4,7 +4,7 @@ from utils import panic, log_info
 from datatypes import Option
 from xml import Node, emit_xml
 
-class Canvas:
+pub class Canvas:
     # Canvas drawing API
     # For now, draw to SVG nodes
 
@@ -65,12 +65,12 @@ class Canvas:
     fn add_node(node?: Node):
         m_g_node.add_child(node)
 
-enum HorizontalAnchor:
+pub enum HorizontalAnchor:
     Left
     Middle
     Right
 
-enum VerticalAnchor:
+pub enum VerticalAnchor:
     Top
     Middle
     Bottom

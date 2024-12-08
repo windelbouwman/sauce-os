@@ -9,7 +9,8 @@ struct Fu:
     msg: str
     b: int
 
-fn main() -> int:
+pub fn main() -> int:
+    # let messages = new Holder:
     let messages = Holder:
         msg1: "Hello c22ool world!!"
         msg2: "W02220t"
@@ -28,13 +29,16 @@ fn main() -> int:
         msg: "BOOM2"
         b: 55
     bar(kung, messages)
+    # delete messages
     0
 
+# fn foo(messages: &Holder):
 fn foo(messages: Holder):
     print(messages.msg1)
     print(messages.msg2)
 
 fn bar(kung: Fu, messages: Holder):
+# fn bar(kung: Fu, messages: &Holder):
     if kung.a < kung.b:
         print(kung.msg)
     else:

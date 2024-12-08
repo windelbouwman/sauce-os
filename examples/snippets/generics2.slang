@@ -1,5 +1,4 @@
 from std import print
-import std
 
 struct Bla[T]:
     value: T
@@ -11,7 +10,7 @@ struct I:
 struct S:
     s: str
 
-fn main() -> int:
+pub fn main() -> int:
     
     let i = I:
         i: 12

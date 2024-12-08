@@ -7,7 +7,7 @@ from std import print
 from datatypes import List, Option
 from strlib import str_join
 
-class Program:
+pub class Program:
     var functions: List[Function]
 
     fn dump():
@@ -15,7 +15,7 @@ class Program:
         for function in functions:
             function.dump()
 
-class Function:
+pub class Function:
     var name: str
     var start: Block
     var blocks: List[Block]
@@ -28,7 +28,7 @@ class Function:
         for block in blocks:
             block.dump()
 
-class Block:
+pub class Block:
     var name: str
     var instructions: List[Instruction]
 
@@ -40,7 +40,7 @@ class Block:
         for instruction in instructions:
             print("    {instruction}")
 
-class Instruction:
+pub class Instruction:
     var op: OpCode
 
     fn to_string() -> str:
@@ -103,7 +103,7 @@ class Instruction:
             Halt:
                 "hlt"
 
-enum OpCode:
+pub enum OpCode:
     Nop
     Binop(dst: Value, op: BinaryOp, lhs: Value, rhs: Value)
     Compare(dst: Value, op: CompOp, lhs: Value, rhs: Value)
@@ -116,13 +116,13 @@ enum OpCode:
     Return(value: Option[Value])
     Halt
 
-enum BinaryOp:
+pub enum BinaryOp:
     Add
     Sub
     Mul
     Div
 
-enum CompOp:
+pub enum CompOp:
     Eq
     Neq
     Gt
@@ -130,7 +130,7 @@ enum CompOp:
     Gte
     Lte
 
-enum Value:
+pub enum Value:
     Integer(value: int)
     Tmp(name: str)
     Global(name: str)

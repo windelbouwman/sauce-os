@@ -6,32 +6,32 @@ from vectype import Vector
 from utils import panic
 from text_gen import TextGenerator
 
-struct Program:
+pub struct Program:
     extern_functions: List[ExternFunction]
     globals: List[Global]
     structs: List[Struct]
     functions: List[Function]
 
-struct Global:
+pub struct Global:
     name: str
     ty: Type
     value: Option[Vector[Instruction]]
 
-struct Struct:
+pub struct Struct:
     name: str
     fields: List[TypedName]
 
-struct TypedName:
+pub struct TypedName:
     ty: Type
     name: str
 
-struct ExternFunction:
+pub struct ExternFunction:
     name: str
     parameters: List[TypedName]
     return_type: Option[Type]
     no_return: bool
 
-struct Function:
+pub struct Function:
     name: str
     parameters: List[TypedName]
     return_type: Option[Type]
@@ -39,7 +39,7 @@ struct Function:
     locals: List[TypedName]
     instructions: Vector[Instruction]
 
-enum Type:
+pub enum Type:
     Int(signed: bool, bits: int)
     Float(bits: int)
     Bool
@@ -50,14 +50,14 @@ enum Type:
     Array(element_type: Type)
     Function(parameter_types: List[Type], return_type: Option[Type])
 
-fn get_element_type_from_type(ty?: Type) -> Type:
+pub fn get_element_type_from_type(ty?: Type) -> Type:
     case ty:
         Array(element_type):
             element_type
     else:
         panic("get_element_type_from_type: No array type")
 
-enum Instruction:
+pub enum Instruction:
     Nop
     Dup  # Duplicate stack top
     
@@ -107,7 +107,7 @@ enum Instruction:
     ArrayLiteral(size: int)
     ArrayLiteral2(ty: Type)
 
-fn get_target_labels(instructions: Vector[Instruction]) -> Set[int]:
+pub fn get_target_labels(instructions: Vector[Instruction]) -> Set[int]:
     """ Get a set of labels to which is being jumped """
     let target_labels = new_int_set()
     for instruction in instructions:
@@ -124,7 +124,7 @@ fn get_target_labels(instructions: Vector[Instruction]) -> Set[int]:
             pass
     target_labels
 
-enum LiteralValue:
+pub enum LiteralValue:
     Int(value: int)
     Str(value: str)
     Float(value: float)
@@ -132,13 +132,13 @@ enum LiteralValue:
     Char(value: char)
     Null
 
-enum BinaryOperator:
+pub enum BinaryOperator:
     Add
     Sub
     Divide
     Multiply
 
-enum ComparisonOperator:
+pub enum ComparisonOperator:
     Less
     LessEquals
     Greater
@@ -146,14 +146,14 @@ enum ComparisonOperator:
     Equals
     NotEquals
 
-enum BitOperator:
+pub enum BitOperator:
     Shr
     Shl
     Xor
     And
     Or
 
-fn literal_to_string(literal?: LiteralValue) -> str:
+pub fn literal_to_string(literal?: LiteralValue) -> str:
     case literal:
         Int(value):
             "int({value})"
@@ -171,8 +171,7 @@ fn literal_to_string(literal?: LiteralValue) -> str:
         Null:
             "Null"
 
-
-fn instruction_to_string(instruction?: Instruction) -> str:
+pub fn instruction_to_string(instruction?: Instruction) -> str:
     case instruction:
         Nop:
             "nop"
@@ -295,14 +294,14 @@ fn bitop_to_string(op: BitOperator) -> str:
         Or:
             "bit-or"
 
-fn print_bc_program_to_file(program: Program, filename: Option[str]):
+pub fn print_bc_program_to_file(program: Program, filename: Option[str]):
     let p = Printer()
     p.m_out.begin(output_filename: filename)
     p.m_out.m_one_tab = "  "
     p.write_program(program)
     p.m_out.end()
 
-fn print_bc_program(program: Program):
+pub fn print_bc_program(program: Program):
     print_bc_program_to_file(program, filename: Option.None())
 
 fn print_bc_instructions(instructions: Vector[Instruction]):

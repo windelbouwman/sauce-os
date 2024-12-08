@@ -1,7 +1,7 @@
 
 import std
 
-fn main() -> int:
+pub fn main() -> int:
     let x = 2
     let y: int = 6
     let z = (x + 2 - 9 * 10) / y
@@ -22,4 +22,3 @@ fn main() -> int:
     # This should error:
     # 2 = 5
     0
-

@@ -2,10 +2,10 @@
 
 from std import print
 from vectype import Vector, new_vector
-from unittest import assert_str_equals, assert_int_equals, assert_true
+from unittest import assert_int_equals
 
 
-fn main() -> int:
+pub fn main() -> int:
     test_vector()
     print("OK")
     0

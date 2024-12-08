@@ -6,7 +6,7 @@ from parsing import parse_expr_from_text
 from basepass import IdGen
 from errors import CompilationError
 
-fn main() -> int:
+pub fn main() -> int:
     test_parse_13()
     print("OK")
     0

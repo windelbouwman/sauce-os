@@ -10,7 +10,7 @@ from math import sin, cos, tan, radians
 from vectype import Vector, new_vector
 from screen import Screen, new_screen
 
-fn main() -> int:
+pub fn main() -> int:
     print("Hello world")
     let s = new_screen(width: 320, height: 240)
     s.set_color(red: 0, green: 128, blue: 128)
@@ -175,5 +175,3 @@ struct Face:
     v1: int
     v2: int
     v3: int
-
-

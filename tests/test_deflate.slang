@@ -1,11 +1,11 @@
 
 from std import print
 from unittest import assert_bytes_equals, assert_int_equals
-from bytes import bytes_from_hex_text, fill_bytes, bytes_from_ascii, Bytes
+from bytes import bytes_from_hex_text, fill_bytes, bytes_from_ascii
 from gzip import gzip_decompress, calc_crc32
 from gzip import zlib_decompress, zlib_compress, calc_adler32
 
-fn main() -> int:
+pub fn main() -> int:
     test_gzip_example1()
     test_gzip_example2()
     test_crc32()
@@ -64,4 +64,3 @@ fn test_adler32():
     let data = bytes_from_ascii(text: "Wikipedia")
     let crc = calc_adler32(data)
     assert_int_equals(crc, 0x11E60398)
-

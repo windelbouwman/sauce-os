@@ -3,7 +3,7 @@ from bytes import ByteArray, bytes_from_hex_text
 from std import print
 from unittest import assert_str_equals
 
-fn main() -> int:
+pub fn main() -> int:
     test_hex_text_conversion()
     test_pack()
     test_concatenation()
@@ -27,4 +27,3 @@ fn test_concatenation():
     let data2 = bytes_from_hex_text(text: "1234EF")
     let data3 = data1.concat(other: data2)
     assert_str_equals(data3.as_hex(), "ABCD1234EF")
-

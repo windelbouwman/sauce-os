@@ -4,7 +4,7 @@
 from std import get_n_args, get_arg, print
 from utils import set_log_level, panic
 from strlib import split_string
-from image import Image, new_image
+from image import Image
 from pbm import write_pbm
 from png import read_png_from_file, write_png_to_file
 from qoi import read_qoi_from_file, write_qoi_to_file
@@ -40,7 +40,7 @@ fn print_usage():
     print("Usage:")
     print("   CMD> write_image.exe input_image_filename output_image_filename")
 
-fn main() -> int:
+pub fn main() -> int:
     # Argument processing
     let n = get_n_args()
     let i = 0
@@ -76,4 +76,3 @@ fn main() -> int:
     save_image(image, filename: output_image)
     
     return 0
-

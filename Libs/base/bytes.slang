@@ -6,7 +6,7 @@ from utils import assert, panic
 from vectype import Vector, new_vector
 from strlib import hex_char, hex_digit_to_int, is_hex_digit, is_space
 
-class Bytes:
+pub class Bytes:
     # Immutable bytes
     var m_bytes: Vector[uint8]
 
@@ -33,7 +33,7 @@ class Bytes:
 fn concat2(a: Bytes, b: Bytes) -> Bytes:
     Bytes(m_bytes: a.m_bytes.concat(other: b.m_bytes))
 
-class ByteReader:
+pub class ByteReader:
     # read byte at a time
     var m_bytes: Bytes
     var m_index: int = 0
@@ -81,7 +81,7 @@ class ByteReader:
         let b4 = read_byte()
         (b4 << 24) | (b3 << 16) | (b2 << 8) | b1
 
-class ByteArray:
+pub class ByteArray:
     # Mutable bytes
     var m_bytes: Vector[uint8] = new_vector()
 

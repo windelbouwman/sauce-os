@@ -1,7 +1,7 @@
 
 from std import print
 
-fn main() -> int:
+pub fn main() -> int:
     let choice = Choice.Yes()
     let x = foo(choice)
     print("x = {x}")

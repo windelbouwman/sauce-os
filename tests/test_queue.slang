@@ -2,10 +2,10 @@
 
 from std import print
 from deque import Queue, new_queue
-from unittest import assert_str_equals, assert_int_equals, assert_true
+from unittest import assert_int_equals
 
 
-fn main() -> int:
+pub fn main() -> int:
     test_queue()
     print("OK")
     0

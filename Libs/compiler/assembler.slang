@@ -2,9 +2,8 @@
 # Idea for an assembler
 
 from std import str_len
-from utils import log_info, unimplemented
+from utils import unimplemented
 from strlib import split_lines
-from datatypes import Option
 from datatypes import List
 
 class Assembler:
@@ -84,4 +83,3 @@ enum TokenKind:
     Comma
     Comment(text: str)
     End
-

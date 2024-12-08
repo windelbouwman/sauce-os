@@ -14,7 +14,7 @@ class Bar:
         print("Bar instance: " + val3)
 
 
-fn main() -> int:
+pub fn main() -> int:
     let bar = Bar(val3: "Woei!")
     bar.info(x: 2)
 

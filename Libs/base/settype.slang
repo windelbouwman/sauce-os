@@ -1,21 +1,20 @@
-""" Set datatype, build upon the dictionary datatype.
+""" Set datatype, build upon the HashMap datatype.
 """
 
 from datatypes import Option
-from dicttype import Dictionary, DictionaryIter
 from hashmap import HashMap, HashMapIter, new_hashmap, int_hash, int_eq, str_hash, str_eq
 
-fn new_set[T](f_hash: fn(T) -> int, f_eq: fn(T,T) -> bool) -> Set[T]:
+pub fn new_set[T](f_hash: fn(T) -> int, f_eq: fn(T,T) -> bool) -> Set[T]:
     let m_items = new_hashmap(f_hash, f_eq)
     Set(m_items)
 
-fn new_str_set() -> Set[str]:
+pub fn new_str_set() -> Set[str]:
     new_set(f_hash: str_hash, f_eq: str_eq)
 
-fn new_int_set() -> Set[int]:
+pub fn new_int_set() -> Set[int]:
     new_set(f_hash: int_hash, f_eq: int_eq)
 
-class Set[T]:
+pub class Set[T]:
     var m_items: HashMap[T, bool]
 
     fn add(value?: T):
@@ -36,7 +35,7 @@ class Set[T]:
     fn iter() -> SetIter[T]:
         SetIter(m_it: m_items.iter())
 
-class SetIter[T]:
+pub class SetIter[T]:
     var m_it: HashMapIter[T, bool]
 
     fn next() -> Option[T]:

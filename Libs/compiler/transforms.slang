@@ -10,18 +10,17 @@ Ideas for transformations:
 """
 
 from location import Location
-# from std import print
-from utils import panic, log_info, log_debug, assert, unimplemented
+from utils import panic, log_info, log_debug, assert
 from basepass import IdGen
 from typechecking import type_check_modules
-from datatypes import List, list1, list2, list3, list4
-from datatypes import Option, option_unwrap_or, option_unwrap, option_is_none, option_is_some
+from datatypes import List, list1, list2
+from datatypes import Option, option_unwrap, option_is_none, option_is_some
 from vectype import vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
 from dicttype import Dictionary
 from errors import CompilationError
 import ast
 
-fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module) except CompilationError:
+pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module) except CompilationError:
     log_debug("Transforming modules")
     let transformer = Transformer:
         class_rewriter: ClassRewriter(id_gen, rt_module)
@@ -706,7 +705,7 @@ class ClassRewriter:
             None:
                 let init_literal = ast.struct_literal(ty: struct_type, values: init_values, location: class_def.location)
                 let body = ast.return_statement(value: Option.Some(init_literal), location: class_def.location)
-                ctor_func = ast.function_def(name: ctor_name, type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
+                ctor_func = ast.function_def(is_pub: true, name: ctor_name, type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
 
         # Use node-id to store constructor:
         ctor_map.insert(key: ast.node_id_to_string(class_def.id), value: ctor_func)
@@ -734,14 +733,14 @@ class ClassRewriter:
     fn load_std_function(name: str, location: Location) -> ast.Expression:
         # Get expression that loads a builtin runtime function.
         let symbol = option_unwrap(rt_module.scope.lookup(name))
-        case symbol:
+        case symbol.kind:
             Function(function_def):
                 let type_arguments: Vector[ast.Type] = new_vector()
                 ast.function_ref(function_def, type_arguments, location)
         else:
             panic("{name} must be external function")
 
-    fn transform_for_loop(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
+    fn transform_for_loop(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
         """ Turn for loop into iterator and while loop """
         log_debug("Rewrite for loop")
 
@@ -756,7 +755,7 @@ class ClassRewriter:
         else:
             panic("Cannot for-loop over {for_statement.iter_value.ty}")
 
-    fn transform_for_loop_over_iterator(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
+    fn transform_for_loop_over_iterator(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
         # Implement loop over 'iter' method:
         # log_info(".... {for_statement.iter_value.ty}")
         let arguments: List[ast.LabeledExpression] = List()
@@ -789,7 +788,7 @@ class ClassRewriter:
 
         ast.compound(inner: vec2(let_it_var, loop_statement), location)
 
-    fn transform_for_loop_over_sequence(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
+    fn transform_for_loop_over_sequence(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
         let sequence_type = for_statement.iter_value.ty
 
         # let x = iter_value
@@ -834,7 +833,7 @@ class ClassRewriter:
 
         ast.compound(inner: vec4(let_x, let_index, let_size, while_loop), location)
 
-    fn transform_for_loop_over_array(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
+    fn transform_for_loop_over_array(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
         # Turn for loop into index / while loop
         let array_type = for_statement.iter_value.ty
 
@@ -871,7 +870,7 @@ class ClassRewriter:
 
         ast.compound(inner: vec3(let_x, let_index, while_loop), location)
 
-    fn transform_for_loop_over_str(for_statement: ast.ForStatement, location: ast.Location) -> ast.Statement:
+    fn transform_for_loop_over_str(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
         let str_type = for_statement.iter_value.ty
 
         # let x = iter_value
@@ -1243,7 +1242,7 @@ class ClassRewriter:
                 value = ast.box(value, location)
             body = ast.return_statement(value: Option.Some(value), location)
 
-        let bridge_function = ast.function_def(name: bridge_function_name, type_parameters, this_parameter: Option.None(), parameters, return_type: return_type2, except_type, body, location)
+        let bridge_function = ast.function_def(is_pub: true, name: bridge_function_name, type_parameters, this_parameter: Option.None(), parameters, return_type: return_type2, except_type, body, location)
         # TODO: we could insert duplicate bridge functions.
         # TODO: check for duplicate bridge functions.
         new_definitions.append(ast.Definition.Function(bridge_function))

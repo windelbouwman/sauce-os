@@ -65,7 +65,7 @@ fn list_walk(x: List[Integer]):
                 mabye_element = element.next
         i = i + 1
 
-fn main() -> int:
+pub fn main() -> int:
     let x: List[Integer] = list_new()
     # TODO: the below could work?
     # let x = list_new()

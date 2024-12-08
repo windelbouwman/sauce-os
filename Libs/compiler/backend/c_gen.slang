@@ -4,7 +4,7 @@
 
 from std import float_to_str2
 from utils import panic, log_info, log_trace
-from datatypes import List, Option, option_is_some, option_unwrap
+from datatypes import List, Option, option_unwrap
 from vectype import Vector
 from strlib import str_repeat, str_join
 import vm
@@ -12,7 +12,7 @@ import bc
 from text_gen import TextGenerator
 from pygenerator import escape_string
 
-fn gen_c_code(program: bc.Program, output_filename: Option[str]):
+pub fn gen_c_code(program: bc.Program, output_filename: Option[str]):
     log_info("Generating C-code from bytecode")
     let g = CGenerator()
     g.out.begin(output_filename)
@@ -113,7 +113,7 @@ class CGenerator:
             if is_heap(field.ty):
                 emit("   offsetof(struct {name}, f{findex}_{field.name}),")
             findex += 1
-        emit("   0xFFFF,")
+        emit("   -1,")
         dedent()
         emit("\};")
 
@@ -201,6 +201,8 @@ class CGenerator:
         let decl = get_function_decl(function, fill_param: true)
         emit("{decl} \{")
         indent()
+        # emit("struct localzz \{")
+        # indent()
         for local in function.locals:
             let varname = new_named_local_var(name: local.name)
             let ty_txt = get_type_txt(ty: local.ty, name: varname)
@@ -209,6 +211,19 @@ class CGenerator:
             else:
                 emit("{ty_txt};")
             local_variables.append(Value(name: varname, ty: local.ty))
+        # dedent()
+        # emit("\} localz;")
+        # for value in local_variables:
+        #     if is_heap(value.ty):
+        #         emit("localz.{value.name} = NULL;")
+        # emit("int offsets[] = \{")
+        # indent()
+        # for value in local_variables:
+        #     if is_heap(value.ty):
+        #         emit("offsetof(struct localzz, {value.name}),")
+        # dedent()
+        # emit("-1 };")
+        emit("// Localz")
 
         let target_labels = bc.get_target_labels(instructions: function.instructions)
         let index = 0

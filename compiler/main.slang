@@ -8,13 +8,13 @@ from namebinding import bind_names
 from pass3 import resolve_newops
 from typechecking import type_check_modules
 from typedb import store_symbol_table, load_symbol_table
-from utils import log_info, log_error, log_trace, panic, assert, set_log_level, unimplemented
+from utils import log_info, log_error, log_trace, panic, assert, set_log_level
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
 from basepass import IdGen
 from transforms import transform
 from builtins import get_rt_module
-from datatypes import List, Result, option_unwrap, Option
+from datatypes import List, option_unwrap, Option
 from dicttype import Dictionary
 from strlib import string_compare
 from graphlib import DiGraph, topological_sort
@@ -28,7 +28,7 @@ from slang_gen import gen_slang
 from vm import run_bytecode
 
 
-fn main() -> int:
+pub fn main() -> int:
     let filenames: List[str] = List()
 
     let options = CompilationOptions:

@@ -1,11 +1,11 @@
 
-from bytes import bytes_from_ascii, bytes_to_ascii, Bytes
+from bytes import bytes_from_ascii, bytes_to_ascii
 from base64 import base64_encode, base64_decode
 from std import print
 from unittest import assert_str_equals
 
 
-fn main() -> int:
+pub fn main() -> int:
     test_base64_example1()
     test_base64_example2()
     test_base64_padding()

@@ -6,7 +6,7 @@ from datatypes import List, Option
 from settype import new_str_set, Set
 from dicttype import Dictionary
 
-class DiGraph:
+pub class DiGraph:
     # A directed graph
     var nodes: Set[str] = new_str_set()
     var pred: Dictionary[Set[str]] = Dictionary()
@@ -53,15 +53,7 @@ class DiGraph:
                 return true
         false
 
-
-#class Node:
-#    var name: str = "?"
-
-#class Edge:
-#    pass
-
-
-fn topological_sort(g?: DiGraph) -> Option[List[str]]:
+pub fn topological_sort(g?: DiGraph) -> Option[List[str]]:
     # Destroys the graph!
 
     # Kahn's algorithm

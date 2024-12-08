@@ -5,7 +5,7 @@ from math import modulo
 from utils import assert
 from strlib import str_pad_left
 
-fn unix_to_str(seconds: int) -> str:
+pub fn unix_to_str(seconds: int) -> str:
     # Convert unix timestamp to str
     # Unix epoch is 1-1-1970 00:00:00
     let d = unix_to_datetime(z: seconds)

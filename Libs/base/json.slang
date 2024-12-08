@@ -8,7 +8,7 @@ from std import file_writeln, file_open, file_close
 from strlib import str_join, is_digit, str_to_int
 from datatypes import List, Option, option_is_some
 
-enum JsonValue:
+pub enum JsonValue:
     Integer(value: int)
     String(text: str)
     Bool(value: bool)
@@ -20,18 +20,16 @@ struct KeyValue:
     key: str
     value: JsonValue
 
-
-fn write_json_to_file(filename: str, obj: JsonValue):
+pub fn write_json_to_file(filename: str, obj: JsonValue):
     let json_txt = json_to_string(obj)
     # print("JSON: {json_txt}")
     let handle = file_open(filename, mode: "w")
     file_writeln(handle, line: json_txt)
     file_close(handle)
 
-fn read_json_from_file(filename: str) -> JsonValue except JsonException:
+pub fn read_json_from_file(filename: str) -> JsonValue except JsonException:
     let text = read_file(filename)
     parse_json(text)
-
 
 pub fn parse_json(text: str) -> JsonValue except JsonException:
     let lexer = Lexer(text)
@@ -65,12 +63,11 @@ pub fn json_to_string(value?: JsonValue) -> str:
         Null:
             "null"
 
-struct JsonException:
+pub struct JsonException:
     message: str
     pos: int
 
-
-class JsonBrowser:
+pub class JsonBrowser:
     # A helper class to help navigate JSON structures.
     var m_value: JsonValue = JsonValue.Null()
     var m_stack: List[JsonValue] = List()
@@ -163,7 +160,7 @@ class JsonBrowser:
     fn enter_attribute(attr: str):
         push_value(value: get_attribute(attr))
 
-class JsonBuilder:
+pub class JsonBuilder:
     var m_object_stack: List[JsonObjectBuilder] = List()
     var m_array_stack: List[JsonArrayBuilder] = List()
 
@@ -447,4 +444,3 @@ fn is_id(c: char) -> bool:
         true
     else:
         false
-

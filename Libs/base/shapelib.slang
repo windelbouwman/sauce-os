@@ -4,7 +4,7 @@
 from datatypes import List
 from math import abs
 
-struct Point:
+pub struct Point:
     x: int
     y: int
 
@@ -17,7 +17,7 @@ struct Path:
 struct Polygon:
     path: Path
 
-fn shoelace(points: List[Point]) -> float:
+pub fn shoelace(points: List[Point]) -> float:
     # Implement shoelace algorithm to find area of polygon.
     # See: https://en.wikipedia.org/wiki/Shoelace_formula
     let n = points.len()
@@ -36,5 +36,3 @@ fn shoelace(points: List[Point]) -> float:
     
     # TODO: is abs part of shoelacing?
     abs(s) / 2.0
-
-

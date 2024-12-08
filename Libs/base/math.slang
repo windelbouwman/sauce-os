@@ -3,7 +3,7 @@ from std import float_to_str
 from utils import panic
 
 # TODO: make constant
-var pi: float = 3.141592653589793
+pub var pi: float = 3.141592653589793
 var e: float = 2.718281828459045
 
 fn min(a: int, b: int) -> int:
@@ -31,13 +31,13 @@ fn fmax(a?: float, b?: float) -> float:
     else:
         b
 
-fn abs(a?: int) -> int:
+pub fn abs(a?: int) -> int:
     if a < 0:
         -a
     else:
         a
 
-fn fabs(a?: float) -> float:
+pub fn fabs(a?: float) -> float:
     if a < 0:
         -a
     else:
@@ -66,7 +66,7 @@ fn factorial(x?: int) -> int:
             r *= x
         r
 
-fn sin(x?: float) -> float:
+pub fn sin(x?: float) -> float:
     if x < 0:
         # When negative, use symmetric 
         -sin(-x)
@@ -85,7 +85,7 @@ fn sin(x?: float) -> float:
         else:
             -sin_kernel(two_pi - x)
 
-fn cos(value?: float) -> float:
+pub fn cos(value?: float) -> float:
     # Use sine wave, by shifting pi/2:
     sin(value + (0.5 * pi))
 
@@ -130,7 +130,7 @@ fn fmod(x?: float, divisor: float) -> float:
 fn hypot(x?: float, y: float) -> float:
     sqrt(x*x + y*y)
 
-fn modulo(value: int, divisor: int) -> int:
+pub fn modulo(value: int, divisor: int) -> int:
     let x = value / divisor
     value - (divisor * x)
 
@@ -147,7 +147,7 @@ fn powf(x?: float, y?: float) -> float:
 fn log10(x?: float) -> float:
     log(x) / log(10)
 
-fn log2(x?: float) -> float:
+pub fn log2(x?: float) -> float:
     log(x) / log(2)
 
 fn log(x?: float) -> float:
@@ -221,7 +221,7 @@ fn exp(x?: float) -> float:
                 break
         sum
 
-fn floor(value?: float) -> float:
+pub fn floor(value?: float) -> float:
     let i = int(value)
     if float(i) == value:
         value
@@ -230,7 +230,7 @@ fn floor(value?: float) -> float:
     else:
         float(int(value))
 
-fn ceil(value?: float) -> float:
+pub fn ceil(value?: float) -> float:
     let i = int(value)
     if float(i) == value:
         value

@@ -7,18 +7,17 @@ WebAssembly support.
 """
 
 from datatypes import List
-from utils import panic
 from std import float_to_str, print
 from strlib import str_join
 
-struct Module:
+pub struct Module:
     types: List[Type]
     imports: List[Import]
     functions: List[Function]
     exports: List[Export]
     datas: List[Data]
 
-enum ValueType:
+pub enum ValueType:
     i32
     i64
     f32
@@ -28,7 +27,7 @@ enum ValueType:
 #    Value(t: ValueType)
 #    Function(ref: int)
 
-struct Type:
+pub struct Type:
     params: List[ValueType]
     results: List[ValueType]
 
@@ -43,7 +42,7 @@ fn value_type_to_string(ty?: ValueType) -> str:
         f64:
             "f64"
 
-fn type_to_string(ty?: Type) -> str:
+pub fn type_to_string(ty?: Type) -> str:
     let parts2: List[str] = List()
     let parts: List[str] = List()
     if not ty.params.is_empty():
@@ -62,26 +61,26 @@ fn type_to_string(ty?: Type) -> str:
 
     str_join(parts: parts2, sep: " ") 
 
-struct Import:
+pub struct Import:
     module: str
     name: str
     ty: int  # Type ref
     # TODO: description
 
-struct Function:
+pub struct Function:
     ty: int  # reference to a type
     locals: List[ValueType]
     code: List[Instruction]
 
-struct Export:
+pub struct Export:
     name: str
     funcidx: int
 
-struct Data:
+pub struct Data:
     offset: int
     text: str
 
-enum Instruction:
+pub enum Instruction:
 
     # Control:
     ctrl_unreachable
@@ -978,7 +977,7 @@ fn to_string(instruction: Instruction) -> str:
             "i64.extend32_s"
 
 
-fn to_wat(module: Module):
+pub fn to_wat(module: Module):
     # Print webassembly module in text format (WAT)
 
     print("(module")

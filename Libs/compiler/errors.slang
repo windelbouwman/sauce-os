@@ -4,27 +4,30 @@ from datatypes import List, Option
 from strlib import split_lines, str_repeat, str_pad_right, is_lf
 from location import Location, Position
 
-struct CompilationError:
+pub struct CompilationError:
     filename: Option[str]
     errors: List[SingleCompilationError]
 
-struct SingleCompilationError:
+pub struct SingleCompilationError:
     location: Location
     message: str
 
-fn new_error(location: Location, message: str) -> SingleCompilationError:
+pub fn new_error(location: Location, message: str) -> SingleCompilationError:
     SingleCompilationError(location, message)
 
-fn new_errors(filename: Option[str], errors: List[SingleCompilationError]) -> CompilationError:
+pub fn new_errors(filename: Option[str], errors: List[SingleCompilationError]) -> CompilationError:
     CompilationError(filename, errors)
 
-fn display_error(error: CompilationError):
+pub fn display_error(error: CompilationError):
     for error2 in error.errors:
-        case error.filename:
-            Some(filename):
-                print_error(filename, location: error2.location, message: error2.message)
-            None:
-                print("ERROR: {error2.message}")
+        render_message(label: "ERROR", filename: error.filename, location: error2.location, message: error2.message)
+
+pub fn render_message(label: str, filename: Option[str], location: Location, message: str):
+    case filename:
+        Some(filename):
+            print_error(filename, location, message)
+        None:
+            print("{label}: {message}")
 
 fn offset_to_position(offset: int, code: str) -> Position:
     """ Calculate row and column from offset in string."""

@@ -1,7 +1,7 @@
 
 import std
 
-fn main() -> int:
+pub fn main() -> int:
     let msg = "Hello cool world!!"
     std.print(msg)
     # std.print(msg)
@@ -11,4 +11,3 @@ fn main() -> int:
 fn foo():
     if 2 < 7 - 1:
         std.print("Hello world2")
-

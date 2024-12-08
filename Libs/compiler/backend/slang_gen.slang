@@ -8,7 +8,7 @@ import ast
 from text_gen import TextGenerator
 from datatypes import Option, option_unwrap, List
 
-fn gen_slang(module_set: ast.ModuleSet, output_filename: Option[str]):
+pub fn gen_slang(module_set: ast.ModuleSet, output_filename: Option[str]):
     """ Create slang-lang source code."""
     log_info("Generating slang code")
     let g = SlangGenerator()
@@ -35,8 +35,6 @@ class SlangGenerator:
                 let return_types = ""
                 if function_def.info.return_type.is_void():
                     pass
-                elif function_def.info.return_type.is_unreachable():
-                    return_types = return_types + " ?"
                 else:
                     return_types = return_types + " -> {gen_type(function_def.info.return_type)}"
 
@@ -99,6 +97,8 @@ class SlangGenerator:
             else:
                 " -> {gen_type(ret_ty)}"
             "fn ({params}){suffix}"
+        elif ty.is_unreachable():
+            "unreachable"
         else:
             panic("gen_type: Unsupported: {ty}")
 
@@ -218,7 +218,7 @@ class SlangGenerator:
             Box(value):
                 "box {gen_expression(value, parens: true)}"
             Unbox(value, to_type):
-                "unbox {gen_expression(value, parens: true)}"
+                "unbox({gen_expression(value, parens: true)} as {gen_type(to_type)})"
             Call(call):
                 let expressions: List[ast.Expression] = List()
                 for argument in call.arguments:
@@ -259,4 +259,3 @@ class SlangGenerator:
 
     fn dedent():
         out.dedent()
-

@@ -63,7 +63,7 @@ class ListIter:
         opt
 
 
-fn main() -> int:
+pub fn main() -> int:
     let x = List()
 
     std.print("Walk 1")

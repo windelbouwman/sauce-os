@@ -1,14 +1,14 @@
 
 from vectype import Vector, new_vector
 
-fn new_image(width: int, height: int) -> Image:
+pub fn new_image(width: int, height: int) -> Image:
     let pixels: Vector[Pixel] = new_vector()
     Image:
         width
         height
         pixels
 
-class Image:
+pub class Image:
     var width: int
     var height: int
     var pixels: Vector[Pixel]
@@ -29,11 +29,11 @@ class Image:
         pixels.append(Pixel(red, green, blue, alpha))
 
 
-struct Pixel:
+pub struct Pixel:
     red: int
     green: int
     blue: int
     alpha: int
 
-fn new_pixel() -> Pixel:
+pub fn new_pixel() -> Pixel:
     Pixel(red: 0, green: 0, blue: 0, alpha: 0)

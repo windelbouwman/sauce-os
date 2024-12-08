@@ -4,15 +4,14 @@
 # Alternative to c_gen module
 
 from std import float_to_str
-from strlib import str_repeat, str_join
+from strlib import str_join
 import ast
-from datatypes import List, option_unwrap, Option, option_is_some
-from dicttype import Dictionary
-from utils import panic, log_info, log_debug, log_warning, assert, unimplemented
+from datatypes import List, option_unwrap, Option
+from utils import panic, log_info, unimplemented
 from text_gen import TextGenerator
 
 
-fn gen_c_code_v2(module_set: ast.ModuleSet, output_filename: Option[str]):
+pub fn gen_c_code_v2(module_set: ast.ModuleSet, output_filename: Option[str]):
     log_info("Generating C-code")
     let g = CGenerator2()
     g.out.begin(output_filename)

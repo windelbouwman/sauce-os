@@ -1,7 +1,7 @@
 
 from signal import butter
 
-fn main() -> int:
+pub fn main() -> int:
     let f2 = butter(n: 2)
     f2.dump()
     let f3 = butter(n: 3)

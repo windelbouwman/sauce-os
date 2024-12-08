@@ -2,7 +2,7 @@
 
 import std
 
-fn main() -> int:
+pub fn main() -> int:
     let x = 0
 
     loop:

@@ -1,13 +1,12 @@
 
-from utils import log_info, log_trace, log_error
-from location import Location
-from datatypes import List, Option, option_unwrap
+from utils import log_info, log_trace
+from location import Location, location_default
+from datatypes import List, Option, option_unwrap, option_is_some
 from dicttype import Dictionary
 import ast
-from errors import CompilationError, new_error, new_errors, SingleCompilationError
+from errors import CompilationError, new_error, new_errors, SingleCompilationError, render_message
 
-
-fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module], tycon_map: Dictionary[ast.TyCon]) except CompilationError:
+pub fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module], tycon_map: Dictionary[ast.TyCon]) except CompilationError:
     log_info("Filling scopes for {module.name}")
     let filler = ScopeFiller(tycon_map)
     let fil_vis = ast.Visitor:
@@ -33,16 +32,11 @@ fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module], tycon_map:
     binder.enter_scope(scope: base_scope())
     binder.enter_scope(scope: module.scope)
     ast.visit_module(visitor: bind_visitor, module)
-    if false:
-        # check for unused imports
-        for imp in module.imports:
-            case imp.kind:
-                Self:
-                    pass
-                Names(names):
-                    for name in names:
-                        if module.scope.get_references(name) == 0:
-                            binder.add_error(location: imp.location, message:"Imported but unused: {name}")
+    for symbol in module.scope.get_symbols():
+        if not symbol.is_pub and symbol.get_references() == 0:
+            # TODO: use filename as a hack to reduce amount of warnings:
+            if option_is_some(module.filename):
+                render_message(label: "WARNING", filename: module.filename, location: symbol.location, message: "Symbol '{symbol.name}' defined but unused.")
 
     binder.leave_scope()
     binder.leave_scope()
@@ -70,18 +64,21 @@ fn bind_names_expression(expression: ast.Expression) except CompilationError:
 fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: ScopeFiller):
     log_trace("Import {imp.modname}")
     case module_map.maybe_get(key: imp.modname):
-        Some(m):
+        Some(module):
             case imp.kind:
                 Self:
-                    filler.define(name: m.name, symbol: ast.Symbol.Mod(m), location: imp.location)
+                    filler.define(is_pub: false, name: module.name, kind: ast.SymbolKind.Mod(module), location: imp.location)
                 Names(names):
                     for name in names:
-                        log_trace("Importing {name} from {imp.modname}")
-                        case m.scope.lookup(name):
+                        log_trace("Importing {name.name} from {module.name}")
+                        case module.scope.lookup(name: name.name):
                             Some(symbol):
-                                filler.define(name, symbol, location: imp.location)
+                                if symbol.is_pub:
+                                    filler.define(is_pub: false, name: name.name, kind: symbol.kind, location: name.location)
+                                else:
+                                    filler.add_error(location: name.location, message: "Symbol '{name.name}' is private")
                             None:
-                                filler.add_error(location: imp.location, message: "Error, module {m.name} has no symbol: {name}")
+                                filler.add_error(location: name.location, message: "Error, module {module.name} has no symbol: {name.name}")
         None:
             filler.add_error(location: imp.location, message: "Error, no module named: {imp.modname}")
 
@@ -110,9 +107,9 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
         Pre:
             case definition:
                 Macro(macro_def):
-                    filler.define(name: macro_def.name, symbol: ast.Symbol.Macro(macro_def), location: macro_def.location)
+                    filler.define(is_pub: false, name: macro_def.name, kind: ast.SymbolKind.Macro(macro_def), location: macro_def.location)
                 Function(function_def):
-                    filler.define(name: function_def.name, symbol: ast.Symbol.Function(function_def), location: function_def.location)
+                    filler.define(is_pub: function_def.is_pub, name: function_def.name, kind: ast.SymbolKind.Function(function_def), location: function_def.location)
                     case function_def.body:
                         Intern(scoped_block):
                             filler.enter_scope(scope: scoped_block.scope)
@@ -129,23 +126,23 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
                             pass
                 Enum(enum_def):
                     filler.add_tycon(id: enum_def.id, tycon: ast.TyCon.Enum(enum_def))
-                    filler.define(name: enum_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)), location: enum_def.location)
+                    filler.define(is_pub: enum_def.is_pub, name: enum_def.id.name, kind: ast.SymbolKind.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)), location: enum_def.location)
                     filler.enter_scope(scope: enum_def.scope)
                     for type_parameter in enum_def.type_parameters:
                         filler.define_type_parameter(type_parameter)
                     for variant in enum_def.variants:
-                        filler.define(name: variant.name, symbol: ast.Symbol.Variant(variant), location: variant.location)
+                        filler.define(is_pub: false, name: variant.name, kind: ast.SymbolKind.Variant(variant), location: variant.location)
                 Struct(struct_def):
                     filler.add_tycon(id: struct_def.id, tycon: ast.TyCon.Struct(struct_def))
-                    filler.define(name: struct_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Struct(struct_def)), location: struct_def.location)
+                    filler.define(is_pub: struct_def.is_pub, name: struct_def.id.name, kind: ast.SymbolKind.TypeConstructor(tycon: ast.TyCon.Struct(struct_def)), location: struct_def.location)
                     filler.enter_scope(scope: struct_def.scope)
                     for type_parameter in struct_def.type_parameters:
                         filler.define_type_parameter(type_parameter)
                     for field in struct_def.fields:
-                        filler.define(name: field.name, symbol: ast.Symbol.Field(field), location: field.location)
+                        filler.define(is_pub: false, name: field.name, kind: ast.SymbolKind.Field(field), location: field.location)
                 Class(class_def):
                     filler.add_tycon(id: class_def.id, tycon: ast.TyCon.Class(class_def))
-                    filler.define(name: class_def.id.name, symbol: ast.Symbol.TypeConstructor(tycon: ast.TyCon.Class(class_def)), location: class_def.location)
+                    filler.define(is_pub: class_def.is_pub, name: class_def.id.name, kind: ast.SymbolKind.TypeConstructor(tycon: ast.TyCon.Class(class_def)), location: class_def.location)
                     filler.enter_scope(scope: class_def.scope)
                     for type_parameter in class_def.type_parameters:
                         filler.define_type_parameter(type_parameter)
@@ -230,21 +227,21 @@ class ScopeFiller:
         tycon_map.insert(key: ast.node_id_to_string(id), value: tycon)
 
     fn define_variable(variable: ast.Variable):
-        define(name: variable.id.name, symbol: ast.Symbol.Var(variable), location: variable.location)
+        define(is_pub: true, name: variable.id.name, kind: ast.SymbolKind.Var(variable), location: variable.location)
     
     fn define_type_parameter(type_parameter: ast.TypeParameter):
-        define(name: type_parameter.id.name, symbol: ast.Symbol.Typ(ty: ast.type_parameter_ref(type_parameter)), location: type_parameter.location)
+        define(is_pub: false, name: type_parameter.id.name, kind: ast.SymbolKind.Typ(ty: ast.type_parameter_ref(type_parameter)), location: type_parameter.location)
     
     fn define_parameter(parameter_def: ast.ParameterDef):
-        define(name: parameter_def.id.name, symbol: ast.Symbol.Parameter(parameter_def), location: parameter_def.location)
+        define(is_pub: false, name: parameter_def.id.name, kind: ast.SymbolKind.Parameter(parameter_def), location: parameter_def.location)
 
-    fn define(name: str, symbol: ast.Symbol, location: Location):
+    fn define(is_pub: bool, name: str, kind: ast.SymbolKind, location: Location):
         # log_trace("DEFINE {name}")
         let scope = scopes.last()
         if scope.is_defined(name):
             add_error(location, message: "Symbol '{name}' is already defined")
         else:
-            scope.define(name, symbol)
+            scope.define(is_pub, name, kind, location)
     
     fn enter_scope(scope: ast.Scope):
         scopes.append(scope)
@@ -312,7 +309,7 @@ fn binder_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.
         pass
 
 fn symbol_to_kind(symbol: ast.Symbol) -> ast.ExpressionKind:
-    case symbol:
+    case symbol.kind:
         Typ(ty):
             ast.ExpressionKind.Typ(ty)
         TypeConstructor(tycon):
@@ -337,11 +334,14 @@ fn binder_on_expression(binder: NameBinder, expression: ast.Expression, phase: a
                 GetAttr(base, attr):
                     case base.kind:
                         LoadSymbol(sym):
-                            case sym:
+                            case sym.kind:
                                 Mod(m):
                                     case m.scope.lookup(name: attr):
                                         Some(symbol):
-                                            expression.kind = symbol_to_kind(symbol)
+                                            if symbol.is_pub:
+                                                expression.kind = symbol_to_kind(symbol)
+                                            else:
+                                                binder.add_error(location: expression.location, message: "Symbol '{attr}' is private")
                                         None:
                                             binder.add_error(location: expression.location, message: "module '{m.name}' has no symbol: '{attr}'")
                             else:
@@ -376,22 +376,24 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 
 fn base_scope() -> ast.Scope:
     let s = ast.Scope()
-    s.define(name: "int", symbol: ast.Symbol.Typ(ty: ast.int_type()))
-    s.define(name: "uint8", symbol: ast.Symbol.Typ(ty: ast.uint8_type()))
-    s.define(name: "uint16", symbol: ast.Symbol.Typ(ty: ast.uint16_type()))
-    s.define(name: "uint32", symbol: ast.Symbol.Typ(ty: ast.uint32_type()))
-    s.define(name: "uint64", symbol: ast.Symbol.Typ(ty: ast.uint64_type()))
-    s.define(name: "int8", symbol: ast.Symbol.Typ(ty: ast.int8_type()))
-    s.define(name: "int16", symbol: ast.Symbol.Typ(ty: ast.int16_type()))
-    s.define(name: "int32", symbol: ast.Symbol.Typ(ty: ast.int32_type()))
-    s.define(name: "int64", symbol: ast.Symbol.Typ(ty: ast.int64_type()))
-    s.define(name: "str", symbol: ast.Symbol.Typ(ty: ast.str_type()))
-    s.define(name: "char", symbol: ast.Symbol.Typ(ty: ast.char_type()))
-    s.define(name: "bool", symbol: ast.Symbol.Typ(ty: ast.bool_type()))
-    s.define(name: "float", symbol: ast.Symbol.Typ(ty: ast.float_type()))
-    s.define(name: "float32", symbol: ast.Symbol.Typ(ty: ast.float32_type()))
-    s.define(name: "float64", symbol: ast.Symbol.Typ(ty: ast.float64_type()))
-    s.define(name: "unreachable", symbol: ast.Symbol.Typ(ty: ast.unreachable_type()))
+    let location = location_default()
+    let is_pub = true
+    s.define(is_pub, name: "int", kind: ast.SymbolKind.Typ(ty: ast.int_type()), location)
+    s.define(is_pub, name: "uint8", kind: ast.SymbolKind.Typ(ty: ast.uint8_type()), location)
+    s.define(is_pub, name: "uint16", kind: ast.SymbolKind.Typ(ty: ast.uint16_type()), location)
+    s.define(is_pub, name: "uint32", kind: ast.SymbolKind.Typ(ty: ast.uint32_type()), location)
+    s.define(is_pub, name: "uint64", kind: ast.SymbolKind.Typ(ty: ast.uint64_type()), location)
+    s.define(is_pub, name: "int8", kind: ast.SymbolKind.Typ(ty: ast.int8_type()), location)
+    s.define(is_pub, name: "int16", kind: ast.SymbolKind.Typ(ty: ast.int16_type()), location)
+    s.define(is_pub, name: "int32", kind: ast.SymbolKind.Typ(ty: ast.int32_type()), location)
+    s.define(is_pub, name: "int64", kind: ast.SymbolKind.Typ(ty: ast.int64_type()), location)
+    s.define(is_pub, name: "str", kind: ast.SymbolKind.Typ(ty: ast.str_type()), location)
+    s.define(is_pub, name: "char", kind: ast.SymbolKind.Typ(ty: ast.char_type()), location)
+    s.define(is_pub, name: "bool", kind: ast.SymbolKind.Typ(ty: ast.bool_type()), location)
+    s.define(is_pub, name: "float", kind: ast.SymbolKind.Typ(ty: ast.float_type()), location)
+    s.define(is_pub, name: "float32", kind: ast.SymbolKind.Typ(ty: ast.float32_type()), location)
+    s.define(is_pub, name: "float64", kind: ast.SymbolKind.Typ(ty: ast.float64_type()), location)
+    s.define(is_pub, name: "unreachable", kind: ast.SymbolKind.Typ(ty: ast.unreachable_type()), location)
     s
 
 class NameBinder:
@@ -403,9 +405,9 @@ class NameBinder:
         for scope in scopes:
             case scope.lookup(name):
                 Some(symbol):
-                    scope.add_reference(name)
+                    symbol.add_reference(location)
                     let introduce_this = if scope.class_scope:
-                        case symbol:
+                        case symbol.kind:
                             Function(function_def):
                                 true
                             Var(var_def):

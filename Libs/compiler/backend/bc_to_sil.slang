@@ -2,11 +2,11 @@
 # Transform BC into SIL
 
 from datatypes import List, Option
-from utils import log_info, log_error, panic, unimplemented
+from utils import log_info, panic, unimplemented
 import bc
 import sil
 
-fn to_sil(program: bc.Program) -> sil.Program:
+pub fn to_sil(program: bc.Program) -> sil.Program:
     log_info("Creating SIL program from bytecode")
     let g = SilGen(m_bc_program: program)
     for function in program.functions:

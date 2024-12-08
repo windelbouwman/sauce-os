@@ -2,7 +2,7 @@
 
 import std
 
-fn main() -> int:
+pub fn main() -> int:
     std.print("Int: {test(x: 7)}")
     std.print("Str: {test2(x: 1)}")
     let token = Token.Id(name: "w00t")
@@ -47,7 +47,7 @@ fn test3(token: Token) -> str:
         Id(name):
             "Id({name})"
 
-fn ugh(token: Token) -> int:
+pub fn ugh(token: Token) -> int:
     case token:
         Comma:
             panic()

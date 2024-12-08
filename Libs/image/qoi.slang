@@ -7,12 +7,12 @@
 
 import std
 from utils import unimplemented, panic, log_info, assert
-from bytes import Bytes, ByteReader, ByteArray, new_bytes, bytes_to_ascii, bytes_from_ascii
+from bytes import Bytes, ByteReader, ByteArray, bytes_to_ascii, bytes_from_ascii
 from vectype import Vector, new_vector
 from math import modulo
 from image import Image, new_image, Pixel, new_pixel
 
-fn read_whole_file_as_bytes(filename: str) -> Bytes:
+pub fn read_whole_file_as_bytes(filename: str) -> Bytes:
     # Helper to read in a whole file into a bytes object in memory
     let handle = std.file_open(filename, mode: "rb")
     let ba = ByteArray()
@@ -30,7 +30,7 @@ fn read_whole_file_as_bytes(filename: str) -> Bytes:
 
     ba.to_bytes()
 
-fn write_bytes_to_file(filename: str, data: Bytes):
+pub fn write_bytes_to_file(filename: str, data: Bytes):
     let handle = std.file_open(filename, mode: "wb")
     let buffer: [uint8] = [200 : uint8]
     let i = 0
@@ -199,6 +199,3 @@ class QoiWriter:
 
     fn write_byte(value?: int):
         m_writer.append(value)
-
-
-

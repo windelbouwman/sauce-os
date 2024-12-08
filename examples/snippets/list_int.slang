@@ -59,7 +59,7 @@ fn list_walk(x: List):
                 mabye_element = element.next
         i = i + 1
 
-fn main() -> int:
+pub fn main() -> int:
     let x = list_new()
 
     std.print("Walk 1")

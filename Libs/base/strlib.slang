@@ -7,7 +7,7 @@ fn split_string2(text: str, sep: str) -> List[str]:
     """ Split string by other string """
     unimplemented("split_string2")
 
-fn split_string(text: str, sep: char) -> List[str]:
+pub fn split_string(text: str, sep: char) -> List[str]:
     let size = str_len(text)
     let start = 0
     let cur = 0
@@ -23,10 +23,10 @@ fn split_string(text: str, sep: char) -> List[str]:
     parts.append(str_slice(text, begin: start, end: cur))
     parts
 
-fn string_compare(a: str, b: str) -> bool:
+pub fn string_compare(a: str, b: str) -> bool:
     str_comparison(a, b) < 0
 
-fn str_repeat(text: str, count: int) -> str:
+pub fn str_repeat(text: str, count: int) -> str:
     let result = ""
     let i = 0
     while i < count:
@@ -34,19 +34,19 @@ fn str_repeat(text: str, count: int) -> str:
         result = result + text
     result
 
-fn str_pad_right(text: str, length: int, fill: str) -> str:
+pub fn str_pad_right(text: str, length: int, fill: str) -> str:
     let result = text
     while str_len(text: result) < length:
         result = result + fill
     result
 
-fn str_pad_left(text: str, length: int, fill: str) -> str:
+pub fn str_pad_left(text: str, length: int, fill: str) -> str:
     let result = text
     while str_len(text: result) < length:
         result = fill + result
     result
 
-fn str_join(parts: List[str], sep: str) -> str:
+pub fn str_join(parts: List[str], sep: str) -> str:
     let x = ""
     let counter = parts.len()
     for part in parts:
@@ -57,14 +57,14 @@ fn str_join(parts: List[str], sep: str) -> str:
             counter -= 1
     x
 
-fn is_space(c: char) -> bool:
+pub fn is_space(c: char) -> bool:
     c == ' '
 
-fn is_lf(c: char) -> bool:
+pub fn is_lf(c: char) -> bool:
     let o = ord(c)
     o == 10
 
-fn str_to_int(text?: str) -> int:
+pub fn str_to_int(text?: str) -> int:
     let n = str_len(text)
     assert(condition: n > 0, message: "Integer string must be at least a single digit.")
     let value = 0
@@ -92,19 +92,19 @@ fn bin_to_int(bintext: str) -> int:
         value = value * 2 + bin_digit_to_int(c)
     value
 
-fn is_digit(c: char) -> bool:
+pub fn is_digit(c: char) -> bool:
     """  Check if a character is a digit. """
     let o = ord(value: c)
     (o >= 48) and (o <= 57)
 
-fn digit_to_int(c: char) -> int:
+pub fn digit_to_int(c: char) -> int:
     let cval = ord(c)
     if (cval >= 48) and (cval <= 57):     # 0..9
         cval - 48
     else:
         panic("Invalid integer char: {c}")
 
-fn hex_digit_to_int(c: char) -> int:
+pub fn hex_digit_to_int(c: char) -> int:
     let o = ord(c)
 
     if (o >= 48) and (o <= 57):     # 0..9
@@ -116,7 +116,7 @@ fn hex_digit_to_int(c: char) -> int:
     else:
         panic("Invalid hex char: {c}")
 
-fn is_hex_digit(c: char) -> bool:
+pub fn is_hex_digit(c: char) -> bool:
     """ Check if a character is a hex digit. """
     let o = ord(value: c)
     if (o >= 48) and (o <= 57):     # 0..9
@@ -128,7 +128,7 @@ fn is_hex_digit(c: char) -> bool:
     else:
         false
 
-fn int_to_hex_string(value?: int) -> str:
+pub fn int_to_hex_string(value?: int) -> str:
     let text = ""
     let n = 8
     while n > 0:
@@ -138,7 +138,7 @@ fn int_to_hex_string(value?: int) -> str:
         n -= 1
     text
 
-fn hex_char(value?: int) -> char:
+pub fn hex_char(value?: int) -> char:
     if value < 10:
         chr(value + 48)
     elif value < 16:
@@ -146,7 +146,7 @@ fn hex_char(value?: int) -> char:
     else:
         panic("Invalid hex char value: {value}")
 
-fn is_bin_digit(c: char) -> bool:
+pub fn is_bin_digit(c: char) -> bool:
     # Check if a character is a binary digit.
     let o = ord(value: c)
     if (o >= 48) and (o <= 49):     # 0..1
@@ -154,7 +154,7 @@ fn is_bin_digit(c: char) -> bool:
     else:
         false
 
-fn bin_digit_to_int(c: char) -> int:
+pub fn bin_digit_to_int(c: char) -> int:
     let cval = ord(c)
     if (cval >= 48) and (cval <= 49):     # 0..1
         cval - 48
@@ -221,7 +221,7 @@ fn str_comparison(a: str, b: str) -> int:
             return 1
     0
 
-fn split_lines(text: str) -> List[str]:
+pub fn split_lines(text: str) -> List[str]:
     # TODO: use split_string here?
     let lines: List[str] = List()
     let line_start = 0

@@ -2,7 +2,6 @@
 # Implement list with object oriented classes
 # Idea: implement a list type as a linked list.
 
-import std
 from std import print
 
 struct Integer:
@@ -58,7 +57,7 @@ class ListIter[T]:
                 this.next_element = nxt_element.next
                 x
 
-fn main() -> int:
+pub fn main() -> int:
     let x: List[Integer] = List()
     # Hmm, below does not infer that well..
     # let x = List()

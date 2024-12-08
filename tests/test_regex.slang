@@ -2,9 +2,9 @@
 from std import print
 from regex import find_all_text, split_at_pattern
 from unittest import assert_list_equals
-from datatypes import list3, list4, List
+from datatypes import list3, list4
 
-fn main() -> int:
+pub fn main() -> int:
     test_numbers()
     test_id_num()
     test_alternatives()

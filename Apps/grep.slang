@@ -6,7 +6,7 @@ import std
 from strlib import split_lines
 from regex import find
 
-fn main() -> int:
+pub fn main() -> int:
     let filename = "input.txt"
     let pattern = "[0-9]+"
     let text = std.read_file(filename)

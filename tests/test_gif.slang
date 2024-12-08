@@ -1,11 +1,11 @@
 
 from std import print
 from bytes import bytes_from_hex_text
-from utils import set_log_level, assert
+from utils import assert
 from unittest import assert_str_equals
 from gif import lzw_decode
 
-fn main() -> int:
+pub fn main() -> int:
     # set_log_level(level: 5)
     test_lzw_decode()
     print("OK")
@@ -20,4 +20,3 @@ fn test_lzw_decode():
     let expected = bytes_from_hex_text(text: "28 FF FF FF 28 FF FF FF FF FF FF FF FF FF FF")
     assert(condition: expected.len() == 15, message: "Example image is 3x5 pixels")
     assert_str_equals(data.as_hex(), expected.as_hex())
-

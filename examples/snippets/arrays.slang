@@ -1,7 +1,7 @@
 
 from std import print
 
-fn main() -> int:
+pub fn main() -> int:
     let x = [1, 2, 3, 4]  # Array with 4 items
     let y = [100 : int]   # Array with 100 integers
     y[0] = 1

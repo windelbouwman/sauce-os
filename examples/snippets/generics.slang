@@ -17,7 +17,7 @@ struct Bool:
 struct Int:
     value: int
 
-fn main() -> int:
+pub fn main() -> int:
     let i_boxed = Int(value: 2)
 
     let a = Bla[Int]:
@@ -57,5 +57,3 @@ fn main() -> int:
 fn display_fuu(fu_b: Fuu[Bool]):
     std.print(fu_b.bla.message)
     std.print(fu_b.bla.value.message)
-
-

@@ -1,17 +1,16 @@
 
 from location import Location
-import std
 
-fn default_token() -> Token:
+pub fn default_token() -> Token:
     Token:
         location: Location(begin: 0, end: 0)
         kind: TokenKind.None()
 
-struct Token:
+pub struct Token:
     location: Location
     kind: TokenKind
 
-enum TokenKind:
+pub enum TokenKind:
     Identifier(id: str)
 
     # Keywords:
@@ -102,7 +101,7 @@ enum TokenKind:
     None
     Error(message: str)
 
-fn token_to_string(tok: Token) -> str:
+pub fn token_to_string(tok: Token) -> str:
     # """ Convert token to txt """
     case tok.kind:
         KwAnd:

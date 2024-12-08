@@ -144,7 +144,7 @@ class Curve:
                     y_min = point.y
             Option.Some(FRange(x_min, x_max, y_min, y_max))
 
-struct DataPoint:
+pub struct DataPoint:
     x: float
     y: float
 

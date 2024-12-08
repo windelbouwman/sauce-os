@@ -8,7 +8,7 @@ from datatypes import List
 from datatypes import Option, option_unwrap
 from hashmap import HashMap, new_hashmap_str, HashMapIter
 
-class Dictionary[T]:
+pub class Dictionary[T]:
     var items: HashMap[str, T] = new_hashmap_str()
 
     fn get(key: str) -> T:
@@ -46,7 +46,7 @@ class Dictionary[T]:
     fn iter() -> DictionaryIter[T]:
         DictionaryIter(it2: items.iter())
 
-class DictionaryIter[T]:
+pub class DictionaryIter[T]:
     var it2: HashMapIter[str, T]
 
     fn next() -> Option[str]:

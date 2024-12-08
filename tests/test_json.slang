@@ -2,10 +2,10 @@
 from std import print
 from utils import panic
 from json import parse_json, json_to_string, JsonException
-from unittest import assert_str_equals, assert_int_equals, assert_true, assert_false
+from unittest import assert_str_equals
 
 
-fn main() -> int:
+pub fn main() -> int:
     test_roundtrip()
     print("OK")
     0

@@ -7,10 +7,10 @@
 
 from utils import panic, assert
 
-fn new_vector[T]() -> Vector[T]:
+pub fn new_vector[T]() -> Vector[T]:
     new_vector_with_capacity(capacity: 7)
 
-fn new_vector_with_capacity[T](capacity: int) -> Vector[T]:
+pub fn new_vector_with_capacity[T](capacity: int) -> Vector[T]:
     let m_capacity = if capacity < 1:
         1
     else:
@@ -19,7 +19,7 @@ fn new_vector_with_capacity[T](capacity: int) -> Vector[T]:
     let v: Vector[T] = Vector(m_capacity, m_elements)
     v
 
-fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
+pub fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
     let m_capacity = size
     let m_elements = [m_capacity : T]
     let i = 0
@@ -30,20 +30,20 @@ fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
     v.m_size = size
     v
 
-fn vec2[T](v1?: T, v2?: T) -> Vector[T]:
+pub fn vec2[T](v1?: T, v2?: T) -> Vector[T]:
     let vec: Vector[T] = new_vector()
     vec.append(v1)
     vec.append(v2)
     vec
 
-fn vec3[T](v1?: T, v2?: T, v3?: T) -> Vector[T]:
+pub fn vec3[T](v1?: T, v2?: T, v3?: T) -> Vector[T]:
     let vec: Vector[T] = new_vector()
     vec.append(v1)
     vec.append(v2)
     vec.append(v3)
     vec
 
-fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> Vector[T]:
+pub fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> Vector[T]:
     let vec: Vector[T] = new_vector()
     vec.append(v1)
     vec.append(v2)
@@ -51,7 +51,7 @@ fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> Vector[T]:
     vec.append(v4)
     vec
 
-class Vector[T]:
+pub class Vector[T]:
     var m_size: int = 0
     var m_capacity: int
     var m_elements: [T]

@@ -2,7 +2,7 @@
 # Ideas about exceptions
 from std import print
 
-fn main() -> int:
+pub fn main() -> int:
     try:
         let y: int = foo(x: false)
         try:

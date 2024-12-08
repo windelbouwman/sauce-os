@@ -19,8 +19,8 @@
 #
 # """
 
-from std import print, file_writeln, file_open, file_close
-from utils import unimplemented, log_debug, log_info
+from std import file_writeln, file_open, file_close
+from utils import log_info
 from image import Image
 
 fn write_pbm(image: Image, filename: str):
@@ -39,4 +39,3 @@ fn write_pbm(image: Image, filename: str):
             x += 1
         y += 1
     file_close(handle)
-

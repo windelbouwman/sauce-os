@@ -1,10 +1,10 @@
 
-from datatypes import List, list4, list5
+from datatypes import list4, list5
 from std import print
 from shapelib import shoelace, Point
 from unittest import assert_almost_equals
 
-fn main() -> int:
+pub fn main() -> int:
     test_shoelace_square()
     test_shoelace_wikipedia_example()
     print("OK")

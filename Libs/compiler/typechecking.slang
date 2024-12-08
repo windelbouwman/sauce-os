@@ -3,17 +3,15 @@ Type checking logic.
 """
 
 import ast
-from math import ceil, log2
-from std import print
 from datatypes import Option, List, option_unwrap, option_is_none
 from vectype import Vector
 from strlib import str_join
 from settype import new_str_set
 from location import Location
-from utils import log_info, panic, log_error, assert
+from utils import log_info, panic, assert
 from errors import CompilationError, new_errors, new_error, display_error, SingleCompilationError
 
-fn type_check_modules(module_set: ast.ModuleSet) except CompilationError:
+pub fn type_check_modules(module_set: ast.ModuleSet) except CompilationError:
     for module in module_set.modules:
         type_check(module)
 
@@ -132,7 +130,7 @@ class TypeChecker:
         case statement.kind:
             Case(case_statement):
                 if case_statement.value.ty.is_enum():
-                    let variant_names = ast.get_enum_variant_names_from_type(case_statement.value.ty)
+                    let variant_names = case_statement.value.ty.get_enum_variant_names()
                     let uncovered_arms = new_str_set()
                     for variant_name in variant_names:
                         uncovered_arms.add(variant_name)
@@ -373,7 +371,7 @@ class TypeChecker:
             NameRef(name):
                 panic("names must be resolved: {name}")
             LoadSymbol(symbol):
-                panic("symbols should be resolved: {ast.symbol_to_str(symbol)}")
+                panic("symbols should be resolved: {symbol}")
             Variant(ty, v):
                 add_error(location: expression.location, message: "variants must be literals")
             Undefined:
@@ -526,7 +524,7 @@ class TypeChecker:
             case base_type1:
                 Int(signed, bits):
                     if needed_bits <= bits:
-                        ast.change_type_to(ty: ty2, to_type: ty1)
+                        ty2.change_to(to_type: ty1)
                         true
                     else:
                         false

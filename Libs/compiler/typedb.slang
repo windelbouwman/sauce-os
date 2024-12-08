@@ -1,9 +1,8 @@
 
 # Functions to serialize type definitions to JSON.
 
-from std import print
 from utils import unimplemented, panic
-from utils import log_error, log_info, log_debug, log_trace
+from utils import log_info, log_debug, log_trace
 from datatypes import List, Option, option_is_some
 from vectype import Vector, new_vector, new_vector_with_capacity
 from dicttype import Dictionary
@@ -13,7 +12,7 @@ from json import JsonValue, JsonBrowser
 from location import location_default
 import ast
 
-fn store_symbol_table(module_set: ast.ModuleSet, filename: str):
+pub fn store_symbol_table(module_set: ast.ModuleSet, filename: str):
     # Save symbol table for later use.
     # This is useful when saving a symbol table
     # to file.
@@ -68,11 +67,31 @@ class SymbolSaver:
             Names(names):
                 m_ser.begin_array()
                 for name in names:
-                    m_ser.add_text_as_element(text: name)
+                    m_ser.add_text_as_element(text: name.name)
                 m_ser.end_array_as_attribute(attr: "names")
         m_ser.end_object_as_element()
 
     fn save_definition(definition: ast.Definition):
+        if false:
+            # Do not export, when not explicitly set to public.
+            case definition:
+                Macro(macro_def):
+                    pass
+                Function(function_def):
+                    if not function_def.is_pub:
+                        return
+                Struct(struct_def):
+                    if not struct_def.is_pub:
+                        return
+                Class(class_def):
+                    if not class_def.is_pub:
+                        return
+                Enum(enum_def):
+                    if not enum_def.is_pub:
+                        return
+                Var(var_def):
+                    pass
+
         log_debug("Saving {ast.definition_to_str(definition)}")
         m_ser.begin_object()
         case definition:
@@ -256,8 +275,7 @@ class SymbolSaver:
         m_ser.add_text_attribute(attr: "name", text: id.name)
         m_ser.add_integer_attribute(attr: "id", value: id.id)
 
-
-fn load_symbol_table(filename: str) -> List[ast.Module]:
+pub fn load_symbol_table(filename: str) -> List[ast.Module]:
     log_info("Read type info from: {filename}")
     let loader = SymbolLoader()
     try:
@@ -313,10 +331,10 @@ class SymbolLoader:
         let modname = m_des.get_text_attribute(attr: "modname")
         let location = location_default()
         if m_des.has_attribute(attr: "names"):
-            let names: List[str] = List()
+            let names: List[ast.NameAtLocation] = List()
             for name_obj in m_des.get_array_attribute(attr: "names"):
                 m_des.push_value(value: name_obj)
-                names.append(m_des.get_text())
+                names.append(ast.NameAtLocation(name: m_des.get_text(), location))
                 m_des.pop_value()
             let kind = ast.ImportKind.Names(names)
             ast.Import(modname, kind, location)
@@ -429,7 +447,7 @@ class SymbolLoader:
             m_des.pop_value()
             tag_index += 1
 
-        ast.enum_def(name: def_name, id: def_id, location, type_parameters, variants)
+        ast.enum_def(is_pub: true, name: def_name, id: def_id, location, type_parameters, variants)
 
     fn load_class_def(def_name: str, def_id: int) -> ast.ClassDef:
         let id = ast.NodeId(name: def_name, id: def_id)
@@ -446,7 +464,7 @@ class SymbolLoader:
             m_des.pop_value()
         m_this_type = Option.None()
 
-        let class_def = ast.ClassDef(id, location, is_extern: Option.Some(m_libname), type_parameters, definitions, scope: ast.Scope())
+        let class_def = ast.ClassDef(is_pub: true, id, location, is_extern: Option.Some(m_libname), type_parameters, definitions, scope: ast.Scope())
 
         # Patch the this type:
         let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: type_parameters.len())
@@ -528,4 +546,3 @@ class SymbolLoader:
         let id = m_des.get_integer_attribute(attr: "id")
         let name = m_des.get_text_attribute(attr: "name")
         ast.NodeId(id, name)
-

@@ -2,7 +2,7 @@
 
 import std
 
-fn main() -> int:
+pub fn main() -> int:
     std.print("Hello world")
     if 2 < 5:
         std.print("Compiling some stuff!")

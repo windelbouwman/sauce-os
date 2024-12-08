@@ -1,61 +1,57 @@
 
 from utils import panic
 
-enum Option[D]:
+pub enum Option[D]:
     Some(value?: D)
     None
 
-fn option_unwrap[T](option?: Option[T]) -> T:
+pub fn option_unwrap[T](option?: Option[T]) -> T:
     case option:
         Some(value):
             value
         None:
             panic("Cannot unwrap None")
 
-fn option_unwrap_or[T](option: Option[T], default: T) -> T:
+pub fn option_unwrap_or[T](option: Option[T], default: T) -> T:
     case option:
         Some(value):
             value
         None:
             default
 
-fn option_is_some[T](opt?: Option[T]) -> bool:
+pub fn option_is_some[T](opt?: Option[T]) -> bool:
     case opt:
         Some(v):
             true
         None:
             false
 
-fn option_is_none[T](opt?: Option[T]) -> bool:
+pub fn option_is_none[T](opt?: Option[T]) -> bool:
     case opt:
         Some(v):
             false
         None:
             true
 
-enum Result[O,E]:
-    Ok(value: O)
-    Error(value: E)
-
-fn list1[T](v1?: T) -> List[T]:
+pub fn list1[T](v1?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec
 
-fn list2[T](v1?: T, v2?: T) -> List[T]:
+pub fn list2[T](v1?: T, v2?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
     vec
 
-fn list3[T](v1?: T, v2?: T, v3?: T) -> List[T]:
+pub fn list3[T](v1?: T, v2?: T, v3?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
     vec.append(v3)
     vec
 
-fn list4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> List[T]:
+pub fn list4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
@@ -63,7 +59,7 @@ fn list4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> List[T]:
     vec.append(v4)
     vec
 
-fn list5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> List[T]:
+pub fn list5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
@@ -72,7 +68,7 @@ fn list5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> List[T]:
     vec.append(v5)
     vec
 
-fn list6[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T) -> List[T]:
+pub fn list6[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T) -> List[T]:
     let vec: List[T] = List()
     vec.append(v1)
     vec.append(v2)
@@ -82,7 +78,7 @@ fn list6[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T) -> List[T]:
     vec.append(v6)
     vec
 
-class List[T]:
+pub class List[T]:
     # Linked list based on a linked list of elements with next pointers.
 
     var head_element: Option[ListElement[T]] = Option.None()

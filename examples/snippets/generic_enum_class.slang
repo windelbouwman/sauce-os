@@ -1,5 +1,6 @@
 
-fn main() -> int:
+pub fn main() -> int:
+    let dummy = List()
     0
 
 class List[T]:
@@ -26,7 +27,7 @@ struct ListItem[V]:
     data: V
     next: Option[ListItem[V]]
 
-fn is_none[T](option: Option[T]) -> bool:
+pub fn is_none[T](option: Option[T]) -> bool:
     case option:
         Some(value):
             true
@@ -36,4 +37,3 @@ fn is_none[T](option: Option[T]) -> bool:
 enum Option[D]:
     Some(value: D)
     None
-

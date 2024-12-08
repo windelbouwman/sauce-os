@@ -3,7 +3,6 @@
 # There are a couple of formats:
 # R/I/S/U
 
-from std import print
 from utils import panic
 
 
@@ -52,7 +51,7 @@ fn encode_B_type(imm: int, rs2: int, rs1: int, funct3: int, opcode: int) -> int:
     let rd = (imm & 0x1E) | ((imm >> 11) & 0x1)
     encode_R_type(funct7, rs2, rs1, funct3, rd, opcode)
 
-enum Instruction:
+pub enum Instruction:
     LUI(rd: int, imm: int)
     AUIPC(rd: int, imm: int)
     JAL(rd: int, imm: int)
@@ -100,7 +99,7 @@ enum Instruction:
     ECALL
     EBREAK
 
-fn encode_instruction(instruction: Instruction) -> int:
+pub fn encode_instruction(instruction: Instruction) -> int:
     case instruction:
         LUI(rd, imm):
             encode_U_type(imm, rd, opcode: 0b0110111)
@@ -189,7 +188,7 @@ fn encode_instruction(instruction: Instruction) -> int:
             encode_I_type(imm: 0b1, rs1: 0, funct3: 0, rd: 0, opcode: 0b1110011)
 
 
-fn instruction_to_string(instruction: Instruction) -> str:
+pub fn instruction_to_string(instruction: Instruction) -> str:
     case instruction:
         LUI(rd, imm):
             "lui x{rd}, {imm}"

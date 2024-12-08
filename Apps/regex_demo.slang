@@ -2,7 +2,7 @@
 from std import print
 from regex import compile, find_all
 
-fn main() -> int:
+pub fn main() -> int:
     print("lexer generator")
 
     let prog = compile(pattern: "a+[0-9]")

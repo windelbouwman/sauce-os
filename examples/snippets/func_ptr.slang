@@ -1,7 +1,7 @@
 
 from std import print
 
-fn main() -> int:
+pub fn main() -> int:
     # Becomes: store  void()* @bla, void()** %x_1
 
     let x: fn() = bla

@@ -1,10 +1,10 @@
 
 import ast
 from datatypes import List, Option, list1, list2
-from vectype import Vector, new_vector
+from vectype import new_vector
 from location import location_default
 
-fn get_rt_module() -> ast.Module:
+pub fn get_rt_module() -> ast.Module:
     let libname = "slangrt"
     let modname = "rt"
     let module = ast.new_module(name: modname, filename: Option.None(), imports: new_vector(), definitions: List())

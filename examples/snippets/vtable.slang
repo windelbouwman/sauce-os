@@ -2,7 +2,7 @@
 
 from std import print
 
-fn main() -> int:
+pub fn main() -> int:
     let strCombo = Combo:
         data: "Moi"
         handler: str_handler  # We need the bridge function here
@@ -22,4 +22,3 @@ fn str_handler(data: str, value: int):
 struct Combo[T]:
     data: T
     handler: fn(T, int)
-

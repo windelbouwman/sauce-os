@@ -7,7 +7,7 @@ from datatypes import List
 from bytes import ByteArray, Bytes
 from utils import assert
 
-class HexFile:
+pub class HexFile:
     var m_lines: List[HexLine] = List()
 
     fn add_bytes(address: int, data: Bytes):
@@ -62,4 +62,3 @@ fn hex_line_to_text(line: HexLine) -> str:
     x.append(crc)
     let txt = x.as_hex()
     ":{txt}"
-
