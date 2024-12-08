@@ -3,7 +3,7 @@ from datatypes import List, Option
 from std import str_slice, str_get, str_len, ord, chr
 from utils import assert, panic, unimplemented
 
-fn split_string2(text: str, sep: str) -> List[str]:
+pub fn split_string2(text: str, sep: str) -> List[str]:
     """ Split string by other string """
     unimplemented("split_string2")
 
@@ -72,7 +72,7 @@ pub fn str_to_int(text?: str) -> int:
         value = value * 10 + digit_to_int(c)
     value
 
-fn hex_to_int(hextext: str) -> int:
+pub fn hex_to_int(hextext: str) -> int:
     """ Convert hex text """
     let n = str_len(text: hextext)
     assert(condition: n > 0, message: "Hex string must be at least a single digit.")
@@ -81,7 +81,7 @@ fn hex_to_int(hextext: str) -> int:
         value = value * 16 + hex_digit_to_int(c)
     value
 
-fn bin_to_int(bintext: str) -> int:
+pub fn bin_to_int(bintext: str) -> int:
     """ Convert bin text to integer value
     For example, convert 101 to 5
     """
@@ -161,7 +161,7 @@ pub fn bin_digit_to_int(c: char) -> int:
     else:
         panic("Invalid binary char: {c}")
 
-fn trim(text?: str) -> str:
+pub fn trim(text?: str) -> str:
     # Trim spaces
     let i = 0
     let n = str_len(text)
@@ -181,7 +181,7 @@ fn trim(text?: str) -> str:
 
     str_slice(text, begin: i, end: n)
 
-fn find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
+pub fn find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
     let i = 0
     let n = str_len(text)
     while i < n:
@@ -192,7 +192,7 @@ fn find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
     Option.None()
 
 
-fn reverse_find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
+pub fn reverse_find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
     let n = str_len(text)
     let i = n
     while i > 0:

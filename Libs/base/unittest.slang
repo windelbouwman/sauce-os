@@ -18,7 +18,7 @@ pub fn assert_almost_equals(a?: float, b?: float):
     let diff = fabs(a - b)
     assert(condition: diff < 0.001, message: "Expect '{float_to_str(a)}' is nearly '{float_to_str(b)}'")
 
-fn assert_list_equals(a?: List[str], b?: List[str]):
+pub fn assert_list_equals(a?: List[str], b?: List[str]):
     assert(condition: a.len() == b.len(), message: "Expect equal long lists {a.len()} != {b.len()}")
 
     # TODO: make below work:
@@ -36,7 +36,7 @@ fn assert_list_equals(a?: List[str], b?: List[str]):
             None:
                 break
 
-fn assert_bytes_equals(a?: Bytes, b?: Bytes):
+pub fn assert_bytes_equals(a?: Bytes, b?: Bytes):
     let a_hex = a.as_hex()
     let b_hex = b.as_hex()
     assert_str_equals(a_hex, b_hex)
@@ -46,4 +46,3 @@ pub fn assert_true(condition?: bool):
 
 pub fn assert_false(condition?: bool):
     assert(condition: not condition, message: "Expected false, got true")
-

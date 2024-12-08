@@ -6,7 +6,7 @@
 # https://qoiformat.org/qoi-specification.pdf
 
 import std
-from utils import unimplemented, panic, log_info, assert
+from utils import panic, log_info, assert
 from bytes import Bytes, ByteReader, ByteArray, bytes_to_ascii, bytes_from_ascii
 from vectype import Vector, new_vector
 from math import modulo
@@ -54,12 +54,12 @@ pub fn write_bytes_to_file(filename: str, data: Bytes):
 # QOI_OP_RGB = 0b1111_1110
 # QOI_OP_RGBA = 0b1111_1111
 
-fn read_qoi_from_file(filename: str) -> Image:
+pub fn read_qoi_from_file(filename: str) -> Image:
     let data = read_whole_file_as_bytes(filename)
     let reader = QoiReader(m_reader: data.into_reader())
     reader.read_image()
 
-fn write_qoi_to_file(image: Image, filename: str):
+pub fn write_qoi_to_file(image: Image, filename: str):
     # Write image as QOI file.
     let writer = QoiWriter()
     let data = writer.write(image)

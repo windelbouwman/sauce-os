@@ -2,7 +2,7 @@
 from datatypes import List, option_unwrap
 from utils import assert
 
-fn zip[L,R,P](left: List[L], right: List[R], merger: fn(L, R) -> P) -> List[P]:
+pub fn zip[L,R,P](left: List[L], right: List[R], merger: fn(L, R) -> P) -> List[P]:
     # Zip two lists into a merged list!
     assert(condition: left.len() == right.len(), message: "Can only zip lists of equal length")
 
@@ -18,10 +18,10 @@ fn zip[L,R,P](left: List[L], right: List[R], merger: fn(L, R) -> P) -> List[P]:
 fn add_int(left: int, right: int) -> int:
     left + right
 
-fn sum_integers(values: List[int]) -> int:
+pub fn sum_integers(values: List[int]) -> int:
     reduce(values, f: add_int)
 
-fn reduce[T](values: List[T], f: fn(T, T) -> T) -> T:
+pub fn reduce[T](values: List[T], f: fn(T, T) -> T) -> T:
     # Apply a function on pairs to reduce to a single item.
     let res = values.pop_front()
     for other in values:
@@ -34,25 +34,25 @@ pub fn map[T,V](values: List[T], function: fn(T) -> V) -> List[V]:
         mapped.append(function(value))
     mapped
 
-fn filter[T](values: List[T], criterium: fn(T) -> bool) -> List[T]:
+pub fn filter[T](values: List[T], criterium: fn(T) -> bool) -> List[T]:
     let allowed: List[T] = List()
     for value in values:
         if criterium(value):
             allowed.append(value)
     allowed
 
-fn all[T](values: List[T], check: fn(T) -> bool) -> bool:
+pub fn all[T](values: List[T], check: fn(T) -> bool) -> bool:
     for value in values:
         if not check(value):
             return false
     true
 
 # fn pairs[L,R](left: List[L], right: List[R]) -> List[Pair[L, R]]:
-    # return zip(left, right, merger: make_pair)
+#     zip(left, right, merger: make_pair)
 
-fn make_pair[L,R](left: L, right: R) -> Pair[L, R]:
-    Pair(left, right)
+# fn make_pair[L,R](left: L, right: R) -> Pair[L, R]:
+#     Pair(left, right)
 
-struct Pair[L,R]:
-    left: L
-    right: R
+# struct Pair[L,R]:
+#     left: L
+#     right: R

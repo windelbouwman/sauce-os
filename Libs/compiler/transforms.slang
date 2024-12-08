@@ -698,10 +698,10 @@ class ClassRewriter:
                 pass
 
         let libname = "?"
-        let ctor_func = ast.extern_function_def(libname, name: ctor_name, type_parameters, parameters, return_type: struct_type, location: class_def.location)
+        let ctor_func = ast.extern_function_def(is_pub: true, libname, name: ctor_name, type_parameters, parameters, return_type: struct_type, location: class_def.location)
         case class_def.is_extern:
             Some(libname):
-                ctor_func = ast.extern_function_def(libname, name: ctor_name, type_parameters, parameters, return_type: struct_type, location: class_def.location)
+                ctor_func = ast.extern_function_def(is_pub: true, libname, name: ctor_name, type_parameters, parameters, return_type: struct_type, location: class_def.location)
             None:
                 let init_literal = ast.struct_literal(ty: struct_type, values: init_values, location: class_def.location)
                 let body = ast.return_statement(value: Option.Some(init_literal), location: class_def.location)

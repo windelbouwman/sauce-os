@@ -5,7 +5,7 @@ from datatypes import List
 from math import floor, fabs
 from chart import DataPoint
 
-fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
+pub fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
     # Create a selection of data points for plotting.
     # Divide the data into buckets, and from each bucket
     # select a point such that this point forms the largest

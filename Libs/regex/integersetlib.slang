@@ -65,7 +65,7 @@ fn range_equals(a: Range, b: Range) -> bool:
         return false
     a.end == b.end
 
-fn integer_set_equals(a: IntegerSet, b: IntegerSet) -> bool:
+pub fn integer_set_equals(a: IntegerSet, b: IntegerSet) -> bool:
     if a.ranges.len() != b.ranges.len():
         return false
     all(values: zip(left: a.ranges, right: b.ranges, merger: range_equals), check: is_true)

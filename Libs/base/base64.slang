@@ -6,7 +6,7 @@ from math import modulo
 from bytes import Bytes, ByteArray
 from std import ord
 
-fn base64_encode(data: Bytes) -> str:
+pub fn base64_encode(data: Bytes) -> str:
     # Encode given data as base64 text
     let base64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
@@ -43,7 +43,7 @@ fn base64_encode(data: Bytes) -> str:
             pad_count += 1
     result
 
-fn base64_decode(text: str) -> Bytes:
+pub fn base64_decode(text: str) -> Bytes:
     # Decode base64 text into bytes
     # unimplemented("base64_decode")
     let result = ByteArray()
@@ -96,5 +96,3 @@ fn base64_decode(text: str) -> Bytes:
         result.append((buf >> 4) & 0xFF)
 
     result.to_bytes()
-
-

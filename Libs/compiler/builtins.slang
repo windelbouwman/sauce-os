@@ -5,12 +5,14 @@ from vectype import new_vector
 from location import location_default
 
 pub fn get_rt_module() -> ast.Module:
+    let is_pub = true
     let libname = "slangrt"
     let modname = "rt"
     let module = ast.new_module(name: modname, filename: Option.None(), imports: new_vector(), definitions: List())
     let type_parameters: List[ast.TypeParameter] = List()
 
     let int_to_str = ast.extern_function_def:
+        is_pub
         libname
         name: "int_to_str"
         type_parameters
@@ -20,6 +22,7 @@ pub fn get_rt_module() -> ast.Module:
     ast.module_define_function(module, function_def: int_to_str)
 
     let char_to_str = ast.extern_function_def:
+        is_pub
         libname
         name: "char_to_str"
         type_parameters
@@ -29,6 +32,7 @@ pub fn get_rt_module() -> ast.Module:
     ast.module_define_function(module, function_def: char_to_str)
 
     let str_concat = ast.extern_function_def:
+        is_pub
         libname
         name: "str_concat"
         type_parameters
@@ -38,6 +42,7 @@ pub fn get_rt_module() -> ast.Module:
     ast.module_define_function(module, function_def: str_concat)
 
     let str_compare = ast.extern_function_def:
+        is_pub
         libname
         name: "str_compare"
         type_parameters
@@ -47,6 +52,7 @@ pub fn get_rt_module() -> ast.Module:
     ast.module_define_function(module, function_def: str_compare)
 
     let str_len = ast.extern_function_def:
+        is_pub
         libname
         name: "str_len"
         type_parameters
@@ -56,6 +62,7 @@ pub fn get_rt_module() -> ast.Module:
     ast.module_define_function(module, function_def: str_len)
 
     let str_get = ast.extern_function_def:
+        is_pub
         libname
         name: "str_get"
         type_parameters

@@ -6,26 +6,26 @@ from utils import panic
 pub var pi: float = 3.141592653589793
 var e: float = 2.718281828459045
 
-fn min(a: int, b: int) -> int:
+pub fn min(a: int, b: int) -> int:
     if a < b:
         a
     else:
         b
 
-fn max(a?: int, b?: int) -> int:
+pub fn max(a?: int, b?: int) -> int:
     if a > b:
         a
     else:
         b
 
 # TODO: do something clever with traits / interfaces / generics
-fn fmin(a?: float, b?: float) -> float:
+pub fn fmin(a?: float, b?: float) -> float:
     if a < b:
         a
     else:
         b
 
-fn fmax(a?: float, b?: float) -> float:
+pub fn fmax(a?: float, b?: float) -> float:
     if a > b:
         a
     else:
@@ -43,7 +43,7 @@ pub fn fabs(a?: float) -> float:
     else:
         a
 
-fn sqrt(x?: float) -> float:
+pub fn sqrt(x?: float) -> float:
     """ Take the square root """
     if x < 0:
         panic("Square root undefined for negative numbers like {float_to_str(x)}")
@@ -54,7 +54,7 @@ fn sqrt(x?: float) -> float:
         r = (r + x / r) / 2
     r
 
-fn factorial(x?: int) -> int:
+pub fn factorial(x?: int) -> int:
     if x < 0:
         panic("Factorial undefined for negative numbers like {x}")
     elif x == 0:
@@ -108,15 +108,15 @@ fn sin_kernel(x?: float) -> float:
         i += 2
     result
 
-fn tan(value?: float) -> float:
+pub fn tan(value?: float) -> float:
     # TODO: check division by 0
     sin(value) / cos(value)
 
-fn degrees(radians: float) -> float:
+pub fn degrees(radians: float) -> float:
     """ Convert radians to degrees """
     radians * (180.0 / pi)
 
-fn radians(degrees: float) -> float:
+pub fn radians(degrees: float) -> float:
     """ Convert degrees to radians """
     degrees * (pi / 180.0)
 
@@ -127,14 +127,14 @@ fn fmod(x?: float, divisor: float) -> float:
     else:
         x
 
-fn hypot(x?: float, y: float) -> float:
+pub fn hypot(x?: float, y: float) -> float:
     sqrt(x*x + y*y)
 
 pub fn modulo(value: int, divisor: int) -> int:
     let x = value / divisor
     value - (divisor * x)
 
-fn powf(x?: float, y?: float) -> float:
+pub fn powf(x?: float, y?: float) -> float:
     """ Raise x to the power of y.
 
     Implemented as:
@@ -144,13 +144,13 @@ fn powf(x?: float, y?: float) -> float:
     """
     exp(y * log(x))
 
-fn log10(x?: float) -> float:
+pub fn log10(x?: float) -> float:
     log(x) / log(10)
 
 pub fn log2(x?: float) -> float:
     log(x) / log(2)
 
-fn log(x?: float) -> float:
+pub fn log(x?: float) -> float:
     """ Natural logarithm
 
     See: https://en.wikipedia.org/wiki/Natural_logarithm
@@ -189,7 +189,7 @@ fn log(x?: float) -> float:
     else:
         panic("log({float_to_str(x)}) is undefined")
 
-fn exp(x?: float) -> float:
+pub fn exp(x?: float) -> float:
     """ Use Taylor series:
 
               x^1   x^2   x^3

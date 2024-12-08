@@ -889,14 +889,14 @@ pub struct NameAtLocation:
     name: str
     location: Location
 
-pub fn extern_function_def(libname: str, name: str, type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
+pub fn extern_function_def(is_pub: bool, libname: str, name: str, type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
     let info = FunctionInfo:
         return_type
         except_type: void_type()
 
     FunctionDef:
         name
-        is_pub: true
+        is_pub
         info
         type_parameters
         this_parameter: Option.None()
@@ -1052,6 +1052,7 @@ fn struct_def_to_str(struct_def: StructDef) -> str:
 
 pub class StructBuilder:
     var nodeId: NodeId = NodeId(name: "", id: 0)
+    var is_pub: bool = true
     var is_union: bool = false
     var location: Location = location_default()
     var type_parameters: List[TypeParameter] = List()
@@ -1062,6 +1063,9 @@ pub class StructBuilder:
     
     fn set_id(id?: int):
         nodeId.id = id
+    
+    fn set_pub(is_pub?: bool):
+        this.is_pub = is_pub
     
     fn set_is_union(is_union?: bool):
         this.is_union = is_union
@@ -1079,7 +1083,7 @@ pub class StructBuilder:
         for field in fields:
             scope.define(is_pub: true, name: field.name, kind: SymbolKind.Field(field), location)
         StructDef:
-            is_pub: true
+            is_pub: is_pub
             id: nodeId
             is_union: is_union
             type_parameters: type_parameters
@@ -1509,7 +1513,6 @@ pub enum ExpressionKind:
     Variant(ty: Type, variant: EnumVariant)
     EnumLiteral(ty: Type, variant: EnumVariant, values: List[Expression])
     Stmt(statement: Statement)
-    Undefined
     Null
 
 pub struct LabeledExpression:
@@ -1668,10 +1671,6 @@ pub fn to_string(value: Expression, location: Location) -> Expression:
     let kind = ExpressionKind.ToString(value)
     Expression(kind, ty: str_type(), location)
 
-fn undefined_value() -> Expression:
-    let location = location_default()
-    Expression(kind: ExpressionKind.Undefined(), ty: undefined_type(), location)
-
 pub fn null_value(location: Location) -> Expression:
     Expression(kind: ExpressionKind.Null(), ty: opaque_type(), location)
 
@@ -1693,7 +1692,7 @@ pub fn print_ast(module: Module):
     visit_module(visitor, module)
     printer.dedent()
 
-fn new_print_visitor(printer: AstPrinter) -> Visitor[AstPrinter]:
+pub fn new_print_visitor(printer: AstPrinter) -> Visitor[AstPrinter]:
     Visitor:
         data: printer
         on_definition: print_ast_definition
@@ -1702,7 +1701,7 @@ fn new_print_visitor(printer: AstPrinter) -> Visitor[AstPrinter]:
         on_expression: print_ast_expression
         on_node: print_ast_node
 
-class AstPrinter:
+pub class AstPrinter:
     var indent_level: int = 0
 
     fn indent():
@@ -1830,8 +1829,6 @@ fn expression_to_string(expression?: Expression) -> str:
             "GET-ATTR({attr})"
         GetIndex(base, indici):
             "GET-INDEX"
-        Undefined:
-            "UNDEFINED"
         Null:
             "NULL"
         Binop(op):
@@ -2041,7 +2038,7 @@ fn visit_type[T](visitor: Visitor[T], ty: Type):
         pass
     visitor.on_type(data: visitor.data, ty, phase: VisitPhase.Post())
 
-fn visit_statement[T](visitor: Visitor[T], statement: Statement):
+pub fn visit_statement[T](visitor: Visitor[T], statement: Statement):
     visitor.on_statement(data: visitor.data, statement, phase: VisitPhase.Pre())
     case statement.kind:
         Let(let_statement):

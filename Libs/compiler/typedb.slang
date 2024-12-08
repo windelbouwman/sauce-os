@@ -126,6 +126,7 @@ class SymbolSaver:
 
     fn save_enum_def(enum_def: ast.EnumDef):
         m_ser.add_text_attribute(attr: "kind", text: "enum")
+        m_ser.add_boolean_attribute(attr: "pub", value: enum_def.is_pub)
         save_id(id: enum_def.id)
         save_type_parameters(type_parameters: enum_def.type_parameters)
 
@@ -144,6 +145,7 @@ class SymbolSaver:
 
     fn save_class_def(class_def: ast.ClassDef):
         m_ser.add_text_attribute(attr: "kind", text: "class")
+        m_ser.add_boolean_attribute(attr: "pub", value: class_def.is_pub)
         save_id(id: class_def.id)
         save_type_parameters(type_parameters: class_def.type_parameters)
 
@@ -154,6 +156,7 @@ class SymbolSaver:
 
     fn save_function_def(function_def: ast.FunctionDef):
         m_ser.add_text_attribute(attr: "kind", text: "function")
+        m_ser.add_boolean_attribute(attr: "pub", value: function_def.is_pub)
         m_ser.add_text_attribute(attr: "name", text: function_def.name)
         m_ser.add_integer_attribute(attr: "id", value: 0)
         save_type_parameters(type_parameters: function_def.type_parameters)
@@ -176,6 +179,7 @@ class SymbolSaver:
     fn save_struct_def(struct_def: ast.StructDef):
         log_debug("Saving meta-info for struct-def: {ast.node_id_to_string(struct_def.id)}")
         m_ser.add_text_attribute(attr: "kind", text: "struct")
+        m_ser.add_boolean_attribute(attr: "pub", value: struct_def.is_pub)
         save_id(id: struct_def.id)
         save_type_parameters(type_parameters: struct_def.type_parameters)
 
@@ -377,10 +381,12 @@ class SymbolLoader:
         ast.VariableDef(variable, value: ast.VariableDefValue.Extern(libname: m_libname, is_initialized))
 
     fn load_function(def_name: str, def_id: int) -> ast.FunctionDef:
+        let is_pub = m_des.get_boolean_attribute(attr: "pub")
         let type_parameters = load_type_parameters()
         let parameters = load_parameters()
         let info = load_function_info()
         let f = ast.extern_function_def:
+            is_pub
             libname: m_libname
             name: def_name
             type_parameters
@@ -419,8 +425,10 @@ class SymbolLoader:
 
     fn load_struct_def(def_name: str, def_id: int) -> ast.StructDef:
         let builder = ast.StructBuilder()
+        let is_pub = m_des.get_boolean_attribute(attr: "pub")
         builder.set_name(name: def_name)
         builder.set_id(id: def_id)
+        builder.set_pub(is_pub)
         let type_parameters = load_type_parameters()
         for field_obj in m_des.get_array_attribute(attr: "fields"):
             m_des.push_value(value: field_obj)
@@ -435,6 +443,7 @@ class SymbolLoader:
     
     fn load_enum_def(def_name: str, def_id: int) -> ast.EnumDef:
         let location = location_default()
+        let is_pub = m_des.get_boolean_attribute(attr: "pub")
         let type_parameters = load_type_parameters()
         let variants: List[ast.EnumVariant] = List()
         let tag_index = 0
@@ -447,11 +456,12 @@ class SymbolLoader:
             m_des.pop_value()
             tag_index += 1
 
-        ast.enum_def(is_pub: true, name: def_name, id: def_id, location, type_parameters, variants)
+        ast.enum_def(is_pub, name: def_name, id: def_id, location, type_parameters, variants)
 
     fn load_class_def(def_name: str, def_id: int) -> ast.ClassDef:
         let id = ast.NodeId(name: def_name, id: def_id)
         let location = location_default()
+        let is_pub = m_des.get_boolean_attribute(attr: "pub")
         let type_parameters = load_type_parameters()
 
         let this_type = ast.undefined_type()
@@ -464,7 +474,7 @@ class SymbolLoader:
             m_des.pop_value()
         m_this_type = Option.None()
 
-        let class_def = ast.ClassDef(is_pub: true, id, location, is_extern: Option.Some(m_libname), type_parameters, definitions, scope: ast.Scope())
+        let class_def = ast.ClassDef(is_pub, id, location, is_extern: Option.Some(m_libname), type_parameters, definitions, scope: ast.Scope())
 
         # Patch the this type:
         let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: type_parameters.len())

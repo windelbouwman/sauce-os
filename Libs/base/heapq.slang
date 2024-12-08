@@ -6,7 +6,7 @@ A binary heap is an implementation for a priority queue.
 
 from utils import panic
 
-fn new_priority_queue_with_capacity[T](capacity: int, f: fn (T, T) -> bool) -> PriorityQueue[T]:
+pub fn new_priority_queue_with_capacity[T](capacity: int, f: fn (T, T) -> bool) -> PriorityQueue[T]:
     let m_size = 0
     let m_items = [capacity : T]
     let hack = Hack(f: f)
@@ -15,7 +15,7 @@ fn new_priority_queue_with_capacity[T](capacity: int, f: fn (T, T) -> bool) -> P
 struct Hack[T]:
     f: fn(T, T) -> bool
 
-class PriorityQueue[T]:
+pub class PriorityQueue[T]:
     var m_items: [T]
     var m_size: int
     var m_capacity: int

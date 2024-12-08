@@ -1,7 +1,7 @@
 
 from std import ord
 
-fn elf_hash(text: str) -> int:
+pub fn elf_hash(text: str) -> int:
     let h = 0
     for c in text:
         h = (h << 4) + ord(c)

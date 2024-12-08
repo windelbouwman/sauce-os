@@ -138,7 +138,7 @@ fn byte_as_hex(byte?: uint8) -> str:
     let c2 = hex_char((int(byte) & 0xF0) >> 4)
     "{c2}{c1}"
 
-fn bytes_from_hex_text(text: str) -> Bytes:
+pub fn bytes_from_hex_text(text: str) -> Bytes:
     let output = ByteArray()
     let value = 0
     let n_bits = 0
@@ -157,24 +157,24 @@ fn bytes_from_hex_text(text: str) -> Bytes:
     assert(condition: n_bits == 0, message: "Hexadecimal text must contain whole bytes")
     output.to_bytes()
 
-fn new_bytes() -> Bytes:
+pub fn new_bytes() -> Bytes:
     let output = ByteArray()
     output.to_bytes()
 
-fn fill_bytes(n: int, fill: int) -> Bytes:
+pub fn fill_bytes(n: int, fill: int) -> Bytes:
     let output = ByteArray()
     while n > 0:
         output.append(fill)
         n -= 1
     output.to_bytes()
 
-fn bytes_from_ascii(text: str) -> Bytes:
+pub fn bytes_from_ascii(text: str) -> Bytes:
     let output = ByteArray()
     for c in text:
         output.append(ord(c))
     output.to_bytes()
 
-fn bytes_to_ascii(data: Bytes) -> str:
+pub fn bytes_to_ascii(data: Bytes) -> str:
     # Interpret bytes as ascii data
     let result = ""
     for b in data:

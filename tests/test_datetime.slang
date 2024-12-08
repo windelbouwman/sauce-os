@@ -1,7 +1,7 @@
 
 from std import print
 from unittest import assert_int_equals, assert_str_equals
-from datetime import unix_to_datetime, unix_to_str, datetime_to_unix, DateTime, datetime_to_str
+from datetime import unix_to_datetime, unix_to_str, datetime_to_unix, DateTime
 
 pub fn main() -> int:
     test_example1()

@@ -8,13 +8,13 @@ pub struct Point:
     x: int
     y: int
 
-fn str_point(p?: Point) -> str:
+pub fn str_point(p?: Point) -> str:
     "[{p.x},{p.y}]"
 
-struct Path:
+pub struct Path:
     points: List[Point]
 
-struct Polygon:
+pub struct Polygon:
     path: Path
 
 pub fn shoelace(points: List[Point]) -> float:

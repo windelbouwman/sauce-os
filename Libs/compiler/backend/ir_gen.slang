@@ -15,7 +15,7 @@ pub fn gen_bytecode(module_set: ast.ModuleSet) -> bc.Program:
         g.gen_prog(module)
     bc.Program(functions: g.functions, structs: g.structs, globals: g.global_variables, extern_functions: g.extern_functions)
 
-fn gen_expression_bytecode(expression: ast.Expression) -> Vector[Instruction]:
+pub fn gen_expression_bytecode(expression: ast.Expression) -> Vector[Instruction]:
     let g = BytecodeGenerator()
     g.gen_expression(expression)
     g.emit(Instruction.Return(n_args: 1))

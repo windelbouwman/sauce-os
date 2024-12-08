@@ -2,7 +2,7 @@
 from math import modulo, sin, floor, fabs
 from bytes import Bytes, ByteArray, ByteReader
 
-fn md5(data: Bytes) -> Bytes:
+pub fn md5(data: Bytes) -> Bytes:
     # RFC 1321
     # See also: https://en.wikipedia.org/wiki/MD5
     # And:  https://www.ietf.org/rfc/rfc1321.txt
@@ -75,16 +75,16 @@ fn md5(data: Bytes) -> Bytes:
     digest.pack_u32_le(d0)
     digest.to_bytes()
 
-fn leftrotate(value: int, amount: int) -> int:
+pub fn leftrotate(value: int, amount: int) -> int:
     (0xffFFffFF & (value << amount)) | (value >> (32 - amount))
 
-fn compute_md5_K(K: [int]):
+pub fn compute_md5_K(K: [int]):
     let i = 0
     while i < 64:
         K[i] = int(floor(fabs(sin(i + 1)) * 0x100000000))
         i += 1
 
-fn fill_md5_K(K: [int]):
+pub fn fill_md5_K(K: [int]):
     """
     Pre computed table of
     floor(2^32 * abs(sin(i + 1)))

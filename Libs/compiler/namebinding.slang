@@ -53,7 +53,7 @@ fn new_bind_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
         on_expression: binder_on_expression
         on_node: binder_on_node
 
-fn bind_names_expression(expression: ast.Expression) except CompilationError:
+pub fn bind_names_expression(expression: ast.Expression) except CompilationError:
     let tycon_map: Dictionary[ast.TyCon] = Dictionary()
     let binder = NameBinder(tycon_map)
     let bind_visitor = new_bind_visitor(binder)

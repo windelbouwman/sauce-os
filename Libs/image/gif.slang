@@ -9,7 +9,7 @@ from image import Image, new_image
 from qoi import read_whole_file_as_bytes
 
 
-fn read_gif_from_file(filename: str) -> List[Image]:
+pub fn read_gif_from_file(filename: str) -> List[Image]:
     log_debug("Loading GIF from {filename}")
     let data = read_whole_file_as_bytes(filename)
     read_gif_from_bytes(data)
@@ -162,7 +162,7 @@ class GifReader:
     fn read_u8() -> int:
         m_byte_reader.read_byte()
 
-fn lzw_decode(data: Bytes) -> Bytes:
+pub fn lzw_decode(data: Bytes) -> Bytes:
     """ Decompress LZW encodeded data. """
     let compressed_size = data.len()
     log_debug("LZW decoding {compressed_size} bytes")

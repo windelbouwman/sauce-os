@@ -19,19 +19,19 @@ pub fn parse_source(filename: str, id_gen: IdGen) -> ast.Module except Compilati
     parser.feed(source)
     parser.parse_module(filename, name: modname)
 
-fn parse_statement_from_text(source: str, id_gen: IdGen) -> ast.Statement except CompilationError:
+pub fn parse_statement_from_text(source: str, id_gen: IdGen) -> ast.Statement except CompilationError:
     # Invoke parsing, purely on statement.
     let parser = Parser(id_gen)
     parser.feed(source)
     parser.parse_statement()
 
-fn parse_expr_from_text(source: str, id_gen: IdGen) -> ast.Expression except CompilationError:
+pub fn parse_expr_from_text(source: str, id_gen: IdGen) -> ast.Expression except CompilationError:
     # Invoke parsing, purely on expression.
     let parser = Parser(id_gen)
     parser.feed(source)
     parser.parse_expression()
 
-pub class Parser:
+class Parser:
     # An attempt at a recursive descent parser.
     var lex: Lexer = Lexer()
     var m_peek: Token = default_token()
@@ -314,13 +314,14 @@ pub class Parser:
         ast.function_def(is_pub, name: name_at.name, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
     
     fn parse_extern_func_def(libname: str) -> ast.FunctionDef except CompilationError:
+        let is_pub = true
         let name_at = parse_name()
         let name: str = name_at.name
         let type_parameters = parse_type_parameters()
         let parameters = parse_parameters()
         let info = parse_function_info()
         parse_newline()
-        ast.extern_function_def(libname, name, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
+        ast.extern_function_def(is_pub, libname, name, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
 
     fn parse_parameters() -> List[ast.ParameterDef] except CompilationError:
         let parameters: List[ast.ParameterDef] = List()

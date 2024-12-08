@@ -8,7 +8,7 @@ from datatypes import List
 from datatypes import Option, option_unwrap, option_is_some
 from strlib import str_join, str_repeat
 
-class Node:
+pub class Node:
     # An xml node!
     var tag: str
     var m_attributes: List[Attribute] = List()
@@ -29,7 +29,7 @@ struct Attribute:
     name: str
     value: str
 
-fn emit_xml(node: Node, filename: Option[str]):
+pub fn emit_xml(node: Node, filename: Option[str]):
     let writer = XmlWriter()
     writer.begin(output_filename: filename)
     writer.write_header()
@@ -98,7 +98,7 @@ class XmlWriter:
         else:
             print(line)
 
-fn read_xml() -> Node:
+pub fn read_xml() -> Node:
     unimplemented("read_xml")
 
 #class XmlReader:

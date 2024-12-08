@@ -3,14 +3,14 @@ Regex library
 """
 
 from std import str_get, str_len, ord, print, chr, str_slice
-from integersetlib import IntegerSet, new_int_set, new_empty_int_set, integer_set_from_ranges, integer_set_difference
+from integersetlib import IntegerSet, new_int_set, integer_set_from_ranges, integer_set_difference
 from datatypes import List, list1, list2, Option
 from rangelib import Range, range_to_string, range_contains
 from functools import map
 from strlib import str_repeat
 from utils import panic, assert
 
-fn find(pattern: str, text: str) -> Option[Match]:
+pub fn find(pattern: str, text: str) -> Option[Match]:
     let matches = find_all(pattern, text)
     if matches.len() > 0:
         Option.Some(matches.first())
@@ -29,7 +29,7 @@ pub fn find_all_text(pattern: str, text: str) -> List[str]:
 fn get_text(m: Match) -> str:
     m.text
 
-fn split_at_pattern(text: str, pattern: str) -> List[str]:
+pub fn split_at_pattern(text: str, pattern: str) -> List[str]:
     """ Split a string at the given regex """
     let parts: List[str] = List()
     let begin = 0
@@ -92,7 +92,7 @@ struct Match:
     end: int
     text: str
 
-fn compile(pattern: str) -> Machine:
+pub fn compile(pattern: str) -> Machine:
     # Turn regular expression into matching machine
     # print("Compiling regex: {pattern}")
     let rx = parse(pattern)
@@ -191,7 +191,7 @@ fn parse(pattern: str) -> Regex:
         panic("Error: {e.message}")
     res
 
-fn print_machine(machine: Machine):
+pub fn print_machine(machine: Machine):
     let i = 0
     for state in machine.states:
         print("State: {i}")
@@ -284,7 +284,6 @@ class Parser:
         else:
             false
 
-        # let res = new_empty_int_set()
         let ranges: List[Range] = List()
         while peek() != ']':
             let c1 = eat()
@@ -354,7 +353,7 @@ fn epsilon_regex() -> Regex:
 fn null_regex() -> Regex:
     Regex(kind: PartKind.Null())
 
-fn sigma_regex() -> Regex:
+pub fn sigma_regex() -> Regex:
     """ Regex with all symbols! """
     symbol_set_regex(s: sigma())
 

@@ -4,9 +4,9 @@
 
 from std import float_to_str2
 from utils import panic, log_info, log_trace
-from datatypes import List, Option, option_unwrap
+from datatypes import List, Option
 from vectype import Vector
-from strlib import str_repeat, str_join
+from strlib import str_join
 import vm
 import bc
 from text_gen import TextGenerator

@@ -8,7 +8,7 @@ from bytes import Bytes, ByteArray
 from deflate import new_deflate_decoder
 from deflate import deflate_compress
 
-fn gzip_decompress(data?: Bytes) -> Bytes:
+pub fn gzip_decompress(data?: Bytes) -> Bytes:
     # Handle the gzip header.
     let reader = data.into_reader()
     let id1 = reader.read_byte()
@@ -54,10 +54,10 @@ fn gzip_decompress(data?: Bytes) -> Bytes:
     assert(condition: crc32_check == crc32, message: "CRC error: {crc32} != {crc32_check}")
     decompressed
 
-fn gzip_compress(data: Bytes) -> Bytes:
+pub fn gzip_compress(data: Bytes) -> Bytes:
     unimplemented("gzip_compress")
 
-fn calc_crc32(data: Bytes) -> int:
+pub fn calc_crc32(data: Bytes) -> int:
     # Create table:
     let crc_table = [256 : int]
     let n = 0
@@ -80,7 +80,7 @@ fn calc_crc32(data: Bytes) -> int:
         crc = crc_table[(crc ^ b) & 0xff] ^ (crc >> 8)
     crc ^ 0xffffffff
 
-fn zlib_decompress(data: Bytes) -> Bytes:
+pub fn zlib_decompress(data: Bytes) -> Bytes:
     # See RFC 1950
     let reader = data.into_reader()
 
@@ -110,7 +110,7 @@ fn zlib_decompress(data: Bytes) -> Bytes:
     assert(condition: crc1 == crc2, message: "CRC mismatch {crc1} != {crc2}")
     decompressed
 
-fn zlib_compress(data: Bytes) -> Bytes:
+pub fn zlib_compress(data: Bytes) -> Bytes:
     # Compress data in zlib format
     # See RFC 1950
     let out = ByteArray()
@@ -131,7 +131,7 @@ fn zlib_compress(data: Bytes) -> Bytes:
 
     out.to_bytes()
 
-fn calc_adler32(data: Bytes) -> int:
+pub fn calc_adler32(data: Bytes) -> int:
     let s1 = 1
     let s2 = 0
     let index = 0
@@ -140,4 +140,3 @@ fn calc_adler32(data: Bytes) -> int:
         s2 = modulo(value: s2 + s1, divisor: 65521)
         index += 1
     (s2 * 65536) + s1
-

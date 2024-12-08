@@ -11,7 +11,7 @@ import std
 import bc
 import rt
 
-enum Value:
+pub enum Value:
     Int(value: int)
     Str(value: str)
     Char(value: char)
@@ -28,7 +28,7 @@ enum FunctionRef:
 struct ListValue:
     values: List[Value]
 
-fn value_to_string(value?: Value) -> str:
+pub fn value_to_string(value?: Value) -> str:
     case value:
         Int(value):
             "int({value})"

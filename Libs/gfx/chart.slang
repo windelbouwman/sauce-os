@@ -10,7 +10,7 @@ from canvas import Canvas, HorizontalAnchor, VerticalAnchor
 from functools import reduce
 from shapelib import Point, Path
 
-class Chart:
+pub class Chart:
     var m_x_axis: Axis = Axis()
     var m_y_axis: Axis = Axis()
     var m_curves: List[Curve] = List()

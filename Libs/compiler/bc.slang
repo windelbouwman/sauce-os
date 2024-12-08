@@ -304,7 +304,7 @@ pub fn print_bc_program_to_file(program: Program, filename: Option[str]):
 pub fn print_bc_program(program: Program):
     print_bc_program_to_file(program, filename: Option.None())
 
-fn print_bc_instructions(instructions: Vector[Instruction]):
+pub fn print_bc_instructions(instructions: Vector[Instruction]):
     Printer().write_instructions(instructions)
 
 class Printer:

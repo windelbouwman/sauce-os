@@ -8,7 +8,7 @@ from strlib import str_join
 from utils import panic, unimplemented, log_debug
 from math import sin, cos, pi
 
-fn butter(n: int) -> DigitalFilter:
+pub fn butter(n: int) -> DigitalFilter:
     """ Create a butter worth filter """
     log_debug("Creating butterworth filter of order {n}")
     let b: List[float] = List()
@@ -28,7 +28,7 @@ fn cheby(n: int) -> DigitalFilter:
     # Create a butter worth filter
     unimplemented("cheby")
 
-class DigitalFilter:
+pub class DigitalFilter:
     var b: List[float] # Numerator
     var a: List[float] # Denominator
 
@@ -50,4 +50,3 @@ fn s_poly_to_str(coefficients: List[float]) -> str:
 
 fn filter(filt: DigitalFilter, values: List[float]):
     unimplemented("filter")
-

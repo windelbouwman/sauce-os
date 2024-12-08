@@ -39,7 +39,7 @@ class WasmGenerator:
 
     fn gen_module_set(modules: List[ast.Module]):
         let type_parameters: List[ast.TypeParameter] = List()
-        let malloc_def = ast.extern_function_def(libname: "js", name: "js_malloc", type_parameters, parameters: list1(ast.unlabeled_parameter(ty: ast.int_type())), return_type: ast.opaque_type(), location: location_default())
+        let malloc_def = ast.extern_function_def(is_pub: true, libname: "js", name: "js_malloc", type_parameters, parameters: list1(ast.unlabeled_parameter(ty: ast.int_type())), return_type: ast.opaque_type(), location: location_default())
         gen_external_function(function_def: malloc_def)
 
         for module in modules:

@@ -23,7 +23,7 @@ from std import file_writeln, file_open, file_close
 from utils import log_info
 from image import Image
 
-fn write_pbm(image: Image, filename: str):
+pub fn write_pbm(image: Image, filename: str):
     log_info("Writing image to {filename} in PPM format")
     let handle = file_open(filename, mode: "w")
     file_writeln(handle, line: "P3")

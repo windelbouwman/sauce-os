@@ -4,7 +4,7 @@ from math import abs
 from image import Image, new_image, Pixel
 from png import write_png_to_file
 
-fn new_screen(width: int, height: int) -> Screen:
+pub fn new_screen(width: int, height: int) -> Screen:
     assert(condition: width > 0, message: "Width must be larger than 0")
     assert(condition: height > 0, message: "Height must be larger than 0")
     let image = new_image(width, height)
@@ -14,7 +14,7 @@ fn new_screen(width: int, height: int) -> Screen:
         i += 1
     Screen(m_width: width, m_height: height, m_image: image)
 
-class Screen:
+pub class Screen:
     """ A bitmap painter.
     """
     var m_width: int

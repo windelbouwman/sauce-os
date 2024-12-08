@@ -2,15 +2,14 @@
 # PNG read / write routines
 # See RFC 2083
 
-from utils import unimplemented, panic, assert, log_error, log_warning, log_debug
+from utils import unimplemented, panic, assert, log_warning, log_debug
 from math import abs, modulo
 from bytes import Bytes, ByteReader, bytes_from_ascii, bytes_from_hex_text, ByteArray, bytes_to_ascii, new_bytes
 from gzip import calc_crc32, zlib_decompress, zlib_compress
-from deflate import new_deflate_decoder
 from qoi import read_whole_file_as_bytes, write_bytes_to_file
 from image import Image, new_image, Pixel
 
-fn read_png_from_file(filename: str) -> Image:
+pub fn read_png_from_file(filename: str) -> Image:
     log_debug("Loading PNG from {filename}")
     let data = read_whole_file_as_bytes(filename)
     read_png_from_bytes(data)
@@ -23,15 +22,15 @@ fn read_png_from_stream(reader: ByteReader) -> Image:
     let decoder = PngDecoder(m_byte_reader: reader)
     decoder.read_image()
 
-fn write_png_to_file(image: Image, filename: str):
+pub fn write_png_to_file(image: Image, filename: str):
     log_debug("Writing PNG image to {filename}")
     let encoder = PngEncoder()
     let data = encoder.write(image)
     write_bytes_to_file(filename, data)
 
-fn write_png_to_stream(image: Image, writer: ByteArray):
-    #PngEncoder
-    unimplemented("write_png_to_stream")
+# fn write_png_to_stream(image: Image, writer: ByteArray):
+#     #PngEncoder
+#     unimplemented("write_png_to_stream")
 
 class PngDecoder:
     var m_byte_reader: ByteReader

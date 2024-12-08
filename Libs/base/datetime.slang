@@ -11,7 +11,7 @@ pub fn unix_to_str(seconds: int) -> str:
     let d = unix_to_datetime(z: seconds)
     datetime_to_str(d)
 
-fn unix_to_datetime(z: int) -> DateTime:
+pub fn unix_to_datetime(z: int) -> DateTime:
     let seconds_per_day = 24 * 60 * 60
     let days = z / seconds_per_day
 
@@ -28,7 +28,7 @@ fn unix_to_datetime(z: int) -> DateTime:
 
     DateTime(year, month, day, hour, minute, second)
 
-fn datetime_to_unix(dt: DateTime) -> int:
+pub fn datetime_to_unix(dt: DateTime) -> int:
     let ymd = Civil(year: dt.year, month: dt.month, day: dt.day)
     let z = days_from_civil(ymd) * 24 * 3600
     z += dt.hour * 3600 + dt.minute * 60 + dt.second
@@ -37,7 +37,7 @@ fn datetime_to_unix(dt: DateTime) -> int:
 fn two_digits(n?: int) -> str:
     str_pad_left(text: "{n}", length: 2, fill: "0")
 
-fn datetime_to_str(d: DateTime) -> str:
+pub fn datetime_to_str(d: DateTime) -> str:
     let year = d.year
     let month = two_digits(d.month)
     let day = two_digits(d.day)
@@ -47,7 +47,7 @@ fn datetime_to_str(d: DateTime) -> str:
 
     "{year}-{month}-{day}-T-{hour}:{minute}:{second}"
 
-struct DateTime:
+pub struct DateTime:
     year: int
     month: int
     day: int

@@ -9,7 +9,7 @@ from strlib import str_join
 from settype import new_str_set
 from location import Location
 from utils import log_info, panic, assert
-from errors import CompilationError, new_errors, new_error, display_error, SingleCompilationError
+from errors import CompilationError, new_errors, new_error, SingleCompilationError
 
 pub fn type_check_modules(module_set: ast.ModuleSet) except CompilationError:
     for module in module_set.modules:
@@ -32,7 +32,7 @@ fn new_type_check_visitor(checker: TypeChecker) -> ast.Visitor[TypeChecker]:
         on_expression: checker_on_expression
         on_node: checker_on_node
 
-fn type_check_expression(expression: ast.Expression) except CompilationError:
+pub fn type_check_expression(expression: ast.Expression) except CompilationError:
     let checker = TypeChecker()
     let visitor = new_type_check_visitor(checker)
     ast.visit_expression(visitor, expression)
@@ -374,8 +374,6 @@ class TypeChecker:
                 panic("symbols should be resolved: {symbol}")
             Variant(ty, v):
                 add_error(location: expression.location, message: "variants must be literals")
-            Undefined:
-                panic("check_expression: undefined")
             Null:
                 pass
             GetAttr(base, attr):

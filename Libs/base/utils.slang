@@ -22,7 +22,7 @@ pub fn set_log_level(level: int):
 pub fn log_error(message?: str):
     print("ERROR: {message}")
 
-fn log_warning(message?: str):
+pub fn log_warning(message?: str):
     print("WARNING: {message}")
 
 pub fn log_info(message?: str):
