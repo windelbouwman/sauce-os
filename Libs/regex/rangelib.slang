@@ -6,7 +6,7 @@ pub struct Range:
     begin: int  # inclusive
     end: int    # exclusive
 
-fn ranges_overlap(self: Range, other: Range) -> bool:
+pub fn ranges_overlap(self: Range, other: Range) -> bool:
     return (self.begin <= other.end) and (other.begin <= self.end)
 
 pub fn range_contains(self: Range, value: int) -> bool:

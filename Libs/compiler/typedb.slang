@@ -248,7 +248,7 @@ class SymbolSaver:
             m_ser.end_array_as_attribute(attr: "type-arguments")
         elif ty.is_function_type():
             m_ser.add_text_attribute(attr: "kind", text: "function")
-            let parameter_types = ast.get_parameter_types_from_type(ty)
+            let parameter_types = ty.get_parameter_types()
             let return_type = ty.get_return_type()
             let except_type = ty.get_except_type()
             m_ser.begin_array()

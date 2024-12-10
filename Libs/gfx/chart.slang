@@ -5,10 +5,10 @@ from std import float_to_str, float_to_str2
 from math import floor, log10, powf, fabs, fmin, fmax
 from datatypes import List, Option
 from sorting import find_min_value
-from utils import log_info, panic, assert
+from utils import log_info, assert
 from canvas import Canvas, HorizontalAnchor, VerticalAnchor
 from functools import reduce
-from shapelib import Point, Path
+from shapelib import Point
 
 pub class Chart:
     var m_x_axis: Axis = Axis()

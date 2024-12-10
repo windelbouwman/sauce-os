@@ -64,6 +64,9 @@ pub fn is_lf(c: char) -> bool:
     let o = ord(c)
     o == 10
 
+fn is_whitespace(c?: char) -> bool:
+    is_space(c) or is_lf(c)
+
 pub fn str_to_int(text?: str) -> int:
     let n = str_len(text)
     assert(condition: n > 0, message: "Integer string must be at least a single digit.")
@@ -166,14 +169,14 @@ pub fn trim(text?: str) -> str:
     let i = 0
     let n = str_len(text)
     while i < n:
-        if text[i] == ' ':
+        if is_whitespace(text[i]):
             i += 1
         else:
             break
     
     while n > i:
         n -= 1
-        if text[n] == ' ':
+        if is_whitespace(text[n]):
             pass
         else:
             n += 1

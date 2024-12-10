@@ -278,7 +278,7 @@ class TypeChecker:
         case expression.kind:
             Call(call):
                 if call.callee.ty.is_function_type():
-                    let parameter_types = ast.get_parameter_types_from_type(call.callee.ty)
+                    let parameter_types = call.callee.ty.get_parameter_types()
                     let return_type = call.callee.ty.get_return_type()
 
                     if parameter_types.len() == call.arguments.len():
@@ -544,8 +544,8 @@ class TypeChecker:
             let tp2 = ty2.get_type_parameter()
             ast.type_parameter_equals(tp1, tp2)
         elif ty1.is_function_type() and ty2.is_function_type():
-            let ptys1 = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ty1))
-            let ptys2 = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ty2))
+            let ptys1 = ast.get_types_from_parameter_types(ty1.get_parameter_types())
+            let ptys2 = ast.get_types_from_parameter_types(ty2.get_parameter_types())
 
             if not unify_many(typs1: ptys1, typs2: ptys2):
                 return false

@@ -1,7 +1,5 @@
 
 # GUI library
 
-class Button:
+pub class Button:
     var x: int = 0
-
-

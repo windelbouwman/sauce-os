@@ -9,9 +9,7 @@ pub fn unimplemented(message?: str) -> unreachable:
     panic("UNIMPLEMENTED: {message}")
 
 pub fn assert(condition: bool, message: str):
-    if condition:
-        pass
-    else:
+    if not condition:
         panic(message)
 
 var log_level: int = 0

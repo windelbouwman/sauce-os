@@ -6,7 +6,7 @@ from utils import unimplemented
 from strlib import split_lines
 from datatypes import List
 
-class Assembler:
+pub class Assembler:
     var m_line_parser: LineParser = LineParser()
 
     fn assemble(source: str):

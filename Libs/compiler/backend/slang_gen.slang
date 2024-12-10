@@ -89,7 +89,7 @@ class SlangGenerator:
         elif ty.is_function_type():
             let ret_ty = ty.get_return_type()
             let parts: List[str] = List()
-            for param_ty in ast.get_parameter_types_from_type(ty):
+            for param_ty in ty.get_parameter_types():
                 parts.append(gen_type(param_ty.ty))
             let params = str_join(parts, sep: ", ")
             let suffix = if ret_ty.is_void():

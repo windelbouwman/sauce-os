@@ -5,7 +5,7 @@
 from datatypes import List
 from std import print, float_to_str
 from strlib import str_join
-from utils import panic, unimplemented, log_debug
+from utils import unimplemented, log_debug
 from math import sin, cos, pi
 
 pub fn butter(n: int) -> DigitalFilter:
@@ -24,7 +24,7 @@ pub fn butter(n: int) -> DigitalFilter:
         k += 1
     DigitalFilter(b, a)
 
-fn cheby(n: int) -> DigitalFilter:
+pub fn cheby(n: int) -> DigitalFilter:
     # Create a butter worth filter
     unimplemented("cheby")
 
@@ -48,5 +48,5 @@ fn s_poly_to_str(coefficients: List[float]) -> str:
         i -= 1
     str_join(parts, sep: " + ")
 
-fn filter(filt: DigitalFilter, values: List[float]):
+pub fn filter(filt: DigitalFilter, values: List[float]):
     unimplemented("filter")

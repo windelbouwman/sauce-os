@@ -20,7 +20,6 @@ pub class PriorityQueue[T]:
     var m_size: int
     var m_capacity: int
     var hack: Hack[T]
-    # var m_cmp_func: fn (T, T) -> bool
 
     fn push(item?: T):
         if m_size < m_capacity:

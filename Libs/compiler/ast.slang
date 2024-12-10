@@ -327,6 +327,13 @@ pub class Type:
         else:
             false
 
+    pub fn get_parameter_types() -> Vector[ParameterType]:
+        case kind:
+            Function(p, i):
+                p
+        else:
+            panic("Type must be function type")
+
     fn get_return_type() -> Type:
         case kind:
             Function(p, i):
@@ -433,7 +440,9 @@ pub fn apply_tycon(tycon: TyCon, type_arguments: Vector[Type]) -> Type:
     # if type_arguments
     let type_parameters = tycon_get_type_parameters(tycon)
     # Check lengths!
-    assert(condition: type_parameters.len() == type_arguments.len(), message: "type arguments does not match amount of type parameters")
+    # assert(condition: type_parameters.len() == type_arguments.len(), message: "type arguments does not match amount of type parameters")
+    if not (type_parameters.len() == type_arguments.len()):
+        assert(condition: false, message: "type arguments does not match amount of type parameters")
     new_type(kind: TypeKind.App(tycon, type_arguments))
 
 pub fn subst(ty: Type, m: Dictionary[Type]) -> Type:
@@ -513,13 +522,6 @@ pub fn deref_type_var(ty?: Type) -> Type:
                     t
     else:
         ty
-
-pub fn get_parameter_types_from_type(ty?: Type) -> Vector[ParameterType]:
-    case ty.kind:
-        Function(p, i):
-            p
-    else:
-        panic("Type must be function type")
 
 pub fn get_types_from_parameter_types(p2?: Vector[ParameterType]) -> Vector[Type]:
     let t: Vector[Type] = new_vector_with_capacity(capacity: p2.len())
@@ -759,9 +761,6 @@ pub fn bool_type() -> Type:
 
 pub fn int_type() -> Type:
     int64_type()
-
-fn some_int_type(bits: int) -> Type:
-    new_type(kind: TypeKind.SomeInteger(bits))
 
 pub fn specific_int_type(signed: bool, bits: int) -> Type:
     new_base_type(base: BaseType.Int(signed, bits))
@@ -1121,16 +1120,6 @@ pub struct EnumVariant:
     tag_value: int
     location: Location
     payload: Vector[Type]
-
-fn new_class_def(is_pub: bool, id: NodeId, location: Location, type_parameters: List[TypeParameter], definitions: List[Definition]) -> ClassDef:
-    ClassDef:
-        is_pub
-        id
-        location
-        is_extern: Option.None()
-        type_parameters
-        definitions
-        scope: Scope()
 
 pub struct ClassDef:
     is_pub: bool
@@ -1532,9 +1521,6 @@ pub fn array_literal(values: List[Expression], location: Location) -> Expression
 pub fn array_literal2(size: Expression, ty: Type, location: Location) -> Expression:
     Expression(kind: ExpressionKind.ArrayLiteral2(size, ty), ty: undefined_type(), location)
 
-fn load_symbol(symbol: Symbol, ty: Type, location: Location) -> Expression:
-    Expression(kind: ExpressionKind.LoadSymbol(symbol), ty, location)
-
 pub fn parameter_ref(parameter_def: ParameterDef, location: Location) -> Expression:
     let ty = parameter_def.ty
     Expression(kind: ExpressionKind.ParameterRef(parameter_def), ty, location)
@@ -1570,9 +1556,9 @@ pub fn statement_expression(statement: Statement) -> Expression:
     let location = statement.location
     Expression(kind, ty, location)
 
-fn cast(value: Expression, to_type: Type, location: Location) -> Expression:
-    let kind = ExpressionKind.TypeCast(to_type, value)
-    Expression(kind, ty: to_type, location)
+# fn cast(value: Expression, to_type: Type, location: Location) -> Expression:
+#     let kind = ExpressionKind.TypeCast(to_type, value)
+#     Expression(kind, ty: to_type, location)
 
 #fn array_index(base: Expression, index: Expression, location: Location) -> Expression:
 #    pass

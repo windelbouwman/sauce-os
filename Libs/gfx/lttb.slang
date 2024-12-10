@@ -71,6 +71,3 @@ pub fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
     sampled.append(values.last())
 
     sampled
-
-fn get_bucket_start(i: int, bucket_size: float) -> int:
-    int(floor((i + 0) * bucket_size)) + 1

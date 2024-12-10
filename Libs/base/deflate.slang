@@ -7,7 +7,7 @@ from utils import log_trace, log_debug
 from bytes import Bytes, ByteArray, ByteReader
 from vectype import Vector, new_vector, new_vector_of_size
 
-fn deflate_decompress(data?: Bytes) -> Bytes:
+pub fn deflate_decompress(data?: Bytes) -> Bytes:
     # Decompress the given data using deflate
     # See: RFC 1951
     let reader = data.into_reader()

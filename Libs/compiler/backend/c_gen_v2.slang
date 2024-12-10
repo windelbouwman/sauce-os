@@ -173,7 +173,7 @@ class CGenerator2:
         elif ty.is_function_type():
             let ret_ty = ty.get_return_type()
             let parts: List[str] = List()
-            for param_ty in ast.get_parameter_types_from_type(ty):
+            for param_ty in ty.get_parameter_types():
                 parts.append(gen_type(ty: param_ty.ty, name: ""))
             let param_text = str_join(parts, sep: ", ")
             gen_type(ty: ret_ty, name: "(*{name})({param_text})")

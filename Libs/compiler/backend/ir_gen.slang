@@ -607,7 +607,7 @@ class BytecodeGenerator:
     fn gen_indirect_call(callee: ast.Expression):
         gen_expression(callee)
         let parameter_types: List[bc.TypedName] = List()
-        for p2 in ast.get_parameter_types_from_type(callee.ty):
+        for p2 in callee.ty.get_parameter_types():
             parameter_types.append(bc.TypedName(name: "x", ty: get_bc_type(p2.ty)))
         let return_type2 = callee.ty.get_return_type()
         let return_type: Option[bc.Type] = if return_type2.is_void():
@@ -745,7 +745,7 @@ class BytecodeGenerator:
             let index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
             bc.Type.StructRef(index)
         elif ty2.is_function_type():
-            let parameter_types2 = ast.get_parameter_types_from_type(ty2)
+            let parameter_types2 = ty2.get_parameter_types()
             let return_type2 = ty2.get_return_type()
             let parameter_types: List[bc.Type] = List()
             for p2 in parameter_types2:

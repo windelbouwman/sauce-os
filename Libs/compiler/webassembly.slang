@@ -633,6 +633,16 @@ fn encode(instruction: Instruction):
         i64_extend32_s:
             pack_byte(0xC4)
 
+pub fn to_wasm(module: Module):
+    for function in module.functions:
+        for local in function.locals:
+            pass
+
+        for instruction in function.code:
+            encode(instruction)
+    
+    pack_leb128(value: 1)
+
 fn to_string(instruction: Instruction) -> str:
     case instruction:
         ctrl_unreachable:

@@ -499,7 +499,7 @@ fn transformer_on_expression7(transformer: Transformer, expression: ast.Expressi
             case expression.kind:
                 Call(call):
                     # Perform type erasure on function call arguments if required.
-                    let parameter_types = ast.get_parameter_types_from_type(call.callee.ty)
+                    let parameter_types = call.callee.ty.get_parameter_types()
                     
                     assert(condition: call.arguments.len() == parameter_types.len(), message: "arguments and parameters types must be the same length")
                     let ati = call.arguments.iter()
@@ -1176,7 +1176,7 @@ class ClassRewriter:
             let new_value = ast.box(value: old_value, location: value.location)
             value.change_to(to: new_value)
         elif ft.is_function_type():
-            let parameter_types = ast.get_types_from_parameter_types(ast.get_parameter_types_from_type(ft))
+            let parameter_types = ast.get_types_from_parameter_types(ft.get_parameter_types())
             let return_type = ft.get_return_type()
 
             # Check if we need a bridge function:
