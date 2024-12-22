@@ -1,5 +1,36 @@
 # SAUCE-OS
 
+:construction: *Experimental language hacking!*
+
+This is the home of the [slang-lang programming language](docs/slang-lang.md).
+
+Example slang-lang hello world:
+
+```
+from std import print
+fn main() -> int:
+    print("Hello world")
+    0
+```
+
+# Usage
+
+To build the slang-lang compiler and example programs, use make:
+
+    $ make
+
+Run the mandelbrot example:
+
+    $ ./build/c/apps/mandel.exe
+
+Run the compiler manually:
+
+    $ ./build/compiler5 -h
+
+To run the unit test suite:
+
+    $ make test
+
 # Compiler
 
 - minimal viable compiler:

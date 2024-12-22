@@ -26,7 +26,7 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
         class_rewriter: ClassRewriter(id_gen, rt_module)
         modname: "?"
 
-    let visitor = ast.Visitor[Transformer]:
+    let visitor: ast.Visitor[Transformer] = ast.Visitor:
         data: transformer
         on_definition: transformer_on_definition0
         on_type: transformer_on_type0

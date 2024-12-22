@@ -20,32 +20,32 @@ struct Int:
 pub fn main() -> int:
     let i_boxed = Int(value: 2)
 
-    let a = Bla[Int]:
+    let a: Bla[Int] = Bla:
         message: "Hello cool world!!"
         value: i_boxed
 
     let b_boxed = Bool(value: true)
 
-    let b = Bla[Bool]:
+    let b: Bla[Bool] = Bla:
         message: "W00t"
         value: b_boxed
     
     std.print(a.message)
     std.print(b.message)
 
-    let double_bla = Bla[Bla[Bool]]:
+    let double_bla: Bla[Bla[Bool]] = Bla:
         message: "double-bla"
         value: b
 
     let b_false_boxed = Bool(value: false)
 
-    let fu_b = Fuu[Bool]:
+    let fu_b: Fuu[Bool] = Fuu:
         x: b_false_boxed
         bla: double_bla
     
     display_fuu(fu_b)
     
-    let triple_b = Bla[Bla[Bla[Bool]]]:
+    let triple_b: Bla[Bla[Bla[Bool]]] = Bla:
         message: "triple-bla"
         value: double_bla
     

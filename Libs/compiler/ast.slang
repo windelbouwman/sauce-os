@@ -577,6 +577,13 @@ pub fn get_method_ref_from_type(ty: Type, attr: str, location: Location) -> Expr
     else:
         panic("get_method_ref_from_type: No class: {ty}")
 
+pub struct QualName:
+    location: Location
+    parts: List[str]
+
+pub fn qual_name_to_string(name: QualName) -> str:
+    str_join(parts: name.parts, sep: "::")
+
 pub enum TypeKind:
     Base(base: BaseType)
     Undefined
@@ -584,7 +591,7 @@ pub enum TypeKind:
     Opaque
     Void
     Unreachable
-    TypeExpression(expression: Expression)
+    NameRef(name: QualName)
     Function(parameter_types: Vector[ParameterType], info: FunctionInfo)
     TypeParam(type_parameter: TypeParameter)
     TypeVar(type_variable: TypeVariable)
@@ -592,6 +599,7 @@ pub enum TypeKind:
     Pointer(pointed_type: Type)
     
     # Application of a type-constructor:
+    UnApp(tycon: TyCon)
     App(tycon: TyCon, type_arguments: Vector[Type])
 
 fn type_kind_to_string(kind: TypeKind) -> str:
@@ -606,8 +614,8 @@ fn type_kind_to_string(kind: TypeKind) -> str:
             "VOID"
         Unreachable:
             "UNREACHABLE-TYPE"
-        TypeExpression(expr):
-            "TYPE-EXPR"
+        NameRef(name):
+            "QualName({qual_name_to_string(name)})"
         Array(element_type, size):
             "ARRAY({element_type} x {size})"
         Pointer(pointed_type):
@@ -625,6 +633,8 @@ fn type_kind_to_string(kind: TypeKind) -> str:
                     "TYPE-VAR(id={v.unique})"
                 Some(ty_assigned):
                     "TYPE-VAR(id={v.unique},{ty_assigned})"
+        UnApp(tycon):
+            "UnApp({tycon_to_str(tycon)})"
         App(tycon, type_arguments):
             if type_arguments.is_empty():
                 tycon_to_str(tycon)
@@ -701,6 +711,7 @@ pub enum TyCon:
     Enum(enum_def: EnumDef)
     Class(class_def: ClassDef)
     Ref(key: str)
+    NameRef(name: QualName)
 
 fn tycon_to_str(tycon: TyCon) -> str:
     case tycon:
@@ -712,6 +723,8 @@ fn tycon_to_str(tycon: TyCon) -> str:
             class_def_to_str(class_def)
         Ref(key):
             "tycon-ref-{key}"
+        NameRef(name):
+            "tycon-name-ref-{qual_name_to_string(name)}"
 
 pub fn tycon_equal(tycon1: TyCon, tycon2: TyCon) -> bool:
     case tycon1:
@@ -735,6 +748,8 @@ pub fn tycon_equal(tycon1: TyCon, tycon2: TyCon) -> bool:
                 false
         Ref(key):
             false
+        NameRef(name):
+            false
 
 pub fn tycon_get_type_parameters(tycon: TyCon) -> List[TypeParameter]:
     case tycon:
@@ -746,6 +761,8 @@ pub fn tycon_get_type_parameters(tycon: TyCon) -> List[TypeParameter]:
             class_def.type_parameters
         Ref(key):
             panic("reference has no type parameters")
+        NameRef(key):
+            panic("name-reference has no type parameters")
 
 pub fn void_type() -> Type:
     new_type(kind: TypeKind.Void())
@@ -819,10 +836,6 @@ fn pointer_type(pointed_type: Type) -> Type:
 
 pub fn array_type(element_type: Type, size: int) -> Type:
     new_type(kind: TypeKind.Array(element_type, size))
-
-pub fn type_expression(expr: Expression) -> Type:
-    new_type(kind: TypeKind.TypeExpression(expr))
-
 
 pub fn function_type(parameter_types: Vector[ParameterType], info: FunctionInfo) -> Type:
     new_type(kind: TypeKind.Function(parameter_types, info))
@@ -2000,8 +2013,6 @@ fn visit_type[T](visitor: Visitor[T], ty: Type):
     # print("Visit type")
     visitor.on_type(data: visitor.data, ty, phase: VisitPhase.Pre())
     case ty.kind:
-        TypeExpression(expression):
-            visit_expression(visitor, expression)
         App(tycon, type_arguments):
             for type_argument in type_arguments:
                 visit_type(visitor, ty: type_argument)

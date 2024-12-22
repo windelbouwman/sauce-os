@@ -1,17 +1,17 @@
 
 from utils import unimplemented, log_info, log_debug, assert
-from std import str_len, str_to_int
+from std import str_len
 from datatypes import List
-from strlib import split_string
+from strlib import split_string, str_to_int, trim
 from urlparse import parse_url
 
 
-fn get(url: str) -> str:
+pub fn get(url: str) -> str:
     """ Get data from an url """
     let client = HttpClient()
     client.get(url)
 
-fn post(url: str):
+pub fn post(url: str):
     """ Post to an url """
     let client = HttpClient()
     client.post(url)
@@ -74,13 +74,13 @@ class HttpClient:
     fn read() -> str:
         unimplemented("read")
 
-fn parse_header(line: str) -> Header:
+pub fn parse_header(line: str) -> Header:
     let parts = split_string(text: line, sep: ':')
-    assert(condition: parts.len() == 2, message: "header line must contain a single ':' ")
+    assert(condition: parts.len() == 2, message: "header line [{line}] must contain a single ':' ")
     let name = parts[0]
-    let value = parts[0]
+    let value = trim(parts[1])
     Header(name, value)
 
-struct Header:
+pub struct Header:
     name: str
     value: str

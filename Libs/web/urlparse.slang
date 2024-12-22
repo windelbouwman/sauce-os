@@ -2,7 +2,7 @@
 from utils import assert
 from strlib import split_string2, split_string
 
-fn parse_url(url: str) -> ParsedUrl:
+pub fn parse_url(url: str) -> ParsedUrl:
     """ Parse url into separate components.
     
     """
@@ -15,7 +15,7 @@ fn parse_url(url: str) -> ParsedUrl:
     let path = parts2[1]
     ParsedUrl(scheme, host, path)
 
-struct ParsedUrl:
+pub struct ParsedUrl:
     scheme: str
     host: str
     path: str

@@ -14,8 +14,8 @@ pub fn main() -> int:
     0
 
 fn test_numbers():
-    let numbers = find_all_text(pattern: "[0-9]+", text: "bla bla 1337 oei ai 42 wow 0")
-    let expected = list3("1337", "42", "0")
+    let numbers = find_all_text(pattern: "-?[0-9]+", text: "bla bla 1337 oei ai -42 wow 0")
+    let expected = list3("1337", "-42", "0")
     assert_list_equals(numbers, expected)
 
 fn test_id_num():

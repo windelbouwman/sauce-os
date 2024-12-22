@@ -6,8 +6,8 @@ from std import print
 
 pub fn main() -> int:
     let i = new_integer(23)
-    let value1: Option[Integer] = Option[Integer].None()
-    let value2 = Option[Integer].Some(i)
+    let value1: Option[Integer] = Option.None()
+    let value2: Option[Integer] = Option.Some(i)
 
     display(value: value1)
     display(value: value2)

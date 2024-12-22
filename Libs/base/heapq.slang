@@ -6,6 +6,32 @@ A binary heap is an implementation for a priority queue.
 
 from utils import panic
 
+pub fn new_int_min_queue() -> PriorityQueue[int]:
+    new_priority_queue_with_capacity(capacity: 10000, f: cmp_int_item)
+
+fn cmp_int_item(a?: int, b?: int) -> bool:
+    a < b
+
+# fn new_min_queue[T]() -> MinQueue[T]:
+#     let m_priority_queue: PriorityQueue[ItemWithCost[T]] = new_priority_queue_with_capacity(capacity: 100, f: cmp_item_with_cost)
+#     MinQueue(m_priority_queue)
+
+# fn cmp_item_with_cost[T](a?: ItemWithCost[T], b?: ItemWithCost[T]) -> bool:
+#     a.cost < b.cost
+
+# class MinQueue[T]:
+#     var m_priority_queue: PriorityQueue[ItemWithCost[T]]
+
+#     fn push(item?: T, cost: int):
+#         m_priority_queue.push(ItemWithCost(cost, item))
+
+#     fn pop() -> T:
+#         m_priority_queue.pop().item
+
+# struct ItemWithCost[T]:
+#     cost: int
+#     item: T
+
 pub fn new_priority_queue_with_capacity[T](capacity: int, f: fn (T, T) -> bool) -> PriorityQueue[T]:
     let m_size = 0
     let m_items = [capacity : T]

@@ -410,17 +410,56 @@ class Parser:
         ast.VariableDef(variable, value: ast.VariableDefValue.Intern(value: var_init))
 
     fn parse_type() -> ast.Type except CompilationError:
-        case m_peek.kind:
+        let tok = get_token()
+        case tok.kind:
             KwFn:
                 parse_function_type()
+            BracketOpen:
+                parse_array_type()
+            Identifier(name):
+                let qname = parse_qual_name(name, location: tok.location)
+                case m_peek.kind:
+                    BracketOpen:
+                        move_token()
+                        parse_type_application(name: qname)
+                else:
+                    ast.new_type(kind: ast.TypeKind.NameRef(name: qname))
         else:
-            let expr = parse_expression()
-            ast.type_expression(expr)
-    
+            raise unexpected_token(tok, expected: "identifier, 'fn' or '['")
+
+    fn parse_qual_name(name: str, location: Location) -> ast.QualName except CompilationError:
+        let parts: List[str] = List()
+        parts.append(name)
+        loop:
+            case m_peek.kind:
+                Dot:
+                    move_token()
+                    let name2_at = parse_name()
+                    parts.append(name2_at.name)
+            else:
+                break
+        ast.QualName(location, parts)
+
+    fn parse_type_application(name: ast.QualName) -> ast.Type except CompilationError:
+        """ Parse type application """
+        let tycon = ast.TyCon.NameRef(name)
+        let type_arguments: Vector[ast.Type] = new_vector()
+        loop:
+            let type_argument = parse_type()
+            type_arguments.append(type_argument)
+            let tok = get_token()
+            case tok.kind:
+                Comma:
+                    pass
+                BracketClose:
+                    break
+            else:
+                raise unexpected_token(tok, expected: "',' or ']'")
+        # ast.apply_tycon(tycon, type_arguments)
+        ast.new_type(kind: ast.TypeKind.App(tycon, type_arguments))
+
     fn parse_function_type() -> ast.Type except CompilationError:
         """ Parse function signature. """
-        move_token()
-
         # '('
         parse_parenthesis_open()
 
@@ -453,6 +492,17 @@ class Parser:
             except_type
 
         ast.function_type(parameter_types, info)
+
+    fn parse_array_type() -> ast.Type except CompilationError:
+        """ Parse array type """
+        let element_type = parse_type()
+        let tok = get_token()
+        case tok.kind:
+            BracketClose:
+                pass
+        else:
+            raise unexpected_token(tok, expected: "']'")
+        ast.array_type(element_type, size: 0)
 
     fn parse_block() -> ast.Statement except CompilationError:
         # parse block of statements.

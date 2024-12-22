@@ -87,7 +87,7 @@ pub class List[T]:
 
     fn append(val?: T):
         # Create new linked list element:
-        let new_element = ListElement[T]:
+        let new_element: ListElement[T] = ListElement:
             next: Option.None()
             data: val
         
@@ -103,7 +103,7 @@ pub class List[T]:
 
     fn prepend(val?: T):
         # Prepend value in front of list
-        let new_element = ListElement[T](next: head_element, data: val)
+        let new_element: ListElement[T] = ListElement(next: head_element, data: val)
 
         # Adjust head and tail pointers
         head_element = Option.Some(new_element)

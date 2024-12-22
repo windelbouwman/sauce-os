@@ -71,6 +71,14 @@ def std_file_open(filename: str, mode: str) -> int:
     return open(filename, mode)
 
 
+def std_file_get_stdin() -> int:
+    raise NotImplementedError("std_get_stdin")
+
+
+def std_file_readln(handle: int) -> str:
+    raise NotImplementedError("std_file_readln")
+
+
 def std_file_writeln(handle: int, text: str):
     print(text, file=handle)
 

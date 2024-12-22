@@ -17,17 +17,17 @@ struct ListIter[T]:
     next: Option[ListElement[T]]
 
 fn list_new[T]() -> List[T]:
-    List[T]:
-        head_element: Option[ListElement[T]].None()
+    List:
+        head_element: Option.None()
 
 fn list_append[T](this: List[T], value: T):
-    let new_tail_element = ListElement[T]:
-        next: Option[ListElement[T]].None()
+    let new_tail_element = ListElement:
+        next: Option.None()
         data: value
     
     case this.head_element:
         None:
-            this.head_element = Option[ListElement[T]].Some(new_tail_element)
+            this.head_element = Option.Some(new_tail_element)
         Some(element):
             # let mabye_element = element.next
             loop:
@@ -36,11 +36,11 @@ fn list_append[T](this: List[T], value: T):
                         break
                     Some(nxt_element):
                         element = nxt_element
-            element.next = Option[ListElement[T]].Some(new_tail_element)
+            element.next = Option.Some(new_tail_element)
 
 fn list_iter_new[T](this: List[T]) -> ListIter[T]:
     # " Create an iterator looping over a list "
-    ListIter[T]:
+    ListIter:
         next: this.head_element
 
 fn list_iter_next[T](this: ListIter[T]) -> Option[T]:
@@ -48,10 +48,10 @@ fn list_iter_next[T](this: ListIter[T]) -> Option[T]:
     let x = this.next
     case x:
         None:
-            Option[T].None()
+            Option.None()
         Some(next):
             this.next = next.next
-            Option[T].Some(next.data)
+            Option.Some(next.data)
 
 fn list_walk(x: List[Integer]):
     let i = 0

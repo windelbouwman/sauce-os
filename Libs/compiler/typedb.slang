@@ -274,6 +274,8 @@ class SymbolSaver:
                 save_id(id: class_def.id)
             Ref(key):
                 panic("Cannot save tycon ref")
+            NameRef(key):
+                panic("Cannot save tycon name-ref")
 
     fn save_id(id: ast.NodeId):
         m_ser.add_text_attribute(attr: "name", text: id.name)

@@ -11,7 +11,7 @@ from vectype import Vector, new_vector, new_vector_with_capacity
 pub fn resolve_newops(module: ast.Module, id_gen: IdGen) except CompilationError:
     log_info("resolve new-ops for {module.name}")
     let newop = NewOp(id_gen)
-    let visitor = ast.Visitor[NewOp]:
+    let visitor: ast.Visitor[NewOp] = ast.Visitor:
         data: newop
         on_definition: newop_on_definition
         on_type: newop_on_type
@@ -29,13 +29,12 @@ fn newop_on_type(newop: NewOp, ty: ast.Type, phase: ast.VisitPhase):
     case phase:
         Post:
             case ty.kind:
-                TypeExpression(expression):
-                    ty.change_to(to_type: newop.eval_type_expr(expression))
+                UnApp(tycon):
+                    ty.change_to(to_type: newop.turn_tycon_to_type(tycon))
             else:
                 pass
     else:
         pass
-
 
 fn newop_on_statement(newop: NewOp, statement: ast.Statement, phase: ast.VisitPhase):
     pass
@@ -44,21 +43,6 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
     case phase:
         Post:
             case expression.kind:
-                GetIndex(base, indici):
-                    case base.kind:
-                        TypeConstructor(tycon):
-                            let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: indici.len())
-                            for index in indici:
-                                type_arguments.append(newop.eval_type_expr(expression: index))
-                            let type_parameters = ast.tycon_get_type_parameters(tycon)
-                            if type_parameters.len() == type_arguments.len():
-                                let ty = ast.apply_tycon(tycon, type_arguments)
-                                expression.kind = ast.ExpressionKind.Typ(ty)
-                            else:
-                                newop.add_error(location: expression.location, message: "Got {type_arguments.len()} type arguments, expected {type_parameters.len()}")
-                    else:
-                        pass
-
                 GetAttr(base, attr):
                     case newop.try_as_type(expression: base):
                         Some(ty):
@@ -177,27 +161,8 @@ class NewOp:
             TypeConstructor(tycon):
                 let ty2 = turn_tycon_to_type(tycon)
                 Option.Some(ty2)
-            ArrayLiteral(values):
-                if values.len() == 1:
-                    case try_as_type(expression: values.first()):
-                        Some(element_type):
-                            Option.Some(ast.array_type(element_type, size: 0))
-                        None:
-                            Option.None()
-                else:
-                    Option.None()
         else:
             Option.None()
-
-    fn eval_type_expr(expression: ast.Expression) -> ast.Type:
-        # Try to use this expression as a type.
-        case try_as_type(expression):
-            Some(ty2):
-                ty2
-            None:
-                let message = "Invalid type expression: {expression}"
-                add_error(location: expression.location, message)
-                ast.undefined_type()
 
     fn add_error(location: Location, message: str):
         errors.append(new_error(location, message))

@@ -1,6 +1,6 @@
 import std
 
-fn main() -> int:
+pub fn main() -> int:
     # """ Print a mandelbrot fractal to the console """
     let w = 75
     let h = 24

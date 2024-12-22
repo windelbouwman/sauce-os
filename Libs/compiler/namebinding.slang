@@ -271,12 +271,32 @@ fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: a
         pass
 
 fn binder_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
-    case ty.kind:
-        App(tycon, type_arguments):
-            case tycon:
-                Ref(key):
-                    let tycon = binder.tycon_map.get(key)
-                    ty.kind = ast.TypeKind.App(tycon, type_arguments)
+    case phase:
+        Post:
+            case ty.kind:
+                App(tycon, type_arguments):
+                    case tycon:
+                        Ref(key):
+                            let tycon = binder.tycon_map.get(key)
+                            ty.kind = ast.TypeKind.App(tycon, type_arguments)
+                        NameRef(name):
+                            case binder.resolve_tycon(name):
+                                Some(tycon):
+                                    let type_parameters = ast.tycon_get_type_parameters(tycon)
+                                    if type_parameters.len() == type_arguments.len():
+                                        ty.kind = ast.TypeKind.App(tycon, type_arguments)
+                                    else:
+                                        binder.add_error(location: name.location, message: "Got {type_arguments.len()} type arguments, expected {type_parameters.len()}")
+                                None:
+                                    pass
+                    else:
+                        pass
+                NameRef(name):
+                    case binder.resolve_type_kind(name):
+                        Some(kind):
+                            ty.kind = kind
+                        None:
+                            pass
             else:
                 pass
     else:
@@ -429,12 +449,88 @@ class NameBinder:
         Option.None()
 
     fn lookup3(name: str, location: Location) -> Option[ast.Expression]:
+        case lookup_base_name(name):
+            Some(symbol):
+                let kind = symbol_to_kind(symbol)
+                let expr = ast.Expression(kind, ty: ast.undefined_type(), location)
+                return Option.Some(expr)
+            None:
+                Option.None()
+
+
+    fn resolve_type_kind(name: ast.QualName) -> Option[ast.TypeKind]:
+        """ Resolve qualified name to a type """
+        case resolve_qual_name(name):
+            Some(symbol):
+                case symbol.kind:
+                    Typ(ty):
+                        Option.Some(ty.kind)
+                    TypeConstructor(tycon):
+                        Option.Some(ast.TypeKind.UnApp(tycon))
+                else:
+                    add_error(location: name.location, message: "Not a type: {symbol}")
+                    Option.None()
+            None:
+                Option.None()
+
+    fn resolve_tycon(name: ast.QualName) -> Option[ast.TyCon]:
+        """ Resolve qualified name to a type constructor """
+        case resolve_qual_name(name):
+            Some(symbol):
+                case symbol.kind:
+                    TypeConstructor(tycon):
+                        Option.Some(tycon)
+                else:
+                    add_error(location: name.location, message: "Not a tycon: {symbol}")
+                    Option.None()
+            None:
+                Option.None()
+
+    fn resolve_qual_name(name: ast.QualName) -> Option[ast.Symbol]:
+        """ Resolve a qualified name to a symbol """
+        let base_name = name.parts[0]
+        case lookup_base_name(name: base_name):
+            Some(symbol):
+                symbol.add_reference(location: name.location)
+                if name.parts.len() > 1:
+                    let first = true
+                    for part in name.parts:
+                        if first:
+                            first = false
+                            continue
+                        case symbol.kind:
+                            Mod(module):
+                                case resolve_attribute(module, attr: part, location: name.location):
+                                    Some(symbol2):
+                                        symbol = symbol2
+                                    None:
+                                        return Option.None()
+                        else:
+                            add_error(location: name.location, message: "Not a module")
+                            return Option.None()
+
+                Option.Some(symbol)
+            None:
+                add_error(location: name.location, message: "'{base_name}' not defined!")
+                Option.None()
+
+    fn resolve_attribute(module: ast.Module, attr: str, location: Location) -> Option[ast.Symbol]:
+        case module.scope.lookup(name: attr):
+            Some(symbol):
+                if symbol.is_pub:
+                    Option.Some(symbol)
+                else:
+                    add_error(location, message: "Symbol '{attr}' is private")
+                    Option.None()
+            None:
+                add_error(location, message: "module '{module.name}' has no symbol: '{attr}'")
+                Option.None()
+
+    fn lookup_base_name(name: str) -> Option[ast.Symbol]:
         for scope in scopes:
             case scope.lookup(name):
                 Some(symbol):
-                    let kind = symbol_to_kind(symbol)
-                    let expr = ast.Expression(kind, ty: ast.undefined_type(), location)
-                    return Option.Some(expr)
+                    return Option.Some(symbol)
                 None:
                     pass
         Option.None()

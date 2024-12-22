@@ -61,19 +61,27 @@ pub fn is_space(c: char) -> bool:
     c == ' '
 
 pub fn is_lf(c: char) -> bool:
-    let o = ord(c)
-    o == 10
+    ord(c) == 10
 
 fn is_whitespace(c?: char) -> bool:
-    is_space(c) or is_lf(c)
+    is_space(c) or is_lf(c) or ord(c) == 13
 
 pub fn str_to_int(text?: str) -> int:
     let n = str_len(text)
     assert(condition: n > 0, message: "Integer string must be at least a single digit.")
+    let negative = false
+    let first = true
     let value = 0
     for c in text:
-        value = value * 10 + digit_to_int(c)
-    value
+        if first and c == '-':
+            negative = true
+        else:
+            value = value * 10 + digit_to_int(c)
+        first = false
+    if negative:
+        -value
+    else:
+        value
 
 pub fn hex_to_int(hextext: str) -> int:
     """ Convert hex text """

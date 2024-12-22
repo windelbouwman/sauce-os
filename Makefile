@@ -184,11 +184,11 @@ ${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libcompiler.
 
 # Apps
 .PRECIOUS: ${BUILDDIR}/c/apps/%.c
-${BUILDDIR}/c/apps/%.c: Apps/%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libscience.json ${BUILDDIR}/c/libgfx.json ${BUILDDIR}/c/libcompiler.json ${SLANGC_DEPS} | ${BUILDDIR}/c/apps
-	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libgfx.json --add-import ${BUILDDIR}/c/libcompiler.json
+${BUILDDIR}/c/apps/%.c: Apps/%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libscience.json ${BUILDDIR}/c/libgfx.json ${BUILDDIR}/c/libcompiler.json ${BUILDDIR}/c/libweb.json ${SLANGC_DEPS} | ${BUILDDIR}/c/apps
+	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libgfx.json --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libweb.json
 
-${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libgfx.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/slangrt.o
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libcompiler.so -l:libgfx.so -l:libimage.so -l:libscience.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.o -lm
+${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libgfx.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libweb.so ${BUILDDIR}/slangrt.o
+	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libweb.so -l:libcompiler.so -l:libgfx.so -l:libimage.so -l:libscience.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.o -lm
 
 # Bootstrap sequence:
 ${COMPILER1}: | ${BUILDDIR}

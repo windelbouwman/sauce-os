@@ -188,6 +188,12 @@ SLANG_API char *std_read_file(char *filename)
     return buffer;
 }
 
+SLANG_API slang_int_t std_file_get_stdin()
+{
+    FILE *f = stdin;
+    return (slang_int_t)f;
+}
+
 SLANG_API slang_int_t std_file_open(char *filename, char *mode)
 {
     FILE *f = fopen(filename, mode);
@@ -197,6 +203,25 @@ SLANG_API slang_int_t std_file_open(char *filename, char *mode)
         std_panic("std_file_open: Cannot open file");
     }
     return (slang_int_t)f;
+}
+
+SLANG_API char *std_file_readln(slang_int_t handle)
+{
+    char *buffer = rt_malloc(300);
+    if (handle != 0)
+    {
+        FILE *f = (FILE *)handle;
+        char* s_read = fgets(buffer, 300, f);
+        // printf("std_file_readln: '%s'\n", buf2);
+        if (!s_read) {
+            std_panic("fgets failed!");
+        }
+    }
+    else
+    {
+        std_panic("Closed file handle");
+    }
+    return buffer;
 }
 
 SLANG_API void std_file_writeln(slang_int_t handle, char *line)

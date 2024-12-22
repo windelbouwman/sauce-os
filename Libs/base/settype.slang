@@ -25,6 +25,9 @@ pub class Set[T]:
 
     fn remove(value?: T):
         let stub = m_items.pop(key: value)
+    
+    fn clear():
+        m_items.clear()
 
     fn len() -> int:
         m_items.len()

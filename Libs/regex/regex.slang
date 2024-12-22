@@ -87,7 +87,7 @@ fn machine_find_all(machine: Machine, text: str) -> List[Match]:
 
     matches
 
-struct Match:
+pub struct Match:
     begin: int
     end: int
     text: str
@@ -265,7 +265,7 @@ class Parser:
         else:
             symbol_regex(c)
 
-        # Check suffix '*' or '+'
+        # Check suffix '*' or '+' or '?'
         let c2 = peek()
         if c2 == '+':
             index += 1
@@ -273,6 +273,9 @@ class Parser:
         elif c2 == '*':
             index += 1
             res = res.kleene()
+        elif c2 == '?':
+            index += 1
+            res = res.logical_or(other: epsilon_regex())
 
         res
 

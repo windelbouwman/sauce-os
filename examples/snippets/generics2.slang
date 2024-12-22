@@ -39,7 +39,7 @@ pub fn main() -> int:
     0
 
 fn new_bla[T](v2: T, x2: int) -> Bla[T]:
-    Bla[T]:
+    Bla:
         value: v2
         x: x2
 

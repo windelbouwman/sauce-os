@@ -21,7 +21,9 @@ extern "slangrt" fn get_path_separator() -> char
 extern "slangrt" fn exit(code: int) -> unreachable
 
 extern "slangrt" fn read_file(filename: str) -> str
+extern "slangrt" fn file_get_stdin() -> int
 extern "slangrt" fn file_open(filename: str, mode: str) -> int
+extern "slangrt" fn file_readln(handle: int) -> str
 extern "slangrt" fn file_writeln(handle: int, line: str)
 extern "slangrt" fn file_read_n_bytes(handle: int, buffer: [uint8], bufsize: int) -> int
 extern "slangrt" fn file_write_n_bytes(handle: int, buffer: [uint8], bufsize: int) -> int
