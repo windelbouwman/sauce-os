@@ -47,11 +47,15 @@ check-py: ${ALL_TEST_RUNS_PY}
 
 # Profiling
 profile: ${COMPILER5} | ${BUILDDIR}
-	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-null ${BASE_LIB_SRCS}
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-c ${BASE_LIB_SRCS} ${COMPILER_LIB_SRCS}
 	kcachegrind build/callgrind.out
 
 profile2: ${BUILDDIR}/c/apps/write_image.exe | ${BUILDDIR}
 	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ${BUILDDIR}/c/apps/write_image.exe weather-map.gif build/tmp.qoi
+	kcachegrind build/callgrind.out
+
+profile3: ${COMPILER5} | ${BUILDDIR}
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-c -o build/c/apps/write_image.c Apps/write_image.slang --add-import build/c/libbase.json --add-import build/c/libregex.json --add-import build/c/libimage.json --add-import build/c/libscience.json --add-import build/c/libgfx.json --add-import build/c/libcompiler.json --add-import build/c/libweb.json
 	kcachegrind build/callgrind.out
 
 pytest-compiler1:

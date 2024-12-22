@@ -5,31 +5,31 @@ import fubar
 
 var glbl: int = 3
 
-fn add3(a: int, b: int) -> int:
+pub fn add3(a: int, b: int) -> int:
     a + b + 3
 
 
-fn mul5(a: int) -> int:
+pub fn mul5(a: int) -> int:
     a * (2 + 2 + 1)
 
-struct NumberAndText:
+pub struct NumberAndText:
     a: int
     b: str
 
-fn display_both(value: NumberAndText):
+pub fn display_both(value: NumberAndText):
     std.print("NumberAndText (a={value.a}, b={value.b})")
 
 fn new_bar[T](f: T) -> fubar.Foo[T]:
     Foo.Bar(f)
 
-fn get_bar[T](foo: Foo[T]) -> T:
+pub fn get_bar[T](foo: Foo[T]) -> T:
     # Get a t from bar foo
     case foo:
         Bar(t):
             t
 
 
-class Device[T]:
+pub class Device[T]:
     var m_counter: int = 0
     var m_data: T
 

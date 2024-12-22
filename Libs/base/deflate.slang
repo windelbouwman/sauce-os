@@ -52,7 +52,7 @@ pub fn deflate_compress(data: Bytes) -> Bytes:
 
     out.to_bytes()
 
-class DeflateDecoder:
+pub class DeflateDecoder:
     var m_bit_reader: BitReader
     var m_output: ByteArray = ByteArray()
 

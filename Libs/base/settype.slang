@@ -17,29 +17,29 @@ pub fn new_int_set() -> Set[int]:
 pub class Set[T]:
     var m_items: HashMap[T, bool]
 
-    fn add(value?: T):
+    pub fn add(value?: T):
         m_items.insert(key: value, value: true)
 
-    fn contains(value?: T) -> bool:
+    pub fn contains(value?: T) -> bool:
         m_items.contains(key: value)
 
-    fn remove(value?: T):
+    pub fn remove(value?: T):
         let stub = m_items.pop(key: value)
     
-    fn clear():
+    pub fn clear():
         m_items.clear()
 
-    fn len() -> int:
+    pub fn len() -> int:
         m_items.len()
 
-    fn is_empty() -> bool:
+    pub fn is_empty() -> bool:
         m_items.is_empty()
 
-    fn iter() -> SetIter[T]:
+    pub fn iter() -> SetIter[T]:
         SetIter(m_it: m_items.iter())
 
 pub class SetIter[T]:
     var m_it: HashMapIter[T, bool]
 
-    fn next() -> Option[T]:
+    pub fn next() -> Option[T]:
         m_it.next()

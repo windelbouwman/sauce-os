@@ -7,10 +7,10 @@ from utils import panic
 from text_gen import TextGenerator
 
 pub struct Program:
-    extern_functions: List[ExternFunction]
-    globals: List[Global]
-    structs: List[Struct]
-    functions: List[Function]
+    extern_functions: Vector[ExternFunction]
+    globals: Vector[Global]
+    structs: Vector[Struct]
+    functions: Vector[Function]
 
 pub struct Global:
     name: str
@@ -27,16 +27,16 @@ pub struct TypedName:
 
 pub struct ExternFunction:
     name: str
-    parameters: List[TypedName]
+    parameters: Vector[TypedName]
     return_type: Option[Type]
     no_return: bool
 
 pub struct Function:
     name: str
-    parameters: List[TypedName]
+    parameters: Vector[TypedName]
     return_type: Option[Type]
     no_return: bool
-    locals: List[TypedName]
+    locals: Vector[TypedName]
     instructions: Vector[Instruction]
 
 pub enum Type:
@@ -80,7 +80,7 @@ pub enum Instruction:
     Jump(label: int)  # Unconditional jump
     JumpIf(label1: int, label2: int)
     Call(index: int)
-    CallIndirect(parameters: List[TypedName], return_type: Option[Type])  # Call function pointer, on top of stack
+    CallIndirect(parameters: Vector[TypedName], return_type: Option[Type])  # Call function pointer, on top of stack
     Return(n_values: int)
     SetupTry(try_label: int, except_label: int)
     Raise

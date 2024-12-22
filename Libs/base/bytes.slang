@@ -10,24 +10,24 @@ pub class Bytes:
     # Immutable bytes
     var m_bytes: Vector[uint8]
 
-    fn len() -> int:
+    pub fn len() -> int:
         m_bytes.len()
     
-    fn get(index: int) -> int:
+    pub fn get(index: int) -> int:
         int(m_bytes[index])
     
-    fn concat(other: Bytes) -> Bytes:
+    pub fn concat(other: Bytes) -> Bytes:
         # Concatenate two byte sequences
         concat2(a: this, b: other)
 
-    fn as_hex() -> str:
+    pub fn as_hex() -> str:
         # Return bytes as hexadecimal text
         let txt = ""
         for b in m_bytes:
             txt = txt + byte_as_hex(b)
         txt
     
-    fn into_reader() -> ByteReader:
+    pub fn into_reader() -> ByteReader:
         ByteReader(m_bytes: this)
 
 fn concat2(a: Bytes, b: Bytes) -> Bytes:
@@ -41,7 +41,7 @@ pub class ByteReader:
     fn at_end() -> bool:
         m_index >= m_bytes.m_bytes.len()
 
-    fn read_bytes(size: int) -> Bytes:
+    pub fn read_bytes(size: int) -> Bytes:
         let i = 0
         let ba = ByteArray()
         while i < size:
@@ -49,7 +49,7 @@ pub class ByteReader:
             i += 1
         ba.to_bytes()
 
-    fn read_byte() -> int:
+    pub fn read_byte() -> int:
         if m_index < m_bytes.m_bytes.len():
             let value = m_bytes[m_index]
             m_index += 1
@@ -57,24 +57,24 @@ pub class ByteReader:
         else:
             panic("Cannot read past end of bytes")
 
-    fn read_u16_be() -> int:
+    pub fn read_u16_be() -> int:
         let b1 = read_byte()
         let b2 = read_byte()
         (b1 << 8) | b2
 
-    fn read_u16_le() -> int:
+    pub fn read_u16_le() -> int:
         let b1 = read_byte()
         let b2 = read_byte()
         (b2 << 8) | b1
 
-    fn read_u32_be() -> int:
+    pub fn read_u32_be() -> int:
         let b1 = read_byte()
         let b2 = read_byte()
         let b3 = read_byte()
         let b4 = read_byte()
         (b1 << 24) | (b2 << 16) | (b3 << 8) | b4
 
-    fn read_u32_le() -> int:
+    pub fn read_u32_le() -> int:
         let b1 = read_byte()
         let b2 = read_byte()
         let b3 = read_byte()
@@ -85,16 +85,16 @@ pub class ByteArray:
     # Mutable bytes
     var m_bytes: Vector[uint8] = new_vector()
 
-    fn append(byte?: int):
+    pub fn append(byte?: int):
         m_bytes.append(uint8(byte))
 
-    fn get(index: int) -> int:
+    pub fn get(index: int) -> int:
         int(m_bytes[index])
 
-    fn extend(bytes?: Bytes):
+    pub fn extend(bytes?: Bytes):
         m_bytes.extend(other: bytes.m_bytes)
 
-    fn pack_u64_le(value?: int):
+    pub fn pack_u64_le(value?: int):
         append(value & 0xFF)
         append((value >> 8) & 0xFF)
         append((value >> 16) & 0xFF)
@@ -104,33 +104,33 @@ pub class ByteArray:
         append((value >> 48) & 0xFF)
         append((value >> 56) & 0xFF)
 
-    fn pack_u32_le(value?: int):
+    pub fn pack_u32_le(value?: int):
         append(value & 0xFF)
         append((value >> 8) & 0xFF)
         append((value >> 16) & 0xFF)
         append((value >> 24) & 0xFF)
 
-    fn pack_u32_be(value?: int):
+    pub fn pack_u32_be(value?: int):
         append((value >> 24) & 0xFF)
         append((value >> 16) & 0xFF)
         append((value >> 8) & 0xFF)
         append(value & 0xFF)
 
-    fn pack_u16_le(value?: int):
+    pub fn pack_u16_le(value?: int):
         append(value & 0xff)
         append((value >> 8) & 0xFF)
 
-    fn pack_u16_be(value?: int):
+    pub fn pack_u16_be(value?: int):
         append((value & 0xff00) >> 8)
         append(value & 0xff)
 
-    fn len() -> int:
+    pub fn len() -> int:
         m_bytes.len()
 
-    fn to_bytes() -> Bytes:
+    pub fn to_bytes() -> Bytes:
         Bytes(m_bytes)
     
-    fn as_hex() -> str:
+    pub fn as_hex() -> str:
         to_bytes().as_hex()
 
 fn byte_as_hex(byte?: uint8) -> str:

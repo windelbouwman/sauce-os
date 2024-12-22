@@ -4,13 +4,13 @@
 
 from datatypes import List, Option
 from settype import new_str_set, Set
-from dicttype import Dictionary
+from hashmap import HashMap, new_hashmap_str
 
 pub class DiGraph:
     # A directed graph
     var nodes: Set[str] = new_str_set()
-    var pred: Dictionary[Set[str]] = Dictionary()
-    var succ: Dictionary[Set[str]] = Dictionary()
+    var pred: HashMap[str,Set[str]] = new_hashmap_str()
+    var succ: HashMap[str,Set[str]] = new_hashmap_str()
 
     fn add_node(n?: str):
         if not nodes.contains(key: n):

@@ -5,7 +5,7 @@ from utils import unimplemented, panic
 from utils import log_info, log_debug, log_trace
 from datatypes import List, Option, option_is_some
 from vectype import Vector, new_vector, new_vector_with_capacity
-from dicttype import Dictionary
+from hashmap import HashMap
 from pathlib import basename
 from json import JsonBuilder, JsonException, write_json_to_file, read_json_from_file
 from json import JsonValue, JsonBrowser
@@ -72,25 +72,22 @@ class SymbolSaver:
         m_ser.end_object_as_element()
 
     fn save_definition(definition: ast.Definition):
-        if false:
-            # Do not export, when not explicitly set to public.
-            case definition:
-                Macro(macro_def):
-                    pass
-                Function(function_def):
-                    if not function_def.is_pub:
-                        return
-                Struct(struct_def):
-                    if not struct_def.is_pub:
-                        return
-                Class(class_def):
-                    if not class_def.is_pub:
-                        return
-                Enum(enum_def):
-                    if not enum_def.is_pub:
-                        return
-                Var(var_def):
-                    pass
+        # Do not export, when not explicitly set to public.
+        case definition:
+            Function(function_def):
+                if not function_def.is_pub:
+                    return
+            # Struct(struct_def):
+            #     if not struct_def.is_pub:
+            #         return
+            # Class(class_def):
+            #     if not class_def.is_pub:
+            #         return
+            # Enum(enum_def):
+            #     if not enum_def.is_pub:
+            #         return
+        else:
+            pass
 
         log_debug("Saving {ast.definition_to_str(definition)}")
         m_ser.begin_object()
@@ -294,8 +291,7 @@ pub fn load_symbol_table(filename: str) -> List[ast.Module]:
 
 class SymbolLoader:
     var m_des: JsonBrowser = JsonBrowser()
-    var m_tycon_map: Dictionary[ast.TyCon] = Dictionary()
-    var m_type_parameter_map: Dictionary[ast.TypeParameter] = Dictionary()
+    var m_type_parameter_map: HashMap[ast.NodeId,ast.TypeParameter] = ast.new_hashmap_nodeid()
     var m_this_type: Option[ast.Type] = Option.None()
     var m_libname: str = "?"
 
@@ -358,15 +354,12 @@ class SymbolLoader:
             ast.Definition.Function(function_def)
         elif def_kind == "struct":
             let struct_def = load_struct_def(def_name, def_id)
-            m_tycon_map.insert(key: "{struct_def.id.id}", value: ast.TyCon.Struct(struct_def))
             ast.Definition.Struct(struct_def)
         elif def_kind == "enum":
             let enum_def = load_enum_def(def_name, def_id)
-            m_tycon_map.insert(key: "{enum_def.id.id}", value: ast.TyCon.Enum(enum_def))
             ast.Definition.Enum(enum_def)
         elif def_kind == "class":
             let class_def = load_class_def(def_name, def_id)
-            m_tycon_map.insert(key: "{class_def.id.id}", value: ast.TyCon.Class(class_def))
             ast.Definition.Class(class_def)
         elif def_kind == "variable":
             let variable_def = load_variable_def(def_name, def_id)
@@ -493,7 +486,7 @@ class SymbolLoader:
             let id = load_id()
             let location = location_default()
             let type_parameter = ast.new_type_parameter(name: id.name, id: id.id, location)
-            m_type_parameter_map.insert(key: "{id.id}", value: type_parameter)
+            m_type_parameter_map.insert(key: id, value: type_parameter)
             type_parameters.append(type_parameter)
             m_des.pop_value()
         type_parameters
@@ -529,11 +522,11 @@ class SymbolLoader:
         elif type_name == "app":
             let type_arguments = load_types(attr: "type-arguments")
             let id = load_id()
-            let tycon = ast.TyCon.Ref(key: ast.node_id_to_string(id))
+            let tycon = ast.TyCon.Ref(key: id)
             ast.new_type(kind: ast.TypeKind.App(tycon, type_arguments))
         elif type_name == "type-parameter":
             let id = load_id()
-            let type_parameter = m_type_parameter_map.get(key: "{id.id}")
+            let type_parameter = m_type_parameter_map.get(key: id)
             ast.type_parameter_ref(type_parameter)
         elif type_name == "array":
             let element_type = load_type(attr: "element-type")

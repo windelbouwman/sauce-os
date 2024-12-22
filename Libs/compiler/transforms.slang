@@ -16,7 +16,7 @@ from typechecking import type_check_modules
 from datatypes import List, list1, list2
 from datatypes import Option, option_unwrap, option_is_none, option_is_some
 from vectype import vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
-from dicttype import Dictionary
+from hashmap import HashMap
 from errors import CompilationError
 import ast
 
@@ -209,10 +209,10 @@ fn transformer_on_type5(transformer: Transformer, ty: ast.Type, phase: ast.Visit
                 App(tycon, type_arguments):
                     case tycon:
                         Class(class_def):
-                            let struct_def = transformer.class_rewriter.class_struct_map.get(key: ast.node_id_to_string(class_def.id))
+                            let struct_def = transformer.class_rewriter.class_struct_map.get(key: class_def.id)
                             ty.kind = ast.TypeKind.App(ast.TyCon.Struct(struct_def), type_arguments)
                         Enum(enum_def):
-                            case transformer.class_rewriter.enum_impl_map.get(key: ast.node_id_to_string(enum_def.id)):
+                            case transformer.class_rewriter.enum_impl_map.get(key: enum_def.id):
                                 Struct(struct_def):
                                     ty.kind = ast.TypeKind.App(ast.TyCon.Struct(struct_def), type_arguments)
                                 Int:
@@ -603,9 +603,9 @@ enum EnumImpl:
     Struct(struct_def: ast.StructDef)
 
 class ClassRewriter:
-    var ctor_map: Dictionary[ast.FunctionDef] = Dictionary()
-    var class_struct_map: Dictionary[ast.StructDef] = Dictionary()
-    var enum_impl_map: Dictionary[EnumImpl] = Dictionary()
+    var ctor_map: HashMap[ast.NodeId,ast.FunctionDef] = ast.new_hashmap_nodeid()
+    var class_struct_map: HashMap[ast.NodeId,ast.StructDef] = ast.new_hashmap_nodeid()
+    var enum_impl_map: HashMap[ast.NodeId,EnumImpl] = ast.new_hashmap_nodeid()
     var new_definitions: List[ast.Definition] = List()
     var id_gen: IdGen
     var rt_module: ast.Module
@@ -635,7 +635,7 @@ class ClassRewriter:
 
         let struct_def = builder.finish()
         new_definitions.append(ast.Definition.Struct(struct_def))
-        class_struct_map.insert(key: ast.node_id_to_string(class_def.id), value: struct_def)
+        class_struct_map.insert(key: class_def.id, value: struct_def)
 
         # Lift methods:
         for method in methods:
@@ -708,12 +708,12 @@ class ClassRewriter:
                 ctor_func = ast.function_def(is_pub: true, name: ctor_name, type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
 
         # Use node-id to store constructor:
-        ctor_map.insert(key: ast.node_id_to_string(class_def.id), value: ctor_func)
+        ctor_map.insert(key: class_def.id, value: ctor_func)
         new_definitions.append(ast.Definition.Function(ctor_func))
 
     fn rewrite_class_literal(ty: ast.Type, arguments: List[ast.LabeledExpression], location: Location) -> ast.Expression:
         let class_def = ty.get_class_def()
-        let ctor_func_def: ast.FunctionDef = ctor_map.get(key: ast.node_id_to_string(class_def.id))
+        let ctor_func_def: ast.FunctionDef = ctor_map.get(key: class_def.id)
         let type_arguments = ty.get_type_arguments()
         let ctor_func_ref = ast.function_ref(function_def: ctor_func_def, type_arguments, location)
         let struct_ty: ast.Type = ast.undefined_type()
@@ -728,7 +728,7 @@ class ClassRewriter:
         ast.variable(name, id, ty, location)
 
     fn get_enum_impl(id: ast.NodeId) -> EnumImpl:
-        enum_impl_map.get(key: ast.node_id_to_string(id))
+        enum_impl_map.get(key: id)
     
     fn load_std_function(name: str, location: Location) -> ast.Expression:
         # Get expression that loads a builtin runtime function.
@@ -950,10 +950,10 @@ class ClassRewriter:
 
         if n_payload_arms == 0:
             # A simple tag suffices!
-            enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Int())
+            enum_impl_map.insert(key: enum_def.id, value: EnumImpl.Int())
         elif n_arms == 2 and n_payload_arms == 1 and n_nullable_arms == 1:
             # We can check if the value is null or not
-            enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Nullable())
+            enum_impl_map.insert(key: enum_def.id, value: EnumImpl.Nullable())
         else:
             # The general case:
             # use a struct with 'tag' and 'data' fields
@@ -1010,7 +1010,7 @@ class ClassRewriter:
             # let m = ast.create_subst_mapping(type_parameters: enum_def.type_parameters, type_arguments)
 
             new_definitions.append(ast.Definition.Struct(struct_def))
-            enum_impl_map.insert(key: ast.node_id_to_string(enum_def.id), value: EnumImpl.Struct(struct_def))
+            enum_impl_map.insert(key: enum_def.id, value: EnumImpl.Struct(struct_def))
 
     fn transform_case(case_statement: ast.CaseStatement) -> ast.Statement:
         """ Transform case statement into switch case over tag values. """

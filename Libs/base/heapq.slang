@@ -47,7 +47,7 @@ pub class PriorityQueue[T]:
     var m_capacity: int
     var hack: Hack[T]
 
-    fn push(item?: T):
+    pub fn push(item?: T):
         if m_size < m_capacity:
             m_items[m_size] = item
             m_size += 1
@@ -55,7 +55,7 @@ pub class PriorityQueue[T]:
         else:
             panic("Push into full PriorityQueue")
 
-    fn pop() -> T:
+    pub fn pop() -> T:
         if m_size > 0:
             let item = m_items[0]
             swap(0, m_size - 1)
@@ -97,7 +97,7 @@ pub class PriorityQueue[T]:
                 swap(parent_index, index)
                 index = parent_index
     
-    fn is_empty() -> bool:
+    pub fn is_empty() -> bool:
         m_size == 0
 
     fn len() -> int:

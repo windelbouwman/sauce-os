@@ -323,8 +323,6 @@ class TypeChecker:
                 expression.ty = variable.ty
             FunctionRef(function_def, type_arguments):
                 expression.ty = ast.get_function_type2(function_def, type_arguments)
-            TypeConstructor(tycon):
-                add_error(location: expression.location, message: "Cannot use a type constructor here")
             TypeCast(ty, value):
                 if ty.is_int():
                     if not (value.ty.is_int() or value.ty.is_float()):

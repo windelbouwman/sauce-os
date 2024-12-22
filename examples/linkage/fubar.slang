@@ -1,2 +1,2 @@
-enum Foo[T]:
+pub enum Foo[T]:
     Bar(t: T)

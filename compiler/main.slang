@@ -15,7 +15,7 @@ from basepass import IdGen
 from transforms import transform
 from builtins import get_rt_module
 from datatypes import List, option_unwrap, Option
-from dicttype import Dictionary
+from hashmap import HashMap, new_hashmap_str
 from strlib import string_compare
 from graphlib import DiGraph, topological_sort
 from sorting import sort_list
@@ -166,7 +166,7 @@ enum Backend:
 fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
     let id_gen = IdGen()
     let modules: List[ast.Module] = List()
-    let module_map: Dictionary[ast.Module] = Dictionary()
+    let module_map: HashMap[str,ast.Module] = new_hashmap_str()
 
     let rt_module = get_rt_module()
     modules.append(rt_module)
@@ -191,7 +191,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
     topo_sort(modules)
     let module_set = ast.ModuleSet(modules)
 
-    let tycon_map: Dictionary[ast.TyCon] = Dictionary()
+    let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
     for module in modules:
         bind_names(module, module_map, tycon_map)
         resolve_newops(module, id_gen)
@@ -257,7 +257,7 @@ fn topo_sort(modules: List[ast.Module]):
     # Sort modules (in-place) based on which module import the other one
     # TBD: implicitly, all modules depend upon the 'rt' module. Add this as edge?
     let g: DiGraph = DiGraph()
-    let mapping: Dictionary[ast.Module] = Dictionary()
+    let mapping: HashMap[str,ast.Module] = new_hashmap_str()
     for m in modules:
         g.add_node(m.name)
         mapping.insert(key: m.name, value: m)

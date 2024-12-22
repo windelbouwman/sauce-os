@@ -5,7 +5,7 @@
 from std import float_to_str2
 from utils import panic, log_info, log_trace
 from datatypes import List, Option
-from vectype import Vector
+from vectype import Vector, new_vector
 from strlib import str_join
 import vm
 import bc
@@ -46,14 +46,14 @@ class CGenerator:
     # Generate C from bytecode
     var out: TextGenerator = TextGenerator()
 
-    var stack: List[Value] = List()
+    var stack: Vector[Value] = new_vector()
     var next_id: int = 1
-    var local_variables: List[Value] = List()
-    var local_parameters: List[Value] = List()
-    var structs: List[bc.Struct] = List()
-    var globals: List[bc.Global] = List()
-    var functions: List[bc.Function] = List()
-    var extern_functions: List[bc.ExternFunction] = List()
+    var local_variables: Vector[Value] = new_vector()
+    var local_parameters: Vector[Value] = new_vector()
+    var structs: Vector[bc.Struct] = new_vector()
+    var globals: Vector[bc.Global] = new_vector()
+    var functions: Vector[bc.Function] = new_vector()
+    var extern_functions: Vector[bc.ExternFunction] = new_vector()
 
     fn emit_runtime():
         emit("#include <stddef.h>")
@@ -117,7 +117,7 @@ class CGenerator:
         dedent()
         emit("\};")
 
-    fn get_parameter_text(parameters: List[bc.TypedName]) -> str:
+    fn get_parameter_text(parameters: Vector[bc.TypedName]) -> str:
         let parameters2: List[str] = List()
         let index = 0
         for parameter in parameters:
@@ -195,8 +195,8 @@ class CGenerator:
     fn gen_function(function: bc.Function):
         log_trace("Generating bytecode for {function.name}")
         next_id = 1
-        local_variables = List()
-        local_parameters = List()
+        local_variables = new_vector()
+        local_parameters = new_vector()
 
         let decl = get_function_decl(function, fill_param: true)
         emit("{decl} \{")
@@ -644,7 +644,7 @@ class CGenerator:
         else:
             panic("No struct")
 
-    fn gen_call(callee: str, parameter_types: List[bc.TypedName], return_type: Option[bc.Type]):
+    fn gen_call(callee: str, parameter_types: Vector[bc.TypedName], return_type: Option[bc.Type]):
         let args = pop_n(count: parameter_types.len())
         let args2: List[str] = List()
         for arg in args:

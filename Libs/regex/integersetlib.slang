@@ -10,28 +10,28 @@ from functools import zip, all
 pub class IntegerSet:
     var ranges: List[Range]
 
-    fn to_string() -> str:
+    pub fn to_string() -> str:
         let parts: List[str] = List()
         for r in ranges:
             parts.append(range_to_string(r))
         str_join(parts, sep: ",")
     
-    fn equals(other: IntegerSet) -> bool:
+    pub fn equals(other: IntegerSet) -> bool:
         integer_set_equals(a: this, b: other)
     
-    fn is_empty() -> bool:
+    pub fn is_empty() -> bool:
         ranges.len() == 0
 
-    fn contains(value: int) -> bool:
+    pub fn contains(value: int) -> bool:
         for range in ranges:
             if range_contains(self: range, value):
                 return true
         false
     
-    fn difference(other: IntegerSet) -> IntegerSet:
+    pub fn difference(other: IntegerSet) -> IntegerSet:
         integer_set_difference(self: this, other)
     
-    fn union(other: IntegerSet) -> IntegerSet:
+    pub fn union(other: IntegerSet) -> IntegerSet:
         integer_set_intersection(self: this, other)
 
     fn first() -> int:

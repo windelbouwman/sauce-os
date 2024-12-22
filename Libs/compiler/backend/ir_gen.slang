@@ -2,8 +2,8 @@
 
 import ast
 from datatypes import List, option_unwrap, Option
-from dicttype import Dictionary
-from vectype import Vector, new_vector
+from vectype import Vector, new_vector, new_vector_with_capacity
+from hashmap import HashMap, new_hashmap_int, new_hashmap_str
 from utils import panic, log_info, log_debug, assert, log_trace
 from bc import Instruction
 import bc
@@ -35,17 +35,17 @@ class BytecodeGenerator:
     var is_reachable: bool = true
     var code: Vector[Instruction] = new_vector()
 
-    var global_variables: List[bc.Global] = List()
-    var global_var_mapping: Dictionary[int] = Dictionary()
-    var local_variables: List[bc.TypedName] = List()
-    var local_var_mapping: Dictionary[int] = Dictionary()
-    var label_mapping: Dictionary[int] = Dictionary()
-    var struct_mapping: Dictionary[int] = Dictionary()
-    var extern_functions: List[bc.ExternFunction] = List()
+    var global_variables: Vector[bc.Global] = new_vector()
+    var global_var_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
+    var local_variables: Vector[bc.TypedName] = new_vector()
+    var local_var_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
+    var label_mapping: HashMap[int,int] = new_hashmap_int()
+    var struct_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
+    var extern_functions: Vector[bc.ExternFunction] = new_vector()
 
-    var structs: List[bc.Struct] = List()
-    var functions: List[bc.Function] = List()
-    var function_map: Dictionary[int] = Dictionary()
+    var structs: Vector[bc.Struct] = new_vector()
+    var functions: Vector[bc.Function] = new_vector()
+    var function_map: HashMap[str,int] = new_hashmap_str()
     var block_stack: List[ControlBlock] = List()
 
     fn forward_declarations(module_set: ast.ModuleSet):
@@ -55,7 +55,7 @@ class BytecodeGenerator:
             for definition in module.definitions:
                 case definition:
                     Struct(struct_def):
-                        struct_mapping.insert(key: ast.node_id_to_string(struct_def.id), value: index)
+                        struct_mapping.insert(key: struct_def.id, value: index)
                         index += 1
                 else:
                     pass
@@ -110,7 +110,6 @@ class BytecodeGenerator:
     
     fn gen_global_variable(variable_def: ast.VariableDef):
         let global_index = global_variables.len()
-        let key = ast.node_id_to_string(variable_def.variable.id)
         let name = get_name(variable_def.variable.id)
         let value: Option[Vector[bc.Instruction]] = Option.None()
         case variable_def.value:
@@ -123,13 +122,13 @@ class BytecodeGenerator:
                 pass
         let global_variable = bc.Global(name, ty: get_bc_type(variable_def.variable.ty), value)
         global_variables.append(global_variable)
-        global_var_mapping.insert(key, value: global_index)
+        global_var_mapping.insert(key: variable_def.variable.id, value: global_index)
 
     fn gen_extern_function(function_def: ast.FunctionDef):
         let func_index = extern_functions.len()
         let name = function_def.name
 
-        let parameters: List[bc.TypedName] = List()
+        let parameters: Vector[bc.TypedName] = new_vector_with_capacity(capacity: function_def.parameters.len())
         for parameter in function_def.parameters:
             parameters.append(bc.TypedName(name: parameter.id.name, ty: get_bc_type(parameter.ty)))
 
@@ -151,11 +150,11 @@ class BytecodeGenerator:
             Intern(scoped_block):
                 log_debug("generate bytecode for {function_def.name}")
                 local_var_mapping.clear()
-                let parameters: List[bc.TypedName] = List()
+                let parameters: Vector[bc.TypedName] = new_vector_with_capacity(capacity: function_def.parameters.len())
                 for parameter in function_def.parameters:
                     let p2 = bc.TypedName(name: parameter.id.name, ty: get_bc_type(parameter.ty))
                     let parameter_index = parameters.len()
-                    local_var_mapping.insert(key: ast.node_id_to_string(parameter.id), value: parameter_index)
+                    local_var_mapping.insert(key: parameter.id, value: parameter_index)
                     parameters.append(p2)
                 let return_type = Option.None()
                 let no_return = false
@@ -166,7 +165,7 @@ class BytecodeGenerator:
                 else:
                     return_type = Option.Some(get_bc_type(function_def.info.return_type))
                 begin_code()
-                local_variables = List()
+                local_variables = new_vector()
 
                 # Emit return to void function, or unreachable
                 if scoped_block.body.ty.is_void():
@@ -548,7 +547,7 @@ class BytecodeGenerator:
                 for value in values:
                     gen_expression(value)
                 let struct_def = ty.get_struct_def()
-                let struct_index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
+                let struct_index = struct_mapping.get(key: struct_def.id)
                 emit(Instruction.StructLiteral(struct_index))
             ArrayLiteral(values):
                 for value in values:
@@ -606,8 +605,9 @@ class BytecodeGenerator:
 
     fn gen_indirect_call(callee: ast.Expression):
         gen_expression(callee)
-        let parameter_types: List[bc.TypedName] = List()
-        for p2 in callee.ty.get_parameter_types():
+        let pty2 = callee.ty.get_parameter_types()
+        let parameter_types: Vector[bc.TypedName] = new_vector_with_capacity(capacity: pty2.len())
+        for p2 in pty2:
             parameter_types.append(bc.TypedName(name: "x", ty: get_bc_type(p2.ty)))
         let return_type2 = callee.ty.get_return_type()
         let return_type: Option[bc.Type] = if return_type2.is_void():
@@ -663,14 +663,14 @@ class BytecodeGenerator:
 
     fn set_label(label?: int):
         let index = code.len()
-        label_mapping.insert(key: "{label}", value: index)
+        label_mapping.insert(key: label, value: index)
         is_reachable = true
     
     fn translate_label(label?: int) -> int:
-        label_mapping.get(key: "{label}")
+        label_mapping.get(key: label)
 
     fn begin_code():
-        label_mapping = Dictionary()
+        label_mapping = new_hashmap_int()
         code = new_vector()
         is_reachable = true
 
@@ -706,7 +706,7 @@ class BytecodeGenerator:
         # Add a local variable!
         let ty = get_bc_type(variable.ty)
         let index = new_local(name: variable.id.name, ty)
-        local_var_mapping.insert(key: ast.node_id_to_string(variable.id), value: index)
+        local_var_mapping.insert(key: variable.id, value: index)
         index
     
     fn new_local(name: str, ty: bc.Type) -> int:
@@ -716,18 +716,16 @@ class BytecodeGenerator:
         index
     
     fn is_local_variable(variable: ast.Variable) -> bool:
-        local_var_mapping.contains(key: ast.node_id_to_string(variable.id))
+        local_var_mapping.contains(key: variable.id)
 
     fn get_local_index(variable: ast.Variable) -> int:
-        let key = ast.node_id_to_string(variable.id)
-        local_var_mapping.get(key)
+        local_var_mapping.get(key: variable.id)
 
     fn get_global_index(variable: ast.Variable) -> int:
-        let key = ast.node_id_to_string(variable.id)
-        global_var_mapping.get(key)
+        global_var_mapping.get(key: variable.id)
 
     fn get_parameter_index(parameter_def: ast.ParameterDef) -> int:
-        local_var_mapping.get(key: ast.node_id_to_string(parameter_def.id))
+        local_var_mapping.get(key: parameter_def.id)
 
     fn get_bc_type(ty2?: ast.Type) -> bc.Type:
         # Determine the bytecode type for the given ast type
@@ -742,7 +740,7 @@ class BytecodeGenerator:
             bc.Type.Str()
         elif ty2.is_struct():
             let struct_def = ty2.get_struct_def()
-            let index = struct_mapping.get(key: ast.node_id_to_string(struct_def.id))
+            let index = struct_mapping.get(key: struct_def.id)
             bc.Type.StructRef(index)
         elif ty2.is_function_type():
             let parameter_types2 = ty2.get_parameter_types()

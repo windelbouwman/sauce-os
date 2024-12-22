@@ -32,7 +32,7 @@ pub class DigitalFilter:
     var b: List[float] # Numerator
     var a: List[float] # Denominator
 
-    fn dump():
+    pub fn dump():
         print(s_poly_to_str(coefficients: b))
         print("-----------------")
         print(s_poly_to_str(coefficients: a))

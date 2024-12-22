@@ -13,19 +13,19 @@ pub class Image:
     var height: int
     var pixels: Vector[Pixel]
 
-    fn get_pixel(x: int, y: int) -> Pixel:
+    pub fn get_pixel(x: int, y: int) -> Pixel:
         let index = y * width + x
         let pixel = pixels[index]
         pixel
     
-    fn set_pixel(x: int, y: int, red: int, green: int, blue: int, alpha: int):
+    pub fn set_pixel(x: int, y: int, red: int, green: int, blue: int, alpha: int):
         let pixel = get_pixel(x, y)
         pixel.red = red
         pixel.green = green
         pixel.blue = blue
         pixel.alpha = alpha
 
-    fn add_pixel(red: int, green: int, blue: int, alpha: int):
+    pub fn add_pixel(red: int, green: int, blue: int, alpha: int):
         pixels.append(Pixel(red, green, blue, alpha))
 
 

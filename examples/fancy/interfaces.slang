@@ -11,23 +11,27 @@ fn main() -> int:
         print("EQ")
     else:
         print("NOPE")
+    
+    if check_hash('a', 'b'):
+        print("Nein")
     0
 
-fn check_hash[T: Hashable](v1: T, v2: T) -> bool:
-    let h1 = Hashable.hash(one: v1)
-    let h2 = Hashable.hash(one: v2)
+fn check_hash[T](v1: T, v2: T) -> bool:
+    let h1 = Hashable[T].hash(one: v1)
+    let h2 = Hashable[T].hash(one: v2)
+    
     if h1 == h2:
-        return Hashable.equal(one: v1, other: v2)
+        Hashable[T].equal(one: v1, other: v2)
     else:
-        return false
+        false
 
-interface Hashable:
+trait Hashable[T]:
     fn hash(one: T) -> int
     fn equal(one: T, other: T) -> bool
 
 impl Hashable[int]:
     fn hash(one: int) -> int:
-        return one
+        one
 
     fn equal(one: int, other: int) -> bool:
-        return one == other
+        one == other

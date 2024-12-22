@@ -54,7 +54,7 @@ pub class HashMap[K,V]:
     var m_buckets: [Option[KeyValuePair[K,V]]] = [Option.None()]
     var f: HashableApi[K]
 
-    fn maybe_get(key: K) -> Option[V]:
+    pub fn maybe_get(key: K) -> Option[V]:
         let next_pair = m_buckets[get_index(key)]
         loop:
             case next_pair:
@@ -72,13 +72,13 @@ pub class HashMap[K,V]:
             panic("Uninitialized hashmap!")
         modulo(value: this.f.f_hash(key), divisor: num_buckets)
 
-    fn contains(key: K) -> bool:
+    pub fn contains(key: K) -> bool:
         option_is_some(maybe_get(key))
     
-    fn get(key: K) -> V:
+    pub fn get(key: K) -> V:
         option_unwrap(maybe_get(key))
 
-    fn insert(key: K, value: V):
+    pub fn insert(key: K, value: V):
         # Re-hash if above some threshold
         if m_size > m_threshold:
             rehash()
@@ -109,7 +109,7 @@ pub class HashMap[K,V]:
                 m_buckets[index] = new_pair
         m_size += 1
 
-    fn pop(key: K) -> Option[V]:
+    pub fn pop(key: K) -> Option[V]:
         """ remove an item from this dictionary """
         let index = get_index(key)
 
@@ -147,13 +147,13 @@ pub class HashMap[K,V]:
         #         break
         #     i += 1
 
-    fn len() -> int:
+    pub fn len() -> int:
         m_size
     
-    fn clear():
+    pub fn clear():
         create_buckets(n: num_buckets)
 
-    fn is_empty() -> bool:
+    pub fn is_empty() -> bool:
         m_size == 0
 
     fn rehash():
@@ -185,7 +185,7 @@ pub class HashMap[K,V]:
             i += 1
         m_size = 0
 
-    fn values() -> List[V]:
+    pub fn values() -> List[V]:
         let res: List[V] = List()
 
         let i = 0
@@ -201,7 +201,7 @@ pub class HashMap[K,V]:
             i += 1
         res
 
-    fn iter() -> HashMapIter[K,V]:
+    pub fn iter() -> HashMapIter[K,V]:
         let it: HashMapIter[K,V] = HashMapIter(m: this)
         it
 
@@ -210,7 +210,7 @@ pub class HashMapIter[K,V]:
     var m_pair_ptr: Option[KeyValuePair[K,V]] = Option.None()
     var m: HashMap[K,V]
 
-    fn next() -> Option[K]:
+    pub fn next() -> Option[K]:
         loop:
             case m_pair_ptr:
                 Some(pair):

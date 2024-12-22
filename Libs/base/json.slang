@@ -72,14 +72,14 @@ pub class JsonBrowser:
     var m_value: JsonValue = JsonValue.Null()
     var m_stack: List[JsonValue] = List()
 
-    fn push_value(value: JsonValue):
+    pub fn push_value(value: JsonValue):
         m_stack.append(m_value)
         m_value = value
 
-    fn pop_value():
+    pub fn pop_value():
         m_value = m_stack.pop_last()
 
-    fn get_attribute(attr: str) -> JsonValue:
+    pub fn get_attribute(attr: str) -> JsonValue:
         case m_value:
             Object(items):
                 for item in items:
@@ -89,10 +89,10 @@ pub class JsonBrowser:
         else:
             panic("Not a JSON object")
 
-    fn has_attribute(attr: str) -> bool:
+    pub fn has_attribute(attr: str) -> bool:
         option_is_some(find_attribute(attr))
 
-    fn find_attribute(attr: str) -> Option[JsonValue]:
+    pub fn find_attribute(attr: str) -> Option[JsonValue]:
         case m_value:
             Object(items):
                 for item in items:
@@ -102,38 +102,38 @@ pub class JsonBrowser:
         else:
             panic("Not a JSON object")
 
-    fn get_array_values() -> List[JsonValue]:
+    pub fn get_array_values() -> List[JsonValue]:
         case m_value:
             Array(values):
                 values
         else:
             panic("Not a JSON array")
 
-    fn get_array_attribute(attr: str) -> List[JsonValue]:
+    pub fn get_array_attribute(attr: str) -> List[JsonValue]:
         enter_attribute(attr)
         let values = get_array_values()
         pop_value()
         values
 
-    fn get_text_attribute(attr: str) -> str:
+    pub fn get_text_attribute(attr: str) -> str:
         enter_attribute(attr)
         let text = get_text()
         pop_value()
         text
 
-    fn get_integer_attribute(attr: str) -> int:
+    pub fn get_integer_attribute(attr: str) -> int:
         enter_attribute(attr)
         let value = get_integer()
         pop_value()
         value
 
-    fn get_boolean_attribute(attr: str) -> bool:
+    pub fn get_boolean_attribute(attr: str) -> bool:
         enter_attribute(attr)
         let value = get_boolean()
         pop_value()
         value
 
-    fn get_text() -> str:
+    pub fn get_text() -> str:
         # Get text from current node
         case m_value:
             String(text):
@@ -141,7 +141,7 @@ pub class JsonBrowser:
         else:
             panic("Not a JSON text")
 
-    fn get_integer() -> int:
+    pub fn get_integer() -> int:
         # Get integer from current node
         case m_value:
             Integer(value):
@@ -149,7 +149,7 @@ pub class JsonBrowser:
         else:
             panic("Not a JSON integer")
 
-    fn get_boolean() -> bool:
+    pub fn get_boolean() -> bool:
         # Get boolean from current node
         case m_value:
             Bool(value):
@@ -157,56 +157,56 @@ pub class JsonBrowser:
         else:
             panic("Not a JSON bool")
 
-    fn enter_attribute(attr: str):
+    pub fn enter_attribute(attr: str):
         push_value(value: get_attribute(attr))
 
 pub class JsonBuilder:
     var m_object_stack: List[JsonObjectBuilder] = List()
     var m_array_stack: List[JsonArrayBuilder] = List()
 
-    fn begin_object():
+    pub fn begin_object():
         m_object_stack.append(JsonObjectBuilder())
     
-    fn add_attribute(attr: str, value: JsonValue):
+    pub fn add_attribute(attr: str, value: JsonValue):
         m_object_stack.last().add_attribute(attr, value)
 
-    fn add_boolean_attribute(attr: str, value: bool):
+    pub fn add_boolean_attribute(attr: str, value: bool):
         add_attribute(attr, value: JsonValue.Bool(value))
 
-    fn add_text_attribute(attr: str, text: str):
+    pub fn add_text_attribute(attr: str, text: str):
         add_attribute(attr, value: JsonValue.String(text))
 
-    fn add_text_as_element(text: str):
+    pub fn add_text_as_element(text: str):
         add_element(value: JsonValue.String(text))
 
-    fn add_integer_attribute(attr: str, value: int):
+    pub fn add_integer_attribute(attr: str, value: int):
         add_attribute(attr, value: JsonValue.Integer(value))
 
-    fn end_object() -> JsonValue:
+    pub fn end_object() -> JsonValue:
         let builder = m_object_stack.pop_last()
         builder.finish()
 
-    fn end_object_as_element():
+    pub fn end_object_as_element():
         # Complete object creation, and append to current array
         let value = end_object()
         add_element(value)
 
-    fn end_object_as_attribute(attr: str):
+    pub fn end_object_as_attribute(attr: str):
         # Complete object creation, and append to current array
         let value = end_object()
         add_attribute(attr, value)
 
-    fn begin_array():
+    pub fn begin_array():
         m_array_stack.append(JsonArrayBuilder())
 
-    fn add_element(value: JsonValue):
+    pub fn add_element(value: JsonValue):
         m_array_stack.last().add_element(value)
 
-    fn end_array() -> JsonValue:
+    pub fn end_array() -> JsonValue:
         let builder = m_array_stack.pop_last()
         builder.finish()
 
-    fn end_array_as_attribute(attr: str):
+    pub fn end_array_as_attribute(attr: str):
         let array_obj = end_array()
         add_attribute(attr, value: array_obj)
 

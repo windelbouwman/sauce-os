@@ -1,33 +1,33 @@
 
 from utils import log_info, log_trace
 from location import Location, location_default
-from datatypes import List, Option, option_unwrap, option_is_some
-from dicttype import Dictionary
+from datatypes import List, Option, option_is_some
+from hashmap import HashMap
 import ast
 from errors import CompilationError, new_error, new_errors, SingleCompilationError, render_message
 
-pub fn bind_names(module: ast.Module, module_map: Dictionary[ast.Module], tycon_map: Dictionary[ast.TyCon]) except CompilationError:
+pub fn bind_names(module: ast.Module, module_map: HashMap[str,ast.Module], tycon_map: HashMap[ast.NodeId,ast.TyCon]) except CompilationError:
     log_info("Filling scopes for {module.name}")
-    let filler = ScopeFiller(tycon_map)
-    let fil_vis = ast.Visitor:
-        data: filler
+    let binder = NameBinder(tycon_map)
+    let fil_vis: ast.Visitor[NameBinder] = ast.Visitor:
+        data: binder
         on_definition: filler_on_definition
         on_type: filler_on_type
         on_statement: filler_on_statement
         on_expression: filler_on_expression
         on_node: filler_on_node
-    filler.enter_scope(scope: module.scope)
+    binder.enter_scope(scope: module.scope)
 
     for imp in module.imports:
-        import_mod(imp, module_map, filler)
+        binder.import_mod(imp, module_map)
 
     ast.visit_module(visitor: fil_vis, module)
-    filler.leave_scope()
-    if not filler.errors.is_empty():
-        raise new_errors(filename: module.filename, errors: filler.errors)
+    binder.leave_scope()
+    if not binder.errors.is_empty():
+        raise new_errors(filename: module.filename, errors: binder.errors)
 
     log_info("Binding names for {module.name}")
-    let binder = NameBinder(tycon_map)
+    
     let bind_visitor = new_bind_visitor(binder)
     binder.enter_scope(scope: base_scope())
     binder.enter_scope(scope: module.scope)
@@ -54,33 +54,12 @@ fn new_bind_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
         on_node: binder_on_node
 
 pub fn bind_names_expression(expression: ast.Expression) except CompilationError:
-    let tycon_map: Dictionary[ast.TyCon] = Dictionary()
+    let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
     let binder = NameBinder(tycon_map)
     let bind_visitor = new_bind_visitor(binder)
     ast.visit_expression(visitor: bind_visitor, expression)
     if not binder.errors.is_empty():
         raise new_errors(filename: Option.None(), errors: binder.errors)
-
-fn import_mod(imp: ast.Import, module_map: Dictionary[ast.Module], filler: ScopeFiller):
-    log_trace("Import {imp.modname}")
-    case module_map.maybe_get(key: imp.modname):
-        Some(module):
-            case imp.kind:
-                Self:
-                    filler.define(is_pub: false, name: module.name, kind: ast.SymbolKind.Mod(module), location: imp.location)
-                Names(names):
-                    for name in names:
-                        log_trace("Importing {name.name} from {module.name}")
-                        case module.scope.lookup(name: name.name):
-                            Some(symbol):
-                                if symbol.is_pub:
-                                    filler.define(is_pub: false, name: name.name, kind: symbol.kind, location: name.location)
-                                else:
-                                    filler.add_error(location: name.location, message: "Symbol '{name.name}' is private")
-                            None:
-                                filler.add_error(location: name.location, message: "Error, module {module.name} has no symbol: {name.name}")
-        None:
-            filler.add_error(location: imp.location, message: "Error, no module named: {imp.modname}")
 
 fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
     # try to retrieve a scope, if we have one
@@ -102,7 +81,7 @@ fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
         Var(v):
             Option.None()
 
-fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: ast.VisitPhase):
+fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: ast.VisitPhase):
     case phase:
         Pre:
             case definition:
@@ -157,10 +136,10 @@ fn filler_on_definition(filler: ScopeFiller, definition: ast.Definition, phase: 
     else:
         pass
 
-fn filler_on_type(filler: ScopeFiller, ty: ast.Type, phase: ast.VisitPhase):
+fn filler_on_type(filler: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
     pass
 
-fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast.VisitPhase):
+fn filler_on_statement(filler: NameBinder, statement: ast.Statement, phase: ast.VisitPhase):
     case phase:
         Pre:
             case statement.kind:
@@ -191,10 +170,10 @@ fn filler_on_statement(filler: ScopeFiller, statement: ast.Statement, phase: ast
     else:
         pass
 
-fn filler_on_expression(filler: ScopeFiller, expression: ast.Expression, phase: ast.VisitPhase):
+fn filler_on_expression(filler: NameBinder, expression: ast.Expression, phase: ast.VisitPhase):
     pass
 
-fn filler_on_node(filler: ScopeFiller, node: ast.VisitNode, phase: ast.VisitPhase):
+fn filler_on_node(filler: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase):
     case phase:
         Pre:
             case node:
@@ -217,42 +196,6 @@ fn filler_on_node(filler: ScopeFiller, node: ast.VisitNode, phase: ast.VisitPhas
     else:
         pass
 
-
-class ScopeFiller:
-    var scopes: List[ast.Scope] = List()
-    var errors: List[SingleCompilationError] = List()
-    var tycon_map: Dictionary[ast.TyCon]
-
-    fn add_tycon(id: ast.NodeId, tycon: ast.TyCon):
-        tycon_map.insert(key: ast.node_id_to_string(id), value: tycon)
-
-    fn define_variable(variable: ast.Variable):
-        define(is_pub: true, name: variable.id.name, kind: ast.SymbolKind.Var(variable), location: variable.location)
-    
-    fn define_type_parameter(type_parameter: ast.TypeParameter):
-        define(is_pub: false, name: type_parameter.id.name, kind: ast.SymbolKind.Typ(ty: ast.type_parameter_ref(type_parameter)), location: type_parameter.location)
-    
-    fn define_parameter(parameter_def: ast.ParameterDef):
-        define(is_pub: false, name: parameter_def.id.name, kind: ast.SymbolKind.Parameter(parameter_def), location: parameter_def.location)
-
-    fn define(is_pub: bool, name: str, kind: ast.SymbolKind, location: Location):
-        # log_trace("DEFINE {name}")
-        let scope = scopes.last()
-        if scope.is_defined(name):
-            add_error(location, message: "Symbol '{name}' is already defined")
-        else:
-            scope.define(is_pub, name, kind, location)
-    
-    fn enter_scope(scope: ast.Scope):
-        scopes.append(scope)
-    
-    fn leave_scope():
-        let unused = scopes.pop_last()
-
-    fn add_error(location: Location, message: str):
-        let err = new_error(location, message)
-        errors.append(err)
-
 fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: ast.VisitPhase):
     case phase:
         Pre:
@@ -273,32 +216,30 @@ fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: a
 fn binder_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
     case phase:
         Post:
-            case ty.kind:
-                App(tycon, type_arguments):
-                    case tycon:
-                        Ref(key):
-                            let tycon = binder.tycon_map.get(key)
-                            ty.kind = ast.TypeKind.App(tycon, type_arguments)
-                        NameRef(name):
-                            case binder.resolve_tycon(name):
-                                Some(tycon):
+            try:
+                case ty.kind:
+                    App(tycon, type_arguments):
+                        case tycon:
+                            Ref(key):
+                                # if not binder.tycon_map.contains(key):
+                                #     panic("No tycon: {ast.node_id_to_string(key)}")
+                                let tycon = binder.tycon_map.get(key)
+                                ty.kind = ast.TypeKind.App(tycon, type_arguments)
+                            NameRef(name):
+                                    let tycon = binder.resolve_tycon(name)
                                     let type_parameters = ast.tycon_get_type_parameters(tycon)
                                     if type_parameters.len() == type_arguments.len():
                                         ty.kind = ast.TypeKind.App(tycon, type_arguments)
                                     else:
                                         binder.add_error(location: name.location, message: "Got {type_arguments.len()} type arguments, expected {type_parameters.len()}")
-                                None:
-                                    pass
-                    else:
-                        pass
-                NameRef(name):
-                    case binder.resolve_type_kind(name):
-                        Some(kind):
-                            ty.kind = kind
-                        None:
+                        else:
                             pass
-            else:
-                pass
+                    NameRef(name):
+                        ty.kind = binder.resolve_type_kind(name)
+                else:
+                    pass
+            except (error: SingleCompilationError):
+                binder.errors.append(error)
     else:
         pass
 
@@ -333,7 +274,7 @@ fn symbol_to_kind(symbol: ast.Symbol) -> ast.ExpressionKind:
         Typ(ty):
             ast.ExpressionKind.Typ(ty)
         TypeConstructor(tycon):
-            ast.ExpressionKind.TypeConstructor(tycon)
+            ast.ExpressionKind.Typ(ty: ast.new_type(kind: ast.TypeKind.UnApp(tycon)))
         Var(variable):
             ast.ExpressionKind.VarRef(variable)
         Parameter(parameter_def):
@@ -344,32 +285,25 @@ fn symbol_to_kind(symbol: ast.Symbol) -> ast.ExpressionKind:
 fn binder_on_expression(binder: NameBinder, expression: ast.Expression, phase: ast.VisitPhase):
     case phase:
         Post:
-            case expression.kind:
-                NameRef(name):
-                    case binder.lookup2(name, location: expression.location):
-                        Some(kind):
-                            expression.kind = kind
-                        None:
-                            binder.add_error(location: expression.location, message: "'{name}' not defined!")
-                GetAttr(base, attr):
-                    case base.kind:
-                        LoadSymbol(sym):
-                            case sym.kind:
-                                Mod(m):
-                                    case m.scope.lookup(name: attr):
-                                        Some(symbol):
-                                            if symbol.is_pub:
-                                                expression.kind = symbol_to_kind(symbol)
-                                            else:
-                                                binder.add_error(location: expression.location, message: "Symbol '{attr}' is private")
-                                        None:
-                                            binder.add_error(location: expression.location, message: "module '{m.name}' has no symbol: '{attr}'")
-                            else:
-                                pass
-                    else:
-                        pass
-            else:
-                pass
+            try:
+                case expression.kind:
+                    NameRef(name):
+                        expression.kind = binder.lookup_expression_kind(name, location: expression.location)
+                    GetAttr(base, attr):
+                        case base.kind:
+                            LoadSymbol(sym):
+                                case sym.kind:
+                                    Mod(module):
+                                        let symbol = binder.resolve_attribute(module, attr, location: expression.location)
+                                        expression.kind = symbol_to_kind(symbol)
+                                else:
+                                    pass
+                        else:
+                            pass
+                else:
+                    pass
+            except (error: SingleCompilationError):
+                binder.errors.append(error)
     else:
         pass
 
@@ -417,123 +351,134 @@ fn base_scope() -> ast.Scope:
     s
 
 class NameBinder:
+    """ Helper class to fill scopes, and resolve names from scopes. """
     var scopes: List[ast.Scope] = List()
     var errors: List[SingleCompilationError] = List()
-    var tycon_map: Dictionary[ast.TyCon]
+    var tycon_map: HashMap[ast.NodeId,ast.TyCon]
+    var was_class_scope: bool = false # HACK for multiple return values?
 
-    fn lookup2(name: str, location: Location) -> Option[ast.ExpressionKind]:
-        for scope in scopes:
-            case scope.lookup(name):
-                Some(symbol):
-                    symbol.add_reference(location)
-                    let introduce_this = if scope.class_scope:
-                        case symbol.kind:
-                            Function(function_def):
-                                true
-                            Var(var_def):
-                                true
-                        else:
-                            false
-                    else:
-                        false
-
-                    if introduce_this:
-                        let base = option_unwrap(lookup3(name: "this", location))
-                        let kind = ast.ExpressionKind.GetAttr(base, field: name)
-                        return Option.Some(kind)
-                    else:
-                        let kind = symbol_to_kind(symbol)
-                        return Option.Some(kind)
-                None:
-                    pass
-        Option.None()
-
-    fn lookup3(name: str, location: Location) -> Option[ast.Expression]:
-        case lookup_base_name(name):
-            Some(symbol):
-                let kind = symbol_to_kind(symbol)
-                let expr = ast.Expression(kind, ty: ast.undefined_type(), location)
-                return Option.Some(expr)
+    fn import_mod(imp: ast.Import, module_map: HashMap[str,ast.Module]):
+        log_trace("Import {imp.modname}")
+        case module_map.maybe_get(key: imp.modname):
+            Some(module):
+                case imp.kind:
+                    Self:
+                        define(is_pub: false, name: module.name, kind: ast.SymbolKind.Mod(module), location: imp.location)
+                    Names(names):
+                        for name in names:
+                            log_trace("Importing {name.name} from {module.name}")
+                            try:
+                                let symbol = resolve_attribute(module, attr: name.name, location: name.location)
+                                define(is_pub: false, name: name.name, kind: symbol.kind, location: name.location)
+                            except (error: SingleCompilationError):
+                                errors.append(error)
             None:
-                Option.None()
+                add_error(location: imp.location, message: "Error, no module named: {imp.modname}")
 
+    fn add_tycon(id: ast.NodeId, tycon: ast.TyCon):
+        tycon_map.insert(key: id, value: tycon)
 
-    fn resolve_type_kind(name: ast.QualName) -> Option[ast.TypeKind]:
+    fn define_variable(variable: ast.Variable):
+        define(is_pub: true, name: variable.id.name, kind: ast.SymbolKind.Var(variable), location: variable.location)
+    
+    fn define_type_parameter(type_parameter: ast.TypeParameter):
+        define(is_pub: false, name: type_parameter.id.name, kind: ast.SymbolKind.Typ(ty: ast.type_parameter_ref(type_parameter)), location: type_parameter.location)
+    
+    fn define_parameter(parameter_def: ast.ParameterDef):
+        define(is_pub: false, name: parameter_def.id.name, kind: ast.SymbolKind.Parameter(parameter_def), location: parameter_def.location)
+
+    fn define(is_pub: bool, name: str, kind: ast.SymbolKind, location: Location):
+        # log_trace("DEFINE {name}")
+        let scope = scopes.first()
+        if scope.is_defined(name):
+            add_error(location, message: "Symbol '{name}' is already defined")
+        else:
+            scope.define(is_pub, name, kind, location)
+    
+    fn lookup_expression_kind(name: str, location: Location) -> ast.ExpressionKind except SingleCompilationError:
+        let symbol = lookup_base_name(name, location)
+        symbol.add_reference(location)
+        let introduce_this = if was_class_scope:
+            case symbol.kind:
+                Function(function_def):
+                    true
+                Var(var_def):
+                    true
+            else:
+                false
+        else:
+            false
+
+        if introduce_this:
+            let base = lookup_expression(name: "this", location)
+            ast.ExpressionKind.GetAttr(base, field: name)
+        else:
+            symbol_to_kind(symbol)
+
+    fn lookup_expression(name: str, location: Location) -> ast.Expression except SingleCompilationError:
+        let symbol = lookup_base_name(name, location)
+        let kind = symbol_to_kind(symbol)
+        ast.Expression(kind, ty: ast.undefined_type(), location)
+
+    fn resolve_type_kind(name: ast.QualName) -> ast.TypeKind except SingleCompilationError:
         """ Resolve qualified name to a type """
-        case resolve_qual_name(name):
-            Some(symbol):
-                case symbol.kind:
-                    Typ(ty):
-                        Option.Some(ty.kind)
-                    TypeConstructor(tycon):
-                        Option.Some(ast.TypeKind.UnApp(tycon))
-                else:
-                    add_error(location: name.location, message: "Not a type: {symbol}")
-                    Option.None()
-            None:
-                Option.None()
+        let symbol = resolve_qual_name(name)
+        case symbol.kind:
+            Typ(ty):
+                ty.kind
+            TypeConstructor(tycon):
+                ast.TypeKind.UnApp(tycon)
+        else:
+            raise new_error(location: name.location, message: "Not a type: {symbol}")
 
-    fn resolve_tycon(name: ast.QualName) -> Option[ast.TyCon]:
+    fn resolve_tycon(name: ast.QualName) -> ast.TyCon except SingleCompilationError:
         """ Resolve qualified name to a type constructor """
-        case resolve_qual_name(name):
-            Some(symbol):
-                case symbol.kind:
-                    TypeConstructor(tycon):
-                        Option.Some(tycon)
-                else:
-                    add_error(location: name.location, message: "Not a tycon: {symbol}")
-                    Option.None()
-            None:
-                Option.None()
+        let symbol = resolve_qual_name(name)
+        case symbol.kind:
+            TypeConstructor(tycon):
+                tycon
+        else:
+            raise new_error(location: name.location, message: "Not a tycon: {symbol}")
 
-    fn resolve_qual_name(name: ast.QualName) -> Option[ast.Symbol]:
+    fn resolve_qual_name(name: ast.QualName) -> ast.Symbol except SingleCompilationError:
         """ Resolve a qualified name to a symbol """
         let base_name = name.parts[0]
-        case lookup_base_name(name: base_name):
-            Some(symbol):
-                symbol.add_reference(location: name.location)
-                if name.parts.len() > 1:
-                    let first = true
-                    for part in name.parts:
-                        if first:
-                            first = false
-                            continue
-                        case symbol.kind:
-                            Mod(module):
-                                case resolve_attribute(module, attr: part, location: name.location):
-                                    Some(symbol2):
-                                        symbol = symbol2
-                                    None:
-                                        return Option.None()
-                        else:
-                            add_error(location: name.location, message: "Not a module")
-                            return Option.None()
+        let symbol = lookup_base_name(name: base_name, location: name.location)
+        symbol.add_reference(location: name.location)
+        if name.parts.len() > 1:
+            let first = true
+            for part in name.parts:
+                if first:
+                    first = false
+                    continue
+                case symbol.kind:
+                    Mod(module):
+                        symbol = resolve_attribute(module, attr: part, location: name.location)
+                else:
+                    raise new_error(location: name.location, message: "Not a module we want to get {part} from")
 
-                Option.Some(symbol)
-            None:
-                add_error(location: name.location, message: "'{base_name}' not defined!")
-                Option.None()
+        symbol
 
-    fn resolve_attribute(module: ast.Module, attr: str, location: Location) -> Option[ast.Symbol]:
+    fn resolve_attribute(module: ast.Module, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
+        """ Try to load an attribute from a module. """
         case module.scope.lookup(name: attr):
             Some(symbol):
                 if symbol.is_pub:
-                    Option.Some(symbol)
+                    symbol
                 else:
-                    add_error(location, message: "Symbol '{attr}' is private")
-                    Option.None()
+                    raise new_error(location, message: "Symbol '{attr}' is private")
             None:
-                add_error(location, message: "module '{module.name}' has no symbol: '{attr}'")
-                Option.None()
+                raise new_error(location, message: "module '{module.name}' has no symbol: '{attr}'")
 
-    fn lookup_base_name(name: str) -> Option[ast.Symbol]:
+    fn lookup_base_name(name: str, location: Location) -> ast.Symbol except SingleCompilationError:
         for scope in scopes:
             case scope.lookup(name):
                 Some(symbol):
-                    return Option.Some(symbol)
+                    was_class_scope = scope.class_scope
+                    return symbol
                 None:
                     pass
-        Option.None()
+        raise new_error(location, message: "'{name}' not defined!")
 
     fn enter_scope(scope: ast.Scope):
         scopes.prepend(scope)

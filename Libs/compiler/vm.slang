@@ -2,7 +2,7 @@
 # Virtual machine for bytecode.
 
 from datatypes import List, Option
-from dicttype import Dictionary
+from hashmap import HashMap, new_hashmap_str
 from vectype import Vector, new_vector
 from utils import panic, log_debug, assert, unimplemented
 from bc import Instruction, Program, Function, instruction_to_string
@@ -164,9 +164,9 @@ fn efi_rt_str_compare(arguments: List[Value]) -> Option[Value]:
     let value = a == b
     Option.Some(Value.Bool(value))
 
-fn get_efi_db() -> Dictionary[ExternFunctionImpl]:
+fn get_efi_db() -> HashMap[str,ExternFunctionImpl]:
     # Link in external functions:
-    let efi_db: Dictionary[ExternFunctionImpl] = Dictionary()
+    let efi_db: HashMap[str,ExternFunctionImpl] = new_hashmap_str()
 
     # std:
     efi_db.insert(key: "std_ord", value: ExternFunctionImpl(f: efi_std_ord, n: 1))
@@ -228,7 +228,7 @@ pub fn run_bytecode(program: Program, entry_function: str):
     vm.push_frame(frame: top_frame)
 
     # Create mapping from names to index:
-    let function_name_to_index: Dictionary[int] = Dictionary()
+    let function_name_to_index: HashMap[str,int] = new_hashmap_str()
     let index = 0
     for function in program.functions:
         function_name_to_index.insert(key: function.name, value: index)
@@ -286,10 +286,10 @@ class Frame:
 
 pub class VirtualMachine:
     var frames: List[Frame] = List()
-    var globals: List[Value] = List()
+    var globals: Vector[Value] = new_vector()
     var exception_value: Value = Value.Undefined()
     var m_functions: List[FunctionRef] = List()
-    var structs: List[bc.Struct] = List()
+    var structs: Vector[bc.Struct] = new_vector()
 
     fn step():
         let instruction = fetch()

@@ -16,7 +16,7 @@ pub class Chart:
     var m_curves: List[Curve] = List()
     var m_color_wheel: ColorWheel = ColorWheel()
 
-    fn to_svg(filename: str):
+    pub fn to_svg(filename: str):
         let c = Canvas()
         let drawer = ChartDrawer(m_chart: this, m_canvas: c)
         drawer.draw()
@@ -25,14 +25,14 @@ pub class Chart:
     fn new_color() -> str:
         m_color_wheel.get_color()
 
-    fn new_curve(name: str) -> Curve:
+    pub fn new_curve(name: str) -> Curve:
         let points: List[DataPoint] = List()
         let color = new_color()
         let c = Curve(points, color)
         m_curves.append(c)
         c
     
-    fn add_curve(name: str, points: List[DataPoint]):
+    pub fn add_curve(name: str, points: List[DataPoint]):
         let color = new_color()
         let c = Curve(points, color)
         m_curves.append(c)
@@ -54,8 +54,8 @@ pub class Chart:
             rect = grow_rect(source: rect, percent: 0.05)
             Option.Some(rect)
 
-    fn autoscale():
-        # adjust axis to view all data!
+    pub fn autoscale():
+        """ adjust axis to view all data! """
         log_info("Autoscale")
         case get_data_bounds():
             None:
@@ -66,8 +66,8 @@ pub class Chart:
                 m_y_axis.lower = span.y_min
                 m_y_axis.upper = span.y_max
     
-    fn autoscale_x():
-        # Adjust x-axis to fit all data
+    pub fn autoscale_x():
+        """ Adjust x-axis to fit all data """
         log_info("Autoscale-x")
         case get_data_bounds():
             None:
@@ -76,8 +76,8 @@ pub class Chart:
                 m_x_axis.lower = span.x_min
                 m_x_axis.upper = span.x_max
 
-    fn autoscale_y():
-        # Adjust y-axis to fit all data
+    pub fn autoscale_y():
+        """ Adjust y-axis to fit all data """
         log_info("Autoscale-y")
         case get_data_bounds():
             None:
@@ -86,20 +86,20 @@ pub class Chart:
                 m_y_axis.lower = span.y_min
                 m_y_axis.upper = span.y_max
 
-    fn zoom(factor: float):
+    pub fn zoom(factor: float):
         m_x_axis.scale(factor)
         m_y_axis.scale(factor)
 
-    fn zoom_in():
+    pub fn zoom_in():
         zoom(factor: 0.5)
 
-    fn zoom_out():
+    pub fn zoom_out():
         zoom(factor: 1.5)
 
-    fn pan_x(delta: float):
+    pub fn pan_x(delta: float):
         m_x_axis.pan(delta)
 
-    fn pan_y(delta: float):
+    pub fn pan_y(delta: float):
         m_y_axis.pan(delta)
 
 class Axis:
@@ -117,11 +117,11 @@ class Axis:
         lower += delta
         upper += delta
 
-class Curve:
+pub class Curve:
     var points: List[DataPoint]
     var color: str
 
-    fn add_point(x: float, y: float):
+    pub fn add_point(x: float, y: float):
         points.append(DataPoint(x, y))
 
     fn get_data_bounds() -> Option[FRange]:

@@ -5,7 +5,7 @@ from utils import panic, assert, log_info, log_error
 from location import Location, location_default
 from datatypes import List, Option, option_unwrap, option_is_some
 from vectype import Vector, new_vector_with_capacity
-from dicttype import Dictionary
+from hashmap import HashMap, new_hashmap_str, new_hashmap, str_hash
 
 # Name coupled with global unique ID:
 pub struct NodeId:
@@ -20,6 +20,12 @@ fn node_id_equal(node_id1: NodeId, node_id2: NodeId) -> bool:
 
 pub fn node_id_to_string(id?: NodeId) -> str:
     "{id.name}${id.id}"
+
+pub fn new_hashmap_nodeid[T]() -> HashMap[NodeId,T]:
+    new_hashmap(f_hash: node_id_hash, f_eq: node_id_equal)
+
+fn node_id_hash(a?: NodeId) -> int:
+    str_hash(a.name) * 7919 + a.id
 
 # TODO: implement type-defs!
 pub class Type:
@@ -445,7 +451,7 @@ pub fn apply_tycon(tycon: TyCon, type_arguments: Vector[Type]) -> Type:
         assert(condition: false, message: "type arguments does not match amount of type parameters")
     new_type(kind: TypeKind.App(tycon, type_arguments))
 
-pub fn subst(ty: Type, m: Dictionary[Type]) -> Type:
+pub fn subst(ty: Type, m: HashMap[str,Type]) -> Type:
     case ty.kind:
         TypeParam(p):
             case m.maybe_get(key: p.id.name):
@@ -475,20 +481,20 @@ pub fn subst(ty: Type, m: Dictionary[Type]) -> Type:
     else:
         ty
 
-fn subst_many(typs: Vector[Type], m: Dictionary[Type]) -> Vector[Type]:
+fn subst_many(typs: Vector[Type], m: HashMap[str,Type]) -> Vector[Type]:
     let typs2: Vector[Type] = new_vector_with_capacity(capacity: typs.len())
     for ty in typs:
         typs2.append(subst(ty, m))
     typs2
 
-pub fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: Vector[Type]) -> Dictionary[Type]:
+pub fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: Vector[Type]) -> HashMap[str,Type]:
     if type_parameters.len() != type_arguments.len():
         for type_parameter in type_parameters:
             log_error("type parameter: {node_id_to_string(type_parameter.id)}")
         for type_argument in type_arguments:
             log_error("type argument: {type_argument}")
         panic("amount of type parameters and type arguments must be equal")
-    let m: Dictionary[Type] = Dictionary()
+    let m: HashMap[str,Type] = new_hashmap_str()
     let tpi = type_parameters.iter()
     for ty in type_arguments:
         let tp = option_unwrap(tpi.next())
@@ -541,7 +547,7 @@ pub fn get_enum_variant(enum_def: EnumDef, attr: str) -> Option[EnumVariant]:
         None:
             Option.None()
 
-fn get_subst_map(ty: Type) -> Dictionary[Type]:
+fn get_subst_map(ty: Type) -> HashMap[str,Type]:
     case ty.kind:
         App(tycon, type_arguments):
             create_subst_mapping(type_parameters: tycon_get_type_parameters(tycon), type_arguments)
@@ -580,6 +586,10 @@ pub fn get_method_ref_from_type(ty: Type, attr: str, location: Location) -> Expr
 pub struct QualName:
     location: Location
     parts: List[str]
+
+# enum QualPart:
+#     Name(name: str)
+#     Based(base: QualName, attr: str)
 
 pub fn qual_name_to_string(name: QualName) -> str:
     str_join(parts: name.parts, sep: "::")
@@ -710,7 +720,7 @@ pub enum TyCon:
     Struct(struct_def: StructDef)
     Enum(enum_def: EnumDef)
     Class(class_def: ClassDef)
-    Ref(key: str)
+    Ref(key: NodeId)
     NameRef(name: QualName)
 
 fn tycon_to_str(tycon: TyCon) -> str:
@@ -722,7 +732,7 @@ fn tycon_to_str(tycon: TyCon) -> str:
         Class(class_def):
             class_def_to_str(class_def)
         Ref(key):
-            "tycon-ref-{key}"
+            "tycon-ref-{node_id_to_string(key)}"
         NameRef(name):
             "tycon-name-ref-{qual_name_to_string(name)}"
 
@@ -917,7 +927,7 @@ pub fn extern_function_def(is_pub: bool, libname: str, name: str, type_parameter
         body: FunctionDefBody.Extern(libname)
 
 pub class Scope:
-    var symbols: Dictionary[Symbol] = Dictionary()
+    var symbols: HashMap[str,Symbol] = new_hashmap_str()
     var class_scope: bool = false
 
     fn define(is_pub: bool, name: str, kind: SymbolKind, location: Location):
@@ -957,14 +967,14 @@ pub class Symbol:
     var location: Location
     var references: List[Location] = List()
 
-    fn add_reference(location: Location):
+    pub fn add_reference(location: Location):
         """ Register a reference this symbol """
         references.append(location)
 
-    fn get_references() -> int:
+    pub fn get_references() -> int:
         references.len()
 
-    fn to_string() -> str:
+    pub fn to_string() -> str:
         case kind:
             Mod(module):
                 "mod:{module.name}"
@@ -1258,10 +1268,10 @@ pub class Statement:
     var location: Location
     var ty: Type
 
-    fn to_string() -> str:
+    pub fn to_string() -> str:
         statement_to_string(statement: this)
 
-    fn is_breakable() -> bool:
+    pub fn is_breakable() -> bool:
         """ Can we use break / continue within this statement? """
         case kind:
             While(x):
@@ -1273,7 +1283,7 @@ pub class Statement:
         else:
             false
 
-    fn last_is_expr() -> bool:
+    pub fn last_is_expr() -> bool:
         """ Determine if the last statement is an expression """
         case kind:
             Expr(e):
@@ -1450,7 +1460,7 @@ pub class Expression:
     var ty: Type
     var location: Location
 
-    fn to_string() -> str:
+    pub fn to_string() -> str:
         expression_to_string(this)
 
     fn call_method(method: str, arguments: List[LabeledExpression], location: Location) -> Expression:
@@ -1511,7 +1521,6 @@ pub enum ExpressionKind:
     Unbox(value: Expression, to_type: Type)
     ToString(value: Expression)
     Typ(ty: Type)
-    TypeConstructor(tycon: TyCon)
     Variant(ty: Type, variant: EnumVariant)
     EnumLiteral(ty: Type, variant: EnumVariant, values: List[Expression])
     Stmt(statement: Statement)
@@ -1866,8 +1875,6 @@ fn expression_to_string(expression?: Expression) -> str:
             "TOSTRING"
         Typ(ty):
             "TYPE"
-        TypeConstructor(tycon):
-            "TYPE-CONSTRUCTOR"
         Variant(ty, v):
             "VARIANT"
         EnumLiteral(ty, v, values):

@@ -15,13 +15,13 @@ pub class Node:
     var m_child_nodes: List[Node] = List()
     var m_content: str = ""
 
-    fn add_attribute(name: str, value: str):
+    pub fn add_attribute(name: str, value: str):
         m_attributes.append(Attribute(name, value))
 
-    fn add_child(node?: Node):
+    pub fn add_child(node?: Node):
         m_child_nodes.append(node)
     
-    fn add_content(text: str):
+    pub fn add_content(text: str):
         m_content = m_content + text
 
 struct Attribute:

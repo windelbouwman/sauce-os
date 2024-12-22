@@ -56,7 +56,7 @@ pub class Vector[T]:
     var m_capacity: int
     var m_elements: [T]
 
-    fn is_empty() -> bool:
+    pub fn is_empty() -> bool:
         m_size == 0
 
     pub fn append(value?: T):
@@ -65,7 +65,14 @@ pub class Vector[T]:
         m_elements[m_size] = value
         m_size += 1
     
-    fn extend(other: Vector[T]):
+    pub fn pop_last() -> T:
+        if m_size > 0:
+            m_size -= 1
+            m_elements[m_size]
+        else:
+            panic("Vector.pop_last: empty vector")
+
+    pub fn extend(other: Vector[T]):
         """ Append all elements of other to this vector """
         let new_size = m_size + other.m_size
         while m_capacity < new_size:
@@ -76,7 +83,7 @@ pub class Vector[T]:
             m_size += 1
             index += 1
 
-    fn clear():
+    pub fn clear():
         m_size = 0
 
     fn grow():
@@ -90,30 +97,30 @@ pub class Vector[T]:
             m_elements[i] = old_elements[i]
             i += 1
         
-    fn len() -> int:
+    pub fn len() -> int:
         m_size
 
-    fn get(index: int) -> T:
+    pub fn get(index: int) -> T:
         # Retrieve value at index
         if index < m_size:
             m_elements[index]
         else:
             panic("Vector.get: index out of range.")
     
-    fn set(index: int, value: T):
+    pub fn set(index: int, value: T):
         # " Set value at index. "
         if index < m_size:
             m_elements[index] = value
         else:
             panic("Vector.get: index out of range.")
     
-    fn first() -> T:
+    pub fn first() -> T:
         get(index: 0)
 
-    fn last() -> T:
+    pub fn last() -> T:
         m_elements[m_size - 1]
 
-    fn take(amount?: int) -> Vector[T]:
+    pub fn take(amount?: int) -> Vector[T]:
         # Create a new vector with the given amount of items
         assert(condition: amount < m_size, message: "take: amount must less than size.")
         let v2: Vector[T] = new_vector()
@@ -123,7 +130,7 @@ pub class Vector[T]:
             index += 1
         v2
 
-    fn skip(amount?: int) -> Vector[T]:
+    pub fn skip(amount?: int) -> Vector[T]:
         let v2: Vector[T] = new_vector()
         let index = amount
         while index < m_size:
@@ -131,7 +138,7 @@ pub class Vector[T]:
             index += 1
         v2
     
-    fn concat(other: Vector[T]) -> Vector[T]:
+    pub fn concat(other: Vector[T]) -> Vector[T]:
         let v2: Vector[T] = new_vector_with_capacity(capacity: m_size + other.m_size)
         v2.extend(other: this)
         v2.extend(other)

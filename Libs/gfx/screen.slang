@@ -22,12 +22,12 @@ pub class Screen:
     var m_image: Image
     var m_color: Pixel = Pixel(red: 0, green: 0, blue: 200, alpha: 255)
 
-    fn set_color(red: int, green: int, blue: int):
+    pub fn set_color(red: int, green: int, blue: int):
         m_color.red = red
         m_color.green = green
         m_color.blue = blue
 
-    fn clear():
+    pub fn clear():
         """ Set entire screen to color. """
         let y = 0
         while y < m_height:
@@ -37,7 +37,7 @@ pub class Screen:
                 x += 1
             y += 1
 
-    fn draw_line(x1: int, y1: int, x2: int, y2: int):
+    pub fn draw_line(x1: int, y1: int, x2: int, y2: int):
         """ Draw a line from x1,y1 to x2,y2 in the current color.
         
         Use Bresenham's algorithm
@@ -130,8 +130,8 @@ pub class Screen:
             put_pixel(x, y)
             x += 1
 
-    fn put_pixel(x: int, y: int):
+    pub fn put_pixel(x: int, y: int):
         m_image.set_pixel(x, y, red: m_color.red, green: m_color.green, blue: m_color.blue, alpha: 255)
 
-    fn save_png(filename: str):
+    pub fn save_png(filename: str):
         write_png_to_file(image: m_image, filename)

@@ -13,7 +13,7 @@ import webassembly
 import ast
 from webassembly import Instruction
 from datatypes import List, list1
-from dicttype import Dictionary
+from hashmap import HashMap, new_hashmap_str
 from location import location_default
 from std import str_len, ord
 from utils import panic, log_info, log_debug, assert
@@ -33,7 +33,7 @@ class WasmGenerator:
 
     var n_parameters: int = 0
     var local_variables: List[webassembly.ValueType] = List()
-    var index_mapping: Dictionary[int] = Dictionary()
+    var index_mapping: HashMap[str,int] = new_hashmap_str()
     var literal_offset: int = 0
     var block_stack: List[bool] = List()
 

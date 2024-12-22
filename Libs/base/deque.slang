@@ -16,7 +16,7 @@ pub class Queue[T]:
     var m_head: int = 0
     var m_tail: int = 0
 
-    fn push(value?: T):
+    pub fn push(value?: T):
         """ Append a value to the queue """
         if m_length < m_capacity:
             m_items[m_tail] = value
@@ -26,7 +26,7 @@ pub class Queue[T]:
             grow()
             push(value)
 
-    fn pop() -> T:
+    pub fn pop() -> T:
         """ Pop first value from the queue """
         if m_length > 0:
             let value = m_items[m_head]
@@ -36,10 +36,10 @@ pub class Queue[T]:
         else:
             panic("Pop from empty queue")
 
-    fn len() -> int:
+    pub fn len() -> int:
         m_length
     
-    fn is_empty() -> bool:
+    pub fn is_empty() -> bool:
         m_length == 0
 
     fn grow():

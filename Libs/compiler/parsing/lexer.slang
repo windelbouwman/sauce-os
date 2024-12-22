@@ -9,7 +9,7 @@ from location import Location, location_at
 from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf
 from datatypes import List
 from deque import Queue, new_queue
-from dicttype import Dictionary
+from hashmap import HashMap, new_hashmap_str
 
 enum LexerMode:
     Normal
@@ -23,7 +23,7 @@ pub class Lexer:
     var spaces: int = 0
     var source: str = ""
     var source_length: int = 0
-    var m_keywords: Dictionary[TokenKind] = Dictionary()
+    var m_keywords: HashMap[str,TokenKind] = new_hashmap_str()
 
     var m_mode: LexerMode = LexerMode.Normal()
     var tok_begin: int = 0
@@ -452,7 +452,7 @@ fn is_id(c: char) -> bool:
 fn is_id_or_digit(c: char) -> bool:
     is_id(c) or is_digit(c)
 
-fn fill_keyword_dictionary(keywords: Dictionary[TokenKind]):
+fn fill_keyword_dictionary(keywords: HashMap[str,TokenKind]):
     keywords.insert(key: "and", value: TokenKind.KwAnd())
     keywords.insert(key: "break", value: TokenKind.KwBreak())
     keywords.insert(key: "case", value: TokenKind.KwCase())

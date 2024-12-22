@@ -5,7 +5,7 @@ from basepass import IdGen
 from utils import log_info, panic
 from errors import new_error, new_errors, CompilationError, SingleCompilationError
 from datatypes import List, Option
-from dicttype import Dictionary
+from hashmap import HashMap, new_hashmap_str
 from vectype import Vector, new_vector, new_vector_with_capacity
 
 pub fn resolve_newops(module: ast.Module, id_gen: IdGen) except CompilationError:
@@ -44,8 +44,8 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
         Post:
             case expression.kind:
                 GetAttr(base, attr):
-                    case newop.try_as_type(expression: base):
-                        Some(ty):
+                    case base.kind:
+                        Typ(ty):
                             if ty.is_enum():
                                 case ty.get_enum_variant_from_type(attr):
                                     Some(variant):
@@ -55,9 +55,8 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                                     
                             else:
                                 newop.add_error(location: expression.location, message: "Can only get attr from enum type, not {ty}")
-                        None:
-                            pass
-                    
+                    else:
+                        pass
                 Call(call):
                     case call.callee.kind:
                         Variant(ty, variant):
@@ -65,73 +64,71 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
                             for argument in call.arguments:
                                 values.append(argument.value)
                             expression.kind = ast.ExpressionKind.EnumLiteral(ty, variant, values)
-                    else:
-                        case newop.try_as_type(expression: call.callee):
-                            Some(ty):
-                                
-                                # Check that type is struct?
-                                let ok = false
-                                case ty.kind:
-                                    App(tycon, type_arguments):
-                                        let value_map: Dictionary[ast.Expression] = Dictionary()
-                                        for labeled_field in call.arguments:
-                                            case labeled_field.name:
-                                                Some(field_name3):
-                                                    if value_map.contains(key: field_name3):
-                                                        newop.add_error(location: labeled_field.location, message: "Duplicate field: {field_name3}")
-                                                    else:
-                                                        value_map.insert(key: field_name3, value: labeled_field.value)
-                                                None:
-                                                    newop.add_error(location: labeled_field.location, message: "Unlabeled expression")
-
-                                        case tycon:
-                                            Struct(struct_def):
-                                                ok = true
-                                                let values: List[ast.Expression] = List()
-                                                for field in struct_def.fields:
-                                                    case value_map.pop(key: field.name):
-                                                        Some(v):
-                                                            values.append(v)
-                                                        None:
-                                                            newop.add_error(location: expression.location, message: "Missing field: {field.name}")
-                                                
-                                                for name in value_map:
-                                                    newop.add_error(location: expression.location, message: "Superfluous field: {name}")
-
-                                                expression.kind = ast.ExpressionKind.StructLiteral(ty, values)
-                                            Class(class_def):
-                                                ok = true
-                                                expression.kind = ast.ExpressionKind.ClassLiteral(ty, arguments: call.arguments)
-                                        else:
-                                            pass
-                                    Base(base):
-                                        case base:
-                                            Float(bits):
-                                                ok = true
-                                            Int(signed, bits):
-                                                ok = true
-                                            Str:
-                                                ok = true
-                                        else:
-                                            pass
-
-                                        if ok:
-                                            if call.arguments.len() == 1:
-                                                let value = call.arguments.first().value
-                                                case base:
-                                                    Str:
-                                                        expression.kind = ast.ExpressionKind.ToString(value)
+                        Typ(ty):
+                            # Check that type is struct?
+                            let ok = false
+                            case ty.kind:
+                                App(tycon, type_arguments):
+                                    let value_map: HashMap[str,ast.Expression] = new_hashmap_str()
+                                    for labeled_field in call.arguments:
+                                        case labeled_field.name:
+                                            Some(field_name3):
+                                                if value_map.contains(key: field_name3):
+                                                    newop.add_error(location: labeled_field.location, message: "Duplicate field: {field_name3}")
                                                 else:
-                                                    expression.kind = ast.ExpressionKind.TypeCast(ty, value)
-                                            else:
-                                                newop.add_error(location: expression.location, message: "Expect exactly 1 argument to type cast")
-                                else:
-                                    pass
+                                                    value_map.insert(key: field_name3, value: labeled_field.value)
+                                            None:
+                                                newop.add_error(location: labeled_field.location, message: "Unlabeled expression")
 
-                                if not ok:
-                                    newop.add_error(location: expression.location, message: "Cannot call type: {ty}")
-                            None:
+                                    case tycon:
+                                        Struct(struct_def):
+                                            ok = true
+                                            let values: List[ast.Expression] = List()
+                                            for field in struct_def.fields:
+                                                case value_map.pop(key: field.name):
+                                                    Some(v):
+                                                        values.append(v)
+                                                    None:
+                                                        newop.add_error(location: expression.location, message: "Missing field: {field.name}")
+                                            
+                                            for name in value_map:
+                                                newop.add_error(location: expression.location, message: "Superfluous field: {name}")
+
+                                            expression.kind = ast.ExpressionKind.StructLiteral(ty, values)
+                                        Class(class_def):
+                                            ok = true
+                                            expression.kind = ast.ExpressionKind.ClassLiteral(ty, arguments: call.arguments)
+                                    else:
+                                        pass
+                                Base(base):
+                                    case base:
+                                        Float(bits):
+                                            ok = true
+                                        Int(signed, bits):
+                                            ok = true
+                                        Str:
+                                            ok = true
+                                    else:
+                                        pass
+
+                                    if ok:
+                                        if call.arguments.len() == 1:
+                                            let value = call.arguments.first().value
+                                            case base:
+                                                Str:
+                                                    expression.kind = ast.ExpressionKind.ToString(value)
+                                            else:
+                                                expression.kind = ast.ExpressionKind.TypeCast(ty, value)
+                                        else:
+                                            newop.add_error(location: expression.location, message: "Expect exactly 1 argument to type cast")
+                            else:
                                 pass
+
+                            if not ok:
+                                newop.add_error(location: expression.location, message: "Cannot call type: {ty}")
+                            
+                    else:
+                        pass
                 LoadSymbol(symbol):
                     case symbol.kind:
                         Function(function_def):
@@ -157,9 +154,6 @@ class NewOp:
         # Try to use this expression as a type.
         case expression.kind:
             Typ(ty2):
-                Option.Some(ty2)
-            TypeConstructor(tycon):
-                let ty2 = turn_tycon_to_type(tycon)
                 Option.Some(ty2)
         else:
             Option.None()
