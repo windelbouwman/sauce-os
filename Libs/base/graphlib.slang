@@ -12,14 +12,14 @@ pub class DiGraph:
     var pred: HashMap[str,Set[str]] = new_hashmap_str()
     var succ: HashMap[str,Set[str]] = new_hashmap_str()
 
-    fn add_node(n?: str):
+    pub fn add_node(n?: str):
         if not nodes.contains(key: n):
             nodes.add(n)
             # TODO: assert n not in pred and succ?
             pred.insert(key: n, value: new_str_set())
             succ.insert(key: n, value: new_str_set())
     
-    fn add_edge(src: str, dst: str):
+    pub fn add_edge(src: str, dst: str):
         add_node(src)
         add_node(dst)
         succ.get(key: src).add(dst)

@@ -1,4 +1,4 @@
-""" Position information about tokens.
+"""Position information about tokens.
 
 Each token starts and ends somewhere.
 """

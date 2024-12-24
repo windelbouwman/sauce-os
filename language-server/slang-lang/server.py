@@ -1,10 +1,15 @@
 """
-Idea: start language server, to provide autocompletion and diagnostics in vs-code.
+Slang lang language server.
+
+Provide features:
+- autocompletion
+- diagnostics
+
+Support VS-code and helix editors.
 
 """
 
 import logging
-import time
 import argparse
 import glob
 import asyncio
@@ -13,7 +18,8 @@ from pygls.server import LanguageServer
 from pygls.uris import to_fs_path, from_fs_path
 from lsprotocol import types
 
-import sys, os
+import sys
+import os
 
 # TODO: this relative import is a bit lame..
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -22,13 +28,11 @@ from compiler1.errors import CompilationError
 from compiler1.location import Location as SlangLocation, Position as SlangPosition
 from compiler1 import ast
 
-logger = logging.getLogger("Slang-Lang-LSP")
+logger = logging.getLogger("slls")  # Slang-lang language server (slls)
 
 
 class DataBase:
-    """
-    Symbol database.
-    """
+    """Symbol database."""
 
     def __init__(self):
         # Two layer deep reference map:
@@ -37,11 +41,8 @@ class DataBase:
         # Key is ID, value is filename / location
         self._definitions = {}
 
-        # Map from filename to module:
-        self._file_modules = {}
-
-        # Map from filename to scope-tree
-        self._file_scopes = {}
+        # Map from filename to file info
+        self._file_infos = {}
 
         self._validation_task = None
 
@@ -49,9 +50,9 @@ class DataBase:
         """Fill symbol info after compilation."""
         for module in modules:
             filename = module.filename
-            if not os.path.exists(filename):
-                logger.error(f"File not found: {filename}")
-                continue
+            # if not os.path.exists(filename):
+            #     logger.error(f"File not found: {filename}")
+            #     continue
 
             for d_id, d_loc in module._definitions:
                 self._definitions[str(d_id)] = (filename, d_loc)
@@ -62,9 +63,7 @@ class DataBase:
                     self._references[key] = []
                 self._references[key].append((r_loc, r_id))
 
-            self._file_modules[filename] = module
-
-            self._file_scopes[filename] = module_to_scope_tree(module)
+            self._file_infos[filename] = FileInfo(module)
 
     def get_definition(self, filename: str, position: SlangPosition):
         """Given a cursor, try to jump to definition."""
@@ -79,6 +78,12 @@ class DataBase:
                         return filename, loc
                     break
 
+    def lookup(self, filename: str, position: SlangPosition, name: str):
+        """Try to lookup a name at the given position."""
+        if filename in self._file_infos:
+            info = self._file_infos[filename]
+            return info.lookup(position, name)
+
     async def validate(self, ls: LanguageServer, params, delay=0):
         """Validate source code by compiling it using the 'null' backend.
 
@@ -90,9 +95,9 @@ class DataBase:
         logger.info("validate! Might debounce?")
         await self.stop_validation()
 
-        text_doc = ls.workspace.get_text_document(params.text_document.uri)
-        filename = to_fs_path(text_doc.uri)
-        code = text_doc.source
+        document = ls.workspace.get_text_document(params.text_document.uri)
+        filename = to_fs_path(document.uri)
+        code = document.source
 
         # Spawn a long running validation task:
         self._validation_task = asyncio.create_task(
@@ -109,7 +114,24 @@ class DataBase:
                 logger.info("task cancelled")
 
 
+class FileInfo:
+    """Information about a single text document / file."""
+
+    def __init__(self, module: ast.Module):
+        self.module = module
+        self.scope_tree = module_to_scope_tree(module)
+
+    def get_definitions_at(self, position: SlangPosition):
+        return self.scope_tree.get_definitions_for_line(position.row)
+
+    def lookup(self, position: SlangPosition, name: str):
+        """Try to lookup a name at the given position"""
+        return self.scope_tree.lookup(position.row, name)
+
+
 class ScopeCrawler(ast.AstVisitor):
+    """Walk entire AST, and build a tree of scopes"""
+
     def __init__(self):
         super().__init__()
         self.scope_stack = []
@@ -147,12 +169,24 @@ class ScopeCrawler(ast.AstVisitor):
 class ScopeTreeItem:
     """A single scope level."""
 
-    def __init__(self, scope):
+    def __init__(self, scope: ast.Scope):
+        assert isinstance(scope, ast.Scope)
         self.scope = scope
         self._m = RangeMap()
 
     def add_sub_scope(self, s: "ScopeTreeItem"):
         self._m.insert(s.scope.span.begin.row, s.scope.span.end.row, s)
+
+    def lookup(self, row: int, name: str):
+        # Try subscopes first:
+        sub_item = self._m.get(row)
+        if sub_item:
+            obj = sub_item.lookup(row, name)
+            if obj:
+                return obj
+        # Try own scope:
+        if self.scope.is_defined(name):
+            return self.scope.lookup(name)
 
     def get_definitions_for_line(self, row):
         definitions = []
@@ -166,7 +200,7 @@ class ScopeTreeItem:
 
 
 class RangeMap:
-    """A class mapping from"""
+    """A mapping from a range to single objects."""
 
     def __init__(self):
         self._ranges = []
@@ -195,25 +229,50 @@ asyncio.set_event_loop(loop)
 server = LanguageServer("Slang-Lang-Server", "v0.1", loop=loop)
 
 
-@server.feature(types.TEXT_DOCUMENT_COMPLETION)
-def completions(
+@server.feature(
+    types.TEXT_DOCUMENT_COMPLETION,
+    types.CompletionOptions(trigger_characters=["."]),
+)
+async def completions(
     ls: LanguageServer, params: types.CompletionParams
 ) -> types.CompletionList:
-    text_doc = ls.workspace.get_text_document(params.text_document.uri)
-    filename = to_fs_path(text_doc.uri)
-    row = params.position.line + 1
+    document = ls.workspace.get_text_document(params.text_document.uri)
+    filename = to_fs_path(document.uri)
+    position = make_slang_position(params.position)
 
-    # print("Document", document)
-    # current_line = document.lines[params.position.line].strip()
+    logger.debug(f"Gettin' completion {filename} / row {position} {params=}")
     items = []
 
-    if filename in db._file_scopes:
-        # Get all accessible definitions from the scope tree
-        scope_tree = db._file_scopes[filename]
-        # if current_line.endswith("hello."):
-        # module = db._file_modules[filename]
-        for definition in scope_tree.get_definitions_for_line(row):
-            items.append(definition_to_completion_item(definition))
+    if (
+        params.context is None
+        or params.context.trigger_kind == types.CompletionTriggerKind.Invoked
+    ):
+        # CTRL+SPACE was pressed, fetch a full list of symbols.
+        if filename in db._file_infos:
+            info = db._file_infos[filename]
+            for definition in info.get_definitions_at(position):
+                items.append(definition_to_completion_item(definition))
+    elif (
+        params.context is not None
+        and params.context.trigger_kind == types.CompletionTriggerKind.TriggerCharacter
+        and params.context.trigger_character == "."
+    ):
+        # '.' was typed, try to get a list of members of the name before the '.'
+        name = document.word_at_position(lefted(params.position, 1))
+        if name:
+            logger.debug(f"DOT INDEX: {name=}")
+            obj = db.lookup(filename, position, name)
+            if obj:
+                if isinstance(obj, (ast.Variable, ast.Parameter)):
+                    for definition in obj.ty.get_inner_definitions():
+                        items.append(definition_to_completion_item(definition))
+                elif isinstance(obj, ast.Module):
+                    for definition in obj.definitions:
+                        items.append(definition_to_completion_item(definition))
+                else:
+                    logger.debug(f"Cannot dot index {obj}")
+            else:
+                logger.debug(f"Could not resolve {name}")
 
     return types.CompletionList(is_incomplete=False, items=items)
 
@@ -240,21 +299,98 @@ def get_completion_item_type(definition: ast.Definition):
     return kind
 
 
-# @server.feature(types.TEXT_DOCUMENT_INLAY_HINT)
-# def inlay_hints(params: types.InlayHintParams):
-#     print("GET INLAY HINTS", params)
-#     items = []
-#     for row in range(params.range.start.line, params.range.end.line):
-#         items.append(
-#             types.InlayHint(
-#                 label="W))T",
-#                 kind=types.InlayHintKind.Type,
-#                 padding_left=False,
-#                 padding_right=True,
-#                 position=types.Position(line=row, character=0),
-#             )
-#         )
-#     return items
+@server.feature(types.TEXT_DOCUMENT_INLAY_HINT)
+def inlay_hints(params: types.InlayHintParams):
+    logger.debug(f"GET INLAY HINTS: {params=}")
+    items = []
+    # for row in range(params.range.start.line, params.range.end.line):
+    # TODO: Insert inferred types into document
+    # items.append(
+    #     types.InlayHint(
+    #         label="W))T",
+    #         kind=types.InlayHintKind.Type,
+    #         padding_left=False,
+    #         padding_right=True,
+    #         position=types.Position(line=1, character=2),
+    #     )
+    # )
+    return items
+
+
+def lefted(p: types.Position, amount: int) -> types.Position:
+    if p.character > amount:
+        return types.Position(p.line, p.character - amount)
+    else:
+        return p
+
+
+@server.feature(
+    "textDocument/signatureHelp",
+    types.SignatureHelpOptions(trigger_characters=["(", ","]),
+)
+def signature_help(ls: LanguageServer, params: types.SignatureHelpParams):
+    logger.info(f"signature_help: {params=}")
+    document = ls.workspace.get_text_document(params.text_document.uri)
+    filename = to_fs_path(document.uri)
+    name = document.word_at_position(lefted(params.position, 1))
+    position = make_slang_position(params.position)
+    obj = db.lookup(filename, position, name)
+    if obj:
+        logger.debug(f"Resolved {name} to {obj=}")
+        if isinstance(obj, ast.FunctionDef):
+            return types.SignatureHelp(
+                [function_def_to_signature(obj)], active_signature=0, active_parameter=0
+            )
+    else:
+        logger.debug(f"Could not resolve {name=}")
+
+
+def function_def_to_signature(
+    function_def: ast.FunctionDef,
+) -> types.SignatureInformation:
+    parameters = []
+    arg_texts = []
+    for p in function_def.parameters:
+        parameters.append(
+            types.ParameterInformation(label=p.id.name, documentation="cool beans!")
+        )
+        arg_texts.append(f"{p.id.name}: {p.ty}")
+    args = ", ".join(arg_texts)
+    full_signature = f"{function_def.id.name}({args}) -> {function_def.return_ty}"
+    return types.SignatureInformation(
+        label=full_signature,
+        documentation=function_def.docstring,
+        parameters=parameters,
+    )
+
+
+@server.feature(
+    "textDocument/hover",
+)
+def hover(ls: LanguageServer, params: types.HoverParams) -> types.Hover:
+    document = ls.workspace.get_text_document(params.text_document.uri)
+    filename = to_fs_path(document.uri)
+    name = document.word_at_position(params.position)
+    if not name:
+        return
+
+    # Check what object we hover over and give some nicely formatted information
+    position = make_slang_position(params.position)
+    obj = db.lookup(filename, position, name)
+    if obj:
+        logger.debug(f"Resolved {name} to {obj=}")
+        if isinstance(obj, ast.FunctionDef):
+            sig = function_def_to_signature(obj)
+            return types.Hover(contents=[sig.label, sig.documentation])
+        elif isinstance(obj, ast.StructDef):
+            contents = types.MarkupContent(
+                kind=types.MarkupKind.Markdown,
+                value=f"# struct {obj.id.name}\n {obj.docstring}",
+            )
+            return types.Hover(contents=contents)
+            # ,range=make_lsp_range()
+    else:
+        logger.debug(f"Could not resolve {name=}")
 
 
 @server.feature(types.TEXT_DOCUMENT_DOCUMENT_SYMBOL)
@@ -262,9 +398,9 @@ def document_symbols(params: types.DocumentSymbolParams):
     document_uri = params.text_document.uri
     filename = to_fs_path(document_uri)
     symbols = []
-    if filename in db._file_modules:
-        module = db._file_modules[filename]
-        for definition in module.definitions:
+    if filename in db._file_infos:
+        info = db._file_infos[filename]
+        for definition in info.module.definitions:
             symbols.append(definition_to_symbol(definition))
     return symbols
 
@@ -310,9 +446,7 @@ def definition_to_symbol(definition: ast.Definition):
 def definition(ls: LanguageServer, params: types.DefinitionParams):
     text_doc = ls.workspace.get_text_document(params.text_document.uri)
     filename = to_fs_path(text_doc.uri)
-    row = params.position.line + 1
-    column = params.position.character + 1
-    pos = db.get_definition(filename, SlangPosition(row, column))
+    pos = db.get_definition(filename, make_slang_position(params.position))
     if pos:
         filename, loc = pos
         loc2 = types.Location(uri=from_fs_path(filename), range=make_lsp_range(loc))
@@ -321,12 +455,14 @@ def definition(ls: LanguageServer, params: types.DefinitionParams):
 
 @server.feature(types.TEXT_DOCUMENT_DID_OPEN)
 async def did_open(ls: LanguageServer, params: types.DidOpenTextDocumentParams):
-    await db.validate(ls, params, delay=0)
+    logger.debug("Doc open")
+    await db.validate(ls, params, delay=1)
 
 
 @server.feature(types.TEXT_DOCUMENT_DID_CHANGE)
 async def did_change(ls: LanguageServer, params: types.DidChangeTextDocumentParams):
-    await db.validate(ls, params, delay=1)
+    logger.debug("Doc change")
+    await db.validate(ls, params, delay=15)
 
 
 @server.feature(types.TEXT_DOCUMENT_DID_CLOSE)
@@ -342,17 +478,19 @@ async def validator_task(ls: LanguageServer, filename, code, delay):
     logger.info("Start compilation!")
     filenames, ex = await ls.loop.run_in_executor(None, _cpu_validate, filename, code)
 
-    diagnostic_per_file = {}
+    diagnostics_per_file = {}
     # Create empty diagnostic lists per file:
     for filename in filenames:
         if isinstance(filename, tuple):
             filename = filename[0]
         uri = from_fs_path(filename)
-        if uri not in diagnostic_per_file:
-            diagnostic_per_file[uri] = []
+        if uri not in diagnostics_per_file:
+            diagnostics_per_file[uri] = []
 
     if ex:
+        logger.debug("Compilation errors occurred")
         for filename, location, message in ex.errors:
+            logger.debug(f"Error: {location} {message}")
             message = str(rich.text.Text.from_markup(message))
             diagnostic = types.Diagnostic(
                 range=make_lsp_range(location),
@@ -360,12 +498,12 @@ async def validator_task(ls: LanguageServer, filename, code, delay):
                 message=message,
             )
             uri = from_fs_path(filename)
-            if uri in diagnostic_per_file:
-                diagnostic_per_file[uri].append(diagnostic)
+            if uri in diagnostics_per_file:
+                diagnostics_per_file[uri].append(diagnostic)
             else:
-                diagnostic_per_file[uri] = [diagnostic]
+                diagnostics_per_file[uri] = [diagnostic]
 
-    for uri, diagnostics in diagnostic_per_file.items():
+    for uri, diagnostics in diagnostics_per_file.items():
         ls.publish_diagnostics(uri, diagnostics)
 
 
@@ -444,6 +582,11 @@ def make_lsp_position(location: SlangPosition) -> types.Position:
     return types.Position(location.row - 1, location.column - 1)
 
 
+def make_slang_position(position: types.Position) -> SlangPosition:
+    """Convert LSP position into Slang-lang position"""
+    return SlangPosition(position.line + 1, position.character + 1)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Language server for Slang-Lang.")
     parser.add_argument("--port", type=int, default=8339)
@@ -453,13 +596,18 @@ def main():
     )
     args = parser.parse_args()
 
+    # Configure logging
+    logging.getLogger("pygls").setLevel(logging.WARNING)
+    logging.getLogger("namebinding").setLevel(logging.INFO)
+    logging.getLogger("parser").setLevel(logging.INFO)
+    logging.getLogger("basepass").setLevel(logging.INFO)
+    logformat = "%(asctime)s | %(levelname)8s | %(name)10.10s | %(message)s"
+    # Note: basicConfig creates a logger writing to stderr
+    # so it works even if we communicate via stdio
+    logging.basicConfig(level=logging.DEBUG, format=logformat)
+    logger.info("Starting slang-lang language server")
+
     if args.tcp:
-        logging.getLogger("pygls.protocol").setLevel(logging.WARNING)
-        logging.getLogger("namebinding").setLevel(logging.INFO)
-        logging.getLogger("parser").setLevel(logging.INFO)
-        logging.getLogger("basepass").setLevel(logging.INFO)
-        logformat = "%(asctime)s | %(levelname)8s | %(name)10.10s | %(message)s"
-        logging.basicConfig(level=logging.DEBUG, format=logformat)
         server.start_tcp("127.0.0.1", args.port)
     else:
         server.start_io()
@@ -467,4 +615,5 @@ def main():
     loop.run_until_complete(db.stop_validation())
 
 
-main()
+if __name__ == "__main__":
+    main()

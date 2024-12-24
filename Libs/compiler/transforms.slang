@@ -705,7 +705,7 @@ class ClassRewriter:
             None:
                 let init_literal = ast.struct_literal(ty: struct_type, values: init_values, location: class_def.location)
                 let body = ast.return_statement(value: Option.Some(init_literal), location: class_def.location)
-                ctor_func = ast.function_def(is_pub: true, name: ctor_name, type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
+                ctor_func = ast.function_def(is_pub: true, name: ctor_name, docstring: Option.None(), type_parameters, this_parameter: Option.None(), parameters, return_type: struct_type, except_type, body, location: class_def.location)
 
         # Use node-id to store constructor:
         ctor_map.insert(key: class_def.id, value: ctor_func)
@@ -1242,7 +1242,7 @@ class ClassRewriter:
                 value = ast.box(value, location)
             body = ast.return_statement(value: Option.Some(value), location)
 
-        let bridge_function = ast.function_def(is_pub: true, name: bridge_function_name, type_parameters, this_parameter: Option.None(), parameters, return_type: return_type2, except_type, body, location)
+        let bridge_function = ast.function_def(is_pub: true, name: bridge_function_name, docstring: Option.None(), type_parameters, this_parameter: Option.None(), parameters, return_type: return_type2, except_type, body, location)
         # TODO: we could insert duplicate bridge functions.
         # TODO: check for duplicate bridge functions.
         new_definitions.append(ast.Definition.Function(bridge_function))

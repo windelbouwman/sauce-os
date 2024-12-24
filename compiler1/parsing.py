@@ -184,7 +184,7 @@ class CustomTransformer(LarkTransformer):
         assert is_terminal(x[3], "COLON")
         assert is_terminal(x[4], "NEWLINE")
         assert is_terminal(x[5], "INDENT")
-        _docstring = x[6]
+        docstring = x[6]
         members = x[7:-1]
         assert is_terminal(x[-1], "DEDENT")
         this_type = ast.void_type.clone()
@@ -196,7 +196,7 @@ class CustomTransformer(LarkTransformer):
                 member.this_parameter = this_parameter
         span = get_loc2(x[5], x[-1])
         class_def = ast.class_def(
-            self.new_id(name), type_parameters, members, location, span
+            self.new_id(name), docstring, type_parameters, members, location, span
         )
 
         # Update the type of the 'this' parameter
@@ -234,7 +234,7 @@ class CustomTransformer(LarkTransformer):
         assert is_terminal(x[4], "COLON")
         assert is_terminal(x[5], "NEWLINE")
         assert is_terminal(x[6], "INDENT")
-        _docstring = x[7]
+        docstring = x[7]
         statements = x[8:-1]
         span = get_loc2(x[4], x[-1])
         body = ast.compound_statement(statements, get_loc(x[6]))
@@ -242,6 +242,7 @@ class CustomTransformer(LarkTransformer):
 
         return ast.function_def(
             self.new_id(name),
+            docstring,
             type_parameters,
             parameters,
             return_type,
@@ -311,12 +312,18 @@ class CustomTransformer(LarkTransformer):
         assert is_terminal(x[3], "COLON")
         assert is_terminal(x[4], "NEWLINE")
         assert is_terminal(x[5], "INDENT")
-        _docstring = x[6]
+        docstring = x[6]
         fields = x[7:-1]
         assert is_terminal(x[-1], "DEDENT")
         span = get_loc2(x[5], x[-1])
         return ast.StructDef(
-            self.new_id(name), type_parameters, is_union, fields, location, span
+            self.new_id(name),
+            docstring,
+            type_parameters,
+            is_union,
+            fields,
+            location,
+            span,
         )
 
     def struct_field(self, x):
@@ -329,11 +336,13 @@ class CustomTransformer(LarkTransformer):
         assert is_terminal(x[3], "COLON")
         assert is_terminal(x[4], "NEWLINE")
         assert is_terminal(x[5], "INDENT")
-        _docstring = x[6]
+        docstring = x[6]
         variants = x[7:-1]
         assert is_terminal(x[-1], "DEDENT")
         span = get_loc2(x[5], x[-1])
-        return ast.EnumDef(self.new_id(name), type_parameters, variants, location, span)
+        return ast.EnumDef(
+            self.new_id(name), docstring, type_parameters, variants, location, span
+        )
 
     def enum_variant(self, x):
         name = x[0].value
@@ -384,15 +393,31 @@ class CustomTransformer(LarkTransformer):
             return ast.function_type(
                 parameter_names, parameter_types, return_type, except_type
             )
+        elif is_terminal(x[0], "LEFT_BRACKET"):
+            element_type = x[1]
+            assert is_terminal(x[2], "RIGHT_BRACKET")
+            return ast.array_type(0, element_type)
+        elif isinstance(x[0], ast.QualName):
+            if len(x) == 1:
+                return ast.name_ref_type(x[0])
+            else:
+                tycon = x[0]
+                assert is_terminal(x[1], "LEFT_BRACKET")
+                type_arguments = x[2]
+                assert is_terminal(x[3], "RIGHT_BRACKET")
+                return ast.Type(ast.AbstractApp(tycon, type_arguments))
         else:
-            assert isinstance(x[0], ast.Expression)
-            return ast.type_expression(x[0])
+            raise ValueError("Invalid type")
 
     def types(self, x):
         if len(x) == 1:
             return x
         else:
             return x[0] + [x[2]]
+
+    def qual_name(self, x):
+        names = [(get_loc(n), n.value) for n in x[::2]]
+        return ast.QualName(names)
 
     def parameter(self, x):
         # ID QUESTION? COLON typ
@@ -831,8 +856,11 @@ id_and_type_parameters: ID type_parameters?
 type_parameters: LEFT_BRACKET ids RIGHT_BRACKET
 types: typ
      | types COMMA typ
-typ: expression
+typ: LEFT_BRACKET typ RIGHT_BRACKET
    | KW_FN LEFT_PARENTHESIS types? RIGHT_PARENTHESIS (ARROW typ)?
+   | qual_name
+   | qual_name LEFT_BRACKET types RIGHT_BRACKET
+qual_name: ID (DOT ID)*
 ids: ID
    | ids COMMA ID
 

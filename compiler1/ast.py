@@ -39,8 +39,9 @@ class Definition(Node):
 
 
 class ScopedDefinition(Definition):
-    def __init__(self, id: Id, location: Location, span: Span):
+    def __init__(self, id: Id, docstring: str, location: Location, span: Span):
         super().__init__(id, location)
+        self.docstring = docstring
         self.scope = Scope(span)
 
 
@@ -151,6 +152,20 @@ class Type:
 
     def is_type_parameter_ref(self) -> bool:
         return isinstance(self.kind, TypeParameterKind)
+
+    def get_inner_definitions(self) -> list["Definition"]:
+        """retrieve inner definition from this type."""
+        if isinstance(self.kind, App):
+            if isinstance(self.kind.tycon, StructDef):
+                return self.kind.tycon.fields
+            elif isinstance(self.kind.tycon, ClassDef):
+                return self.kind.tycon.members
+            elif isinstance(self.kind.tycon, EnumDef):
+                return self.kind.tycon.variants
+            else:
+                return []
+        else:
+            []
 
     def has_field(self, name: str) -> bool:
         if isinstance(self.kind, App):
@@ -281,9 +296,14 @@ class TypeConstructor(ScopedDefinition):
     """
 
     def __init__(
-        self, id: Id, location: Location, type_parameters: list["TypeParameter"], span
+        self,
+        id: Id,
+        docstring: str,
+        location: Location,
+        type_parameters: list["TypeParameter"],
+        span,
     ):
-        super().__init__(id, location, span)
+        super().__init__(id, docstring, location, span)
         self.type_parameters = type_parameters
 
     def apply(self, type_arguments: list["Type"]) -> Type:
@@ -298,6 +318,29 @@ class TypeConstructor(ScopedDefinition):
 
     def equals(self, other: "TypeConstructor") -> bool:
         raise NotImplementedError()
+
+
+class UnApp(TypeKind):
+    """Unapplied type application.
+
+    Useful when tycon is used as a type.
+    """
+
+    def __init__(self, tycon: TypeConstructor):
+        super().__init__()
+        self.tycon = tycon
+
+
+class AbstractApp(TypeKind):
+    """Abstract type application.
+
+    Useful when tycon is a qualified name and must be resolved.
+    """
+
+    def __init__(self, tycon, type_args: list["Type"]):
+        super().__init__()
+        self.tycon = tycon
+        self.type_args = type_args
 
 
 class App(TypeKind):
@@ -319,6 +362,13 @@ class App(TypeKind):
             return f"A({self.tycon}{self.type_args})"
         else:
             return f"A({self.tycon})"
+
+    def __str__(self):
+        if self.type_args:
+            txt = ",".join(str(a) for a in self.type_args)
+            return f"{self.tycon}[{txt}]"
+        else:
+            return str(self.tycon)
 
 
 class TypeFunc(TypeConstructor):
@@ -369,17 +419,22 @@ class BaseType(TypeKind):
         return self.name == "bool"
 
 
-def type_expression(expr: "Expression"):
-    return Type(TypeExpression(expr))
+class QualName:
+    def __init__(self, names: list[str]):
+        self.names = names
 
 
-class TypeExpression(TypeKind):
-    def __init__(self, expr: "Expression"):
+def name_ref_type(qual_name: "QualName"):
+    return Type(NameRefType(qual_name))
+
+
+class NameRefType(TypeKind):
+    def __init__(self, qual_name: "QualName"):
         super().__init__()
-        self.expr = expr
+        self.qual_name = qual_name
 
     def __repr__(self):
-        return f"type-expr<{self.expr}>"
+        return f"name-ref<{self.qual_name}>"
 
 
 class VoidType(TypeKind):
@@ -507,10 +562,14 @@ def type_parameter_ref(type_parameter: "TypeParameter") -> Type:
 class TypeParameterKind(TypeKind):
     def __init__(self, type_parameter: "TypeParameter"):
         super().__init__()
+        assert isinstance(type_parameter, TypeParameter)
         self.type_parameter = type_parameter
 
     def __repr__(self):
         return f"TypeParameter({self.type_parameter.id})"
+
+    def __str__(self):
+        return self.type_parameter.id.name
 
 
 str_type = base_type("str")
@@ -663,24 +722,26 @@ class TypeDef(Definition):
 
 def class_def(
     id: Id,
+    docstring: str,
     type_parameters: list[TypeParameter],
     members: list["Definition"],
     location: Location,
     span: Span,
 ):
-    return ClassDef(id, type_parameters, members, location, span)
+    return ClassDef(id, docstring, type_parameters, members, location, span)
 
 
 class ClassDef(TypeConstructor):
     def __init__(
         self,
         id: Id,
+        docstring: str,
         type_parameters: list[TypeParameter],
         members: list["Definition"],
         location: Location,
         span: Span,
     ):
-        super().__init__(id, location, type_parameters, span)
+        super().__init__(id, docstring, location, type_parameters, span)
         self.members = members
         self.scope.has_this_context = True
 
@@ -691,6 +752,9 @@ class ClassDef(TypeConstructor):
 
     def __repr__(self):
         return f"class-{self.id}"
+
+    def __str__(self):
+        return self.id.name
 
     def get_type(self, type_arguments: list[Type]):
         return class_type(self, type_arguments)
@@ -733,6 +797,7 @@ class VarDef(Definition):
 
 def function_def(
     id: Id,
+    docstring: str,
     type_parameters: list[TypeParameter],
     parameters: list["Parameter"],
     return_ty: Type,
@@ -743,6 +808,7 @@ def function_def(
 ):
     return FunctionDef(
         id,
+        docstring,
         type_parameters,
         parameters,
         return_ty,
@@ -757,6 +823,7 @@ class FunctionDef(ScopedDefinition):
     def __init__(
         self,
         id: Id,
+        docstring: str,
         type_parameters: list[TypeParameter],
         parameters: list["Parameter"],
         return_ty: Type,
@@ -765,7 +832,7 @@ class FunctionDef(ScopedDefinition):
         location: Location,
         span: Span,
     ):
-        super().__init__(id, location, span)
+        super().__init__(id, docstring, location, span)
         assert isinstance(statement, Statement)
         self.type_parameters = type_parameters
         self.parameters: list[Parameter] = parameters
@@ -812,13 +879,14 @@ class StructDef(TypeConstructor):
     def __init__(
         self,
         id: Id,
+        docstring: str,
         type_parameters: list[TypeParameter],
         is_union: bool,
         fields: list["StructFieldDef"],
         location: Location,
         span: Span,
     ):
-        super().__init__(id, location, type_parameters, span)
+        super().__init__(id, docstring, location, type_parameters, span)
         self.is_union = is_union
         for index, field in enumerate(fields):
             field.index = index
@@ -827,6 +895,9 @@ class StructDef(TypeConstructor):
     def __repr__(self):
         t = "union" if self.is_union else "struct"
         return f"{t}-{self.id}"
+
+    def __str__(self):
+        return self.id.name
 
     def has_field(self, name: str) -> bool:
         if isinstance(name, int):
@@ -879,6 +950,7 @@ class StructBuilder:
     def finish(self) -> StructDef:
         struct_def = StructDef(
             self.id,
+            "",
             self.type_parameters,
             self.is_union,
             self.fields,
@@ -895,12 +967,13 @@ class EnumDef(TypeConstructor):
     def __init__(
         self,
         id: Id,
+        docstring: str,
         type_parameters: list[TypeParameter],
         variants: list["EnumVariant"],
         location: Location,
         span: Span,
     ):
-        super().__init__(id, location, type_parameters, span)
+        super().__init__(id, docstring, location, type_parameters, span)
 
         # Assign index to variants:
         for idx, variant in enumerate(variants):
@@ -910,6 +983,9 @@ class EnumDef(TypeConstructor):
 
     def __repr__(self):
         return f"Enum-{self.id}"
+
+    def __str__(self):
+        return self.id.name
 
     def get_type(self, type_arguments: list[Type]) -> Type:
         return enum_type(self, type_arguments)
@@ -1460,15 +1536,6 @@ class ToString(ExpressionKind):
         self.expr = expr
 
 
-class GenericLiteral(ExpressionKind):
-    def __init__(self, tycon: TypeConstructor):
-        super().__init__()
-        self.tycon = tycon
-
-    def __repr__(self):
-        return f"generic-literal({self.tycon})"
-
-
 class TypeLiteral(ExpressionKind):
     def __init__(self, ty: Type):
         super().__init__()
@@ -1690,9 +1757,7 @@ class AstVisitor:
             raise NotImplementedError(str(node))
 
     def visit_type(self, ty: Type):
-        if isinstance(ty.kind, TypeExpression):
-            self.visit_expression(ty.kind.expr)
-        elif isinstance(ty.kind, App):
+        if isinstance(ty.kind, (App, AbstractApp)):
             for type_arg in ty.kind.type_args:
                 self.visit_type(type_arg)
         elif isinstance(ty.kind, ArrayType):

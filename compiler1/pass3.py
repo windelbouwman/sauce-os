@@ -18,17 +18,9 @@ class TypeEvaluation(BasePass):
 
     def visit_type(self, ty: ast.Type):
         super().visit_type(ty)
-        if isinstance(ty.kind, ast.TypeExpression):
-            ty.change_to(self.eval_type_expr(ty.kind.expr))
 
-    def eval_type_expr(self, expression: ast.Expression) -> ast.Type:
-        """Evaluate a type expression."""
-        ty = try_as_type(expression)
-        if ty:
-            return ty
-        else:
-            self.error(expression.location, f"Invalid type: {expression.kind}")
-            return ast.void_type
+        if isinstance(ty.kind, ast.UnApp):
+            ty.change_to(ty.kind.tycon.apply2())
 
     def tycon_apply(
         self,
@@ -77,18 +69,15 @@ class TypeEvaluation(BasePass):
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
             if isinstance(obj, ast.TypeConstructor):
-                expression.kind = ast.GenericLiteral(obj)
+                # TODO: check if we can omit type arguments.
+                # Omitting type arguments relaxes the requirements on types you must provide. It's noice.
+                ty = obj.apply2()
+                expression.kind = ast.TypeLiteral(ty)
+
             elif isinstance(obj, ast.Type):
                 expression.kind = ast.TypeLiteral(obj)
             elif isinstance(obj, ast.TypeParameter):
                 expression.kind = ast.TypeLiteral(ast.type_parameter_ref(obj))
-
-        elif isinstance(kind, ast.ArrayIndex):
-            if isinstance(kind.base.kind, ast.GenericLiteral):
-                tycon = kind.base.kind.tycon
-                type_arguments = [self.eval_type_expr(index) for index in kind.indici]
-                ty = self.tycon_apply(expression.location, tycon, type_arguments)
-                expression.kind = ast.TypeLiteral(ty)
 
 
 class NewOpPass(BasePass):
@@ -102,7 +91,6 @@ class NewOpPass(BasePass):
         if isinstance(expression.kind, ast.FunctionCall):
             # Fixup new-op operation
 
-            #  = kind.new_ty
             ty = try_as_type(expression.kind.target)
 
             if ty:
@@ -144,23 +132,4 @@ class NewOpPass(BasePass):
 
 def try_as_type(expression: ast.Expression):
     if isinstance(expression.kind, ast.TypeLiteral):
-        ty = expression.kind.ty
-    elif isinstance(expression.kind, ast.GenericLiteral):
-        # TODO: check if we can omit type arguments.
-        # Omitting type arguments relaxes the requirements on types you must provide. It's noice.
-        # if len(expression.kind.tycon.type_parameters) == 0:
-        ty = expression.kind.tycon.apply2()
-        # else:
-        #    ty = None
-    elif isinstance(expression.kind, ast.ArrayLiteral):
-        if len(expression.kind.values) == 1:
-            element_type = try_as_type(expression.kind.values[0])
-            if element_type:
-                ty = ast.array_type(None, element_type)
-            else:
-                ty = None
-        else:
-            ty = None
-    else:
-        ty = None
-    return ty
+        return expression.kind.ty

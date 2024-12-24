@@ -340,8 +340,6 @@ class TypeChecker(BasePass):
             expression.ty = kind.class_ty.clone()
         elif isinstance(kind, ast.TypeLiteral):
             self.error(expression.location, "Unexpected type")
-        elif isinstance(kind, ast.GenericLiteral):
-            self.error(expression.location, "Unexpected generic")
         elif isinstance(kind, ast.SemiEnumLiteral):
             self.error(expression.location, "Unexpected enum variant constructor")
         elif isinstance(kind, ast.ObjRef):

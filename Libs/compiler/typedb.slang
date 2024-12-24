@@ -469,7 +469,7 @@ class SymbolLoader:
             m_des.pop_value()
         m_this_type = Option.None()
 
-        let class_def = ast.ClassDef(is_pub, id, location, is_extern: Option.Some(m_libname), type_parameters, definitions, scope: ast.Scope())
+        let class_def = ast.ClassDef(is_pub, id, docstring: Option.None(), location, is_extern: Option.Some(m_libname), type_parameters, definitions, scope: ast.Scope())
 
         # Patch the this type:
         let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: type_parameters.len())

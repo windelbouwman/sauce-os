@@ -656,6 +656,7 @@ class ClassRewriter(BaseTransformer):
         except_type = ast.void_type
         ctor_func = ast.function_def(
             self.new_id(f"{class_def.id.name}_ctor"),
+            "ctor",
             type_parameters,
             ctor_parameters,
             struct_type,

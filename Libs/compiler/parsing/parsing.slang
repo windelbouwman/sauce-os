@@ -276,6 +276,7 @@ class Parser:
         let class_def = ast.ClassDef:
             is_pub
             id: ast.NodeId(name: name_at.name, id: new_id())
+            docstring
             location: name_at.location
             is_extern: Option.None()
             type_parameters
@@ -311,7 +312,7 @@ class Parser:
         let location = inner.first().location
         let body = ast.compound(inner, location)
 
-        ast.function_def(is_pub, name: name_at.name, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
+        ast.function_def(is_pub, name: name_at.name, docstring, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
     
     fn parse_extern_func_def(libname: str) -> ast.FunctionDef except CompilationError:
         let is_pub = true

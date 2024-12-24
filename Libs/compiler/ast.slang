@@ -918,6 +918,7 @@ pub fn extern_function_def(is_pub: bool, libname: str, name: str, type_parameter
 
     FunctionDef:
         name
+        docstring: Option.None()
         is_pub
         info
         type_parameters
@@ -1147,6 +1148,7 @@ pub struct EnumVariant:
 pub struct ClassDef:
     is_pub: bool
     id: NodeId
+    docstring: Option[str]
     location: Location
     is_extern: Option[str]
     type_parameters: List[TypeParameter]
@@ -1156,13 +1158,14 @@ pub struct ClassDef:
 fn class_def_to_str(class_def: ClassDef) -> str:
     "class({node_id_to_string(class_def.id)})"
 
-pub fn function_def(is_pub: bool, name: str, type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
+pub fn function_def(is_pub: bool, name: str, docstring: Option[str], type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
     let info = FunctionInfo:
         return_type
         except_type
 
     FunctionDef:
         name
+        docstring
         is_pub
         info
         type_parameters
@@ -1178,6 +1181,7 @@ pub struct FunctionInfo:
 pub struct FunctionDef:
     # modname: str
     name: str
+    docstring: Option[str]
     # id: NodeId
     is_pub: bool
     info: FunctionInfo

@@ -246,6 +246,25 @@ class NameBinder(BasePass):
         if scope:
             self.leave_scope()
 
+    def visit_type(self, ty: ast.Type):
+        super().visit_type(ty)
+        if isinstance(ty.kind, ast.NameRefType):
+            obj = self.resolve_qual_name(ty.kind.qual_name)
+            if isinstance(obj, ast.Type):
+                ty.change_to(obj)
+            elif isinstance(obj, ast.TypeConstructor):
+                ty.kind = ast.UnApp(obj)
+            elif isinstance(obj, ast.TypeParameter):
+                ty.kind = ast.TypeParameterKind(obj)
+            else:
+                raise ValueError(f"Invalid type: {obj}")
+        elif isinstance(ty.kind, ast.AbstractApp):
+            obj = self.resolve_qual_name(ty.kind.tycon)
+            if isinstance(obj, ast.TypeConstructor):
+                ty.kind = ast.App(obj, ty.kind.type_args)
+            else:
+                raise ValueError("Invalid type constructor: {obj}")
+
     def visit_expression(self, expression: ast.Expression):
         super().visit_expression(expression)
         kind = expression.kind
@@ -263,15 +282,14 @@ class NameBinder(BasePass):
                         self.error(expression.location, f"No such field: {kind.field}")
 
     def enter_scope(self, scope: ast.Scope):
-        self._scopes.append(scope)
+        self._scopes.insert(0, scope)
 
     def leave_scope(self):
-        self._scopes.pop()
+        self._scopes.pop(0)
 
     def check_name(self, name: str, location: Location) -> ast.ExpressionKind:
         assert isinstance(name, str), str(type(name))
-        scope = self._scopes[-1]
-        for scope in reversed(self._scopes):
+        for scope in self._scopes:
             if scope.is_defined(name):
                 obj = scope.lookup(name)
                 assert obj
@@ -289,10 +307,18 @@ class NameBinder(BasePass):
         self.error(location, f"Undefined symbol: {name}")
         return ast.Undefined()
 
-    def lookup2(self, name: str, location: Location):
-        for scope in reversed(self._scopes):
-            if scope.is_defined(name):
-                obj = scope.lookup(name)
-                return ast.obj_ref(obj, ast.undefined_type(), location)
+    def lookup2(self, name: str, location: Location) -> ast.Expression:
+        obj = self.lookup(name)
+        return ast.obj_ref(obj, ast.undefined_type(), location)
 
+    def resolve_qual_name(self, qual_name: ast.QualName):
+        sym = self.lookup(qual_name.names[0][1])
+        for location, attr in qual_name.names[1:]:
+            sym = sym.get_field(attr)
+        return sym
+
+    def lookup(self, name: str):
+        for scope in self._scopes:
+            if scope.is_defined(name):
+                return scope.lookup(name)
         raise KeyError(name)
