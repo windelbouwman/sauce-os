@@ -1,5 +1,4 @@
-""" Main entry point to the compiler.
-"""
+"""Main entry point to the compiler."""
 
 import sys
 from rich.logging import RichHandler
@@ -46,7 +45,7 @@ def main() -> int:
     logging.basicConfig(
         level=loglevel, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
     )
-    logger = logging.getLogger("main")
+    logger = logging.getLogger("slangc")
 
     options = compiler.CompilationOptions(
         dump_ast=args.dump_ast,

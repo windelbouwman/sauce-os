@@ -4,7 +4,7 @@ from .errors import CompilationError
 from .location import Location
 from . import ast
 
-logger = logging.getLogger("basepass")
+logger = logging.getLogger("slangc.basepass")
 
 
 class BasePass(ast.AstVisitor):

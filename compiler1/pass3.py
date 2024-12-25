@@ -3,12 +3,9 @@
 TODO: figure out better name.
 """
 
-import logging
 from . import ast
 from .location import Location
 from .basepass import BasePass
-
-logger = logging.getLogger("pass3")
 
 
 class TypeEvaluation(BasePass):

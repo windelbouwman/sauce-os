@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from . import ast
 from .location import Location, Span
 
-logger = logging.getLogger("transforms")
+logger = logging.getLogger("slangc.transforms")
 
 
 class BaseTransformer(ast.AstVisitor):

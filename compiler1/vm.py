@@ -1,4 +1,4 @@
-""" Virtual machine to run byte-code.
+"""Virtual machine to run byte-code.
 
 Having a virtual machine is a way for bootstrapping
 a compiler.
@@ -10,7 +10,7 @@ from .builtins import get_builtins
 from .bc import Program, Function, OpCode, Typ
 from . import bc
 
-logger = logging.getLogger("vm")
+logger = logging.getLogger("slangc.vm")
 
 
 def run_bytecode(prog: Program, f):

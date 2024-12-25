@@ -14,7 +14,7 @@ from .lexer import detect_indentations, tokenize
 from .location import Location, Position
 from .errors import ParseError, CompilationError
 
-logger = logging.getLogger("parser")
+logger = logging.getLogger("slangc.parser")
 
 
 def parse_file(id_context: ast.IdContext, filename: str) -> ast.Module:

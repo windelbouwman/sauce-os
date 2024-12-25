@@ -21,14 +21,16 @@ fn main() -> int:
 
     0
 
-fn foo(a: int, b: int) -> int:
-    let p = Position()
-    a - b
+fn foo(a: int, b: int) -> Position:
+    let pos = Position()
+    pos.y = a - b
+    pos.up(amount: 5)
+    pos
 
 class Position:
     var y: int = 0
-    fn up():
-        y += 1
+    fn up(amount: int):
+        y += amount
 
     fn down():
         y -= 1
@@ -81,25 +83,89 @@ async def test_signature_of_foo(client: LanguageClient):
         params=lsptypes.SignatureHelpParams(
             position=lsptypes.Position(line=2, character=15),
             text_document=lsptypes.TextDocumentIdentifier(uri=example_uri),
+            context=lsptypes.SignatureHelpContext(
+                trigger_kind=lsptypes.SignatureHelpTriggerKind.TriggerCharacter,
+                trigger_character="(",
+                is_retrigger=False,
+            ),
         )
     )
 
     assert len(result.signatures) > 0
-    assert result.signatures[0].label == "foo(a: int, b: int) -> int"
+    assert result.signatures[0].label == "foo(a: int, b: int) -> Position"
     assert result.signatures[0].parameters[0].label == "a"
     assert result.signatures[0].parameters[1].label == "b"
 
 
 @pytest.mark.asyncio
-async def test_completion_in_example(client: LanguageClient):
+async def test_signature_of_up_method(client: LanguageClient):
+    result = await client.text_document_signature_help_async(
+        params=lsptypes.SignatureHelpParams(
+            position=lsptypes.Position(line=10, character=10),
+            text_document=lsptypes.TextDocumentIdentifier(uri=example_uri),
+            context=lsptypes.SignatureHelpContext(
+                trigger_kind=lsptypes.SignatureHelpTriggerKind.TriggerCharacter,
+                trigger_character="(",
+                is_retrigger=False,
+            ),
+        )
+    )
+
+    assert len(result.signatures) > 0
+    assert result.signatures[0].label == "up(amount: int) -> void"
+    assert result.signatures[0].parameters[0].label == "amount"
+
+
+@pytest.mark.asyncio
+async def test_invoked_completion(client: LanguageClient):
     # Retrieve completion suggestion:
     result = await client.text_document_completion_async(
         params=lsptypes.CompletionParams(
             position=lsptypes.Position(line=5, character=23),
             text_document=lsptypes.TextDocumentIdentifier(uri=example_uri),
+            context=lsptypes.CompletionContext(
+                trigger_kind=lsptypes.CompletionTriggerKind.Invoked,
+            ),
         )
     )
 
     assert len(result.items) > 0
     assert result.items[0].label == "main"
     assert result.items[1].label == "foo"
+
+
+@pytest.mark.asyncio
+async def test_dot_completion(client: LanguageClient):
+    """Retrieve completion suggestion after typing a '.' after 'pos'"""
+    result = await client.text_document_completion_async(
+        params=lsptypes.CompletionParams(
+            position=lsptypes.Position(line=10, character=7),
+            text_document=lsptypes.TextDocumentIdentifier(uri=example_uri),
+            context=lsptypes.CompletionContext(
+                trigger_kind=lsptypes.CompletionTriggerKind.TriggerCharacter,
+                trigger_character=".",
+            ),
+        )
+    )
+
+    assert len(result.items) > 0
+    assert result.items[0].label == "y"
+    assert result.items[1].label == "up"
+    assert result.items[2].label == "down"
+
+
+@pytest.mark.asyncio
+async def test_go_to_definition(client: LanguageClient):
+    """Test go to the definition of the 'up' method."""
+    result = await client.text_document_definition_async(
+        params=lsptypes.DefinitionParams(
+            position=lsptypes.Position(line=10, character=10),
+            text_document=lsptypes.TextDocumentIdentifier(uri=example_uri),
+        )
+    )
+
+    assert result.uri == example_uri
+    assert result.range.start.line == 15
+    assert result.range.start.character == 7
+    assert result.range.end.line == 15
+    assert result.range.end.character == 9

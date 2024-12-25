@@ -6,7 +6,7 @@ from . import ast
 from .basepass import BasePass
 from .location import Location
 
-logger = logging.getLogger("typechecker")
+logger = logging.getLogger("slangc.typechecker")
 
 
 class TypeChecker(BasePass):

@@ -7,7 +7,7 @@ import rich.markup
 from typing import Optional
 from .location import Location, Span
 
-logger = logging.getLogger("ast")
+logger = logging.getLogger("slangc.ast")
 
 
 class Node:
@@ -153,6 +153,12 @@ class Type:
     def is_type_parameter_ref(self) -> bool:
         return isinstance(self.kind, TypeParameterKind)
 
+    def get_inner_definition(self, attr) -> "Definition":
+        if isinstance(self.kind, App):
+            if isinstance(self.kind.tycon, ScopedDefinition):
+                if self.kind.tycon.scope.is_defined(attr):
+                    return self.kind.tycon.scope.lookup(attr)
+
     def get_inner_definitions(self) -> list["Definition"]:
         """retrieve inner definition from this type."""
         if isinstance(self.kind, App):
@@ -165,7 +171,7 @@ class Type:
             else:
                 return []
         else:
-            []
+            return []
 
     def has_field(self, name: str) -> bool:
         if isinstance(self.kind, App):

@@ -5,7 +5,7 @@ from . import ast
 from .location import Location, Span
 from .basepass import BasePass
 
-logger = logging.getLogger("namebinding")
+logger = logging.getLogger("slangc.namebinding")
 
 
 def base_scope() -> ast.Scope:

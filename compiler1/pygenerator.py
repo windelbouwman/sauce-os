@@ -9,7 +9,7 @@ import contextlib
 
 from . import ast
 
-logger = logging.getLogger("py-gencode")
+logger = logging.getLogger("slangc.py-gencode")
 
 
 def gen_pycode(modules: list[ast.Module], f):

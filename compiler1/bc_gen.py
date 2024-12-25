@@ -6,7 +6,7 @@ from . import ast
 from . import bc
 from .bc import OpCode
 
-logger = logging.getLogger("bytecode-gen")
+logger = logging.getLogger("slangc.bytecode-gen")
 
 
 def gen_bc(modules: list[ast.Module]) -> bc.Program:

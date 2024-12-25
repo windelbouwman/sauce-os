@@ -4,10 +4,7 @@ from typing import Iterable, Any
 from dataclasses import dataclass
 from .errors import ParseError
 from .location import Location, Position
-import logging
 import re
-
-logger = logging.getLogger("lexer")
 
 
 @dataclass
@@ -231,7 +228,6 @@ def tokenize(code: str | tuple[Location, str]):
             raise NotImplementedError(mode)
 
         tok = Token(kind, value, loc)
-        # logger.debug(f'Got token: {tok}')
         yield tok
 
     end_loc = Location(Position(row, 1), Position(row, 1))

@@ -11,7 +11,7 @@ from .location import Location
 from .basepass import BasePass
 from . import ast
 
-logger = logging.getLogger("flowcheck")
+logger = logging.getLogger("slangc.flowcheck")
 
 
 def flow_check(modules: list[ast.Module]):

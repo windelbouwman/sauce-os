@@ -29,7 +29,7 @@ from .vm import run_bytecode
 from .bc import print_bytecode
 from .builtins import create_rt_module, get_builtins
 
-logger = logging.getLogger("compiler")
+logger = logging.getLogger("slangc")
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), "runtime"))
 import slangrt
 
