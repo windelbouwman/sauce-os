@@ -9,6 +9,10 @@ from .location import Location
 logger = logging.getLogger("slangc.typechecker")
 
 
+def check_types(module: ast.Module):
+    TypeChecker().check_module(module)
+
+
 class TypeChecker(BasePass):
     def __init__(self):
         super().__init__()

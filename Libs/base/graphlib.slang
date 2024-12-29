@@ -1,13 +1,14 @@
-
-# A graph consists of nodes and edges between them.
-# There are directed and undirected graph types.
+"""
+A graph consists of nodes and edges between them.
+There are directed and undirected graph types.
+"""
 
 from datatypes import List, Option
 from settype import new_str_set, Set
 from hashmap import HashMap, new_hashmap_str
 
 pub class DiGraph:
-    # A directed graph
+    """ A directed graph """
     var nodes: Set[str] = new_str_set()
     var pred: HashMap[str,Set[str]] = new_hashmap_str()
     var succ: HashMap[str,Set[str]] = new_hashmap_str()
@@ -79,3 +80,66 @@ pub fn topological_sort(g?: DiGraph) -> Option[List[str]]:
         Option.None()
     else:
         Option.Some(result)
+
+pub class Graph:
+    """ Undirected graph """
+    var m_nodes: Set[str] = new_str_set()
+    var m_neighbours: HashMap[str,Set[str]] = new_hashmap_str()
+
+    pub fn add_node(n?: str):
+        if not m_nodes.contains(key: n):
+            m_nodes.add(n)
+            m_neighbours.insert(key: n, value: new_str_set())
+
+    pub fn add_edge(src?: str, dst?: str):
+        add_node(src)
+        add_node(dst)
+        m_neighbours.get(key: src).add(dst)
+        m_neighbours.get(key: dst).add(src)
+    
+    pub fn has_edge(src?: str, dst?: str) -> bool:
+        if m_neighbours.contains(key: src):
+            m_neighbours.get(key: src).contains(key: dst)
+        else:
+            false
+
+pub fn find_max_cliques(g: Graph) -> List[Set[str]]:
+    """ Find maximum cliques with the Bron Kerbosch algorithm """
+    let output: List[Set[str]] = List()
+    bron_kerbosch(r: new_str_set(), p: g.m_nodes, x: new_str_set(), g, output)
+    output
+
+fn bron_kerbosch(r: Set[str], p: Set[str], x: Set[str], g: Graph, output: List[Set[str]]):
+    """ An algorithm for solving the clique problem:
+    https://en.wikipedia.org/wiki/Bron%E2%80%93Kerbosch_algorithm
+    """
+    if p.is_empty() and x.is_empty():
+        output.append(r)
+    
+    for v in p:
+        let n = g.m_neighbours.get(key: v)
+        let v_set = new_str_set()
+        v_set.add(v)
+        bron_kerbosch(r: r.union(other: v_set), p: p.intersection(other: n), x: x.intersection(other: n), g, output)
+        p = p.difference(other: v_set)
+        x = x.union(other: v_set)
+
+pub fn find_all_cliques_of_size(g: Graph, k: int) -> List[Set[str]]:
+    let output: List[Set[str]] = List()
+    bron_kerbosch_k(r: new_str_set(), p: g.m_nodes, x: new_str_set(), g, k, output)
+    output
+
+fn bron_kerbosch_k(r: Set[str], p: Set[str], x: Set[str], g: Graph, k: int, output: List[Set[str]]):
+    """ A mutated Bron Kerbosch algorithm
+    """
+    if r.len() == k:
+        output.append(r)
+        return
+
+    for v in p:
+        let n = g.m_neighbours.get(key: v)
+        let v_set = new_str_set()
+        v_set.add(v)
+        bron_kerbosch_k(r: r.union(other: v_set), p: p.intersection(other: n), x: x.intersection(other: n), g, k, output)
+        p = p.difference(other: v_set)
+        x = x.union(other: v_set)

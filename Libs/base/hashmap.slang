@@ -70,7 +70,10 @@ pub class HashMap[K,V]:
     fn get_index(key: K) -> int:
         if num_buckets == 0:
             panic("Uninitialized hashmap!")
-        modulo(value: this.f.f_hash(key), divisor: num_buckets)
+        let value = this.f.f_hash(key)
+        if value < 0:
+            value = -value
+        modulo(value, divisor: num_buckets)
 
     pub fn contains(key: K) -> bool:
         option_is_some(maybe_get(key))

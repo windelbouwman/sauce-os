@@ -16,9 +16,8 @@ from transforms import transform
 from builtins import get_rt_module
 from datatypes import List, option_unwrap, Option
 from hashmap import HashMap, new_hashmap_str
-from strlib import string_compare
+from strlib import lexical_sort
 from graphlib import DiGraph, topological_sort
-from sorting import sort_list
 from c_gen import gen_c_code
 from c_gen_v2 import gen_c_code_v2
 from wasm_gen import gen_webassembly
@@ -105,8 +104,7 @@ pub fn main() -> int:
         log_error("No input")
         return 2
 
-    # Sort filenames lexicographical
-    filenames = sort_list(filenames, cmp: string_compare)
+    filenames = lexical_sort(filenames)
     
     try:
         compile(filenames, options)

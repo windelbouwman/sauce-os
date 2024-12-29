@@ -498,6 +498,10 @@ class FunctionType(TypeKind):
     def __repr__(self):
         return f"Function({self.parameter_types}, {self.return_type}, ex={self.except_type})"
 
+    def __str__(self):
+        param_text = ", ".join(str(p) for p in self.parameter_types)
+        return f"fn({param_text}) -> {self.return_type} except {self.except_type}"
+
 
 def struct_type(struct_def: "StructDef", type_arguments: list[Type]) -> Type:
     return tycon_apply(struct_def, type_arguments)

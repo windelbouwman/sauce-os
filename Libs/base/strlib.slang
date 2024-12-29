@@ -1,6 +1,8 @@
 
 from datatypes import List, Option
-from std import str_slice, str_get, str_len, ord, chr
+from math import min
+from sorting import sort_list
+from std import str_slice, str_len, ord, chr
 from utils import assert, panic, unimplemented
 
 pub fn split_string2(text: str, sep: str) -> List[str]:
@@ -13,7 +15,7 @@ pub fn split_string(text: str, sep: char) -> List[str]:
     let cur = 0
     let parts: List[str] = List()
     while cur < size:
-        let c = str_get(text, index: cur)
+        let c = text[cur]
         if c == sep:
             parts.append(str_slice(text, begin: start, end: cur))
             cur += 1
@@ -22,6 +24,9 @@ pub fn split_string(text: str, sep: char) -> List[str]:
             cur += 1
     parts.append(str_slice(text, begin: start, end: cur))
     parts
+
+pub fn lexical_sort(values?: List[str]) -> List[str]:
+    sort_list(values, cmp: string_compare)
 
 pub fn string_compare(a: str, b: str) -> bool:
     str_comparison(a, b) < 0
@@ -219,17 +224,15 @@ fn str_comparison(a: str, b: str) -> int:
     let index = 0
     let n_a = str_len(text: a)
     let n_b = str_len(text: b)
-    let n = n_a
-    if n_b < n:
-        n = n_b
+    let n = min(a: n_a, b: n_b)
     while index < n:
-        index += 1
         let c_a = ord(a[index])
         let c_b = ord(b[index])
         if c_a < c_b:
             return -1
         elif c_a > c_b:
             return 1
+        index += 1
     0
 
 pub fn split_lines(text: str) -> List[str]:
@@ -239,7 +242,7 @@ pub fn split_lines(text: str) -> List[str]:
     let n = str_len(text)
     let index = 0
     while index < n:
-        if ord(str_get(text, index)) == 10:
+        if ord(text[index]) == 10:
             # New line!
             if line_start < index:
                 lines.append(str_slice(text, begin: line_start, end: index))

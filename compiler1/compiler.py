@@ -11,9 +11,9 @@ import networkx as nx
 
 from . import ast
 from .parsing import parse_file
-from .namebinding import ScopeFiller, NameBinder
-from .pass3 import NewOpPass, TypeEvaluation
-from .typechecker import TypeChecker
+from .namebinding import resolve_names
+from .pass3 import evaluate_types
+from .typechecker import check_types
 from .transforms import (
     rewrite_loops,
     rewrite_enums,
@@ -147,20 +147,18 @@ def analyze_ast(
     options: CompilationOptions,
 ):
     """Fill scopes, resolve symbols, evaluate type expressions."""
-    ScopeFiller(known_modules).fill_module(module)
-    NameBinder().resolve_symbols(module)
-    TypeEvaluation().run(module)
-    NewOpPass().run(module)
+    resolve_names(known_modules, module)
+    evaluate_types(module)
 
     if options.dump_ast:
         ast.print_ast(module)
 
-    TypeChecker().check_module(module)
+    check_types(module)
 
 
 def check_modules(modules: list[ast.Module]):
     for module in modules:
-        TypeChecker().check_module(module)
+        check_types(module)
 
 
 def print_modules(modules: list[ast.Module]):

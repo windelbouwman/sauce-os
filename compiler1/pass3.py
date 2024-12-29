@@ -8,6 +8,11 @@ from .location import Location
 from .basepass import BasePass
 
 
+def evaluate_types(module: ast.Module):
+    TypeEvaluation().run(module)
+    NewOpPass().run(module)
+
+
 class TypeEvaluation(BasePass):
     """Evaluate type expressions."""
 

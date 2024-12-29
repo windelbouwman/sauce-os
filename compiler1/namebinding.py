@@ -4,8 +4,15 @@ import logging
 from . import ast
 from .location import Location, Span
 from .basepass import BasePass
+from .errors import ParseError
 
 logger = logging.getLogger("slangc.namebinding")
+
+
+def resolve_names(known_modules, module: ast.Module):
+    """Fill scopes and bind names"""
+    ScopeFiller(known_modules).fill_module(module)
+    NameBinder().resolve_symbols(module)
 
 
 def base_scope() -> ast.Scope:
@@ -248,22 +255,25 @@ class NameBinder(BasePass):
 
     def visit_type(self, ty: ast.Type):
         super().visit_type(ty)
-        if isinstance(ty.kind, ast.NameRefType):
-            obj = self.resolve_qual_name(ty.kind.qual_name)
-            if isinstance(obj, ast.Type):
-                ty.change_to(obj)
-            elif isinstance(obj, ast.TypeConstructor):
-                ty.kind = ast.UnApp(obj)
-            elif isinstance(obj, ast.TypeParameter):
-                ty.kind = ast.TypeParameterKind(obj)
-            else:
-                raise ValueError(f"Invalid type: {obj}")
-        elif isinstance(ty.kind, ast.AbstractApp):
-            obj = self.resolve_qual_name(ty.kind.tycon)
-            if isinstance(obj, ast.TypeConstructor):
-                ty.kind = ast.App(obj, ty.kind.type_args)
-            else:
-                raise ValueError("Invalid type constructor: {obj}")
+        try:
+            if isinstance(ty.kind, ast.NameRefType):
+                obj = self.resolve_qual_name(ty.kind.qual_name)
+                if isinstance(obj, ast.Type):
+                    ty.change_to(obj)
+                elif isinstance(obj, ast.TypeConstructor):
+                    ty.kind = ast.UnApp(obj)
+                elif isinstance(obj, ast.TypeParameter):
+                    ty.kind = ast.TypeParameterKind(obj)
+                else:
+                    raise ValueError(f"Invalid type: {obj}")
+            elif isinstance(ty.kind, ast.AbstractApp):
+                obj = self.resolve_qual_name(ty.kind.tycon)
+                if isinstance(obj, ast.TypeConstructor):
+                    ty.kind = ast.App(obj, ty.kind.type_args)
+                else:
+                    raise ValueError("Invalid type constructor: {obj}")
+        except ParseError as ex:
+            self.error(ex.location, ex.message)
 
     def visit_expression(self, expression: ast.Expression):
         super().visit_expression(expression)
@@ -308,17 +318,19 @@ class NameBinder(BasePass):
         return ast.Undefined()
 
     def lookup2(self, name: str, location: Location) -> ast.Expression:
-        obj = self.lookup(name)
+        obj = self.lookup(name, location)
         return ast.obj_ref(obj, ast.undefined_type(), location)
 
     def resolve_qual_name(self, qual_name: ast.QualName):
-        sym = self.lookup(qual_name.names[0][1])
+        sym = self.lookup(qual_name.names[0][1], qual_name.names[0][0])
         for location, attr in qual_name.names[1:]:
             sym = sym.get_field(attr)
         return sym
 
-    def lookup(self, name: str):
+    def lookup(self, name: str, location: Location):
+        assert isinstance(name, str)
         for scope in self._scopes:
             if scope.is_defined(name):
                 return scope.lookup(name)
-        raise KeyError(name)
+        assert isinstance(location, Location)
+        raise ParseError(location, message=f"Undefined symbol: {name}")

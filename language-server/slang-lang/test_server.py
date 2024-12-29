@@ -77,6 +77,61 @@ async def client(lsp_client: LanguageClient):
     await lsp_client.shutdown_session()
 
 
+@pytest.mark.timeout(20)
+@pytest.mark.asyncio
+async def test_doc_change_ok(client: LanguageClient):
+    """Make a modification in the example code, re-triggering validation"""
+    client.text_document_did_change(
+        params=lsptypes.DidChangeTextDocumentParams(
+            text_document=lsptypes.VersionedTextDocumentIdentifier(
+                version=5, uri=example_uri
+            ),
+            content_changes=[
+                lsptypes.TextDocumentContentChangeEvent_Type1(
+                    lsptypes.Range(
+                        start=lsptypes.Position(line=1, character=16),
+                        end=lsptypes.Position(line=1, character=16),
+                    ),
+                    text="",
+                )
+            ],
+        )
+    )
+
+    await client.wait_for_notification(lsptypes.TEXT_DOCUMENT_PUBLISH_DIAGNOSTICS)
+    assert example_uri in client.diagnostics
+    assert len(client.diagnostics[example_uri]) == 0
+
+
+@pytest.mark.timeout(20)
+@pytest.mark.asyncio
+async def test_doc_change_error(client: LanguageClient):
+    """Make a modification in the example code, triggering an unresolved name."""
+    client.text_document_did_change(
+        params=lsptypes.DidChangeTextDocumentParams(
+            text_document=lsptypes.VersionedTextDocumentIdentifier(
+                version=5, uri=example_uri
+            ),
+            content_changes=[
+                lsptypes.TextDocumentContentChangeEvent_Type1(
+                    lsptypes.Range(
+                        start=lsptypes.Position(line=1, character=16),
+                        end=lsptypes.Position(line=1, character=16),
+                    ),
+                    text="bla",
+                )
+            ],
+        )
+    )
+
+    await client.wait_for_notification(lsptypes.TEXT_DOCUMENT_PUBLISH_DIAGNOSTICS)
+    assert example_uri in client.diagnostics
+    assert len(client.diagnostics[example_uri]) == 1
+    assert client.diagnostics[example_uri][0].range.start.line == 1
+    assert client.diagnostics[example_uri][0].range.start.character == 13
+    assert client.diagnostics[example_uri][0].message == "Undefined symbol: intbla"
+
+
 @pytest.mark.asyncio
 async def test_signature_of_foo(client: LanguageClient):
     result = await client.text_document_signature_help_async(

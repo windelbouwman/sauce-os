@@ -1223,16 +1223,21 @@ pub fn get_function_type2(function_def: FunctionDef, type_arguments: Vector[Type
     get_function_type3(type_parameters: function_def.type_parameters, type_arguments, parameter_types, info: function_def.info)
 
 fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: Vector[Type], parameter_types: Vector[ParameterType], info: FunctionInfo) -> Type:
-    let m = create_subst_mapping(type_parameters, type_arguments)
+    if type_parameters.is_empty():
+        if not type_arguments.is_empty():
+            panic(message: "type_arguments non empty, while type_parameters is empty")
+        function_type(parameter_types, info)
+    else:
+        let m = create_subst_mapping(type_parameters, type_arguments)
 
-    let parameter_types2: Vector[ParameterType] = new_vector_with_capacity(capacity: parameter_types.len())
-    for pt in parameter_types:
-        parameter_types2.append(ParameterType(label: pt.label, ty: subst(ty: pt.ty, m)))
+        let parameter_types2: Vector[ParameterType] = new_vector_with_capacity(capacity: parameter_types.len())
+        for pt in parameter_types:
+            parameter_types2.append(ParameterType(label: pt.label, ty: subst(ty: pt.ty, m)))
 
-    let info2 = FunctionInfo:
-        return_type: subst(ty: info.return_type, m)
-        except_type: subst(ty: info.except_type, m)
-    function_type(parameter_types: parameter_types2, info: info2)
+        let info2 = FunctionInfo:
+            return_type: subst(ty: info.return_type, m)
+            except_type: subst(ty: info.except_type, m)
+        function_type(parameter_types: parameter_types2, info: info2)
 
 pub fn parameter_def(name: str, id: int, label_is_optional: bool, ty: Type, location: Location) -> ParameterDef:
     ParameterDef(id: NodeId(name, id), label_is_optional, ty, location)

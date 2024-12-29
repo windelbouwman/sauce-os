@@ -24,7 +24,9 @@ from lsprotocol import types
 
 # TODO: this relative import is a bit lame..
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
-from compiler1.compiler import do_compile, CompilationOptions
+from compiler1.compiler import topo_sort
+from compiler1.compiler import parse_file, create_rt_module
+from compiler1.compiler import resolve_names, evaluate_types, check_types
 from compiler1.errors import CompilationError
 from compiler1.location import Location as SlangLocation, Position as SlangPosition
 from compiler1 import ast
@@ -43,6 +45,7 @@ class DataBase:
         self._file_infos = {}
 
         self._validation_task = None
+        self.incremental_compiler = IncrementalCompiler()
         self.last_compilation_duration = 0
 
     def fill_infos(self, modules):
@@ -77,89 +80,139 @@ class DataBase:
 
         document = ls.workspace.get_text_document(params.text_document.uri)
         filename = to_fs_path(document.uri)
-        code = document.source
 
         # Spawn a long running validation task:
-        self._validation_task = asyncio.create_task(
-            validator_task(ls, filename, code, delay)
-        )
+        self._validation_task = asyncio.create_task(validator_task(ls, filename, delay))
 
     async def stop_validation(self):
-        if self._validation_task and not self._validation_task.done():
-            logger.info("Cancelling validation task")
-            self._validation_task.cancel()
+        if self._validation_task:
+            if not self._validation_task.done():
+                logger.info("Cancelling validation task")
+                self._validation_task.cancel()
+
             try:
                 await self._validation_task
             except asyncio.CancelledError:
                 logger.info("task cancelled")
+            self._validation_task = None
 
 
-async def validator_task(ls: LanguageServer, filename, code, delay):
-    if delay:
-        logger.info(f"Waiting {delay} seconds for additional changes")
-        await asyncio.sleep(delay)
-    logger.info("Start compilation!")
-    filenames, ex = await ls.loop.run_in_executor(None, _cpu_validate, filename, code)
+async def validator_task(ls: LanguageServer, filename, delay):
+    try:
+        if delay:
+            logger.info(f"Waiting {delay} seconds for additional changes")
+            await asyncio.sleep(delay)
+        logger.info("Start compilation!")
 
-    diagnostics_per_file = {}
-    # Create empty diagnostic lists per file:
-    for filename in filenames:
-        if isinstance(filename, tuple):
-            filename = filename[0]
-        uri = from_fs_path(filename)
-        if uri not in diagnostics_per_file:
+        # Determine the source files
+        # Heuristics to detect a 'slang-project.txt'
+        logger.info(f"Compiling {filename}")
+
+        # TODO: we may want to cache this project search?
+        project_filename = find_project(filename)
+        if project_filename:
+            project_files = get_project_sources(project_filename)
+            project_files.append(filename)
+        else:
+            project_files = [filename]
+        project_files = set(project_files)
+
+        # Construct filename/code combinations gathering code from the workspace.
+        sources = []
+        for filename in project_files:
+            document = ls.workspace.get_text_document(from_fs_path(filename))
+            if document._source is None:
+                sources.append(filename)
+            else:
+                sources.append((filename, document.source))
+
+        # Create empty diagnostic lists per file:
+        diagnostics_per_file = {}
+        for filename in project_files:
+            uri = from_fs_path(filename)
             diagnostics_per_file[uri] = []
 
-    if ex:
-        logger.debug("Compilation errors occurred")
-        for filename, location, message in ex.errors:
-            logger.debug(f"Error: {location} {message}")
-            message = str(rich.text.Text.from_markup(message))
-            diagnostic = types.Diagnostic(
-                range=make_lsp_range(location),
-                severity=types.DiagnosticSeverity.Error,
-                message=message,
-            )
-            uri = from_fs_path(filename)
-            if uri in diagnostics_per_file:
-                diagnostics_per_file[uri].append(diagnostic)
-            else:
-                diagnostics_per_file[uri] = [diagnostic]
+        t1 = time.monotonic()
+        try:
+            modules = await ls.loop.run_in_executor(None, _cpu_validate, sources)
+        except CompilationError as ex:
+            logger.debug("Compilation errors occurred")
+            for filename, location, message in ex.errors:
+                logger.debug(f"Error: {location} {message}")
+                message = str(rich.text.Text.from_markup(message))
+                diagnostic = types.Diagnostic(
+                    range=make_lsp_range(location),
+                    severity=types.DiagnosticSeverity.Error,
+                    message=message,
+                )
+                uri = from_fs_path(filename)
+                if uri in diagnostics_per_file:
+                    diagnostics_per_file[uri].append(diagnostic)
+                else:
+                    diagnostics_per_file[uri] = [diagnostic]
+        else:
+            db.fill_infos(modules)
+        t2 = time.monotonic()
+        db.last_compilation_duration = t2 - t1
+        logger.info(f"Compilation done in {db.last_compilation_duration} seconds!")
 
-    for uri, diagnostics in diagnostics_per_file.items():
-        ls.publish_diagnostics(uri, diagnostics)
+        for uri, diagnostics in diagnostics_per_file.items():
+            ls.publish_diagnostics(uri, diagnostics)
+
+    except Exception:
+        logger.exception("Exception occurred in background check task.")
 
 
-def _cpu_validate(filename, code):
+def _cpu_validate(filenames):
     """Potential CPU intensive operation"""
-    options = CompilationOptions(backend="null")
+    return db.incremental_compiler.compile(filenames)
 
-    # Determine the source files
-    # Heuristics to detect a 'slang-project.txt'
-    logger.info(f"Compiling {filename}")
-    # time.sleep(2)  # Artificial delay
-    filenames = [(filename, code)]
-    project_filename = find_project(filename)
-    if project_filename:
-        project_files = get_project_sources(project_filename)
-        project_files.remove(filename)  # Skip this file itself
-        filenames.extend(project_files)
 
-    t1 = time.monotonic()
-    try:
-        modules = do_compile(filenames, None, options)
-        db.fill_infos(modules)
-    except CompilationError as ex:
-        result = ex
-    else:
-        result = None
-    t2 = time.monotonic()
-    db.last_compilation_duration = t2 - t1
-    logger.info(f"Compiling {filename} done in {db.last_compilation_duration} seconds!")
-    return filenames, result
+class IncrementalCompiler:
+    """Incremental compiler.
+
+    We do not need to re-parse every file when a single file of the
+    project has changed. This incremental compiler keeps a cache of
+    parsed source code.
+    """
+
+    def __init__(self):
+        self.id_context = ast.IdContext()
+        self.rt_module = create_rt_module()
+        self.known_modules = {}
+        self.module_cache = {}
+
+    def compile(self, filenames) -> list[ast.Module]:
+        # Parse source code into modules
+
+        # TODO: cache properly:
+        self.rt_module = create_rt_module()
+        self.known_modules = {}
+        self.module_cache = {}
+
+        modules = []
+        modules.append(self.rt_module)
+        for filename in filenames:
+            module = parse_file(self.id_context, filename)
+            modules.append(module)
+        topo_sort(modules)
+
+        # Analyze modules:
+        for module in modules:
+            if module.name in self.known_modules:
+                continue
+            resolve_names(self.known_modules, module)
+            evaluate_types(module)
+            check_types(module)
+
+        return modules
+
+    def parse_source(self):
+        pass
 
 
 def get_project_sources(project_filename: str):
+    """Get a list of slang source code files for the given slang-project.txt file."""
     filenames = []
     # Add all files in the project:
     project_root = os.path.dirname(os.path.abspath(project_filename))
@@ -352,6 +405,8 @@ async def completions(
                 )
             elif isinstance(obj, ast.Module):
                 items.extend(definitions_to_completion_items(obj.definitions))
+            elif isinstance(obj, ast.EnumDef):
+                items.extend(definitions_to_completion_items(obj.variants))
             else:
                 logger.debug(f"Cannot dot index {obj}")
 
@@ -575,7 +630,7 @@ async def did_open(ls: LanguageServer, params: types.DidOpenTextDocumentParams):
 async def did_change(ls: LanguageServer, params: types.DidChangeTextDocumentParams):
     logger.debug("Doc change")
     # Wait at least a factor between compilation attempts
-    delay = max(db.last_compilation_duration * 7, 15)
+    delay = max(db.last_compilation_duration * 7, 1)
     await db.validate(ls, params, delay=delay)
 
 
