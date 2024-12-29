@@ -182,18 +182,17 @@ class IncrementalCompiler:
         self.known_modules = {}
         self.module_cache = {}
 
-    def compile(self, filenames) -> list[ast.Module]:
-        # Parse source code into modules
-
-        # TODO: cache properly:
-        self.rt_module = create_rt_module()
-        self.known_modules = {}
-        self.module_cache = {}
-
+    def compile(self, sources) -> list[ast.Module]:
+        # Parse sources into modules
         modules = []
         modules.append(self.rt_module)
-        for filename in filenames:
-            module = parse_file(self.id_context, filename)
+        for source in sources:
+            if isinstance(source, str) and source in self.module_cache:
+                module = self.module_cache[source]
+            else:
+                module = parse_file(self.id_context, source)
+                if module.name in self.known_modules:
+                    self.known_modules.pop(module.name)
             modules.append(module)
         topo_sort(modules)
 
@@ -204,11 +203,10 @@ class IncrementalCompiler:
             resolve_names(self.known_modules, module)
             evaluate_types(module)
             check_types(module)
+            if module.filename:
+                self.module_cache[module.filename] = module
 
         return modules
-
-    def parse_source(self):
-        pass
 
 
 def get_project_sources(project_filename: str):
@@ -223,9 +221,7 @@ def get_project_sources(project_filename: str):
     with open(project_filename, "r") as f:
         for line in f:
             line = line.strip()
-            if line.startswith("#"):
-                continue
-            if not line:
+            if line.startswith("#") or not line:
                 continue
             path = os.path.normpath(os.path.join(project_root, line))
             if os.path.isdir(path):
@@ -274,7 +270,6 @@ class ScopeCrawler(ast.AstVisitor):
         self.scope_stack = []
 
     def visit_module(self, module):
-        logger.debug(f"Filling scopes for {module.name}")
         self.enter_scope(module.scope)
         super().visit_module(module)
         return self.leave_scope()
@@ -292,14 +287,12 @@ class ScopeCrawler(ast.AstVisitor):
         self.leave_scope()
 
     def enter_scope(self, scope):
-        # logger.debug(f"Enter scope {scope.span}")
         item = ScopeTreeItem(scope)
         if self.scope_stack:
             self.scope_stack[-1].add_sub_scope(item)
         self.scope_stack.append(item)
 
     def leave_scope(self):
-        # logger.debug("Leave scope")
         return self.scope_stack.pop()
 
 
@@ -355,7 +348,6 @@ class RangeMap:
 
 def module_to_scope_tree(module: ast.Module) -> "ScopeTreeItem":
     """Create a tree of scopes"""
-    logger.debug(f"Create scope tree for {module.name}")
     crawler = ScopeCrawler()
     return crawler.visit_module(module)
 
@@ -550,12 +542,27 @@ def hover(ls: LanguageServer, params: types.HoverParams) -> types.Hover:
             sig = function_def_to_signature(obj)
             return types.Hover(contents=[sig.label, sig.documentation])
         elif isinstance(obj, ast.StructDef):
+            # for field in obj.fields:
+            #     params
             contents = types.MarkupContent(
                 kind=types.MarkupKind.Markdown,
                 value=f"# struct {obj.id.name}\n {obj.docstring}",
             )
+
             return types.Hover(contents=contents)
             # ,range=make_lsp_range()
+        elif isinstance(obj, ast.EnumDef):
+            contents = types.MarkupContent(
+                kind=types.MarkupKind.Markdown,
+                value=f"# enum {obj.id.name}\n {obj.docstring}",
+            )
+            return types.Hover(contents=contents)
+        elif isinstance(obj, ast.ClassDef):
+            contents = types.MarkupContent(
+                kind=types.MarkupKind.Markdown,
+                value=f"# class {obj.id.name}\n {obj.docstring}",
+            )
+            return types.Hover(contents=contents)
 
 
 @server.feature(types.TEXT_DOCUMENT_DOCUMENT_SYMBOL)

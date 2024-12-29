@@ -4,4 +4,6 @@
 ../Libs/gfx
 ../Libs/image
 ../Libs/compiler
+../Libs/web
+../Libs/science
 ../runtime/std.slang

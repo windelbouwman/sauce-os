@@ -8,10 +8,11 @@ from strlib import hex_char, hex_digit_to_int, is_hex_digit, is_space
 
 pub class Bytes:
     # Immutable bytes
-    var m_bytes: Vector[uint8]
+    var m_bytes: [uint8]
+    var m_size: int
 
     pub fn len() -> int:
-        m_bytes.len()
+        m_size
     
     pub fn get(index: int) -> int:
         int(m_bytes[index])
@@ -23,15 +24,30 @@ pub class Bytes:
     pub fn as_hex() -> str:
         # Return bytes as hexadecimal text
         let txt = ""
-        for b in m_bytes:
+        let index = 0
+        while index < m_size:
+            let b = m_bytes[index]
             txt = txt + byte_as_hex(b)
+            index += 1
         txt
     
     pub fn into_reader() -> ByteReader:
         ByteReader(m_bytes: this)
 
 fn concat2(a: Bytes, b: Bytes) -> Bytes:
-    Bytes(m_bytes: a.m_bytes.concat(other: b.m_bytes))
+    let out = new_bytes_with_size(size: a.m_size + b.m_size)
+    let index = 0
+    let index1 = 0
+    while index1 < a.m_size:
+        out.m_bytes[index] = a.m_bytes[index1]
+        index += 1
+        index1 += 1
+    let index2 = 0
+    while index2 < b.m_size:
+        out.m_bytes[index] = b.m_bytes[index2]
+        index += 1
+        index2 += 1
+    out
 
 pub class ByteReader:
     # read byte at a time
@@ -39,7 +55,7 @@ pub class ByteReader:
     var m_index: int = 0
 
     fn at_end() -> bool:
-        m_index >= m_bytes.m_bytes.len()
+        m_index >= m_bytes.len()
 
     pub fn read_bytes(size: int) -> Bytes:
         let i = 0
@@ -50,7 +66,7 @@ pub class ByteReader:
         ba.to_bytes()
 
     pub fn read_byte() -> int:
-        if m_index < m_bytes.m_bytes.len():
+        if m_index < m_bytes.len():
             let value = m_bytes[m_index]
             m_index += 1
             value
@@ -92,7 +108,8 @@ pub class ByteArray:
         int(m_bytes[index])
 
     pub fn extend(bytes?: Bytes):
-        m_bytes.extend(other: bytes.m_bytes)
+        for b in bytes:
+            append(b)
 
     pub fn pack_u64_le(value?: int):
         append(value & 0xFF)
@@ -103,6 +120,16 @@ pub class ByteArray:
         append((value >> 40) & 0xFF)
         append((value >> 48) & 0xFF)
         append((value >> 56) & 0xFF)
+
+    pub fn pack_u64_be(value?: int):
+        append((value >> 56) & 0xFF)
+        append((value >> 48) & 0xFF)
+        append((value >> 40) & 0xFF)
+        append((value >> 32) & 0xFF)
+        append((value >> 24) & 0xFF)
+        append((value >> 16) & 0xFF)
+        append((value >> 8) & 0xFF)
+        append(value & 0xFF)
 
     pub fn pack_u32_le(value?: int):
         append(value & 0xFF)
@@ -128,7 +155,12 @@ pub class ByteArray:
         m_bytes.len()
 
     pub fn to_bytes() -> Bytes:
-        Bytes(m_bytes)
+        let out = new_bytes_with_size(size: m_bytes.len())
+        let index = 0
+        while index < m_bytes.len():
+            out.m_bytes[index] = m_bytes[index]
+            index += 1
+        out
     
     pub fn as_hex() -> str:
         to_bytes().as_hex()
@@ -161,12 +193,18 @@ pub fn new_bytes() -> Bytes:
     let output = ByteArray()
     output.to_bytes()
 
+fn new_bytes_with_size(size: int) -> Bytes:
+    """Bytes object with the given size. Uninitialized memory."""
+    let m_bytes = [size : uint8]
+    Bytes(m_bytes, m_size: size)
+
 pub fn fill_bytes(n: int, fill: int) -> Bytes:
-    let output = ByteArray()
-    while n > 0:
-        output.append(fill)
-        n -= 1
-    output.to_bytes()
+    let output = new_bytes_with_size(size: n)
+    let index = 0
+    while index < n:
+        output.m_bytes[index] = uint8(fill)
+        index += 1
+    output
 
 pub fn bytes_from_ascii(text: str) -> Bytes:
     let output = ByteArray()

@@ -664,7 +664,10 @@ class Module(Node):
         return f"Module({self.name})"
 
     def get_deps(self) -> list[str]:
-        return [imp.modname for imp in self.imports]
+        deps = [imp.modname for imp in self.imports]
+        if self.name != "rt":
+            deps.append("rt")
+        return deps
 
     def has_field(self, name: str) -> bool:
         return self.scope.is_defined(name)
