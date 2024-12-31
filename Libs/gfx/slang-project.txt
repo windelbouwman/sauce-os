@@ -1,4 +1,5 @@
 
+.
 ../base
+../image
 ../../runtime/std.slang
-

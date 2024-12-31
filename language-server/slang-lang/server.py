@@ -18,15 +18,14 @@ import asyncio
 import sys
 import os
 import rich.text
+import networkx as nx
 from pygls.server import LanguageServer
 from pygls.uris import to_fs_path, from_fs_path
 from lsprotocol import types
 
 # TODO: this relative import is a bit lame..
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
-from compiler1.compiler import topo_sort
-from compiler1.compiler import parse_file, create_rt_module
-from compiler1.compiler import resolve_names, evaluate_types, check_types
+from compiler1 import compiler as slangc
 from compiler1.errors import CompilationError
 from compiler1.location import Location as SlangLocation, Position as SlangPosition
 from compiler1 import ast
@@ -38,6 +37,8 @@ class DataBase:
     """Symbol database."""
 
     def __init__(self):
+        self.queue = asyncio.Queue()
+
         # Key is ID, value is filename / location
         self._definitions = {}
 
@@ -45,6 +46,7 @@ class DataBase:
         self._file_infos = {}
 
         self._validation_task = None
+        self._worker_task = None
         self.incremental_compiler = IncrementalCompiler()
         self.last_compilation_duration = 0
 
@@ -82,10 +84,33 @@ class DataBase:
         filename = to_fs_path(document.uri)
 
         # Spawn a long running validation task:
-        self._validation_task = asyncio.create_task(validator_task(ls, filename, delay))
+        self._validation_task = asyncio.create_task(validator_task(filename, delay))
+        self.start_worker()
+
+    async def stop(self):
+        await self.stop_validation()
+        await self.stop_worker()
+
+    def start_worker(self):
+        if self._worker_task is None:
+            self._worker_task = asyncio.create_task(
+                validator_worker(server, self.queue)
+            )
+
+    async def stop_worker(self):
+        """Stop worker task"""
+        if self._worker_task is not None:
+            if not self._worker_task.done():
+                self._worker_task.cancel()
+            try:
+                await self._worker_task
+            except Exception:
+                logger.exception("Worker stopped with exception")
+            self._worker_task = None
 
     async def stop_validation(self):
-        if self._validation_task:
+        """Stop validation task"""
+        if self._validation_task is not None:
             if not self._validation_task.done():
                 logger.info("Cancelling validation task")
                 self._validation_task.cancel()
@@ -97,70 +122,82 @@ class DataBase:
             self._validation_task = None
 
 
-async def validator_task(ls: LanguageServer, filename, delay):
+async def validator_task(filename, delay):
+    if delay:
+        logger.info(f"Waiting {delay} seconds for additional changes")
+        await asyncio.sleep(delay)
+    await db.queue.put(filename)
+
+
+async def validator_worker(ls: LanguageServer, queue: asyncio.Queue):
     try:
-        if delay:
-            logger.info(f"Waiting {delay} seconds for additional changes")
-            await asyncio.sleep(delay)
-        logger.info("Start compilation!")
+        logger.info("Started validator worker")
+        while True:
+            filename = await queue.get()
+            if queue.qsize() > 0:
+                continue
 
-        # Determine the source files
-        # Heuristics to detect a 'slang-project.txt'
-        logger.info(f"Compiling {filename}")
+            logger.info("Start compilation!")
 
-        # TODO: we may want to cache this project search?
-        project_filename = find_project(filename)
-        if project_filename:
-            project_files = get_project_sources(project_filename)
-            project_files.append(filename)
-        else:
-            project_files = [filename]
-        project_files = set(project_files)
+            # Determine the source files
+            # Heuristics to detect a 'slang-project.txt'
+            logger.info(f"Compiling {filename}")
 
-        # Construct filename/code combinations gathering code from the workspace.
-        sources = []
-        for filename in project_files:
-            document = ls.workspace.get_text_document(from_fs_path(filename))
-            if document._source is None:
-                sources.append(filename)
+            # TODO: we may want to cache this project search?
+            project_filename = find_project(filename)
+            if project_filename:
+                project_files = get_project_sources(project_filename)
+                project_files.append(filename)
             else:
-                sources.append((filename, document.source))
+                project_files = [filename]
+            project_files = set(project_files)
 
-        # Create empty diagnostic lists per file:
-        diagnostics_per_file = {}
-        for filename in project_files:
-            uri = from_fs_path(filename)
-            diagnostics_per_file[uri] = []
-
-        t1 = time.monotonic()
-        try:
-            modules = await ls.loop.run_in_executor(None, _cpu_validate, sources)
-        except CompilationError as ex:
-            logger.debug("Compilation errors occurred")
-            for filename, location, message in ex.errors:
-                logger.debug(f"Error: {location} {message}")
-                message = str(rich.text.Text.from_markup(message))
-                diagnostic = types.Diagnostic(
-                    range=make_lsp_range(location),
-                    severity=types.DiagnosticSeverity.Error,
-                    message=message,
-                )
-                uri = from_fs_path(filename)
-                if uri in diagnostics_per_file:
-                    diagnostics_per_file[uri].append(diagnostic)
+            # Construct filename/code combinations gathering code from the workspace.
+            sources = []
+            for filename in project_files:
+                document = ls.workspace.get_text_document(from_fs_path(filename))
+                if document._source is None:
+                    sources.append(filename)
                 else:
-                    diagnostics_per_file[uri] = [diagnostic]
-        else:
-            db.fill_infos(modules)
-        t2 = time.monotonic()
-        db.last_compilation_duration = t2 - t1
-        logger.info(f"Compilation done in {db.last_compilation_duration} seconds!")
+                    sources.append((filename, document.source))
 
-        for uri, diagnostics in diagnostics_per_file.items():
-            ls.publish_diagnostics(uri, diagnostics)
+            # Create empty diagnostic lists per file:
+            diagnostics_per_file = {}
+            for filename in project_files:
+                uri = from_fs_path(filename)
+                diagnostics_per_file[uri] = []
+
+            t1 = time.monotonic()
+            try:
+                modules = await ls.loop.run_in_executor(None, _cpu_validate, sources)
+            except CompilationError as ex:
+                logger.debug("Compilation errors occurred")
+                for filename, location, message in ex.errors:
+                    logger.debug(f"Error: {location} {message}")
+                    message = str(rich.text.Text.from_markup(message))
+                    diagnostic = types.Diagnostic(
+                        range=make_lsp_range(location),
+                        severity=types.DiagnosticSeverity.Error,
+                        message=message,
+                    )
+                    uri = from_fs_path(filename)
+                    if uri in diagnostics_per_file:
+                        diagnostics_per_file[uri].append(diagnostic)
+                    else:
+                        diagnostics_per_file[uri] = [diagnostic]
+            else:
+                db.fill_infos(modules)
+            t2 = time.monotonic()
+            db.last_compilation_duration = t2 - t1
+            logger.info(f"Compilation done in {db.last_compilation_duration} seconds!")
+
+            for uri, diagnostics in diagnostics_per_file.items():
+                ls.publish_diagnostics(uri, diagnostics)
 
     except Exception:
-        logger.exception("Exception occurred in background check task.")
+        logger.exception("Exception occurred in background worker task.")
+    finally:
+        logger.info("Finished validator task")
 
 
 def _cpu_validate(filenames):
@@ -178,11 +215,27 @@ class IncrementalCompiler:
 
     def __init__(self):
         self.id_context = ast.IdContext()
-        self.rt_module = create_rt_module()
+        self.rt_module = slangc.create_rt_module()
         self.known_modules = {}
         self.module_cache = {}
+        self.dependency_graph = nx.DiGraph()
 
     def compile(self, sources) -> list[ast.Module]:
+        # Remove dependencies of in editor sources from cache:
+        for source in sources:
+            if isinstance(source, tuple):
+                filename = source[0]
+                if filename in self.module_cache:
+                    m = self.module_cache[filename]
+                    if self.dependency_graph.has_node(m.name):
+                        needed_by = nx.ancestors(self.dependency_graph, m.name)
+                        for n in needed_by:
+                            if n in self.known_modules:
+                                dependant_filename = self.known_modules[n].filename
+                                if dependant_filename in self.module_cache:
+                                    # logger.info(f"Clearing {nf} from cache")
+                                    self.module_cache.pop(dependant_filename)
+
         # Parse sources into modules
         modules = []
         modules.append(self.rt_module)
@@ -190,19 +243,21 @@ class IncrementalCompiler:
             if isinstance(source, str) and source in self.module_cache:
                 module = self.module_cache[source]
             else:
-                module = parse_file(self.id_context, source)
+                module = slangc.parse_file(self.id_context, source)
                 if module.name in self.known_modules:
                     self.known_modules.pop(module.name)
             modules.append(module)
-        topo_sort(modules)
+
+        self.dependency_graph = slangc.dependency_graph(modules)
+        slangc.topo_sort_by_graph(modules, self.dependency_graph)
 
         # Analyze modules:
         for module in modules:
             if module.name in self.known_modules:
                 continue
-            resolve_names(self.known_modules, module)
-            evaluate_types(module)
-            check_types(module)
+            slangc.resolve_names(self.known_modules, module)
+            slangc.evaluate_types(module)
+            slangc.check_types(module)
             if module.filename:
                 self.module_cache[module.filename] = module
 
@@ -212,11 +267,7 @@ class IncrementalCompiler:
 def get_project_sources(project_filename: str):
     """Get a list of slang source code files for the given slang-project.txt file."""
     filenames = []
-    # Add all files in the project:
     project_root = os.path.dirname(os.path.abspath(project_filename))
-    project_sources = glob.glob(f"{project_root}/**/*.slang", recursive=True)
-    filenames.extend(project_sources)
-
     # Add files listed in project file:
     with open(project_filename, "r") as f:
         for line in f:
@@ -352,9 +403,9 @@ def module_to_scope_tree(module: ast.Module) -> "ScopeTreeItem":
     return crawler.visit_module(module)
 
 
-db = DataBase()
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
+db = DataBase()
 server = LanguageServer("Slang-Lang-Server", "v0.1", loop=loop)
 
 
@@ -686,7 +737,7 @@ def main():
     else:
         server.start_io()
 
-    loop.run_until_complete(db.stop_validation())
+    loop.run_until_complete(db.stop())
 
 
 if __name__ == "__main__":

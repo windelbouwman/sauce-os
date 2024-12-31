@@ -116,21 +116,32 @@ def do_compile(
     logger.info(":party_popper:DONE&DONE", extra={"markup": True})
 
 
+def dependency_graph(modules: list[ast.Module]) -> nx.DiGraph:
+    """Create a dependency graph of all modules"""
+    g = nx.DiGraph()
+    for module in modules:
+        g.add_node(module.name)
+        for dep in module.get_deps():
+            g.add_edge(module.name, dep)
+    return g
+
+
 def topo_sort(modules: list[ast.Module]):
     """Sort modules in dependency order (in-place).
 
     Check each module used other modules, and
     topologically sort the dependency graph.
     """
-    g = nx.DiGraph()
+    g = dependency_graph(modules)
+    logger.debug(f"module dependency graph: {g}")
+    topo_sort_by_graph(modules, g)
+
+
+def topo_sort_by_graph(modules: list[ast.Module], g: nx.DiGraph):
+    """Sort topologically (in-place) given a dependency graph"""
     m = {}
     for module in modules:
         m[module.name] = module
-        g.add_node(module.name)
-        for dep in module.get_deps():
-            g.add_edge(module.name, dep)
-
-    logger.debug(f"module dependency graph: {g}")
 
     order = list(reversed(list(nx.topological_sort(g))))
     logger.info(f"Compilation order: {order}")
