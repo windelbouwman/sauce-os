@@ -38,7 +38,7 @@ class GifReader:
     var m_palette: Vector[Color] = new_vector()
     var m_images: List[Image] = List()
 
-    fn read() -> List[Image]:
+    pub fn read() -> List[Image]:
         read_header()
         read_logical_screen_descriptor()
         if m_global_color_table_present:
@@ -167,8 +167,7 @@ pub fn lzw_decode(data: Bytes) -> Bytes:
     let compressed_size = data.len()
     log_debug("LZW decoding {compressed_size} bytes")
     let decoder = LzwDecoder(m_reader: data.into_reader())
-    decoder.decode()
-    let decompressed = decoder.m_output.to_bytes()
+    let decompressed = decoder.decode()
     let decompressed_size = decompressed.len()
     let factor = decompressed_size / compressed_size
     log_debug("Decompressed {decompressed_size} bytes (a factor {factor})")
@@ -183,7 +182,7 @@ class LzwDecoder:
     var m_table: Vector[Bytes] = new_vector()
     var m_output: ByteArray = ByteArray()
 
-    fn decode():
+    pub fn decode() -> Bytes:
         let oldcode = 256 # Clear code
         m_code_bit_size = 9
         loop:
@@ -208,6 +207,7 @@ class LzwDecoder:
                     emit(outstring)
                     add_to_table(outstring)
                     oldcode = code
+        m_output.to_bytes()
 
     fn initialize_table():
         m_table.clear()

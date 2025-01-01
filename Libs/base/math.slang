@@ -4,7 +4,7 @@ from utils import panic
 
 # TODO: make constant
 pub var pi: float = 3.141592653589793
-var e: float = 2.718281828459045
+pub var e: float = 2.718281828459045
 
 pub fn min(a: int, b: int) -> int:
     if a < b:

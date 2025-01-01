@@ -35,7 +35,7 @@ pub fn write_png_to_file(image: Image, filename: str):
 class PngDecoder:
     var m_byte_reader: ByteReader
 
-    fn read_image() -> Image:
+    pub fn read_image() -> Image:
         let signature = read_bytes(8)
         # let expected_signature = bytes_from_hex_text(text: "89 50 4e 47 0d 0a 1a 0a")
         assert(condition: signature.as_hex() == "89504E470D0A1A0A", message: "Invalid signature: {signature.as_hex()}")
@@ -134,7 +134,7 @@ class PngDecoder:
 class PngEncoder:
     var m_writer: ByteArray = ByteArray()
 
-    fn write(image: Image) -> Bytes:
+    pub fn write(image: Image) -> Bytes:
         let signature = bytes_from_hex_text(text: "89504E470D0A1A0A")
         m_writer.extend(signature)
 

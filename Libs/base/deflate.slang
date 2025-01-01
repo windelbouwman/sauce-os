@@ -16,7 +16,6 @@ pub fn deflate_decompress(data?: Bytes) -> Bytes:
 fn deflate_decompress_from_reader(reader: ByteReader) -> Bytes:
     let decoder = new_deflate_decoder(reader)
     decoder.deflate()
-    decoder.m_output.to_bytes()
 
 pub fn new_deflate_decoder(reader: ByteReader) -> DeflateDecoder:
     let bit_reader = BitReader(m_reader: reader)
@@ -56,7 +55,7 @@ pub class DeflateDecoder:
     var m_bit_reader: BitReader
     var m_output: ByteArray = ByteArray()
 
-    fn deflate():
+    pub fn deflate() -> Bytes:
         # Main deflate loop.
         loop:
             # Read block header:
@@ -79,6 +78,7 @@ pub class DeflateDecoder:
 
             if bfinal == 1:
                 break
+        m_output.to_bytes()
 
     fn copy_uncompressed():
         let len = read_u16_le()
@@ -214,11 +214,11 @@ pub class DeflateDecoder:
 
 
 class BitReader:
-    var m_bitbuf: int = 0
-    var m_bitcnt: int = 0
-    var m_reader: ByteReader
+    pub var m_bitbuf: int = 0
+    pub var m_bitcnt: int = 0
+    pub var m_reader: ByteReader
 
-    fn read_bits(n?: int) -> int:
+    pub fn read_bits(n?: int) -> int:
         let value = m_bitbuf
         while m_bitcnt < n:
             let byte = m_reader.read_byte()

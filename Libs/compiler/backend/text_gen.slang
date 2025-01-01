@@ -9,24 +9,24 @@ pub class TextGenerator:
     var m_indentation: int = 0
     var use_file: bool = false
     var outf: int = 0
-    var m_one_tab: str = "    "
+    pub var m_one_tab: str = "    "
 
-    fn begin(output_filename: Option[str]):
+    pub fn begin(output_filename: Option[str]):
         if option_is_some(output_filename):
             outf = file_open(filename: option_unwrap(output_filename), mode: "w")
             use_file = true
 
-    fn end():
+    pub fn end():
         if use_file:
             file_close(handle: outf)
 
-    fn indent():
+    pub fn indent():
         m_indentation += 1
 
-    fn dedent():
+    pub fn dedent():
         m_indentation -= 1
 
-    fn emit(text?: str):
+    pub fn emit(text?: str):
         let indent = str_repeat(text: m_one_tab, count: m_indentation)
         let line = indent + text
         if use_file:

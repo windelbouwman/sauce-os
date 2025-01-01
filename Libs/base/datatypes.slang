@@ -285,7 +285,7 @@ struct ListElement[T]:
     data: T
 
 pub class ListIter[T]:
-    var next_element: Option[ListElement[T]] = Option.None()
+    pub var next_element: Option[ListElement[T]] = Option.None()
 
     pub fn next() -> Option[T]:
         let opt = next_element

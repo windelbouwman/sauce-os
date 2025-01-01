@@ -29,7 +29,7 @@ pub class Lexer:
     var tok_begin: int = 0
     var offset: int = 0
 
-    fn init(source: str):
+    pub fn init(source: str):
         fill_keyword_dictionary(keywords: m_keywords)
         this.source = source
         offset = 0
@@ -38,7 +38,7 @@ pub class Lexer:
         at_bol = true
         indent_stack.append(0)
 
-    fn next_token() -> Token:
+    pub fn next_token() -> Token:
         while pending.is_empty() and not at_end:
             work_some()
 
@@ -288,8 +288,12 @@ pub class Lexer:
                     break
             else:
                 z = 0
-        let text: str = get_lexeme()
-        TokenKind.DocString(text)
+
+        if z == 3:
+            let text = std.str_slice(text: source, begin: tok_begin + 3, end: offset - 3)
+            TokenKind.DocString(text)
+        else:
+            TokenKind.Error("Invalid doc string")
 
     fn parse_number(c: char) -> TokenKind:
         let n = source_length

@@ -7,7 +7,7 @@ import std
 class List:
     var head_element: Option = Option.None()
 
-    fn append(value?: int):
+    pub fn append(value?: int):
         let new_tail_element = ListElement:
             next: Option.None()
             data: value
@@ -24,7 +24,7 @@ class List:
                             element = nxt_element
                 element.next = Option.Some(new_tail_element)
 
-    fn walk():
+    pub fn walk():
         let i = 0
         let mabye_element = this.head_element
         loop:
@@ -36,7 +36,7 @@ class List:
                     mabye_element = element.next
             i = i + 1
 
-    fn iter() -> ListIter:
+    pub fn iter() -> ListIter:
         let it = ListIter()
         it.next_element = this.head_element
         it
@@ -51,9 +51,9 @@ struct ListElement:
     data: int
 
 class ListIter:
-    var next_element: Option = Option.None()
+    pub var next_element: Option = Option.None()
 
-    fn next() -> Option:
+    pub fn next() -> Option:
         let opt = this.next_element
         case opt:
             None:

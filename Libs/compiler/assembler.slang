@@ -21,7 +21,7 @@ struct ParsedLine:
 class LineParser:
     var m_tokenizer: Tokenizer = Tokenizer()
 
-    fn parse_line(line: str) -> ParsedLine:
+    pub fn parse_line(line: str) -> ParsedLine:
         # Parse a single line 
         m_tokenizer.set_line(line)
 
@@ -56,12 +56,12 @@ class Tokenizer:
     var m_size: int = 0
     var m_line: str = ""
 
-    fn set_line(line: str):
+    pub fn set_line(line: str):
         m_line = line
         m_size = str_len(text: line)
         m_index = 0
 
-    fn next_token() -> Token:
+    pub fn next_token() -> Token:
         if m_index < m_size:
             unimplemented("next_token")
         else:
@@ -69,10 +69,10 @@ class Tokenizer:
             Token(kind)
 
 class Token:
-    var kind: TokenKind
+    pub var kind: TokenKind
     var pos: int = 0
 
-    fn to_string() -> str:
+    pub fn to_string() -> str:
         "T"
     
 enum TokenKind:

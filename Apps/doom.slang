@@ -47,13 +47,13 @@ class Engine:
     var m_screen: Screen
     var m_projection: Mat = new_mat4()
 
-    fn set_projection_matrix(fov: float, near: float, far: float):
+    pub fn set_projection_matrix(fov: float, near: float, far: float):
         let S = 1.0 / tan(radians(degrees: fov / 2.0))
         m_projection.m[0][0] = S
         m_projection.m[1][1] = S
         m_projection.m[2][3] = -1
 
-    fn draw_mesh(m: Mesh):
+    pub fn draw_mesh(m: Mesh):
         pass
 
 fn new_cube_mesh() -> Mesh:

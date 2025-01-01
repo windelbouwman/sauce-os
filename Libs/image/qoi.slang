@@ -70,7 +70,7 @@ class QoiReader:
     var m_array: Vector[Pixel] = new_vector()
     var m_pixels: Vector[Pixel] = new_vector()
 
-    fn read_image() -> Image:
+    pub fn read_image() -> Image:
         # let f = std.open_binary(filename)
         let magic = bytes_to_ascii(data: read_bytes(4))
         assert(condition: magic == "qoif", message: "Not a QOI image")
@@ -177,7 +177,7 @@ fn wrap8(value?: int) -> int:
 class QoiWriter:
     var m_writer: ByteArray = ByteArray()
 
-    fn write(image: Image) -> Bytes:
+    pub fn write(image: Image) -> Bytes:
         let magic = bytes_from_ascii(text: "qoif")
         m_writer.extend(magic)
 

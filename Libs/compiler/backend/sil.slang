@@ -8,34 +8,34 @@ from datatypes import List, Option
 from strlib import str_join
 
 pub class Program:
-    var functions: List[Function]
+    pub var functions: List[Function]
 
-    fn dump():
+    pub fn dump():
         print("SIL program")
         for function in functions:
             function.dump()
 
 pub class Function:
-    var name: str
-    var start: Block
-    var blocks: List[Block]
+    pub var name: str
+    pub var start: Block
+    pub var blocks: List[Block]
 
-    fn to_string() -> str:
+    pub fn to_string() -> str:
         "function {name}()"
 
-    fn dump():
+    pub fn dump():
         print("{this}")
         for block in blocks:
             block.dump()
 
 pub class Block:
-    var name: str
-    var instructions: List[Instruction]
+    pub var name: str
+    pub var instructions: List[Instruction]
 
-    fn to_string() -> str:
+    pub fn to_string() -> str:
         "  @{name}"
 
-    fn dump():
+    pub fn dump():
         print("{this}")
         for instruction in instructions:
             print("    {instruction}")
@@ -43,7 +43,7 @@ pub class Block:
 pub class Instruction:
     var op: OpCode
 
-    fn to_string() -> str:
+    pub fn to_string() -> str:
         case op:
             Nop:
                 "nop"

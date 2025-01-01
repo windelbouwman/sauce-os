@@ -40,12 +40,12 @@ class Parser:
     var id_gen: IdGen
     var modname: Option[str] = Option.None()
 
-    fn feed(source: str):
+    pub fn feed(source: str):
         lex.init(source)
         m_peek = lex.next_token()
         m_peek2 = lex.next_token()
     
-    fn parse_module(filename: str, name: str) -> ast.Module except CompilationError:
+    pub fn parse_module(filename: str, name: str) -> ast.Module except CompilationError:
         this.filename = Option.Some(filename)
         this.modname = Option.Some(name)
         let docstring = parse_optional_docstring()
@@ -103,7 +103,7 @@ class Parser:
                     let class_def = parse_class_def(is_pub)
                     definitions.append(ast.Definition.Class(class_def))
                 KwVar:
-                    let var_def = parse_var_def()
+                    let var_def = parse_var_def(is_pub)
                     definitions.append(ast.Definition.Var(var_def))
             else:
                 raise unexpected_token(tok, expected: "import, fn, enum, struct, class, extern")
@@ -195,7 +195,7 @@ class Parser:
 
             parse_newline()
 
-        ast.enum_def(is_pub, name: name_at.name, id: new_id(), location: name_at.location, type_parameters, variants)
+        ast.enum_def(is_pub, name: name_at.name, id: new_id(), docstring, location: name_at.location, type_parameters, variants)
 
     fn parse_type_parameters() -> List[ast.TypeParameter] except CompilationError:
         let type_parameters: List[ast.TypeParameter] = List()
@@ -235,7 +235,7 @@ class Parser:
             parse_newline()
             fields.append(ast.StructField(name: field_name_at.name, ty, location: field_name_at.location))
 
-        ast.struct_def(is_pub, name: name_at.name, id: new_id(), type_parameters, fields, location: name_at.location)
+        ast.struct_def(is_pub, name: name_at.name, id: new_id(), docstring, type_parameters, fields, location: name_at.location)
 
     fn parse_class_def(is_pub: bool) -> ast.ClassDef except CompilationError:
         let name_at = parse_name()
@@ -264,7 +264,7 @@ class Parser:
 
             case tok.kind:
                 KwVar:
-                    let var_def = parse_var_def()
+                    let var_def = parse_var_def(is_pub: is_pub2)
                     inner_defs.append(ast.Definition.Var(var_def))
                 KwFn:
                     let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
@@ -321,8 +321,9 @@ class Parser:
         let type_parameters = parse_type_parameters()
         let parameters = parse_parameters()
         let info = parse_function_info()
+        let docstring: Option[str] = Option.None()
         parse_newline()
-        ast.extern_function_def(is_pub, libname, name, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
+        ast.extern_function_def(is_pub, libname, name, docstring, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
 
     fn parse_parameters() -> List[ast.ParameterDef] except CompilationError:
         let parameters: List[ast.ParameterDef] = List()
@@ -392,7 +393,7 @@ class Parser:
         else:
             false
 
-    fn parse_var_def() -> ast.VariableDef except CompilationError:
+    fn parse_var_def(is_pub: bool) -> ast.VariableDef except CompilationError:
         let name_at = parse_name()
         let name = name_at.name
         parse_colon()
@@ -408,7 +409,7 @@ class Parser:
 
         parse_newline()
         let variable = ast.variable(name, id: new_id(), ty, location: name_at.location)
-        ast.VariableDef(variable, value: ast.VariableDefValue.Intern(value: var_init))
+        ast.VariableDef(is_pub, variable, value: ast.VariableDefValue.Intern(value: var_init))
 
     fn parse_type() -> ast.Type except CompilationError:
         let tok = get_token()
@@ -520,7 +521,7 @@ class Parser:
         let location = inner.first().location
         ast.compound(inner, location)
     
-    fn parse_statement() -> ast.Statement except CompilationError:
+    pub fn parse_statement() -> ast.Statement except CompilationError:
         log_trace("parsing statement")
         case m_peek.kind:
             KwPass:
@@ -818,7 +819,7 @@ class Parser:
         parse_newline()
         ast.raise_statement(value, location)
 
-    fn parse_expression() -> ast.Expression except CompilationError:
+    pub fn parse_expression() -> ast.Expression except CompilationError:
         # log_trace("Parsing expression")
         parse_expression2(min_prec: 0)
 

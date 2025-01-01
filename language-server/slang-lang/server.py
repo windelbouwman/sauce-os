@@ -470,7 +470,7 @@ def get_def_under_cursor(document, position):
         if obj:
             for attr in names[1:]:
                 logger.debug(f"get attr {attr=}")
-                if isinstance(obj, (ast.Variable, ast.Parameter)):
+                if isinstance(obj, (ast.Variable, ast.Parameter, ast.VarDef)):
                     obj = obj.ty.get_inner_definition(attr)
                 elif isinstance(obj, (ast.Module, ast.ScopedDefinition)):
                     if obj.scope.is_defined(attr):

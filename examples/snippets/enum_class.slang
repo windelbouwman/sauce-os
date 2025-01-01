@@ -3,7 +3,7 @@
 from std import print
 
 class Vector[T]:
-    var value: T
+    pub var value: T
 
 enum Option[T]:
     None

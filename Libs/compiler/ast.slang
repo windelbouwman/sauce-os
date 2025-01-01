@@ -29,16 +29,16 @@ fn node_id_hash(a?: NodeId) -> int:
 
 # TODO: implement type-defs!
 pub class Type:
-    var kind: TypeKind
-    var was_generic: bool = false
+    pub var kind: TypeKind
+    pub var was_generic: bool = false
 
-    fn to_string() -> str:
+    pub fn to_string() -> str:
         type_to_string(this)
     
-    fn change_to(to_type: Type):
+    pub fn change_to(to_type: Type):
         change_type_to(ty: this, to_type)
 
-    fn is_enum() -> bool:
+    pub fn is_enum() -> bool:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
@@ -49,7 +49,7 @@ pub class Type:
         else:
             false
 
-    fn get_enum_def() -> EnumDef:
+    pub fn get_enum_def() -> EnumDef:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
@@ -60,18 +60,18 @@ pub class Type:
         else:
             panic("get_enum_def: type must be enum")
 
-    fn get_enum_variant_from_type(attr: str) -> Option[EnumVariant]:
+    pub fn get_enum_variant_from_type(attr: str) -> Option[EnumVariant]:
         let enum_def = get_enum_def()
         get_enum_variant(enum_def, attr)
 
-    fn get_enum_variant_names() -> List[str]:
+    pub fn get_enum_variant_names() -> List[str]:
         let enum_def = get_enum_def()
         let names: List[str] = List()
         for variant in enum_def.variants:
             names.append(variant.name)
         names
 
-    fn is_class() -> bool:
+    pub fn is_class() -> bool:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
@@ -82,7 +82,7 @@ pub class Type:
         else:
             false
 
-    fn is_int() -> bool:
+    pub fn is_int() -> bool:
         case kind:
             Base(base):
                 case base:
@@ -93,7 +93,7 @@ pub class Type:
         else:
             false
 
-    fn is_signed_int() -> bool:
+    pub fn is_signed_int() -> bool:
         case kind:
             Base(base):
                 case base:
@@ -104,7 +104,7 @@ pub class Type:
         else:
             false
 
-    fn get_bits() -> int:
+    pub fn get_bits() -> int:
         case kind:
             Base(base):
                 case base:
@@ -117,21 +117,21 @@ pub class Type:
         else:
             panic("get_bits: Not an integer or float type")
 
-    fn is_void() -> bool:
+    pub fn is_void() -> bool:
         case kind:
             Void:
                 true
         else:
             false
 
-    fn is_unreachable() -> bool:
+    pub fn is_unreachable() -> bool:
         case kind:
             Unreachable:
                 true
         else:
             false
 
-    fn is_str() -> bool:
+    pub fn is_str() -> bool:
         case kind:
             Base(base):
                 case base:
@@ -142,7 +142,7 @@ pub class Type:
         else:
             false
 
-    fn is_char() -> bool:
+    pub fn is_char() -> bool:
         case kind:
             Base(base):
                 case base:
@@ -153,7 +153,7 @@ pub class Type:
         else:
             false
 
-    fn is_bool() -> bool:
+    pub fn is_bool() -> bool:
         case kind:
             Base(base):
                 case base:
@@ -164,7 +164,7 @@ pub class Type:
         else:
             false
 
-    fn is_float() -> bool:
+    pub fn is_float() -> bool:
         case kind:
             Base(base):
                 case base:
@@ -175,49 +175,49 @@ pub class Type:
         else:
             false
 
-    fn is_base_type() -> bool:
+    pub fn is_base_type() -> bool:
         case kind:
             Base(base):
                 true
         else:
             false
 
-    fn get_base_type() -> BaseType:
+    pub fn get_base_type() -> BaseType:
         case kind:
             Base(base):
                 base
         else:
             panic("get_base_type: Not a base type")
 
-    fn is_opaque() -> bool:
+    pub fn is_opaque() -> bool:
         case kind:
             Opaque:
                 true
         else:
             false
 
-    fn is_array() -> bool:
+    pub fn is_array() -> bool:
         case kind:
             Array(element_type, size):
                 true
         else:
             false
 
-    fn get_element_type() -> Type:
+    pub fn get_element_type() -> Type:
         case kind:
             Array(element_type, size):
                 element_type
         else:
             panic("No array type")
 
-    fn get_array_size() -> int:
+    pub fn get_array_size() -> int:
         case kind:
             Array(element_type, size):
                 size
         else:
             panic("No array type")
 
-    fn is_struct() -> bool:
+    pub fn is_struct() -> bool:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
@@ -228,7 +228,7 @@ pub class Type:
         else:
             false
 
-    fn is_union_struct() -> bool:
+    pub fn is_union_struct() -> bool:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
@@ -239,7 +239,7 @@ pub class Type:
         else:
             false
 
-    fn get_struct_def() -> StructDef:
+    pub fn get_struct_def() -> StructDef:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
@@ -250,17 +250,17 @@ pub class Type:
         else:
             panic("No struct type")
 
-    fn has_field(attr: str) -> bool:
-        option_is_some(maybe_get_field_type(attr))
+    pub fn has_field(attr: str) -> bool:
+        option_is_some(maybe_get_field_type(attr, also_private: false))
 
-    fn get_field_type(attr: str) -> Type:
-        case maybe_get_field_type(attr):
+    pub fn get_field_type(attr: str) -> Type:
+        case maybe_get_field_type(attr, also_private: true):
             Some(ty):
                 ty
             None:
                 panic("No field: {attr}")
 
-    fn maybe_get_field_type(attr: str) -> Option[Type]:
+    pub fn maybe_get_field_type(attr: str, also_private: bool) -> Option[Type]:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
@@ -278,14 +278,18 @@ pub class Type:
                     Class(class_def):
                         case class_def.scope.lookup(name: attr):
                             Some(sym):
-                                let m = create_subst_mapping(type_parameters: class_def.type_parameters, type_arguments)
-                                case sym.kind:
-                                    Function(function_def):
-                                        Option.Some(subst(ty: get_function_type(function_def), m))
-                                    Var(v):
-                                        Option.Some(subst(ty: v.ty, m))
+                                if sym.is_pub or also_private:
+                                    let m = create_subst_mapping(type_parameters: class_def.type_parameters, type_arguments)
+                                    let ty = case sym.kind:
+                                        Function(function_def):
+                                            subst(ty: get_function_type(function_def), m)
+                                        Var(v):
+                                            subst(ty: v.ty, m)
+                                    else:
+                                        panic("class must contain func/vars")
+                                    Option.Some(ty)
                                 else:
-                                    panic("class must contain func/vars")
+                                    Option.None()
                             None:
                                 Option.None()
                 else:
@@ -293,7 +297,7 @@ pub class Type:
         else:
             Option.None()
 
-    fn get_field_types() -> Vector[Type]:
+    pub fn get_field_types() -> Vector[Type]:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
@@ -308,25 +312,25 @@ pub class Type:
         else:
             panic("Type without fields")
 
-    fn has_method(name?: str) -> bool:
+    pub fn has_method(name?: str) -> bool:
         if has_field(attr: name):
             get_field_type(attr: name).is_function_type()
         else:
             false
 
-    fn is_sequence_like() -> bool:
+    pub fn is_sequence_like() -> bool:
         has_method("len") and has_method("get")
 
-    fn is_iterable_like() -> bool:
+    pub fn is_iterable_like() -> bool:
         has_method("iter")
 
-    fn is_nullable() -> bool:
+    pub fn is_nullable() -> bool:
         # TODO
         # false
         # is_struct() or is_enum() or is_type_parameter()
         is_type_parameter()
 
-    fn is_function_type() -> bool:
+    pub fn is_function_type() -> bool:
         case kind:
             Function(p, i):
                 true
@@ -340,21 +344,21 @@ pub class Type:
         else:
             panic("Type must be function type")
 
-    fn get_return_type() -> Type:
+    pub fn get_return_type() -> Type:
         case kind:
             Function(p, i):
                 i.return_type
         else:
             panic("Type must be function type")
 
-    fn get_except_type() -> Type:
+    pub fn get_except_type() -> Type:
         case kind:
             Function(p, i):
                 i.except_type
         else:
             panic("Type must be function type")
 
-    fn get_class_def() -> ClassDef:
+    pub fn get_class_def() -> ClassDef:
         case kind:
             App(tycon, type_arguments):
                 case tycon:
@@ -365,49 +369,49 @@ pub class Type:
         else:
             panic("No class type")
 
-    fn is_tycon_app() -> bool:
+    pub fn is_tycon_app() -> bool:
         case kind:
             App(tycon, args):
                 true
         else:
             false
 
-    fn get_tycon() -> TyCon:
+    pub fn get_tycon() -> TyCon:
         case kind:
             App(tycon, args):
                 tycon
         else:
             panic("Must be App type")
 
-    fn get_type_arguments() -> Vector[Type]:
+    pub fn get_type_arguments() -> Vector[Type]:
         case kind:
             App(tycon, args):
                 args
         else:
             panic("Must be App type")
 
-    fn is_type_parameter() -> bool:
+    pub fn is_type_parameter() -> bool:
         case kind:
             TypeParam(p):
                 true
         else:
             false
 
-    fn get_type_parameter() -> TypeParameter:
+    pub fn get_type_parameter() -> TypeParameter:
         case kind:
             TypeParam(p):
                 p
         else:
             panic("Type must be type parameter")
 
-    fn is_type_var() -> bool:
+    pub fn is_type_var() -> bool:
         case kind:
             TypeVar(v):
                 true
         else:
             false
 
-    fn get_type_var() -> TypeVariable:
+    pub fn get_type_var() -> TypeVariable:
         case kind:
             TypeVar(v):
                 v
@@ -911,14 +915,14 @@ pub struct NameAtLocation:
     name: str
     location: Location
 
-pub fn extern_function_def(is_pub: bool, libname: str, name: str, type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
+pub fn extern_function_def(is_pub: bool, libname: str, name: str, docstring: Option[str], type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
     let info = FunctionInfo:
         return_type
         except_type: void_type()
 
     FunctionDef:
         name
-        docstring: Option.None()
+        docstring
         is_pub
         info
         type_parameters
@@ -929,17 +933,17 @@ pub fn extern_function_def(is_pub: bool, libname: str, name: str, type_parameter
 
 pub class Scope:
     var symbols: HashMap[str,Symbol] = new_hashmap_str()
-    var class_scope: bool = false
+    pub var class_scope: bool = false
 
-    fn define(is_pub: bool, name: str, kind: SymbolKind, location: Location):
+    pub fn define(is_pub: bool, name: str, kind: SymbolKind, location: Location):
         let symbol = Symbol(is_pub, name, kind, location)
         symbols.insert(key: name, value: symbol)
     
-    fn is_defined(name: str) -> bool:
+    pub fn is_defined(name: str) -> bool:
         # Check if given name is defined.
         option_is_some(lookup(name))
 
-    fn lookup(name: str) -> Option[Symbol]:
+    pub fn lookup(name: str) -> Option[Symbol]:
         symbols.maybe_get(key: name)
     
     fn dump():
@@ -947,7 +951,7 @@ pub class Scope:
         for name in symbols:
             log_info(" - {name}")
 
-    fn get_symbols() -> List[Symbol]:
+    pub fn get_symbols() -> List[Symbol]:
         symbols.values()
 
 pub enum SymbolKind:
@@ -962,10 +966,10 @@ pub enum SymbolKind:
     Field(struct_field: StructField)
 
 pub class Symbol:
-    var is_pub: bool
-    var name: str
-    var kind: SymbolKind
-    var location: Location
+    pub var is_pub: bool
+    pub var name: str
+    pub var kind: SymbolKind
+    pub var location: Location
     var references: List[Location] = List()
 
     pub fn add_reference(location: Location):
@@ -1027,6 +1031,7 @@ fn macro_def_to_str(macro_def: MacroDef) -> str:
     "Macro({macro_def.name})"
 
 pub struct VariableDef:
+    is_pub: bool
     variable: Variable
     value: VariableDefValue
 
@@ -1047,10 +1052,11 @@ pub struct TypeParameter:
     id: NodeId
     location: Location
 
-pub fn struct_def(is_pub: bool, name: str, id: int, type_parameters: List[TypeParameter], fields: List[StructField], location: Location) -> StructDef:
+pub fn struct_def(is_pub: bool, name: str, id: int, docstring: Option[str], type_parameters: List[TypeParameter], fields: List[StructField], location: Location) -> StructDef:
     StructDef:
         is_pub
         id: NodeId(name, id)
+        docstring
         is_union: false
         type_parameters: type_parameters
         fields: fields
@@ -1060,6 +1066,7 @@ pub fn struct_def(is_pub: bool, name: str, id: int, type_parameters: List[TypePa
 pub struct StructDef:
     is_pub: bool
     id: NodeId
+    docstring: Option[str]
     is_union: bool
     type_parameters: List[TypeParameter]
     fields: List[StructField]
@@ -1081,33 +1088,34 @@ pub class StructBuilder:
     var type_parameters: List[TypeParameter] = List()
     var fields: List[StructField] = List()
 
-    fn set_name(name: str):
+    pub fn set_name(name: str):
         nodeId.name = name
     
-    fn set_id(id?: int):
+    pub fn set_id(id?: int):
         nodeId.id = id
     
-    fn set_pub(is_pub?: bool):
+    pub fn set_pub(is_pub?: bool):
         this.is_pub = is_pub
     
-    fn set_is_union(is_union?: bool):
+    pub fn set_is_union(is_union?: bool):
         this.is_union = is_union
 
-    fn add_type_parameter(name: str, id: int, location: Location) -> Type:
+    pub fn add_type_parameter(name: str, id: int, location: Location) -> Type:
         let type_parameter = new_type_parameter(name, id, location)
         type_parameters.append(type_parameter)
         type_parameter_ref(type_parameter)
 
-    fn add_field(name: str, ty: Type, location: Location):
+    pub fn add_field(name: str, ty: Type, location: Location):
         fields.append(StructField(name, ty, location))
 
-    fn finish() -> StructDef:
+    pub fn finish() -> StructDef:
         let scope = Scope()
         for field in fields:
             scope.define(is_pub: true, name: field.name, kind: SymbolKind.Field(field), location)
         StructDef:
             is_pub: is_pub
             id: nodeId
+            docstring: Option.None()
             is_union: is_union
             type_parameters: type_parameters
             fields: fields
@@ -1119,10 +1127,11 @@ pub struct StructField:
     ty: Type
     location: Location
 
-pub fn enum_def(is_pub: bool, name: str, id: int, location: Location, type_parameters: List[TypeParameter], variants: List[EnumVariant]) -> EnumDef:
+pub fn enum_def(is_pub: bool, name: str, id: int, docstring: Option[str], location: Location, type_parameters: List[TypeParameter], variants: List[EnumVariant]) -> EnumDef:
     EnumDef:
         is_pub
         id: NodeId(name, id)
+        docstring
         location: location
         type_parameters: type_parameters
         variants: variants
@@ -1131,6 +1140,7 @@ pub fn enum_def(is_pub: bool, name: str, id: int, location: Location, type_param
 pub struct EnumDef:
     is_pub: bool
     id: NodeId
+    docstring: Option[str]
     location: Location
     type_parameters: List[TypeParameter]
     variants: List[EnumVariant]
@@ -1258,11 +1268,11 @@ pub fn variable(name: str, id: int, ty: Type, location: Location) -> Variable:
     Variable(id: NodeId(name, id), ty, location)
 
 pub class Variable:
-    var id: NodeId
-    var ty: Type
-    var location: Location
+    pub var id: NodeId
+    pub var ty: Type
+    pub var location: Location
 
-    fn ref(location: Location) -> Expression:
+    pub fn ref(location: Location) -> Expression:
         var_ref(variable: this, location)
 
 pub struct ScopedBlock:
@@ -1273,9 +1283,9 @@ pub fn scoped_block(body: Statement) -> ScopedBlock:
     ScopedBlock(scope: Scope(), body)
 
 pub class Statement:
-    var kind: StatementKind
-    var location: Location
-    var ty: Type
+    pub var kind: StatementKind
+    pub var location: Location
+    pub var ty: Type
 
     pub fn to_string() -> str:
         statement_to_string(statement: this)
@@ -1465,36 +1475,44 @@ pub fn unreachable_statement(location: Location) -> Statement:
     statement(kind: StatementKind.Unreachable(), location)
 
 pub class Expression:
-    var kind: ExpressionKind
-    var ty: Type
-    var location: Location
+    pub var kind: ExpressionKind
+    pub var ty: Type
+    pub var location: Location
 
     pub fn to_string() -> str:
         expression_to_string(this)
 
-    fn call_method(method: str, arguments: List[LabeledExpression], location: Location) -> Expression:
+    pub fn is_this() -> bool:
+        """ Check if the expression is a reference to the 'this' parameter """
+        case kind:
+            ParameterRef(parameter):
+                parameter.id.name == "this"
+        else:
+            false
+
+    pub fn call_method(method: str, arguments: List[LabeledExpression], location: Location) -> Expression:
         let callee = get_attr_typed(attr: method, location)
         let result_ty: Type = callee.ty.get_return_type()
         call(callee, arguments, ty: result_ty, location)
     
-    fn call_it(arguments: List[LabeledExpression], location: Location) -> Expression:
+    pub fn call_it(arguments: List[LabeledExpression], location: Location) -> Expression:
         let return_type = ty.get_return_type()
         call(callee: this, arguments, ty: return_type, location)
     
-    fn add(rhs: Expression, location: Location) -> Expression:
+    pub fn add(rhs: Expression, location: Location) -> Expression:
         binop(lhs: this, op: BinaryOperator.Add(), rhs, ty, location)
 
-    fn less(rhs: Expression, location: Location) -> Expression:
+    pub fn less(rhs: Expression, location: Location) -> Expression:
         binop(lhs: this, op: BinaryOperator.Less(), rhs, ty: bool_type(), location)
 
-    fn equals(rhs: Expression, location: Location) -> Expression:
+    pub fn equals(rhs: Expression, location: Location) -> Expression:
         binop(lhs: this, op: BinaryOperator.Equals(), rhs, ty: bool_type(), location)
 
-    fn get_attr_typed(attr: str, location: Location) -> Expression:
+    pub fn get_attr_typed(attr: str, location: Location) -> Expression:
         let attr_ty = ty.get_field_type(attr)
         get_attr(base: this, field: attr, ty: attr_ty, location)
     
-    fn change_to(to: Expression):
+    pub fn change_to(to: Expression):
         change_expression_to(expression: this, to)
 
 pub fn clone_expression(value: Expression) -> Expression:
@@ -1721,16 +1739,16 @@ pub fn new_print_visitor(printer: AstPrinter) -> Visitor[AstPrinter]:
 pub class AstPrinter:
     var indent_level: int = 0
 
-    fn indent():
+    pub fn indent():
         indent_level += 1
 
-    fn dedent():
+    pub fn dedent():
         indent_level -= 1
     
     fn get_prefix() -> str:
         str_repeat(text: "   ", count: indent_level)
     
-    fn print2(txt: str):
+    pub fn print2(txt: str):
         let prefix = get_prefix()
         print(prefix + txt)
 

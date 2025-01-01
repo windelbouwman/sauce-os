@@ -43,7 +43,7 @@ class RiscvGen:
     var reg: int = 4
     var codes: Vector[int] = new_vector()
 
-    fn to_hex() -> HexFile:
+    pub fn to_hex() -> HexFile:
         # Gather resulting binary code in a hex file.
         let h = HexFile()
         let b = ByteArray()
@@ -53,7 +53,7 @@ class RiscvGen:
         h.add_bytes(address: 0, data)
         h
 
-    fn gen_function(function: bc.Function):
+    pub fn gen_function(function: bc.Function):
         for instruction in function.instructions:
             gen_instruction(instruction)
     

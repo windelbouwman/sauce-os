@@ -106,17 +106,17 @@ fn checker_on_node(checker: TypeChecker, node: ast.VisitNode, phase: ast.VisitPh
     pass
 
 class TypeChecker:
-    var errors: List[SingleCompilationError] = List()
-    var was_errors: bool = false
-    var current_function: Option[ast.FunctionDef] = Option.None()
-    var loops: int = 0
-    var exception_handlers: List[ast.Type] = List()
+    pub var errors: List[SingleCompilationError] = List()
+    pub var was_errors: bool = false
+    pub var current_function: Option[ast.FunctionDef] = Option.None()
+    pub var loops: int = 0
+    pub var exception_handlers: List[ast.Type] = List()
     var m_void_type: ast.Type = ast.void_type()
     var m_bool_type: ast.Type = ast.bool_type()
     var m_int_type: ast.Type = ast.int_type()
     var m_str_type: ast.Type = ast.str_type()
 
-    fn check_function_def(function_def: ast.FunctionDef):
+    pub fn check_function_def(function_def: ast.FunctionDef):
         # Check if we return a value, if we need to return a value
         case function_def.body:
             Intern(scoped_block):
@@ -126,7 +126,7 @@ class TypeChecker:
             Extern(libname):
                 pass
 
-    fn check_statement_mid(statement: ast.Statement):
+    pub fn check_statement_mid(statement: ast.Statement):
         case statement.kind:
             Case(case_statement):
                 if case_statement.value.ty.is_enum():
@@ -185,7 +185,7 @@ class TypeChecker:
         else:
             pass
 
-    fn check_statement(statement: ast.Statement):
+    pub fn check_statement(statement: ast.Statement):
         case statement.kind:
             Let(let_statement):
                 case let_statement.type_hint:
@@ -274,7 +274,7 @@ class TypeChecker:
             Pass:
                 statement.ty = m_void_type
 
-    fn check_expression(expression: ast.Expression):
+    pub fn check_expression(expression: ast.Expression):
         case expression.kind:
             Call(call):
                 if call.callee.ty.is_function_type():
@@ -375,11 +375,12 @@ class TypeChecker:
             Null:
                 pass
             GetAttr(base, attr):
-                case base.ty.maybe_get_field_type(attr):
+                let also_private = base.is_this()
+                case base.ty.maybe_get_field_type(attr, also_private):
                     Some(ty):
                         expression.ty = ty
                     None:
-                        add_error(location: expression.location, message: "Type {base.ty} has no field: {attr}")
+                        add_error(location: expression.location, message: "Type {base.ty} has no public field: {attr}")
                         expression.ty = ast.undefined_type()
             GetIndex(base, indici):
                 if base.ty.is_array():

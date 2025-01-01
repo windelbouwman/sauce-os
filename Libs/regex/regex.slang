@@ -156,11 +156,11 @@ fn contains_regex(lst: List[Regex], rx: Regex) -> int:
 
 class Machine:
     # Regex matching machine
-    var start_state: int = 0
-    var error_state: int = 0
-    var states: List[State]
+    pub var start_state: int = 0
+    pub var error_state: int = 0
+    pub var states: List[State]
 
-    fn next_state(state_nr: int, c: char) -> int:
+    pub fn next_state(state_nr: int, c: char) -> int:
         # Given a character, what would be the next state?
         let state = states.get(index: state_nr)
         let value = ord(c)
@@ -169,7 +169,7 @@ class Machine:
                 return transition.to_state
         -1
     
-    fn accepts(state_nr: int) -> bool:
+    pub fn accepts(state_nr: int) -> bool:
         let state = states.get(index: state_nr)
         state.accepts
 
@@ -231,7 +231,7 @@ class Parser:
     var n_size: int = 0
     var text: str
 
-    fn parse() -> Regex except ParseError:
+    pub fn parse() -> Regex except ParseError:
         """ Parse a regular expression. """
         n_size = str_len(text)
         if peek() != chr(0):
@@ -412,9 +412,9 @@ fn logical_not_regex(r: Regex) -> Regex:
     Regex(kind: PartKind.LogicalNot(r))
 
 class Regex:
-    var kind: PartKind
+    pub var kind: PartKind
 
-    fn to_string() -> str:
+    pub fn to_string() -> str:
         case kind:
             Epsilon:
                 "epsilon"
@@ -433,7 +433,7 @@ class Regex:
             Symbol(s):
                 "Symbols({s.to_string()})"
     
-    fn equals(other: Regex) -> bool:
+    pub fn equals(other: Regex) -> bool:
         case kind:
             Epsilon:
                 case other.kind:
@@ -484,47 +484,47 @@ class Regex:
                 else:
                     false
 
-    fn kleene() -> Regex:
+    pub fn kleene() -> Regex:
         kleene_regex(r: this)
 
-    fn concat(other: Regex) -> Regex:
+    pub fn concat(other: Regex) -> Regex:
         concat_regex(left: this, right: other)
 
-    fn logical_and(other: Regex) -> Regex:
+    pub fn logical_and(other: Regex) -> Regex:
         logical_and_regex(left: this, right: other)
 
-    fn logical_or(other: Regex) -> Regex:
+    pub fn logical_or(other: Regex) -> Regex:
         logical_or_regex(left: this, right: other)
     
-    fn is_null() -> bool:
+    pub fn is_null() -> bool:
         case kind:
             Null:
                 true
         else:
             false
 
-    fn is_epsilon() -> bool:
+    pub fn is_epsilon() -> bool:
         case kind:
             Epsilon:
                 true
         else:
             false
 
-    fn is_kleene() -> bool:
+    pub fn is_kleene() -> bool:
         case kind:
             Kleene(r):
                 true
         else:
             false
 
-    fn is_logical_not() -> bool:
+    pub fn is_logical_not() -> bool:
         case kind:
             LogicalNot(r):
                 true
         else:
             false
 
-    fn derivative(c: int) -> Regex:
+    pub fn derivative(c: int) -> Regex:
         # Create new regex, taking a single character.
         case kind:
             Kleene(r):
@@ -549,7 +549,7 @@ class Regex:
             Epsilon:
                 null_regex()
     
-    fn derivative_classes() -> List[IntegerSet]:
+    pub fn derivative_classes() -> List[IntegerSet]:
         # Determine character classes that are interesting
         # cases to take the derivative for.
         case kind:
@@ -573,12 +573,12 @@ class Regex:
             LogicalNot(r):
                 r.derivative_classes()
 
-    fn is_nullable() -> bool:
+    pub fn is_nullable() -> bool:
         let n = nu()
         assert(condition: n.is_epsilon() or n.is_null(), message: "nu must return null or epsilon, not {n}")
         n.is_epsilon()
 
-    fn nu() -> Regex:
+    pub fn nu() -> Regex:
         # Check if this regex is nullable.
         case kind:
             Kleene(r):

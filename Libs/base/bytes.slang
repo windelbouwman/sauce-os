@@ -16,6 +16,12 @@ pub class Bytes:
     
     pub fn get(index: int) -> int:
         int(m_bytes[index])
+
+    pub fn get_byte(index: int) -> uint8:
+        m_bytes[index]
+    
+    pub fn set_byte(index: int, value: uint8):
+        m_bytes[index] = value
     
     pub fn concat(other: Bytes) -> Bytes:
         # Concatenate two byte sequences
@@ -35,16 +41,16 @@ pub class Bytes:
         ByteReader(m_bytes: this)
 
 fn concat2(a: Bytes, b: Bytes) -> Bytes:
-    let out = new_bytes_with_size(size: a.m_size + b.m_size)
+    let out = new_bytes_with_size(size: a.len() + b.len())
     let index = 0
     let index1 = 0
-    while index1 < a.m_size:
-        out.m_bytes[index] = a.m_bytes[index1]
+    while index1 < a.len():
+        out.set_byte(index, value: a.get_byte(index: index1))
         index += 1
         index1 += 1
     let index2 = 0
-    while index2 < b.m_size:
-        out.m_bytes[index] = b.m_bytes[index2]
+    while index2 < b.len():
+        out.set_byte(index, value: b.get_byte(index: index2))
         index += 1
         index2 += 1
     out
@@ -54,7 +60,7 @@ pub class ByteReader:
     var m_bytes: Bytes
     var m_index: int = 0
 
-    fn at_end() -> bool:
+    pub fn at_end() -> bool:
         m_index >= m_bytes.len()
 
     pub fn read_bytes(size: int) -> Bytes:
@@ -158,7 +164,7 @@ pub class ByteArray:
         let out = new_bytes_with_size(size: m_bytes.len())
         let index = 0
         while index < m_bytes.len():
-            out.m_bytes[index] = m_bytes[index]
+            out.set_byte(index, value: m_bytes[index])
             index += 1
         out
     
@@ -202,7 +208,7 @@ pub fn fill_bytes(n: int, fill: int) -> Bytes:
     let output = new_bytes_with_size(size: n)
     let index = 0
     while index < n:
-        output.m_bytes[index] = uint8(fill)
+        output.set_byte(index, value: uint8(fill))
         index += 1
     output
 

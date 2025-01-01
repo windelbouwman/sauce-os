@@ -41,7 +41,7 @@ class Repl:
     var id_gen: IdGen = IdGen()
     var m_vm: VirtualMachine = VirtualMachine()
 
-    fn eval(line: str):
+    pub fn eval(line: str):
         try:
             log_info("Parsing [{line}]")
             let statement = parse_statement_from_text(source: line, id_gen)

@@ -272,26 +272,26 @@ struct ExceptionHandler:
     except_label: int
 
 class Frame:
-    var arguments: List[Value] = List()
-    var locals: List[Value] = List()
-    var stack: List[Value] = List()
-    var exception_handlers: List[ExceptionHandler] = List()
-    var pc: int = 0
+    pub var arguments: List[Value] = List()
+    pub var locals: List[Value] = List()
+    pub var stack: List[Value] = List()
+    pub var exception_handlers: List[ExceptionHandler] = List()
+    pub var pc: int = 0
     var code: Vector[Instruction]
 
-    fn fetch() -> Instruction:
+    pub fn fetch() -> Instruction:
         let instruction = code[pc]
         pc += 1
         instruction
 
 pub class VirtualMachine:
-    var frames: List[Frame] = List()
-    var globals: Vector[Value] = new_vector()
+    pub var frames: List[Frame] = List()
+    pub var globals: Vector[Value] = new_vector()
     var exception_value: Value = Value.Undefined()
-    var m_functions: List[FunctionRef] = List()
-    var structs: Vector[bc.Struct] = new_vector()
+    pub var m_functions: List[FunctionRef] = List()
+    pub var structs: Vector[bc.Struct] = new_vector()
 
-    fn step():
+    pub fn step():
         let instruction = fetch()
         execute(instruction)
 
@@ -566,10 +566,10 @@ pub class VirtualMachine:
     fn set_global(index: int, value: Value):
         globals.set(index, value)
 
-    fn pop_frame() -> Frame:
+    pub fn pop_frame() -> Frame:
         frames.pop_last()
 
-    fn push_frame(frame: Frame):
+    pub fn push_frame(frame: Frame):
         frames.append(frame)
 
 

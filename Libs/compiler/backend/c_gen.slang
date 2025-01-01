@@ -44,25 +44,25 @@ fn is_heap(ty?: bc.Type) -> bool:
 
 class CGenerator:
     # Generate C from bytecode
-    var out: TextGenerator = TextGenerator()
+    pub var out: TextGenerator = TextGenerator()
 
     var stack: Vector[Value] = new_vector()
     var next_id: int = 1
     var local_variables: Vector[Value] = new_vector()
     var local_parameters: Vector[Value] = new_vector()
-    var structs: Vector[bc.Struct] = new_vector()
-    var globals: Vector[bc.Global] = new_vector()
-    var functions: Vector[bc.Function] = new_vector()
-    var extern_functions: Vector[bc.ExternFunction] = new_vector()
+    pub var structs: Vector[bc.Struct] = new_vector()
+    pub var globals: Vector[bc.Global] = new_vector()
+    pub var functions: Vector[bc.Function] = new_vector()
+    pub var extern_functions: Vector[bc.ExternFunction] = new_vector()
 
-    fn emit_runtime():
+    pub fn emit_runtime():
         emit("#include <stddef.h>")
         emit("#include <stdint.h>")
         emit("#include <setjmp.h>")
         emit("#include <stdlib.h>")
         emit("#include \"slangrt.h\"")
 
-    fn gen_program(program: bc.Program):
+    pub fn gen_program(program: bc.Program):
         # Struct forward declarations:
         let index = 0
         for struct_def in program.structs:

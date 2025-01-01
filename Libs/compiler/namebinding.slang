@@ -126,7 +126,7 @@ fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: a
                     for type_parameter in class_def.type_parameters:
                         filler.define_type_parameter(type_parameter)
                 Var(variable_def):
-                    filler.define_variable(variable: variable_def.variable)
+                    filler.define_variable(is_pub: variable_def.is_pub, variable: variable_def.variable)
         Post:
             case get_scope(definition):
                 None:
@@ -144,17 +144,17 @@ fn filler_on_statement(filler: NameBinder, statement: ast.Statement, phase: ast.
         Pre:
             case statement.kind:
                 Let(letty):
-                    filler.define_variable(variable: letty.variable)
+                    filler.define_variable(is_pub: true, variable: letty.variable)
                 For(for_statement):
                     filler.enter_scope(scope: for_statement.block.scope)
-                    filler.define_variable(variable: for_statement.iter_var)
+                    filler.define_variable(is_pub: true, variable: for_statement.iter_var)
                 While(while_statement):
                     filler.enter_scope(scope: while_statement.block.scope)
                 Loop(loop_statement):
                     filler.enter_scope(scope: loop_statement.block.scope)
                 Try(try_statement):
                     # TODO: create new scope for except clause?
-                    filler.define_variable(variable: try_statement.except_var)
+                    filler.define_variable(is_pub: true, variable: try_statement.except_var)
             else:
                 pass
         Post:
@@ -180,7 +180,7 @@ fn filler_on_node(filler: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
                 Arm(arm):
                     filler.enter_scope(scope: arm.block.scope)
                     for variable in arm.variables:
-                        filler.define_variable(variable)
+                        filler.define_variable(is_pub: true, variable)
                 ScopeNode(scope):
                     filler.enter_scope(scope)
             else:
@@ -353,11 +353,11 @@ fn base_scope() -> ast.Scope:
 class NameBinder:
     """ Helper class to fill scopes, and resolve names from scopes. """
     var scopes: List[ast.Scope] = List()
-    var errors: List[SingleCompilationError] = List()
-    var tycon_map: HashMap[ast.NodeId,ast.TyCon]
+    pub var errors: List[SingleCompilationError] = List()
+    pub var tycon_map: HashMap[ast.NodeId,ast.TyCon]
     var was_class_scope: bool = false # HACK for multiple return values?
 
-    fn import_mod(imp: ast.Import, module_map: HashMap[str,ast.Module]):
+    pub fn import_mod(imp: ast.Import, module_map: HashMap[str,ast.Module]):
         log_trace("Import {imp.modname}")
         case module_map.maybe_get(key: imp.modname):
             Some(module):
@@ -375,19 +375,19 @@ class NameBinder:
             None:
                 add_error(location: imp.location, message: "Error, no module named: {imp.modname}")
 
-    fn add_tycon(id: ast.NodeId, tycon: ast.TyCon):
+    pub fn add_tycon(id: ast.NodeId, tycon: ast.TyCon):
         tycon_map.insert(key: id, value: tycon)
 
-    fn define_variable(variable: ast.Variable):
-        define(is_pub: true, name: variable.id.name, kind: ast.SymbolKind.Var(variable), location: variable.location)
+    pub fn define_variable(is_pub: bool, variable: ast.Variable):
+        define(is_pub, name: variable.id.name, kind: ast.SymbolKind.Var(variable), location: variable.location)
     
-    fn define_type_parameter(type_parameter: ast.TypeParameter):
+    pub fn define_type_parameter(type_parameter: ast.TypeParameter):
         define(is_pub: false, name: type_parameter.id.name, kind: ast.SymbolKind.Typ(ty: ast.type_parameter_ref(type_parameter)), location: type_parameter.location)
     
-    fn define_parameter(parameter_def: ast.ParameterDef):
+    pub fn define_parameter(parameter_def: ast.ParameterDef):
         define(is_pub: false, name: parameter_def.id.name, kind: ast.SymbolKind.Parameter(parameter_def), location: parameter_def.location)
 
-    fn define(is_pub: bool, name: str, kind: ast.SymbolKind, location: Location):
+    pub fn define(is_pub: bool, name: str, kind: ast.SymbolKind, location: Location):
         # log_trace("DEFINE {name}")
         let scope = scopes.first()
         if scope.is_defined(name):
@@ -395,7 +395,7 @@ class NameBinder:
         else:
             scope.define(is_pub, name, kind, location)
     
-    fn lookup_expression_kind(name: str, location: Location) -> ast.ExpressionKind except SingleCompilationError:
+    pub fn lookup_expression_kind(name: str, location: Location) -> ast.ExpressionKind except SingleCompilationError:
         let symbol = lookup_base_name(name, location)
         symbol.add_reference(location)
         let introduce_this = if was_class_scope:
@@ -420,7 +420,7 @@ class NameBinder:
         let kind = symbol_to_kind(symbol)
         ast.Expression(kind, ty: ast.undefined_type(), location)
 
-    fn resolve_type_kind(name: ast.QualName) -> ast.TypeKind except SingleCompilationError:
+    pub fn resolve_type_kind(name: ast.QualName) -> ast.TypeKind except SingleCompilationError:
         """ Resolve qualified name to a type """
         let symbol = resolve_qual_name(name)
         case symbol.kind:
@@ -431,7 +431,7 @@ class NameBinder:
         else:
             raise new_error(location: name.location, message: "Not a type: {symbol}")
 
-    fn resolve_tycon(name: ast.QualName) -> ast.TyCon except SingleCompilationError:
+    pub fn resolve_tycon(name: ast.QualName) -> ast.TyCon except SingleCompilationError:
         """ Resolve qualified name to a type constructor """
         let symbol = resolve_qual_name(name)
         case symbol.kind:
@@ -459,7 +459,7 @@ class NameBinder:
 
         symbol
 
-    fn resolve_attribute(module: ast.Module, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
+    pub fn resolve_attribute(module: ast.Module, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
         """ Try to load an attribute from a module. """
         case module.scope.lookup(name: attr):
             Some(symbol):
@@ -480,12 +480,12 @@ class NameBinder:
                     pass
         raise new_error(location, message: "'{name}' not defined!")
 
-    fn enter_scope(scope: ast.Scope):
+    pub fn enter_scope(scope: ast.Scope):
         scopes.prepend(scope)
     
-    fn leave_scope():
+    pub fn leave_scope():
         scopes.drop_front()
     
-    fn add_error(location: Location, message: str):
+    pub fn add_error(location: Location, message: str):
         let err = new_error(location, message)
         errors.append(err)

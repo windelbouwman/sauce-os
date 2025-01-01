@@ -14,7 +14,7 @@ fn new_integer(value?: int) -> Integer:
 class List[T]:
     var head_element: Option[ListElement[T]] = Option.None()
 
-    fn append(val?: T):
+    pub fn append(val?: T):
         let new_tail_element = ListElement:
             next: Option.None()
             data: val
@@ -31,7 +31,7 @@ class List[T]:
                             element = nxt_element
                 element.next = Option.Some(new_tail_element)
 
-    fn iter() -> ListIter[T]:
+    pub fn iter() -> ListIter[T]:
         let it = ListIter()
         it.next_element = this.head_element
         it
@@ -45,9 +45,9 @@ struct ListElement[T]:
     data: T
 
 class ListIter[T]:
-    var next_element: Option[ListElement[T]] = Option.None()
+    pub var next_element: Option[ListElement[T]] = Option.None()
 
-    fn next() -> Option[T]:
+    pub fn next() -> Option[T]:
         let opt = this.next_element
         case opt:
             None:

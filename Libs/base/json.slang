@@ -214,27 +214,27 @@ pub class JsonBuilder:
 class JsonObjectBuilder:
     var m_attributes: List[KeyValue] = List()
 
-    fn add_attribute(attr: str, value: JsonValue):
+    pub fn add_attribute(attr: str, value: JsonValue):
         m_attributes.append(KeyValue(key: attr, value))
 
-    fn finish() -> JsonValue:
+    pub fn finish() -> JsonValue:
         JsonValue.Object(m_attributes)
 
 
 class JsonArrayBuilder:
     var m_values: List[JsonValue] = List()
 
-    fn add_element(value: JsonValue):
+    pub fn add_element(value: JsonValue):
         m_values.append(value)
 
-    fn finish() -> JsonValue:
+    pub fn finish() -> JsonValue:
         JsonValue.Array(m_values)
 
 class Parser:
     var m_buffer: List[JsonToken] = List()
     var lexer : Lexer
 
-    fn parse_value() -> JsonValue except JsonException:
+    pub fn parse_value() -> JsonValue except JsonException:
         let token = get_token()
         case token.kind:
             BracketLeft:
@@ -377,11 +377,11 @@ class Lexer:
     var index: int = 0
     var n: int = 0
 
-    fn init():
+    pub fn init():
         index = 0
         n = str_len(text)
 
-    fn lex() -> JsonToken:
+    pub fn lex() -> JsonToken:
         loop:
             let begin = index
             let c = str_get(text, index)

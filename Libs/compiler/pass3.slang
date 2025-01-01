@@ -147,7 +147,7 @@ fn newop_on_node(newop: NewOp, node: ast.VisitNode, phase: ast.VisitPhase):
     pass
 
 class NewOp:
-    var errors: List[SingleCompilationError] = List()
+    pub var errors: List[SingleCompilationError] = List()
     var id_gen: IdGen
 
     fn try_as_type(expression: ast.Expression) -> Option[ast.Type]:
@@ -158,17 +158,17 @@ class NewOp:
         else:
             Option.None()
 
-    fn add_error(location: Location, message: str):
+    pub fn add_error(location: Location, message: str):
         errors.append(new_error(location, message))
     
-    fn turn_tycon_to_type(tycon: ast.TyCon) -> ast.Type:
+    pub fn turn_tycon_to_type(tycon: ast.TyCon) -> ast.Type:
         let type_arguments: Vector[ast.Type] = new_vector()
         for tp in ast.tycon_get_type_parameters(tycon):
             let type_var: ast.TypeVariable = ast.new_type_var(unique: new_id())
             type_arguments.append(ast.new_type_var_ref(type_var))
         ast.apply_tycon(tycon, type_arguments)
     
-    fn new_type_arguments(type_parameters: List[ast.TypeParameter]) -> Vector[ast.Type]:
+    pub fn new_type_arguments(type_parameters: List[ast.TypeParameter]) -> Vector[ast.Type]:
         let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: type_parameters.len())
         for tp in type_parameters:
             let type_var = ast.new_type_var(unique: new_id())

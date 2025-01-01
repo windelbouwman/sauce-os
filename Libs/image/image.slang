@@ -9,9 +9,9 @@ pub fn new_image(width: int, height: int) -> Image:
         pixels
 
 pub class Image:
-    var width: int
-    var height: int
-    var pixels: Vector[Pixel]
+    pub var width: int
+    pub var height: int
+    pub var pixels: Vector[Pixel]
 
     pub fn get_pixel(x: int, y: int) -> Pixel:
         let index = y * width + x

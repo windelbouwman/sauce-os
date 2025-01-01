@@ -604,13 +604,13 @@ enum EnumImpl:
 
 class ClassRewriter:
     var ctor_map: HashMap[ast.NodeId,ast.FunctionDef] = ast.new_hashmap_nodeid()
-    var class_struct_map: HashMap[ast.NodeId,ast.StructDef] = ast.new_hashmap_nodeid()
-    var enum_impl_map: HashMap[ast.NodeId,EnumImpl] = ast.new_hashmap_nodeid()
-    var new_definitions: List[ast.Definition] = List()
+    pub var class_struct_map: HashMap[ast.NodeId,ast.StructDef] = ast.new_hashmap_nodeid()
+    pub var enum_impl_map: HashMap[ast.NodeId,EnumImpl] = ast.new_hashmap_nodeid()
+    pub var new_definitions: List[ast.Definition] = List()
     var id_gen: IdGen
     var rt_module: ast.Module
 
-    fn rewrite_class_def(class_def: ast.ClassDef):
+    pub fn rewrite_class_def(class_def: ast.ClassDef):
         log_info("Rewriting class def {class_def.id.name}")
         let methods: List[ast.FunctionDef] = List()
         let builder = ast.StructBuilder()
@@ -698,10 +698,11 @@ class ClassRewriter:
                 pass
 
         let libname = "?"
-        let ctor_func = ast.extern_function_def(is_pub: true, libname, name: ctor_name, type_parameters, parameters, return_type: struct_type, location: class_def.location)
+        let docstring: Option[str] = Option.None()
+        let ctor_func = ast.extern_function_def(is_pub: true, libname, name: ctor_name, docstring, type_parameters, parameters, return_type: struct_type, location: class_def.location)
         case class_def.is_extern:
             Some(libname):
-                ctor_func = ast.extern_function_def(is_pub: true, libname, name: ctor_name, type_parameters, parameters, return_type: struct_type, location: class_def.location)
+                ctor_func = ast.extern_function_def(is_pub: true, libname, name: ctor_name, docstring, type_parameters, parameters, return_type: struct_type, location: class_def.location)
             None:
                 let init_literal = ast.struct_literal(ty: struct_type, values: init_values, location: class_def.location)
                 let body = ast.return_statement(value: Option.Some(init_literal), location: class_def.location)
@@ -711,7 +712,7 @@ class ClassRewriter:
         ctor_map.insert(key: class_def.id, value: ctor_func)
         new_definitions.append(ast.Definition.Function(ctor_func))
 
-    fn rewrite_class_literal(ty: ast.Type, arguments: List[ast.LabeledExpression], location: Location) -> ast.Expression:
+    pub fn rewrite_class_literal(ty: ast.Type, arguments: List[ast.LabeledExpression], location: Location) -> ast.Expression:
         let class_def = ty.get_class_def()
         let ctor_func_def: ast.FunctionDef = ctor_map.get(key: class_def.id)
         let type_arguments = ty.get_type_arguments()
@@ -730,7 +731,7 @@ class ClassRewriter:
     fn get_enum_impl(id: ast.NodeId) -> EnumImpl:
         enum_impl_map.get(key: id)
     
-    fn load_std_function(name: str, location: Location) -> ast.Expression:
+    pub fn load_std_function(name: str, location: Location) -> ast.Expression:
         # Get expression that loads a builtin runtime function.
         let symbol = option_unwrap(rt_module.scope.lookup(name))
         case symbol.kind:
@@ -740,7 +741,7 @@ class ClassRewriter:
         else:
             panic("{name} must be external function")
 
-    fn transform_for_loop(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
+    pub fn transform_for_loop(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
         """ Turn for loop into iterator and while loop """
         log_debug("Rewrite for loop")
 
@@ -919,7 +920,7 @@ class ClassRewriter:
 
         ast.compound(inner: vec4(let_x, let_index, let_size, while_loop), location)
 
-    fn transform_switch(switch_statement: ast.SwitchStatement, location: Location) -> ast.StatementKind:
+    pub fn transform_switch(switch_statement: ast.SwitchStatement, location: Location) -> ast.StatementKind:
         # Turn switch into sequence of if-else
         let x_var = new_variable(name: "x", ty: ast.int_type(), location)
         let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: switch_statement.value, location)
@@ -934,7 +935,7 @@ class ClassRewriter:
         
         ast.StatementKind.Compound(vec2(let_x, else_clause))
 
-    fn rewrite_enum_def(enum_def: ast.EnumDef):
+    pub fn rewrite_enum_def(enum_def: ast.EnumDef):
         log_info("Rewriting enum def {enum_def.id.name}")
 
         # Check for enum def characteristics:
@@ -1012,7 +1013,7 @@ class ClassRewriter:
             new_definitions.append(ast.Definition.Struct(struct_def))
             enum_impl_map.insert(key: enum_def.id, value: EnumImpl.Struct(struct_def))
 
-    fn transform_case(case_statement: ast.CaseStatement) -> ast.Statement:
+    pub fn transform_case(case_statement: ast.CaseStatement) -> ast.Statement:
         """ Transform case statement into switch case over tag values. """
         let location = case_statement.value.location
         let enum_def = case_statement.value.ty.get_enum_def()
@@ -1138,7 +1139,7 @@ class ClassRewriter:
 
                 ast.switch_statement(value: case_statement.value, arms: switch_arms, default_body: switch_default_code, location)
 
-    fn rewrite_enum_literal(enum_ty: ast.Type, variant: ast.EnumVariant, values: List[ast.Expression], location: Location) -> ast.Expression:
+    pub fn rewrite_enum_literal(enum_ty: ast.Type, variant: ast.EnumVariant, values: List[ast.Expression], location: Location) -> ast.Expression:
         # log_info("Rewrite enum literal")
         let enum_def = enum_ty.get_enum_def()
         let tag_value = variant.tag_value
@@ -1170,7 +1171,7 @@ class ClassRewriter:
                 let data = ast.union_literal(ty: union_type, field: union_field_name, value: union_value, location)
                 ast.struct_literal(ty: struct_type, values: list2(tag, data), location)
 
-    fn erase_type(ft: ast.Type, value: ast.Expression, assign: bool):
+    pub fn erase_type(ft: ast.Type, value: ast.Expression, assign: bool):
         if ft.was_generic and not assign:
             let old_value = ast.clone_expression(value)
             let new_value = ast.box(value: old_value, location: value.location)

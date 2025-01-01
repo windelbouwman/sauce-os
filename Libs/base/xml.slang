@@ -10,10 +10,10 @@ from strlib import str_join, str_repeat
 
 pub class Node:
     # An xml node!
-    var tag: str
-    var m_attributes: List[Attribute] = List()
-    var m_child_nodes: List[Node] = List()
-    var m_content: str = ""
+    pub var tag: str
+    pub var m_attributes: List[Attribute] = List()
+    pub var m_child_nodes: List[Node] = List()
+    pub var m_content: str = ""
 
     pub fn add_attribute(name: str, value: str):
         m_attributes.append(Attribute(name, value))
@@ -41,18 +41,18 @@ class XmlWriter:
     var use_file: bool = false
     var outf: int = 0
 
-    fn begin(output_filename: Option[str]):
+    pub fn begin(output_filename: Option[str]):
         # See also: 'text_gen.slang'
         # TODO: de-duplicate by means of dynamic dispatch/traits
         if option_is_some(output_filename):
             outf = file_open(filename: option_unwrap(output_filename), mode: "w")
             use_file = true
 
-    fn end():
+    pub fn end():
         if use_file:
             file_close(handle: outf)
 
-    fn write_header():
+    pub fn write_header():
         let attributes: List[Attribute] = List()
         attributes.append(Attribute(name: "version", value: "1.0"))
         attributes.append(Attribute(name: "encoding", value: "UTF-8"))
@@ -60,7 +60,7 @@ class XmlWriter:
         let attrs_text = attributes_to_string(attributes)
         emit("<?xml {attrs_text} ?>")
 
-    fn write_node(node: Node):
+    pub fn write_node(node: Node):
         let attrs_text = attributes_to_string(attributes: node.m_attributes)
         if str_len(text: attrs_text) > 0:
             attrs_text = " " + attrs_text

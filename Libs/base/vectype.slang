@@ -16,7 +16,7 @@ pub fn new_vector_with_capacity[T](capacity: int) -> Vector[T]:
     else:
         capacity
     let m_elements = [m_capacity : T]
-    let v: Vector[T] = Vector(m_capacity, m_elements)
+    let v: Vector[T] = Vector(m_size: 0, m_capacity, m_elements)
     v
 
 pub fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
@@ -26,8 +26,7 @@ pub fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
     while i < size:
         m_elements[i] = default
         i += 1
-    let v: Vector[T] = Vector(m_capacity, m_elements)
-    v.m_size = size
+    let v: Vector[T] = Vector(m_size: size, m_capacity, m_elements)
     v
 
 pub fn vec2[T](v1?: T, v2?: T) -> Vector[T]:
@@ -52,7 +51,7 @@ pub fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> Vector[T]:
     vec
 
 pub class Vector[T]:
-    var m_size: int = 0
+    var m_size: int
     var m_capacity: int
     var m_elements: [T]
 
@@ -74,12 +73,12 @@ pub class Vector[T]:
 
     pub fn extend(other: Vector[T]):
         """ Append all elements of other to this vector """
-        let new_size = m_size + other.m_size
+        let new_size = m_size + other.len()
         while m_capacity < new_size:
             grow()
         let index = 0
-        while index < other.m_size:
-            m_elements[m_size] = other.m_elements[index]
+        while index < other.len():
+            m_elements[m_size] = other[index]
             m_size += 1
             index += 1
 
@@ -139,7 +138,7 @@ pub class Vector[T]:
         v2
     
     pub fn concat(other: Vector[T]) -> Vector[T]:
-        let v2: Vector[T] = new_vector_with_capacity(capacity: m_size + other.m_size)
+        let v2: Vector[T] = new_vector_with_capacity(capacity: m_size + other.len())
         v2.extend(other: this)
         v2.extend(other)
         v2

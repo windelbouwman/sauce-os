@@ -9,9 +9,7 @@ import sil
 pub fn to_sil(program: bc.Program) -> sil.Program:
     log_info("Creating SIL program from bytecode")
     let g = SilGen(m_bc_program: program)
-    for function in program.functions:
-        g.gen_function(function)
-    sil.Program(functions: g.m_functions)
+    g.gen_program()
 
 class SilGen:
     var m_bc_program: bc.Program
@@ -22,6 +20,11 @@ class SilGen:
     var m_locals: List[sil.Value] = List()
     var m_tmp_number: int = 0
     var m_value_stack: List[sil.Value] = List()
+
+    pub fn gen_program() -> sil.Program:
+        for function in m_bc_program.functions:
+            gen_function(function)
+        sil.Program(functions: m_functions)
 
     fn gen_function(function: bc.Function):
         log_info("Gen code for function {function.name}")

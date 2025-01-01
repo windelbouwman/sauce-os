@@ -6,7 +6,7 @@ class Bar:
     var val2: float = 3.14
     var val3: str
 
-    fn info(x: int):
+    pub fn info(x: int):
         print("Bar instance {x + this.val1}")
         info2()
 

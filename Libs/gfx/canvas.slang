@@ -13,19 +13,19 @@ pub class Canvas:
     var m_g_node: Node = Node(tag: "g")
     var m_svg_node: Node = Node(tag: "svg")
 
-    fn save_svg(filename: str):
+    pub fn save_svg(filename: str):
         log_info("Saving chart to {filename}")
         m_svg_node.add_attribute(name: "xmlns", value: "http://www.w3.org/2000/svg")
         m_svg_node.add_child(m_g_node)
         emit_xml(node: m_svg_node, filename: Option.Some(filename))
 
-    fn set_color(color?: str):
+    pub fn set_color(color?: str):
         m_color = color
 
-    fn set_width(width?: int):
+    pub fn set_width(width?: int):
         m_width = width
 
-    fn draw_text(x: int, y: int, text: str, halign: HorizontalAnchor, valign: VerticalAnchor):
+    pub fn draw_text(x: int, y: int, text: str, halign: HorizontalAnchor, valign: VerticalAnchor):
         # Okay, lets break the text into glyphs and draw them one by one
         # When using SVG, we can draw text using SVG.
         let n = Node(tag: "text")
@@ -51,7 +51,7 @@ pub class Canvas:
     fn draw_rect(x: int, y: int):
         panic("TODO")
     
-    fn draw_line(x1: int, y1: int, x2: int, y2: int):
+    pub fn draw_line(x1: int, y1: int, x2: int, y2: int):
         # panic("TODO")
         let n = Node(tag: "line")
         n.add_attribute(name: "x1", value: "{x1}")

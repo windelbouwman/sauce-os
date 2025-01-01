@@ -11,9 +11,9 @@ from functools import reduce
 from shapelib import Point
 
 pub class Chart:
-    var m_x_axis: Axis = Axis()
-    var m_y_axis: Axis = Axis()
-    var m_curves: List[Curve] = List()
+    pub var m_x_axis: Axis = Axis()
+    pub var m_y_axis: Axis = Axis()
+    pub var m_curves: List[Curve] = List()
     var m_color_wheel: ColorWheel = ColorWheel()
 
     pub fn to_svg(filename: str):
@@ -103,28 +103,28 @@ pub class Chart:
         m_y_axis.pan(delta)
 
 class Axis:
-    var lower: float = -10.0
-    var upper: float = 10.0
+    pub var lower: float = -10.0
+    pub var upper: float = 10.0
 
-    fn domain() -> float:
+    pub fn domain() -> float:
         upper - lower
 
-    fn scale(factor: float):
+    pub fn scale(factor: float):
         lower *= factor
         upper *= factor
     
-    fn pan(delta: float):
+    pub fn pan(delta: float):
         lower += delta
         upper += delta
 
 pub class Curve:
-    var points: List[DataPoint]
-    var color: str
+    pub var points: List[DataPoint]
+    pub var color: str
 
     pub fn add_point(x: float, y: float):
         points.append(DataPoint(x, y))
 
-    fn get_data_bounds() -> Option[FRange]:
+    pub fn get_data_bounds() -> Option[FRange]:
         if points.is_empty():
             Option.None()
         else:
@@ -184,7 +184,7 @@ class ColorWheel:
         m_colors.append("navy")
         m_colors.append("blue")
 
-    fn get_color() -> str:
+    pub fn get_color() -> str:
         if m_colors.is_empty():
             # Initialize on first usage:
             init()
@@ -265,7 +265,7 @@ class ChartDrawer:
     var m_height: int = 480
     var m_axis_tick_size: int = 10
 
-    fn draw():
+    pub fn draw():
         calc_x_ticks()
         calc_y_ticks()
         draw_grid()

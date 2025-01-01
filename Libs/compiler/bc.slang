@@ -308,9 +308,9 @@ pub fn print_bc_instructions(instructions: Vector[Instruction]):
     Printer().write_instructions(instructions)
 
 class Printer:
-    var m_out: TextGenerator = TextGenerator()
+    pub var m_out: TextGenerator = TextGenerator()
 
-    fn write_program(program: Program):
+    pub fn write_program(program: Program):
         emit("BYTECODE program")
         indent()
         let index = 0
@@ -361,7 +361,7 @@ class Printer:
             dedent()
         dedent()
 
-    fn write_instructions(instructions: Vector[Instruction]):
+    pub fn write_instructions(instructions: Vector[Instruction]):
         let index = 0
         for instruction in instructions:
             emit("{index}: {instruction_to_string(instruction)}")

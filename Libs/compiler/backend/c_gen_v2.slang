@@ -15,15 +15,18 @@ pub fn gen_c_code_v2(module_set: ast.ModuleSet, output_filename: Option[str]):
     log_info("Generating C-code")
     let g = CGenerator2()
     g.out.begin(output_filename)
-    g.gen_header()
-    g.gen_forward_declarations1(module_set)
-    g.gen_forward_declarations2(module_set)
-    g.gen_struct_defs(module_set)
-    g.gen_function_defs(module_set)
+    g.gen_module_set(module_set)
     g.out.end()
 
 class CGenerator2:
-    var out: TextGenerator = TextGenerator()
+    pub var out: TextGenerator = TextGenerator()
+
+    pub fn gen_module_set(module_set: ast.ModuleSet):
+        gen_header()
+        gen_forward_declarations1(module_set)
+        gen_forward_declarations2(module_set)
+        gen_struct_defs(module_set)
+        gen_function_defs(module_set)
 
     fn gen_header():
         emit("#include <setjmp.h>")

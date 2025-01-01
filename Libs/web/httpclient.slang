@@ -26,7 +26,7 @@ class HttpClient:
     fn disconnect():
         unimplemented("disconnect")
 
-    fn get(url: str) -> str:
+    pub fn get(url: str) -> str:
         log_info("GET {url}")
         let parsed_url = parse_url(url)
         # let s = socket()
@@ -57,7 +57,7 @@ class HttpClient:
         let content = read()
         content
 
-    fn post(url: str):
+    pub fn post(url: str):
         unimplemented("POST")
 
     fn write_lines(lines: List[str]):

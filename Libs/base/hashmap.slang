@@ -26,7 +26,7 @@ pub fn new_hashmap_char[V]() -> HashMap[char,V]:
 
 pub fn new_hashmap[K,V](f_hash: fn(K) -> int, f_eq: fn(K, K) -> bool) -> HashMap[K,V]:
     let m: HashMap[K,V] = HashMap(f: HashableApi(f_hash, f_eq))
-    m.create_buckets(n: 16)
+    m.init()
     m
 
 pub fn str_hash(text?: str) -> int:
@@ -48,11 +48,14 @@ pub fn char_hash(x: char) -> int:
     ord(x)
 
 pub class HashMap[K,V]:
-    var num_buckets: int = 0
+    pub var num_buckets: int = 0
     var m_threshold: int = 0
     var m_size: int = 0
-    var m_buckets: [Option[KeyValuePair[K,V]]] = [Option.None()]
-    var f: HashableApi[K]
+    pub var m_buckets: [Option[KeyValuePair[K,V]]] = [Option.None()]
+    pub var f: HashableApi[K]
+
+    pub fn init():
+        create_buckets(n: 16)
 
     pub fn maybe_get(key: K) -> Option[V]:
         let next_pair = m_buckets[get_index(key)]

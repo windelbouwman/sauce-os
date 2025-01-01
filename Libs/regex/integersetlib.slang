@@ -8,7 +8,7 @@ from math import max, min
 from functools import zip, all
 
 pub class IntegerSet:
-    var ranges: List[Range]
+    pub var ranges: List[Range]
 
     pub fn to_string() -> str:
         let parts: List[str] = List()
@@ -34,7 +34,7 @@ pub class IntegerSet:
     pub fn union(other: IntegerSet) -> IntegerSet:
         integer_set_intersection(self: this, other)
 
-    fn first() -> int:
+    pub fn first() -> int:
         for range in ranges:
             return range.begin
         panic("Empty integer set!")

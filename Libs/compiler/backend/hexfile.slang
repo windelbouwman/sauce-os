@@ -10,7 +10,7 @@ from utils import assert
 pub class HexFile:
     var m_lines: List[HexLine] = List()
 
-    fn add_bytes(address: int, data: Bytes):
+    pub fn add_bytes(address: int, data: Bytes):
         # Add bytes into hex file
         let offset = 0
 
@@ -18,14 +18,14 @@ pub class HexFile:
             add_record(address: address + offset, record: 0, data: part)
             offset += part.len()
     
-    fn add_eof():
+    pub fn add_eof():
         add_record(address: 0, record: 1, data: ByteArray().to_bytes())
     
     fn add_record(address: int, record: int, data: Bytes):
         let line = HexLine(address: address, record, data)
         m_lines.append(line)
 
-    fn print_hex_file():
+    pub fn print_hex_file():
         for line in m_lines:
             print(hex_line_to_text(line))
 

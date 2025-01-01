@@ -23,5 +23,5 @@ pub fn gen_x86(program: bc.Program):
 class X86Generator:
     var m_dummy: int = 0
 
-    fn gen_function(function: sil.Function):
+    pub fn gen_function(function: sil.Function):
         print("FUNC: {function.name}")

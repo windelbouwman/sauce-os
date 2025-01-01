@@ -12,7 +12,7 @@
 import webassembly
 import ast
 from webassembly import Instruction
-from datatypes import List, list1
+from datatypes import List, list1, Option
 from hashmap import HashMap, new_hashmap_str
 from location import location_default
 from std import str_len, ord
@@ -37,9 +37,11 @@ class WasmGenerator:
     var literal_offset: int = 0
     var block_stack: List[bool] = List()
 
-    fn gen_module_set(modules: List[ast.Module]):
+    pub fn gen_module_set(modules: List[ast.Module]):
         let type_parameters: List[ast.TypeParameter] = List()
-        let malloc_def = ast.extern_function_def(is_pub: true, libname: "js", name: "js_malloc", type_parameters, parameters: list1(ast.unlabeled_parameter(ty: ast.int_type())), return_type: ast.opaque_type(), location: location_default())
+        let parameters = list1(ast.unlabeled_parameter(ty: ast.int_type()))
+        let docstring: Option[str] = Option.None()
+        let malloc_def = ast.extern_function_def(is_pub: true, libname: "js", name: "js_malloc", docstring, type_parameters, parameters, return_type: ast.opaque_type(), location: location_default())
         gen_external_function(function_def: malloc_def)
 
         for module in modules:

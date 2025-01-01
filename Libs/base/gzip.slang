@@ -43,8 +43,7 @@ pub fn gzip_decompress(data?: Bytes) -> Bytes:
 
     # Invoke deflate here
     let decoder = new_deflate_decoder(reader)
-    decoder.deflate()
-    let decompressed = decoder.m_output.to_bytes()
+    let decompressed = decoder.deflate()
 
     let crc32 = reader.read_u32_le()
     let isize = reader.read_u32_le()
@@ -101,8 +100,7 @@ pub fn zlib_decompress(data: Bytes) -> Bytes:
         unimplemented("FDICT unsupported")
 
     let decoder = new_deflate_decoder(reader)
-    decoder.deflate()
-    let decompressed = decoder.m_output.to_bytes()
+    let decompressed = decoder.deflate()
 
     # ADLER32 checksum:
     let crc2 = calc_adler32(data: decompressed)

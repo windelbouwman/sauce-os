@@ -9,7 +9,7 @@ from hashmap import HashMap, new_hashmap_str
 
 pub class DiGraph:
     """ A directed graph """
-    var nodes: Set[str] = new_str_set()
+    pub var nodes: Set[str] = new_str_set()
     var pred: HashMap[str,Set[str]] = new_hashmap_str()
     var succ: HashMap[str,Set[str]] = new_hashmap_str()
 
@@ -26,26 +26,26 @@ pub class DiGraph:
         succ.get(key: src).add(dst)
         pred.get(key: dst).add(src)
     
-    fn remove_edge(src: str, dst: str):
+    pub fn remove_edge(src: str, dst: str):
         # Remove edge from src to dst
         succ.get(key: src).remove(dst)
         pred.get(key: dst).remove(src)
 
-    fn has_edge(src: str, dst: str) -> bool:
+    pub fn has_edge(src: str, dst: str) -> bool:
         case succ.maybe_get(key: src):
             Some(s):
                 s.contains(dst)
             None:
                 false
     
-    fn has_preds(n?: str) -> bool:
+    pub fn has_preds(n?: str) -> bool:
         case pred.maybe_get(key: n):
             Some(p):
                 return not p.is_empty()
             None:
                 false
     
-    fn has_edges() -> bool:
+    pub fn has_edges() -> bool:
         for n in nodes:
             let pred2 = pred.get(key: n)
             if not pred2.is_empty():
@@ -83,7 +83,7 @@ pub fn topological_sort(g?: DiGraph) -> Option[List[str]]:
 
 pub class Graph:
     """ Undirected graph """
-    var m_nodes: Set[str] = new_str_set()
+    pub var m_nodes: Set[str] = new_str_set()
     var m_neighbours: HashMap[str,Set[str]] = new_hashmap_str()
 
     pub fn add_node(n?: str):
@@ -102,6 +102,9 @@ pub class Graph:
             m_neighbours.get(key: src).contains(key: dst)
         else:
             false
+    
+    pub fn neighbours(n?: str) -> Set[str]:
+        m_neighbours.get(key: n)
 
 pub fn find_max_cliques(g: Graph) -> List[Set[str]]:
     """ Find maximum cliques with the Bron Kerbosch algorithm """
@@ -117,7 +120,7 @@ fn bron_kerbosch(r: Set[str], p: Set[str], x: Set[str], g: Graph, output: List[S
         output.append(r)
     
     for v in p:
-        let n = g.m_neighbours.get(key: v)
+        let n = g.neighbours(v)
         let v_set = new_str_set()
         v_set.add(v)
         bron_kerbosch(r: r.union(other: v_set), p: p.intersection(other: n), x: x.intersection(other: n), g, output)
@@ -137,7 +140,7 @@ fn bron_kerbosch_k(r: Set[str], p: Set[str], x: Set[str], g: Graph, k: int, outp
         return
 
     for v in p:
-        let n = g.m_neighbours.get(key: v)
+        let n = g.neighbours(v)
         let v_set = new_str_set()
         v_set.add(v)
         bron_kerbosch_k(r: r.union(other: v_set), p: p.intersection(other: n), x: x.intersection(other: n), g, k, output)

@@ -11,22 +11,25 @@ pub fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_file
     log_info("Generating python code")
     let g = PyGenerator()
     g.out.begin(output_filename)
-    g.emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
-    for module in module_set.modules:
-        g.gen_module(module)
-    if generate_runtime:
-        g.emit("if __name__ == '__main__':")
-        g.indent()
-        g.emit("import sys")
-        g.emit("sys.exit(main2())")
-        g.dedent()
+    g.generate(module_set, generate_runtime)
     g.out.end()
 
 class PyGenerator:
-    var out: TextGenerator = TextGenerator()
+    pub var out: TextGenerator = TextGenerator()
     var global_header: str = ""
 
-    fn gen_module(module: ast.Module):
+    pub fn generate(module_set: ast.ModuleSet, generate_runtime: bool):
+        emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
+        for module in module_set.modules:
+            gen_module(module)
+        if generate_runtime:
+            emit("if __name__ == '__main__':")
+            indent()
+            emit("import sys")
+            emit("sys.exit(main2())")
+            dedent()
+
+    pub fn gen_module(module: ast.Module):
         let global_names: List[str] = List()
         for definition in module.definitions:
             case definition:

@@ -3,10 +3,10 @@
 import std
 
 class Bar[V]:
-    var val1: int = 2
-    var val3: str = "bla"
+    pub var val1: int = 2
+    pub var val3: str = "bla"
 
-    fn info(v: V) -> V:
+    pub fn info(v: V) -> V:
         std.print("Instance: {this.val1} " + this.val3)
         v
 
@@ -25,7 +25,7 @@ pub fn main() -> int:
     0
 
 class Integer:
-    var v: int = 0
+    pub var v: int = 0
 
 class String:
-    var v: str = "-"
+    pub var v: str = "-"

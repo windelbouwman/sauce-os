@@ -24,16 +24,15 @@ pub fn store_symbol_table(module_set: ast.ModuleSet, filename: str):
     let libname = basename(path: filename)
     let saver = SymbolSaver(m_libname: libname)
 
-    saver.m_ser.begin_object()
-    saver.save_modules(module_set)
-    let obj = saver.m_ser.end_object()
+    let obj = saver.save_modules(module_set)
     write_json_to_file(filename, obj)
 
 class SymbolSaver:
     var m_ser: JsonBuilder = JsonBuilder()
     var m_libname: str
 
-    fn save_modules(module_set: ast.ModuleSet):
+    pub fn save_modules(module_set: ast.ModuleSet) -> JsonValue:
+        m_ser.begin_object()
         m_ser.add_text_attribute(attr: "compiler-version", text: "2024")
         m_ser.add_text_attribute(attr: "libname", text: m_libname)
         m_ser.begin_array()
@@ -44,6 +43,7 @@ class SymbolSaver:
             else:
                 log_debug("Skip saving meta-info for module: {module.name}")
         m_ser.end_array_as_attribute(attr: "modules")
+        m_ser.end_object()
 
     fn save_module(module: ast.Module):
         m_ser.begin_object()
@@ -102,19 +102,20 @@ class SymbolSaver:
                 save_class_def(class_def)
             Enum(enum_def):
                 save_enum_def(enum_def)
-            Var(var_def):
-                save_var_def(var_def)
+            Var(variable_def):
+                save_var_def(variable_def)
         m_ser.end_object_as_element()
 
     fn save_macro_def(macro_def: ast.MacroDef):
         unimplemented("macro-def")
 
-    fn save_var_def(var_def: ast.VariableDef):
+    fn save_var_def(variable_def: ast.VariableDef):
         m_ser.add_text_attribute(attr: "kind", text: "variable")
-        save_id(id: var_def.variable.id)
-        save_type(attr: "type", ty: var_def.variable.ty)
+        m_ser.add_boolean_attribute(attr: "pub", value: variable_def.is_pub)
+        save_id(id: variable_def.variable.id)
+        save_type(attr: "type", ty: variable_def.variable.ty)
         let is_initialized = false
-        case var_def.value:
+        case variable_def.value:
             Intern(value):
                 is_initialized = option_is_some(value)
             Extern(libname, initialized):
@@ -126,6 +127,7 @@ class SymbolSaver:
         m_ser.add_boolean_attribute(attr: "pub", value: enum_def.is_pub)
         save_id(id: enum_def.id)
         save_type_parameters(type_parameters: enum_def.type_parameters)
+        save_doc_string(docstring: enum_def.docstring)
 
         m_ser.begin_array()
         for variant in enum_def.variants:
@@ -145,6 +147,7 @@ class SymbolSaver:
         m_ser.add_boolean_attribute(attr: "pub", value: class_def.is_pub)
         save_id(id: class_def.id)
         save_type_parameters(type_parameters: class_def.type_parameters)
+        save_doc_string(docstring: class_def.docstring)
 
         m_ser.begin_array()
         for definition in class_def.definitions:
@@ -157,6 +160,7 @@ class SymbolSaver:
         m_ser.add_text_attribute(attr: "name", text: function_def.name)
         m_ser.add_integer_attribute(attr: "id", value: 0)
         save_type_parameters(type_parameters: function_def.type_parameters)
+        save_doc_string(docstring: function_def.docstring)
 
         # Parameters
         m_ser.begin_array()
@@ -179,6 +183,7 @@ class SymbolSaver:
         m_ser.add_boolean_attribute(attr: "pub", value: struct_def.is_pub)
         save_id(id: struct_def.id)
         save_type_parameters(type_parameters: struct_def.type_parameters)
+        save_doc_string(docstring: struct_def.docstring)
 
         # Fields
         m_ser.begin_array()
@@ -189,6 +194,13 @@ class SymbolSaver:
             m_ser.end_object_as_element()
             
         m_ser.end_array_as_attribute(attr: "fields")
+
+    fn save_doc_string(docstring: Option[str]):
+        case docstring:
+            Some(text):
+                m_ser.add_text_attribute(attr: "docstring", text)
+            None:
+                pass
 
     fn save_type_parameters(type_parameters: List[ast.TypeParameter]):
         m_ser.begin_array()
@@ -295,10 +307,10 @@ class SymbolLoader:
     var m_this_type: Option[ast.Type] = Option.None()
     var m_libname: str = "?"
 
-    fn push_json(value: JsonValue):
+    pub fn push_json(value: JsonValue):
         m_des.push_value(value)
     
-    fn load_modules() -> List[ast.Module]:
+    pub fn load_modules() -> List[ast.Module]:
         let compiler_version_info = m_des.get_text_attribute(attr: "compiler-version")
         log_info("Compiler-info: {compiler_version_info}")
         m_libname = m_des.get_text_attribute(attr: "libname")
@@ -368,22 +380,28 @@ class SymbolLoader:
             panic("Not implemented definition kind: {def_kind}")
 
     fn load_variable_def(def_name: str, def_id: int) -> ast.VariableDef:
+        let is_pub = m_des.get_boolean_attribute(attr: "pub")
         let id = ast.NodeId(name: def_name, id: def_id)
         let ty = load_type(attr: "type")
         let location = location_default()
         let variable = ast.Variable(id, ty, location)
         let is_initialized = m_des.get_boolean_attribute(attr: "initialized")
-        ast.VariableDef(variable, value: ast.VariableDefValue.Extern(libname: m_libname, is_initialized))
+        ast.VariableDef:
+            is_pub
+            variable
+            value: ast.VariableDefValue.Extern(libname: m_libname, is_initialized)
 
     fn load_function(def_name: str, def_id: int) -> ast.FunctionDef:
         let is_pub = m_des.get_boolean_attribute(attr: "pub")
         let type_parameters = load_type_parameters()
+        let docstring = load_docstring()
         let parameters = load_parameters()
         let info = load_function_info()
         let f = ast.extern_function_def:
             is_pub
             libname: m_libname
             name: def_name
+            docstring
             type_parameters
             parameters
             return_type: info.return_type
@@ -425,6 +443,7 @@ class SymbolLoader:
         builder.set_id(id: def_id)
         builder.set_pub(is_pub)
         let type_parameters = load_type_parameters()
+        let docstring = load_docstring()
         for field_obj in m_des.get_array_attribute(attr: "fields"):
             m_des.push_value(value: field_obj)
             let field_name = m_des.get_text_attribute(attr: "name")
@@ -433,12 +452,14 @@ class SymbolLoader:
             m_des.pop_value()
         let struct_def = builder.finish()
         struct_def.type_parameters = type_parameters
+        struct_def.docstring = docstring
         struct_def.scope = ast.Scope()
         struct_def
     
     fn load_enum_def(def_name: str, def_id: int) -> ast.EnumDef:
         let location = location_default()
         let is_pub = m_des.get_boolean_attribute(attr: "pub")
+        let docstring = load_docstring()
         let type_parameters = load_type_parameters()
         let variants: List[ast.EnumVariant] = List()
         let tag_index = 0
@@ -451,12 +472,13 @@ class SymbolLoader:
             m_des.pop_value()
             tag_index += 1
 
-        ast.enum_def(is_pub, name: def_name, id: def_id, location, type_parameters, variants)
+        ast.enum_def(is_pub, name: def_name, id: def_id, docstring, location, type_parameters, variants)
 
     fn load_class_def(def_name: str, def_id: int) -> ast.ClassDef:
         let id = ast.NodeId(name: def_name, id: def_id)
         let location = location_default()
         let is_pub = m_des.get_boolean_attribute(attr: "pub")
+        let docstring = load_docstring()
         let type_parameters = load_type_parameters()
 
         let this_type = ast.undefined_type()
@@ -469,7 +491,7 @@ class SymbolLoader:
             m_des.pop_value()
         m_this_type = Option.None()
 
-        let class_def = ast.ClassDef(is_pub, id, docstring: Option.None(), location, is_extern: Option.Some(m_libname), type_parameters, definitions, scope: ast.Scope())
+        let class_def = ast.ClassDef(is_pub, id, docstring, location, is_extern: Option.Some(m_libname), type_parameters, definitions, scope: ast.Scope())
 
         # Patch the this type:
         let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: type_parameters.len())
@@ -478,6 +500,14 @@ class SymbolLoader:
         this_type.change_to(to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
 
         class_def
+
+    fn load_docstring() -> Option[str]:
+        """Load optional docstring"""
+        if m_des.has_attribute(attr: "docstring"):
+            let text = m_des.get_text_attribute(attr: "docstring")
+            Option.Some(text)
+        else:
+            Option.None()
 
     fn load_type_parameters() -> List[ast.TypeParameter]:
         let type_parameters: List[ast.TypeParameter] = List()

@@ -35,20 +35,20 @@ class BytecodeGenerator:
     var is_reachable: bool = true
     var code: Vector[Instruction] = new_vector()
 
-    var global_variables: Vector[bc.Global] = new_vector()
+    pub var global_variables: Vector[bc.Global] = new_vector()
     var global_var_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
     var local_variables: Vector[bc.TypedName] = new_vector()
     var local_var_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
     var label_mapping: HashMap[int,int] = new_hashmap_int()
     var struct_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
-    var extern_functions: Vector[bc.ExternFunction] = new_vector()
+    pub var extern_functions: Vector[bc.ExternFunction] = new_vector()
 
-    var structs: Vector[bc.Struct] = new_vector()
-    var functions: Vector[bc.Function] = new_vector()
+    pub var structs: Vector[bc.Struct] = new_vector()
+    pub var functions: Vector[bc.Function] = new_vector()
     var function_map: HashMap[str,int] = new_hashmap_str()
     var block_stack: List[ControlBlock] = List()
 
-    fn forward_declarations(module_set: ast.ModuleSet):
+    pub fn forward_declarations(module_set: ast.ModuleSet):
         # struct forward declarations:
         let index = 0
         for module in module_set.modules:
@@ -95,7 +95,7 @@ class BytecodeGenerator:
                 else:
                     pass
 
-    fn gen_prog(module: ast.Module):
+    pub fn gen_prog(module: ast.Module):
         log_info("Generating bytecode for {module.name}")
         for definition in module.definitions:
             case definition:
@@ -489,7 +489,7 @@ class BytecodeGenerator:
         set_label(final_label)
         emit(Instruction.LocalGet(index))
 
-    fn gen_expression(expression?: ast.Expression):
+    pub fn gen_expression(expression?: ast.Expression):
         case expression.kind:
             Call(call):
                 gen_call(call)
@@ -674,7 +674,7 @@ class BytecodeGenerator:
         code = new_vector()
         is_reachable = true
 
-    fn get_relocated_instructions() -> Vector[Instruction]:
+    pub fn get_relocated_instructions() -> Vector[Instruction]:
         # Apply relocations to labels
         let instructions: Vector[Instruction] = new_vector()
         for instruction in code:
@@ -784,7 +784,7 @@ class BytecodeGenerator:
         else:
             pass
 
-    fn emit(instruction?: Instruction):
+    pub fn emit(instruction?: Instruction):
         # print("Inst: {bc.instruction_to_string(instruction)}")
         if is_reachable:
             code.append(instruction)
