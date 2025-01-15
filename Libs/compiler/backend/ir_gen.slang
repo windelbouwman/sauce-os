@@ -188,7 +188,7 @@ class BytecodeGenerator:
                 let instructions = get_relocated_instructions()
                 let locals = local_variables
                 let name = function_def.name
-                functions.append(bc.Function(name, parameters, return_type, no_return, locals, instructions))
+                functions.append(bc.Function(name, is_pub: function_def.is_pub, parameters, return_type, no_return, locals, instructions))
             Extern(libname):
                 pass
     

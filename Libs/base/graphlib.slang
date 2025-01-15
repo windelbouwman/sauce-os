@@ -38,6 +38,9 @@ pub class DiGraph:
             None:
                 false
     
+    pub fn successors(n?: str) -> Set[str]:
+        succ.get(key: n)
+
     pub fn has_preds(n?: str) -> bool:
         case pred.maybe_get(key: n):
             Some(p):

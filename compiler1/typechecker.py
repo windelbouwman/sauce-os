@@ -188,6 +188,9 @@ class TypeChecker(BasePass):
             elif isinstance(kind, ast.AssignmentStatement):
                 self.coerce(kind.value, kind.target.ty)
                 statement.ty = ast.void_type
+            elif isinstance(kind, ast.DeleteStatement):
+                # Maybe check if it is a pointer type we are deleting?
+                pass
             else:
                 raise NotImplementedError(str(statement))
 
@@ -208,13 +211,15 @@ class TypeChecker(BasePass):
                 ast.BoolLiteral,
             ),
         ):
-            pass
+            expression.is_lvalue = False
         elif isinstance(kind, ast.ArrayLiteral):
             assert len(kind.values) > 0
             expression.ty = ast.array_type(len(kind.values), kind.values[0].ty)
+            expression.is_lvalue = False
         elif isinstance(kind, ast.ArrayLiteral2):
             expression.ty = ast.array_type(None, kind.ty)
             self.coerce(kind.size, ast.int_type)
+            expression.is_lvalue = False
         elif isinstance(kind, ast.Binop):
             # Introduce some heuristics...
             if kind.lhs.ty.is_int() and kind.rhs.ty.is_float():
@@ -233,6 +238,7 @@ class TypeChecker(BasePass):
                 expression.ty = ast.bool_type
             else:
                 expression.ty = ty
+            expression.is_lvalue = False
 
         elif isinstance(kind, ast.Unop):
             if kind.op == "not":
@@ -242,8 +248,14 @@ class TypeChecker(BasePass):
                 # TODO: Assert numeric type?
                 # elif kind.lhs.ty.is_int() and kind.rhs.ty.is_float():
                 expression.ty = kind.rhs.ty
+            elif kind.op == "&":
+                # Check if we have an L-value!
+                if not kind.rhs.is_lvalue:
+                    self.error(kind.rhs.location, "Invalid L-value")
+                expression.ty = ast.pointer_type(kind.rhs.ty)
             else:
                 raise NotImplementedError(kind.op)
+            expression.is_lvalue = False
 
         elif isinstance(kind, ast.DotOperator):
             if kind.base.ty.has_field(kind.field):
@@ -254,6 +266,7 @@ class TypeChecker(BasePass):
                     f"{ast.str_ty(kind.base.ty)} has no field '{kind.field}'",
                 )
                 expression.ty = ast.void_type
+            expression.is_lvalue = True
 
         elif isinstance(kind, ast.ArrayIndex):
             if isinstance(kind.base.ty.kind, ast.ArrayType):
@@ -277,6 +290,7 @@ class TypeChecker(BasePass):
                     expression.location,
                     "Array indexing only work with 1 integer index.",
                 )
+            expression.is_lvalue = False
 
         elif isinstance(kind, ast.FunctionCall):
             if isinstance(kind.target.ty.kind, ast.FunctionType):
@@ -313,11 +327,13 @@ class TypeChecker(BasePass):
                 # Check if we may call error throwing function
                 if not ftyp.except_type.is_void():
                     self.check_may_raise(ftyp.except_type, expression.location)
+                expression.is_lvalue = False
             elif kind.target.ty.is_class():
                 # Assume constructor is called without arguments for now
                 # TODO: allow constructors!
                 self.check_arguments([], kind.args, expression.location)
                 expression.ty = kind.target.ty
+                expression.is_lvalue = False
             else:
                 self.error(
                     expression.location,
@@ -332,16 +348,20 @@ class TypeChecker(BasePass):
             for field_type, value in zip(field_types, kind.values):
                 self.coerce(value, field_type)
             expression.ty = kind.ty
+            expression.is_lvalue = False
         elif isinstance(kind, ast.UnionLiteral):
             field_type = kind.ty.get_field_type(kind.field)
             self.coerce(kind.value, field_type)
             expression.ty = kind.ty
+            expression.is_lvalue = False
         elif isinstance(kind, ast.EnumLiteral):
             payload_types = kind.enum_ty.get_variant_types(kind.variant.id.name)
             self.check_arguments(payload_types, kind.values, expression.location)
             expression.ty = kind.enum_ty.clone()
+            expression.is_lvalue = False
         elif isinstance(kind, ast.ClassLiteral):
             expression.ty = kind.class_ty.clone()
+            expression.is_lvalue = False
         elif isinstance(kind, ast.TypeLiteral):
             self.error(expression.location, "Unexpected type")
         elif isinstance(kind, ast.SemiEnumLiteral):
@@ -350,21 +370,28 @@ class TypeChecker(BasePass):
             obj = kind.obj
             if isinstance(obj, ast.Variable):
                 expression.ty = obj.ty.clone()
+                expression.is_lvalue = True
             elif isinstance(obj, ast.VarDef):
                 expression.ty = obj.ty.clone()
+                expression.is_lvalue = False
             elif isinstance(obj, ast.ExternFunction):
                 expression.ty = obj.ty
+                expression.is_lvalue = False
             elif isinstance(obj, ast.FunctionDef):
                 expression.ty = obj.get_type()
+                expression.is_lvalue = False
             elif isinstance(obj, ast.Parameter):
                 expression.ty = obj.ty.clone()
+                expression.is_lvalue = False
             elif isinstance(obj, ast.ClassDef):
                 # Arg, type arguments?
                 expression.ty = obj.get_type([])
+                expression.is_lvalue = False
             else:
                 raise NotImplementedError(str(kind))
         elif isinstance(kind, ast.TypeCast):
             expression.ty = kind.ty
+            expression.is_lvalue = False
         elif isinstance(kind, ast.ToString):
             if kind.expr.ty.is_int() or kind.expr.ty.is_char():
                 pass
@@ -373,12 +400,19 @@ class TypeChecker(BasePass):
             else:
                 self.coerce(kind.expr, ast.str_type)
             expression.ty = ast.str_type
+            expression.is_lvalue = False
         elif isinstance(kind, ast.Box):
             expression.ty = ast.ptr_type
+            expression.is_lvalue = False
         elif isinstance(kind, ast.Unbox):
             expression.ty = kind.to_type
+            expression.is_lvalue = False
         elif isinstance(kind, ast.StatementExpression):
             expression.ty = kind.statement.ty
+            expression.is_lvalue = False
+        elif isinstance(kind, ast.NewOperator):
+            expression.ty = ast.pointer_type(kind.value.ty)
+            expression.is_lvalue = False
         else:
             raise NotImplementedError(str(expression.kind))
 
@@ -466,6 +500,10 @@ class TypeChecker(BasePass):
             return self.unify_many(a.kind.parameter_types, b.kind.parameter_types)
         elif isinstance(a.kind, ast.ArrayType) and isinstance(b.kind, ast.ArrayType):
             return self.unify(a.kind.element_type, b.kind.element_type)
+        elif isinstance(a.kind, ast.PointerType) and isinstance(
+            b.kind, ast.PointerType
+        ):
+            return self.unify(a.kind.element_type, b.kind.element_type)
         elif isinstance(a.kind, ast.Meta):
             if a.kind.assigned:
                 # Patch and recurse:
@@ -484,6 +522,7 @@ class TypeChecker(BasePass):
                 or b.is_str()
                 or b.is_char()
                 or b.is_enum()
+                or b.is_pointer()
             ):
                 # TODO: check if b contains meta-var
                 # Assign type to meta-var:

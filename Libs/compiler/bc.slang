@@ -32,6 +32,7 @@ pub struct ExternFunction:
     no_return: bool
 
 pub struct Function:
+    is_pub: bool
     name: str
     parameters: Vector[TypedName]
     return_type: Option[Type]

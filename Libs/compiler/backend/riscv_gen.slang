@@ -19,191 +19,212 @@
  MV rd, rs  > ADDI rd, rs, 0
 """
 
-import bc
-from std import print, ord
+import sil
+from std import print
 import riscv
-from vectype import Vector, new_vector
-from utils import panic, log_info
-from strlib import int_to_hex_string
+from datatypes import Option
+from register_allocation import MachineInstruction, MachineBlock, MachineFunction, reg_alloc
+from vectype import Vector, new_vector # , vec1
+from utils import log_info, unimplemented, panic
+from hashmap import HashMap, new_hashmap_str
+# from strlib import int_to_hex_string
 from hexfile import HexFile
-from bytes import ByteArray
+from bytes import ByteArray, Bytes
 
-pub fn gen_riscv(program: bc.Program):
+pub fn gen_riscv(program: sil.Program):
     log_info("Generating riscv code")
+    program.dump()
     let g = RiscvGen()
-    for function in program.functions:
-        g.gen_function(function)
+    g.gen_program(program)
 
     let h = g.to_hex()
     h.add_eof()
     h.print_hex_file()
 
+pub struct Section:
+    data: Bytes
+
+pub class BinaryOutput:
+    var sections: HashMap[str, ByteArray] = new_hashmap_str()
+    var current_section: Option[str] = Option.None()
+
+    fn select_section(name: str):
+        if not sections.contains(key: name):
+            sections.insert(key: name, value: ByteArray())
+        current_section = Option.Some(name)
+    
+    fn write(data: Bytes):
+        case current_section:
+            Some(name):
+                let b = sections.get(key: name)
+                b.extend(data)
+            None:
+                panic("No output section selected")
 
 class RiscvGen:
     var reg: int = 4
-    var codes: Vector[int] = new_vector()
+    var codes: Vector[MachineInstruction[riscv.Instruction, riscv.Relocation]] = new_vector()
 
     pub fn to_hex() -> HexFile:
         # Gather resulting binary code in a hex file.
         let h = HexFile()
         let b = ByteArray()
-        for code in codes:
-            b.pack_u32_le(code)
+        # for code in codes:
+        #     b.pack_u32_le(code)
         let data = b.to_bytes()
         h.add_bytes(address: 0, data)
         h
 
-    pub fn gen_function(function: bc.Function):
-        for instruction in function.instructions:
-            gen_instruction(instruction)
-    
-    fn gen_instruction(instruction: bc.Instruction):
-            case instruction:
-                Nop:
-                    emit(riscv.Instruction.ADDI(rd: 0, rs1: 0, imm: 0))
-                Dup:
-                    # Allocate new register, and move value of top of stack:
-                    emit(riscv.Instruction.ADDI(rd: reg + 1, rs1: reg, imm: 0))
-                    reg += 1
-                Literal(literal):
-                    gen_literal(literal)
-                Jump(v):
-                    emit(riscv.Instruction.JAL(rd: 0, imm: 0))
-                JumpIf(v1, v2):
-                    emit(riscv.Instruction.JAL(rd: 0, imm: 0))
-                Not:
-                    panic("TODO: Not")
-                Neg:
-                    panic("TODO: Neg")
-                Binop(op):
-                    gen_binop(op)
-                Comparison(op):
-                    panic("TODO: Comparison")
-                Bitop(op):
-                    gen_bitop(op)
-                IntToFloat:
-                    panic("TODO")
-                FloatToInt:
-                    panic("TODO")
-                IntCast(signed, bits):
-                    panic("TODO: IntCast")
-                ToOpaque(t):
-                    panic("TODO")
-                FromOpaque(t):
-                    panic("TODO")
-                Call(index):
-                    # panic("TODO: Call")
-                    # TODO: address?
-                    let lr = 2  # link register
-                    emit(riscv.Instruction.JAL(rd: lr, imm: 0))
-                CallIndirect(parameter_types, return_type):
-                    let lr = 2  # link register
-                    emit(riscv.Instruction.JALR(rd: lr, rs1: 0, imm: 0))
-                Return(v):
-                    emit(riscv.Instruction.JAL(rd: 0, imm: 0))
-                Unreachable:
-                    emit(riscv.Instruction.EBREAK())
-                SetupTry(try_label, except_label):
-                    panic("TODO: SetupTry")
-                Raise:
-                    panic("TODO: Raise")
-                PopTry:
-                    panic("TODO: PopTry")
-                DecRef(index):
-                    panic("TODO: DecRef {index}")
-                GetExceptionValue:
-                    panic("TODO: GetExceptionValue")
-                LocalGet(index):
-                    reg += 1
-                    let offset = 0
-                    emit(riscv.Instruction.LW(rd: reg, rs1: 0, imm: offset))
-                LocalSet(index):
-                    let offset = 0
-                    emit(riscv.Instruction.SW(rs1: reg, rs2: 0, imm: offset))
-                    reg -= 1
-                GlobalGet(index):
-                    reg += 1
-                    let offset = 0
-                    emit(riscv.Instruction.LW(rd: reg, rs1: 0, imm: offset))
-                GlobalSet(index):
-                    let offset = 0
-                    emit(riscv.Instruction.SW(rs1: reg, rs2: 0, imm: offset))
-                    reg -= 1
-                ParameterGet(index):
-                    reg += 1
-                    let offset = 0
-                    emit(riscv.Instruction.LW(rd: reg, rs1: 0, imm: offset))
-                ParameterSet(index):
-                    let offset = 0
-                    emit(riscv.Instruction.SW(rs1: reg, rs2: 0, imm: offset))
-                    reg -= 1
-                GetAttr(index):
-                    panic("TODO: GetAttr")
-                SetAttr(index):
-                    panic("TODO: SetAttr")
-                GetIndex:
-                    panic("TODO: GetIndex")
-                SetIndex:
-                    panic("TODO: SetIndex")
-                LoadFunc(index):
-                    panic("TODO")
-                StructLiteral(struct_index):
-                    panic("TODO")
-                ArrayLiteral(count):
-                    panic("TODO")
-                ArrayLiteral2(ty):
-                    panic("TODO")
+    pub fn gen_program(program: sil.Program):
+        for function in program.functions:
+            gen_function(function)
 
-    fn gen_literal(literal: bc.LiteralValue):
-        case literal:
-            Int(value):
-                reg += 1
-                emit(riscv.Instruction.ADDI(rd: reg, rs1: 0, imm: value))
-            Float(value):
-                panic("TODO: Float")
-            Str(value):
-                panic("TODO: Str")
-            Bool(value):
-                let imm = 0
-                if value:
-                    imm = 1
-                reg += 1
-                emit(riscv.Instruction.ADDI(rd: reg, rs1: 0, imm))
-            Char(value):
-                let imm = ord(value)
-                reg += 1
-                emit(riscv.Instruction.ADDI(rd: reg, rs1: 0, imm))
-            Null:
-                panic("TODO: Null")
+    fn gen_function(function: sil.Function):
+        # Instruction selection
+        let mfunc = select_function(function)
 
-    fn gen_binop(op: bc.BinaryOperator):
-        reg -= 1
-        case op:
-            Add:
-                emit(riscv.Instruction.ADD(rd: reg, rs1: reg, rs2: reg + 1))
-            Sub:
-                emit(riscv.Instruction.SUB(rd: reg, rs1: reg, rs2: reg + 1))
-            Divide:
-                panic("TODO: Divide")
-            Multiply:
-                panic("TODO: Multiply")
+        # register allocation
+        reg_alloc(mfunc)
 
-    fn gen_bitop(op: bc.BitOperator):
-        reg -= 1
-        case op:
-            Shr:
-                emit(riscv.Instruction.SRL(rd: reg, rs1: reg, rs2: reg + 1))
-            Shl:
-                emit(riscv.Instruction.SLL(rd: reg, rs1: reg, rs2: reg + 1))
-            Xor:
-                emit(riscv.Instruction.XOR(rd: reg, rs1: reg, rs2: reg + 1))
-            And:
-                emit(riscv.Instruction.AND(rd: reg, rs1: reg, rs2: reg + 1))
-            Or:
-                emit(riscv.Instruction.OR(rd: reg, rs1: reg, rs2: reg + 1))
+        # Instantiate actual instructions (instructions and registers are now determined):
+        print("{mfunc.name}:")
+        for mblock in mfunc.blocks:
+            print("{mblock.name}:")
+            for minst in mblock.instructions:
+                let instruction = materialize(v: minst)
+                print("   {riscv.instruction_to_string(instruction)}")
+
+    fn select_function(function: sil.Function) -> MachineFunction[riscv.Instruction, riscv.Relocation]:
+        let mblocks: Vector[MachineBlock[riscv.Instruction, riscv.Relocation]] = new_vector()
+        for block in function.blocks:
+            codes = new_vector()
+            for instruction in block.instructions:
+                gen_instruction(instruction)
+            mblocks.append(MachineBlock(name: block.name, instructions: codes))
+        
+        MachineFunction(name: function.name, blocks: mblocks)
+
+    fn gen_instruction(instruction: sil.Instruction):
+        case instruction.op:
+            Nop:
+                emit(riscv.Instruction.ADDI(rd: 0, rs1: 0, imm: 0))
+            Jump(label):
+                emit(riscv.Instruction.JAL(rd: 0, imm: 0))
+            JumpNonZero(condition, label1, label2):
+                emit(riscv.Instruction.JAL(rd: 0, imm: 0))
+            Binop(dst, op2, lhs, rhs):
+                case op2:
+                    Add:
+                        emit(riscv.Instruction.ADD(rd: reg, rs1: reg, rs2: reg + 1))
+                    Sub:
+                        emit(riscv.Instruction.SUB(rd: reg, rs1: reg, rs2: reg + 1))
+                    Div:
+                        unimplemented("Divide")
+                    Mul:
+                        unimplemented("Multiply")
+            Compare(dst, op2, lhs, rhs):
+                unimplemented("Comparison")
+            Call(dst, callee, arguments):
+                # panic("TODO: Call")
+                # TODO: address?
+
+                # Setup arguments
+                for argument in arguments:
+                    case argument:
+                        Tmp(name):
+                            emit(riscv.Instruction.ADDI(rd: 7, rs1: 8, imm: 0))
+                        Global(name):
+                            emit(riscv.Instruction.LA(rd: 7, offset: 0))
+                    else:
+                        unimplemented("arg: {sil.value_to_string(argument)}")
+
+                # Invoke function
+                case callee:
+                    Global(name):
+                        emit(riscv.Instruction.JAL(rd: 1, imm: 0))
+                    Tmp(name):
+                        emit(riscv.Instruction.JALR(rd: 1, rs1: 9, imm: 0))
+                else:
+                    unimplemented("Call: {sil.value_to_string(callee)}")
+                
+                # Eventually gather return value
+                case dst:
+                    Some(value):
+                        pass
+                    None:
+                        pass
+            Return(v):
+                emit(riscv.Instruction.RET())
+            Halt:
+                emit(riscv.Instruction.EBREAK())
+            Alloc(addr, size):
+                # unimplemented("Alloc")
+                pass
+            Load(dst, addr):
+                reg += 1
+                let offset = 0
+                emit(riscv.Instruction.LW(rd: reg, rs1: 0, imm: offset))
+            Store(addr, value):
+                let offset = 0
+                emit(riscv.Instruction.SW(rs1: reg, rs2: 0, imm: offset))
+                reg -= 1
+
+    # fn gen_literal(literal: bc.LiteralValue):
+    #     case literal:
+    #         Int(value):
+    #             reg += 1
+    #             emit(riscv.Instruction.ADDI(rd: reg, rs1: 0, imm: value))
+    #         Float(value):
+    #             panic("TODO: Float")
+    #         Str(value):
+    #             panic("TODO: Str")
+    #         Bool(value):
+    #             let imm = 0
+    #             if value:
+    #                 imm = 1
+    #             reg += 1
+    #             emit(riscv.Instruction.ADDI(rd: reg, rs1: 0, imm))
+    #         Char(value):
+    #             let imm = ord(value)
+    #             reg += 1
+    #             emit(riscv.Instruction.ADDI(rd: reg, rs1: 0, imm))
+    #         Null:
+    #             panic("TODO: Null")
+
+
+    # fn gen_bitop(op: bc.BitOperator):
+    #     reg -= 1
+    #     case op:
+    #         Shr:
+    #             emit(riscv.Instruction.SRL(rd: reg, rs1: reg, rs2: reg + 1))
+    #         Shl:
+    #             emit(riscv.Instruction.SLL(rd: reg, rs1: reg, rs2: reg + 1))
+    #         Xor:
+    #             emit(riscv.Instruction.XOR(rd: reg, rs1: reg, rs2: reg + 1))
+    #         And:
+    #             emit(riscv.Instruction.AND(rd: reg, rs1: reg, rs2: reg + 1))
+    #         Or:
+    #             emit(riscv.Instruction.OR(rd: reg, rs1: reg, rs2: reg + 1))
 
     fn emit(instruction?: riscv.Instruction):
-        let txt = riscv.instruction_to_string(instruction)
-        let code = riscv.encode_instruction(instruction)
-        print("--> {int_to_hex_string(code)} -> {txt} ")
-        codes.append(code)
+        #let code = riscv.encode_instruction(instruction)
+        #print("--> {int_to_hex_string(code)} -> {txt} ")
+        # let txt = riscv.instruction_to_string(instruction)
+        # print("--> {txt} ")
+        let uses: Vector[int] = new_vector()
+        let defs: Vector[int] = new_vector()
+        emit_full(instruction, uses, defs)
+    
+    fn emit_full(instruction?: riscv.Instruction, uses: Vector[int], defs: Vector[int]):
+        let relocation: Option[riscv.Relocation] = Option.None()
+        let minst = MachineInstruction(instruction, uses, defs, relocation)
+        codes.append(minst)
+
+
+fn materialize[R](v: MachineInstruction[riscv.Instruction, R]) -> riscv.Instruction:
+    case v.instruction:
+        JAL(rd, imm):
+            # rd = v.defs[0]
+            riscv.Instruction.JAL(rd, imm)
+    else:
+        v.instruction

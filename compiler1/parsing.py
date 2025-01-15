@@ -397,6 +397,9 @@ class CustomTransformer(LarkTransformer):
             element_type = x[1]
             assert is_terminal(x[2], "RIGHT_BRACKET")
             return ast.array_type(0, element_type)
+        elif is_terminal(x[0], "BITAND") or is_terminal(x[0], "ASTERIX"):
+            element_type = x[1]
+            return ast.pointer_type(element_type)
         elif isinstance(x[0], ast.QualName):
             if len(x) == 1:
                 return ast.name_ref_type(x[0])
@@ -474,6 +477,9 @@ class CustomTransformer(LarkTransformer):
         # assignment_statement: expression EQUALS expression
         op = x[1].value
         return ast.assignment_statement(x[0], op, x[2], get_loc(x[1]))
+
+    def delete_statement(self, x):
+        return ast.delete_statement(x[1], get_loc(x[0]))
 
     def raise_statement(self, x):
         # raise_statement: KW_RAISE expression
@@ -781,7 +787,10 @@ class CustomTransformer(LarkTransformer):
         return ast.array_literal2(size, typ, get_loc2(x[0], x[-1]))
 
     def big_expression(self, x):
-        return x[0]
+        if is_terminal(x[0], "KW_NEW"):
+            return ast.new_operator(x[1], get_loc(x[0]))
+        else:
+            return x[0]
 
     def obj_init(self, x):
         "obj_init: expr COLON NEWLINE INDENT field_init+ DEDENT"
@@ -858,6 +867,8 @@ types: typ
      | types COMMA typ
 typ: LEFT_BRACKET typ RIGHT_BRACKET
    | KW_FN LEFT_PARENTHESIS types? RIGHT_PARENTHESIS (ARROW typ)?
+   | BITAND typ
+   | ASTERIX typ
    | qual_name
    | qual_name LEFT_BRACKET types RIGHT_BRACKET
 qual_name: ID (DOT ID)*
@@ -875,6 +886,7 @@ simple_statement: break_statement
                 | assignment_statement
                 | return_statement
                 | raise_statement
+                | delete_statement
 block_statement: if_statement
                | while_statement
                | loop_statement
@@ -891,6 +903,8 @@ return_statement: KW_RETURN test?
 assignment_statement: test (EQUALS | PLUS_EQUALS | MINUS_EQUALS | ASTERIX_EQUALS | SLASH_EQUALS) test
 
 raise_statement: KW_RAISE expression
+delete_statement: KW_DELETE ID
+
 try_statement: KW_TRY block KW_EXCEPT LEFT_PARENTHESIS parameter RIGHT_PARENTHESIS block
 if_statement: KW_IF test block elif_clause* else_clause?
 elif_clause: KW_ELIF test block
@@ -907,6 +921,7 @@ switch_arm: expression block
 
 big_expression: test NEWLINE
               | obj_init
+              | KW_NEW obj_init
 test: disjunction
 disjunction: disjunction KW_OR conjunction
            | conjunction
@@ -975,7 +990,7 @@ labeled_expression: test
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
 %declare KW_RETURN KW_STRUCT KW_UNION KW_SWITCH KW_TYPE KW_VAR KW_WHILE
 %declare KW_RAISE KW_TRY KW_EXCEPT KW_EXTERN
-%declare KW_INTERFACE KW_NEW
+%declare KW_INTERFACE KW_NEW KW_DELETE
 
 %declare LEFT_PARENTHESIS RIGHT_PARENTHESIS LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON COMMA DOT ARROW QUESTION

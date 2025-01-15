@@ -1,19 +1,44 @@
+"""
+SIL (slang intermediate language)
 
-# SSA IL
-# Similar to QBE IL
-# See: https://c9x.me/compile/doc/il.html
+An intermediate language for an abstract register based machine.
+
+Properties:
+- SSA (static single assignment)
+- Closer to hardware, but still abstract (infinite registers)
+- Basic operators
+- basic types, integers and floating points
+- Load and store from memory
+
+SSA IL
+Similar to QBE IL
+See: https://c9x.me/compile/doc/il.html
+"""
 
 from std import print
+from bytes import Bytes
 from datatypes import List, Option
 from strlib import str_join
 
 pub class Program:
     pub var functions: List[Function]
+    pub var blobs: List[DataBlob]
 
     pub fn dump():
         print("SIL program")
         for function in functions:
             function.dump()
+        for blob in blobs:
+            blob.dump()
+
+pub class DataBlob:
+    """ Data block """
+    pub var name: str
+    pub var data: Bytes
+
+    pub fn dump():
+        print("blob {name}")
+        print("   ==> [{data.as_hex()}]")
 
 pub class Function:
     pub var name: str
@@ -41,7 +66,7 @@ pub class Block:
             print("    {instruction}")
 
 pub class Instruction:
-    var op: OpCode
+    pub var op: OpCode
 
     pub fn to_string() -> str:
         case op:
@@ -135,7 +160,7 @@ pub enum Value:
     Tmp(name: str)
     Global(name: str)
 
-fn value_to_string(value?: Value) -> str:
+pub fn value_to_string(value?: Value) -> str:
     case value:
         Integer(value):
             "{value}"

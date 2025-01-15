@@ -1,12 +1,27 @@
+""" Transform BC into SIL
 
-# Transform BC into SIL
+Features of this pass:
+
+- Compile structured types into pointers with load/store operations
+- Implement multiply and divide by either physical instructions or a function call to a library
+
+"""
 
 from datatypes import List, Option
+from bytes import Bytes, bytes_from_ascii
 from utils import log_info, panic, unimplemented
 import bc
 import sil
 
+pub struct SilGenOptions:
+    """ Target specific options """
+    has_div: bool
+    has_mul: bool
+    has_fpu: bool
+    word_size: int
+
 pub fn to_sil(program: bc.Program) -> sil.Program:
+    # TODO: pass options, su
     log_info("Creating SIL program from bytecode")
     let g = SilGen(m_bc_program: program)
     g.gen_program()
@@ -14,6 +29,7 @@ pub fn to_sil(program: bc.Program) -> sil.Program:
 class SilGen:
     var m_bc_program: bc.Program
     var m_functions: List[sil.Function] = List()
+    var m_blobs: List[sil.DataBlob] = List()
     var m_blocks: List[sil.Block] = List()
     var m_current_block: Option[sil.Block] = Option.None()
     var m_block_is_terminated: bool = false
@@ -24,7 +40,7 @@ class SilGen:
     pub fn gen_program() -> sil.Program:
         for function in m_bc_program.functions:
             gen_function(function)
-        sil.Program(functions: m_functions)
+        sil.Program(functions: m_functions, blobs: m_blobs)
 
     fn gen_function(function: bc.Function):
         log_info("Gen code for function {function.name}")
@@ -66,7 +82,8 @@ class SilGen:
                         push_int(99999) # TODO
                     Str(value):
                         # emit(op: sil.OpCode.Nop())
-                        let literal_label = new_global("str-lit")
+                        let data = bytes_from_ascii(text: value)
+                        let literal_label = add_data_blob(data)
                         push(literal_label)
                     Bool(value):
                         if value:
@@ -160,10 +177,19 @@ class SilGen:
         block
     
     fn new_tmp() -> sil.Value:
+        sil.Value.Tmp(name: "x{new_id()}")
+    
+    fn new_id() -> int:
         m_tmp_number += 1
-        sil.Value.Tmp(name: "x{m_tmp_number}")
+        m_tmp_number
     
     fn new_global(name?: str) -> sil.Value:
+        sil.Value.Global(name)
+    
+    fn add_data_blob(data?: Bytes) -> sil.Value:
+        # TODO: we have a chance to deduplicate blobs here!
+        let name = "lit_{new_id()}"
+        m_blobs.append(sil.DataBlob(name, data))
         sil.Value.Global(name)
     
     fn push_int(value?: int):

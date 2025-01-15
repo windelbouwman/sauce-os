@@ -324,7 +324,10 @@ class NameBinder(BasePass):
     def resolve_qual_name(self, qual_name: ast.QualName):
         sym = self.lookup(qual_name.names[0][1], qual_name.names[0][0])
         for location, attr in qual_name.names[1:]:
-            sym = sym.get_field(attr)
+            try:
+                sym = sym.get_field(attr)
+            except ValueError as ex:
+                raise ParseError(location, str(ex))
         return sym
 
     def lookup(self, name: str, location: Location):

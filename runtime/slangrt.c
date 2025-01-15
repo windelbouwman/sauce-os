@@ -10,23 +10,10 @@
 
 #include "slangrt.h"
 
-// Config:
-// #define DEBUG_REFCOUNTING
-
-typedef struct rt_ref_mem_tag rt_ref_mem_t;
-struct rt_ref_mem_tag
-{
-    int count;
-    int mark; // for mark and sweep GC
-    const int* ref_offsets;
-    // void (*destroyer)();
-    rt_ref_mem_t* next;
-};
-
 extern slang_int_t main2();
 
-rt_ref_mem_t* g_gc_root = NULL;
-
+int g_argc;
+char **g_argv;
 
 #if defined __GNUC__
 void std_exit(slang_int_t code) __attribute__((noreturn));
@@ -46,12 +33,11 @@ void *g_except_value;
 SLANG_API void std_print(char *message)
 {
     puts(message);
-    rt_decref(message);
 }
 
 SLANG_API char* std_read_line(char *prompt)
 {
-    char *text = rt_malloc(300);
+    char *text = rt_malloc_str(300);
     fputs(prompt, stdout);
     char* s_read = fgets(text, 300, stdin);
     if (!s_read) {
@@ -91,7 +77,7 @@ char *rt_int_to_str(slang_int_t x)
 {
     char buffer[50];
     snprintf(buffer, 50, "%" PRIdPTR, x);
-    char *text = rt_malloc(strlen(buffer) + 1);
+    char *text = rt_malloc_str(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;
 }
@@ -100,7 +86,7 @@ SLANG_API char *std_float_to_str(slang_float_t x)
 {
     char buffer[50];
     snprintf(buffer, 50, "%f", x);
-    char *text = rt_malloc(strlen(buffer) + 1);
+    char *text = rt_malloc_str(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;
 }
@@ -109,14 +95,14 @@ SLANG_API char *std_float_to_str2(slang_float_t x, slang_int_t digits)
 {
     char buffer[50];
     snprintf(buffer, 50, "%.*f", (int)digits, x);
-    char *text = rt_malloc(strlen(buffer) + 1);
+    char *text = rt_malloc_str(strlen(buffer) + 1);
     strcpy(text, buffer);
     return text;
 }
 
 char *rt_char_to_str(char x)
 {
-    char *text = rt_malloc(2);
+    char *text = rt_malloc_str(2);
     text[0] = x;
     text[1] = 0;
     return text;
@@ -124,9 +110,7 @@ char *rt_char_to_str(char x)
 
 SLANG_API slang_int_t std_str_len(char *txt)
 {
-    const int len = strlen(txt);
-    rt_decref(txt);
-    return len;
+    return strlen(txt);
 }
 
 SLANG_API slang_int_t rt_str_len(char *txt)
@@ -147,9 +131,8 @@ SLANG_API char std_chr(slang_int_t val)
 SLANG_API char *std_str_slice(char *txt, slang_int_t begin, slang_int_t end)
 {
     const int size = end - begin;
-    char *buffer = rt_malloc(size + 1);
+    char *buffer = rt_malloc_str(size + 1);
     memcpy(buffer, &txt[begin], size);
-    rt_decref(txt);
     buffer[size] = 0;
     return buffer;
 }
@@ -173,7 +156,7 @@ SLANG_API char *std_read_file(char *filename)
     {
         fseek(f, 0, SEEK_END);
         int length = ftell(f);
-        buffer = rt_malloc(length + 1);
+        buffer = rt_malloc_str(length + 1);
         fseek(f, 0, SEEK_SET);
         fread(buffer, 1, length, f);
         buffer[length] = 0;
@@ -184,13 +167,18 @@ SLANG_API char *std_read_file(char *filename)
         printf("File %s not found!\n", filename);
         std_panic("File not found!");
     }
-    rt_decref(filename);
     return buffer;
 }
 
 SLANG_API slang_int_t std_file_get_stdin()
 {
     FILE *f = stdin;
+    return (slang_int_t)f;
+}
+
+SLANG_API slang_int_t std_file_get_stdout()
+{
+    FILE *f = stdout;
     return (slang_int_t)f;
 }
 
@@ -207,7 +195,7 @@ SLANG_API slang_int_t std_file_open(char *filename, char *mode)
 
 SLANG_API char *std_file_readln(slang_int_t handle)
 {
-    char *buffer = rt_malloc(300);
+    char *buffer = rt_malloc_str(300);
     if (handle != 0)
     {
         FILE *f = (FILE *)handle;
@@ -230,6 +218,15 @@ SLANG_API void std_file_writeln(slang_int_t handle, char *line)
     {
         FILE *f = (FILE *)handle;
         fprintf(f, "%s\n", line);
+    }
+}
+
+SLANG_API void std_file_write(slang_int_t handle, char *text)
+{
+    if (handle != 0)
+    {
+        FILE *f = (FILE *)handle;
+        fputs(text, f);
     }
 }
 
@@ -300,6 +297,7 @@ void* slangrt_box_int64(slang_int64_t value)
 {
     intptr_t p2 = value;
     // TODO: we loose 1 bit here!
+    // IDEA: alloc 8 bytes on the heap
     p2 = (p2 << 1) | 1;
     return (void*)p2;
 }
@@ -339,34 +337,13 @@ slang_float64_t slangrt_unbox_float64(void* p1)
     return *p2;
 }
 
-int g_argc;
-char **g_argv;
-
 int main(int argc, char **argv)
 {
     g_argc = argc;
     g_argv = argv;
+    rt_gc_init(&argc);
     int res = main2();
-
-    // Cleanup malloc stuff:
-    int total = 0, bad = 0;
-    rt_ref_mem_t *ptr = g_gc_root;
-    rt_ref_mem_t *prev_ptr = NULL;
-    while (ptr != NULL) {
-        total += 1;
-        if (ptr->count > 0) {
-            // printf("Count = %d\n", ptr->count);
-            bad += 1;
-        }
-        prev_ptr = ptr;
-        ptr = ptr->next;
-        free(prev_ptr);
-    }
-    if (bad > 0) {
-        // printf("Total = %d bad = %d\n", total, bad);
-        // return 2;
-    }
-
+    rt_gc_finalize();
     return res;
 }
 
@@ -383,102 +360,21 @@ SLANG_API char *std_get_arg(slang_int_t index)
 // Create a string on the heap..
 SLANG_API char *rt_str_new(const char *a)
 {
-    char *buffer = rt_malloc(strlen(a) + 2);
+    char *buffer = rt_malloc_str(strlen(a) + 2);
     strcpy(buffer, a);
     return buffer;
 }
 
 char *rt_str_concat(char *a, char *b)
 {
-    char *buffer = rt_malloc(strlen(a) + strlen(b) + 2);
+    char *buffer = rt_malloc_str(strlen(a) + strlen(b) + 2);
     strcpy(buffer, a);
     strcat(buffer, b);
-    rt_decref(a);
-    rt_decref(b);
     return buffer;
 }
 
 int rt_str_compare(char *a, char *b)
 {
     int res = (strcmp(a, b) == 0) ? 1 : 0;
-    rt_decref(a);
-    rt_decref(b);
     return res;
-}
-
-void *rt_malloc(size_t size)
-{
-    return rt_malloc_with_destroyer(size, NULL);
-}
-
-void *rt_malloc_with_destroyer(size_t size, const int* ref_offsets)
-{
-    rt_ref_mem_t *ptr = malloc(size + sizeof(rt_ref_mem_t));
-    if (((intptr_t)(ptr) & 0x3) != 0) {
-        std_panic("Unaligned malloc!");
-    }
-    ptr->next = g_gc_root;
-    g_gc_root = ptr;
-    ptr->count = 1;
-    ptr->mark = 0;
-    ptr->ref_offsets = ref_offsets;
-    void *p = (ptr + 1);
-    return p;
-}
-
-// IDEA: use reference counting to free values.
-void rt_incref(void *ptr)
-{
-    return;
-
-    if (ptr == NULL)
-    {
-        return;
-    }
-
-    rt_ref_mem_t *p = ptr;
-    p -= 1;
-    if (p->count <= 0) {
-        std_panic("rt_incref: Logic error inc-ref on released item!\n");
-    }
-    p->count += 1;
-#ifdef DEBUG_REFCOUNTING
-    printf("INCREF New ref count: %d\n", p->count);
-#endif
-}
-
-void rt_decref(void *ptr)
-{
-    return;
-
-    if (ptr == NULL)
-    {
-        return;
-    }
-
-    rt_ref_mem_t *p = ptr;
-    p -= 1;
-
-    if (p->count <= 0) {
-        std_panic("rt_decref: Logic error, dec ref on released item!\n");
-    }
-
-    p->count -= 1;
-
-    if (p->count == 0) {
-        // if (p->destroyer != NULL)
-        // {
-        //     p->destroyer(ptr);
-        // }
-    }
-
-#ifdef DEBUG_REFCOUNTING
-    printf("DECREF New ref count: %d\n", p->count);
-#endif
-    if (p->count == 0)
-    {
-        // comment out below, to have malloc only!
-        // printf("FREE 0x%X!\n", ptr);
-        // free(p);
-    }
 }

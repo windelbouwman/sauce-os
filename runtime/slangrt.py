@@ -75,8 +75,16 @@ def std_file_get_stdin() -> int:
     raise NotImplementedError("std_get_stdin")
 
 
+def std_file_get_stdout() -> int:
+    return sys.stdout
+
+
 def std_file_readln(handle: int) -> str:
     raise NotImplementedError("std_file_readln")
+
+
+def std_file_write(handle: int, text: str):
+    print(text, file=handle, end="")
 
 
 def std_file_writeln(handle: int, text: str):

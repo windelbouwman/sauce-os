@@ -116,6 +116,9 @@ class ByteCodeGenerator:
         elif ty.is_array():
             ety = self.get_bc_ty(ty.kind.element_type)
             return bc.ArrayTyp(ety, ty.kind.size)
+        elif ty.is_pointer():
+            ety = self.get_bc_ty(ty.kind.element_type)
+            return bc.PointerTyp(ety)
         else:
             raise NotImplementedError(str(ty))
 

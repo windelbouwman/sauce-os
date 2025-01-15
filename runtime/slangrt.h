@@ -33,10 +33,11 @@ extern slang_exception_handler_t* g_except_hook;
 extern void* g_except_value;
 
 // runtime functions:
+void rt_gc_init(void* bos);
+void rt_gc_finalize();
+void* rt_malloc_str(size_t size);
 void* rt_malloc(size_t size);
 void *rt_malloc_with_destroyer(size_t size, const int* ref_offsets);
-void rt_incref(void *ptr);
-void rt_decref(void *ptr);
 char* rt_str_new(const char *);
 // void slangrt_unreachable();
 

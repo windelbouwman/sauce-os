@@ -118,6 +118,9 @@ class Type:
     def is_array(self):
         return isinstance(self.kind, ArrayType)
 
+    def is_pointer(self):
+        return isinstance(self.kind, PointerType)
+
     def is_iterable_like(self) -> bool:
         """Check if this type conforms to the iterator protocol"""
         return self.has_method("iter")
@@ -181,6 +184,8 @@ class Type:
                 return self.kind.tycon.has_field(name)
             else:
                 return False
+        elif isinstance(self.kind, PointerType):
+            return self.kind.element_type.has_field(name)
         else:
             return False
 
@@ -197,6 +202,8 @@ class Type:
     def get_field_index(self, name: str) -> int:
         if isinstance(self.kind, App) and isinstance(self.kind.tycon, StructDef):
             return self.kind.tycon.get_field(name).index
+        elif isinstance(self.kind, PointerType):
+            return self.kind.element_type.get_field_index(name)
         else:
             raise ValueError("Can only get field from struct")
 
@@ -217,6 +224,8 @@ class Type:
                 return subst(self.kind.tycon.get_field_type(i), self.kind.m)
             else:
                 raise NotImplementedError()
+        elif isinstance(self.kind, PointerType):
+            return self.kind.element_type.get_field_type(i)
         else:
             raise ValueError("Can only get field from struct/class")
 
@@ -260,7 +269,10 @@ class Type:
             raise ValueError("No class type")
 
     def __repr__(self):
-        return f"{self.kind}"
+        return f"{self.kind!r}"
+
+    def __str__(self):
+        return f"{self.kind!s}"
 
 
 def subst(t: Type, m: dict["TypeParameter", Type]) -> Type:
@@ -365,14 +377,14 @@ class App(TypeKind):
 
     def __repr__(self):
         if self.type_args:
-            return f"A({self.tycon}{self.type_args})"
+            return f"A({self.tycon!r}{self.type_args})"
         else:
-            return f"A({self.tycon})"
+            return f"A({self.tycon!r})"
 
     def __str__(self):
         if self.type_args:
             txt = ",".join(str(a) for a in self.type_args)
-            return f"{self.tycon}[{txt}]"
+            return f"{self.tycon!s}[{txt}]"
         else:
             return str(self.tycon)
 
@@ -429,6 +441,9 @@ class QualName:
     def __init__(self, names: list[str]):
         self.names = names
 
+    def __str__(self):
+        return ".".join(name for _, name in self.names)
+
 
 def name_ref_type(qual_name: "QualName"):
     return Type(NameRefType(qual_name))
@@ -441,6 +456,9 @@ class NameRefType(TypeKind):
 
     def __repr__(self):
         return f"name-ref<{self.qual_name}>"
+
+    def __str__(self):
+        return str(self.qual_name)
 
 
 class VoidType(TypeKind):
@@ -500,7 +518,7 @@ class FunctionType(TypeKind):
 
     def __str__(self):
         param_text = ", ".join(str(p) for p in self.parameter_types)
-        return f"fn({param_text}) -> {self.return_type} except {self.except_type}"
+        return f"fn({param_text}) -> {self.return_type!s} except {self.except_type!s}"
 
 
 def struct_type(struct_def: "StructDef", type_arguments: list[Type]) -> Type:
@@ -533,6 +551,12 @@ class PointerType(TypeKind):
     def __init__(self, element_type: Type):
         super().__init__()
         self.element_type = element_type
+
+    def __repr__(self):
+        return f"&{self.element_type!r}"
+
+    def __str__(self):
+        return f"&{self.element_type!s}"
 
 
 def pointer_type(element_type) -> Type:
@@ -1335,6 +1359,17 @@ class RaiseStatement(StatementKind):
         self.value = value
 
 
+def delete_statement(name: str, location: Location):
+    kind = DeleteStatement(name)
+    return Statement(kind, location)
+
+
+class DeleteStatement(StatementKind):
+    def __init__(self, name: str):
+        super().__init__()
+        self.name = name
+
+
 class ExpressionKind:
     def __repr__(self):
         return self.__class__.__name__
@@ -1729,6 +1764,18 @@ class Unbox(ExpressionKind):
         self.to_type = to_type
 
 
+class NewOperator(ExpressionKind):
+    def __init__(self, value: Expression):
+        super().__init__()
+        assert isinstance(value, Expression)
+        self.value = value
+
+
+def new_operator(value: Expression, location: Location):
+    ty = pointer_type(value.ty)
+    return Expression(NewOperator(value), ty, location)
+
+
 class AstVisitor:
     def visit_module(self, module: Module):
         for definition in module.definitions:
@@ -1774,6 +1821,8 @@ class AstVisitor:
             for type_arg in ty.kind.type_args:
                 self.visit_type(type_arg)
         elif isinstance(ty.kind, ArrayType):
+            self.visit_type(ty.kind.element_type)
+        elif isinstance(ty.kind, PointerType):
             self.visit_type(ty.kind.element_type)
         elif isinstance(ty.kind, Meta):
             if ty.kind.assigned:
@@ -1832,7 +1881,13 @@ class AstVisitor:
                 self.visit_statement(statement2)
         elif isinstance(
             kind,
-            (BreakStatement, ContinueStatement, PassStatement, UnreachableStatement),
+            (
+                BreakStatement,
+                ContinueStatement,
+                PassStatement,
+                UnreachableStatement,
+                DeleteStatement,
+            ),
         ):
             pass
         else:
@@ -1892,6 +1947,8 @@ class AstVisitor:
             self.visit_expression(kind.value)
         elif isinstance(kind, StatementExpression):
             self.visit_statement(kind.statement)
+        elif isinstance(kind, NewOperator):
+            self.visit_expression(kind.value)
 
 
 def print_ast(module: Module):
@@ -1902,7 +1959,7 @@ def print_ast(module: Module):
 
 def str_ty(ty: Type):
     """Fancy string representation of a type"""
-    return f":garlic:[b gold1]{rich.markup.escape(str(ty))}[/]"
+    return f":garlic:[b gold1]{rich.markup.escape(repr(ty))}[/]"
 
 
 class RichAstPrinter(AstVisitor):

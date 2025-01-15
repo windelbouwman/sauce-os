@@ -29,21 +29,26 @@ pub fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
     let v: Vector[T] = Vector(m_size: size, m_capacity, m_elements)
     v
 
+pub fn vec1[T](v1?: T, v2?: T) -> Vector[T]:
+    let vec: Vector[T] = new_vector_with_capacity(capacity: 1)
+    vec.append(v1)
+    vec
+
 pub fn vec2[T](v1?: T, v2?: T) -> Vector[T]:
-    let vec: Vector[T] = new_vector()
+    let vec: Vector[T] = new_vector_with_capacity(capacity: 2)
     vec.append(v1)
     vec.append(v2)
     vec
 
 pub fn vec3[T](v1?: T, v2?: T, v3?: T) -> Vector[T]:
-    let vec: Vector[T] = new_vector()
+    let vec: Vector[T] = new_vector_with_capacity(capacity: 3)
     vec.append(v1)
     vec.append(v2)
     vec.append(v3)
     vec
 
 pub fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> Vector[T]:
-    let vec: Vector[T] = new_vector()
+    let vec: Vector[T] = new_vector_with_capacity(capacity: 4)
     vec.append(v1)
     vec.append(v2)
     vec.append(v3)

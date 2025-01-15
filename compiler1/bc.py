@@ -43,6 +43,11 @@ class ArrayTyp(Typ):
         self.size = size
 
 
+class PointerTyp(Typ):
+    def __init__(self, element_typ: Typ):
+        self.element_typ = element_typ
+
+
 class FunctionType(Typ):
     def __init__(self, parameter_types: list[Typ], return_type: Typ):
         self.parameter_types = parameter_types

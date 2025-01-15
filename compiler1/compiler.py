@@ -11,7 +11,7 @@ import networkx as nx
 
 from . import ast
 from .parsing import parse_file
-from .namebinding import resolve_names
+from .namebinding import resolve_names, base_scope
 from .pass3 import evaluate_types
 from .typechecker import check_types
 from .transforms import (

@@ -188,6 +188,8 @@ class TypeChecker:
     pub fn check_statement(statement: ast.Statement):
         case statement.kind:
             Let(let_statement):
+                if let_statement.value.ty.is_void():
+                    add_error(location: let_statement.value.location, message: "Unexpected void value")
                 case let_statement.type_hint:
                     Some(ty):
                         let_statement.variable.ty = ty

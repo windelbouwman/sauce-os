@@ -40,6 +40,7 @@ class DataBase:
         self.queue = asyncio.Queue()
 
         # Key is ID, value is filename / location
+        self._base_scope = slangc.base_scope()
         self._definitions = {}
 
         # Map from filename to file info
@@ -428,6 +429,11 @@ async def completions(
         or params.context.trigger_kind == types.CompletionTriggerKind.Invoked
     ):
         # CTRL+SPACE was pressed, fetch a full list of symbols.
+        # items.extend(definitions_to_completion_items(db._base_scope.symbols.values()))
+        for name in db._base_scope.symbols:
+            items.append(
+                types.CompletionItem(label=name, kind=types.CompletionItemKind.Class)
+            )
         if filename in db._file_infos:
             info = db._file_infos[filename]
             items.extend(
@@ -452,7 +458,7 @@ async def completions(
                 items.extend(definitions_to_completion_items(obj.variants))
             else:
                 logger.debug(f"Cannot dot index {obj}")
-
+    items.sort(key=lambda i: i.label)
     return types.CompletionList(is_incomplete=False, items=items)
 
 
@@ -490,14 +496,16 @@ def get_def_under_cursor(document, position):
 def definitions_to_completion_items(definitions: list[ast.Definition]):
     return [
         types.CompletionItem(
-            label=definition.id.name, kind=get_completion_item_type(definition)
+            label=definition.id.name,
+            kind=get_completion_item_type(definition),
+            documentation=get_def_doc(definition),
         )
         for definition in definitions
     ]
 
 
 def get_completion_item_type(definition: ast.Definition):
-    if isinstance(definition, ast.FunctionDef):
+    if isinstance(definition, (ast.FunctionDef, ast.ExternFunction)):
         kind = types.CompletionItemKind.Function
     elif isinstance(definition, ast.EnumDef):
         kind = types.CompletionItemKind.Enum
@@ -592,28 +600,36 @@ def hover(ls: LanguageServer, params: types.HoverParams) -> types.Hover:
         if isinstance(obj, ast.FunctionDef):
             sig = function_def_to_signature(obj)
             return types.Hover(contents=[sig.label, sig.documentation])
-        elif isinstance(obj, ast.StructDef):
-            # for field in obj.fields:
-            #     params
-            contents = types.MarkupContent(
-                kind=types.MarkupKind.Markdown,
-                value=f"# struct {obj.id.name}\n {obj.docstring}",
-            )
+        else:
+            contents = get_def_doc(obj)
+            if contents:
+                return types.Hover(contents=contents)
 
-            return types.Hover(contents=contents)
-            # ,range=make_lsp_range()
-        elif isinstance(obj, ast.EnumDef):
-            contents = types.MarkupContent(
-                kind=types.MarkupKind.Markdown,
-                value=f"# enum {obj.id.name}\n {obj.docstring}",
-            )
-            return types.Hover(contents=contents)
-        elif isinstance(obj, ast.ClassDef):
-            contents = types.MarkupContent(
-                kind=types.MarkupKind.Markdown,
-                value=f"# class {obj.id.name}\n {obj.docstring}",
-            )
-            return types.Hover(contents=contents)
+
+def get_def_doc(definition: ast.Definition):
+    if isinstance(definition, ast.FunctionDef):
+        sig = function_def_to_signature(definition)
+        return types.MarkupContent(
+            kind=types.MarkupKind.Markdown,
+            value=f"{sig.label}\n {sig.documentation}",
+        )
+    elif isinstance(definition, ast.StructDef):
+        # for field in obj.fields:
+        #     params
+        return types.MarkupContent(
+            kind=types.MarkupKind.Markdown,
+            value=f"# struct {definition.id.name}\n {definition.docstring}",
+        )
+    elif isinstance(definition, ast.EnumDef):
+        return types.MarkupContent(
+            kind=types.MarkupKind.Markdown,
+            value=f"# enum {definition.id.name}\n {definition.docstring}",
+        )
+    elif isinstance(definition, ast.ClassDef):
+        return types.MarkupContent(
+            kind=types.MarkupKind.Markdown,
+            value=f"# class {definition.id.name}\n {definition.docstring}",
+        )
 
 
 @server.feature(types.TEXT_DOCUMENT_DOCUMENT_SYMBOL)

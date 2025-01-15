@@ -1,7 +1,24 @@
 
+"""
 # Idea for a RISCV backend.
 # There are a couple of formats:
 # R/I/S/U
+
+Register conventions:
+register | name  | saver  | description
+ x0      | zero  | -      | zero constant
+ x1      | ra    | callee | return address
+ x2      | sp    | callee | stack pointer
+ x3      | gp    | -      | global pointer
+ x4      | tp    | -      | thread pointer
+ x5-x7   | t0-t2 | caller | temporaries
+ x8      | s0/fp | callee | saved / frame pointer
+ x9      | s1    | callee | saved register
+ x10-x11 | a0-a1 | caller | function arguments / return values
+ x12-x17 | a2-a7 | caller | function arguments
+ x18-x27 | s2-s11| callee | Saved registers
+ x28-x31 | t3-t6 | caller | temporaries
+"""
 
 from utils import panic
 
@@ -99,6 +116,11 @@ pub enum Instruction:
     ECALL
     EBREAK
 
+    # Pseudo instructions
+    LA(rd: int, symbol: int) # load address
+    CALL(offset: int)
+    RET
+
 pub fn encode_instruction(instruction: Instruction) -> int:
     case instruction:
         LUI(rd, imm):
@@ -186,7 +208,8 @@ pub fn encode_instruction(instruction: Instruction) -> int:
             encode_I_type(imm: 0b0, rs1: 0, funct3: 0, rd: 0, opcode: 0b1110011)
         EBREAK:
             encode_I_type(imm: 0b1, rs1: 0, funct3: 0, rd: 0, opcode: 0b1110011)
-
+    else:
+        panic("Cannot encode pseudo instruction to integer code")
 
 pub fn instruction_to_string(instruction: Instruction) -> str:
     case instruction:
@@ -275,3 +298,14 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
             "ecall"
         EBREAK:
             "ebreak"
+        
+        # Pseudo instructions
+        LA(rd, offset):
+            "la {rd}, {offset}"
+        CALL(offset):
+            "call {offset}"
+        RET:
+            "ret"
+
+pub enum Relocation:
+    Abs64(name: str)

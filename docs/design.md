@@ -100,6 +100,7 @@ loop:
 In general, enums are translated to tagged unions.
 
 ## General case
+
 Compile to tagged unions.
 
 ```
@@ -343,6 +344,66 @@ fn Hashable_int_hash(one: int) -> int:
 fn Hashable_int_equal(one: int, other: int) -> bool:
     return one == other
 
+```
+
+# Memory management
+
+Garbage collection
+- Use mark and sweep garbage collection
+- Manual memory management
+- Use borrowing and referencing
+
+
+## Manual memory management
+
+Idea for syntax:
+
+```
+struct X:
+    a: int
+    b: int
+
+fn main() -> int:
+    let x = X:
+        a: 1
+        b: 2
+    foo(&x)
+    0
+
+fn foo(x: &X) -> int:
+    x.a + x.b
+```
+
+Translates to C-code:
+
+```c
+struct X {
+    int a;
+    int b;
+};
+
+int main() {
+    const struct X x;
+    x.a = 1;
+    x.b = 2;
+    foo(x);
+    return 0;
+}
+
+int foo(struct X* x) {
+    return x->a + x->b;
+}
+```
+
+Translates to Python-code:
+```python
+def main():
+    x = X(1, 2)
+    foo(x)
+    return 0
+
+def Foo(x) -> int:
+    return x.a + x.b
 ```
 
 # Tips for compiler writers

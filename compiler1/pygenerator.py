@@ -56,6 +56,7 @@ class PyCodeGenerator:
                 for field_name in field_names:
                     self.emit(f"self.{field_name} = {field_name}")
             self.dedent()
+            self.emit("")
         elif isinstance(definition, ast.ExternFunction):
             self.emit(f"from slangrt import {modname}_{definition.id.name}")
         elif isinstance(definition, ast.VarDef):
@@ -147,6 +148,8 @@ class PyCodeGenerator:
                 self.emit(f"return {self.gen_expression(kind.value, parens=False)}")
             else:
                 self.emit("return")
+        elif isinstance(kind, ast.DeleteStatement):
+            self.emit(f"# python is garbage collected.. del {kind.name}")
         else:
             raise NotImplementedError(str(kind))
 
@@ -202,7 +205,10 @@ class PyCodeGenerator:
             return f"({res})" if parens else res
         elif isinstance(kind, ast.Unop):
             rhs = self.gen_expression(kind.rhs)
-            res = f"{kind.op} {rhs}"
+            if kind.op == "&":
+                res = rhs
+            else:
+                res = f"{kind.op} {rhs}"
             return f"({res})" if parens else res
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
@@ -228,6 +234,8 @@ class PyCodeGenerator:
             return f"{callee}({args})"
         elif isinstance(kind, ast.StatementExpression):
             raise RuntimeError("Cannot generate statement expression on the stack")
+        elif isinstance(kind, ast.NewOperator):
+            return self.gen_expression(kind.value)
         else:
             raise NotImplementedError(str(kind))
 

@@ -39,6 +39,8 @@ def check_value_type(value, ty: Typ):
             raise NotImplementedError(str(ty.type_id))
     elif isinstance(ty, bc.StructTyp):
         assert isinstance(value, list)
+    elif isinstance(ty, bc.PointerTyp):
+        check_value_type(value, ty.element_typ)
     elif isinstance(ty, bc.ArrayTyp):
         assert isinstance(value, list)
     elif isinstance(ty, bc.FunctionType):

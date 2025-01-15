@@ -11,25 +11,31 @@ struct Fu:
 
 pub fn main() -> int:
     # let messages = new Holder:
-    let messages = Holder:
+
+    # TBD: Allocated on the stack?:
+    let messages: Holder = Holder:
         msg1: "Hello c22ool world!!"
         msg2: "W02220t"
+
     foo(messages)
+
+    # TBD: Allocated on the heap with the new operator?:
     let k = Fu:
         a: 2
         msg: "BOOM1"
         b: 5
+
     bar(kung: k, messages)
     let x = 31
     x = 10
     k.a = x
     bar(kung: k, messages)
+    # delete k
     let kung = Fu:
         a: 10
         msg: "BOOM2"
         b: 55
     bar(kung, messages)
-    # delete messages
     0
 
 # fn foo(messages: &Holder):

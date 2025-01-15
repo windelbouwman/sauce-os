@@ -22,6 +22,7 @@ from c_gen import gen_c_code
 from c_gen_v2 import gen_c_code_v2
 from wasm_gen import gen_webassembly
 from riscv_gen import gen_riscv
+from bc_to_sil import to_sil
 from x86_gen import gen_x86
 from slang_gen import gen_slang
 from vm import run_bytecode
@@ -246,7 +247,8 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
             gen_webassembly(module_set)
         Riscv:
             let program = gen_bytecode(module_set)
-            gen_riscv(program)
+            let program2 = to_sil(program)
+            gen_riscv(program: program2)
         X86:
             let program = gen_bytecode(module_set)
             gen_x86(program)
