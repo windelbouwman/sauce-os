@@ -123,16 +123,28 @@ pub class Lexer:
         let c = next_char()
 
         # Decide what to do based on char:
+        # Note: this can be sorted to token occurence
+        # See also: token_statistics.slang
         if is_id(c):
             parse_identifier()
         elif c == ' ':
             while match(' '):
                 pass
             TokenKind.Space(amount: std.str_len(text: get_lexeme()))
+        elif is_lf(c):
+            TokenKind.NewLine()
+        elif c == ':':
+            TokenKind.Colon()
         elif c == '(':
             TokenKind.ParenthesisOpen()
         elif c == ')':
             TokenKind.ParenthesisClose()
+        elif c == ',':
+            TokenKind.Comma()
+        elif c == '.':
+            TokenKind.Dot()
+        elif is_digit(c):
+            parse_number(c)
         elif c == '[':
             TokenKind.BracketOpen()
         elif c == ']':
@@ -140,12 +152,6 @@ pub class Lexer:
         elif c == '}':
             m_mode = LexerMode.String()
             TokenKind.BraceClose()
-        elif c == ',':
-            TokenKind.Comma()
-        elif c == '.':
-            TokenKind.Dot()
-        elif c == ':':
-            TokenKind.Colon()
         elif c == '#':
             parse_line_comment()
         elif c == '"':
@@ -174,10 +180,6 @@ pub class Lexer:
                 TokenKind.AsterixEquals()
             else:
                 TokenKind.Asterix()
-        elif is_lf(c):
-            TokenKind.NewLine()
-        elif is_digit(c):
-            parse_number(c)
         elif ord(c) == 39:
             parse_char()
         elif c == '<':

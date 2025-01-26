@@ -3,11 +3,12 @@ Snake implemented in slang
 """
 
 from std import print
+# from screen import Screen
 
-extern fn screen_swap()
-extern fn screen_clear(r: int, g: int, b: int)
+#extern fn screen_swap()
+#extern fn screen_clear(r: int, g: int, b: int)
 
-fn main() -> int:
+pub fn main() -> int:
     let game = Game()
     game.draw()
     let n = 0
@@ -26,8 +27,8 @@ class Game:
 
     var direction: Direction = Direction.Up()
 
-    fn draw():
-        screen_clear(0, 0, 255)
+    pub fn draw():
+        # screen_clear(0, 0, 255)
         let y = 0
         while y < height:
             let x = 0
@@ -51,7 +52,7 @@ class Game:
             print(line)
             y += 1
 
-    fn move():
+    pub fn move():
         case direction:
             Up:
                 head.y -= 1
@@ -62,7 +63,7 @@ class Game:
             Right:
                 head.x += 1
 
-    fn handle_key(key: Key):
+    pub fn handle_key(key: Key):
         case key:
             Left:
                 direction = rotate_left(direction)

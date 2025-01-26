@@ -83,6 +83,13 @@ pub class HashMap[K,V]:
     
     pub fn get(key: K) -> V:
         option_unwrap(maybe_get(key))
+    
+    pub fn get_or_else(key: K, default: V) -> V:
+        case maybe_get(key):
+            Some(value):
+                value
+            None:
+                default
 
     pub fn insert(key: K, value: V):
         # Re-hash if above some threshold
