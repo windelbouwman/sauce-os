@@ -22,7 +22,12 @@ def detect_indentations(tokens: Iterable[Token]):
     for token in tokens:
         if token.ty == "SPACE":
             if bol:
+                lex_error(token.location, "Spurious space")
+        elif token.ty == "TAB":
+            if bol:
                 new_indentation += len(token.value)
+            else:
+                lex_error(token.location, "Spurious tab")
         elif token.ty == "NEWLINE":
             if not bol:
                 yield token
@@ -112,6 +117,7 @@ def tokenize(code: str | tuple[Location, str]):
             ("OP", r"[\(\):+\-\*/\.,<>=^\|&{}\[\]\?]"),
             ("ID", r"[A-Za-z][A-Za-z_0-9]*"),
             ("SPACE", r"[ ]+"),
+            ("TAB", r"[\t]+"),
             ("DOCSTRING", r"\"\"\".*?\"\"\""),
             ("STRING_START", r"\""),
             ("CHAR", r"\'[^\']\'"),
@@ -194,7 +200,7 @@ def tokenize(code: str | tuple[Location, str]):
             elif kind == "FNUMBER1" or kind == "FNUMBER2" or kind == "FNUMBER3":
                 kind = "FNUMBER"
                 value = float(value)
-            elif kind == "SPACE":
+            elif kind == "SPACE" or kind == "TAB":
                 pass
             elif kind == "NEWLINE":
                 col_start = mo.end()

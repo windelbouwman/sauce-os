@@ -16,65 +16,65 @@ from vm import VirtualMachine, eval_code, value_to_string
 
 
 pub fn main() -> int:
-    let verbosity = 1
-    let n = get_n_args()
-    let i = 0
-    while i < n:
-        let argument = get_arg(arg: i)
-        if argument == "-v":
-            verbosity += 1
-        else:
-            print("Unknown argument {argument}")
-            return 1
-        i += 1
+	let verbosity = 1
+	let n = get_n_args()
+	let i = 0
+	while i < n:
+		let argument = get_arg(arg: i)
+		if argument == "-v":
+			verbosity += 1
+		else:
+			print("Unknown argument {argument}")
+			return 1
+		i += 1
 
-    print("Welcome to the slang-lang REPL!")
-    set_log_level(level: verbosity)
-    let r = Repl()
-    loop:
-        let line = read_line(prompt: "~~~> ")
-        r.eval(line)
-    0
+	print("Welcome to the slang-lang REPL!")
+	set_log_level(level: verbosity)
+	let r = Repl()
+	loop:
+		let line = read_line(prompt: "~~~> ")
+		r.eval(line)
+	0
 
 
 class Repl:
-    var id_gen: IdGen = IdGen()
-    var m_vm: VirtualMachine = VirtualMachine()
+	var id_gen: IdGen = IdGen()
+	var m_vm: VirtualMachine = VirtualMachine()
 
-    pub fn eval(line: str):
-        try:
-            log_info("Parsing [{line}]")
-            let statement = parse_statement_from_text(source: line, id_gen)
-            case statement.kind:
-                Expr(expression):
-                    let x = eval_expression(expression)
-                    print("Computed result: {value_to_string(x)}")
-            else:
-                print_statement_ast(statement)
-                print("Unsupported statement: {statement}")
+	pub fn eval(line: str):
+		try:
+			log_info("Parsing [{line}]")
+			let statement = parse_statement_from_text(source: line, id_gen)
+			case statement.kind:
+				Expr(expression):
+					let x = eval_expression(expression)
+					print("Computed result: {value_to_string(x)}")
+			else:
+				print_statement_ast(statement)
+				print("Unsupported statement: {statement}")
 
-        except (error: CompilationError):
-            display_error(error)
-            #for error2 in error.errors:
-            #    print_error_line(line, location: error2.location, message: error2.message)
+		except (error: CompilationError):
+			display_error(error)
+			#for error2 in error.errors:
+			#    print_error_line(line, location: error2.location, message: error2.message)
 
-    fn eval_expression(expression: ast.Expression) -> vm.Value except CompilationError:
-        # print_expression_ast(expression)
-        bind_names_expression(expression)
-        log_debug("Type checking")
-        type_check_expression(expression)
-        print_expression_ast(expression)
-        log_debug("Creating bytecode")
-        let code = gen_expression_bytecode(expression)
-        bc.print_bc_instructions(instructions: code)
-        log_debug("Executing")
-        let x = eval_code(vm: m_vm, code)
-        return x
+	fn eval_expression(expression: ast.Expression) -> vm.Value except CompilationError:
+		# print_expression_ast(expression)
+		bind_names_expression(expression)
+		log_debug("Type checking")
+		type_check_expression(expression)
+		print_expression_ast(expression)
+		log_debug("Creating bytecode")
+		let code = gen_expression_bytecode(expression)
+		bc.print_bc_instructions(instructions: code)
+		log_debug("Executing")
+		let x = eval_code(vm: m_vm, code)
+		return x
 
 fn print_statement_ast(statement: ast.Statement):
-    let visitor = ast.new_print_visitor(printer: ast.AstPrinter())
-    ast.visit_statement(visitor, statement)
+	let visitor = ast.new_print_visitor(printer: ast.AstPrinter())
+	ast.visit_statement(visitor, statement)
 
 fn print_expression_ast(expression: ast.Expression):
-    let visitor = ast.new_print_visitor(printer: ast.AstPrinter())
-    ast.visit_expression(visitor, expression)
+	let visitor = ast.new_print_visitor(printer: ast.AstPrinter())
+	ast.visit_expression(visitor, expression)

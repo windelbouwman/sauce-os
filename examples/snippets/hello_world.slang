@@ -2,12 +2,12 @@
 import std
 
 pub fn main() -> int:
-    let msg = "Hello cool world!!"
-    std.print(msg)
-    # std.print(msg)
-    foo()
-    0
+	let msg = "Hello cool world!!"
+	std.print(msg)
+	# std.print(msg)
+	foo()
+	0
 
 fn foo():
-    if 2 < 7 - 1:
-        std.print("Hello world2")
+	if 2 < 7 - 1:
+		std.print("Hello world2")

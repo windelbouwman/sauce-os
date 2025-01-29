@@ -2,22 +2,22 @@
 import std
 
 pub fn main() -> int:
-    let a = foo(a: 2, b: 5, message: "Fiir")
-    let message = "No sir"
-    let b = foo(a: 9, b: 5, message)
-    0
+	let a = foo(a: 2, b: 5, message: "Fiir")
+	let message = "No sir"
+	let b = foo(a: 9, b: 5, message)
+	0
 
 enum Option[T]:
-    Some(value: T)
+	Some(value: T)
 
 enum Symbol:
-    A
-    B
+	A
+	B
 
 fn foo(a: int, b: int, message: str) -> Option[Symbol]:
-    if a < b:
-        std.print("A smaller than B")
-    else:
-        std.print(message)
-    
-    Option.Some(Symbol.B())
+	if a < b:
+		std.print("A smaller than B")
+	else:
+		std.print(message)
+	
+	Option.Some(Symbol.B())

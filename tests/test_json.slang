@@ -6,21 +6,21 @@ from unittest import assert_str_equals
 
 
 pub fn main() -> int:
-    test_roundtrip()
-    print("OK")
-    0
+	test_roundtrip()
+	print("OK")
+	0
 
 
 fn test_roundtrip():
-    check_roundtrips("\{ \"w00t\": 1337 \}")
-    check_roundtrips("\{ \"w00t\": 1337, \"A\": 42 \}")
-    check_roundtrips("\{ \"no\": false, \"yes\": true, \"void\": null \}")
-    check_roundtrips("\{ \"values\": [ 1, 2, 3, 4 ] \}")
+	check_roundtrips("\{ \"w00t\": 1337 \}")
+	check_roundtrips("\{ \"w00t\": 1337, \"A\": 42 \}")
+	check_roundtrips("\{ \"no\": false, \"yes\": true, \"void\": null \}")
+	check_roundtrips("\{ \"values\": [ 1, 2, 3, 4 ] \}")
 
 fn check_roundtrips(text?: str):
-    try:
-        let value = parse_json(text)
-        let text2 = json_to_string(value)
-        assert_str_equals(text, text2)
-    except (e: JsonException):
-        panic(e.message)
+	try:
+		let value = parse_json(text)
+		let text2 = json_to_string(value)
+		assert_str_equals(text, text2)
+	except (e: JsonException):
+		panic(e.message)

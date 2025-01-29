@@ -1,20 +1,20 @@
 
 
 pub struct Location:
-    begin: int
-    end: int
+	begin: int
+	end: int
 
 pub fn location_default() -> Location:
-    location_at(offset: 0)
+	location_at(offset: 0)
 
 pub fn location_at(offset: int) -> Location:
-    let begin = offset
-    let end = offset
-    Location(begin, end)
+	let begin = offset
+	let end = offset
+	Location(begin, end)
 
 pub struct Position:
-    row: int
-    column: int
+	row: int
+	column: int
 
 #fn location_to_string(location?: Location) -> str:
 #    "{location.begin.row}:{location.begin.column}"

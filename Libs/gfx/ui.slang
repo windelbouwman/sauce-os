@@ -2,4 +2,4 @@
 # GUI library
 
 pub class Button:
-    var x: int = 0
+	var x: int = 0
