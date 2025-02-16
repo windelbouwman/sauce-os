@@ -1,6 +1,8 @@
+"""
+PNG read / write routines
 
-# PNG read / write routines
-# See RFC 2083
+See RFC 2083
+"""
 
 from utils import unimplemented, panic, assert, log_warning, log_debug
 from math import abs, modulo

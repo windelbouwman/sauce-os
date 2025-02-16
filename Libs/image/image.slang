@@ -8,6 +8,21 @@ pub fn new_image(width: int, height: int) -> Image:
 		height
 		pixels
 
+pub fn new_empty_image() -> Image:
+	let pixels: Vector[Pixel] = new_vector()
+	Image:
+		width: 1
+		height: 1
+		pixels
+
+pub fn new_black_image(width: int, height: int) -> Image:
+	let image = new_image(width, height)
+	let offset = 0
+	while offset < width * height:
+		image.add_pixel(red: 0, green: 0, blue: 0, alpha: 0)
+		offset += 1
+	image
+
 pub class Image:
 	pub var width: int
 	pub var height: int
@@ -17,7 +32,7 @@ pub class Image:
 		let index = y * width + x
 		let pixel = pixels[index]
 		pixel
-	
+
 	pub fn set_pixel(x: int, y: int, red: int, green: int, blue: int, alpha: int):
 		let pixel = get_pixel(x, y)
 		pixel.red = red

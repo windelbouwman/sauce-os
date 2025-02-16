@@ -13,16 +13,16 @@ pub class Bytes:
 
 	pub fn len() -> int:
 		m_size
-	
+
 	pub fn get(index: int) -> int:
 		int(m_bytes[index])
 
 	pub fn get_byte(index: int) -> uint8:
 		m_bytes[index]
-	
+
 	pub fn set_byte(index: int, value: uint8):
 		m_bytes[index] = value
-	
+
 	pub fn concat(other: Bytes) -> Bytes:
 		# Concatenate two byte sequences
 		concat2(a: this, b: other)
@@ -36,7 +36,7 @@ pub class Bytes:
 			txt = txt + byte_as_hex(b)
 			index += 1
 		txt
-	
+
 	pub fn into_reader() -> ByteReader:
 		ByteReader(m_bytes: this)
 
@@ -70,6 +70,12 @@ pub class ByteReader:
 			ba.append(read_byte())
 			i += 1
 		ba.to_bytes()
+
+	pub fn peek_byte(ahead: int) -> int:
+		if m_index + ahead < m_bytes.len():
+			return m_bytes[m_index + ahead]
+		else:
+			panic("Cannot peek past end of bytes")
 
 	pub fn read_byte() -> int:
 		if m_index < m_bytes.len():
@@ -167,7 +173,7 @@ pub class ByteArray:
 			out.set_byte(index, value: m_bytes[index])
 			index += 1
 		out
-	
+
 	pub fn as_hex() -> str:
 		to_bytes().as_hex()
 

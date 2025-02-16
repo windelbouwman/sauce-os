@@ -1,15 +1,19 @@
+"""
+Implement RFC 1951: deflate format.
 
-# Implement RFC 1951: "deflate" format.
-# DEFLATE uses huffman trees and LZ77 compression.
+DEFLATE uses huffman trees and LZ77 compression.
+"""
 
-from utils import panic, unimplemented, assert
+from utils import panic, assert
 from utils import log_trace, log_debug
 from bytes import Bytes, ByteArray, ByteReader
 from vectype import Vector, new_vector, new_vector_of_size
+from huffman import Tree, BitReader, decode_symbol, zero_int_array
 
 pub fn deflate_decompress(data?: Bytes) -> Bytes:
-	# Decompress the given data using deflate
-	# See: RFC 1951
+	""" Decompress the given data using deflate
+	See: RFC 1951
+	"""
 	let reader = data.into_reader()
 	deflate_decompress_from_reader(reader)
 
@@ -18,11 +22,11 @@ fn deflate_decompress_from_reader(reader: ByteReader) -> Bytes:
 	decoder.deflate()
 
 pub fn new_deflate_decoder(reader: ByteReader) -> DeflateDecoder:
-	let bit_reader = BitReader(m_reader: reader)
+	let bit_reader = BitReader(m_reader: reader, m_reverse: false)
 	DeflateDecoder(m_bit_reader: bit_reader)
 
 pub fn deflate_compress(data: Bytes) -> Bytes:
-	# Implementation 1: copy uncompressed:
+	""" Implementation 1: copy uncompressed: """
 	let out = ByteArray()
 	let index = 0
 	while index < data.len():
@@ -32,7 +36,7 @@ pub fn deflate_compress(data: Bytes) -> Bytes:
 			size = 4000
 		else:
 			last_block = true
-		
+
 		log_trace("Size: {size}")
 
 		if last_block:
@@ -110,7 +114,7 @@ pub class DeflateDecoder:
 		# Read a fair amount of code lengths:
 		lengths = new_vector()
 		while lengths.len() < hlit + hdist:
-			let symbol = decode_symbol(tree)
+			let symbol = decode_symbol(tree, bit_reader: m_bit_reader)
 			# print("symbol={symbol}")
 			let times = 0
 			let L = 0
@@ -152,7 +156,7 @@ pub class DeflateDecoder:
 		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,   6,   7,   7,   8,   8,   9,    9,    10,   10,   11,   11,   12,   12,    13,    13]
 		let dist_base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
 		loop:
-			let symbol = decode_symbol(tree: pair.first)
+			let symbol = decode_symbol(tree: pair.first, bit_reader: m_bit_reader)
 			# print("Symbol: {symbol}")
 			if symbol < 256:  # Literal byte
 				emit_byte(symbol)
@@ -165,7 +169,7 @@ pub class DeflateDecoder:
 				assert(condition: symbol < 29, message: "Invalid length code: {symbol}")
 				let length = read_bits(length_bits[symbol]) + length_base[symbol]
 
-				symbol = decode_symbol(tree: pair.second)
+				symbol = decode_symbol(tree: pair.second, bit_reader: m_bit_reader)
 				assert(condition: symbol < 30, message: "Invalid distance code: {symbol}")
 				let distance = read_bits(dist_bits[symbol]) + dist_base[symbol]
 
@@ -176,26 +180,6 @@ pub class DeflateDecoder:
 					emit_byte(value)
 					index += 1
 					length -= 1
-
-	fn decode_symbol(tree: Tree) -> int:
-		# Decode a value with the given Huffman tree
-		let len = 1
-		let code = 0
-		let index = 0
-		let first = 0
-		while len <= 16:
-			code = code | read_bits(1)
-			let count = tree.counts[len]
-			if code - count < first:
-				return tree.symbols[index + (code - first)]
-
-			index += count
-			first = (first + count) << 1
-			code = code << 1
-
-			len += 1
-
-		unimplemented("Decode symbol")
 
 	fn read_bits(n?: int) -> int:
 		m_bit_reader.read_bits(n)
@@ -212,38 +196,9 @@ pub class DeflateDecoder:
 		assert(condition: b < 256, message: "Byte values must be smaller than 256")
 		m_output.append(b)
 
-
-class BitReader:
-	pub var m_bitbuf: int = 0
-	pub var m_bitcnt: int = 0
-	pub var m_reader: ByteReader
-
-	pub fn read_bits(n?: int) -> int:
-		let value = m_bitbuf
-		while m_bitcnt < n:
-			let byte = m_reader.read_byte()
-			value = (byte << m_bitcnt) | value
-			m_bitcnt += 8
-		m_bitbuf = value >> n
-		m_bitcnt -= n
-		let mask = (1 << n) - 1
-		value & mask
-
-struct Tree:
-	counts: [int]
-	symbols: [int]
-
 struct TreePair:
 	first: Tree
 	second: Tree
-
-fn zero_int_array(size: int) -> [int]:
-	let array = [size : int]
-	let i = 0
-	while i < size:
-		array[i] = 0
-		i += 1
-	array
 
 fn create_tree(lengths: Vector[int]) -> Tree:
 	# Given a set of lengths, calculate the Huffman tree.
