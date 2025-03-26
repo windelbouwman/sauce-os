@@ -1,4 +1,5 @@
-# Generate python code from AST.
+""" Generate python code from AST.
+"""
 
 import ast
 from utils import panic, log_info
@@ -66,7 +67,7 @@ class PyGenerator:
 							indent()
 							emit(global_header)
 							dedent()
-						
+
 						if scoped_block.body.ty.is_void() or scoped_block.body.ty.is_unreachable():
 							gen_block(scoped_block, target: Option.None())
 						else:
@@ -277,22 +278,22 @@ class PyGenerator:
 					txt
 		else:
 			panic("Unsupported: {expression}")
-	
+
 	fn gen_expression_list(expressions: List[ast.Expression]) -> str:
 		let parts: List[str] = List()
 		for expression in expressions:
 			parts.append(gen_expression(expression, parens: false))
 		str_join(parts, sep: ", ")
-	
+
 	fn get_id(id: ast.NodeId) -> str:
 		"X{id.id}_{id.name}"
 
 	fn emit(txt?: str):
 		out.emit(txt)
-	
+
 	fn indent():
 		out.indent()
-	
+
 	fn dedent():
 		out.dedent()
 

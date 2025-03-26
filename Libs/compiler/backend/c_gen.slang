@@ -72,7 +72,7 @@ class CGenerator:
 		for struct_def in program.structs:
 			emit("struct S{index}_{struct_def.name};")
 			index += 1
-		
+
 		index = 0
 		for struct_def in program.structs:
 			# Struct definitions:
@@ -85,7 +85,7 @@ class CGenerator:
 		# Forward declarations:
 		for function in program.functions:
 			gen_function_decl(function)
-		
+
 		# Globals!
 		for global in program.globals:
 			gen_global(global)
@@ -98,7 +98,7 @@ class CGenerator:
 		let name = "S{index}_{struct_def.name}"
 		emit("struct {name} \{")
 		indent()
-		
+
 		let findex = 0
 		for field in struct_def.fields:
 			gen_typed_name(ty: field.ty, name: "f{findex}_{field.name}")
@@ -149,7 +149,7 @@ class CGenerator:
 			emit(" __attribute__((noreturn))")
 			emit("#endif")
 		emit(";")
-	
+
 	fn gen_global(global: bc.Global):
 		case global.value:
 			Some(code):
@@ -240,7 +240,7 @@ class CGenerator:
 		dedent()
 		emit("}")
 		emit("")
-	
+
 	fn gen_instruction(instruction: bc.Instruction):
 		case instruction:
 			Nop:
@@ -303,7 +303,7 @@ class CGenerator:
 
 			PopTry:
 				emit("g_except_hook = g_except_hook->prev;")
-			
+
 			DecRef(index):
 				let varname = local_variables.get(index)
 				#if is_heap(varname.ty):
@@ -353,7 +353,7 @@ class CGenerator:
 				write(rhs.name)
 				emit(";")
 				push(Value(name: varname, ty))
-			
+
 			Comparison(op):
 				let rhs = pop()
 				let lhs = pop()
@@ -382,7 +382,7 @@ class CGenerator:
 				write(rhs.name)
 				emit(");")
 				push(Value(name: varname, ty))
-			
+
 			Bitop(op):
 				let rhs = pop()
 				let lhs = pop()
@@ -436,7 +436,7 @@ class CGenerator:
 				write(value.name)
 				emit(");")
 				push(Value(name: varname, ty))
-			
+
 			IntCast(signed, bits):
 				let value = pop()
 				let varname = new_local_var()
@@ -482,7 +482,7 @@ class CGenerator:
 					Function(parameter_types, return_type):
 						panic("Cannot box function")
 					Array(element_type):
-						panic("Cannot box array")
+						write("(void*)")
 				write("(")
 				write(value.name)
 				emit(");")
@@ -513,7 +513,9 @@ class CGenerator:
 					Function(parameter_types, return_type):
 						panic("Cannot unbox ptr to function")
 					Array(element_type):
-						panic("Cannot unbox ptr to array")
+						write("(")
+						gen_typed_name(ty: element_type, name: "")
+						write("*)")
 					Ptr:
 						pass
 					StructRef(index):
@@ -552,7 +554,7 @@ class CGenerator:
 				write(" = ")
 				write(value.name)
 				emit(";")
-			
+
 			GlobalGet(index):
 				let global = globals.get(index)
 				let name = global.name
@@ -611,7 +613,7 @@ class CGenerator:
 				emit(" = {base.name}[{index.name}];")
 				let value = Value(name: varname, ty)
 				push(value)
-				
+
 			SetIndex:
 				let value = pop()
 				let index = pop()
@@ -684,7 +686,7 @@ class CGenerator:
 				gen_typed_name(ty: ty2, name: "")
 				emit("));")
 				push(Value(name: varname, ty))
-	
+
 	fn gen_field_access(index: int, field: bc.TypedName):
 		write("->f")
 		write(str(index))
@@ -770,7 +772,7 @@ class CGenerator:
 
 	fn push(value?: Value):
 		stack.append(value)
-	
+
 	fn pop_n(count: int) -> List[Value]:
 		let values: List[Value] = List()
 		while count > 0:
@@ -781,11 +783,11 @@ class CGenerator:
 
 	fn pop() -> Value:
 		stack.pop_last()
-	
+
 	fn gen_label_str(index?: int):
 		write("L")
 		write(str(index))
-	
+
 	fn gen_goto(label?: int):
 		write("goto L")
 		write(str(label))
@@ -809,7 +811,7 @@ class CGenerator:
 
 	fn emit(text?: str):
 		out.emit(text)
-	
+
 	fn write(text?: str):
 		out.write(text)
 

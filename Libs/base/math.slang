@@ -49,10 +49,17 @@ pub fn sqrt(x?: float) -> float:
 		panic("Square root undefined for negative numbers like {float_to_str(x)}")
 
 	let eps = 1e-16
-	let r = x
-	while fabs(x - r*r) > eps:
-		r = (r + x / r) / 2
+	let i = 0
+	let N = 20
+	let r = x / 2.0
+	while fabs(x - r*r) > eps and i < N:
+		r = (r + x / r) / 2.0
+		i += 1
 	r
+
+# fn inv_sqrt(x?: float) -> float:
+# IDEA: use quake initial guess
+# 	x
 
 pub fn factorial(x?: int) -> int:
 	if x < 0:
@@ -68,13 +75,13 @@ pub fn factorial(x?: int) -> int:
 
 pub fn sin(x?: float) -> float:
 	if x < 0:
-		# When negative, use symmetric 
+		# When negative, use symmetric
 		-sin(-x)
 	else:
 		# Reduce to the range of 0..2pi
 		let two_pi = pi * 2.0
 		x = fmod(value: x, divisor: two_pi)
-		
+
 		# Select the right quarter
 		if x < 0.5* pi:
 			sin_kernel(x)
@@ -195,7 +202,7 @@ pub fn exp(x?: float) -> float:
 			  x^1   x^2   x^3
 	e^x = 1 + --- + --- + --- + ...
 			   1!    2!    3!
-	
+
 	"""
 
 	if x < 0:

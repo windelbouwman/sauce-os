@@ -3,15 +3,6 @@ JPEG handling.
 
 See also: https://www.w3.org/Graphics/JPEG/itu-t81.pdf
 
-Zig zag pattern:
-0,  1,  5,  6,  14, 15, 27, 28
-2,  4,  7,  13, 16, 26, 29, 42
-3,  8,  12, 17, 25, 30, 41, 43
-9,  11, 18, 24, 31, 40, 44, 53
-10, 19, 23, 32, 39, 45, 52, 54
-20, 22, 33, 38, 46, 51, 55, 60
-21, 34, 37, 47, 50, 56, 59, 61
-35, 36, 48, 49, 57, 58, 62, 63
 """
 
 import math
@@ -67,8 +58,10 @@ class JpegDecoder:
 			let size = read_u16() - 2
 			log_debug("APPn marker of size {size}")
 			let payload = read_data(size)
-		elif kind == 0xC0: # SOF0 Start of frame
-			start_of_frame()
+		elif kind == 0xC0: # SOF0 Start of frame, baseline DCT
+			start_of_frame(n: 0)
+		elif kind == 0xC2: # SOF2 Start of frame, progressive DCT
+			start_of_frame(n: 2)
 		elif kind == 0xC4: # DHT Define huffman table
 			huffman_table()
 		elif kind == 0xDA: # SOS start of scan
@@ -116,50 +109,93 @@ class JpegDecoder:
 		let payload = read_data(size)
 		m_quant.insert(key: header, value: payload)
 
-	fn start_of_frame():
+	fn start_of_frame(n: int):
+		""" Baseline DCT """
 		let size = read_u16() - 2
-		log_debug("SOF0 of size {size}")
-		let header = read_byte()
-		m_height = read_u16()
-		m_width = read_u16()
-		let components = read_byte()
-		log_debug("Size: {m_width}x{m_height} with {components} components")
+		log_debug("SOF{n} of size {size}")
+		let P = read_byte()
+		assert(condition: P == 8, message: "Only 8 bit precision supported")
+		m_height = read_u16()  # Y
+		m_width = read_u16()  # X
+		let Nf = read_byte()
+		log_debug("Size: {m_width}x{m_height} with {Nf} components")
 		m_image = new_black_image(width: m_width, height: m_height)
 		size -= 6
-		assert(condition: size == components * 3, message: "Should have 3 bytes per component")
+		assert(condition: size == Nf * 3, message: "Should have 3 bytes per component")
 		let i = 0
-		while i < components:
-			let id = read_byte()
+		while i < Nf:
+			let C = read_byte()
 			let samp = read_byte()
+			let H = samp >> 4
+			let V = samp & 0xF
 			let qid = read_byte()
-			log_debug("component {i}: id={id} samp={samp} qid={qid}")
-			m_components.append(Component(qid, dc_coeff: 0))
+			log_debug("component {i}: C={C} samp={samp} H={H} V={V} qid={qid}")
+			m_components.append(Component(C, H, V, qid, dc_coeff: 0, T_dc: 0, T_ac: 0))
 			size -= 3
 			i += 1
 
 	fn start_of_scan():
 		let size = read_u16() - 2
 		log_debug("SOS of size {size}")
-		let payload = read_data(size)
+		let Ns = read_byte()
+		log_debug("Number of components in scan: {Ns}")
+		size -= 1
+		assert(condition: Ns * 2 + 3 == size, message: "Invalid start of scan size: {size}")
+		assert(condition: Ns == m_components.len(), message: "Component amount mismatch")
+		let i = 0
+		while i < Ns:
+			let Cs = read_byte()
+			let Tda = read_byte() # DC and AC Huffman table selectors
+			log_debug("Scan component: Cs={Cs} Tda={Tda}")
+			let component = m_components.get(index: i)
+			assert(condition: Cs == component.C, message: "Component ID mismatch")
+			component.T_dc = Tda >> 4
+			component.T_ac = Tda & 0xF
+			size -= 2
+			i += 1
+
+		let Ss = read_byte()
+		let Se = read_byte()
+		log_debug("Ss={Ss} Se={Se}")
+		assert(condition: Ss == 0, message: "Ss must be 0")
+		assert(condition: Se == 63, message: "Se must be 63")
+		let Ahl = read_byte()
+		size -= 3
+		assert(condition: size == 0, message: "All bytes should be processed")
 
 		let data = read_non_ff00()
 		log_debug("data size = {data.len()}")
 		let bit_reader = BitReader(m_reader: data.into_reader(), m_reverse: true)
 
-		# Loop over image blocks!
+		# Determine minimal coding unit (MCU)
+		let max_H = 1
+		let max_V = 1
+		for component in m_components:
+			if component.H > max_H:
+				max_H = component.H
+			if component.V > max_V:
+				max_V = component.V
+		let mcu_width = 8 * max_H
+		let mcu_height = 8 * max_V
+
+		# Loop over image MCU's!
+		log_debug("MCU size {mcu_width}x{mcu_height}")
 		let b_y = 0
-		let b_y_size = (m_height + 7) / 8
-		let b_x_size = (m_width + 7) / 8
+		let b_y_size = (m_height + mcu_height - 1) / mcu_height
+		let b_x_size = (m_width + mcu_width - 1) / mcu_width
 		while b_y < b_y_size:
 			let b_x = 0
 			while b_x < b_x_size:
 				# log_debug("x={b_x} y={b_y}")
-				let lum = build_matrix(idx: 0, bit_reader, component: m_components[0])
-				let cb = build_matrix(idx: 1, bit_reader, component: m_components[1])
-				let cr = build_matrix(idx: 1, bit_reader, component: m_components[2])
-				draw_block(x: b_x * 8, y: b_y * 8, lum, cb, cr)
+				# Read 1 MCU:
+				let mcu: Vector[[int]] = new_vector()
+				for component in m_components:
+					mcu.append(read_component_mcu(bit_reader, component, mcu_width, mcu_height))
+				draw_block(x: b_x * mcu_width, y: b_y * mcu_height, mcu_width, mcu_height, mcu)
 				b_x += 1
 			b_y += 1
+
+		assert(condition: bit_reader.m_reader.at_end(), message: "Bits must be exhausted")
 
 		# Encoded data is located here!
 
@@ -181,13 +217,50 @@ class JpegDecoder:
 				data2.append(x)
 		data2.to_bytes()
 
-	fn build_matrix(idx: int, bit_reader: BitReader, component: Component) -> [int]:
+	fn read_component_mcu(bit_reader: BitReader, component: Component, mcu_width: int, mcu_height: int) -> [int]:
+		""" Read a single MCU data array """
+		let block = zero_int_array(size: mcu_width * mcu_height)
+		let upx = mcu_width / (component.H * 8) # Upsample factor x
+		let upy = mcu_height / (component.V * 8)
+
+		let sby = 0  # sub block y
+		while sby < component.V:
+			let sbx = 0
+			while sbx < component.H:
+				let m = build_matrix(bit_reader, component)
+
+				# Paste block in proper place into matrix
+				let mx = 0
+				while mx < 8:
+					let my = 0
+					while my < 8:
+						let val = m[my * 8 + mx]
+						# x,y in block:
+						let x = (sbx * 8 + mx) * upx
+						let y = (sby * 8 + my) * upy
+
+						# upsample value:
+						let dx = 0
+						while dx < upx:
+							let dy = 0
+							while dy < upy:
+								block[(y + dy) * mcu_width + x + dx] = val
+								dy += 1
+							dx += 1
+
+						my += 1
+					mx += 1
+				sbx += 1
+			sby += 1
+		block
+
+	fn build_matrix(bit_reader: BitReader, component: Component) -> [int]:
 		""" Extract an 8x8 matrix from bits """
-		let tree1 = m_huffman_tables.get(key: idx)
-		let tree2 = m_huffman_tables.get(key: 16 + idx)
+		let dc_table = m_huffman_tables.get(key: component.T_dc)
+		let ac_table = m_huffman_tables.get(key: 16 + component.T_ac)
 		let quant = m_quant.get(key: component.qid)
 
-		let code = decode_symbol(tree: tree1, bit_reader)
+		let code = decode_symbol(tree: dc_table, bit_reader)
 		# log_debug("a = {code}")
 		let bits = bit_reader.read_bits(n: code)
 		let dc_coeff = decode_number(code, bits) + component.dc_coeff
@@ -197,7 +270,7 @@ class JpegDecoder:
 
 		let index = 1
 		while index < 64:
-			let code = decode_symbol(tree: tree2, bit_reader)
+			let code = decode_symbol(tree: ac_table, bit_reader)
 			# log_debug("b = {code}")
 			if code == 0:
 				break
@@ -213,16 +286,24 @@ class JpegDecoder:
 		res = zigzag(data: res)
 		perform_idct(data: res, idct: m_idct)
 
-	fn draw_block(x: int, y: int, lum: [int], cb: [int], cr: [int]):
+	fn draw_block(x: int, y: int, mcu_width: int, mcu_height: int, mcu: Vector[[int]]):
 		""" Put 8x8 block into the pixels of the image """
+		assert(condition: mcu.len() == 3, message: "Expect 3 components")
+		# assert(condition: datas.len() == 3, message: "Expect 3 components")
+		let lum_data = mcu[0]
+		let cb_data = mcu[1]
+		let cr_data = mcu[2]
 		let xx = 0
-		while xx < 8:
+		while xx < mcu_width:
 			let yy = 0
-			while yy < 8:
+			while yy < mcu_height:
 				if x + xx < m_width and y + yy < m_height:
 					let pixel = m_image.get_pixel(x: x + xx, y: y + yy)
-					let i = yy * 8 + xx
-					color_conversion(lum: lum[i], cb: cb[i], cr: cr[i], pixel)
+					let i = yy * mcu_width + xx
+					let lum = lum_data[i]
+					let cb = cb_data[i]
+					let cr = cr_data[i]
+					color_conversion(lum, cb, cr, pixel)
 				yy += 1
 			xx += 1
 
@@ -239,6 +320,18 @@ class JpegDecoder:
 		m_reader.read_bytes(size)
 
 fn zigzag(data: [int]) -> [int]:
+	"""
+	Zig zag pattern:
+	0,  1,  5,  6,  14, 15, 27, 28
+	2,  4,  7,  13, 16, 26, 29, 42
+	3,  8,  12, 17, 25, 30, 41, 43
+	9,  11, 18, 24, 31, 40, 44, 53
+	10, 19, 23, 32, 39, 45, 52, 54
+	20, 22, 33, 38, 46, 51, 55, 60
+	21, 34, 37, 47, 50, 56, 59, 61
+	35, 36, 48, 49, 57, 58, 62, 63
+
+	"""
 	let pattern = [0,  1,  5,  6,  14, 15, 27, 28, 2,  4,  7,  13, 16, 26, 29, 42, 3,  8,  12, 17, 25, 30, 41, 43, 9,  11, 18, 24, 31, 40, 44, 53, 10, 19, 23, 32, 39, 45, 52, 54, 20, 22, 33, 38, 46, 51, 55, 60, 21, 34, 37, 47, 50, 56, 59, 61, 35, 36, 48, 49, 57, 58, 62, 63]
 	let res = zero_int_array(size: 64)
 	# log_debug("zigzag")
@@ -256,6 +349,7 @@ fn new_idct_table() -> IDCT:
 	# log_debug("new_idct_table")
 	let precision = 8
 	let table = [precision * precision : float]
+	let sqrt_2 = math.sqrt(2.0)
 	let u = 0
 	while u < precision:
 		let x = 0
@@ -263,9 +357,7 @@ fn new_idct_table() -> IDCT:
 			# log_debug("new_idct_table {x} {u}")
 			let c = math.cos(((2.0 * x + 1.0) * u * math.pi) / 16.0)
 			if u == 0:
-				# TODO: sqrt(2) blocks
-				# c = c / math.sqrt(2.0)
-				c = c / 1.414213562373
+				c = c / sqrt_2
 			table[u * precision + x] = c
 			x += 1
 		u += 1
@@ -293,8 +385,13 @@ fn perform_idct(data: [int], idct: IDCT) -> [int]:
 	res
 
 struct Component:
-	qid: int
+	C: int  # Identifier
+	H: int  # Horizontal sampling
+	V: int  # Vertical sampling
+	qid: int  # Quantization table to use for this component
 	dc_coeff: int
+	T_dc: int # DC Huffman table id
+	T_ac: int # AC Huffman table id
 
 fn clamp(value?: float) -> int:
 	if value < 0.0:

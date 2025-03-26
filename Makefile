@@ -29,7 +29,7 @@ CFLAGS=-Werror -Wreturn-type -g -Iruntime
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 SLANG2_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang/%.slang, $(SLANG_EXAMPLES))
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
-PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/%.py, $(SLANG_EXAMPLES))
+PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, $(SLANG_EXAMPLES))
 C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/snippets/%.exe, $(SLANG_EXAMPLES))
 C_APPS := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
@@ -87,7 +87,7 @@ ${BUILDDIR}/slang/%.slang: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR
 # Example compiled to Python code:
 all-examples-python: $(PY_EXAMPLES)
 
-${BUILDDIR}/python/%.py: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/python
+${BUILDDIR}/python/snippet-%.py: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/python
 	${SLANGC} --backend-py -o $@ $< runtime/std.slang
 
 # examples compiled to C code:
@@ -135,6 +135,15 @@ ${BUILDDIR}/python/libregex.py ${BUILDDIR}/python/libregex.json: ${REGEX_LIB_SRC
 
 ${BUILDDIR}/python/libimage.py ${BUILDDIR}/python/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libimage.json -o ${BUILDDIR}/python/libimage.py --add-import ${BUILDDIR}/python/libbase.json ${IMAGE_LIB_SRCS}
+
+${BUILDDIR}/python/libgfx.py ${BUILDDIR}/python/libgfx.json: ${GFX_LIB_SRCS} ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
+	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libgfx.json -o ${BUILDDIR}/python/libgfx.py --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libbase.json ${GFX_LIB_SRCS}
+
+${BUILDDIR}/python/libweb.py ${BUILDDIR}/python/libweb.json: ${WEB_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
+	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libweb.json -o ${BUILDDIR}/python/libweb.py --add-import ${BUILDDIR}/c/libbase.json ${WEB_LIB_SRCS}
+
+${BUILDDIR}/python/libscience.py ${BUILDDIR}/python/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libscience.json -o ${BUILDDIR}/python/libscience.py --add-import ${BUILDDIR}/python/libbase.json ${SCIENCE_LIB_SRCS}
 
 ${BUILDDIR}/python/libcompiler.py ${BUILDDIR}/python/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libcompiler.json -o ${BUILDDIR}/python/libcompiler.py --add-import ${BUILDDIR}/python/libbase.json ${COMPILER_LIB_SRCS}
@@ -200,6 +209,10 @@ ${BUILDDIR}/c/apps/%.c: Apps/%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/li
 
 ${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libgfx.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libweb.so ${BUILDDIR}/slangrt.a
 	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libweb.so -l:libcompiler.so -l:libgfx.so -l:libimage.so -l:libscience.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.a -lm
+
+# Apps compiled to python
+${BUILDDIR}/python/app-%.py: Apps/%.slang ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libregex.json ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libscience.json ${BUILDDIR}/python/libgfx.json ${BUILDDIR}/python/libcompiler.json ${BUILDDIR}/python/libweb.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+	${SLANGC} --backend-py -o $@ $< --add-import ${BUILDDIR}/python/libbase.json --add-import ${BUILDDIR}/python/libregex.json --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libscience.json --add-import ${BUILDDIR}/python/libgfx.json --add-import ${BUILDDIR}/python/libcompiler.json --add-import ${BUILDDIR}/python/libweb.json
 
 # Bootstrap sequence:
 ${COMPILER1}: | ${BUILDDIR}

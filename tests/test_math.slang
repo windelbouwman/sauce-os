@@ -47,6 +47,7 @@ fn test_sqrt():
 	assert_are_close(sqrt(9), 3)
 	assert_are_close(sqrt(16), 4)
 	assert_are_close(sqrt(25), 5)
+	assert_are_close(sqrt(2), 1.414213562373095)
 
 fn test_sin():
 	let pi = 3.141592653589793
