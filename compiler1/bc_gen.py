@@ -119,6 +119,8 @@ class ByteCodeGenerator:
         elif ty.is_pointer():
             ety = self.get_bc_ty(ty.kind.element_type)
             return bc.PointerTyp(ety)
+        elif ty.is_opaque():
+            return bc.BaseTyp(bc.SimpleTyp.PTR)
         else:
             raise NotImplementedError(str(ty))
 

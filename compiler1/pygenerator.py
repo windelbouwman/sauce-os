@@ -41,6 +41,9 @@ class PyCodeGenerator:
                     self.global_names.append(self.gen_id(definition.id))
             for definition in module.definitions:
                 self.gen_definition(module.name, definition)
+            for definition in module.definitions:
+                if isinstance(definition, ast.VarDef):
+                    self.gen_global(definition)
 
     def gen_definition(self, modname, definition: ast.Definition):
         if isinstance(definition, ast.FunctionDef):
@@ -60,11 +63,14 @@ class PyCodeGenerator:
         elif isinstance(definition, ast.ExternFunction):
             self.emit(f"from slangrt import {modname}_{definition.id.name}")
         elif isinstance(definition, ast.VarDef):
-            self.emit(
-                f"{self.gen_id(definition.id)} = {self.gen_expression(definition.value)}"
-            )
+            pass
         else:
             raise NotImplementedError(str(definition))
+
+    def gen_global(self, global_def: ast.VarDef):
+        self.emit(
+            f"{self.gen_id(global_def.id)} = {self.gen_expression(global_def.value)}"
+        )
 
     def gen_func(self, func_def: ast.FunctionDef):
         if func_def.parameters:

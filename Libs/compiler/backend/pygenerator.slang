@@ -51,6 +51,9 @@ class PyGenerator:
 		for definition in module.definitions:
 			gen_definition(definition)
 
+		for definition in module.definitions:
+			gen_definition_variables(definition)
+
 	fn gen_definition(definition: ast.Definition):
 		case definition:
 			Macro(macro_def):
@@ -80,6 +83,8 @@ class PyGenerator:
 						emit("")
 					Extern(libname):
 						emit("from {libname} import {function_def.name}")
+					None:
+						panic("Function declarations not supported")
 
 			Struct(struct_def):
 				if struct_def.is_union:
@@ -100,14 +105,25 @@ class PyGenerator:
 				emit("")
 			Class(class_def):
 				panic("class-def not supported")
+			Interface(interface_def):
+				panic("interface-def not supported")
+			Impl(impl_def):
+				panic("impl-def not supported")
 			Enum(enum_def):
 				panic("enum-def not supported")
+			Var(variable_def):
+				pass
+
+	fn gen_definition_variables(definition: ast.Definition):
+		case definition:
 			Var(variable_def):
 				case variable_def.value:
 					Intern(value):
 						emit("{get_id(id: variable_def.variable.id)} = {gen_expression(option_unwrap(value), parens: false)}")
 					Extern(libname, initialized):
 						emit("# external: from {libname} import {get_id(id: variable_def.variable.id)}")
+		else:
+			pass
 
 	fn gen_block(block?: ast.ScopedBlock, target: Option[str]):
 		indent()
@@ -247,7 +263,7 @@ class PyGenerator:
 				gen_expression(value, parens: true)
 			ParameterRef(parameter_def):
 				get_id(id: parameter_def.id)
-			VarRef(variable):
+			VariableRef(variable):
 				get_id(id: variable.id)
 			FunctionRef(function_def, type_arguments):
 				function_def.name

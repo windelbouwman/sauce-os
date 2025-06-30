@@ -7,6 +7,7 @@ from errors import new_error, new_errors, CompilationError, SingleCompilationErr
 from datatypes import List, Option
 from hashmap import HashMap, new_hashmap_str
 from vectype import Vector, new_vector, new_vector_with_capacity
+from strlib import str_join
 
 pub fn resolve_newops(module: ast.Module, id_gen: IdGen) except CompilationError:
 	log_info("resolve new-ops for {module.name}")
@@ -52,7 +53,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
 										expression.kind = ast.ExpressionKind.Variant(ty, variant)
 									None:
 										newop.add_error(location: expression.location, message: "No such enum variant: {attr}")
-									
+
 							else:
 								newop.add_error(location: expression.location, message: "Can only get attr from enum type, not {ty}")
 					else:
@@ -84,13 +85,22 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
 										Struct(struct_def):
 											ok = true
 											let values: List[ast.Expression] = List()
+											let missing_fields: List[str] = List()
 											for field in struct_def.fields:
 												case value_map.pop(key: field.name):
 													Some(v):
 														values.append(v)
 													None:
-														newop.add_error(location: expression.location, message: "Missing field: {field.name}")
-											
+														missing_fields.append(field.name)
+
+											if not missing_fields.is_empty():
+												let message = if missing_fields.len() == 1:
+													"Missing field: {missing_fields[0]}"
+												else:
+													let fields_text = str_join(parts: missing_fields, sep: ", ")
+													"Missing fields: {fields_text}"
+												newop.add_error(location: expression.location, message)
+
 											for name in value_map:
 												newop.add_error(location: expression.location, message: "Superfluous field: {name}")
 
@@ -126,7 +136,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
 
 							if not ok:
 								newop.add_error(location: expression.location, message: "Cannot call type: {ty}")
-							
+
 					else:
 						pass
 				LoadSymbol(symbol):
@@ -160,14 +170,14 @@ class NewOp:
 
 	pub fn add_error(location: Location, message: str):
 		errors.append(new_error(location, message))
-	
+
 	pub fn turn_tycon_to_type(tycon: ast.TyCon) -> ast.Type:
 		let type_arguments: Vector[ast.Type] = new_vector()
 		for tp in ast.tycon_get_type_parameters(tycon):
 			let type_var: ast.TypeVariable = ast.new_type_var(unique: new_id())
 			type_arguments.append(ast.new_type_var_ref(type_var))
 		ast.apply_tycon(tycon, type_arguments)
-	
+
 	pub fn new_type_arguments(type_parameters: List[ast.TypeParameter]) -> Vector[ast.Type]:
 		let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: type_parameters.len())
 		for tp in type_parameters:

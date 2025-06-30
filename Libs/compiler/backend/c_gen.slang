@@ -1,6 +1,8 @@
+"""
+C code backend
 
-# C code backend
-# Translate bytecode into C code.
+Translate bytecode into C code.
+"""
 
 from std import float_to_str2
 from utils import panic, log_info, log_trace
@@ -54,6 +56,7 @@ class CGenerator:
 	var next_id: int = 1
 	var local_variables: Vector[Value] = new_vector()
 	var local_parameters: Vector[Value] = new_vector()
+	var m_vm: vm.VirtualMachine = vm.VirtualMachine()
 	pub var structs: Vector[bc.Struct] = new_vector()
 	pub var globals: Vector[bc.Global] = new_vector()
 	pub var functions: Vector[bc.Function] = new_vector()
@@ -67,6 +70,8 @@ class CGenerator:
 		emit("#include \"slangrt.h\"")
 
 	pub fn gen_program(program: bc.Program):
+		vm.prepare_vm(vm: m_vm, program)
+
 		# Struct forward declarations:
 		let index = 0
 		for struct_def in program.structs:
@@ -153,13 +158,61 @@ class CGenerator:
 	fn gen_global(global: bc.Global):
 		case global.value:
 			Some(code):
+				let value = vm.eval_code(vm: m_vm, code)
+				let text = gen_vm_value(ty: global.ty, value)
 				gen_typed_name(ty: global.ty, name: global.name)
-				let value = eval_code_sequence(code)
-				emit(" = {value}")
+				write(" = ")
+				write(text)
 			None:
 				write("extern ")
 				gen_typed_name(ty: global.ty, name: global.name)
 		emit(";")
+
+	fn gen_vm_value(ty: bc.Type, value: vm.Value) -> str:
+		case value:
+			Int(v):
+				case ty:
+					Int(signed, bits):
+						"{v}"
+					Function(parameter_types, return_type):
+						let name = get_function_callee(index: v)
+						name
+				else:
+					panic("Value must be function or int")
+			Bool(v):
+				if v:
+					"1"
+				else:
+					"0"
+			Float(value):
+				float_to_str2(value, digits: 20)
+			Str(v):
+				"\"{v}\""
+			Char(v):
+				"'{v}'"
+			List(v): # Struct
+				let name = new_local_var()
+				let index = case ty:
+					StructRef(index):
+						index
+				else:
+					panic("Expect struct type")
+				let struct_def = structs.get(index)
+
+				let parts: List[str] = List()
+				let i = 0
+				for v2 in v.values:
+					parts.append(gen_vm_value(ty: struct_def.fields[i].ty, value: v2))
+					i += 1
+
+				write("struct S{index}_{struct_def.name} {name} = \{")
+				for part in parts:
+					write(part)
+					write(", ")
+				emit("\};")
+				"&{name}"
+		else:
+			panic("Unsupported initial value")
 
 	fn gen_function_decl(function: bc.Function):
 		if function.no_return:
@@ -631,15 +684,8 @@ class CGenerator:
 				emit("SLANG_UNREACHABLE")
 
 			LoadFunc(index):
-				if index < extern_functions.len():
-					let function = extern_functions.get(index)
-					let callee = function.name
-					push(Value(name: callee, ty: bc.Type.Ptr()))
-				else:
-					index = index - extern_functions.len()
-					let function = functions.get(index)
-					let callee = function.name
-					push(Value(name: callee, ty: bc.Type.Ptr()))
+				let callee = get_function_callee(index)
+				push(Value(name: callee, ty: bc.Type.Ptr()))
 
 			StructLiteral(index):
 				# we can derive count from struct type:
@@ -686,6 +732,15 @@ class CGenerator:
 				gen_typed_name(ty: ty2, name: "")
 				emit("));")
 				push(Value(name: varname, ty))
+
+	fn get_function_callee(index: int) -> str:
+		if index < extern_functions.len():
+			let function = extern_functions.get(index)
+			function.name
+		else:
+			index = index - extern_functions.len()
+			let function = functions.get(index)
+			function.name
 
 	fn gen_field_access(index: int, field: bc.TypedName):
 		write("->f")
@@ -794,14 +849,17 @@ class CGenerator:
 		emit(";")
 
 	fn new_local_var() -> str:
-		let id = next_id
-		next_id += 1
+		let id = new_id()
 		"V{id}"
 
 	fn new_named_local_var(name: str) -> str:
+		let id = new_id()
+		"V{id}_{name}"
+
+	fn new_id() -> int:
 		let id = next_id
 		next_id += 1
-		"V{id}_{name}"
+		return id
 
 	fn indent():
 		out.indent()
@@ -817,23 +875,3 @@ class CGenerator:
 
 	fn writeln(text?: str):
 		out.writeln(text)
-
-fn eval_code_sequence(code: Vector[bc.Instruction]) -> str:
-	let m = vm.VirtualMachine()
-	let value = vm.eval_code(vm: m, code)
-	case value:
-		Int(v):
-			"{v}"
-		Bool(v):
-			if v:
-				"1"
-			else:
-				"0"
-		Float(value):
-			float_to_str2(value, digits: 20)
-		Str(v):
-			"\"{v}\""
-		Char(v):
-			"'{v}'"
-	else:
-		panic("Unsupported initial value")

@@ -104,6 +104,11 @@ class ScopeFiller(BasePass):
             elif isinstance(definition, ast.ClassDef):
                 for type_parameter in definition.type_parameters:
                     self.define(type_parameter)
+            elif isinstance(definition, ast.InterfaceDef):
+                for type_parameter in definition.type_parameters:
+                    self.define(type_parameter)
+            elif isinstance(definition, ast.ImplDef):
+                pass
             else:
                 raise NotImplementedError(str(definition))
 
@@ -171,11 +176,13 @@ class ScopeFiller(BasePass):
         self._scopes.pop()
 
     def define(self, definition: ast.Definition):
+        assert isinstance(definition, ast.Definition)
         self._definitions.append((definition.id, definition.location))
         self.define_symbol(definition.id.name, definition)
 
     def define_symbol(self, name: str, symbol: ast.Definition):
         assert isinstance(name, str)
+        assert isinstance(symbol, (ast.Definition, ast.Module))
         logger.debug(f"Define name '{name}'")
         scope = self._scopes[-1]
         if scope.is_defined(name):

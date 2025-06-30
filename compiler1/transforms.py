@@ -856,3 +856,242 @@ class UnionEraser(BaseTransformer):
             if kind.base.ty.is_union():
                 to_ty = expression.ty
                 expression.kind = ast.Unbox(kind.base, to_ty)
+
+
+@dataclass
+class InterfaceImpl:
+    struct_def: ast.StructDef
+    map2: dict
+
+
+class InterfaceMeister1(BaseTransformer):
+    """Implement interfaces."""
+
+    name = "interface-meister-1"
+
+    def __init__(self, id_context: ast.IdContext):
+        super().__init__(id_context)
+        self._struct_defs = {}
+        self._impls = {}
+
+    def visit_module(self, module: ast.Module):
+        new_defs = []
+        for definition in module.definitions:
+            if isinstance(definition, ast.InterfaceDef):
+                new_defs.extend(self.rewrite_interface_def(definition))
+            elif isinstance(definition, ast.ImplDef):
+                new_defs.extend(self.rewrite_impl_def(definition))
+            else:
+                new_defs.append(definition)
+
+        module.definitions = new_defs
+        super().visit_module(module)
+
+        # ast.print_ast(module)
+
+    def rewrite_interface_def(self, interface_def: ast.InterfaceDef):
+        # Create method table struct
+        logger.debug(f"Translating interface {interface_def.id}")
+        builder1 = ast.StructBuilder(
+            self.new_id(f"{interface_def.id.name}Functions"), interface_def.location
+        )
+        for decl in interface_def.members:
+            ty = decl.get_type()
+            ty.kind.parameter_types.insert(0, ast.ptr_type)
+            ty.kind.parameter_names.insert(0, "this")
+            # print(ty)
+            builder1.add_field(decl.id.name, ty, decl.location)
+
+        struct_def1 = builder1.finish()
+
+        builder2 = ast.StructBuilder(
+            self.new_id(f"{interface_def.id.name}Combo"), interface_def.location
+        )
+        builder2.add_field("data", ast.ptr_type, interface_def.location)
+        builder2.add_field("vtable", struct_def1.apply2(), interface_def.location)
+        struct_def2 = builder2.finish()
+
+        # Introduce bridge functions
+        new_functions = []
+        map2 = {}
+        for decl in interface_def.members:
+            # target=ast.obj_ref(decl)
+            type_parameters = []
+            parameters = []
+            this_param = ast.Parameter(
+                self.new_id("this"), True, struct_def2.apply2(), decl.location
+            )
+            parameters.append(this_param)
+            for p in decl.parameters:
+                parameters.append(p)
+
+            target = (
+                this_param.get_ref(decl.location)
+                .get_attr("vtable")
+                .get_attr(decl.id.name)
+            )
+            data = this_param.get_ref(decl.location).get_attr("data")
+            arguments = [ast.LabeledExpression("this", data, decl.location)]
+            for p in parameters[1:]:
+                arguments.append(
+                    ast.LabeledExpression(
+                        p.id.name, p.get_ref(decl.location), decl.location
+                    )
+                )
+            call_impl = ast.function_call(target, arguments, decl.location)
+            statement = ast.expression_statement(call_impl, decl.location)
+            invoker_function = ast.function_def(
+                self.new_id(f"invoke_{interface_def.id.name}_{decl.id.name}"),
+                "Invoker function",
+                type_parameters,
+                parameters,
+                decl.return_type,
+                decl.except_type,
+                statement,
+                decl.location,
+                None,
+            )
+            new_functions.append(invoker_function)
+            map2[decl.id.name] = invoker_function
+
+        # Store for later purposes:
+        self._struct_defs[id(interface_def)] = InterfaceImpl(struct_def2, map2)
+
+        return [struct_def1, struct_def2] + new_functions
+
+    def rewrite_impl_def(self, impl_def: ast.ImplDef):
+        """Rewrite interface implementation.
+
+        - Lift methods to top-level definitions.
+        - Fill a global vtable variable.
+        """
+        top_defs = []
+        values = []
+        for method in impl_def.functions:
+            # Lift method to top level
+            method.id.name = f"{impl_def.id.name}_{method.id.name}"
+
+            this_param: ast.Parameter = method.this_parameter
+            assert this_param
+            method.parameters.insert(0, this_param)
+
+            top_defs.append(method)
+
+            # Introduce a wrapper method here to unbox the opaque this type.
+            location = method.location
+            type_parameters = []
+            parameters = [
+                ast.Parameter(self.new_id("this"), True, ast.ptr_type, location)
+            ]
+            this_unboxed = ast.unbox(
+                parameters[0].get_ref(location), this_param.ty, location
+            )
+            args = [ast.LabeledExpression("this", this_unboxed, location)]
+            for p in method.parameters[1:]:
+                p2 = ast.Parameter(self.new_id(p.id.name), True, p.ty, p.location)
+                parameters.append(p2)
+                args.append(
+                    ast.LabeledExpression(p.id.name, p2.get_ref(p.location), p.location)
+                )
+            call_impl = ast.function_call(method.get_ref(location), args, location)
+            statement = ast.expression_statement(call_impl, location)
+            wrapper_function = ast.function_def(
+                self.new_id(f"{method.id.name}_wrapper"),
+                "Wrapper function",
+                type_parameters,
+                parameters,
+                method.return_ty,
+                method.except_type,
+                statement,
+                location,
+                None,
+            )
+            top_defs.append(wrapper_function)
+
+            values.append(wrapper_function.get_ref(method.location))
+
+        struct_def = self._struct_defs[id(impl_def.interface.kind.tycon)].struct_def
+        iface_type = struct_def.apply2()
+        vtable_type = iface_type.get_field_type("vtable")
+        vtable_value = ast.struct_literal(vtable_type, values, impl_def.location)
+        vtable = ast.VarDef(
+            self.new_id("vtable"), vtable_type, vtable_value, impl_def.location
+        )
+        top_defs.append(vtable)
+
+        # print(impl_def.target)
+        key = (id(impl_def.interface.kind.tycon), str(impl_def.target))
+        # print(key)
+        self._impls[key] = vtable
+        return top_defs
+
+
+class InterfaceMeister2(BaseTransformer):
+    """Implement interfaces."""
+
+    name = "interface-meister-2"
+
+    def __init__(self, id_context: ast.IdContext, struct_defs, impls):
+        super().__init__(id_context)
+        self._struct_defs = struct_defs
+        self._impls = impls
+
+    def visit_expression(self, expression: ast.Expression):
+        super().visit_expression(expression)
+        kind = expression.kind
+        if isinstance(kind, ast.FunctionCall):
+            if isinstance(kind.target.kind, ast.DotOperator):
+                obj = kind.target.kind.base
+                if obj.ty.is_interface():
+                    # method call on interface type!
+                    new_functions = self._struct_defs[id(obj.ty.kind.tycon)].map2
+                    invoker_func = new_functions[kind.target.kind.field]
+                    kind.target = ast.obj_ref(
+                        invoker_func, ast.void_type, expression.location
+                    )
+
+                    # Insert this arg:
+                    this_arg = ast.LabeledExpression("this", obj, obj.location)
+                    kind.args.insert(0, this_arg)
+        elif isinstance(kind, ast.TypeCast):
+            if kind.ty.is_interface():
+                # print("CAST TO INTERFACE")
+                struct_def = self._struct_defs[id(kind.ty.kind.tycon)].struct_def
+                iface_type = struct_def.apply2()
+                key = (id(kind.ty.kind.tycon), str(kind.value.ty))
+                tab = self._impls[key]
+                vtable = ast.obj_ref(tab, ast.undefined_type(), expression.location)
+                data = ast.box(kind.value, expression.location)
+                values = [data, vtable]
+                dyn_obj = ast.struct_literal(iface_type, values, expression.location)
+                expression.kind = dyn_obj.kind
+
+            # else:
+            # print(kind.ty)
+
+
+class InterfaceMeister3(BaseTransformer):
+    """Implement interfaces."""
+
+    name = "interface-meister-3"
+
+    def __init__(self, id_context: ast.IdContext, struct_defs):
+        super().__init__(id_context)
+        self._struct_defs = struct_defs
+
+    def visit_type(self, ty: ast.Type):
+        super().visit_type(ty)
+        if ty.is_interface():
+            struct_def = self._struct_defs[id(ty.kind.tycon)].struct_def
+            t = struct_def.apply2()
+            ty.change_to(t)
+
+
+def rewrite_interfaces(id_context: ast.IdContext, modules):
+    """Translate interfaces in structs with vtables"""
+    m1 = InterfaceMeister1(id_context)
+    m1.transform(modules)
+    m2 = InterfaceMeister2(id_context, m1._struct_defs, m1._impls)
+    m2.transform(modules)
+    m3 = InterfaceMeister3(id_context, m1._struct_defs)
+    m3.transform(modules)

@@ -110,7 +110,7 @@ class CGenerator2:
 		dedent()
 		emit("\};")
 		emit("")
-	
+
 	fn gen_struct_ctors(struct_def: ast.StructDef):
 		# Create struct constructor function
 		if struct_def.is_union:
@@ -155,7 +155,9 @@ class CGenerator2:
 				emit("")
 			Extern(libname):
 				pass
-	
+			None:
+				panic("Function declarations not supported")
+
 	fn gen_type(ty: ast.Type, name: str) -> str:
 		if ty.is_int():
 			"intptr_t {name}"
@@ -234,7 +236,7 @@ class CGenerator2:
 						let base_txt = gen_expression(base)
 						let args = gen_expression_list(values: indici)
 						"{base_txt}[{args}]"
-					VarRef(variable):
+					VariableRef(variable):
 						gen_id(id: variable.id)
 					ParameterRef(parameter_def):
 						gen_id(id: parameter_def.id)
@@ -305,13 +307,13 @@ class CGenerator2:
 				let value_txt = gen_expression(value)
 				emit("g_except_value = {value_txt};")
 				emit("longjmp(*g_except_hook, 1);")
-			
+
 			Unreachable:
 				emit("__builtin_unreachable();")
 
 			Pass:
 				pass
-	
+
 	fn gen_if_statement(if_statement: ast.IfStatement, kw: str):
 		let value = gen_expression(if_statement.condition)
 		emit("{kw} ({value}) \{")
@@ -355,12 +357,12 @@ class CGenerator2:
 			GetAttr(base, name):
 				let base_txt = gen_expression(base)
 				"{base_txt}->{name}"
-			
+
 			GetIndex(base, indici):
 				let base_txt = gen_expression(base)
 				let args = gen_expression_list(values: indici)
 				"{base_txt}[{args}]"
-			
+
 			TypeCast(ty, value):
 				let source = gen_expression(value)
 				if ty.is_float():
@@ -383,13 +385,13 @@ class CGenerator2:
 
 			ParameterRef(parameter_def):
 				gen_id(id: parameter_def.id)
-			
+
 			FunctionRef(function_def, type_arguments):
 				function_def.name
 
-			VarRef(variable):
+			VariableRef(variable):
 				gen_id(id: variable.id)
-			
+
 			IntLiteral(value):
 				"{value}"
 
@@ -407,13 +409,13 @@ class CGenerator2:
 
 			CharLiteral(value):
 				"'{value}'"
-			
+
 			StructLiteral(ty, values):
 				let struct_def = ty.get_struct_def()
 				let name = gen_id(id: struct_def.id)
 				let args = gen_expression_list(values)
 				"{name}_new({args})"
-			
+
 			ArrayLiteral(values):
 				let args = gen_expression_list(values)
 				"\{ {args} \}"

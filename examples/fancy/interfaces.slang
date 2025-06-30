@@ -5,33 +5,34 @@
 from std import print
 
 fn main() -> int:
-    let x = 2
-    let y = 3
-    if check_hash(2, y):
-        print("EQ")
-    else:
-        print("NOPE")
-    
-    if check_hash('a', 'b'):
-        print("Nein")
-    0
+	let x = 2
+	let y = 3
+	if check_hash(v1: 2, v2: y):
+		print("EQ")
+	else:
+		print("NOPE")
 
-fn check_hash[T](v1: T, v2: T) -> bool:
-    let h1 = Hashable[T].hash(one: v1)
-    let h2 = Hashable[T].hash(one: v2)
-    
-    if h1 == h2:
-        Hashable[T].equal(one: v1, other: v2)
-    else:
-        false
+	if check_hash(v1: 'a', v2: 'b'):
+		print("Nein")
+	0
 
-trait Hashable[T]:
-    fn hash(one: T) -> int
-    fn equal(one: T, other: T) -> bool
+fn check_hash[T](v1: Hashable[T], v2: Hashable[T]) -> bool:
+	let h1 = v1.hash()
+	let h2 = v2.hash()
 
-impl Hashable[int]:
-    fn hash(one: int) -> int:
-        one
+	if h1 == h2:
+		# v1.equal(other: v2)
+		true
+	else:
+		false
 
-    fn equal(one: int, other: int) -> bool:
-        one == other
+interface Hashable[T]:
+	fn hash() -> int
+	fn equal(other: T) -> bool
+
+impl Hashable[int] for int:
+	fn hash() -> int:
+		this
+
+	fn equal(other: int) -> bool:
+		this == other

@@ -34,7 +34,7 @@ pub class Type:
 
 	pub fn to_string() -> str:
 		type_to_string(this)
-	
+
 	pub fn change_to(to_type: Type):
 		change_type_to(ty: this, to_type)
 
@@ -76,6 +76,17 @@ pub class Type:
 			App(tycon, type_arguments):
 				case tycon:
 					Class(x):
+						true
+				else:
+					false
+		else:
+			false
+
+	pub fn is_interface() -> bool:
+		case kind:
+			App(tycon, type_arguments):
+				case tycon:
+					Interface(interface_def):
 						true
 				else:
 					false
@@ -127,6 +138,13 @@ pub class Type:
 	pub fn is_unreachable() -> bool:
 		case kind:
 			Unreachable:
+				true
+		else:
+			false
+
+	pub fn is_undefined() -> bool:
+		case kind:
+			Undefined:
 				true
 		else:
 			false
@@ -250,6 +268,17 @@ pub class Type:
 		else:
 			panic("No struct type")
 
+	pub fn get_interface_def() -> InterfaceDef:
+		case kind:
+			App(tycon, type_arguments):
+				case tycon:
+					Interface(interface_def):
+						interface_def
+				else:
+					panic("No interface type")
+		else:
+			panic("No interface type")
+
 	pub fn has_field(attr: str) -> bool:
 		option_is_some(maybe_get_field_type(attr, also_private: false))
 
@@ -287,6 +316,21 @@ pub class Type:
 											subst(ty: v.ty, m)
 									else:
 										panic("class must contain func/vars")
+									Option.Some(ty)
+								else:
+									Option.None()
+							None:
+								Option.None()
+					Interface(interface_def):
+						case interface_def.scope.lookup(name: attr):
+							Some(sym):
+								if sym.is_pub or also_private:
+									let m = create_subst_mapping(type_parameters: interface_def.type_parameters, type_arguments)
+									let ty = case sym.kind:
+										Function(function_def):
+											subst(ty: get_function_type(function_def), m)
+									else:
+										panic("interface must contain only functionss")
 									Option.Some(ty)
 								else:
 									Option.None()
@@ -611,7 +655,7 @@ pub enum TypeKind:
 	TypeVar(type_variable: TypeVariable)
 	Array(element_type: Type, size: int)
 	Pointer(pointed_type: Type)
-	
+
 	# Application of a type-constructor:
 	UnApp(tycon: TyCon)
 	App(tycon: TyCon, type_arguments: Vector[Type])
@@ -724,6 +768,7 @@ pub enum TyCon:
 	Struct(struct_def: StructDef)
 	Enum(enum_def: EnumDef)
 	Class(class_def: ClassDef)
+	Interface(interface_def: InterfaceDef)
 	Ref(key: NodeId)
 	NameRef(name: QualName)
 
@@ -735,6 +780,8 @@ fn tycon_to_str(tycon: TyCon) -> str:
 			enum_def_to_str(enum_def)
 		Class(class_def):
 			class_def_to_str(class_def)
+		Interface(interface_def):
+			"tycon-interface"
 		Ref(key):
 			"tycon-ref-{node_id_to_string(key)}"
 		NameRef(name):
@@ -760,6 +807,12 @@ pub fn tycon_equal(tycon1: TyCon, tycon2: TyCon) -> bool:
 					node_id_equal(node_id1: class_def1.id, node_id2: class_def2.id)
 			else:
 				false
+		Interface(interface_def1):
+			case tycon2:
+				Interface(interface_def2):
+					node_id_equal(node_id1: interface_def1.id, node_id2: interface_def2.id)
+			else:
+				false
 		Ref(key):
 			false
 		NameRef(name):
@@ -773,6 +826,8 @@ pub fn tycon_get_type_parameters(tycon: TyCon) -> List[TypeParameter]:
 			enum_def.type_parameters
 		Class(class_def):
 			class_def.type_parameters
+		Interface(interface_def):
+			interface_def.type_parameters
 		Ref(key):
 			panic("reference has no type parameters")
 		NameRef(key):
@@ -938,14 +993,14 @@ pub class Scope:
 	pub fn define(is_pub: bool, name: str, kind: SymbolKind, location: Location):
 		let symbol = Symbol(is_pub, name, kind, location)
 		symbols.insert(key: name, value: symbol)
-	
+
 	pub fn is_defined(name: str) -> bool:
 		# Check if given name is defined.
 		option_is_some(lookup(name))
 
 	pub fn lookup(name: str) -> Option[Symbol]:
 		symbols.maybe_get(key: name)
-	
+
 	fn dump():
 		log_info("Scope:")
 		for name in symbols:
@@ -1006,6 +1061,8 @@ pub enum Definition:
 	Enum(enum_def: EnumDef)
 	Struct(struct_def: StructDef)
 	Class(class_def: ClassDef)
+	Interface(interface_def: InterfaceDef)
+	Impl(impl_df: ImplDef)
 	Var(var_def: VariableDef)
 
 pub fn definition_to_str(definition: Definition) -> str:
@@ -1020,6 +1077,10 @@ pub fn definition_to_str(definition: Definition) -> str:
 			struct_def_to_str(struct_def)
 		Class(class_def):
 			class_def_to_str(class_def)
+		Interface(interface_def):
+			"Interface"
+		Impl(impl_def):
+			"Impl"
 		Var(variable_def):
 			variable_def_to_str(variable_def)
 
@@ -1090,13 +1151,13 @@ pub class StructBuilder:
 
 	pub fn set_name(name: str):
 		nodeId.name = name
-	
+
 	pub fn set_id(id?: int):
 		nodeId.id = id
-	
+
 	pub fn set_pub(is_pub?: bool):
 		this.is_pub = is_pub
-	
+
 	pub fn set_is_union(is_union?: bool):
 		this.is_union = is_union
 
@@ -1168,6 +1229,24 @@ pub struct ClassDef:
 fn class_def_to_str(class_def: ClassDef) -> str:
 	"class({node_id_to_string(class_def.id)})"
 
+pub struct InterfaceDef:
+	is_pub: bool
+	id: NodeId
+	type_parameters: List[TypeParameter]
+	docstring: Option[str]
+	location: Location
+	definitions: List[Definition]
+	scope: Scope
+
+pub struct ImplDef:
+	id: NodeId
+	interface_type: Type
+	target_type: Type
+	docstring: Option[str]
+	location: Location
+	definitions: List[Definition]
+	scope: Scope
+
 pub fn function_def(is_pub: bool, name: str, docstring: Option[str], type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
 	let info = FunctionInfo:
 		return_type
@@ -1204,6 +1283,26 @@ pub struct FunctionDef:
 enum FunctionDefBody:
 	Intern(body?: ScopedBlock)
 	Extern(libname: str)
+	None
+
+
+pub fn function_decl_def(name: str, type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, location: Location) -> FunctionDef:
+	let info = FunctionInfo:
+		return_type
+		except_type
+	let is_pub = true
+	let docstring: Option[str] = Option.None()
+
+	FunctionDef:
+		name
+		docstring
+		is_pub
+		info
+		type_parameters
+		this_parameter
+		parameters
+		location
+		body: FunctionDefBody.None()
 
 pub fn function_def_to_str(function_def: FunctionDef) -> str:
 	"function:{function_def.name}"
@@ -1252,11 +1351,14 @@ fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: Vect
 pub fn parameter_def(name: str, id: int, label_is_optional: bool, ty: Type, location: Location) -> ParameterDef:
 	ParameterDef(id: NodeId(name, id), label_is_optional, ty, location)
 
-pub struct ParameterDef:
-	id: NodeId
-	label_is_optional: bool
-	ty: Type
-	location: Location
+pub class ParameterDef:
+	pub var id: NodeId
+	pub var label_is_optional: bool
+	pub var ty: Type
+	pub var location: Location
+
+	pub fn ref(location: Location) -> Expression:
+		parameter_ref(parameter_def: this, location)
 
 pub fn unlabeled_parameter(ty: Type) -> ParameterDef:
 	parameter_def(name: "noname", id: 0, label_is_optional: true, ty, location: location_default())
@@ -1273,7 +1375,7 @@ pub class Variable:
 	pub var location: Location
 
 	pub fn ref(location: Location) -> Expression:
-		var_ref(variable: this, location)
+		variable_ref(variable: this, location)
 
 pub struct ScopedBlock:
 	scope: Scope
@@ -1494,11 +1596,11 @@ pub class Expression:
 		let callee = get_attr_typed(attr: method, location)
 		let result_ty: Type = callee.ty.get_return_type()
 		call(callee, arguments, ty: result_ty, location)
-	
+
 	pub fn call_it(arguments: List[LabeledExpression], location: Location) -> Expression:
 		let return_type = ty.get_return_type()
 		call(callee: this, arguments, ty: return_type, location)
-	
+
 	pub fn add(rhs: Expression, location: Location) -> Expression:
 		binop(lhs: this, op: BinaryOperator.Add(), rhs, ty, location)
 
@@ -1511,7 +1613,7 @@ pub class Expression:
 	pub fn get_attr_typed(attr: str, location: Location) -> Expression:
 		let attr_ty = ty.get_field_type(attr)
 		get_attr(base: this, field: attr, ty: attr_ty, location)
-	
+
 	pub fn change_to(to: Expression):
 		change_expression_to(expression: this, to)
 
@@ -1529,7 +1631,7 @@ pub enum ExpressionKind:
 	Binop(binop: BinopExpression)
 	Unop(op: UnaryOperator, rhs: Expression)
 	NameRef(name: str)
-	VarRef(variable: Variable)
+	VariableRef(variable: Variable)
 	FunctionRef(function: FunctionDef, type_arguments: Vector[Type])
 	ParameterRef(parameter: ParameterDef)
 	LoadSymbol(symbol: Symbol)
@@ -1575,6 +1677,7 @@ pub fn parameter_ref(parameter_def: ParameterDef, location: Location) -> Express
 	Expression(kind: ExpressionKind.ParameterRef(parameter_def), ty, location)
 
 pub fn call(callee: Expression, arguments: List[LabeledExpression], ty: Type, location: Location) -> Expression:
+	""" Function call expression """
 	let c = FunctionCall(callee, arguments)
 	let kind = ExpressionKind.Call(c)
 	Expression(kind, ty, location)
@@ -1613,8 +1716,8 @@ pub fn statement_expression(statement: Statement) -> Expression:
 #    pass
 
 # Reference a variable:
-fn var_ref(variable: Variable, location: Location) -> Expression:
-	let kind = ExpressionKind.VarRef(variable)
+fn variable_ref(variable: Variable, location: Location) -> Expression:
+	let kind = ExpressionKind.VariableRef(variable)
 	Expression(kind, ty: variable.ty, location)
 
 # Reference a symbol:
@@ -1744,10 +1847,10 @@ pub class AstPrinter:
 
 	pub fn dedent():
 		indent_level -= 1
-	
+
 	fn get_prefix() -> str:
 		str_repeat(text: "   ", count: indent_level)
-	
+
 	pub fn print2(txt: str):
 		let prefix = get_prefix()
 		print(prefix + txt)
@@ -1872,8 +1975,8 @@ fn expression_to_string(expression?: Expression) -> str:
 		Unop(op, value):
 			let op_txt = unary_op_to_str(op)
 			"UNOP({op_txt})"
-		VarRef(v):
-			"VAR-REF({node_id_to_string(v.id)})"
+		VariableRef(v):
+			"VARIABLE-REF({node_id_to_string(v.id)})"
 		FunctionRef(function, type_arguments):
 			let txt = "FN-{function.name}"
 			if type_arguments.is_empty():
@@ -2018,6 +2121,8 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
 					visit_statement(visitor, statement: scoped_block.body)
 				Extern(libname):
 					pass
+				None:
+					pass
 		Enum(enum_def):
 			for variant in enum_def.variants:
 				for p in variant.payload:
@@ -2028,6 +2133,14 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
 				visit_type(visitor, ty: field.ty)
 		Class(class_def):
 			for d2 in class_def.definitions:
+				visit_definition(visitor, definition: d2)
+		Interface(interface_def):
+			for d2 in interface_def.definitions:
+				visit_definition(visitor, definition: d2)
+		Impl(impl_def):
+			visit_type(visitor, ty: impl_def.interface_type)
+			visit_type(visitor, ty: impl_def.target_type)
+			for d2 in impl_def.definitions:
 				visit_definition(visitor, definition: d2)
 		Var(variable_def):
 			visit_type(visitor, ty: variable_def.variable.ty)
@@ -2040,7 +2153,7 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
 							pass
 				Extern(libname, initialized):
 					pass
-				
+
 	visitor.on_definition(data: visitor.data, definition, phase: VisitPhase.Post())
 
 fn visit_type[T](visitor: Visitor[T], ty: Type):

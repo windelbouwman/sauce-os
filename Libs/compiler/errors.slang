@@ -1,7 +1,7 @@
 
 from std import print, read_file, str_get
 from datatypes import List, Option
-from strlib import split_lines, str_repeat, str_pad_right, is_lf
+from strlib import split_lines, str_repeat, str_pad_right, is_lf, is_tab
 from location import Location, Position
 
 pub struct CompilationError:
@@ -32,15 +32,18 @@ pub fn render_message(label: str, filename: Option[str], location: Location, mes
 fn offset_to_position(offset: int, code: str) -> Position:
 	""" Calculate row and column from offset in string."""
 	let index = 0
-	let col_start = 0
 	let row = 1
+	let column = 1
 	while index < offset:
 		let c = str_get(text: code, index)
 		if is_lf(c):
 			row += 1
-			col_start = index + 1
+			column = 1
+		elif is_tab(c):
+			column += 8
+		else:
+			column += 1
 		index += 1
-	let column = offset - col_start + 1
 	Position(row, column)
 
 fn print_error(filename: str, location: Location, message: str):

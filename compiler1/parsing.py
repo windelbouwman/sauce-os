@@ -207,17 +207,20 @@ class CustomTransformer(LarkTransformer):
         return class_def
 
     def var_def(self, x):
-        # var_def: is_pub KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
+        # var_def: is_pub KW_VAR ID COLON typ var_def_init
         location = get_loc(x[2])
         name = x[2].value
         ty = x[4]
-        if is_terminal(x[5], "EQUALS"):
-            value = x[6]
-            assert is_terminal(x[7], "NEWLINE")
+        value = x[5]
+        return ast.var_def(self.new_id(name), ty, value, location)
+
+    def var_def_init(self, x):
+        if is_terminal(x[0], "EQUALS"):
+            value = x[1]
         else:
             value = None
-            assert is_terminal(x[5], "NEWLINE")
-        return ast.var_def(self.new_id(name), ty, value, location)
+            assert is_terminal(x[0], "NEWLINE")
+        return value
 
     def is_pub(self, x):
         if len(x) == 1:
@@ -294,16 +297,55 @@ class CustomTransformer(LarkTransformer):
     def interface_def(self, x):
         # KW_INTERFACE id_and_type_parameters COLON NEWLINE INDENT func_decl+ DEDENT
         location, name, type_parameters = x[1]
-        functions = x[-2]
-        return ast.InterfaceDef(self.new_id(name), type_parameters, functions, location)
+        docstring = ""
+        assert is_terminal(x[4], "INDENT")
+        functions = x[5:-1]
+        assert is_terminal(x[-1], "DEDENT")
+        span = get_loc2(x[4], x[-1])
+        return ast.InterfaceDef(
+            self.new_id(name), docstring, type_parameters, functions, location, span
+        )
 
     def func_decl(self, x):
         # KW_FN id_and_type_parameters function_signature NEWLINE
         location, name, type_parameters = x[1]
-        function_signature = x[2]
+        parameters, return_type, except_type = x[2]
         return ast.FunctionDecl(
-            self.new_id(name), type_parameters, function_signature, location
+            self.new_id(name),
+            type_parameters,
+            parameters,
+            return_type,
+            except_type,
+            location,
         )
+
+    def impl_def(self, x):
+        # aarg
+        # KW_IMPL typ KW_FOR typ COLON NEWLINE INDENT func_def+ DEDENT
+        assert is_terminal(x[0], "KW_IMPL")
+        location = get_loc(x[0])
+        interface = x[1]
+        docstring = ""
+        assert is_terminal(x[2], "KW_FOR")
+        target = x[3]
+        assert is_terminal(x[4], "COLON")
+        assert is_terminal(x[5], "NEWLINE")
+        assert is_terminal(x[6], "INDENT")
+        assert is_terminal(x[-1], "DEDENT")
+        span = get_loc2(x[6], x[-1])
+        functions = x[7:-1]
+
+        # Prepare 'this' implicit parameter
+        this_type = target
+        for function in functions:
+            if isinstance(function, ast.FunctionDef):
+                this_parameter = ast.Parameter(
+                    self.new_id("this"), True, this_type, function.location
+                )
+                function.this_parameter = this_parameter
+
+        id = self.new_id(f"impl_{self.id_context._counter}")
+        return ast.ImplDef(id, docstring, interface, target, functions, location, span)
 
     def struct_def(self, x):
         # is_pub KW_STRUCT id_and_type_parameters COLON NEWLINE INDENT docstring struct_field+ DEDENT
@@ -794,6 +836,10 @@ class CustomTransformer(LarkTransformer):
 
     def obj_init(self, x):
         "obj_init: expr COLON NEWLINE INDENT field_init+ DEDENT"
+        assert is_terminal(x[1], "COLON")
+        assert is_terminal(x[2], "NEWLINE")
+        assert is_terminal(x[3], "INDENT")
+        assert is_terminal(x[-1], "DEDENT")
         ty, fields = x[0], x[4:-1]
         return ast.function_call(ty, fields, get_loc(x[1]))
 
@@ -842,14 +888,18 @@ definition: func_def
           | type_def
           | extern_func_def
           | interface_def
+          | impl_def
 
 is_pub: KW_PUB?
 class_def: is_pub KW_CLASS id_and_type_parameters COLON NEWLINE INDENT docstring (func_def | var_def)+ DEDENT
-var_def: is_pub KW_VAR ID COLON typ (EQUALS expression)? NEWLINE
+var_def: is_pub KW_VAR ID COLON typ var_def_init
+var_def_init: NEWLINE
+            | EQUALS big_expression
 func_def: is_pub KW_FN id_and_type_parameters function_signature COLON NEWLINE INDENT docstring statement+ DEDENT
 extern_func_def: KW_EXTERN rawstring KW_FN id_and_type_parameters function_signature NEWLINE
 func_decl: KW_FN id_and_type_parameters function_signature NEWLINE
 interface_def: KW_INTERFACE id_and_type_parameters COLON NEWLINE INDENT func_decl+ DEDENT
+impl_def: KW_IMPL typ KW_FOR typ COLON NEWLINE INDENT func_def+ DEDENT
 docstring: (DOCSTRING NEWLINE)?
 function_signature: LEFT_PARENTHESIS parameters? RIGHT_PARENTHESIS (ARROW typ)? (KW_EXCEPT typ)?
 parameters: parameter
@@ -990,7 +1040,7 @@ labeled_expression: test
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
 %declare KW_RETURN KW_STRUCT KW_UNION KW_SWITCH KW_TYPE KW_VAR KW_WHILE
 %declare KW_RAISE KW_TRY KW_EXCEPT KW_EXTERN
-%declare KW_INTERFACE KW_NEW KW_DELETE
+%declare KW_INTERFACE KW_IMPL KW_NEW KW_DELETE
 
 %declare LEFT_PARENTHESIS RIGHT_PARENTHESIS LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON COMMA DOT ARROW QUESTION

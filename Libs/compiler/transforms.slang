@@ -16,7 +16,7 @@ from typechecking import type_check_modules
 from datatypes import List, list1, list2
 from datatypes import Option, option_unwrap, option_is_none, option_is_some
 from vectype import vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
-from hashmap import HashMap
+from hashmap import HashMap, new_hashmap_str
 from errors import CompilationError
 import ast
 
@@ -34,6 +34,7 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
 		on_expression: transformer_on_expression0
 		on_node: transformer_on_node0
 
+	log_debug("Transforming modules 1-a")
 	# Phase 1-a:
 	# - Rewrite for-loops into while loops
 	# - Rewrite loops into while loops
@@ -46,9 +47,11 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
 	visitor.on_node = transformer_on_node0
 	ast.visit_module_set(visitor, module_set)
 
+	log_debug("Transforming modules 1-b")
 	# Phase 1-b:
 	# - Rewrite enum definitions into struct definitions
 	# - Rewrite classes into structs with functions
+	# - Rewrite interface definitions into structs with v-tables.
 	visitor.on_definition = transformer_on_definition1
 	visitor.on_type = transformer_on_type0
 	visitor.on_statement = transformer_on_statement0
@@ -58,13 +61,17 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
 	for module in module_set.modules:
 		ast.visit_module(visitor, module)
 
-		# Filter class-defs:
+		# Filter class-defs / enum-defs / interface-defs:
 		let new_defs2: List[ast.Definition] = List()
 		for def2 in module.definitions:
 			case def2:
 				Class(c):
 					pass
 				Enum(e):
+					pass
+				Interface(interface_def):
+					pass
+				Impl(impl_def):
 					pass
 			else:
 				new_defs2.append(def2)
@@ -74,6 +81,7 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
 
 	# ast.print_ast(module)
 
+	log_debug("Transforming modules 2")
 	# Phase 2:
 	# - Rewrite call to get-attr into call with base as first argument
 	visitor.on_definition = transformer_on_definition0
@@ -83,6 +91,7 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
 	visitor.on_node = transformer_on_node0
 	ast.visit_module_set(visitor, module_set)
 
+	log_debug("Transforming modules 3")
 	# Phase 3:
 	# - Rewrite case statement into switch statement
 	# - Rewrite class literal into call to constructor
@@ -94,6 +103,7 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
 	visitor.on_node = transformer_on_node0
 	ast.visit_module_set(visitor, module_set)
 
+	log_debug("Transforming modules 5")
 	# Phase 5:
 	# - Change enum types into corresponding struct types
 	# - Change class types into corresponding struct types
@@ -172,6 +182,11 @@ fn transformer_on_definition1(transformer: Transformer, definition: ast.Definiti
 					transformer.class_rewriter.rewrite_class_def(class_def)
 				Enum(enum_def):
 					transformer.class_rewriter.rewrite_enum_def(enum_def)
+				Interface(interface_def):
+					transformer.class_rewriter.rewrite_interface_def(interface_def)
+				Impl(impl_def):
+					# TODO: this must be called after interfaces have been transformed.
+					transformer.class_rewriter.rewrite_impl_def(impl_def)
 			else:
 				pass
 	else:
@@ -219,6 +234,9 @@ fn transformer_on_type5(transformer: Transformer, ty: ast.Type, phase: ast.Visit
 									ty.kind = ast.int_type().kind
 								Nullable:
 									ty.kind = ast.opaque_type().kind
+						Interface(interface_def):
+							let impl2 = transformer.class_rewriter.interface_impl2_map.get(key: interface_def.id)
+							ty.kind = ast.TypeKind.App(ast.TyCon.Struct(impl2.struct_def), type_arguments)
 					else:
 						pass
 			else:
@@ -447,6 +465,17 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
 								let arguments = call.arguments
 								arguments.prepend(this_arg)
 								call.callee = function_ref
+							elif base.ty.is_interface():
+								# Call the invoker function instead
+								let interface_def = base.ty.get_interface_def()
+								let impl2 = transformer.class_rewriter.interface_impl2_map.get(key: interface_def.id)
+								let invoker = impl2.get_invoker(name)
+								let type_arguments: Vector[ast.Type] = new_vector()
+								let function_ref = ast.function_ref(function_def: invoker, type_arguments, location: expression.location)
+								let this_arg = ast.LabeledExpression(location: base.location, name: Option.Some("this"), value: base)
+								let arguments = call.arguments
+								arguments.prepend(this_arg)
+								call.callee = function_ref
 					else:
 						pass
 				Binop(op):
@@ -472,6 +501,10 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
 
 						else:
 							panic("Can only add or compare str types.")
+				TypeCast(ty, value):
+					if ty.is_interface():
+						let new_literal = transformer.class_rewriter.rewrite_cast_to_interface(value, ty)
+						expression.change_to(to: new_literal)
 			else:
 				pass
 	else:
@@ -500,7 +533,7 @@ fn transformer_on_expression7(transformer: Transformer, expression: ast.Expressi
 				Call(call):
 					# Perform type erasure on function call arguments if required.
 					let parameter_types = call.callee.ty.get_parameter_types()
-					
+
 					assert(condition: call.arguments.len() == parameter_types.len(), message: "arguments and parameters types must be the same length")
 					let ati = call.arguments.iter()
 					for pt in parameter_types:
@@ -602,10 +635,32 @@ enum EnumImpl:
 	Nullable
 	Struct(struct_def: ast.StructDef)
 
+class InterfaceImpl2:
+	""" Interface implementation details """
+	pub var struct_def: ast.StructDef
+	var vtable_map: HashMap[str,ast.Variable] = new_hashmap_str()
+	var invoker_map: HashMap[str,ast.FunctionDef] = new_hashmap_str()
+
+	pub fn get_impl_vtable(ty: ast.Type) -> ast.Variable:
+		""" Get vtable for given type. """
+		let key = ty.to_string()
+		vtable_map.get(key)
+
+	pub fn set_impl_vtable(ty: ast.Type, vtable: ast.Variable):
+		let key = ty.to_string()
+		vtable_map.insert(key, value: vtable)
+
+	pub fn set_invoker(name: str, invoker: ast.FunctionDef):
+		invoker_map.insert(key: name, value: invoker)
+
+	pub fn get_invoker(name: str) -> ast.FunctionDef:
+		invoker_map.get(key: name)
+
 class ClassRewriter:
 	var ctor_map: HashMap[ast.NodeId,ast.FunctionDef] = ast.new_hashmap_nodeid()
 	pub var class_struct_map: HashMap[ast.NodeId,ast.StructDef] = ast.new_hashmap_nodeid()
 	pub var enum_impl_map: HashMap[ast.NodeId,EnumImpl] = ast.new_hashmap_nodeid()
+	pub var interface_impl2_map: HashMap[ast.NodeId,InterfaceImpl2] = ast.new_hashmap_nodeid()
 	pub var new_definitions: List[ast.Definition] = List()
 	var id_gen: IdGen
 	var rt_module: ast.Module
@@ -640,7 +695,7 @@ class ClassRewriter:
 		# Lift methods:
 		for method in methods:
 			lift_method(method, class_def, struct_def)
-		
+
 		create_constructor(class_def, struct_def)
 
 	fn lift_method(method: ast.FunctionDef, class_def: ast.ClassDef, struct_def: ast.StructDef):
@@ -686,7 +741,7 @@ class ClassRewriter:
 									let ty = ast.subst(ty: variable_def.variable.ty, m)
 									let ctor_param = ast.parameter_def(name: variable_def.variable.id.name, id: get_unique_id(), label_is_optional: false, ty, location: class_def.location)
 									parameters.append(ctor_param)
-									let iv2 = ast.parameter_ref(parameter_def: ctor_param, location: class_def.location)
+									let iv2 = ctor_param.ref(location: class_def.location)
 									init_values.append(iv2)
 						Extern(libname, initialized):
 							if not initialized:
@@ -722,7 +777,7 @@ class ClassRewriter:
 
 	fn get_unique_id() -> int:
 		id_gen.new_id()
-	
+
 	fn new_variable(name: str, ty: ast.Type, location: Location) -> ast.Variable:
 		# Create a new variable with unique id
 		let id = get_unique_id()
@@ -730,7 +785,7 @@ class ClassRewriter:
 
 	fn get_enum_impl(id: ast.NodeId) -> EnumImpl:
 		enum_impl_map.get(key: id)
-	
+
 	pub fn load_std_function(name: str, location: Location) -> ast.Expression:
 		# Get expression that loads a builtin runtime function.
 		let symbol = option_unwrap(rt_module.scope.lookup(name))
@@ -740,6 +795,207 @@ class ClassRewriter:
 				ast.function_ref(function_def, type_arguments, location)
 		else:
 			panic("{name} must be external function")
+
+	pub fn rewrite_interface_def(interface_def: ast.InterfaceDef):
+		# Create method table for this interface
+		log_debug("Rewrite interface def {interface_def.id.name}")
+		let builder1 = ast.StructBuilder()
+		builder1.set_name(name: "{interface_def.id.name}Functions")
+		builder1.set_id(id: get_unique_id())
+
+		let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: interface_def.type_parameters.len())
+		for type_parameter in interface_def.type_parameters:
+			let type_parameter_ref = builder1.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
+			type_arguments.append(type_parameter_ref)
+		let m = ast.create_subst_mapping(type_parameters: interface_def.type_parameters, type_arguments)
+
+		for definition in interface_def.definitions:
+			case definition:
+				Function(function_def):
+					let type_arguments: Vector[ast.Type] = new_vector()
+					uplift_this_parameter(function_def)
+					let ty = ast.get_function_type2(function_def, type_arguments)
+					builder1.add_field(name: function_def.name, ty, location: interface_def.location)
+			else:
+				panic("only functions expected, not {ast.definition_to_str(definition)}")
+
+		let struct_def1 = builder1.finish()
+		new_definitions.append(ast.Definition.Struct(struct_def1))
+
+		let builder2 = ast.StructBuilder()
+		builder2.set_name(name: "{interface_def.id.name}Combo")
+		builder2.set_id(id: get_unique_id())
+		builder2.add_field(name: "data", ty: ast.opaque_type(), location: interface_def.location)
+		let type_arguments2: Vector[ast.Type] = new_vector()
+		let vtable_ty = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def1), type_arguments: type_arguments2)
+		builder2.add_field(name: "vtable", ty: vtable_ty, location: interface_def.location)
+		let struct_def2 = builder2.finish()
+		new_definitions.append(ast.Definition.Struct(struct_def2))
+		let impl2 = InterfaceImpl2(struct_def: struct_def2)
+		interface_impl2_map.insert(key: interface_def.id, value: impl2)
+
+		let type_arguments3: Vector[ast.Type] = new_vector()
+		let this_ty = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def2), type_arguments: type_arguments3)
+
+		# Create invoker functions
+		for definition in interface_def.definitions:
+			case definition:
+				Function(function_def):
+					let invoke_helper = create_invoker_helper(this_ty, function_def)
+					impl2.set_invoker(name: function_def.name, invoker: invoke_helper)
+					new_definitions.append(ast.Definition.Function(invoke_helper))
+			else:
+				panic("only functions expected, not {ast.definition_to_str(definition)}")
+
+	fn create_invoker_helper(this_ty: ast.Type, function_def: ast.FunctionDef) -> ast.FunctionDef:
+		""" Create a function that takes a vtable/data pair, which calls the proper function. """
+		let location = function_def.location
+		let type_parameters: List[ast.TypeParameter] = List() # TODO
+		let parameters: List[ast.ParameterDef] = List()
+		# let this_param = ast.parameter_def:
+		# 	name: "this"
+		# 	id: get_unique_id()
+		# 	label_is_optional: false
+		# 	ty: this_ty
+		# 	location: function_def.location
+		# parameters.append(this_param)
+		for p in function_def.parameters:
+			parameters.append(p)
+		let this_param = parameters[0]
+		this_param.ty = this_ty
+
+		let target = this_param.ref(location).get_attr_typed(attr: "vtable", location).get_attr_typed(attr: function_def.name, location)
+		let arguments: List[ast.LabeledExpression] = List()
+		let first = true
+		for parameter in parameters:
+			if first:
+				let data = this_param.ref(location).get_attr_typed(attr: "data", location)
+				arguments.append(ast.LabeledExpression(location, name: Option.Some("this"), value: data))
+				first = false
+			else:
+				let data = parameter.ref(location)
+				let argument_label = parameter.id.name
+				arguments.append(ast.LabeledExpression(location, name: Option.Some(argument_label), value: data))
+		let type_arguments: Vector[ast.Type] = new_vector()
+		let ftype = ast.get_function_type2(function_def, type_arguments)
+		let return_type = ftype.get_return_type()
+		let except_type = ftype.get_except_type()
+		let call_expr = ast.call(callee: target, arguments, ty: return_type, location)
+		let body = ast.expression_statement(expr: call_expr)
+
+		# parameters.append(ast.ParameterDef())
+		let invoker_function_def = ast.function_def:
+			is_pub: true
+			name: "invoke_{function_def.name}"
+			docstring: Option.None()
+			type_parameters
+			this_parameter: Option.None()
+			parameters
+			return_type
+			except_type
+			body
+			location: function_def.location
+		invoker_function_def
+
+	pub fn rewrite_impl_def(impl_def: ast.ImplDef):
+		""" Create a global variable initialized with a vtable.
+
+		Move implementing function to toplevel
+		"""
+		log_debug("Rewrite interface implementation")
+
+		let values: List[ast.Expression] = List()
+		let type_key = impl_def.target_type.to_string()
+		for definition in impl_def.definitions:
+			case definition:
+				Function(method):
+					# TODO: merge code with the lift_method function?
+					method.name = "{impl_def.id.name}_{type_key}_{method.name}"
+					uplift_this_parameter(function_def: method)
+					new_definitions.append(ast.Definition.Function(method))
+
+					let wrapper_function = create_impl_wrapper_func(method)
+
+					let type_arguments: Vector[ast.Type] = new_vector()
+					values.append(ast.function_ref(function_def: wrapper_function, type_arguments, location: impl_def.location))
+			else:
+				panic("Only functions expected")
+
+		let interface_def = impl_def.interface_type.get_interface_def()
+		let impl2 = interface_impl2_map.get(key: interface_def.id)
+
+		let type_arguments2: Vector[ast.Type] = new_vector()
+		let iface_type = ast.apply_tycon(tycon: ast.TyCon.Struct(impl2.struct_def), type_arguments: type_arguments2)
+
+		let vtable_ty = iface_type.get_field_type(attr: "vtable")
+		let vtable_value = ast.struct_literal(ty: vtable_ty, values, location: impl_def.location)
+		let variable = ast.variable(name: "vtable", id: get_unique_id(), ty: vtable_ty, location: impl_def.location)
+		impl2.set_impl_vtable(ty: impl_def.target_type, vtable: variable)
+		let vtable_global = ast.VariableDef(is_pub: true, variable, value: ast.VariableDefValue.Intern(value: Option.Some(vtable_value)))
+		new_definitions.append(ast.Definition.Var(vtable_global))
+
+	fn create_impl_wrapper_func(method: ast.FunctionDef) -> ast.FunctionDef:
+		# Introduce a wrapper function to unbox the this parameter into the right type.
+		let location = method.location
+		let type_parameters: List[ast.TypeParameter] = List() # TODO
+		let parameters: List[ast.ParameterDef] = List()
+		let arguments: List[ast.LabeledExpression] = List()
+		let this_param: ast.ParameterDef = ast.parameter_def:
+			name: "this"
+			id: get_unique_id()
+			label_is_optional: true
+			ty: ast.opaque_type()
+			location
+
+		parameters.append(this_param)
+		let this_unboxed = ast.unbox:
+			value: this_param.ref(location)
+			to_type: method.parameters.get(index: 0).ty
+			location
+		arguments.append(ast.LabeledExpression(location, name: Option.Some("this"), value: this_unboxed))
+
+		let first = true
+		for p in method.parameters:
+			if first:
+				first = false
+			else:
+				let p2: ast.ParameterDef = ast.parameter_def:
+					name: p.id.name
+					id: get_unique_id()
+					label_is_optional: true
+					ty: p.ty
+					location
+				parameters.append(p2)
+				arguments.append(ast.LabeledExpression(location, name: Option.Some(p.id.name), value: p2.ref(location)))
+
+		let type_arguments: Vector[ast.Type] = new_vector()
+		let method_ref = ast.function_ref(function_def: method, type_arguments, location)
+		let call_impl = ast.call(callee: method_ref, arguments, ty: ast.void_type(), location)
+		let wrapper_function = ast.function_def:
+			is_pub: true
+			name: "{method.name}_wrapper"
+			docstring: Option.None()
+			type_parameters
+			this_parameter: Option.None()
+			parameters
+			return_type: method.info.return_type
+			except_type: method.info.except_type
+			body: ast.expression_statement(expr: call_impl)
+			location: method.location
+		new_definitions.append(ast.Definition.Function(wrapper_function))
+		wrapper_function
+
+	pub fn rewrite_cast_to_interface(value: ast.Expression, ty: ast.Type) -> ast.Expression:
+		""" Turn cast to interface into struct literal with data + vtable """
+		let interface_def = ty.get_interface_def()
+		let impl2 = interface_impl2_map.get(key: interface_def.id)
+		let type_arguments2: Vector[ast.Type] = new_vector()
+		let iface_type = ast.apply_tycon(tycon: ast.TyCon.Struct(impl2.struct_def), type_arguments: type_arguments2)
+		let vtable_global_var = impl2.get_impl_vtable(ty: value.ty)
+		let vtable_ptr = vtable_global_var.ref(location: value.location)
+		let data_ptr = ast.box(value, location: value.location)
+		let values: List[ast.Expression] = list2(data_ptr, vtable_ptr)
+		ast.struct_literal(ty: iface_type, values, location: value.location)
 
 	pub fn transform_for_loop(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
 		""" Turn for loop into iterator and while loop """
@@ -932,7 +1188,7 @@ class ClassRewriter:
 			let eq_ty = ast.bool_type()
 			let condition = ast.binop(lhs: x_ref, op: eq_op, rhs: arm.value, ty: eq_ty, location: arm.location)
 			else_clause = ast.if_statement(condition, body: arm.block.body, false_body: else_clause, location: arm.location)
-		
+
 		ast.StatementKind.Compound(vec2(let_x, else_clause))
 
 	pub fn rewrite_enum_def(enum_def: ast.EnumDef):
@@ -1057,7 +1313,7 @@ class ClassRewriter:
 						value: switch_arm_value
 						block: ast.scoped_block(body: ast.compound(inner: switch_arm_body, location: arm.location))
 					switch_arms.append(switch_arm)
-				
+
 				let switch_default_code: ast.Statement = ast.pass_statement(location)
 				case case_statement.else_block:
 					None:
@@ -1223,7 +1479,7 @@ class ClassRewriter:
 			let bridge_function_parameter = ast.parameter_def(name: parameter.id.name, id: get_unique_id(), label_is_optional: true, ty, location)
 			parameters.append(bridge_function_parameter)
 
-			let parameter_ref = ast.parameter_ref(parameter_def: bridge_function_parameter, location)
+			let parameter_ref = bridge_function_parameter.ref(location)
 			let argument = ast.LabeledExpression(name: Option.Some(parameter.id.name), value: parameter_ref, location)
 			if needs_cast:
 				# Introduce cast from opaque to specific type here.
@@ -1243,7 +1499,17 @@ class ClassRewriter:
 				value = ast.box(value, location)
 			body = ast.return_statement(value: Option.Some(value), location)
 
-		let bridge_function = ast.function_def(is_pub: true, name: bridge_function_name, docstring: Option.None(), type_parameters, this_parameter: Option.None(), parameters, return_type: return_type2, except_type, body, location)
+		let bridge_function = ast.function_def:
+			is_pub: true
+			name: bridge_function_name
+			docstring: Option.None()
+			type_parameters
+			this_parameter: Option.None()
+			parameters
+			return_type: return_type2
+			except_type
+			body
+			location
 		# TODO: we could insert duplicate bridge functions.
 		# TODO: check for duplicate bridge functions.
 		new_definitions.append(ast.Definition.Function(bridge_function))
@@ -1257,3 +1523,8 @@ fn needs_opaque_cast(ty?: ast.Type) -> bool:
 			true
 	else:
 		false
+
+fn uplift_this_parameter(function_def: ast.FunctionDef):
+	let this_parameter = option_unwrap(function_def.this_parameter)
+	function_def.this_parameter = Option.None()
+	function_def.parameters.prepend(this_parameter)

@@ -59,7 +59,7 @@ class BytecodeGenerator:
 						index += 1
 				else:
 					pass
-		
+
 		# Extern function forward delcarations:
 		for module in module_set.modules:
 			for definition in module.definitions:
@@ -78,6 +78,8 @@ class BytecodeGenerator:
 								pass
 							Extern(libname):
 								gen_extern_function(function_def)
+							None:
+								panic("Function declarations not supported")
 				else:
 					pass
 
@@ -92,6 +94,8 @@ class BytecodeGenerator:
 								func_index += 1
 							Extern(libname):
 								pass
+							None:
+								panic("Function declarations not supported")
 				else:
 					pass
 
@@ -101,28 +105,36 @@ class BytecodeGenerator:
 			case definition:
 				Function(function_def):
 					gen_func(function_def)
+				Var(variable_def):
+					gen_global_init(variable_def)
 				Enum(enum_def):
 					panic("Enum not supported, please rewrite")
 				Class(class_def):
 					panic("Classes are not supported, please rewrite into structs with functions.")
 			else:
 				pass
-	
+
 	fn gen_global_variable(variable_def: ast.VariableDef):
+		""" Create global variable """
 		let global_index = global_variables.len()
 		let name = get_name(variable_def.variable.id)
 		let value: Option[Vector[bc.Instruction]] = Option.None()
+		let global_variable = bc.Global(name, ty: get_bc_type(variable_def.variable.ty), value)
+		global_variables.append(global_variable)
+		global_var_mapping.insert(key: variable_def.variable.id, value: global_index)
+
+	fn gen_global_init(variable_def: ast.VariableDef):
+		""" Initialize global variable """
+		let global_index = global_var_mapping.get(key: variable_def.variable.id)
+		let global_variable = global_variables[global_index]
 		case variable_def.value:
 			Intern(ival):
 				begin_code()
 				gen_expression(option_unwrap(ival))
 				emit(Instruction.Return(n_args: 1))
-				value = Option.Some(get_relocated_instructions())
+				global_variable.value = Option.Some(get_relocated_instructions())
 			Extern(libname, initialized):
 				pass
-		let global_variable = bc.Global(name, ty: get_bc_type(variable_def.variable.ty), value)
-		global_variables.append(global_variable)
-		global_var_mapping.insert(key: variable_def.variable.id, value: global_index)
 
 	fn gen_extern_function(function_def: ast.FunctionDef):
 		let func_index = extern_functions.len()
@@ -191,7 +203,9 @@ class BytecodeGenerator:
 				functions.append(bc.Function(name, is_pub: function_def.is_pub, parameters, return_type, no_return, locals, instructions))
 			Extern(libname):
 				pass
-	
+			None:
+				panic("Function declarations not supported")
+
 	fn goto_inner_loop() -> Loop:
 		for block in block_stack:
 			case block:
@@ -282,7 +296,7 @@ class BytecodeGenerator:
 				gen_return(opt_val)
 			Raise(value):
 				gen_raise(value)
-	
+
 	fn gen_return(opt_val: Option[ast.Expression]):
 		let n_args = case opt_val:
 			Some(val):
@@ -332,7 +346,7 @@ class BytecodeGenerator:
 					None:
 						gen_expression(value)
 				emit(Instruction.SetIndex())
-			VarRef(variable):
+			VariableRef(variable):
 				if is_local_variable(variable):
 					let index = get_local_index(variable)
 					case op:
@@ -366,7 +380,7 @@ class BytecodeGenerator:
 
 		else:
 			panic("Cannot assign: {target}")
-	
+
 	fn gen_try_statement(try_statement: ast.TryStatement):
 		log_trace("gen_try_statement")
 		let try_label = new_label()
@@ -415,7 +429,7 @@ class BytecodeGenerator:
 		let final_label = new_label()
 
 		gen_condition(condition: if_statement.condition, true_label, false_label)
-		
+
 		set_label(true_label)
 		gen_scoped_block(if_statement.true_block, target)
 		let reach1 = is_reachable
@@ -530,7 +544,7 @@ class BytecodeGenerator:
 				emit(Instruction.Literal(bc.LiteralValue.Bool(value)))
 			Null:
 				emit(Instruction.Literal(bc.LiteralValue.Null()))
-			VarRef(variable):
+			VariableRef(variable):
 				if is_local_variable(variable):
 					let var_index = get_local_index(variable)
 					emit(Instruction.LocalGet(var_index))
@@ -620,7 +634,7 @@ class BytecodeGenerator:
 		gen_expression(binop.lhs)
 		gen_expression(binop.rhs)
 		gen_binop(op: binop.op)
-	
+
 	fn gen_binop(op: ast.BinaryOperator):
 		case op:
 			Add:
@@ -665,7 +679,7 @@ class BytecodeGenerator:
 		let index = code.len()
 		label_mapping.insert(key: label, value: index)
 		is_reachable = true
-	
+
 	fn translate_label(label?: int) -> int:
 		label_mapping.get(key: label)
 
@@ -708,13 +722,13 @@ class BytecodeGenerator:
 		let index = new_local(name: variable.id.name, ty)
 		local_var_mapping.insert(key: variable.id, value: index)
 		index
-	
+
 	fn new_local(name: str, ty: bc.Type) -> int:
 		let index = local_variables.len()
 		let local = bc.TypedName(name, ty)
 		local_variables.append(local)
 		index
-	
+
 	fn is_local_variable(variable: ast.Variable) -> bool:
 		local_var_mapping.contains(key: variable.id)
 
@@ -766,14 +780,14 @@ class BytecodeGenerator:
 			bc.Type.Array(get_bc_type(element_type2))
 		else:
 			panic("get_bc_type: Type {ty2} not supported")
-	
+
 	fn enter_block(block: ControlBlock):
 		block_stack.prepend(block)
 
 	fn leave_block():
 		let block = block_stack.pop_front()
 		block_cleanup(block)
-	
+
 	fn block_cleanup(block: ControlBlock):
 		case block:
 			Scope(variables):

@@ -25,7 +25,7 @@ SLANGC=./${COMPILER5}
 SLANGC_DEPS=${COMPILER5}
 SLANG_APPS := $(wildcard Apps/*.slang)
 
-CFLAGS=-Werror -Wreturn-type -g -Iruntime
+CFLAGS=-Werror -Wreturn-type -g -Iruntime -rdynamic
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 SLANG2_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang/%.slang, $(SLANG_EXAMPLES))
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))

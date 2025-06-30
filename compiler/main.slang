@@ -98,7 +98,7 @@ pub fn main() -> int:
 			# Assume source file
 			filenames.append(argument)
 		i += 1
-	
+
 	set_log_level(level: options.verbosity)
 
 	if filenames.is_empty():
@@ -106,7 +106,7 @@ pub fn main() -> int:
 		return 2
 
 	filenames = lexical_sort(filenames)
-	
+
 	try:
 		compile(filenames, options)
 		log_info("OK")
@@ -186,7 +186,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 			ast.print_ast(module: program)
 		modules.append(program)
 		module_map.insert(key: program.name, value: program)
-	
+
 	topo_sort(modules)
 	let module_set = ast.ModuleSet(modules)
 
@@ -194,7 +194,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 	for module in modules:
 		bind_names(module, module_map, tycon_map)
 		resolve_newops(module, id_gen)
-	
+
 	if options.dump_ast:
 		ast.print_ast2(module_set)
 
@@ -263,7 +263,7 @@ fn topo_sort(modules: List[ast.Module]):
 		mapping.insert(key: m.name, value: m)
 		for imp in m.imports:
 			g.add_edge(src: m.name, dst: imp.modname)
-	
+
 	# For displaying dependencies:
 	#for n1 in g.nodes:
 	#    for n2 in option_unwrap(g.pred.get(key: n1)):

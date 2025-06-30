@@ -138,6 +138,13 @@ class Type:
     def is_class(self):
         return isinstance(self.kind, App) and isinstance(self.kind.tycon, ClassDef)
 
+    def is_interface(self):
+        """See if this type is an interface type."""
+        return isinstance(self.kind, App) and isinstance(self.kind.tycon, InterfaceDef)
+
+    def is_opaque(self) -> bool:
+        return isinstance(self.kind, BaseType) and self.kind.is_opaque()
+
     def is_int(self) -> bool:
         return isinstance(self.kind, BaseType) and self.kind.is_int()
 
@@ -182,6 +189,8 @@ class Type:
                 return self.kind.tycon.has_field(name)
             elif isinstance(self.kind.tycon, ClassDef):
                 return self.kind.tycon.has_field(name)
+            elif isinstance(self.kind.tycon, InterfaceDef):
+                return self.kind.tycon.has_field(name)
             else:
                 return False
         elif isinstance(self.kind, PointerType):
@@ -221,6 +230,8 @@ class Type:
                 field = self.kind.tycon.get_field(i)
                 return subst(field.ty, self.kind.m)
             elif isinstance(self.kind.tycon, ClassDef):
+                return subst(self.kind.tycon.get_field_type(i), self.kind.m)
+            elif isinstance(self.kind.tycon, InterfaceDef):
                 return subst(self.kind.tycon.get_field_type(i), self.kind.m)
             else:
                 raise NotImplementedError()
@@ -421,6 +432,9 @@ class BaseType(TypeKind):
         else:
             return False
 
+    def is_opaque(self) -> bool:
+        return self.name == "ptr"
+
     def is_int(self) -> bool:
         return self.name == "int"
 
@@ -609,7 +623,7 @@ class TypeParameterKind(TypeKind):
 str_type = base_type("str")
 char_type = base_type("char")
 int_type = base_type("int")
-ptr_type = int_type
+ptr_type = base_type("ptr")
 float_type = base_type("float")
 bool_type = base_type("bool")
 void_type = Type(VoidType())
@@ -757,6 +771,94 @@ class TypeDef(Definition):
         self.ty = ty
 
 
+class InterfaceDef(TypeConstructor):
+    def __init__(
+        self,
+        id: Id,
+        docstring: str,
+        type_parameters: list["TypeParameter"],
+        members: list["FunctionDecl"],
+        location: Location,
+        span,
+    ):
+        super().__init__(id, docstring, location, type_parameters, span)
+        self.members = members
+        self.scope.has_this_context = True
+
+    def __repr__(self):
+        return f"interface-{self.id}"
+
+    def equals(self, other: "TypeConstructor") -> bool:
+        return self is other
+
+    def has_field(self, name: str) -> bool:
+        return self.scope.is_defined(name)
+
+    def get_field(self, name: str | int) -> "Definition":
+        if isinstance(name, int):
+            raise NotImplementedError("Get field by int")
+        else:
+            return self.scope.lookup(name)
+
+    def get_field_type(self, i: int | str) -> Type:
+        field = self.get_field(i)
+        assert isinstance(field, FunctionDecl), f".. {field}"
+        return field.get_type()
+
+
+class FunctionDecl(Definition):
+    def __init__(
+        self,
+        id,
+        type_parameters,
+        parameters: list[Type],
+        return_type: Type,
+        except_type: Type,
+        location: Location,
+    ):
+        super().__init__(id, location)
+        self.type_parameters = type_parameters
+        self.parameters = parameters
+        self.return_type = return_type
+        self.except_type = except_type
+
+    def get_type(self) -> "Type":
+        # Interesting!
+        # Construct polymorphic type
+        new_free = []
+        for i, tp in enumerate(self.type_parameters):
+            new_free.append(meta_type(f"{i}_{tp.id}"))
+        # TODO: create unique ids
+        parameter_names = [
+            p.id.name if p.needs_label else None for p in self.parameters
+        ]
+        m2 = dict(zip(self.type_parameters, new_free))
+        parameter_types = [subst(p.ty, m2) for p in self.parameters]
+        return function_type(
+            parameter_names,
+            parameter_types,
+            subst(self.return_type, m2),
+            subst(self.except_type, m2),
+        )
+
+
+class ImplDef(ScopedDefinition):
+    def __init__(
+        self,
+        id: Id,
+        docstring: str,
+        interface: Type,
+        target: Type,
+        functions,
+        location: Location,
+        span,
+    ):
+        super().__init__(id, docstring, location, span)
+        self.interface = interface
+        self.target = target
+        self.functions = functions
+
+
 def class_def(
     id: Id,
     docstring: str,
@@ -900,6 +1002,10 @@ class FunctionDef(ScopedDefinition):
             subst(self.except_type, m2),
         )
 
+    def get_ref(self, location: Location) -> "Expression":
+        """Get an expression referring to this function."""
+        return obj_ref(self, self.get_type(), location)
+
 
 class Parameter(Definition):
     def __init__(self, id: Id, needs_label: bool, ty: Type, location: Location):
@@ -910,6 +1016,10 @@ class Parameter(Definition):
 
     def __repr__(self):
         return f"param({self.id})"
+
+    def get_ref(self, location: Location) -> "Expression":
+        """Get an expression referring to this parameter."""
+        return obj_ref(self, self.ty, location)
 
 
 class StructDef(TypeConstructor):
@@ -1748,12 +1858,16 @@ class Undefined:
 
 
 class Box(ExpressionKind):
-    """Create a box the given value."""
+    """Create a box around the given value."""
 
     def __init__(self, value: Expression):
         super().__init__()
         assert isinstance(value, Expression)
         self.value = value
+
+
+def box(value: Expression, location: Location) -> Expression:
+    return Expression(Box(value), ptr_type, location)
 
 
 class Unbox(ExpressionKind):
@@ -1762,6 +1876,10 @@ class Unbox(ExpressionKind):
         assert isinstance(value, Expression)
         self.value = value
         self.to_type = to_type
+
+
+def unbox(value: Expression, to_type: Type, location: Location) -> Expression:
+    return Expression(Unbox(value, to_type), to_type, location)
 
 
 class NewOperator(ExpressionKind):
@@ -1798,6 +1916,19 @@ class AstVisitor:
         elif isinstance(definition, ClassDef):
             for member in definition.members:
                 self.visit_definition(member)
+        elif isinstance(definition, InterfaceDef):
+            for decl in definition.members:
+                self.visit_definition(decl)
+        elif isinstance(definition, FunctionDecl):
+            for parameter in definition.parameters:
+                self.visit_type(parameter.ty)
+            self.visit_type(definition.return_type)
+            self.visit_type(definition.except_type)
+        elif isinstance(definition, ImplDef):
+            self.visit_type(definition.interface)
+            self.visit_type(definition.target)
+            for function in definition.functions:
+                self.visit_definition(function)
         elif isinstance(definition, VarDef):
             self.visit_type(definition.ty)
             if definition.value:

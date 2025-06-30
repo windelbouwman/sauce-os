@@ -57,7 +57,7 @@ class SymbolSaver:
 			save_definition(definition)
 		m_ser.end_array_as_attribute(attr: "definitions")
 		m_ser.end_object_as_element()
-	
+
 	fn save_import(imp: ast.Import):
 		m_ser.begin_object()
 		m_ser.add_text_attribute(attr: "modname", text: imp.modname)
@@ -100,6 +100,10 @@ class SymbolSaver:
 				save_struct_def(struct_def)
 			Class(class_def):
 				save_class_def(class_def)
+			Interface(interface_def):
+				panic("TODO: save interface def")
+			Impl(impl_def):
+				panic("TODO: save impl def")
 			Enum(enum_def):
 				save_enum_def(enum_def)
 			Var(variable_def):
@@ -192,7 +196,7 @@ class SymbolSaver:
 			m_ser.add_text_attribute(attr: "name", text: field.name)
 			save_type(attr: "type", ty: field.ty)
 			m_ser.end_object_as_element()
-			
+
 		m_ser.end_array_as_attribute(attr: "fields")
 
 	fn save_doc_string(docstring: Option[str]):
@@ -272,7 +276,7 @@ class SymbolSaver:
 		else:
 			panic("save_type: Not-impl: {ty}")
 		m_ser.end_object_as_attribute(attr)
-	
+
 	fn save_tycon(tycon: ast.TyCon):
 		case tycon:
 			Struct(struct_def):
@@ -281,6 +285,8 @@ class SymbolSaver:
 				save_id(id: enum_def.id)
 			Class(class_def):
 				save_id(id: class_def.id)
+			Interface(interface_def):
+				panic("Cannot save tycon interface")
 			Ref(key):
 				panic("Cannot save tycon ref")
 			NameRef(key):
@@ -309,7 +315,7 @@ class SymbolLoader:
 
 	pub fn push_json(value: JsonValue):
 		m_des.push_value(value)
-	
+
 	pub fn load_modules() -> List[ast.Module]:
 		let compiler_version_info = m_des.get_text_attribute(attr: "compiler-version")
 		log_info("Compiler-info: {compiler_version_info}")
@@ -340,7 +346,7 @@ class SymbolLoader:
 			definitions.append(load_definition())
 			m_des.pop_value()
 		ast.new_module(name: mod_name, filename: Option.None(), imports, definitions)
-	
+
 	fn load_import() -> ast.Import:
 		let modname = m_des.get_text_attribute(attr: "modname")
 		let location = location_default()
@@ -427,7 +433,7 @@ class SymbolLoader:
 			parameters.append(load_parameter())
 			m_des.pop_value()
 		parameters
-	
+
 	fn load_parameter() -> ast.ParameterDef:
 		let name = m_des.get_text_attribute(attr: "name")
 		let label_is_optional = m_des.get_boolean_attribute(attr: "label_is_optional")
@@ -455,7 +461,7 @@ class SymbolLoader:
 		struct_def.docstring = docstring
 		struct_def.scope = ast.Scope()
 		struct_def
-	
+
 	fn load_enum_def(def_name: str, def_id: int) -> ast.EnumDef:
 		let location = location_default()
 		let is_pub = m_des.get_boolean_attribute(attr: "pub")
@@ -573,10 +579,10 @@ class SymbolLoader:
 			ast.function_type(parameter_types, info)
 		else:
 			panic("Unsupported: {type_name}")
-		
+
 		m_des.pop_value()
 		ty
-	
+
 	fn load_id() -> ast.NodeId:
 		let id = m_des.get_integer_attribute(attr: "id")
 		let name = m_des.get_text_attribute(attr: "name")

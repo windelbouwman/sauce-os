@@ -50,6 +50,12 @@ class TypeChecker(BasePass):
             elif isinstance(definition, ast.VarDef):
                 if definition.value:
                     self.coerce(definition.value, definition.ty)
+            elif isinstance(definition, ast.InterfaceDef):
+                pass
+            elif isinstance(definition, ast.ImplDef):
+                pass
+            elif isinstance(definition, ast.FunctionDecl):
+                pass
             else:
                 raise NotImplementedError(str(definition))
 
@@ -462,6 +468,11 @@ class TypeChecker(BasePass):
         # Try to auto-convert before check:
         if expression.ty.is_int() and ty.is_float():
             # Auto-conv int to floats
+            old_expr = expression.clone()
+            expression.kind = ast.TypeCast(ty, old_expr)
+            expression.ty = ty
+        elif ty.is_interface() and not expression.ty.is_interface():
+            # Auto conv anything into interface!
             old_expr = expression.clone()
             expression.kind = ast.TypeCast(ty, old_expr)
             expression.ty = ty

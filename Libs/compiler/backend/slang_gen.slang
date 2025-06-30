@@ -47,6 +47,8 @@ class SlangGenerator:
 						gen_block(scoped_block)
 					Extern(libname):
 						emit("extern \"{libname}\" fn {function_def.name}({params}){return_types}")
+					None:
+						panic("Function declarations not supported")
 			Struct(struct_def):
 				let struct_name = get_id(struct_def.id)
 				emit("struct {struct_name}:")
@@ -57,11 +59,20 @@ class SlangGenerator:
 				dedent()
 			Var(variable_def):
 				let variable_name = get_id(variable_def.variable.id)
-				emit("var {variable_name} = 0")
+				case variable_def.value:
+					Intern(value):
+						case value:
+							Some(value):
+								let value_text = gen_expression(expression: value, parens: false)
+								emit("var {variable_name} = {value_text}")
+							None:
+								emit("var {variable_name} = null")
+					Extern(libname, initialized):
+						emit("extern var {variable_name}")
 		else:
 			panic("gen_definition: Unsupported: {ast.definition_to_str(definition)}")
 		emit("")
-	
+
 	fn gen_type(ty?: ast.Type) -> str:
 		if ty.is_int():
 			let bits = ty.get_bits()
@@ -99,6 +110,8 @@ class SlangGenerator:
 			"fn ({params}){suffix}"
 		elif ty.is_unreachable():
 			"unreachable"
+		elif ty.is_undefined():
+			"undefined"
 		else:
 			panic("gen_type: Unsupported: {ty}")
 
@@ -209,7 +222,7 @@ class SlangGenerator:
 				"[{size_txt} : {ty_txt}]"
 			ParameterRef(parameter_def):
 				get_id(parameter_def.id)
-			VarRef(variable):
+			VariableRef(variable):
 				get_id(variable.id)
 			FunctionRef(function_def, type_arguments):
 				function_def.name

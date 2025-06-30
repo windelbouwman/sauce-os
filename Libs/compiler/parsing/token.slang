@@ -29,7 +29,9 @@ pub enum TokenKind:
 	KwFrom
 	KwIf
 	KwImport
+	KwImpl
 	KwIn
+	KwInterface
 	KwLet
 	KwLoop
 	KwMacro
@@ -135,8 +137,12 @@ pub fn token_to_string(tok: Token) -> str:
 			"IF"
 		KwImport:
 			"IMPORT"
+		KwImpl:
+			"IMPL"
 		KwIn:
 			"IN"
+		KwInterface:
+			"INTERFACE"
 		KwLet:
 			"LET"
 		KwLoop:

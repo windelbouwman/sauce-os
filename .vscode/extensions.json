@@ -2,6 +2,7 @@
   "recommendations": [
     "ms-python.black-formatter",
     "ms-python.python",
-    "editorconfig.editorconfig"
+    "editorconfig.editorconfig",
+    "llvm-vs-code-extensions.vscode-clangd"
   ]
 }

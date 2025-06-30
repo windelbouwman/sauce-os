@@ -54,6 +54,8 @@ class WasmGenerator:
 								pass
 							Extern(libname):
 								gen_external_function(function_def)
+							None:
+								panic("Function declarations not supported")
 				else:
 					pass
 
@@ -73,6 +75,8 @@ class WasmGenerator:
 								counter += 1
 							Extern(libname):
 								pass
+							None:
+								panic("Function declarations not supported")
 				else:
 					pass
 
@@ -99,10 +103,10 @@ class WasmGenerator:
 
 		let func_ty = reg_signature(parameter_types, return_type: function_def.info.return_type)
 		case function_def.body:
-			Intern(scoped_block):
-				panic("Invalid extern function")
 			Extern(libname):
 				imports.append(webassembly.Import(module: libname, name: function_def.name, ty: func_ty))
+		else:
+			panic("Invalid extern function")
 
 	fn gen_module(module: ast.Module):
 		for definition in module.definitions:
@@ -161,7 +165,7 @@ class WasmGenerator:
 			let x = create_parameter(id: parameter.id, ty: parameter.ty)
 			parameter_types.append(parameter.ty)
 		let func_ty = reg_signature(parameter_types, return_type: function_def.info.return_type)
-		
+
 		case function_def.body:
 			Intern(scoped_block):
 				let body = scoped_block.body
@@ -170,8 +174,8 @@ class WasmGenerator:
 				# Introduce an unreachable instruction, when we cannot reach this point.
 				if body.ty.is_unreachable():
 					emit(Instruction.ctrl_unreachable())
-			Extern(libname):
-				panic("Function without body")
+		else:
+			panic("Function without body")
 
 		let f = webassembly.Function:
 			ty: func_ty
@@ -205,7 +209,7 @@ class WasmGenerator:
 						gen_expression(value)
 						gen_store(offset, ty: value.ty)
 
-					VarRef(variable):
+					VariableRef(variable):
 						gen_expression(value)
 						let localidx = get_local_index(id: variable.id)
 						emit(Instruction.local_set(localidx))
@@ -257,7 +261,7 @@ class WasmGenerator:
 					Some(v2):
 						gen_expression(v2)
 				emit(Instruction.ctrl_return())
-			
+
 			Raise(value):
 				panic("TODO: raise!")
 		else:
@@ -349,7 +353,7 @@ class WasmGenerator:
 				let localidx = get_local_index(id: parameter_def.id)
 				emit(Instruction.local_get(localidx))
 
-			VarRef(variable):
+			VariableRef(variable):
 				let localidx = get_local_index(id: variable.id)
 				emit(Instruction.local_get(localidx))
 

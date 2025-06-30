@@ -192,7 +192,7 @@ fn get_efi_db() -> HashMap[str,ExternFunctionImpl]:
 	efi_db.insert(key: "std_file_close", value: ExternFunctionImpl(f: efi_default, n: 1))
 	efi_db.insert(key: "std_get_n_args", value: ExternFunctionImpl(f: efi_default, n: 0))
 	efi_db.insert(key: "std_get_arg", value: ExternFunctionImpl(f: efi_default, n: 1))
-	
+
 	# rt:
 	efi_db.insert(key: "rt_int_to_str", value: ExternFunctionImpl(f: efi_rt_int_to_str, n: 1))
 	efi_db.insert(key: "rt_char_to_str", value: ExternFunctionImpl(f: efi_rt_char_to_str, n: 1))
@@ -202,8 +202,7 @@ fn get_efi_db() -> HashMap[str,ExternFunctionImpl]:
 	efi_db.insert(key: "rt_str_get", value: ExternFunctionImpl(f: efi_std_str_get, n: 2))
 	efi_db
 
-pub fn run_bytecode(program: Program, entry_function: str):
-	let vm = VirtualMachine()
+pub fn prepare_vm(vm: VirtualMachine, program: Program):
 	vm.structs = program.structs
 
 	# Link external functions:
@@ -214,9 +213,15 @@ pub fn run_bytecode(program: Program, entry_function: str):
 			assert(condition: e.parameters.len() == efi.n, message: "n should match len(parameters)")
 			vm.m_functions.append(FunctionRef.Native(efi))
 		else:
-			panic("Missing extern function: {e.name}")
+			let efi = ExternFunctionImpl(f: efi_default, n: 0)
+			vm.m_functions.append(FunctionRef.Native(efi))
+			# panic("Missing extern function: {e.name}")
 	for f in program.functions:
 		vm.m_functions.append(FunctionRef.ByteCode(f))
+
+pub fn run_bytecode(program: Program, entry_function: str):
+	let vm = VirtualMachine()
+	prepare_vm(vm, program)
 
 	# Initialize global variables:
 	for g in program.globals:
@@ -261,7 +266,7 @@ fn frame_from_function(function: Function, arguments: List[Value]) -> Frame:
 	let frame = Frame(code: function.instructions)
 	for x in function.parameters:
 		pass
-	
+
 	for x in arguments:
 		frame.arguments.append(x)
 
@@ -532,13 +537,13 @@ pub class VirtualMachine:
 					values.append(value)
 				let list = ListValue(values)
 				push(Value.List(list))
-	
+
 	fn push(value?: Value):
 		frames.last().stack.append(value)
-	
+
 	fn pop() -> Value:
 		frames.last().stack.pop_last()
-	
+
 	fn pop_n(count: int) -> List[Value]:
 		let values: List[Value] = List()
 		while count > 0:
@@ -546,16 +551,16 @@ pub class VirtualMachine:
 			values.prepend(val)
 			count -= 1
 		values
-	
+
 	fn jump(pc?: int):
 		frames.last().pc = pc
 
 	fn get_local(index: int) -> Value:
 		frames.last().locals.get(index)
-	
+
 	fn set_local(index: int, value: Value):
 		frames.last().locals.set(index, value)
-	
+
 	fn get_parameter(index: int) -> Value:
 		frames.last().arguments.get(index)
 

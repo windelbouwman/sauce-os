@@ -104,14 +104,14 @@ class VirtualMachine:
     def load(self, prog: Program):
         self.prog = prog
         self.functions_by_name = {}
-        self._globals = [
-            self.eval_code(initial_value_code) for initial_value_code in prog.globals
-        ]
         for f in prog.functions:
             if f.name in self.functions_by_name:
                 raise ValueError(f"Duplicate function name: {f.name}")
             else:
                 self.functions_by_name[f.name] = f
+        self._globals = [
+            self.eval_code(initial_value_code) for initial_value_code in prog.globals
+        ]
 
     def run(self):
         try:
@@ -126,8 +126,9 @@ class VirtualMachine:
 
     def eval_code(self, code):
         self.push_frame(Frame(code))
-        self.dispatch()
-        # TODO: run all code?
+        # Run all code until end:
+        while self._frames[-1]._pc < len(code):
+            self.dispatch()
         value = self.pop_value()
         self.pop_frame()
         return value

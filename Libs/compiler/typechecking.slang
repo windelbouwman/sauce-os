@@ -16,7 +16,7 @@ pub fn type_check_modules(module_set: ast.ModuleSet) except CompilationError:
 		type_check(module)
 
 fn type_check(module: ast.Module) except CompilationError:
-	log_info("Checking module {module.name}")
+	log_info("Type-checking module {module.name}")
 	let checker = TypeChecker()
 	let visitor = new_type_check_visitor(checker)
 	ast.visit_module(visitor, module)
@@ -124,6 +124,8 @@ class TypeChecker:
 					if not scoped_block.body.ty.is_unreachable():
 						assert_statement_type(statement: scoped_block.body, ty: function_def.info.return_type)
 			Extern(libname):
+				pass
+			None:
 				pass
 
 	pub fn check_statement_mid(statement: ast.Statement):
@@ -320,7 +322,7 @@ class TypeChecker:
 				# TODO: clone type?
 				# log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {parameter.ty}")
 				expression.ty = parameter_def.ty
-			VarRef(variable):
+			VariableRef(variable):
 				# log_trace("Var ref {ast.node_id_to_string(variable.id)}: {variable.ty}")
 				expression.ty = variable.ty
 			FunctionRef(function_def, type_arguments):
@@ -332,8 +334,10 @@ class TypeChecker:
 				elif ty.is_float():
 					if not (value.ty.is_int() or value.ty.is_float()):
 						add_error(location: expression.location, message: "Cannot cast to float from {value.ty}")
+				elif ty.is_interface():
+					pass # We can cast anything to an interface.
 				else:
-					add_error(location: expression.location, message: "Cannot cast to {ty}")
+					add_error(location: expression.location, message: "Cannot cast '{value.ty}' to '{ty}'")
 				expression.ty = ty
 			ToString(value):
 				if not (value.ty.is_int() or value.ty.is_str() or value.ty.is_char() or value.ty.has_method("to_string")):
@@ -501,9 +505,13 @@ class TypeChecker:
 			let old_expr = ast.clone_expression(value)
 			value.kind = ast.ExpressionKind.TypeCast(ty, old_expr)
 			value.ty = ty
+		elif ty.is_interface():
+			let old_expr = ast.clone_expression(value)
+			value.kind = ast.ExpressionKind.TypeCast(ty, old_expr)
+			value.ty = ty
 
 		check_type(given_ty: value.ty, expected_ty: ty, location: value.location)
-	
+
 	fn check_type(given_ty: ast.Type, expected_ty: ast.Type, location: Location):
 		if not unify(ty1: given_ty, ty2: expected_ty):
 			add_error(location, message: "Got {given_ty}, expected {expected_ty}")
@@ -550,7 +558,7 @@ class TypeChecker:
 
 			if not unify_many(typs1: ptys1, typs2: ptys2):
 				return false
-			
+
 			let rty1 = ty1.get_return_type()
 			let rty2 = ty2.get_return_type()
 			if not unify(ty1: rty1, ty2: rty2):
@@ -585,7 +593,7 @@ class TypeChecker:
 			true
 		else:
 			false
-	
+
 	fn unify_many(typs1: Vector[ast.Type], typs2: Vector[ast.Type]) -> bool:
 		if typs1.len() == typs2.len():
 			let n = typs1.len()

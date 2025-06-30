@@ -27,7 +27,7 @@ pub fn bind_names(module: ast.Module, module_map: HashMap[str,ast.Module], tycon
 		raise new_errors(filename: module.filename, errors: binder.errors)
 
 	log_info("Binding names for {module.name}")
-	
+
 	let bind_visitor = new_bind_visitor(binder)
 	binder.enter_scope(scope: base_scope())
 	binder.enter_scope(scope: module.scope)
@@ -72,12 +72,18 @@ fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
 					Option.Some(scoped_block.scope)
 				Extern(libname):
 					Option.None()
+				None:
+					Option.None()
 		Enum(enum_def):
 			Option.Some(enum_def.scope)
 		Struct(struct_def):
 			Option.Some(struct_def.scope)
 		Class(class_def):
 			Option.Some(class_def.scope)
+		Interface(interface_def):
+			Option.Some(interface_def.scope)
+		Impl(impl_def):
+			Option.Some(impl_def.scope)
 		Var(v):
 			Option.None()
 
@@ -103,28 +109,40 @@ fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: a
 									pass
 						Extern(libname):
 							pass
+						None:
+							pass
 				Enum(enum_def):
-					filler.add_tycon(id: enum_def.id, tycon: ast.TyCon.Enum(enum_def))
-					filler.define(is_pub: enum_def.is_pub, name: enum_def.id.name, kind: ast.SymbolKind.TypeConstructor(tycon: ast.TyCon.Enum(enum_def)), location: enum_def.location)
+					let tycon = ast.TyCon.Enum(enum_def)
+					filler.add_tycon(id: enum_def.id, tycon)
+					filler.define(is_pub: enum_def.is_pub, name: enum_def.id.name, kind: ast.SymbolKind.TypeConstructor(tycon), location: enum_def.location)
 					filler.enter_scope(scope: enum_def.scope)
 					for type_parameter in enum_def.type_parameters:
 						filler.define_type_parameter(type_parameter)
 					for variant in enum_def.variants:
 						filler.define(is_pub: false, name: variant.name, kind: ast.SymbolKind.Variant(variant), location: variant.location)
 				Struct(struct_def):
-					filler.add_tycon(id: struct_def.id, tycon: ast.TyCon.Struct(struct_def))
-					filler.define(is_pub: struct_def.is_pub, name: struct_def.id.name, kind: ast.SymbolKind.TypeConstructor(tycon: ast.TyCon.Struct(struct_def)), location: struct_def.location)
+					let tycon = ast.TyCon.Struct(struct_def)
+					filler.add_tycon(id: struct_def.id, tycon)
+					filler.define(is_pub: struct_def.is_pub, name: struct_def.id.name, kind: ast.SymbolKind.TypeConstructor(tycon), location: struct_def.location)
 					filler.enter_scope(scope: struct_def.scope)
 					for type_parameter in struct_def.type_parameters:
 						filler.define_type_parameter(type_parameter)
 					for field in struct_def.fields:
 						filler.define(is_pub: false, name: field.name, kind: ast.SymbolKind.Field(field), location: field.location)
 				Class(class_def):
-					filler.add_tycon(id: class_def.id, tycon: ast.TyCon.Class(class_def))
-					filler.define(is_pub: class_def.is_pub, name: class_def.id.name, kind: ast.SymbolKind.TypeConstructor(tycon: ast.TyCon.Class(class_def)), location: class_def.location)
+					let tycon = ast.TyCon.Class(class_def)
+					filler.add_tycon(id: class_def.id, tycon)
+					filler.define(is_pub: class_def.is_pub, name: class_def.id.name, kind: ast.SymbolKind.TypeConstructor(tycon), location: class_def.location)
 					filler.enter_scope(scope: class_def.scope)
 					for type_parameter in class_def.type_parameters:
 						filler.define_type_parameter(type_parameter)
+				Interface(interface_def):
+					let tycon = ast.TyCon.Interface(interface_def)
+					filler.add_tycon(id: interface_def.id, tycon)
+					filler.define(is_pub: interface_def.is_pub, name: interface_def.id.name, kind: ast.SymbolKind.TypeConstructor(tycon), location: interface_def.location)
+					filler.enter_scope(scope: interface_def.scope)
+				Impl(impl_def):
+					filler.enter_scope(scope: impl_def.scope)
 				Var(variable_def):
 					filler.define_variable(is_pub: variable_def.is_pub, variable: variable_def.variable)
 		Post:
@@ -276,7 +294,7 @@ fn symbol_to_kind(symbol: ast.Symbol) -> ast.ExpressionKind:
 		TypeConstructor(tycon):
 			ast.ExpressionKind.Typ(ty: ast.new_type(kind: ast.TypeKind.UnApp(tycon)))
 		Var(variable):
-			ast.ExpressionKind.VarRef(variable)
+			ast.ExpressionKind.VariableRef(variable)
 		Parameter(parameter_def):
 			ast.ExpressionKind.ParameterRef(parameter_def)
 	else:
@@ -380,10 +398,10 @@ class NameBinder:
 
 	pub fn define_variable(is_pub: bool, variable: ast.Variable):
 		define(is_pub, name: variable.id.name, kind: ast.SymbolKind.Var(variable), location: variable.location)
-	
+
 	pub fn define_type_parameter(type_parameter: ast.TypeParameter):
 		define(is_pub: false, name: type_parameter.id.name, kind: ast.SymbolKind.Typ(ty: ast.type_parameter_ref(type_parameter)), location: type_parameter.location)
-	
+
 	pub fn define_parameter(parameter_def: ast.ParameterDef):
 		define(is_pub: false, name: parameter_def.id.name, kind: ast.SymbolKind.Parameter(parameter_def), location: parameter_def.location)
 
@@ -394,7 +412,7 @@ class NameBinder:
 			add_error(location, message: "Symbol '{name}' is already defined")
 		else:
 			scope.define(is_pub, name, kind, location)
-	
+
 	pub fn lookup_expression_kind(name: str, location: Location) -> ast.ExpressionKind except SingleCompilationError:
 		let symbol = lookup_base_name(name, location)
 		symbol.add_reference(location)
@@ -482,10 +500,10 @@ class NameBinder:
 
 	pub fn enter_scope(scope: ast.Scope):
 		scopes.prepend(scope)
-	
+
 	pub fn leave_scope():
 		scopes.drop_front()
-	
+
 	pub fn add_error(location: Location, message: str):
 		let err = new_error(location, message)
 		errors.append(err)

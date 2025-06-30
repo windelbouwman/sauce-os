@@ -1,4 +1,5 @@
-
+""" Recursive descent slang-lang parser.
+"""
 import ast
 import std
 from lexer import Lexer
@@ -44,7 +45,7 @@ class Parser:
 		lex.init(source)
 		m_peek = lex.next_token()
 		m_peek2 = lex.next_token()
-	
+
 	pub fn parse_module(filename: str, name: str) -> ast.Module except CompilationError:
 		this.filename = Option.Some(filename)
 		this.modname = Option.Some(name)
@@ -75,7 +76,7 @@ class Parser:
 					break
 			else:
 				pass
-			
+
 			case tok.kind:
 				KwMacro:
 					let macro_def = parse_macro_def()
@@ -102,6 +103,12 @@ class Parser:
 				KwClass:
 					let class_def = parse_class_def(is_pub)
 					definitions.append(ast.Definition.Class(class_def))
+				KwInterface:
+					let interface_def = parse_interface_def(is_pub)
+					definitions.append(ast.Definition.Interface(interface_def))
+				KwImpl:
+					let impl_def = parse_impl_def(location: tok.location)
+					definitions.append(ast.Definition.Impl(impl_def))
 				KwVar:
 					let var_def = parse_var_def(is_pub)
 					definitions.append(ast.Definition.Var(var_def))
@@ -125,7 +132,7 @@ class Parser:
 				pass
 		else:
 			raise unexpected_token(tok, expected: "'import'")
-		
+
 		let names: List[ast.NameAtLocation] = List()
 
 		# list of names until newline:
@@ -184,7 +191,7 @@ class Parser:
 							raise unexpected_token(tok: tok4, expected: "',' or ')'")
 			else:
 				pass
-			
+
 			let variant = ast.EnumVariant:
 				name: variant_name_at.name
 				tag_value: tag_index
@@ -238,6 +245,7 @@ class Parser:
 		ast.struct_def(is_pub, name: name_at.name, id: new_id(), docstring, type_parameters, fields, location: name_at.location)
 
 	fn parse_class_def(is_pub: bool) -> ast.ClassDef except CompilationError:
+		""" Parse a class definition. """
 		let name_at = parse_name()
 		log_debug("Parsing class: {name_at.name}")
 		let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
@@ -246,7 +254,7 @@ class Parser:
 		parse_indent()
 		let docstring = parse_optional_docstring()
 
-		let inner_defs: List[ast.Definition] = List()
+		let definitions: List[ast.Definition] = List()
 		# TODO: create type instance per 'this' parameter
 		let this_type = ast.undefined_type()
 		loop:
@@ -265,11 +273,11 @@ class Parser:
 			case tok.kind:
 				KwVar:
 					let var_def = parse_var_def(is_pub: is_pub2)
-					inner_defs.append(ast.Definition.Var(var_def))
+					definitions.append(ast.Definition.Var(var_def))
 				KwFn:
 					let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
 					let func_def = parse_func_def(is_pub: is_pub2, this_parameter: Option.Some(this_parameter))
-					inner_defs.append(ast.Definition.Function(func_def))
+					definitions.append(ast.Definition.Function(func_def))
 			else:
 				raise unexpected_token(tok, expected: "'var' or 'fn'")
 
@@ -280,17 +288,88 @@ class Parser:
 			location: name_at.location
 			is_extern: Option.None()
 			type_parameters
-			definitions: inner_defs
+			definitions
 			scope: ast.Scope()
 
 		class_def.scope.class_scope = true
-		
+
 		# Prepare 'this' parameter:
 		let type_arguments: Vector[ast.Type] = new_vector()
 		for type_parameter in type_parameters:
 			type_arguments.append(ast.type_parameter_ref(type_parameter))
 		this_type.change_to(to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
 		class_def
+
+	fn parse_interface_def(is_pub: bool) -> ast.InterfaceDef except CompilationError:
+		""" Parse an interface definition. """
+		let name_at = parse_name()
+		log_debug("Parsing interface: {name_at.name}")
+		let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
+		parse_colon()
+		parse_newline()
+		parse_indent()
+		let docstring = parse_optional_docstring()
+
+		let this_type = ast.opaque_type()
+		let definitions: List[ast.Definition] = List()
+		loop:
+			let tok = get_token()
+
+			case tok.kind:
+				Dedent:
+					break
+				KwFn:
+					let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
+					let func_def = parse_func_decl_def(this_parameter: Option.Some(this_parameter))
+					definitions.append(ast.Definition.Function(func_def))
+			else:
+				raise unexpected_token(tok, expected: "'fn' or dedent")
+
+		let interface_def = ast.InterfaceDef:
+			is_pub
+			id: ast.NodeId(name: name_at.name, id: new_id())
+			type_parameters
+			docstring
+			location: name_at.location
+			definitions
+			scope: ast.Scope()
+		interface_def
+
+	fn parse_impl_def(location: Location) -> ast.ImplDef except CompilationError:
+		log_debug("Parsing interface implementation")
+		let interface_type = parse_type()
+		parse_kw_for()
+		let target_type = parse_type()
+		parse_colon()
+		parse_newline()
+		parse_indent()
+		let docstring = parse_optional_docstring()
+
+		let this_type = target_type
+		let definitions: List[ast.Definition] = List()
+		loop:
+			let tok = get_token()
+
+			case tok.kind:
+				Dedent:
+					break
+				KwFn:
+					let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
+					let func_def = parse_func_def(is_pub: true, this_parameter: Option.Some(this_parameter))
+					definitions.append(ast.Definition.Function(func_def))
+			else:
+				raise unexpected_token(tok, expected: "'fn' or dedent")
+
+		let impl_def = ast.ImplDef:
+			id: ast.NodeId(name: "impl", id: new_id())
+			interface_type
+			target_type
+			docstring
+			location
+			definitions
+			scope: ast.Scope()
+
+		impl_def
 
 	fn parse_func_def(is_pub: bool, this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except CompilationError:
 		let name_at = parse_name()
@@ -313,7 +392,7 @@ class Parser:
 		let body = ast.compound(inner, location)
 
 		ast.function_def(is_pub, name: name_at.name, docstring, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, body, location: name_at.location)
-	
+
 	fn parse_extern_func_def(libname: str) -> ast.FunctionDef except CompilationError:
 		let is_pub = true
 		let name_at = parse_name()
@@ -324,6 +403,14 @@ class Parser:
 		let docstring: Option[str] = Option.None()
 		parse_newline()
 		ast.extern_function_def(is_pub, libname, name, docstring, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
+
+	fn parse_func_decl_def(this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except CompilationError:
+		let name_at = parse_name()
+		let type_parameters = parse_type_parameters()
+		let parameters = parse_parameters()
+		let info = parse_function_info()
+		parse_newline()
+		ast.function_decl_def(name: name_at.name, type_parameters, this_parameter, parameters, return_type: info.return_type, except_type: info.except_type, location: name_at.location)
 
 	fn parse_parameters() -> List[ast.ParameterDef] except CompilationError:
 		let parameters: List[ast.ParameterDef] = List()
@@ -375,7 +462,7 @@ class Parser:
 		parse_colon()
 		let ty = parse_type()
 		ast.parameter_def(name: name_at.name, id: new_id(), label_is_optional, ty, location: name_at.location)
-	
+
 	fn parse_optional_docstring() -> Option[str] except CompilationError:
 		case m_peek.kind:
 			DocString(value):
@@ -403,11 +490,11 @@ class Parser:
 		let var_init: Option[ast.Expression] = case m_peek.kind:
 			Equals:
 				move_token()
-				Option.Some(parse_expression())
+				Option.Some(parse_big_expression())
 		else:
+			parse_newline()
 			Option.None()
 
-		parse_newline()
 		let variable = ast.variable(name, id: new_id(), ty, location: name_at.location)
 		ast.VariableDef(is_pub, variable, value: ast.VariableDefValue.Intern(value: var_init))
 
@@ -507,7 +594,7 @@ class Parser:
 		ast.array_type(element_type, size: 0)
 
 	fn parse_block() -> ast.Statement except CompilationError:
-		# parse block of statements.
+		""" parse block of statements. """
 		log_trace("parsing block")
 
 		parse_colon()
@@ -520,7 +607,7 @@ class Parser:
 			inner.append(statement)
 		let location = inner.first().location
 		ast.compound(inner, location)
-	
+
 	pub fn parse_statement() -> ast.Statement except CompilationError:
 		log_trace("parsing statement")
 		case m_peek.kind:
@@ -583,19 +670,19 @@ class Parser:
 				ast.expression_statement(expr: parse_obj_init(obj_ty: expr, location: tok.location))
 		else:
 			raise unexpected_token(tok, expected: "newline, ':', '=', '+=', '-=', '*=' or '/='")
-	
+
 	fn parse_assignement_expression(target: ast.Expression, op: Option[ast.BinaryOperator], location: Location) -> ast.Statement except CompilationError:
 		let value = parse_expression()
 		parse_newline()
 		ast.assignment_statement(target, op, value, location)
-	
+
 	fn parse_let_statement() -> ast.Statement except CompilationError:
 		let location = get_token().location
 		let name_at = parse_name()
 		let var_name = name_at.name
 		let var_type = ast.undefined_type()
 		let variable = ast.variable(name: var_name, id: new_id(), ty: var_type, location: name_at.location)
-		
+
 		let type_hint: Option[ast.Type] = case m_peek.kind:
 			Colon:
 				move_token()
@@ -605,8 +692,12 @@ class Parser:
 			Option.None()
 
 		parse_equals()
+		let value = parse_big_expression()
+		ast.let_statement(variable, type_hint, value, location)
 
-		let value = case m_peek.kind:
+	fn parse_big_expression() -> ast.Expression except CompilationError:
+		""" A potentially big multi-line expression occurring at the end of the line. """
+		case m_peek.kind:
 			KwIf:
 				ast.statement_expression(statement: parse_if_statement())
 			KwCase:
@@ -614,30 +705,28 @@ class Parser:
 			KwSwitch:
 				ast.statement_expression(statement: parse_switch_statement())
 		else:
-			let value2 = parse_expression()
+			let value = parse_expression()
 
 			let tok = get_token()
 			case tok.kind:
 				NewLine:
-					value2
+					value
 				Colon:
-					parse_obj_init(obj_ty: value2, location: tok.location)
+					parse_obj_init(obj_ty: value, location: tok.location)
 			else:
 				raise unexpected_token(tok, expected: "newline or ':'")
-		
-		ast.let_statement(variable, type_hint, value, location)
-	
+
 	fn parse_obj_init(obj_ty: ast.Expression, location: Location) -> ast.Expression except CompilationError:
 		# Obj initializer!
 		parse_newline()
 		parse_indent()
-		
+
 		let obj_fields: List[ast.LabeledExpression] = List()
 		while not try_parse_dedent():
 			obj_fields.append(parse_labeled_expression())
 			parse_newline()
 		ast.call(callee: obj_ty, arguments: obj_fields, ty: ast.undefined_type(), location)
-	
+
 	fn parse_labeled_expression() -> ast.LabeledExpression except CompilationError:
 		# Parse ID ':' expression | expression
 		case m_peek.kind:
@@ -670,7 +759,7 @@ class Parser:
 
 		let condition = parse_expression()
 		let true_block = parse_block()
-		
+
 		# else-block or elif-block:
 		let false_block = case m_peek.kind:
 			KwElse:
@@ -680,9 +769,9 @@ class Parser:
 				parse_if_statement()
 		else:
 			ast.pass_statement(location)
-		
+
 		ast.if_statement(condition, body: true_block, false_body: false_block, location)
-	
+
 	fn parse_while_statement() -> ast.Statement except CompilationError:
 		let location = get_token().location
 		let condition = parse_expression()
@@ -738,12 +827,12 @@ class Parser:
 		parse_colon()
 		parse_newline()
 		parse_indent()
-		
+
 		let case_arms: List[ast.CaseArm] = List()
 		while not try_parse_dedent():
 			let name_at = parse_name()
 			case_arms.append(parse_case_arm(name: name_at.name, location: name_at.location))
-		
+
 		# Parse optional 'else' block
 		let else_clause = case m_peek.kind:
 			KwElse:
@@ -751,9 +840,9 @@ class Parser:
 				Option.Some(parse_block())
 		else:
 			Option.None()
-		
+
 		ast.case_statement(value: case_value, arms: case_arms, else_clause, location)
-	
+
 	fn parse_case_arm(name: str, location: Location) -> ast.CaseArm except CompilationError:
 		let variables: List[ast.Variable] = List()
 		# Eventual payload values to unpack:
@@ -764,7 +853,7 @@ class Parser:
 					let name_at = parse_name()
 					let variable = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
 					variables.append(variable)
-					
+
 					let tok = get_token()
 					case tok.kind:
 						ParenthesisClose:
@@ -783,7 +872,7 @@ class Parser:
 			name
 			variables: variables
 			block: ast.scoped_block(body: statement)
-	
+
 	fn parse_switch_statement() -> ast.Statement except CompilationError:
 		let location = get_token().location
 		let switch_value = parse_expression()
@@ -795,7 +884,7 @@ class Parser:
 			let value = parse_expression()
 			let block = ast.scoped_block(body: parse_block())
 			arms.append(ast.SwitchArm(location: value.location, value, block))
-		
+
 		parse_kw_else()
 		let default_body = parse_block()
 		ast.switch_statement(value: switch_value, arms, default_body, location)
@@ -825,7 +914,7 @@ class Parser:
 
 	fn parse_expression2(min_prec: int) -> ast.Expression except CompilationError:
 		let expr = parse_unary()
-		
+
 		loop:
 			# Determine next token and new precedence
 			let prec = 0
@@ -884,12 +973,12 @@ class Parser:
 					prec = 80
 			else:
 				break
-			
+
 			if prec < min_prec:
 				break
 
 			move_token()
-			
+
 			let rhs = parse_expression2(min_prec: prec + 1)
 			let location = Location(begin: expr.location.begin, end: rhs.location.end)
 			expr = ast.binop(lhs: expr, op, rhs, ty: ast.undefined_type(), location)
@@ -1031,7 +1120,7 @@ class Parser:
 				raise unexpected_token(tok: tok4, expected: "']' or ','")
 		let location = Location(begin, end)
 		ast.subscript(base, indici, ty: ast.undefined_type(), location)
-	
+
 	fn parse_call_suffix(callee: ast.Expression) -> ast.Expression except CompilationError:
 		# print("CALL")
 		# Handle '(arg1,arg2)' suffix
@@ -1060,13 +1149,13 @@ class Parser:
 
 		let location = Location(begin, end)
 		ast.call(callee, arguments, ty: ast.undefined_type(), location)
-	
+
 	fn parse_array_literal(location: Location) -> ast.Expression except CompilationError:
 		let values: List[ast.Expression] = List()
 		loop:
 			let value = parse_expression()
 			values.append(value)
-			
+
 			let tok5 = get_token()
 			case tok5.kind:
 				BracketClose:
@@ -1079,7 +1168,7 @@ class Parser:
 			else:
 				raise unexpected_token(tok: tok5, expected: "',', ':' or ']'")
 		ast.array_literal(values, location)
-	
+
 	fn parse_array_literal2(size: ast.Expression, location: Location) -> ast.Expression except CompilationError:
 		let ty = parse_type()
 		let tok5 = get_token()
@@ -1164,6 +1253,14 @@ class Parser:
 				pass
 		else:
 			raise unexpected_token(tok, expected: "'else'")
+
+	fn parse_kw_for() except CompilationError:
+		let tok = get_token()
+		case tok.kind:
+			KwFor:
+				pass
+		else:
+			raise unexpected_token(tok, expected: "'for'")
 
 	fn parse_colon() except CompilationError:
 		case m_peek.kind:
