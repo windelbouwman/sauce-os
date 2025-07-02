@@ -1,7 +1,7 @@
 """ Set datatype, build upon the HashMap datatype.
 """
 
-from datatypes import Option
+from optiontype import Option
 from hashmap import HashMap, HashMapIter, new_hashmap, int_hash, int_eq, str_hash, str_eq
 
 pub fn new_set[T](f_hash: fn(T) -> int, f_eq: fn(T,T) -> bool) -> Set[T]:
@@ -27,7 +27,7 @@ pub class Set[T]:
 
 	pub fn remove(value?: T):
 		let stub = m_items.pop(key: value)
-	
+
 	pub fn clear():
 		m_items.clear()
 

@@ -7,7 +7,7 @@ from std import ord, chr, str_slice, str_len
 from token import Token, TokenKind
 from location import Location, location_at
 from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab
-from datatypes import List
+from listtype import List
 from deque import Queue, new_queue
 from hashmap import HashMap, new_hashmap_str
 

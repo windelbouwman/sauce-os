@@ -6,7 +6,7 @@ WebAssembly support.
 
 """
 
-from datatypes import List
+from listtype import List
 from std import float_to_str, print
 from strlib import str_join
 

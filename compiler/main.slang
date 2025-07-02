@@ -14,7 +14,8 @@ from pygenerator import gen_python
 from basepass import IdGen
 from transforms import transform
 from builtins import get_rt_module
-from datatypes import List, option_unwrap, Option
+from listtype import List
+from optiontype import option_unwrap, Option
 from hashmap import HashMap, new_hashmap_str
 from strlib import lexical_sort
 from graphlib import DiGraph, topological_sort

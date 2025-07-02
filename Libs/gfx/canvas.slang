@@ -1,7 +1,7 @@
 
 # Idea: a canvas like API!
 from utils import panic, log_info
-from datatypes import Option
+from optiontype import Option
 from xml import Node, emit_xml
 
 pub class Canvas:
@@ -47,10 +47,10 @@ pub class Canvas:
 				pass
 		n.add_content(text)
 		add_node(n)
-	
+
 	fn draw_rect(x: int, y: int):
 		panic("TODO")
-	
+
 	pub fn draw_line(x1: int, y1: int, x2: int, y2: int):
 		# panic("TODO")
 		let n = Node(tag: "line")

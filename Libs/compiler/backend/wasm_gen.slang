@@ -12,7 +12,8 @@
 import webassembly
 import ast
 from webassembly import Instruction
-from datatypes import List, list1, Option
+from listtype import List, list1
+from optiontype import Option
 from hashmap import HashMap, new_hashmap_str
 from location import location_default
 from std import str_len, ord

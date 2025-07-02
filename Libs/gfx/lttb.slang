@@ -1,7 +1,7 @@
 
 # Largest Triangle Three Bucket (LTTB) algorithm
 
-from datatypes import List
+from listtype import List
 from math import floor, fabs
 from chart import DataPoint
 
@@ -16,7 +16,7 @@ pub fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
 	let data_length: int = values.len()
 	if threshold >= data_length:
 		return values
-	
+
 	let bucket_size: float = float(data_length - 2) / float(threshold - 2)
 	let sampled: List[DataPoint] = List()
 

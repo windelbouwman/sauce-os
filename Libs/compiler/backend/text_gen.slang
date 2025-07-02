@@ -2,7 +2,7 @@
 # Helper class to emit text code
 
 from std import file_writeln, file_write, file_open, file_close, file_get_stdout
-from datatypes import Option, option_is_some, option_unwrap
+from optiontype import Option, option_is_some, option_unwrap
 
 pub class TextGenerator:
 	var m_indentation: int = 0

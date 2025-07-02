@@ -4,7 +4,7 @@
 from std import str_len
 from utils import unimplemented
 from strlib import split_lines
-from datatypes import List
+from listtype import List
 
 pub class Assembler:
 	var m_line_parser: LineParser = LineParser()
@@ -22,7 +22,7 @@ class LineParser:
 	var m_tokenizer: Tokenizer = Tokenizer()
 
 	pub fn parse_line(line: str) -> ParsedLine:
-		# Parse a single line 
+		# Parse a single line
 		m_tokenizer.set_line(line)
 
 		let tok = next_token()
@@ -39,15 +39,15 @@ class LineParser:
 				unimplemented("empty")
 		else:
 			unexpected(tok, expected: "id, comment or empty line")
-		
+
 		unimplemented("parse_line")
-	
+
 	fn unexpected(tok: Token, expected: str):
 		error("Got {tok}, expected: {expected}")
 
 	fn error(message?: str):
 		pass
-	
+
 	fn next_token() -> Token:
 		m_tokenizer.next_token()
 
@@ -74,7 +74,7 @@ class Token:
 
 	pub fn to_string() -> str:
 		"T"
-	
+
 enum TokenKind:
 	Id(value: str)
 	Number(value: int)

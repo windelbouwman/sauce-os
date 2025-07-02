@@ -1,7 +1,7 @@
 
 
 from std import print
-from datatypes import List
+from listtype import List
 from unittest import assert_int_equals, assert_true
 
 

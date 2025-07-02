@@ -7,7 +7,8 @@ Features of this pass:
 
 """
 
-from datatypes import List, Option
+from listtype import List
+from optiontype import Option
 from bytes import Bytes, bytes_from_ascii
 from utils import log_info, panic, unimplemented
 import bc
@@ -65,7 +66,7 @@ class SilGen:
 				set_current_block(new_block(name))
 			gen_opcode(opcode)
 			index += 1
-		
+
 		let sil_function = sil.Function(name: function.name, start, blocks: m_blocks)
 		m_functions.append(sil_function)
 
@@ -153,14 +154,14 @@ class SilGen:
 					let function = m_bc_program.functions[index]
 					let callee = new_global(function.name)
 					gen_call(callee, n_args: function.parameters.len(), return_type: function.return_type)
-				
+
 			Return(v):
 				emit(sil.OpCode.Return(value: Option.None()))
 			Unreachable:
 				emit(sil.OpCode.Halt())
 		else:
 			unimplemented(bc.instruction_to_string(opcode))
-	
+
 	fn gen_call(callee: sil.Value, n_args: int, return_type: Option[bc.Type]):
 		let arguments = pop_n(count: n_args)
 		case return_type:
@@ -175,26 +176,26 @@ class SilGen:
 		let block = sil.Block(name, instructions: List())
 		m_blocks.append(block)
 		block
-	
+
 	fn new_tmp() -> sil.Value:
 		sil.Value.Tmp(name: "x{new_id()}")
-	
+
 	fn new_id() -> int:
 		m_tmp_number += 1
 		m_tmp_number
-	
+
 	fn new_global(name?: str) -> sil.Value:
 		sil.Value.Global(name)
-	
+
 	fn add_data_blob(data?: Bytes) -> sil.Value:
 		# TODO: we have a chance to deduplicate blobs here!
 		let name = "lit_{new_id()}"
 		m_blobs.append(sil.DataBlob(name, data))
 		sil.Value.Global(name)
-	
+
 	fn push_int(value?: int):
 		push(sil.Value.Integer(value))
-	
+
 	fn push(value?: sil.Value):
 		m_value_stack.append(value)
 

@@ -1,5 +1,6 @@
 
-from datatypes import List, Option
+from listtype import List
+from optiontype import Option
 from math import min
 from sorting import sort_list
 from std import str_slice, str_len, ord, chr
@@ -189,7 +190,7 @@ pub fn trim(text?: str) -> str:
 			i += 1
 		else:
 			break
-	
+
 	while n > i:
 		n -= 1
 		if is_whitespace(text[n]):

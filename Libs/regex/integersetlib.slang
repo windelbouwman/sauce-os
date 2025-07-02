@@ -1,6 +1,7 @@
 
-# Implementation of range-set 
-from datatypes import List, option_is_some, option_unwrap, Option
+# Implementation of range-set
+from listtype import List
+from optiontype import option_is_some, option_unwrap, Option
 from rangelib import Range, range_contains, range_to_string
 from utils import assert, panic
 from strlib import str_join
@@ -15,10 +16,10 @@ pub class IntegerSet:
 		for r in ranges:
 			parts.append(range_to_string(r))
 		str_join(parts, sep: ",")
-	
+
 	pub fn equals(other: IntegerSet) -> bool:
 		integer_set_equals(a: this, b: other)
-	
+
 	pub fn is_empty() -> bool:
 		ranges.len() == 0
 
@@ -27,10 +28,10 @@ pub class IntegerSet:
 			if range_contains(self: range, value):
 				return true
 		false
-	
+
 	pub fn difference(other: IntegerSet) -> IntegerSet:
 		integer_set_difference(self: this, other)
-	
+
 	pub fn union(other: IntegerSet) -> IntegerSet:
 		integer_set_intersection(self: this, other)
 
@@ -88,7 +89,7 @@ fn integer_set_intersection(self: IntegerSet, other: IntegerSet) -> IntegerSet:
 		let end = min(a: rr.end, b: ss.end)
 		if begin < end:
 			ranges.append(Range(begin, end))
-		
+
 		if not (rr.end > end):
 			r = i.next()
 

@@ -1,6 +1,7 @@
 
 import ast
-from datatypes import List, Option, list1, list2
+from listtype import List, list1, list2
+from optiontype import Option
 from vectype import new_vector
 from location import location_default
 

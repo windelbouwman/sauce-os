@@ -3,7 +3,8 @@ A graph consists of nodes and edges between them.
 There are directed and undirected graph types.
 """
 
-from datatypes import List, Option
+from listtype import List
+from optiontype import Option
 from settype import new_str_set, Set
 from hashmap import HashMap, new_hashmap_str
 
@@ -19,13 +20,13 @@ pub class DiGraph:
 			# TODO: assert n not in pred and succ?
 			pred.insert(key: n, value: new_str_set())
 			succ.insert(key: n, value: new_str_set())
-	
+
 	pub fn add_edge(src: str, dst: str):
 		add_node(src)
 		add_node(dst)
 		succ.get(key: src).add(dst)
 		pred.get(key: dst).add(src)
-	
+
 	pub fn remove_edge(src: str, dst: str):
 		# Remove edge from src to dst
 		succ.get(key: src).remove(dst)
@@ -37,7 +38,7 @@ pub class DiGraph:
 				s.contains(dst)
 			None:
 				false
-	
+
 	pub fn successors(n?: str) -> Set[str]:
 		succ.get(key: n)
 
@@ -47,7 +48,7 @@ pub class DiGraph:
 				return not p.is_empty()
 			None:
 				false
-	
+
 	pub fn has_edges() -> bool:
 		for n in nodes:
 			let pred2 = pred.get(key: n)
@@ -68,7 +69,7 @@ pub fn topological_sort(g?: DiGraph) -> Option[List[str]]:
 	for n1 in g.nodes:
 		if not g.has_preds(n1):
 			S.append(n1)
-	
+
 	while not S.is_empty():
 		let n2 = S.pop_front()
 		result.append(n2)
@@ -77,7 +78,7 @@ pub fn topological_sort(g?: DiGraph) -> Option[List[str]]:
 				g.remove_edge(src: n2, dst: n3)
 				if not g.has_preds(n3):
 					S.append(n3)
-	
+
 	if g.has_edges():
 		# We detected a dependency cycle
 		Option.None()
@@ -99,13 +100,13 @@ pub class Graph:
 		add_node(dst)
 		m_neighbours.get(key: src).add(dst)
 		m_neighbours.get(key: dst).add(src)
-	
+
 	pub fn has_edge(src?: str, dst?: str) -> bool:
 		if m_neighbours.contains(key: src):
 			m_neighbours.get(key: src).contains(key: dst)
 		else:
 			false
-	
+
 	pub fn neighbours(n?: str) -> Set[str]:
 		m_neighbours.get(key: n)
 
@@ -121,7 +122,7 @@ fn bron_kerbosch(r: Set[str], p: Set[str], x: Set[str], g: Graph, output: List[S
 	"""
 	if p.is_empty() and x.is_empty():
 		output.append(r)
-	
+
 	for v in p:
 		let n = g.neighbours(v)
 		let v_set = new_str_set()

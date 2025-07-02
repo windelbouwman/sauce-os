@@ -1,7 +1,7 @@
 
 # Geometry function library.
 
-from datatypes import List
+from listtype import List
 from math import abs
 
 pub struct Point:
@@ -30,9 +30,9 @@ pub fn shoelace(points: List[Point]) -> float:
 			p2 = points.get(index: i + 1)
 		else:
 			p2 = points.get(index: 0)
-		
+
 		s += p1.x * p2.y - p2.x * p1.y
 		i += 1
-	
+
 	# TODO: is abs part of shoelacing?
 	abs(s) / 2.0

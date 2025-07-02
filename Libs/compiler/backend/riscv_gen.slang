@@ -22,7 +22,7 @@
 import sil
 from std import print
 import riscv
-from datatypes import Option
+from optiontype import Option
 from register_allocation import MachineInstruction, MachineBlock, MachineFunction, reg_alloc
 from vectype import Vector, new_vector # , vec1
 from utils import log_info, unimplemented, panic
@@ -52,7 +52,7 @@ pub class BinaryOutput:
 		if not sections.contains(key: name):
 			sections.insert(key: name, value: ByteArray())
 		current_section = Option.Some(name)
-	
+
 	fn write(data: Bytes):
 		case current_section:
 			Some(name):
@@ -101,7 +101,7 @@ class RiscvGen:
 			for instruction in block.instructions:
 				gen_instruction(instruction)
 			mblocks.append(MachineBlock(name: block.name, instructions: codes))
-		
+
 		MachineFunction(name: function.name, blocks: mblocks)
 
 	fn gen_instruction(instruction: sil.Instruction):
@@ -146,7 +146,7 @@ class RiscvGen:
 						emit(riscv.Instruction.JALR(rd: 1, rs1: 9, imm: 0))
 				else:
 					unimplemented("Call: {sil.value_to_string(callee)}")
-				
+
 				# Eventually gather return value
 				case dst:
 					Some(value):
@@ -214,7 +214,7 @@ class RiscvGen:
 		let uses: Vector[int] = new_vector()
 		let defs: Vector[int] = new_vector()
 		emit_full(instruction, uses, defs)
-	
+
 	fn emit_full(instruction?: riscv.Instruction, uses: Vector[int], defs: Vector[int]):
 		let relocation: Option[riscv.Relocation] = Option.None()
 		let minst = MachineInstruction(instruction, uses, defs, relocation)

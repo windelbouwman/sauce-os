@@ -6,7 +6,7 @@ import std
 from std import print, str_len
 from httpclient import parse_header, Header
 from utils import panic, log_error, log_debug
-from datatypes import List
+from listtype import List
 from bytes import ByteArray, bytes_to_ascii
 from json import parse_json, JsonException, JsonValue, json_to_string
 from strlib import trim, str_to_int
@@ -58,7 +58,7 @@ fn recv_request() -> JsonValue:
 		else:
 			log_debug("Header not supported: {header.name}")
 			pass
-	
+
 	if n == 0:
 		log_debug("No content length!")
 		return JsonValue.Null()

@@ -3,7 +3,8 @@
 
 import ast
 from utils import panic, log_info
-from datatypes import List, option_unwrap, Option
+from listtype import List
+from optiontype import option_unwrap, Option
 from std import float_to_str2, str_len, str_slice
 from strlib import str_join
 from text_gen import TextGenerator

@@ -3,7 +3,7 @@
 # See also: https://en.wikipedia.org/wiki/Intel_HEX
 
 from std import print
-from datatypes import List
+from listtype import List
 from bytes import ByteArray, Bytes
 from utils import assert
 
@@ -17,10 +17,10 @@ pub class HexFile:
 		for part in to_chunks(data):
 			add_record(address: address + offset, record: 0, data: part)
 			offset += part.len()
-	
+
 	pub fn add_eof():
 		add_record(address: 0, record: 1, data: ByteArray().to_bytes())
-	
+
 	fn add_record(address: int, record: int, data: Bytes):
 		let line = HexLine(address: address, record, data)
 		m_lines.append(line)

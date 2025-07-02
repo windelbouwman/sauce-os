@@ -3,7 +3,8 @@
 
 from std import float_to_str, float_to_str2
 from math import floor, log10, powf, fabs, fmin, fmax
-from datatypes import List, Option
+from listtype import List
+from optiontype import Option
 from sorting import find_min_value
 from utils import log_info, assert
 from canvas import Canvas, HorizontalAnchor, VerticalAnchor
@@ -31,7 +32,7 @@ pub class Chart:
 		let c = Curve(points, color)
 		m_curves.append(c)
 		c
-	
+
 	pub fn add_curve(name: str, points: List[DataPoint]):
 		let color = new_color()
 		let c = Curve(points, color)
@@ -65,7 +66,7 @@ pub class Chart:
 				m_x_axis.upper = span.x_max
 				m_y_axis.lower = span.y_min
 				m_y_axis.upper = span.y_max
-	
+
 	pub fn autoscale_x():
 		""" Adjust x-axis to fit all data """
 		log_info("Autoscale-x")
@@ -112,7 +113,7 @@ class Axis:
 	pub fn scale(factor: float):
 		lower *= factor
 		upper *= factor
-	
+
 	pub fn pan(delta: float):
 		lower += delta
 		upper += delta
@@ -238,7 +239,7 @@ fn calc_tick_values(axis: Axis, n_ticks: int) -> List[TickValue]:
 	x = x - 2 * tick_width
 	while x < axis.lower:
 		x += tick_width
-	
+
 	let digits = 0
 	if scale > 0:
 		digits = 0
@@ -304,7 +305,7 @@ class ChartDrawer:
 		for x in m_x_ticks:
 			draw_line(x1: x.value, y1: m_height - m_axis_tick_size, x2: x.value, y2: m_height)
 			draw_text(x: x.value, y: m_height + m_axis_tick_size, text: x.text, halign: HorizontalAnchor.Middle(), valign: VerticalAnchor.Top())
-		
+
 	fn draw_y_axis():
 		# Draw y-axis:
 		set_width(2)

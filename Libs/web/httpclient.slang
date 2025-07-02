@@ -1,7 +1,7 @@
 
 from utils import unimplemented, log_info, log_debug, assert
 from std import str_len
-from datatypes import List
+from listtype import List
 from strlib import split_string, str_to_int, trim
 from urlparse import parse_url
 
@@ -22,7 +22,7 @@ class HttpClient:
 
 	fn connect():
 		unimplemented("connect")
-	
+
 	fn disconnect():
 		unimplemented("disconnect")
 

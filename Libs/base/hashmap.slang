@@ -4,8 +4,8 @@ Hash map data type.
 Idea: have an array with buckets.
 """
 
-from datatypes import Option, option_unwrap, option_is_some
-from datatypes import List
+from optiontype import Option, option_unwrap, option_is_some
+from listtype import List
 from std import print, ord
 from utils import panic
 from rt import str_compare
@@ -80,10 +80,10 @@ pub class HashMap[K,V]:
 
 	pub fn contains(key: K) -> bool:
 		option_is_some(maybe_get(key))
-	
+
 	pub fn get(key: K) -> V:
 		option_unwrap(maybe_get(key))
-	
+
 	pub fn get_or_else(key: K, default: V) -> V:
 		case maybe_get(key):
 			Some(value):
@@ -162,7 +162,7 @@ pub class HashMap[K,V]:
 
 	pub fn len() -> int:
 		m_size
-	
+
 	pub fn clear():
 		create_buckets(n: num_buckets)
 
@@ -187,7 +187,7 @@ pub class HashMap[K,V]:
 					None:
 						break
 			i += 1
-	
+
 	fn create_buckets(n: int):
 		num_buckets = n
 		m_threshold = (n * 3) / 4  # Rehash at load factor of 75%

@@ -1,6 +1,7 @@
 
 from std import print, read_file, str_get
-from datatypes import List, Option
+from listtype import List
+from optiontype import Option
 from strlib import split_lines, str_repeat, str_pad_right, is_lf, is_tab
 from location import Location, Position
 

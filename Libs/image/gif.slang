@@ -1,7 +1,7 @@
 
 # GIF fileformat
 from utils import unimplemented, panic, assert, log_debug, log_trace
-from datatypes import List
+from listtype import List
 from bytes import Bytes, new_bytes, ByteReader, ByteArray
 from bytes import bytes_to_ascii, fill_bytes
 from vectype import Vector, new_vector
@@ -57,7 +57,7 @@ class GifReader:
 				unimplemented("Block type: {block_type}")
 
 		m_images
-	
+
 	fn read_extension():
 		let label = read_u8()
 		if label == 0xF9: # Graphic control
@@ -126,7 +126,7 @@ class GifReader:
 			m_version = Version.GIF87a()
 		else:
 			panic("Invalid version: {header}")
-	
+
 	fn read_logical_screen_descriptor():
 		m_width = read_u16()
 		m_height = read_u16()
@@ -139,7 +139,7 @@ class GifReader:
 		let background_color = read_u8()
 		let aspect_ration = read_u8()
 		log_trace("Logical screen descriptor: width={m_width} height={m_height}")
-	
+
 	fn read_color_table(size: int) -> Vector[Color]:
 		log_trace("Reading pallete with {size} colors")
 		let palette: Vector[Color] = new_vector()
@@ -151,14 +151,14 @@ class GifReader:
 			palette.append(Color(r, g, b))
 			index += 1
 		palette
-	
+
 	fn read_text(size: int) -> str:
 		let data = m_byte_reader.read_bytes(size)
 		bytes_to_ascii(data)
 
 	fn read_u16() -> int:
 		m_byte_reader.read_u16_le()
-	
+
 	fn read_u8() -> int:
 		m_byte_reader.read_byte()
 
@@ -243,7 +243,7 @@ class LzwDecoder:
 		m_bitcnt -= n
 		let mask = ((1 << n) - 1)
 		value & mask
-	
+
 	fn emit(data?: Bytes):
 		m_output.extend(data)
 

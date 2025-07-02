@@ -6,7 +6,8 @@ from std import float_to_str
 from strlib import str_join
 import ast
 from text_gen import TextGenerator
-from datatypes import Option, option_unwrap, List
+from optiontype import Option, option_unwrap
+from listtype import  List
 
 pub fn gen_slang(module_set: ast.ModuleSet, output_filename: Option[str]):
 	""" Create slang-lang source code."""

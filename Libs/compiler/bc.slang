@@ -1,6 +1,7 @@
 
 from std import float_to_str
-from datatypes import List, Option
+from listtype import List
+from optiontype import Option
 from settype import Set, new_int_set
 from vectype import Vector
 from utils import panic
@@ -61,7 +62,7 @@ pub fn get_element_type_from_type(ty?: Type) -> Type:
 pub enum Instruction:
 	Nop
 	Dup  # Duplicate stack top
-	
+
 	Literal(literal: LiteralValue)
 
 	Not
@@ -367,7 +368,7 @@ class Printer:
 		for instruction in instructions:
 			emit("{index}: {instruction_to_string(instruction)}")
 			index += 1
-	
+
 	fn indent():
 		m_out.indent()
 

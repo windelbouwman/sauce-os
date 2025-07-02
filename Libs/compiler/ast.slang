@@ -3,7 +3,8 @@ from std import print, float_to_str
 from strlib import str_repeat, str_join
 from utils import panic, assert, log_info, log_error
 from location import Location, location_default
-from datatypes import List, Option, option_unwrap, option_is_some
+from listtype import List
+from optiontype import Option, option_unwrap, option_is_some
 from vectype import Vector, new_vector_with_capacity
 from hashmap import HashMap, new_hashmap_str, new_hashmap, str_hash
 

@@ -4,8 +4,8 @@
 from std import print, str_len
 from std import file_writeln, file_open, file_close
 from utils import unimplemented
-from datatypes import List
-from datatypes import Option, option_unwrap, option_is_some
+from listtype import List
+from optiontype import Option, option_unwrap, option_is_some
 from strlib import str_join, str_repeat
 
 pub class Node:
@@ -20,7 +20,7 @@ pub class Node:
 
 	pub fn add_child(node?: Node):
 		m_child_nodes.append(node)
-	
+
 	pub fn add_content(text: str):
 		m_content = m_content + text
 
@@ -80,13 +80,13 @@ class XmlWriter:
 		for attribute in attributes:
 			parts.append(attribute_to_string(attribute))
 		str_join(parts, sep: " ")
-	
+
 	fn attribute_to_string(attribute: Attribute) -> str:
 		"{attribute.name}=\"{attribute.value}\""
 
 	fn indent():
 		indentation += 1
-	
+
 	fn dedent():
 		indentation -= 1
 

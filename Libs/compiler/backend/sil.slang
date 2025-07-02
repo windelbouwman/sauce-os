@@ -17,7 +17,8 @@ See: https://c9x.me/compile/doc/il.html
 
 from std import print
 from bytes import Bytes
-from datatypes import List, Option
+from listtype import List
+from optiontype import Option
 from strlib import str_join
 
 pub class Program:

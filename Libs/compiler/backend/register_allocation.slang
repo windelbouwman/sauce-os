@@ -5,7 +5,7 @@ This function is machine independant. It assigns colors to use / def registers.
 
 from utils import log_info
 from vectype import Vector
-from datatypes import Option
+from optiontype import Option
 
 pub fn reg_alloc[X,R](mfunc: MachineFunction[X,R]):
 	""" Implement iterated register allocation """

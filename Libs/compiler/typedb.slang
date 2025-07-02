@@ -3,7 +3,8 @@
 
 from utils import unimplemented, panic
 from utils import log_info, log_debug, log_trace
-from datatypes import List, Option, option_is_some
+from listtype import List
+from optiontype import Option, option_is_some
 from vectype import Vector, new_vector, new_vector_with_capacity
 from hashmap import HashMap
 from pathlib import basename

@@ -1,5 +1,5 @@
 
-from datatypes import List
+from listtype import List
 
 pub fn find_min_value[T](values: List[T], cmp: fn(T, T) -> bool) -> T:
 	let sorted = sort_list(values, cmp)

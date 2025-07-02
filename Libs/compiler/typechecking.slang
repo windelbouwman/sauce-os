@@ -3,7 +3,8 @@ Type checking logic.
 """
 
 import ast
-from datatypes import Option, List, option_unwrap, option_is_none
+from optiontype import Option, option_unwrap, option_is_none
+from listtype import List
 from vectype import Vector
 from strlib import str_join
 from settype import new_str_set

@@ -2,7 +2,8 @@
 # Unit testing helper functions.
 
 from utils import assert
-from datatypes import List, option_unwrap
+from listtype import List
+from optiontype import option_unwrap
 from std import float_to_str
 from math import fabs
 from bytes import Bytes

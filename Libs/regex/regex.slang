@@ -4,7 +4,8 @@ Regex library
 
 from std import str_get, str_len, ord, print, chr, str_slice
 from integersetlib import IntegerSet, new_int_set, integer_set_from_ranges, integer_set_difference
-from datatypes import List, list1, list2, Option
+from listtype import List, list1, list2
+from optiontype import Option
 from rangelib import Range, range_to_string, range_contains
 from functools import map
 from strlib import str_repeat
@@ -123,13 +124,13 @@ fn create_machine(rx: Regex) -> Machine:
 			# print("Derive to '{chr(i)}' ({i}) ")
 			let rx3 = rx2.derivative(c: i)
 			# print_regex(rx: rx3, level: 0)
-			
+
 			let to_state = contains_regex(lst: states2, rx: rx3)
 			if to_state < 0:
 				states2.append(rx3)
 				worklist.append(rx3)
 				to_state = states2.len() - 1
-			
+
 			# Append transitions:
 			for range in s.ranges:
 				transitions.append(Transition(range, to_state))
@@ -168,7 +169,7 @@ class Machine:
 			if range_contains(self: transition.range, value):
 				return transition.to_state
 		-1
-	
+
 	pub fn accepts(state_nr: int) -> bool:
 		let state = states.get(index: state_nr)
 		state.accepts
@@ -201,7 +202,7 @@ pub fn print_machine(machine: Machine):
 
 fn print_regex(rx: Regex, level: int):
 	let txt = rx.to_string()
-		
+
 	let space = str_repeat(text: "    ", count: level)
 	print("{space}RE: {txt}")
 	level += 1
@@ -310,7 +311,7 @@ class Parser:
 		if invert:
 			s = integer_set_difference(self: sigma(), other: s)
 		symbol_set_regex(s)
-	
+
 	fn peek() -> char:
 		if index < n_size:
 			str_get(text, index)
@@ -324,7 +325,7 @@ class Parser:
 			c
 		else:
 			raise error(message: "Cannot parse beyond input")
-	
+
 	fn error(message: str) -> ParseError:
 		ParseError(position: index, message)
 
@@ -432,7 +433,7 @@ class Regex:
 				"LogicalNot"
 			Symbol(s):
 				"Symbols({s.to_string()})"
-	
+
 	pub fn equals(other: Regex) -> bool:
 		case kind:
 			Epsilon:
@@ -495,7 +496,7 @@ class Regex:
 
 	pub fn logical_or(other: Regex) -> Regex:
 		logical_or_regex(left: this, right: other)
-	
+
 	pub fn is_null() -> bool:
 		case kind:
 			Null:
@@ -548,7 +549,7 @@ class Regex:
 				null_regex()
 			Epsilon:
 				null_regex()
-	
+
 	pub fn derivative_classes() -> List[IntegerSet]:
 		# Determine character classes that are interesting
 		# cases to take the derivative for.

@@ -1,6 +1,6 @@
 
 from std import print
-from datatypes import List
+from listtype import List
 from unittest import assert_int_equals, assert_str_equals
 from strlib import lexical_sort
 

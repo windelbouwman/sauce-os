@@ -1,5 +1,6 @@
 
-from datatypes import List, option_unwrap
+from listtype import List
+from optiontype import option_unwrap
 from utils import assert
 
 pub fn zip[L,R,P](left: List[L], right: List[R], merger: fn(L, R) -> P) -> List[P]:
@@ -12,7 +13,7 @@ pub fn zip[L,R,P](left: List[L], right: List[R], merger: fn(L, R) -> P) -> List[
 		let b = option_unwrap(b_iter.next())
 		let pair = merger(a, b)
 		pairs.append(pair)
-	
+
 	pairs
 
 fn add_int(left: int, right: int) -> int:

@@ -6,7 +6,8 @@
 from std import float_to_str
 from strlib import str_join
 import ast
-from datatypes import List, option_unwrap, Option
+from listtype import List
+from optiontype import option_unwrap, Option
 from utils import panic, log_info, unimplemented
 from text_gen import TextGenerator
 

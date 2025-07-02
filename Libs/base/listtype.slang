@@ -1,37 +1,7 @@
+""" List data type """
 
 from utils import panic
-
-pub enum Option[D]:
-	Some(value?: D)
-	None
-
-pub fn option_unwrap[T](option?: Option[T]) -> T:
-	case option:
-		Some(value):
-			value
-		None:
-			panic("Cannot unwrap None")
-
-pub fn option_unwrap_or[T](option: Option[T], default: T) -> T:
-	case option:
-		Some(value):
-			value
-		None:
-			default
-
-pub fn option_is_some[T](opt?: Option[T]) -> bool:
-	case opt:
-		Some(v):
-			true
-		None:
-			false
-
-pub fn option_is_none[T](opt?: Option[T]) -> bool:
-	case opt:
-		Some(v):
-			false
-		None:
-			true
+from optiontype import Option
 
 pub fn list1[T](v1?: T) -> List[T]:
 	let vec: List[T] = List()
@@ -90,7 +60,7 @@ pub class List[T]:
 		let new_element: ListElement[T] = ListElement:
 			next: Option.None()
 			data: val
-		
+
 		# Adjust head and tail pointers
 		case tail_element:
 			None:
@@ -200,17 +170,17 @@ pub class List[T]:
 				panic("List.last on empty list!")
 			Some(element):
 				element.data
-	
+
 	pub fn get(index: int) -> T:
 		# Retrieve value at index
 		let element = get_element(index)
 		element.data
-	
+
 	pub fn set(index: int, value: T):
 		# " Set value at index. "
 		let element = get_element(index)
 		element.data = value
-	
+
 	fn get_element(index: int) -> ListElement[T]:
 		case head_element:
 			None:
@@ -244,14 +214,14 @@ pub class List[T]:
 								pe.next = element.next
 							None:
 								head_element = element.next
-						
+
 						# Check if we delete the last item:
 						case element.next:
 							None:
 								tail_element = prev_element
 						else:
 							pass
-						
+
 						length -= 1
 
 						return
@@ -271,7 +241,7 @@ pub class List[T]:
 		for value in this:
 			result.prepend(value)
 		result
-	
+
 	pub fn take_extend(other?: List[T]):
 		while not other.is_empty():
 			append(other.pop_front())

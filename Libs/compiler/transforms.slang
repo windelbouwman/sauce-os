@@ -13,8 +13,8 @@ from location import Location
 from utils import panic, log_info, log_debug, assert
 from basepass import IdGen
 from typechecking import type_check_modules
-from datatypes import List, list1, list2
-from datatypes import Option, option_unwrap, option_is_none, option_is_some
+from listtype import List, list1, list2
+from optiontype import Option, option_unwrap, option_is_none, option_is_some
 from vectype import vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
 from hashmap import HashMap, new_hashmap_str
 from errors import CompilationError

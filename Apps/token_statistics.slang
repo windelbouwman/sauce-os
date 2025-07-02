@@ -1,5 +1,5 @@
 
-from datatypes import List
+from listtype import List
 from lexer import Lexer
 from token import token_to_string
 from std import read_file, print, get_n_args, get_arg
@@ -41,12 +41,12 @@ pub fn main() -> int:
 
 			let count = stats.get_or_else(key: category, default: 0) + 1
 			stats.insert(key: category, value: count)
-	
+
 	let records: List[Record] = List()
 	for key in stats:
 		let count = stats.get(key)
 		records.append(Record(count, category: key))
-	
+
 	records = sort_list(records, cmp: cmp_records)
 	for record in records:
 		print("- {record.count}: {record.category}")

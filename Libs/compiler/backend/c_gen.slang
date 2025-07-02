@@ -6,7 +6,8 @@ Translate bytecode into C code.
 
 from std import float_to_str2
 from utils import panic, log_info, log_trace
-from datatypes import List, Option
+from listtype import List
+from optiontype import Option
 from vectype import Vector, new_vector
 from strlib import str_join
 import vm

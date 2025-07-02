@@ -1,7 +1,8 @@
 
 from utils import log_info, log_trace
 from location import Location, location_default
-from datatypes import List, Option, option_is_some
+from listtype import List
+from optiontype import Option, option_is_some
 from hashmap import HashMap
 import ast
 from errors import CompilationError, new_error, new_errors, SingleCompilationError, render_message

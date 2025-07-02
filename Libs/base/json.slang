@@ -6,7 +6,8 @@ from std import str_len, str_get, ord, str_slice
 from std import read_file
 from std import file_writeln, file_open, file_close
 from strlib import str_join, is_digit, str_to_int
-from datatypes import List, Option, option_is_some
+from listtype import List
+from optiontype import Option, option_is_some
 
 pub enum JsonValue:
 	Integer(value: int)
@@ -166,7 +167,7 @@ pub class JsonBuilder:
 
 	pub fn begin_object():
 		m_object_stack.append(JsonObjectBuilder())
-	
+
 	pub fn add_attribute(attr: str, value: JsonValue):
 		m_object_stack.last().add_attribute(attr, value)
 
@@ -264,7 +265,7 @@ class Parser:
 			parse_colon()
 			let value = parse_value()
 			items.append(KeyValue(key, value))
-			
+
 			let token = get_token()
 			case token.kind:
 				Comma:
@@ -298,7 +299,7 @@ class Parser:
 					raise unexpected(token, expected: ", or ]")
 
 		JsonValue.Array(values)
-	
+
 	fn parse_string() -> str except JsonException:
 		let token = get_token()
 		case token.kind:
@@ -323,7 +324,7 @@ class Parser:
 
 	fn unget_token(token: JsonToken):
 		m_buffer.prepend(token)
-	
+
 	fn unexpected(token: JsonToken, expected: str) -> JsonException:
 		JsonException(message: "Unexpected token {token_to_str(token)}, expected {expected}", pos: token.pos)
 
@@ -434,7 +435,7 @@ class Lexer:
 			else:
 				return create_token(JsonTokenKind.Error(c))
 		panic("Unreachable")
-	
+
 	fn create_token(kind?: JsonTokenKind) -> JsonToken:
 		JsonToken(kind, pos: index)
 

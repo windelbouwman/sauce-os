@@ -4,7 +4,8 @@ from location import Location
 from basepass import IdGen
 from utils import log_info, panic
 from errors import new_error, new_errors, CompilationError, SingleCompilationError
-from datatypes import List, Option
+from listtype import List
+from optiontype import Option
 from hashmap import HashMap, new_hashmap_str
 from vectype import Vector, new_vector, new_vector_with_capacity
 from strlib import str_join

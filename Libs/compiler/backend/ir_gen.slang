@@ -1,7 +1,8 @@
 # generate bytecode
 
 import ast
-from datatypes import List, option_unwrap, Option
+from listtype import List
+from optiontype import option_unwrap, Option
 from vectype import Vector, new_vector, new_vector_with_capacity
 from hashmap import HashMap, new_hashmap_int, new_hashmap_str
 from utils import panic, log_info, log_debug, assert, log_trace
