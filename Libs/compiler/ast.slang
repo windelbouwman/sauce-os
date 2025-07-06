@@ -1236,6 +1236,7 @@ pub struct InterfaceDef:
 	type_parameters: List[TypeParameter]
 	docstring: Option[str]
 	location: Location
+	is_extern: Option[str]
 	definitions: List[Definition]
 	scope: Scope
 

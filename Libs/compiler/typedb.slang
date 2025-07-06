@@ -102,9 +102,9 @@ class SymbolSaver:
 			Class(class_def):
 				save_class_def(class_def)
 			Interface(interface_def):
-				panic("TODO: save interface def")
+				save_interface_def(interface_def)
 			Impl(impl_def):
-				panic("TODO: save impl def")
+				save_impl_def(impl_def)
 			Enum(enum_def):
 				save_enum_def(enum_def)
 			Var(variable_def):
@@ -200,6 +200,32 @@ class SymbolSaver:
 
 		m_ser.end_array_as_attribute(attr: "fields")
 
+	fn save_interface_def(interface_def: ast.InterfaceDef):
+		m_ser.add_text_attribute(attr: "kind", text: "interface")
+		save_id(id: interface_def.id)
+		save_type_parameters(type_parameters: interface_def.type_parameters)
+		m_ser.add_boolean_attribute(attr: "pub", value: interface_def.is_pub)
+		save_doc_string(docstring: interface_def.docstring)
+
+		# Definitions
+		m_ser.begin_array()
+		for definition in interface_def.definitions:
+			save_definition(definition)
+		m_ser.end_array_as_attribute(attr: "definitions")
+
+	fn save_impl_def(impl_def: ast.ImplDef):
+		m_ser.add_text_attribute(attr: "kind", text: "impl")
+		save_id(id: impl_def.id)
+		save_type(attr: "interface_type", ty: impl_def.interface_type)
+		save_type(attr: "target_type", ty: impl_def.target_type)
+		save_doc_string(docstring: impl_def.docstring)
+
+		# Definitions
+		m_ser.begin_array()
+		for definition in impl_def.definitions:
+			save_definition(definition)
+		m_ser.end_array_as_attribute(attr: "definitions")
+
 	fn save_doc_string(docstring: Option[str]):
 		case docstring:
 			Some(text):
@@ -287,7 +313,7 @@ class SymbolSaver:
 			Class(class_def):
 				save_id(id: class_def.id)
 			Interface(interface_def):
-				panic("Cannot save tycon interface")
+				save_id(id: interface_def.id)
 			Ref(key):
 				panic("Cannot save tycon ref")
 			NameRef(key):
@@ -383,6 +409,12 @@ class SymbolLoader:
 		elif def_kind == "variable":
 			let variable_def = load_variable_def(def_name, def_id)
 			ast.Definition.Var(variable_def)
+		elif def_kind == "interface":
+			let interface_def = load_interface_def()
+			ast.Definition.Interface(interface_def)
+		elif def_kind == "impl":
+			let impl_def = load_impl_def()
+			ast.Definition.Impl(impl_def)
 		else:
 			panic("Not implemented definition kind: {def_kind}")
 
@@ -490,12 +522,7 @@ class SymbolLoader:
 
 		let this_type = ast.undefined_type()
 		m_this_type = Option.Some(this_type)
-		let definitions: List[ast.Definition] = List()
-		for definition_obj in m_des.get_array_attribute(attr: "definitions"):
-			m_des.push_value(value: definition_obj)
-			let definition = load_definition()
-			definitions.append(definition)
-			m_des.pop_value()
+		let definitions = load_definitions(attr: "definitions")
 		m_this_type = Option.None()
 
 		let class_def = ast.ClassDef(is_pub, id, docstring, location, is_extern: Option.Some(m_libname), type_parameters, definitions, scope: ast.Scope())
@@ -507,6 +534,49 @@ class SymbolLoader:
 		this_type.change_to(to_type: ast.apply_tycon(tycon: ast.TyCon.Class(class_def), type_arguments))
 
 		class_def
+
+	fn load_definitions(attr: str) -> List[ast.Definition]:
+		let definitions: List[ast.Definition] = List()
+		for definition_obj in m_des.get_array_attribute(attr):
+			m_des.push_value(value: definition_obj)
+			let definition = load_definition()
+			definitions.append(definition)
+			m_des.pop_value()
+		definitions
+
+	fn load_interface_def() -> ast.InterfaceDef:
+		let is_pub = m_des.get_boolean_attribute(attr: "pub")
+		let id = load_id()
+		let type_parameters = load_type_parameters()
+		let docstring = load_docstring()
+		let this_type = ast.opaque_type()
+		m_this_type = Option.Some(this_type)
+		let definitions = load_definitions(attr: "definitions")
+		m_this_type = Option.None()
+		ast.InterfaceDef:
+			is_pub
+			id
+			type_parameters
+			docstring
+			location: location_default()
+			is_extern: Option.Some(m_libname)
+			definitions
+			scope: ast.Scope()
+
+	fn load_impl_def() -> ast.ImplDef:
+		let id = load_id()
+		let interface_type = load_type(attr: "interface_type")
+		let target_type = load_type(attr: "target_type")
+		let docstring = load_docstring()
+		let definitions = load_definitions(attr: "definitions")
+		ast.ImplDef:
+			id
+			interface_type
+			target_type
+			docstring
+			location: location_default()
+			definitions
+			scope: ast.Scope()
 
 	fn load_docstring() -> Option[str]:
 		"""Load optional docstring"""

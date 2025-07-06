@@ -822,6 +822,7 @@ class ClassRewriter:
 		let struct_def1 = builder1.finish()
 		new_definitions.append(ast.Definition.Struct(struct_def1))
 
+		log_debug("Creating struct for {interface_def.id.name}")
 		let builder2 = ast.StructBuilder()
 		builder2.set_name(name: "{interface_def.id.name}Combo")
 		builder2.set_id(id: get_unique_id())
@@ -910,7 +911,7 @@ class ClassRewriter:
 			case definition:
 				Function(method):
 					# TODO: merge code with the lift_method function?
-					method.name = "{impl_def.id.name}_{type_key}_{method.name}"
+					method.name = "{impl_def.id.name}_{method.name}"
 					uplift_this_parameter(function_def: method)
 					new_definitions.append(ast.Definition.Function(method))
 

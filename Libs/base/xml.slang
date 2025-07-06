@@ -1,12 +1,12 @@
 
 # XML parsing routines.
 
-from std import print, str_len
-from std import file_writeln, file_open, file_close
+from std import str_len
+from text_out import TextOut, new_text_out
 from utils import unimplemented
 from listtype import List
-from optiontype import Option, option_unwrap, option_is_some
-from strlib import str_join, str_repeat
+from optiontype import Option
+from strlib import str_join
 
 pub class Node:
 	# An xml node!
@@ -30,27 +30,14 @@ struct Attribute:
 	value: str
 
 pub fn emit_xml(node: Node, filename: Option[str]):
-	let writer = XmlWriter()
-	writer.begin(output_filename: filename)
+	let out = new_text_out(filename)
+	let writer = XmlWriter(out)
 	writer.write_header()
 	writer.write_node(node)
-	writer.end()
+	out.end()
 
 class XmlWriter:
-	var indentation: int = 0
-	var use_file: bool = false
-	var outf: int = 0
-
-	pub fn begin(output_filename: Option[str]):
-		# See also: 'text_gen.slang'
-		# TODO: de-duplicate by means of dynamic dispatch/traits
-		if option_is_some(output_filename):
-			outf = file_open(filename: option_unwrap(output_filename), mode: "w")
-			use_file = true
-
-	pub fn end():
-		if use_file:
-			file_close(handle: outf)
+	var out: TextOut
 
 	pub fn write_header():
 		let attributes: List[Attribute] = List()
@@ -85,18 +72,13 @@ class XmlWriter:
 		"{attribute.name}=\"{attribute.value}\""
 
 	fn indent():
-		indentation += 1
+		out.indent()
 
 	fn dedent():
-		indentation -= 1
+		out.dedent()
 
 	fn emit(text?: str):
-		let indent_spaces = str_repeat(text: "   ", count: indentation)
-		let line = indent_spaces + text
-		if use_file:
-			file_writeln(handle: outf, line)
-		else:
-			print(line)
+		out.emit(text)
 
 pub fn read_xml() -> Node:
 	unimplemented("read_xml")

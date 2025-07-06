@@ -1,9 +1,12 @@
 
 from std import print
+from utils import set_log_level
 from unittest import assert_bytes_equals, assert_int_equals
-from bytes import bytes_from_hex_text, fill_bytes, bytes_from_ascii
+from bytes import bytes_from_hex_text, fill_bytes, bytes_from_ascii, Bytes
 from gzip import gzip_decompress, calc_crc32
-from gzip import zlib_decompress, calc_adler32
+from gzip import zlib_decompress, zlib_compress, calc_adler32
+from huffman import BitWriter
+from bytes import ByteArray
 
 pub fn main() -> int:
 	test_gzip_example1()
@@ -11,9 +14,23 @@ pub fn main() -> int:
 	test_crc32()
 	test_zlib_example1()
 	test_zlib_example2()
+	test_zlib_example3()
 	test_adler32()
+	test_bitwriter()
+	test_zlib_roundtrip1()
+	test_zlib_roundtrip2()
+	test_zlib_roundtrip3()
+	test_zlib_roundtrip4()
 	print("OK")
 	0
+
+fn test_bitwriter():
+	let a = ByteArray()
+	let writer = BitWriter(m_output: a)
+	writer.write_bits(n: 13, value: 520)
+	let expected = bytes_from_hex_text(text: "0802")
+	let packed = writer.to_bytes()
+	assert_bytes_equals(packed, expected)
 
 fn test_gzip_example1():
 	# Data compressed using python:
@@ -54,11 +71,34 @@ fn test_zlib_example2():
 	let decompressed = zlib_decompress(data: compressed)
 	assert_bytes_equals(decompressed, expected)
 
-# fn test_zlib_roundtrip1():
-#     let data = bytes_from_hex_text(text: "78")
-#     let compressed = zlib_compress(data)
-#     let decompressed = zlib_decompress(data: compressed)
-#     assert_bytes_equals(data, decompressed)
+fn test_zlib_example3():
+	# Created with python:
+	# >>> import zlib
+	# >>> compressed = zlib.compress(bytes([0x78]))
+	let compressed = bytes_from_hex_text(text: "789cab000000790079")
+	let expected = fill_bytes(n: 1, fill: 0x78)
+	let decompressed = zlib_decompress(data: compressed)
+	assert_bytes_equals(decompressed, expected)
+
+fn test_zlib_roundtrip1():
+	check_zlib_roundtrip(data: bytes_from_hex_text(text: "78"))
+
+fn test_zlib_roundtrip2():
+	check_zlib_roundtrip(data: bytes_from_hex_text(text: "0123456789abcdef"))
+
+fn test_zlib_roundtrip3():
+	set_log_level(level: 4)
+	let data = fill_bytes(n: 200, fill: 0xE)
+	check_zlib_roundtrip(data)
+
+fn test_zlib_roundtrip4():
+	check_zlib_roundtrip(data: bytes_from_ascii(text: "abc def def abc yes no"))
+
+fn check_zlib_roundtrip(data: Bytes):
+	let compressed = zlib_compress(data)
+	print("COMPRESSED: {compressed.as_hex()}")
+	let decompressed = zlib_decompress(data: compressed)
+	assert_bytes_equals(data, decompressed)
 
 fn test_adler32():
 	let data = bytes_from_ascii(text: "Wikipedia")

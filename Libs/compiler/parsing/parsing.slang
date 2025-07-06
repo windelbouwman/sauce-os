@@ -326,15 +326,15 @@ class Parser:
 			else:
 				raise unexpected_token(tok, expected: "'fn' or dedent")
 
-		let interface_def = ast.InterfaceDef:
+		ast.InterfaceDef:
 			is_pub
 			id: ast.NodeId(name: name_at.name, id: new_id())
 			type_parameters
 			docstring
 			location: name_at.location
+			is_extern: Option.None()
 			definitions
 			scope: ast.Scope()
-		interface_def
 
 	fn parse_impl_def(location: Location) -> ast.ImplDef except CompilationError:
 		log_debug("Parsing interface implementation")
@@ -361,16 +361,15 @@ class Parser:
 			else:
 				raise unexpected_token(tok, expected: "'fn' or dedent")
 
-		let impl_def = ast.ImplDef:
-			id: ast.NodeId(name: "impl", id: new_id())
+		let id = new_id()
+		ast.ImplDef:
+			id: ast.NodeId(name: "impl_{id}", id)
 			interface_type
 			target_type
 			docstring
 			location
 			definitions
 			scope: ast.Scope()
-
-		impl_def
 
 	fn parse_func_def(is_pub: bool, this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except CompilationError:
 		let name_at = parse_name()

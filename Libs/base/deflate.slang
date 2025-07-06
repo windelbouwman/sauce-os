@@ -5,10 +5,13 @@ DEFLATE uses huffman trees and LZ77 compression.
 """
 
 from utils import panic, assert
-from utils import log_trace, log_debug
+from utils import log_trace, log_debug, unimplemented
+from listtype import List, list1
 from bytes import Bytes, ByteArray, ByteReader
 from vectype import Vector, new_vector, new_vector_of_size
 from huffman import Tree, BitReader, decode_symbol, zero_int_array
+from huffman import BitWriter, create_table, encode_symbol, CodeEntry
+from hashmap import HashMap, new_hashmap_int
 
 pub fn deflate_decompress(data?: Bytes) -> Bytes:
 	""" Decompress the given data using deflate
@@ -27,33 +30,154 @@ pub fn new_deflate_decoder(reader: ByteReader) -> DeflateDecoder:
 
 pub fn deflate_compress(data: Bytes) -> Bytes:
 	""" Implementation 1: copy uncompressed: """
-	let out = ByteArray()
-	let index = 0
-	while index < data.len():
-		let size = data.len() - index
-		let last_block = false
-		if size > 4000:
-			size = 4000
-		else:
-			last_block = true
+	let encoder = DeflateCompressor(m_data: data)
+	encoder.compress()
 
+enum Action:
+	Literal(value: int)
+	Copy(distance: int, length: int)
+
+class DeflateCompressor:
+	var m_data: Bytes
+	var m_index: int = 0
+	var m_level: int = 1
+	var m_bit_writer: BitWriter = BitWriter(m_output: ByteArray())
+	var m_hash_table: HashMap[int,List[int]] = new_hashmap_int()
+
+	pub fn compress() -> Bytes:
+		if m_level == 0:
+			no_compression()
+		else:
+			some_compression()
+		m_bit_writer.flush()
+		m_bit_writer.m_output.to_bytes()
+
+	fn write_block_header(last_block: int, btype: int):
+		m_bit_writer.write_bits(n: 1, value: last_block)  # Last block (1 bit field)
+		m_bit_writer.write_bits(n: 2, value: btype)  # Block type (2 bits field)
+
+	fn some_compression():
+		let pair = create_fixed_trees()
+		let first_table = create_table(tree: pair.first)
+		let second_table = create_table(tree: pair.second)
+
+		# 29 extra length bits:
+		# TODO: support this as an immutable global variable
+		let length_bits = [0, 0, 0, 0, 0, 0, 0, 0,  1,  1,  1,  1,  2,  2,  2,  2,  3,  3,  3,  3,  4,  4,  4,  4,   5,   5,   5,   5,   0]
+		let length_base = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258]
+
+		# 30 extra distance bits:
+		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,   6,   7,   7,   8,   8,   9,    9,    10,   10,   11,   11,   12,   12,    13,    13]
+		let dist_base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
+
+		while m_index < m_data.len():
+			let actions = create_actions()
+			let last_block = if m_index == m_data.len():
+				1
+			else:
+				0
+			write_block_header(last_block, btype: 1)
+			for action in actions:
+				case action:
+					Literal(symbol):
+						write_symbol(table: first_table, symbol)  # Emit byte as literal
+					Copy(distance, length):
+						let i = 0
+						while i < 29:
+							if (length >= length_base[i]) and (length < length_base[i] + (1 << length_bits[i])):
+								write_symbol(table: first_table, symbol: 257 + i)
+								if length_bits[i] > 0:
+									m_bit_writer.write_bits(n: length_bits[i], value: length - length_base[i])
+								break
+							else:
+								i += 1
+						if i == 29:
+							unimplemented("length: {length}")
+
+						i = 0
+						while i < 30:
+							if (distance >= dist_base[i]) and (distance < dist_base[i] + (1 << dist_bits[i])):
+								write_symbol(table: second_table, symbol: i)
+								if dist_bits[i] > 0:
+									m_bit_writer.write_bits(n: dist_bits[i], value: distance - dist_base[i])
+								break
+							else:
+								i += 1
+						if i == 30:
+							unimplemented("distance: {distance}")
+
+			write_symbol(table: first_table, symbol: 256)  # end of block
+
+	fn write_symbol(table: HashMap[int,CodeEntry], symbol: int):
+		encode_symbol(table, symbol, bit_writer: m_bit_writer)
+
+	fn create_actions() -> List[Action]:
+		let actions = List()
+		m_hash_table.clear()
+		while m_index < m_data.len():
+			let found_length = 0
+			let found_position = 0
+			if m_index + 2 < m_data.len():
+				# Search for previous pattern
+				let key = m_data.get(index: m_index) + m_data.get(index: m_index + 1) + m_data.get(index: m_index + 2)
+				if m_hash_table.contains(key):
+					for position in m_hash_table.get(key):
+						# Maximize distance:
+						if m_index - position > 3000:
+							continue
+						let i = 0
+						while (i < 258) and (m_index + i < m_data.len()) and (m_data.get(index: position + i) == m_data.get(index: m_index + i)):
+							i += 1
+						if i > found_length:
+							found_length = i
+							found_position = position
+					m_hash_table.get(key).append(m_index)
+				else:
+					m_hash_table.insert(key, value: list1(m_index))
+
+			if found_length > 3:
+				let distance = m_index - found_position
+				log_debug("Found match: position={found_position} distance={distance} - length={found_length}")
+				actions.append(Action.Copy(distance, found_length))
+				m_index += found_length
+			else:
+				actions.append(Action.Literal(m_data.get(index: m_index)))
+				m_index += 1
+
+			# Limit block size somewhat:
+			if actions.len() > 60000:
+				break
+		actions
+
+	# fn search_pattern(start: int):
+	# 	let i = start
+	# 	while m_data.get(index: i) == m_data.get(index: m_index):
+	# 		i += 1
+
+	fn no_compression():
+		while m_index < m_data.len():
+			let size = m_data.len() - m_index
+			let last_block = 0
+			if size > 4000:
+				size = 4000
+			else:
+				last_block = 1
+			write_uncompressed_block(size, last_block)
+
+	fn write_uncompressed_block(size: int, last_block: int):
 		log_trace("Size: {size}")
 
-		if last_block:
-			out.append(1)
-		else:
-			out.append(0)
+		write_block_header(last_block, btype: 0)
+		m_bit_writer.flush()
 
-		out.pack_u16_le(size)
-		out.pack_u16_le(0xFFFF ^ size)
+		m_bit_writer.m_output.pack_u16_le(size)
+		m_bit_writer.m_output.pack_u16_le(0xFFFF ^ size)
 
 		let i = 0
 		while i < size:
-			out.append(data.get(index))
-			index += 1
+			m_bit_writer.m_output.append(m_data.get(index: m_index))
+			m_index += 1
 			i += 1
-
-	out.to_bytes()
 
 pub class DeflateDecoder:
 	var m_bit_reader: BitReader
@@ -157,7 +281,7 @@ pub class DeflateDecoder:
 		let dist_base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
 		loop:
 			let symbol = decode_symbol(tree: pair.first, bit_reader: m_bit_reader)
-			# print("Symbol: {symbol}")
+			# log_trace("Symbol: {symbol}")
 			if symbol < 256:  # Literal byte
 				emit_byte(symbol)
 			elif symbol == 256:  # End-of-block

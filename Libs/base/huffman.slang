@@ -3,7 +3,8 @@ Procedures related to Huffman coding.
 """
 
 from utils import panic
-from bytes import ByteReader
+from hashmap import HashMap, new_hashmap_int
+from bytes import ByteReader, ByteArray, Bytes
 
 pub fn decode_symbol(tree: Tree, bit_reader: BitReader) -> int:
 	""" Decode a value with the given Huffman tree """
@@ -24,6 +25,39 @@ pub fn decode_symbol(tree: Tree, bit_reader: BitReader) -> int:
 		len += 1
 
 	panic("Decode symbol failed")
+
+pub fn create_table(tree: Tree) -> HashMap[int,CodeEntry]:
+	let table: HashMap[int,CodeEntry] = new_hashmap_int()
+	let first = 0
+	let index = 0
+	let len = 1
+	while len <= 16:
+		let count = tree.counts[len]
+		let i = 0
+		while i < count:
+			let symbol = tree.symbols[index + i]
+			let code = first + i
+			let entry = CodeEntry(code, length: len)
+			table.insert(key: symbol, value: entry)
+			i += 1
+		first = (first + count) << 1
+		index += count
+		len += 1
+	table
+
+pub struct CodeEntry:
+	code: int
+	length: int
+
+pub fn encode_symbol(table: HashMap[int,CodeEntry], symbol: int, bit_writer: BitWriter):
+	let entry = table.get(key: symbol)
+	# print("Write symbol={symbol}, code={entry.code}, len={entry.length}")
+	# Huffman codes are written with the MSB transmitted first:
+	let bit = entry.length
+	while bit > 0:
+		bit -= 1
+		let value = (entry.code >> bit) & 1
+		bit_writer.write_bits(n: 1, value)
 
 pub class BitReader:
 	pub var m_bitbuf: int = 0
@@ -56,6 +90,32 @@ pub class BitReader:
 			m_bitcnt -= n
 			let mask = (1 << n) - 1
 			value & mask
+
+pub class BitWriter:
+	pub var m_output: ByteArray
+	var m_bitbuf: int = 0
+	var m_bitcnt: int = 0
+
+	pub fn write_bits(n: int, value: int):
+		# DEFLATE endianness
+		m_bitbuf = (value << m_bitcnt) | m_bitbuf
+		m_bitcnt += n
+
+		# Flush full bytes to output:
+		while m_bitcnt >= 8:
+			m_output.append(m_bitbuf & 0xFF)
+			m_bitbuf = m_bitbuf >> 8
+			m_bitcnt -= 8
+
+	pub fn flush():
+		if m_bitcnt > 0:
+			m_output.append(m_bitbuf & 0xFF)
+			m_bitcnt = 0
+			m_bitbuf = 0
+
+	pub fn to_bytes() -> Bytes:
+		flush()
+		m_output.to_bytes()
 
 pub struct Tree:
 	counts: [int]

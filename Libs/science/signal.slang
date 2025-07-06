@@ -29,8 +29,8 @@ pub fn cheby(n: int) -> DigitalFilter:
 	unimplemented("cheby")
 
 pub class DigitalFilter:
-	var b: List[float] # Numerator
-	var a: List[float] # Denominator
+	pub var b: List[float] # Numerator
+	pub var a: List[float] # Denominator
 
 	pub fn dump():
 		print(s_poly_to_str(coefficients: b))
