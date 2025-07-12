@@ -10,6 +10,7 @@ from listtype import List, list1
 from bytes import Bytes, ByteArray, ByteReader
 from vectype import Vector, new_vector, new_vector_of_size
 from huffman import Tree, BitReader, decode_symbol, zero_int_array
+from heapq import new_priority_queue_with_capacity, PriorityQueue
 from huffman import BitWriter, create_table, encode_symbol, CodeEntry
 from hashmap import HashMap, new_hashmap_int
 
@@ -29,7 +30,7 @@ pub fn new_deflate_decoder(reader: ByteReader) -> DeflateDecoder:
 	DeflateDecoder(m_bit_reader: bit_reader)
 
 pub fn deflate_compress(data: Bytes) -> Bytes:
-	""" Implementation 1: copy uncompressed: """
+	""" Compress data in DEFLATE format """
 	let encoder = DeflateCompressor(m_data: data)
 	encoder.compress()
 
@@ -37,10 +38,125 @@ enum Action:
 	Literal(value: int)
 	Copy(distance: int, length: int)
 
+fn find_index(base: [int], bits: [int], size: int, value: int) -> int:
+	# TODO: we could use some bisecting here?
+	let i = 0
+	while i < size:
+		if (value >= base[i]) and (value < base[i] + (1 << bits[i])):
+			return i
+		else:
+			i += 1
+	unimplemented("Value not found: {value}")
+
+struct TreeNode:
+	freq: int
+	kind: TreeNodeKind
+
+enum TreeNodeKind:
+	Leaf(symbol: int)
+	Internal(left: TreeNode, right: TreeNode)
+
+fn cmp_TreeNode(a: TreeNode, b: TreeNode) -> bool:
+	a.freq < b.freq
+
+fn get_widths(frequencies: [int], size: int) -> Vector[int]:
+	""" Given a set of frequencies, determine the width in bits of each symbol. """
+	# Create priority queue:
+	let q: PriorityQueue[TreeNode] = new_priority_queue_with_capacity(capacity: size, f: cmp_TreeNode)
+	let i = 0
+	while i < size:
+		let freq = frequencies[i]
+		if freq > 0:
+			q.push(TreeNode(freq, kind: TreeNodeKind.Leaf(symbol: i)))
+		i += 1
+
+	# Construct the tree:
+	while q.len() > 1:
+		let left = q.pop()
+		let right = q.pop()
+		q.push(TreeNode(freq: left.freq + right.freq, kind: TreeNodeKind.Internal(left, right)))
+
+	let root_node = q.pop()
+
+	# Assign widths:
+	let widths: Vector[int] = new_vector_of_size(size, default: 0)
+	assign_bit_width(widths, node: root_node, level: 0)
+	widths
+
+fn assign_bit_width(widths: Vector[int], node: TreeNode, level: int):
+	case node.kind:
+		Leaf(symbol):
+			widths.set(index: symbol, value: level)
+		Internal(left, right):
+			assign_bit_width(widths, node: left, level: level + 1)
+			assign_bit_width(widths, node: right, level: level + 1)
+
+enum RunLengthOpcode:
+	Literal(value: int) # 0 .. 15
+	Repeat(n: int) # 16 -> repeat previous symbol
+	FewZeroes(n: int) # 17 -> repeat zeroes
+	ManyZeroes(n: int) # 18 -> repeat zeroes
+
+class RunLengthEncoder:
+	var m_opcodes: List[RunLengthOpcode] = List()
+
+	pub fn encode(values: Vector[int]) -> List[RunLengthOpcode]:
+		""" Run length encoding """
+		let count = 1
+		let value = values.get(index: 0)
+
+		let i = 1
+		while i < values.len():
+			let new_value = values.get(index: i)
+			if value == new_value:
+				count += 1
+			else:
+				emit_run(value, count)
+				value = new_value
+				count = 1
+			i += 1
+		emit_run(value, count)
+		m_opcodes
+
+	fn emit_run(value: int, count: int):
+		if count == 0:
+			return
+
+		if value == 0:  # Repeat zero so many times
+			while count > 0:
+				let rep = count
+				if rep >= 11:
+					if rep > 138:
+						rep = 138
+					emit(RunLengthOpcode.ManyZeroes(rep))
+					count -= rep
+				elif rep >= 3:  # Repeat 3-10 zeroes
+					emit(RunLengthOpcode.FewZeroes(rep))
+					count -= rep
+				else:
+					emit(RunLengthOpcode.Literal(0))
+					count -= 1
+		else:  # Non-zero value!
+			emit(RunLengthOpcode.Literal(value))
+			count -= 1
+			while count > 0:
+				let rep = count
+				if rep >= 3:
+					if rep > 6:
+						rep = 6
+					emit(RunLengthOpcode.Repeat(rep))
+					count -= rep
+				else:
+					emit(RunLengthOpcode.Literal(value))
+					count -= 1
+
+	fn emit(opcode?: RunLengthOpcode):
+		m_opcodes.append(opcode)
+
 class DeflateCompressor:
 	var m_data: Bytes
 	var m_index: int = 0
-	var m_level: int = 1
+	var m_level: int = 2
 	var m_bit_writer: BitWriter = BitWriter(m_output: ByteArray())
 	var m_hash_table: HashMap[int,List[int]] = new_hashmap_int()
 
@@ -53,11 +169,161 @@ class DeflateCompressor:
 		m_bit_writer.m_output.to_bytes()
 
 	fn write_block_header(last_block: int, btype: int):
-		m_bit_writer.write_bits(n: 1, value: last_block)  # Last block (1 bit field)
-		m_bit_writer.write_bits(n: 2, value: btype)  # Block type (2 bits field)
+		log_trace("last={last_block}, btype={btype}")
+		write_bits(n: 1, value: last_block)  # Last block (1 bit field)
+		write_bits(n: 2, value: btype)  # Block type (2 bits field)
 
 	fn some_compression():
-		let pair = create_fixed_trees()
+		while m_index < m_data.len():
+			let actions = create_actions()
+			let pair = determine_trees(actions)
+			write_actions(pair, actions)
+
+	fn determine_trees(actions: List[Action]) -> TreePair:
+		log_trace("determine tree")
+
+		let length_bits = [0, 0, 0, 0, 0, 0, 0, 0,  1,  1,  1,  1,  2,  2,  2,  2,  3,  3,  3,  3,  4,  4,  4,  4,   5,   5,   5,   5,   0]
+		let length_base = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258]
+
+		# 30 extra distance bits:
+		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,   6,   7,   7,   8,   8,   9,    9,    10,   10,   11,   11,   12,   12,    13,    13]
+		let dist_base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
+
+		let freqencies_1 = zero_int_array(size: 288) # 0 .. 287
+		let freqencies_2 = zero_int_array(size: 32)  # 0 .. 31
+		freqencies_2[0] = 1
+		freqencies_2[1] = 1
+
+		# Determine symbol frequencies:
+		for action in actions:
+			case action:
+				Literal(symbol):
+					freqencies_1[symbol] = freqencies_1[symbol] + 1
+				Copy(distance, length):
+					let i = find_index(base: length_base, bits: length_bits, size: 29, value: length)
+					let symbol = 257 + i
+					freqencies_1[symbol] = freqencies_1[symbol] + 1
+
+					i = find_index(base: dist_base, bits: dist_bits, size: 30, value: distance)
+					freqencies_2[i] = freqencies_2[i] + 1
+
+		freqencies_1[256] = freqencies_1[256] + 1
+
+		# Now assign bit patterns given the frequencies
+		let lengths1 = get_widths(frequencies: freqencies_1, size: 285)
+		let lengths2 = get_widths(frequencies: freqencies_2, size: 30)
+
+		let fixed_lengths1 = create_fixed_literal_lengths()
+		let fixed_lengths2 = create_fixed_distance_lengths()
+
+		# Now we can calculate the entire bit size, using frequencies and bit lengths!
+		let dynamic_bit_size = 0
+		let static_bit_size = 0
+		let i = 0
+		while i < lengths1.len():
+			dynamic_bit_size += freqencies_1[i] * lengths1.get(index: i)
+			static_bit_size += freqencies_1[i] * fixed_lengths1.get(index: i)
+			i += 1
+
+		i = 0
+		while i < lengths2.len():
+			dynamic_bit_size += freqencies_2[i] * lengths2.get(index: i)
+			static_bit_size += freqencies_2[i] * fixed_lengths2.get(index: i)
+			i += 1
+
+		# Concatenate length vectors:
+
+		# TODO: strip-off zero lengths
+		let all_lengths: Vector[int] = new_vector()
+		all_lengths.extend(other: lengths1)
+		all_lengths.extend(other: lengths2)
+
+		# Run length encode the code lengths
+		let rle = RunLengthEncoder()
+		let opcodes = rle.encode(values: all_lengths)
+
+		# Determine frequencies:
+		let code_freqencies = zero_int_array(size: 19)  # 0 .. 18
+		for opcode in opcodes:
+			case opcode:
+				Literal(value):
+					code_freqencies[value] = code_freqencies[value] + 1
+				Repeat(rep):
+					code_freqencies[16] = code_freqencies[16] + 1
+					dynamic_bit_size += 2
+				FewZeroes(rep):
+					code_freqencies[17] = code_freqencies[17] + 1
+					dynamic_bit_size += 3
+				ManyZeroes(rep):
+					code_freqencies[18] = code_freqencies[18] + 1
+					dynamic_bit_size += 7
+
+		let code_lengths = get_widths(frequencies: code_freqencies, size: 19)
+		i = 0
+		while i < code_lengths.len():
+			dynamic_bit_size += code_freqencies[i] * code_lengths.get(index: i)
+			i += 1
+
+		dynamic_bit_size += 5 + 5 + 4 # Header of dynamic trees
+		dynamic_bit_size += 19 * 3  # tree encoding bit sizes, 3 bits per bit size
+
+		log_trace("dynamic_bit_size={dynamic_bit_size}, static_bit_size={static_bit_size}")
+
+		let last_block = if m_index == m_data.len():
+			1
+		else:
+			0
+		if dynamic_bit_size < static_bit_size:
+			write_block_header(last_block, btype: 2)
+			write_dynamic_table(lengths1, lengths2, code_lengths, opcodes)
+			let first = create_tree(lengths: lengths1)
+			let second = create_tree(lengths: lengths2)
+			TreePair(first, second)
+		else:
+			write_block_header(last_block, btype: 1)
+			let first = create_tree(lengths: fixed_lengths1)
+			let second = create_tree(lengths: fixed_lengths2)
+			TreePair(first, second)
+
+	fn write_dynamic_table(lengths1: Vector[int], lengths2: Vector[int], code_lengths: Vector[int], opcodes: List[RunLengthOpcode]):
+		let hlit = lengths1.len() - 257
+		let hdist = lengths2.len() - 1
+		let hclen = code_lengths.len()
+		log_trace("hlit={hlit} hdist={hdist} hclen={hclen}")
+		write_bits(n: 5, value: hlit)
+		write_bits(n: 5, value: hdist)
+		write_bits(n: 4, value: hclen - 4)
+
+		let i = 0
+		let clcidx = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]
+		while i < hclen:
+			let clen = code_lengths.get(index: clcidx[i])
+			write_bits(n: 3, value: clen)
+			i += 1
+		let x_table = create_table(tree: create_tree(lengths: code_lengths))
+		run_length_encode(table: x_table, opcodes)
+
+	fn run_length_encode(table: HashMap[int,CodeEntry], opcodes: List[RunLengthOpcode]):
+		""" Run length encoding """
+		for opcode in opcodes:
+			case opcode:
+				Literal(value):
+					# log_trace("opcode: Literal {value}")
+					write_symbol(table, symbol: value)
+				Repeat(rep):    # Repeat previous symbol 3-6 times
+					# log_trace("opcode: Repeat {rep}")
+					write_symbol(table, symbol: 16)
+					write_bits(n: 2, value: rep - 3)
+				FewZeroes(rep):    # Repeat 3-10 zeroes
+					# log_trace("opcode: FewZeroes {rep}")
+					write_symbol(table, symbol: 17)
+					write_bits(n: 3, value: rep - 3)
+				ManyZeroes(rep):   # Repeat 11-138 zeroes
+					# log_trace("opcode: ManyZeroes {rep}")
+					write_symbol(table, symbol: 18)
+					write_bits(n: 7, value: rep - 11)
+
+	fn write_actions(pair: TreePair, actions: List[Action]):
 		let first_table = create_table(tree: pair.first)
 		let second_table = create_table(tree: pair.second)
 
@@ -70,49 +336,25 @@ class DeflateCompressor:
 		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,   6,   7,   7,   8,   8,   9,    9,    10,   10,   11,   11,   12,   12,    13,    13]
 		let dist_base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
 
-		while m_index < m_data.len():
-			let actions = create_actions()
-			let last_block = if m_index == m_data.len():
-				1
-			else:
-				0
-			write_block_header(last_block, btype: 1)
-			for action in actions:
-				case action:
-					Literal(symbol):
-						write_symbol(table: first_table, symbol)  # Emit byte as literal
-					Copy(distance, length):
-						let i = 0
-						while i < 29:
-							if (length >= length_base[i]) and (length < length_base[i] + (1 << length_bits[i])):
-								write_symbol(table: first_table, symbol: 257 + i)
-								if length_bits[i] > 0:
-									m_bit_writer.write_bits(n: length_bits[i], value: length - length_base[i])
-								break
-							else:
-								i += 1
-						if i == 29:
-							unimplemented("length: {length}")
+		for action in actions:
+			case action:
+				Literal(symbol):
+					write_symbol(table: first_table, symbol)  # Emit byte as literal
+				Copy(distance, length):
+					let i = find_index(base: length_base, bits: length_bits, size: 29, value: length)
+					write_symbol(table: first_table, symbol: 257 + i)
+					if length_bits[i] > 0:
+						write_bits(n: length_bits[i], value: length - length_base[i])
 
-						i = 0
-						while i < 30:
-							if (distance >= dist_base[i]) and (distance < dist_base[i] + (1 << dist_bits[i])):
-								write_symbol(table: second_table, symbol: i)
-								if dist_bits[i] > 0:
-									m_bit_writer.write_bits(n: dist_bits[i], value: distance - dist_base[i])
-								break
-							else:
-								i += 1
-						if i == 30:
-							unimplemented("distance: {distance}")
+					i = find_index(base: dist_base, bits: dist_bits, size: 30, value: distance)
+					write_symbol(table: second_table, symbol: i)
+					if dist_bits[i] > 0:
+						write_bits(n: dist_bits[i], value: distance - dist_base[i])
 
-			write_symbol(table: first_table, symbol: 256)  # end of block
-
-	fn write_symbol(table: HashMap[int,CodeEntry], symbol: int):
-		encode_symbol(table, symbol, bit_writer: m_bit_writer)
+		write_symbol(table: first_table, symbol: 256)  # end of block
 
 	fn create_actions() -> List[Action]:
-		let actions = List()
+		let actions: List[Action] = List()
 		m_hash_table.clear()
 		while m_index < m_data.len():
 			let found_length = 0
@@ -123,7 +365,7 @@ class DeflateCompressor:
 				if m_hash_table.contains(key):
 					for position in m_hash_table.get(key):
 						# Maximize distance:
-						if m_index - position > 3000:
+						if m_index - position > 30000:
 							continue
 						let i = 0
 						while (i < 258) and (m_index + i < m_data.len()) and (m_data.get(index: position + i) == m_data.get(index: m_index + i)):
@@ -137,7 +379,7 @@ class DeflateCompressor:
 
 			if found_length > 3:
 				let distance = m_index - found_position
-				log_debug("Found match: position={found_position} distance={distance} - length={found_length}")
+				# log_debug("Found match: position={found_position} distance={distance} - length={found_length}")
 				actions.append(Action.Copy(distance, found_length))
 				m_index += found_length
 			else:
@@ -178,6 +420,12 @@ class DeflateCompressor:
 			m_bit_writer.m_output.append(m_data.get(index: m_index))
 			m_index += 1
 			i += 1
+
+	fn write_symbol(table: HashMap[int,CodeEntry], symbol: int):
+		encode_symbol(table, symbol, bit_writer: m_bit_writer)
+
+	fn write_bits(n: int, value: int):
+		m_bit_writer.write_bits(n, value)
 
 pub class DeflateDecoder:
 	var m_bit_reader: BitReader
@@ -359,11 +607,11 @@ fn create_tree(lengths: Vector[int]) -> Tree:
 		symbols
 
 fn create_fixed_trees() -> TreePair:
-	let first = create_fixed_literal_length_tree()
-	let second = create_fixed_distance_tree()
+	let first = create_tree(lengths: create_fixed_literal_lengths())
+	let second = create_tree(lengths: create_fixed_distance_lengths())
 	TreePair(first, second)
 
-fn create_fixed_literal_length_tree() -> Tree:
+fn create_fixed_literal_lengths() -> Vector[int]:
 	let lengths: Vector[int] = new_vector()
 	let symbol = 0
 	while symbol < 144:
@@ -378,12 +626,12 @@ fn create_fixed_literal_length_tree() -> Tree:
 	while symbol < 288:
 		lengths.append(8)
 		symbol += 1
-	create_tree(lengths)
+	lengths
 
-fn create_fixed_distance_tree() -> Tree:
+fn create_fixed_distance_lengths() -> Vector[int]:
 	let lengths: Vector[int] = new_vector()
 	let symbol = 0
-	while symbol < 30:
+	while symbol < 32:
 		lengths.append(5)
 		symbol += 1
-	create_tree(lengths)
+	lengths

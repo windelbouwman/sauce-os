@@ -68,7 +68,7 @@ pub class Vector[T]:
 			grow()
 		m_elements[m_size] = value
 		m_size += 1
-	
+
 	pub fn pop_last() -> T:
 		if m_size > 0:
 			m_size -= 1
@@ -100,7 +100,7 @@ pub class Vector[T]:
 		while i < m_size:
 			m_elements[i] = old_elements[i]
 			i += 1
-		
+
 	pub fn len() -> int:
 		m_size
 
@@ -110,14 +110,14 @@ pub class Vector[T]:
 			m_elements[index]
 		else:
 			panic("Vector.get: index out of range.")
-	
+
 	pub fn set(index: int, value: T):
 		# " Set value at index. "
 		if index < m_size:
 			m_elements[index] = value
 		else:
 			panic("Vector.get: index out of range.")
-	
+
 	pub fn first() -> T:
 		get(index: 0)
 
@@ -141,7 +141,7 @@ pub class Vector[T]:
 			v2.append(get(index))
 			index += 1
 		v2
-	
+
 	pub fn concat(other: Vector[T]) -> Vector[T]:
 		let v2: Vector[T] = new_vector_with_capacity(capacity: m_size + other.len())
 		v2.extend(other: this)

@@ -81,13 +81,13 @@ pub class PriorityQueue[T]:
 					left
 			else:
 				break
-			
+
 			if compare(index, j):
 				break
 			else:
 				swap(j, index)
 				index = j
-			
+
 	fn sift_up(index?: int):
 		while index > 0:
 			let parent_index = (index - 1) / 2
@@ -96,11 +96,11 @@ pub class PriorityQueue[T]:
 			else:
 				swap(parent_index, index)
 				index = parent_index
-	
+
 	pub fn is_empty() -> bool:
 		m_size == 0
 
-	fn len() -> int:
+	pub fn len() -> int:
 		m_size
 
 	fn get(index?: int) -> T:

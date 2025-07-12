@@ -54,7 +54,30 @@ pub fn gzip_decompress(data?: Bytes) -> Bytes:
 	decompressed
 
 pub fn gzip_compress(data: Bytes) -> Bytes:
-	unimplemented("gzip_compress")
+	let out = ByteArray()
+
+	# Header:
+	out.append(0x1f)
+	out.append(0x8b)
+	let cm = 8  # compression method: deflate (8)
+	let flg = 0
+	let mtime = 0
+	let xfl = 0
+	let os = 255
+	out.append(cm)
+	out.append(flg)
+	out.pack_u32_le(mtime)
+	out.append(xfl)
+	out.append(os)
+
+	# Compressed data:
+	let compressed_data = deflate_compress(data)
+	out.extend(compressed_data)
+
+	out.pack_u32_le(calc_crc32(data))
+	out.pack_u32_le(data.len())
+
+	out.to_bytes()
 
 pub fn calc_crc32(data: Bytes) -> int:
 	# Create table:
@@ -119,7 +142,7 @@ pub fn zlib_compress(data: Bytes) -> Bytes:
 	let flg = 0x9c
 	out.append(flg)
 
-	# Compressed data:    
+	# Compressed data:
 	let compressed_data = deflate_compress(data)
 	out.extend(compressed_data)
 

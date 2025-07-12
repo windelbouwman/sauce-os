@@ -4,6 +4,7 @@ This is a long shot: try a software renderer.
 
 """
 
+from utils import set_log_level
 from std import print
 from math import sin, cos, radians
 from screen import new_screen
@@ -11,6 +12,7 @@ from game import Engine, new_cube_mesh
 
 pub fn main() -> int:
 	print("Hello world")
+	set_log_level(level: 5)
 	let s = new_screen(width: 320, height: 240)
 	s.set_color(red: 0, green: 128, blue: 128)
 	s.clear()
@@ -20,7 +22,7 @@ pub fn main() -> int:
 
 	s.draw_line(x1: 10, y1: 30, x2: 310, y2: 10) # upwards line
 	s.draw_line(x1: 10, y1: 30, x2: 310, y2: 50) # Downwards line
-	
+
 	s.draw_line(x1: 160, y1: 10, x2: 150, y2: 230) # Left line
 	s.draw_line(x1: 160, y1: 10, x2: 170, y2: 230) # Right line
 

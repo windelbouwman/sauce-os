@@ -199,8 +199,8 @@ run-test-py-%: ${BUILDDIR}/python/test_%.py ${BUILDDIR}/python/slangrt.py
 ${BUILDDIR}/python/slangrt.py: runtime/slangrt.py | ${BUILDDIR}/python
 	cp $< $@
 
-${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libcompiler.json ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/python
-	${SLANGC} --backend-py -o $@ --add-import ${BUILDDIR}/python/libcompiler.json --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libbase.json --add-import ${BUILDDIR}/python/libregex.json $<
+${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libcompiler.json ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libscience.json ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+	${SLANGC} --backend-py -o $@ --add-import ${BUILDDIR}/python/libcompiler.json --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libscience.json --add-import ${BUILDDIR}/python/libbase.json --add-import ${BUILDDIR}/python/libregex.json $<
 
 # Apps
 .PRECIOUS: ${BUILDDIR}/c/apps/%.c

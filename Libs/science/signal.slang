@@ -6,7 +6,10 @@ from listtype import List
 from std import print, float_to_str
 from strlib import str_join
 from utils import unimplemented, log_debug
-from math import sin, cos, pi
+from math import sin, cos
+
+# TODO: import pi from math:
+var pi: float = 3.141592653589793
 
 pub fn butter(n: int) -> DigitalFilter:
 	""" Create a butter worth filter """

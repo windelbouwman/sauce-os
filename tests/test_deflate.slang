@@ -3,7 +3,7 @@ from std import print
 from utils import set_log_level
 from unittest import assert_bytes_equals, assert_int_equals
 from bytes import bytes_from_hex_text, fill_bytes, bytes_from_ascii, Bytes
-from gzip import gzip_decompress, calc_crc32
+from gzip import gzip_decompress, gzip_compress, calc_crc32
 from gzip import zlib_decompress, zlib_compress, calc_adler32
 from huffman import BitWriter
 from bytes import ByteArray
@@ -21,6 +21,10 @@ pub fn main() -> int:
 	test_zlib_roundtrip2()
 	test_zlib_roundtrip3()
 	test_zlib_roundtrip4()
+	test_gzip_roundtrip1()
+	test_gzip_roundtrip2()
+	test_gzip_roundtrip3()
+	test_gzip_roundtrip4()
 	print("OK")
 	0
 
@@ -81,6 +85,7 @@ fn test_zlib_example3():
 	assert_bytes_equals(decompressed, expected)
 
 fn test_zlib_roundtrip1():
+	set_log_level(level: 4)
 	check_zlib_roundtrip(data: bytes_from_hex_text(text: "78"))
 
 fn test_zlib_roundtrip2():
@@ -98,6 +103,25 @@ fn check_zlib_roundtrip(data: Bytes):
 	let compressed = zlib_compress(data)
 	print("COMPRESSED: {compressed.as_hex()}")
 	let decompressed = zlib_decompress(data: compressed)
+	assert_bytes_equals(data, decompressed)
+
+fn test_gzip_roundtrip1():
+	check_gzip_roundtrip(data: bytes_from_hex_text(text: "78"))
+
+fn test_gzip_roundtrip2():
+	check_gzip_roundtrip(data: bytes_from_hex_text(text: "0123456789abcdef"))
+
+fn test_gzip_roundtrip3():
+	let data = fill_bytes(n: 200, fill: 0xE)
+	check_gzip_roundtrip(data)
+
+fn test_gzip_roundtrip4():
+	check_gzip_roundtrip(data: bytes_from_ascii(text: "abc def def abc yes no"))
+
+fn check_gzip_roundtrip(data: Bytes):
+	let compressed = gzip_compress(data)
+	print("GZIP COMPRESSED: {compressed.as_hex()}")
+	let decompressed = gzip_decompress(data: compressed)
 	assert_bytes_equals(data, decompressed)
 
 fn test_adler32():

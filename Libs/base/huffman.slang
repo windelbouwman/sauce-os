@@ -53,6 +53,8 @@ pub fn encode_symbol(table: HashMap[int,CodeEntry], symbol: int, bit_writer: Bit
 	let entry = table.get(key: symbol)
 	# print("Write symbol={symbol}, code={entry.code}, len={entry.length}")
 	# Huffman codes are written with the MSB transmitted first:
+	if entry.length == 0:
+		panic("Invalid length for symbol: {symbol}")
 	let bit = entry.length
 	while bit > 0:
 		bit -= 1
