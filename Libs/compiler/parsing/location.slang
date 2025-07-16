@@ -15,6 +15,3 @@ pub fn location_at(offset: int) -> Location:
 pub struct Position:
 	row: int
 	column: int
-
-#fn location_to_string(location?: Location) -> str:
-#    "{location.begin.row}:{location.begin.column}"

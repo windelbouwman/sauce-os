@@ -13,7 +13,7 @@ from strlib import str_join
 import vm
 import bc
 from text_gen import TextGenerator
-from pygenerator import escape_string
+from pygenerator import escape_string, needs_escaping, escape_char
 
 pub fn gen_c_code(program: bc.Program, output_filename: Option[str]):
 	log_info("Generating C-code from bytecode")
@@ -323,8 +323,8 @@ class CGenerator:
 						else:
 							push(Value(name: "0", ty: bc.Type.Bool()))
 					Char(value):
-						let text = if value == '\':
-							"'\\{value}'"
+						let text = if needs_escaping(c: value):
+							"'{escape_char(c: value)}'"
 						else:
 							"'{value}'"
 						push(Value(name: text, ty: bc.Type.Char()))

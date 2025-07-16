@@ -107,6 +107,7 @@ def spec_to_pattern(token_spec):
 
 def tokenize(code: str | tuple[Location, str]):
     newline_regex = r"\n"
+    escape_regex = r"(\\[ntr'\"\{\}\\])|(\\[0-8][0-8][0-8])|(\\x[0-9a-fA-F][0-9a-fA-F])"
     main_pattern = spec_to_pattern(
         [
             ("HEXNUMBER", r"0x[0-9a-fA-F]+"),
@@ -122,7 +123,7 @@ def tokenize(code: str | tuple[Location, str]):
             ("TAB", r"[\t]+"),
             ("DOCSTRING", r"\"\"\".*?\"\"\""),
             ("STRING_START", r"\""),
-            ("CHAR", r"\'[^\']\'"),
+            ("CHAR", r"\'(([^\'\\])|" + escape_regex + r")\'"),
             ("NEWLINE", newline_regex),
             ("COMMENT", r"#[^\n]*\n"),
             ("OTHER", r"."),
@@ -130,8 +131,8 @@ def tokenize(code: str | tuple[Location, str]):
     )
     string_pattern = spec_to_pattern(
         [
-            ("STRING_LITERAL", r"[^\"\\\{]+"),
-            ("ESCAPESEQUENCE", r"\\."),
+            ("STRING_LITERAL", r"[^\"\{\\]+"),
+            ("ESCAPESEQUENCE", escape_regex),
             ("STRING_END", r"\""),
             ("STRING_INTERP", r"\{"),
             ("OTHER", r"."),
@@ -191,6 +192,10 @@ def tokenize(code: str | tuple[Location, str]):
                 row += newlines
             elif kind == "CHAR":
                 value = value[1:-1]
+                if value[0] == "\\":
+                    value = parse_escape_sequence(value)
+                else:
+                    assert len(value) == 1
             elif kind == "NUMBER":
                 value = int(value)
             elif kind == "HEXNUMBER":
@@ -231,9 +236,9 @@ def tokenize(code: str | tuple[Location, str]):
                 kind = "{"
             elif kind == "ESCAPESEQUENCE":
                 kind = "STRING_LITERAL"
-                value = value[1]
+                value = parse_escape_sequence(value)
             else:
-                raise NotImplementedError(kind)
+                raise NotImplementedError(kind + ":" + value)
         else:
             raise NotImplementedError(mode)
 
@@ -246,3 +251,23 @@ def tokenize(code: str | tuple[Location, str]):
 
 def lex_error(location: Location, message: str):
     raise ParseError(location, message)
+
+
+def parse_escape_sequence(text):
+    assert text.startswith("\\")
+    if text[1] == "n":
+        return "\n"
+    elif text[1] == "t":
+        return "\t"
+    elif text[1] == "r":
+        return "\r"
+    elif text[1] in "\"'\{\}\\":
+        return text[1]
+    elif text[1] == "x":
+        assert len(text) == 4
+        return chr(int(text[2:], 16))
+    elif text[1].isdigit():
+        assert len(text) == 4
+        return chr(int(text[1:], 8))
+    else:
+        raise NotImplementedError(text)

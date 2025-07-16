@@ -196,7 +196,7 @@ pub class Lexer:
 				TokenKind.AsterixEquals()
 			else:
 				TokenKind.Asterix()
-		elif ord(c) == 39:
+		elif c == '\'':
 			parse_char()
 		elif c == '<':
 			if match('='):
@@ -240,7 +240,7 @@ pub class Lexer:
 		elif c == '{':
 			m_mode = LexerMode.Normal()
 			TokenKind.BraceOpen()
-		elif c == '\':
+		elif c == '\\':
 			case parse_escape_sequence():
 				Ok(ch):
 					TokenKind.StringContent(text: str(ch))
@@ -249,25 +249,44 @@ pub class Lexer:
 		else:
 			while offset < source_length:
 				let c = peek()
-				if c == '"' or c == '{' or c == '\':
+				if c == '"' or c == '{' or c == '\\':
 					break
 				offset += 1
 			TokenKind.StringContent(get_lexeme())
 
 	fn parse_escape_sequence() -> Result[char,str]:
 		let c = next_char()
-		let c2 = if c == '\' or c == '"' or c == '{' or c == '}':
+		let c2 = if c == '\\' or c == '"' or c == '\'' or c == '{' or c == '}':
 			c
 		elif c == 'n':
-			chr(13)
+			'\n'
+		elif c == 'r':
+			'\r'
+		elif c == 't':
+			'\t'
 		elif is_digit(c):
 			# Octal mode escape
-			var value = digit_to_int(c)
-			let c2 = next_char()
-			value = value * 8 + digit_to_int(c: c2)
-			let c3 = next_char()
-			value = value * 8 + digit_to_int(c: c3)
-			chr(value)
+			if offset + 2 < source_length:
+				let c2 = next_char()
+				let c3 = next_char()
+				var value = digit_to_int(c)
+				value = value * 8 + digit_to_int(c: c2)
+				value = value * 8 + digit_to_int(c: c3)
+				chr(value)
+			else:
+				return Result.Error("Too short octal escape sequence")
+		elif c == 'x':
+			# Hex sequence
+			if offset + 2 < source_length:
+				let c2 = next_char()
+				let c3 = next_char()
+				if is_hex_digit(c: c2) and is_hex_digit(c: c3):
+					let value = hex_digit_to_int(c: c2) * 16 + hex_digit_to_int(c: c3)
+					chr(value)
+				else:
+					return Result.Error("Bad hex escape code")
+			else:
+				return Result.Error("Too short hex escape sequence")
 		else:
 			return Result.Error("Invalid escape sequence")
 		Result.Ok(c2)
@@ -293,16 +312,20 @@ pub class Lexer:
 
 	fn parse_char() -> TokenKind:
 		""" Char literal """
-		offset += 1
-		if ord(peek()) == 39:
-			offset += 1
-			if offset < source_length:
-				let char_value = std.str_get(text: get_lexeme(), index: 1)
-				TokenKind.Char(char_value)
-			else:
-				TokenKind.Error("Invalid char")
+		let c = next_char()
+		let char_value = if c == '\\':
+			case parse_escape_sequence():
+				Ok(ch):
+					ch
+				Error(message):
+					return TokenKind.Error("Invalid escape sequence: {message}")
 		else:
-			TokenKind.Error("Invalid char")
+			c
+		let close_quote = next_char()
+		if close_quote == '\'':
+			TokenKind.Char(char_value)
+		else:
+			TokenKind.Error("Invalid char closing")
 
 	fn parse_string() -> TokenKind:
 		if peek() == '"' and peek_n(n: 1) == '"':
@@ -455,8 +478,7 @@ pub class Lexer:
 			chr(0)
 
 	fn next_char() -> char:
-		let n = source_length
-		if offset < n:
+		if offset < source_length:
 			let c = std.str_get(text: source, index: offset)
 			offset += 1
 			c

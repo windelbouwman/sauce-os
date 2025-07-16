@@ -6,6 +6,7 @@ pub fn main() -> int:
 	std.print(msg)
 	# std.print(msg)
 	foo()
+	std.print("Cool escaping: hex-41:\x41 backslash:\\ double-quote:\"")
 	0
 
 fn foo():

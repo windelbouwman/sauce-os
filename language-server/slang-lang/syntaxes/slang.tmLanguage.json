@@ -51,7 +51,13 @@
 				{
 					"name": "string.quoted.single.slang",
 					"begin": "'",
-					"end": "'"
+					"end": "'",
+					"patterns": [
+						{
+							"name": "constant.character.escape.slang",
+							"match": "\\\\."
+						}
+					]
 				}
 			]
 		}

@@ -4,6 +4,10 @@ from functools import lru_cache
 from .location import Location
 
 
+def count_leading_tabs(line: str) -> int:
+    return len(line) - len(line.lstrip("\t"))
+
+
 def print_error(code: str, filename: str, location: Location, message: str):
     print("***********************", filename, location)
     context_amount = 5
@@ -12,9 +16,12 @@ def print_error(code: str, filename: str, location: Location, message: str):
         if row_nr < location.begin.row - context_amount:
             continue
 
-        print(f"[italic]{row_nr:5}[/italic]: {rich.markup.escape(text)}")
+        print(f"[italic]{row_nr:5}[/italic]:\t{rich.markup.escape(text)}")
         if row_nr == location.begin.row:
-            indent = " " * (location.begin.column + 6)
+            tabs = count_leading_tabs(text)
+            indent = (
+                " " * 6 + "\t" + "\t" * tabs + " " * (location.begin.column - 1 - tabs)
+            )
             lexeme_length = max(location.end.column - location.begin.column, 1)
             pointer = indent + "^" * lexeme_length
             indent += " " * (lexeme_length // 2)

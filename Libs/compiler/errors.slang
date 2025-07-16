@@ -1,8 +1,8 @@
 
-from std import print, read_file, str_get
+from std import print, read_file, str_get, str_len
 from listtype import List
 from optiontype import Option
-from strlib import split_lines, str_repeat, str_pad_right, is_lf, is_tab
+from strlib import split_lines, str_repeat, str_pad_left, is_lf
 from location import Location, Position
 
 pub struct CompilationError:
@@ -47,13 +47,13 @@ fn render_message(filename: Option[str], message: SingleCompilationError):
 			"\033[31merror\033[0m"
 		Warning:
 			"\033[33mwarning\033[0m"
-	let one_line = true
+	# let one_line = false
 	case filename:
 		Some(filename):
-			if one_line:
-				print_error_one_line(label, filename, message)
-			else:
-				print_error(label, filename, message)
+			# if one_line:
+			print_error_one_line(label, filename, message)
+			# else:
+			print_error(label, filename, message)
 		None:
 			print("{label}: {message.message}")
 
@@ -67,8 +67,6 @@ fn offset_to_position(offset: int, code: str) -> Position:
 		if is_lf(c):
 			row += 1
 			column = 1
-		elif is_tab(c):
-			column += 8
 		else:
 			column += 1
 		index += 1
@@ -80,7 +78,7 @@ fn print_error_one_line(label: str, filename: str, message: SingleCompilationErr
 	print("{filename}:{begin.row}.{begin.column}: {label} {message.message}")
 
 fn print_error(label: str, filename: str, message: SingleCompilationError):
-	print("      +---------------[ {filename} ]-----------------")
+	print("     +---------------[ {filename} ]-----------------")
 	let code = read_file(filename)
 	let begin = offset_to_position(offset: message.location.begin, code)
 	let end = offset_to_position(offset: message.location.end, code)
@@ -89,12 +87,13 @@ fn print_error(label: str, filename: str, message: SingleCompilationError):
 	var row = 1
 	for line in split_lines(text: code):
 		if target_row - nr_context_rows <= row and row <= target_row + nr_context_rows:
-			let row_text = str_pad_right(text: "{row}", length: 5, fill: " ")
-			print(" {row_text}| {line}")
-			let pre_text = "      |"
+			let row_text = str_pad_left(text: "{row}", length: 5, fill: " ")
+			print("{row_text}|\t{line}")
+			let pre_text = "     |\t"
 
 			if row == target_row:
-				let indent = pre_text + str_repeat(text: " ", count: begin.column)
+				let n_tabs = count_leading_tabs(text: line)
+				let indent = pre_text + str_repeat(text: "\t", count: n_tabs) + str_repeat(text: " ", count: begin.column - 1 - n_tabs)
 				var lexeme_width = 1
 				if end.column > begin.column:
 					lexeme_width = end.column - begin.column + 1
@@ -106,8 +105,18 @@ fn print_error(label: str, filename: str, message: SingleCompilationError):
 				print("{pre_text}")
 
 		row += 1
-	print("      +----------------------------------------------")
+	print("     +----------------------------------------------")
 	print("")
+
+fn count_leading_tabs(text: str) -> int:
+	var index = 0
+	let n = str_len(text)
+	while index < n:
+		if str_get(text, index) == '\t':
+			index += 1
+		else:
+			break
+	index
 
 # fn print_error_line(line: str, location: Location, message: str):
 #     print(" {line}")

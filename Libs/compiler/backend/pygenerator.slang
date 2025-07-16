@@ -2,7 +2,7 @@
 """
 
 import ast
-from utils import panic, log_info
+from utils import panic, log_info, unimplemented
 from listtype import List
 from optiontype import option_unwrap, Option
 from std import float_to_str2, str_len, str_slice
@@ -226,8 +226,8 @@ class PyGenerator:
 			StringLiteral(s):
 				"\"{escape_string(s)}\""
 			CharLiteral(c):
-				if c == '\' or c == '"':
-					"\"\\{c}\""
+				if needs_escaping(c):
+					"\"{escape_char(c)}\""
 				else:
 					"\"{c}\""
 			Null:
@@ -364,10 +364,10 @@ pub fn escape_string(text?: str) -> str:
 	let n = str_len(text)
 	while index < n:
 		let c = text[index]
-		if c == '\' or c == '"':
+		if needs_escaping(c):
 			if begin < index:
 				res = res + str_slice(text, begin, end: index)
-			res = res + "\\{c}"
+			res = res + escape_char(c)
 			begin = index + 1
 		index += 1
 
@@ -377,3 +377,25 @@ pub fn escape_string(text?: str) -> str:
 		if begin < index:
 			res = res + str_slice(text, begin, end: index)
 		res
+
+pub fn needs_escaping(c: char) -> bool:
+	if c == '\\' or c == '"' or c == '\'' or c == '\n' or c == '\r' or c == '\t':
+		true
+	else:
+		false
+
+pub fn escape_char(c: char) -> str:
+	if c == '\n':
+		"\\n"
+	elif c == '\r':
+		"\\r"
+	elif c == '\t':
+		"\\t"
+	elif c == '\\':
+		"\\\\"
+	elif c == '\'':
+		"\\'"
+	elif c == '"':
+		"\\\""
+	else:
+		unimplemented("Escape: {c}")
