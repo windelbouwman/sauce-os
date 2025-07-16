@@ -117,7 +117,7 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
 
 	# TBD:
 	# Optionally check types in between?
-	type_check_modules(module_set)
+	type_check_modules(module_set, display_warnings: false)
 
 	log_info("Type erasure")
 
@@ -550,7 +550,7 @@ fn transformer_on_expression7(transformer: Transformer, expression: ast.Expressi
 					# Perform type erasure on struct literal values
 					let field_types = ty.get_field_types()
 					assert(condition: values.len() == field_types.len(), message: "values and field-types must be the same length")
-					let index = 0
+					var index = 0
 					for value in values:
 						let ft = field_types[index]
 						transformer.class_rewriter.erase_type(ft, value, assign: false)
@@ -754,7 +754,7 @@ class ClassRewriter:
 
 		let libname = "?"
 		let docstring: Option[str] = Option.None()
-		let ctor_func = ast.extern_function_def(is_pub: true, libname, name: ctor_name, docstring, type_parameters, parameters, return_type: struct_type, location: class_def.location)
+		var ctor_func = ast.extern_function_def(is_pub: true, libname, name: ctor_name, docstring, type_parameters, parameters, return_type: struct_type, location: class_def.location)
 		case class_def.is_extern:
 			Some(libname):
 				ctor_func = ast.extern_function_def(is_pub: true, libname, name: ctor_name, docstring, type_parameters, parameters, return_type: struct_type, location: class_def.location)
@@ -769,7 +769,11 @@ class ClassRewriter:
 
 	pub fn rewrite_class_literal(ty: ast.Type, arguments: List[ast.LabeledExpression], location: Location) -> ast.Expression:
 		let class_def = ty.get_class_def()
-		let ctor_func_def: ast.FunctionDef = ctor_map.get(key: class_def.id)
+		let ctor_func_def: ast.FunctionDef = case ctor_map.maybe_get(key: class_def.id):
+			Some(value):
+				value
+			None:
+				panic("Ctor not found: {class_def.id.name}")
 		let type_arguments = ty.get_type_arguments()
 		let ctor_func_ref = ast.function_ref(function_def: ctor_func_def, type_arguments, location)
 		let struct_ty: ast.Type = ast.undefined_type()
@@ -867,7 +871,7 @@ class ClassRewriter:
 
 		let target = this_param.ref(location).get_attr_typed(attr: "vtable", location).get_attr_typed(attr: function_def.name, location)
 		let arguments: List[ast.LabeledExpression] = List()
-		let first = true
+		var first = true
 		for parameter in parameters:
 			if first:
 				let data = this_param.ref(location).get_attr_typed(attr: "data", location)
@@ -955,7 +959,7 @@ class ClassRewriter:
 			location
 		arguments.append(ast.LabeledExpression(location, name: Option.Some("this"), value: this_unboxed))
 
-		let first = true
+		var first = true
 		for p in method.parameters:
 			if first:
 				first = false
@@ -1016,7 +1020,7 @@ class ClassRewriter:
 	fn transform_for_loop_over_iterator(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
 		# Implement loop over 'iter' method:
 		# log_info(".... {for_statement.iter_value.ty}")
-		let arguments: List[ast.LabeledExpression] = List()
+		var arguments: List[ast.LabeledExpression] = List()
 		let iter_val = for_statement.iter_value.call_method(method: "iter", arguments, location)
 		let iter_var = new_variable(name: "it", ty: iter_val.ty, location)
 		let let_it_var = ast.let_statement(variable: iter_var, type_hint: Option.None(), value: iter_val, location)
@@ -1055,6 +1059,7 @@ class ClassRewriter:
 
 		# let index = 0
 		let index_var = new_variable(name: "index", ty: ast.int_type(), location)
+		index_var.writable = true
 		let zero = ast.integer_literal(value: 0, location)
 		let let_index = ast.let_statement(variable: index_var, type_hint: Option.None(), value: zero, location)
 
@@ -1101,6 +1106,7 @@ class ClassRewriter:
 
 		# index = 0
 		let index_var = new_variable(name: "index", ty: ast.int_type(), location)
+		index_var.writable = true
 		let zero = ast.integer_literal(value: 0, location)
 		let let_index = ast.let_statement(variable: index_var, type_hint: Option.None(), value: zero, location)
 
@@ -1137,6 +1143,7 @@ class ClassRewriter:
 
 		# let index = 0
 		let index_var = new_variable(name: "index", ty: ast.int_type(), location)
+		index_var.writable = true
 		let zero = ast.integer_literal(value: 0, location)
 		let let_index = ast.let_statement(variable: index_var, type_hint: Option.None(), value: zero, location)
 
@@ -1182,7 +1189,7 @@ class ClassRewriter:
 		let x_var = new_variable(name: "x", ty: ast.int_type(), location)
 		let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: switch_statement.value, location)
 
-		let else_clause = switch_statement.default_block.body
+		var else_clause = switch_statement.default_block.body
 		for arm in switch_statement.arms:
 			let x_ref = x_var.ref(location: arm.location)
 			let eq_op = ast.BinaryOperator.Equals()
@@ -1196,9 +1203,9 @@ class ClassRewriter:
 		log_info("Rewriting enum def {enum_def.id.name}")
 
 		# Check for enum def characteristics:
-		let n_arms = 0
-		let n_payload_arms = 0
-		let n_nullable_arms = 0
+		var n_arms = 0
+		var n_payload_arms = 0
+		var n_nullable_arms = 0
 		for variant in enum_def.variants:
 			n_arms += 1
 			if variant.payload.len() > 0:
@@ -1236,7 +1243,7 @@ class ClassRewriter:
 					builder3.set_name(name: "{enum_def.id.name}Data{variant.name}")
 					builder3.set_id(id: get_unique_id())
 
-					let idx = 0
+					var idx = 0
 					for payload_type in variant.payload:
 						builder3.add_field(name: "f_{idx}", ty: payload_type, location: variant.location)
 						idx += 1
@@ -1298,7 +1305,7 @@ class ClassRewriter:
 						let store_var = ast.let_statement(variable: arm.variables.first(), type_hint: Option.None(), value: union_value, location: arm.location)
 						switch_arm_body.append(store_var)
 					elif arm.variables.len() > 1:
-						let idx = 0
+						var idx = 0
 						for variable in arm.variables:
 							let x_var_ref = x_var.ref(location: arm.location)
 							let data_value = x_var_ref.get_attr_typed(attr: "data", location: arm.location)
@@ -1315,12 +1322,11 @@ class ClassRewriter:
 						block: ast.scoped_block(body: ast.compound(inner: switch_arm_body, location: arm.location))
 					switch_arms.append(switch_arm)
 
-				let switch_default_code: ast.Statement = ast.pass_statement(location)
-				case case_statement.else_block:
+				let switch_default_code: ast.Statement = case case_statement.else_block:
 					None:
-						switch_default_code = ast.unreachable_statement(location)
+						ast.unreachable_statement(location)
 					Some(else_block):
-						switch_default_code = else_block.body
+						else_block.body
 
 				let x_var_ref0 = x_var.ref(location)
 				let switch_value = x_var_ref0.get_attr_typed(attr: "tag", location)
@@ -1333,8 +1339,8 @@ class ClassRewriter:
 				let store_nullable = ast.let_statement(variable: x_var, type_hint: Option.None(), value: case_statement.value, location)
 
 				# Determine true and false arms
-				let optional_true_body: Option[ast.Statement] = Option.None()
-				let optional_false_body: Option[ast.Statement] = Option.None()
+				var optional_true_body: Option[ast.Statement] = Option.None()
+				var optional_false_body: Option[ast.Statement] = Option.None()
 
 				for arm in case_statement.arms:
 					let variant = option_unwrap(ast.get_enum_variant(enum_def, attr: arm.name))
@@ -1387,12 +1393,11 @@ class ClassRewriter:
 						block: ast.scoped_block(body: switch_arm_body)
 					switch_arms.append(switch_arm)
 
-				let switch_default_code: ast.Statement = ast.pass_statement(location)
-				case case_statement.else_block:
+				let switch_default_code: ast.Statement = case case_statement.else_block:
 					None:
-						switch_default_code = ast.unreachable_statement(location)
+						ast.unreachable_statement(location)
 					Some(else_block):
-						switch_default_code = else_block.body
+						else_block.body
 
 				ast.switch_statement(value: case_statement.value, arms: switch_arms, default_body: switch_default_code, location)
 
@@ -1416,7 +1421,7 @@ class ClassRewriter:
 				let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
 				let union_type = struct_type.get_field_type(attr: "data")
 
-				let union_field_name = "data_{variant.name}"
+				var union_field_name = "data_{variant.name}"
 				let union_value = if values.len() == 0:
 					union_field_name = "nodata"
 					ast.null_value(location)
@@ -1438,7 +1443,7 @@ class ClassRewriter:
 			let return_type = ft.get_return_type()
 
 			# Check if we need a bridge function:
-			let opaq = false
+			var opaq = false
 			for pt in parameter_types:
 				if needs_opaque_cast(pt):
 					opaq = true
@@ -1463,20 +1468,19 @@ class ClassRewriter:
 		let type_parameters: List[ast.TypeParameter] = List()
 		let parameters: List[ast.ParameterDef] = List()
 		let arguments: List[ast.LabeledExpression] = List()
-		let return_type2 = function_def.info.return_type
+		var return_type2 = function_def.info.return_type
 		assert(condition: function_def.info.except_type.is_void(), message: "Bridge function only supports non-throwing functions")
 		let except_type = ast.void_type()
-		let index = 0
+		var index = 0
 		for parameter in function_def.parameters:
 			let pt = parameter_types[index]
 			index += 1
 			let needs_cast = needs_opaque_cast(pt)
 
-			let ty = parameter.ty
-			if needs_cast:
-				ty = ast.opaque_type()
+			let ty = if needs_cast:
+				ast.opaque_type()
 			else:
-				ty = parameter.ty
+				parameter.ty
 			let bridge_function_parameter = ast.parameter_def(name: parameter.id.name, id: get_unique_id(), label_is_optional: true, ty, location)
 			parameters.append(bridge_function_parameter)
 
@@ -1489,16 +1493,15 @@ class ClassRewriter:
 
 		let function_ref = ast.function_ref(function_def, type_arguments: new_vector(), location)
 		let function_call = ast.call(callee: function_ref, arguments, ty: ast.void_type(), location)
-		let body = ast.pass_statement(location)
-		if return_type2.is_void():
-			body = ast.expression_statement(expr: function_call)
+		let body = if return_type2.is_void():
+			ast.expression_statement(expr: function_call)
 		else:
 			# Check if we need to introduce a cast to opaque value
-			let value = function_call
+			var value = function_call
 			if needs_opaque_cast(return_type):
 				return_type2 = ast.opaque_type()
 				value = ast.box(value, location)
-			body = ast.return_statement(value: Option.Some(value), location)
+			ast.return_statement(value: Option.Some(value), location)
 
 		let bridge_function = ast.function_def:
 			is_pub: true

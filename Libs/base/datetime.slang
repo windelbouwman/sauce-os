@@ -20,8 +20,8 @@ pub fn unix_to_datetime(z: int) -> DateTime:
 	let month = date.month
 	let day = date.day
 
-	let second = modulo(value: z, divisor: seconds_per_day)
-	let minute = second / 60
+	var second = modulo(value: z, divisor: seconds_per_day)
+	var minute = second / 60
 	second = modulo(value: second, divisor: 60)
 	let hour = minute / 60
 	minute = modulo(value: minute, divisor: 60)
@@ -30,7 +30,7 @@ pub fn unix_to_datetime(z: int) -> DateTime:
 
 pub fn datetime_to_unix(dt: DateTime) -> int:
 	let ymd = Civil(year: dt.year, month: dt.month, day: dt.day)
-	let z = days_from_civil(ymd) * 24 * 3600
+	var z = days_from_civil(ymd) * 24 * 3600
 	z += dt.hour * 3600 + dt.minute * 60 + dt.second
 	z
 
@@ -61,7 +61,7 @@ struct Civil:
 	day: int
 
 fn days_from_civil(ymd: Civil) -> int:
-	let y = ymd.year
+	var y = ymd.year
 	let m = ymd.month
 	let d = ymd.day
 
@@ -80,13 +80,13 @@ fn days_from_civil(ymd: Civil) -> int:
 	let yoe = y - (era * 400)
 
 	# Day of year [0, 365]:
-	let x = 0
+	var x = 0
 	if m > 2:
 		x = m - 3
 	else:
 		x = m + 9
 	let doy = (153 * x + 2) / 5 + d - 1
-	
+
 	# Day of era [0, 146096]:
 	let doe = yoe * 365 + yoe / 4 - yoe/100 + doy
 	era * 146097 + doe - 719468
@@ -100,19 +100,19 @@ fn civil_from_days(z: int) -> Civil:
 
 	# Year of era [0, 399]
 	let yoe = (doe - doe/1460 + doe /36524 - doe/146096) / 365
-	let year = yoe + era * 400
+	var year = yoe + era * 400
 
 	# Day of year [0, 365]:
 	let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
 
 	let mp = (5 * doy + 2) / 153
 	let day = doy - (153 * mp + 2) / 5 + 1
-	let month = 0
+	var month = 0
 	if mp < 10:
 		month = mp + 3
 	else:
 		month = mp - 9
-	
+
 	if month <= 2:
 		year += 1
 

@@ -216,7 +216,7 @@ class IncrementalCompiler:
 
     def __init__(self):
         self.id_context = ast.IdContext()
-        self.rt_module = slangc.create_rt_module()
+        self.rt_module = slangc.create_rt_module(self.id_context)
         self.known_modules = {}
         self.module_cache = {}
         self.dependency_graph = nx.DiGraph()

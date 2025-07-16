@@ -93,6 +93,8 @@ class SymbolSaver:
 		log_debug("Saving {ast.definition_to_str(definition)}")
 		m_ser.begin_object()
 		case definition:
+			Mod(module):
+				save_module(module)
 			Macro(macro_def):
 				save_macro_def(macro_def)
 			Function(function_def):
@@ -119,12 +121,11 @@ class SymbolSaver:
 		m_ser.add_boolean_attribute(attr: "pub", value: variable_def.is_pub)
 		save_id(id: variable_def.variable.id)
 		save_type(attr: "type", ty: variable_def.variable.ty)
-		let is_initialized = false
-		case variable_def.value:
+		let is_initialized = case variable_def.value:
 			Intern(value):
-				is_initialized = option_is_some(value)
+				option_is_some(value)
 			Extern(libname, initialized):
-				is_initialized = initialized
+				initialized
 		m_ser.add_boolean_attribute(attr: "initialized", value: is_initialized)
 
 	fn save_enum_def(enum_def: ast.EnumDef):
@@ -138,12 +139,7 @@ class SymbolSaver:
 		for variant in enum_def.variants:
 			m_ser.begin_object()
 			m_ser.add_text_attribute(attr: "name", text: variant.name)
-			m_ser.begin_array()
-			for payload in variant.payload:
-				m_ser.begin_object()
-				save_type(attr: "type", ty: payload)
-				m_ser.end_object_as_element()
-			m_ser.end_array_as_attribute(attr: "payload")
+			save_types(attr: "payload", types: variant.payload)
 			m_ser.end_object_as_element()
 		m_ser.end_array_as_attribute(attr: "variants")
 
@@ -234,75 +230,87 @@ class SymbolSaver:
 				pass
 
 	fn save_type_parameters(type_parameters: List[ast.TypeParameter]):
-		m_ser.begin_array()
-		for type_parameter in type_parameters:
-			m_ser.begin_object()
-			save_id(id: type_parameter.id)
-			m_ser.end_object_as_element()
-		m_ser.end_array_as_attribute(attr: "type-parameters")
+		if not type_parameters.is_empty():
+			m_ser.begin_array()
+			for type_parameter in type_parameters:
+				m_ser.begin_object()
+				save_id(id: type_parameter.id)
+				m_ser.end_object_as_element()
+			m_ser.end_array_as_attribute(attr: "type-parameters")
+
+	fn save_types(attr: str, types: Vector[ast.Type]):
+		if not types.is_empty():
+			m_ser.begin_array()
+			for ty in types:
+				m_ser.begin_object()
+				save_type(attr: "type", ty)
+				m_ser.end_object_as_element()
+			m_ser.end_array_as_attribute(attr)
 
 	fn save_type(attr: str, ty: ast.Type):
-		m_ser.begin_object()
-		if ty.is_int():
-			m_ser.add_text_attribute(attr: "kind", text: "int")
-			let signed = ty.is_signed_int()
-			let bits = ty.get_bits()
-			m_ser.add_boolean_attribute(attr: "signed", value: signed)
-			m_ser.add_integer_attribute(attr: "bits", value: bits)
-		elif ty.is_str():
-			m_ser.add_text_attribute(attr: "kind", text: "str")
-		elif ty.is_float():
-			m_ser.add_text_attribute(attr: "kind", text: "float")
-			let bits = ty.get_bits()
-			m_ser.add_integer_attribute(attr: "bits", value: bits)
+		if ty.is_void():
+			m_ser.add_text_attribute(attr, text: "void")
 		elif ty.is_bool():
-			m_ser.add_text_attribute(attr: "kind", text: "bool")
+			m_ser.add_text_attribute(attr, text: "bool")
+		elif ty.is_str():
+			m_ser.add_text_attribute(attr, text: "str")
 		elif ty.is_char():
-			m_ser.add_text_attribute(attr: "kind", text: "char")
-		elif ty.is_void():
-			m_ser.add_text_attribute(attr: "kind", text: "void")
-		elif ty.is_unreachable():
-			m_ser.add_text_attribute(attr: "kind", text: "unreachable")
-		elif ty.is_array():
-			m_ser.add_text_attribute(attr: "kind", text: "array")
-			let element_type = ty.get_element_type()
-			save_type(attr: "element-type", ty: element_type)
-			let size = ty.get_array_size()
-			m_ser.add_integer_attribute(attr: "size", value: size)
-		elif ty.is_type_parameter():
-			m_ser.add_text_attribute(attr: "kind", text: "type-parameter")
-			let type_parameter = ty.get_type_parameter()
-			save_id(id: type_parameter.id)
-		elif ty.is_tycon_app():
-			m_ser.add_text_attribute(attr: "kind", text: "app")
-			let tycon = ty.get_tycon()
-			let type_arguments = ty.get_type_arguments()
-
-			save_tycon(tycon)
-
-			m_ser.begin_array()
-			for type_argument in type_arguments:
-				m_ser.begin_object()
-				save_type(attr: "type", ty: type_argument)
-				m_ser.end_object_as_element()
-			m_ser.end_array_as_attribute(attr: "type-arguments")
-		elif ty.is_function_type():
-			m_ser.add_text_attribute(attr: "kind", text: "function")
-			let parameter_types = ty.get_parameter_types()
-			let return_type = ty.get_return_type()
-			let except_type = ty.get_except_type()
-			m_ser.begin_array()
-			for parameter_type in parameter_types:
-				m_ser.begin_object()
-				save_type(attr: "type", ty: parameter_type.ty)
-				m_ser.end_object_as_element()
-			m_ser.end_array_as_attribute(attr: "parameter-types")
-			m_ser.add_boolean_attribute(attr: "no-return", value: false) # TODO
-			save_type(attr: "return-type", ty: return_type)
-			save_type(attr: "except-type", ty: except_type)
+			m_ser.add_text_attribute(attr, text: "char")
 		else:
-			panic("save_type: Not-impl: {ty}")
-		m_ser.end_object_as_attribute(attr)
+			m_ser.begin_object()
+			if ty.is_int():
+				m_ser.add_text_attribute(attr: "kind", text: "int")
+				let signed = ty.is_signed_int()
+				let bits = ty.get_bits()
+				m_ser.add_boolean_attribute(attr: "signed", value: signed)
+				m_ser.add_integer_attribute(attr: "bits", value: bits)
+			elif ty.is_str():
+				m_ser.add_text_attribute(attr: "kind", text: "str")
+			elif ty.is_float():
+				m_ser.add_text_attribute(attr: "kind", text: "float")
+				let bits = ty.get_bits()
+				m_ser.add_integer_attribute(attr: "bits", value: bits)
+			elif ty.is_bool():
+				m_ser.add_text_attribute(attr: "kind", text: "bool")
+			elif ty.is_char():
+				m_ser.add_text_attribute(attr: "kind", text: "char")
+			elif ty.is_void():
+				m_ser.add_text_attribute(attr: "kind", text: "void")
+			elif ty.is_unreachable():
+				m_ser.add_text_attribute(attr: "kind", text: "unreachable")
+			elif ty.is_array():
+				m_ser.add_text_attribute(attr: "kind", text: "array")
+				let element_type = ty.get_element_type()
+				save_type(attr: "element-type", ty: element_type)
+				let size = ty.get_array_size()
+				m_ser.add_integer_attribute(attr: "size", value: size)
+			elif ty.is_type_parameter():
+				m_ser.add_text_attribute(attr: "kind", text: "type-parameter")
+				let type_parameter = ty.get_type_parameter()
+				save_id(id: type_parameter.id)
+			elif ty.is_tycon_app():
+				m_ser.add_text_attribute(attr: "kind", text: "app")
+				let tycon = ty.get_tycon()
+				let type_arguments = ty.get_type_arguments()
+				save_tycon(tycon)
+				save_types(attr: "type-arguments", types: type_arguments)
+			elif ty.is_function_type():
+				m_ser.add_text_attribute(attr: "kind", text: "function")
+				let parameter_types = ty.get_parameter_types()
+				let return_type = ty.get_return_type()
+				let except_type = ty.get_except_type()
+				m_ser.begin_array()
+				for parameter_type in parameter_types:
+					m_ser.begin_object()
+					save_type(attr: "type", ty: parameter_type.ty)
+					m_ser.end_object_as_element()
+				m_ser.end_array_as_attribute(attr: "parameter-types")
+				m_ser.add_boolean_attribute(attr: "no-return", value: false) # TODO
+				save_type(attr: "return-type", ty: return_type)
+				save_type(attr: "except-type", ty: except_type)
+			else:
+				panic("save_type: Not-impl: {ty}")
+			m_ser.end_object_as_attribute(attr)
 
 	fn save_tycon(tycon: ast.TyCon):
 		case tycon:
@@ -501,7 +509,7 @@ class SymbolLoader:
 		let docstring = load_docstring()
 		let type_parameters = load_type_parameters()
 		let variants: List[ast.EnumVariant] = List()
-		let tag_index = 0
+		var tag_index = 0
 		for variant_obj in m_des.get_array_attribute(attr: "variants"):
 			m_des.push_value(value: variant_obj)
 			let variant_name = m_des.get_text_attribute(attr: "name")
@@ -588,68 +596,84 @@ class SymbolLoader:
 
 	fn load_type_parameters() -> List[ast.TypeParameter]:
 		let type_parameters: List[ast.TypeParameter] = List()
-		for type_parameter_obj in m_des.get_array_attribute(attr: "type-parameters"):
-			m_des.push_value(value: type_parameter_obj)
-			let id = load_id()
-			let location = location_default()
-			let type_parameter = ast.new_type_parameter(name: id.name, id: id.id, location)
-			m_type_parameter_map.insert(key: id, value: type_parameter)
-			type_parameters.append(type_parameter)
-			m_des.pop_value()
+		let attr = "type-parameters"
+		if m_des.has_attribute(attr):
+			for type_parameter_obj in m_des.get_array_attribute(attr):
+				m_des.push_value(value: type_parameter_obj)
+				let id = load_id()
+				let location = location_default()
+				let type_parameter = ast.new_type_parameter(name: id.name, id: id.id, location)
+				m_type_parameter_map.insert(key: id, value: type_parameter)
+				type_parameters.append(type_parameter)
+				m_des.pop_value()
 		type_parameters
 
 	fn load_types(attr: str) -> Vector[ast.Type]:
 		let types: Vector[ast.Type] = new_vector()
-		for type_argument_obj in m_des.get_array_attribute(attr):
-			m_des.push_value(value: type_argument_obj)
-			types.append(load_type(attr: "type"))
-			m_des.pop_value()
+		if m_des.has_attribute(attr):
+			for type_argument_obj in m_des.get_array_attribute(attr):
+				m_des.push_value(value: type_argument_obj)
+				types.append(load_type(attr: "type"))
+				m_des.pop_value()
 		types
 
 	fn load_type(attr: str) -> ast.Type:
 		m_des.enter_attribute(attr)
-		let type_name = m_des.get_text_attribute(attr: "kind")
-		let ty = if type_name == "int":
-			let signed = m_des.get_boolean_attribute(attr: "signed")
-			let bits = m_des.get_integer_attribute(attr: "bits")
-			ast.specific_int_type(signed, bits)
-		elif type_name == "str":
-			ast.str_type()
-		elif type_name == "bool":
-			ast.bool_type()
-		elif type_name == "float":
-			let bits = m_des.get_integer_attribute(attr: "bits")
-			ast.specific_float_type(bits)
-		elif type_name == "char":
-			ast.char_type()
-		elif type_name == "void":
-			ast.void_type()
-		elif type_name == "unreachable":
-			ast.unreachable_type()
-		elif type_name == "app":
-			let type_arguments = load_types(attr: "type-arguments")
-			let id = load_id()
-			let tycon = ast.TyCon.Ref(key: id)
-			ast.new_type(kind: ast.TypeKind.App(tycon, type_arguments))
-		elif type_name == "type-parameter":
-			let id = load_id()
-			let type_parameter = m_type_parameter_map.get(key: id)
-			ast.type_parameter_ref(type_parameter)
-		elif type_name == "array":
-			let element_type = load_type(attr: "element-type")
-			let size = m_des.get_integer_attribute(attr: "size")
-			ast.array_type(element_type, size)
-		elif type_name == "function":
-			let parameter_types: Vector[ast.ParameterType] = new_vector()
-			for parameter_obj in m_des.get_array_attribute(attr: "parameter-types"):
-				m_des.push_value(value: parameter_obj)
-				let parameter_type = load_type(attr: "type")
-				parameter_types.append(ast.ParameterType(label: Option.None(), ty: parameter_type))
-				m_des.pop_value()
-			let info = load_function_info()
-			ast.function_type(parameter_types, info)
+		let ty = if m_des.is_string():
+			let type_name = m_des.get_text()
+			if type_name == "str":
+				ast.str_type()
+			elif type_name == "bool":
+				ast.bool_type()
+			elif type_name == "void":
+				ast.void_type()
+			elif type_name == "char":
+				ast.char_type()
+			else:
+				panic("Unsupported: {type_name}")
 		else:
-			panic("Unsupported: {type_name}")
+			let type_name = m_des.get_text_attribute(attr: "kind")
+			if type_name == "int":
+				let signed = m_des.get_boolean_attribute(attr: "signed")
+				let bits = m_des.get_integer_attribute(attr: "bits")
+				ast.specific_int_type(signed, bits)
+			elif type_name == "str":
+				ast.str_type()
+			elif type_name == "bool":
+				ast.bool_type()
+			elif type_name == "float":
+				let bits = m_des.get_integer_attribute(attr: "bits")
+				ast.specific_float_type(bits)
+			elif type_name == "char":
+				ast.char_type()
+			elif type_name == "void":
+				ast.void_type()
+			elif type_name == "unreachable":
+				ast.unreachable_type()
+			elif type_name == "app":
+				let type_arguments = load_types(attr: "type-arguments")
+				let id = load_id()
+				let tycon = ast.TyCon.Ref(key: id)
+				ast.new_type(kind: ast.TypeKind.App(tycon, type_arguments))
+			elif type_name == "type-parameter":
+				let id = load_id()
+				let type_parameter = m_type_parameter_map.get(key: id)
+				ast.type_parameter_ref(type_parameter)
+			elif type_name == "array":
+				let element_type = load_type(attr: "element-type")
+				let size = m_des.get_integer_attribute(attr: "size")
+				ast.array_type(element_type, size)
+			elif type_name == "function":
+				let parameter_types: Vector[ast.ParameterType] = new_vector()
+				for parameter_obj in m_des.get_array_attribute(attr: "parameter-types"):
+					m_des.push_value(value: parameter_obj)
+					let parameter_type = load_type(attr: "type")
+					parameter_types.append(ast.ParameterType(label: Option.None(), ty: parameter_type))
+					m_des.pop_value()
+				let info = load_function_info()
+				ast.function_type(parameter_types, info)
+			else:
+				panic("Unsupported: {type_name}")
 
 		m_des.pop_value()
 		ty

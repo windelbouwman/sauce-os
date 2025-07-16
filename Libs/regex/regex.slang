@@ -33,7 +33,7 @@ fn get_text(m: Match) -> str:
 pub fn split_at_pattern(text: str, pattern: str) -> List[str]:
 	""" Split a string at the given regex """
 	let parts: List[str] = List()
-	let begin = 0
+	var begin = 0
 	for m in find_all(pattern, text):
 		parts.append(str_slice(text, begin, end: m.begin))
 		begin = m.end
@@ -44,11 +44,11 @@ fn machine_find_all(machine: Machine, text: str) -> List[Match]:
 	let matches: List[Match] = List()
 
 	# Matching state machine:
-	let state_nr = machine.start_state
-	let index = 0
-	let accept = false
-	let begin = 0
-	let end = 0
+	var state_nr = machine.start_state
+	var index = 0
+	var accept = false
+	var begin = 0
+	var end = 0
 	let n = str_len(text)
 	while index < n:
 		# Check if we are in an accepting state:
@@ -112,8 +112,8 @@ fn create_machine(rx: Regex) -> Machine:
 	worklist.append(rx)
 	states2.append(rx)
 
-	let nr = 0
-	let error_state = -1
+	var nr = 0
+	var error_state = -1
 	while worklist.len() > 0:
 		let rx2 = worklist.pop_front()
 		# print("Considering")
@@ -125,7 +125,7 @@ fn create_machine(rx: Regex) -> Machine:
 			let rx3 = rx2.derivative(c: i)
 			# print_regex(rx: rx3, level: 0)
 
-			let to_state = contains_regex(lst: states2, rx: rx3)
+			var to_state = contains_regex(lst: states2, rx: rx3)
 			if to_state < 0:
 				states2.append(rx3)
 				worklist.append(rx3)
@@ -147,7 +147,7 @@ fn create_machine(rx: Regex) -> Machine:
 	machine
 
 fn contains_regex(lst: List[Regex], rx: Regex) -> int:
-	let index = 0
+	var index = 0
 	for rx2 in lst:
 		if rx2.equals(other: rx):
 			return index
@@ -185,7 +185,7 @@ struct Transition:
 fn parse(pattern: str) -> Regex:
 	# Parse a pattern into a regex
 	let p = Parser(text: pattern)
-	let res = null_regex()
+	var res = null_regex()
 	try:
 		res = p.parse()
 	except (e: ParseError):
@@ -193,7 +193,7 @@ fn parse(pattern: str) -> Regex:
 	res
 
 pub fn print_machine(machine: Machine):
-	let i = 0
+	var i = 0
 	for state in machine.states:
 		print("State: {i}")
 		for transition in state.transitions:
@@ -236,7 +236,7 @@ class Parser:
 		""" Parse a regular expression. """
 		n_size = str_len(text)
 		if peek() != chr(0):
-			let item = parse_term()
+			var item = parse_term()
 			while peek() == '|':
 				index += 1
 				let item2 = parse_term()
@@ -247,11 +247,11 @@ class Parser:
 
 	fn parse_term() -> Regex except ParseError:
 		if peek() != '|' and peek() != chr(0):
-			let item = parse_factor()
+			var item = parse_factor()
 			while peek() != '|' and peek() != chr(0):
 				let item2 = parse_factor()
 				item = item.concat(other: item2)
-			return item
+			item
 		else:
 			panic("TODO: empty regex")
 
@@ -270,15 +270,15 @@ class Parser:
 		let c2 = peek()
 		if c2 == '+':
 			index += 1
-			res = res.concat(other: res.kleene())
+			res.concat(other: res.kleene())
 		elif c2 == '*':
 			index += 1
-			res = res.kleene()
+			res.kleene()
 		elif c2 == '?':
 			index += 1
-			res = res.logical_or(other: epsilon_regex())
-
-		res
+			res.logical_or(other: epsilon_regex())
+		else:
+			res
 
 	fn parse_range() -> Regex except ParseError:
 		""" Parse [0-9:a-z] or [^abc] """
@@ -307,7 +307,7 @@ class Parser:
 		let c = eat()
 		if c != ']':
 			raise error(message: "Expected '['")
-		let s = integer_set_from_ranges(ranges)
+		var s = integer_set_from_ranges(ranges)
 		if invert:
 			s = integer_set_difference(self: sigma(), other: s)
 		symbol_set_regex(s)

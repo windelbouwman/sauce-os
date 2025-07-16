@@ -7,7 +7,7 @@ from vectype import Vector, new_vector
 from strlib import hex_char, hex_digit_to_int, is_hex_digit, is_space
 
 pub class Bytes:
-	# Immutable bytes
+	""" Immutable bytes """
 	var m_bytes: [uint8]
 	var m_size: int
 
@@ -29,8 +29,8 @@ pub class Bytes:
 
 	pub fn as_hex() -> str:
 		# Return bytes as hexadecimal text
-		let txt = ""
-		let index = 0
+		var txt = ""
+		var index = 0
 		while index < m_size:
 			let b = m_bytes[index]
 			txt = txt + byte_as_hex(b)
@@ -40,15 +40,18 @@ pub class Bytes:
 	pub fn into_reader() -> ByteReader:
 		ByteReader(m_bytes: this)
 
+	pub fn as_ascii() -> str:
+		return bytes_to_ascii(data: this)
+
 fn concat2(a: Bytes, b: Bytes) -> Bytes:
 	let out = new_bytes_with_size(size: a.len() + b.len())
-	let index = 0
-	let index1 = 0
+	var index = 0
+	var index1 = 0
 	while index1 < a.len():
 		out.set_byte(index, value: a.get_byte(index: index1))
 		index += 1
 		index1 += 1
-	let index2 = 0
+	var index2 = 0
 	while index2 < b.len():
 		out.set_byte(index, value: b.get_byte(index: index2))
 		index += 1
@@ -64,7 +67,7 @@ pub class ByteReader:
 		m_index >= m_bytes.len()
 
 	pub fn read_bytes(size: int) -> Bytes:
-		let i = 0
+		var i = 0
 		let ba = ByteArray()
 		while i < size:
 			ba.append(read_byte())
@@ -168,7 +171,7 @@ pub class ByteArray:
 
 	pub fn to_bytes() -> Bytes:
 		let out = new_bytes_with_size(size: m_bytes.len())
-		let index = 0
+		var index = 0
 		while index < m_bytes.len():
 			out.set_byte(index, value: m_bytes[index])
 			index += 1
@@ -184,8 +187,8 @@ fn byte_as_hex(byte?: uint8) -> str:
 
 pub fn bytes_from_hex_text(text: str) -> Bytes:
 	let output = ByteArray()
-	let value = 0
-	let n_bits = 0
+	var value = 0
+	var n_bits = 0
 	for c in text:
 		if is_hex_digit(c):
 			value = (value << 4) | hex_digit_to_int(c)
@@ -212,7 +215,7 @@ fn new_bytes_with_size(size: int) -> Bytes:
 
 pub fn fill_bytes(n: int, fill: int) -> Bytes:
 	let output = new_bytes_with_size(size: n)
-	let index = 0
+	var index = 0
 	while index < n:
 		output.set_byte(index, value: uint8(fill))
 		index += 1
@@ -226,7 +229,7 @@ pub fn bytes_from_ascii(text: str) -> Bytes:
 
 pub fn bytes_to_ascii(data: Bytes) -> str:
 	# Interpret bytes as ascii data
-	let result = ""
+	var result = ""
 	for b in data:
 		result = result + "{chr(b)}"
 	result

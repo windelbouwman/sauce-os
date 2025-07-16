@@ -48,7 +48,7 @@ class XmlWriter:
 		emit("<?xml {attrs_text} ?>")
 
 	pub fn write_node(node: Node):
-		let attrs_text = attributes_to_string(attributes: node.m_attributes)
+		var attrs_text = attributes_to_string(attributes: node.m_attributes)
 		if str_len(text: attrs_text) > 0:
 			attrs_text = " " + attrs_text
 		if node.m_child_nodes.is_empty() and str_len(text: node.m_content) == 0:

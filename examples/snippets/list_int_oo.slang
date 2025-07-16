@@ -11,7 +11,7 @@ class List:
 		let new_tail_element = ListElement:
 			next: Option.None()
 			data: value
-		
+
 		case this.head_element:
 			None:
 				this.head_element = Option.Some(new_tail_element)
@@ -25,8 +25,8 @@ class List:
 				element.next = Option.Some(new_tail_element)
 
 	pub fn walk():
-		let i = 0
-		let mabye_element = this.head_element
+		var i = 0
+		var mabye_element = this.head_element
 		loop:
 			case mabye_element:
 				None:
@@ -81,7 +81,7 @@ pub fn main() -> int:
 
 	std.print("Iteration attempt")
 	let it = x.iter()
-	let n = 0
+	var n = 0
 	loop:
 		let opt = it.next()
 		case opt:

@@ -237,7 +237,7 @@ pub fn run_bytecode(program: Program, entry_function: str):
 
 	# Create mapping from names to index:
 	let function_name_to_index: HashMap[str,int] = new_hashmap_str()
-	let index = 0
+	var index = 0
 	for function in program.functions:
 		function_name_to_index.insert(key: function.name, value: index)
 		index += 1
@@ -531,7 +531,7 @@ pub class VirtualMachine:
 			ArrayLiteral2(ty):
 				let size = pop()
 				let value = Value.Undefined()
-				let size2 = int_from_value(size)
+				var size2 = int_from_value(size)
 				let values: List[Value] = List()
 				while size2 > 0:
 					size2 -= 1
@@ -554,7 +554,8 @@ pub class VirtualMachine:
 		values
 
 	fn jump(pc?: int):
-		frames.last().pc = pc
+		let frame = frames.last()
+		frame.pc = pc
 
 	fn get_local(index: int) -> Value:
 		frames.last().locals.get(index)

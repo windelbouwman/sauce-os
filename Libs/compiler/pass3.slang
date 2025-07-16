@@ -68,7 +68,7 @@ fn newop_on_expression(newop: NewOp, expression: ast.Expression, phase: ast.Visi
 							expression.kind = ast.ExpressionKind.EnumLiteral(ty, variant, values)
 						Typ(ty):
 							# Check that type is struct?
-							let ok = false
+							var ok = false
 							case ty.kind:
 								App(tycon, type_arguments):
 									let value_map: HashMap[str,ast.Expression] = new_hashmap_str()

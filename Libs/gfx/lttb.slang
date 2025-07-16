@@ -21,11 +21,11 @@ pub fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
 	let sampled: List[DataPoint] = List()
 
 	# Always add first point:
-	let p1 = values.first()
+	var p1 = values.first()
 	sampled.append(p1)
 
 	# Loop over the buckets:
-	let i = 0
+	var i = 0
 	while i < threshold - 2:
 		# Determine indici of bucket 2 and 3:
 		let start2: int = int(floor((i + 0) * bucket_size)) + 1
@@ -33,15 +33,15 @@ pub fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
 		let count2: int = end2 - start2
 
 		let start3: int = end2
-		let end3: int = int(floor((i + 2) * bucket_size)) + 1
+		var end3: int = int(floor((i + 2) * bucket_size)) + 1
 		if end3 > data_length:
 			end3 = data_length
 		let count3: int = end3 - start3
 
 		# Calculate point average of bucket 3 (next):
-		let avg_x = 0.0
-		let avg_y = 0.0
-		let j = start3
+		var avg_x = 0.0
+		var avg_y = 0.0
+		var j = start3
 		while j < end3:
 			let p3 = values[j]
 			avg_x += p3.x
@@ -52,8 +52,8 @@ pub fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:
 
 		# Pick point that makes maximum triangle from bucket 2 (current):
 		j = start2
-		let maxAreaPoint = values[j]
-		let maxArea = -1.0
+		var maxAreaPoint = values[j]
+		var maxArea = -1.0
 		while j < end2:
 			let p2 = values[j]
 			let area = fabs((p1.x - avg_x) * (p2.y - p1.y) - (p1.x - p2.x) * (avg_y - p1.y)) * 0.5

@@ -33,7 +33,7 @@ fn test_butter():
 
 fn assert_are_all_close(a?: List[float], b?: List[float]):
 	assert_int_equals(a.len(), b.len())
-	let i = 0
+	var i = 0
 	while i < a.len():
 		assert_are_close(a[i], b[i])
 		i += 1

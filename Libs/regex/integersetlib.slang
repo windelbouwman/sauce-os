@@ -80,8 +80,8 @@ fn integer_set_intersection(self: IntegerSet, other: IntegerSet) -> IntegerSet:
 
 	let i = self.ranges.iter()
 	let j = other.ranges.iter()
-	let r = i.next()
-	let s = j.next()
+	var r = i.next()
+	var s = j.next()
 	while option_is_some(r) and option_is_some(s):
 		let rr = option_unwrap(r)
 		let ss = option_unwrap(s)
@@ -104,8 +104,8 @@ pub fn integer_set_difference(self: IntegerSet, other: IntegerSet) -> IntegerSet
 
 	let i = self.ranges.iter()
 	let j = other.ranges.iter()
-	let r = i.next()
-	let s = j.next()
+	var r = i.next()
+	var s = j.next()
 
 	while option_is_some(r):
 		let rr = option_unwrap(r)

@@ -57,6 +57,8 @@ class PyGenerator:
 
 	fn gen_definition(definition: ast.Definition):
 		case definition:
+			Mod(module):
+				panic("pygen module")
 			Macro(macro_def):
 				pass
 			Function(function_def):
@@ -178,7 +180,7 @@ class PyGenerator:
 				emit("raise ValueError({gen_expression(value, parens: false)})")
 			Compound(inner):
 				let n = inner.len()
-				let i = 0
+				var i = 0
 				for s in inner:
 					i += 1
 					if i == n:
@@ -356,9 +358,9 @@ fn binary_operator_to_str(op: ast.BinaryOperator, float_division: bool) -> str:
 
 pub fn escape_string(text?: str) -> str:
 	""" Prefix double quotes and backslashes with an extra backslash """
-	let res = ""
-	let index = 0
-	let begin = 0
+	var res = ""
+	var index = 0
+	var begin = 0
 	let n = str_len(text)
 	while index < n:
 		let c = text[index]

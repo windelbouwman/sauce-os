@@ -57,7 +57,7 @@ class SilGen:
 			m_locals.append(addr)
 
 		let target_indici = bc.get_target_labels(instructions: function.instructions)
-		let index = 0
+		var index = 0
 		for opcode in function.instructions:
 			if target_indici.contains(index):
 				let name = "b_{index}"
@@ -96,16 +96,15 @@ class SilGen:
 			Binop(op):
 				let rhs = pop()
 				let lhs = pop()
-				let op2 = sil.BinaryOp.Add()
-				case op:
+				let op2 = case op:
 					Add:
-						op2 = sil.BinaryOp.Add()
+						sil.BinaryOp.Add()
 					Sub:
-						op2 = sil.BinaryOp.Sub()
+						sil.BinaryOp.Sub()
 					Divide:
-						op2 = sil.BinaryOp.Div()
+						sil.BinaryOp.Div()
 					Multiply:
-						op2 = sil.BinaryOp.Mul()
+						sil.BinaryOp.Mul()
 				let dst = new_tmp()
 				push(dst)
 				emit(sil.OpCode.Binop(dst, op2, lhs, rhs))
@@ -114,20 +113,19 @@ class SilGen:
 				let lhs = pop()
 				let dst = new_tmp()
 				push(dst)
-				let op2 = sil.CompOp.Eq()
-				case op:
+				let op2 = case op:
 					Greater:
-						op2 = sil.CompOp.Gt()
+						sil.CompOp.Gt()
 					Less:
-						op2 = sil.CompOp.Lt()
+						sil.CompOp.Lt()
 					GreaterEquals:
-						op2 = sil.CompOp.Gte()
+						sil.CompOp.Gte()
 					LessEquals:
-						op2 = sil.CompOp.Lte()
+						sil.CompOp.Lte()
 					Equals:
-						op2 = sil.CompOp.Eq()
+						sil.CompOp.Eq()
 					NotEquals:
-						op2 = sil.CompOp.Neq()
+						sil.CompOp.Neq()
 				emit(sil.OpCode.Compare(dst, op2, lhs, rhs))
 			LocalGet(index):
 				let addr = m_locals[index]

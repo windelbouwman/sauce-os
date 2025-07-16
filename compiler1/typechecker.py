@@ -20,7 +20,7 @@ class TypeChecker(BasePass):
         self._except_handlers = []
 
     def check_module(self, module: ast.Module):
-        self.begin(module.filename, f"Type checking module '{module.name}'")
+        self.begin(module.filename, f"Type checking module '{module.id.name}'")
         self.visit_module(module)
         self.finish("Type check OK.")
 

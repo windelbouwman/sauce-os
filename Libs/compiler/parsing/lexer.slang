@@ -2,8 +2,8 @@
 """
 
 import std
-from utils import panic, assert
-from std import ord, chr, str_slice, str_len
+from utils import panic
+from std import ord, chr, str_len
 from token import Token, TokenKind
 from location import Location, location_at
 from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab
@@ -14,6 +14,10 @@ from hashmap import HashMap, new_hashmap_str
 enum LexerMode:
 	Normal
 	String
+
+enum Result[T,E]:
+	Ok(value: T)
+	Error(value: E)
 
 pub class Lexer:
 	var pending: Queue[Token] = new_queue(capacity: 7)
@@ -133,12 +137,12 @@ pub class Lexer:
 		if is_id(c):
 			parse_identifier()
 		elif c == ' ':
-			let amount = 1
+			var amount = 1
 			while match(' '):
 				amount += 1
 			TokenKind.Space(amount)
 		elif is_tab(c):
-			let amount = 1
+			var amount = 1
 			while is_tab(c: peek()):
 				offset += 1
 				amount += 1
@@ -237,18 +241,36 @@ pub class Lexer:
 			m_mode = LexerMode.Normal()
 			TokenKind.BraceOpen()
 		elif c == '\':
-			offset += 1
-			let text: str = get_lexeme()
-			assert(condition: str_len(text) == 2, message: "Escape sequence must contain 2 characters.")
-			text = str_slice(text, begin: 1, end: 2)
-			TokenKind.StringContent(text)
+			case parse_escape_sequence():
+				Ok(ch):
+					TokenKind.StringContent(text: str(ch))
+				Error(message):
+					TokenKind.Error("Invalid escape sequence: {message}")
 		else:
 			while offset < source_length:
-				c = peek()
+				let c = peek()
 				if c == '"' or c == '{' or c == '\':
 					break
 				offset += 1
 			TokenKind.StringContent(get_lexeme())
+
+	fn parse_escape_sequence() -> Result[char,str]:
+		let c = next_char()
+		let c2 = if c == '\' or c == '"' or c == '{' or c == '}':
+			c
+		elif c == 'n':
+			chr(13)
+		elif is_digit(c):
+			# Octal mode escape
+			var value = digit_to_int(c)
+			let c2 = next_char()
+			value = value * 8 + digit_to_int(c: c2)
+			let c3 = next_char()
+			value = value * 8 + digit_to_int(c: c3)
+			chr(value)
+		else:
+			return Result.Error("Invalid escape sequence")
+		Result.Ok(c2)
 
 	fn parse_line_comment() -> TokenKind:
 		let n = source_length
@@ -293,7 +315,7 @@ pub class Lexer:
 	fn parse_doc_string() -> TokenKind:
 		""" Parse a doc string, like this one :) """
 		let n = source_length
-		let z = 0
+		var z = 0
 		while offset < n:
 			let c2 = next_char()
 			if c2 == '"':
@@ -311,8 +333,8 @@ pub class Lexer:
 
 	fn parse_number(c: char) -> TokenKind:
 		let n = source_length
-		let is_hex = false
-		let is_bin = false
+		var is_hex = false
+		var is_bin = false
 		if c == '0':
 			if peek() == 'x':
 				is_hex = true
@@ -322,7 +344,7 @@ pub class Lexer:
 				offset += 1
 
 		if is_hex:
-			let value = 0
+			var value = 0
 			loop:
 				c = peek()
 				if is_hex_digit(c):
@@ -332,7 +354,7 @@ pub class Lexer:
 					break
 			TokenKind.Integer(value)
 		elif is_bin:
-			let value = 0
+			var value = 0
 			loop:
 				c = peek()
 				if is_bin_digit(c):
@@ -343,7 +365,7 @@ pub class Lexer:
 			TokenKind.Integer(value)
 		else:
 			# Calculate value as we go through the digits:
-			let value = digit_to_int(c)
+			var value = digit_to_int(c)
 			loop:
 				c = peek()
 				if is_digit(c):
@@ -361,7 +383,7 @@ pub class Lexer:
 				TokenKind.Integer(value)
 
 	fn parse_float(base: int) -> TokenKind:
-		let exponent = 0
+		var exponent = 0
 		loop:
 			let c = peek()
 			if is_digit(c):
@@ -380,7 +402,7 @@ pub class Lexer:
 	fn parse_exponent(base: int, exponent: int) -> TokenKind:
 		""" Parse the exponent notation after the 'e'"""
 		offset += 1
-		let negative_exponent = false
+		var negative_exponent = false
 		if peek() == '+':
 			offset += 1
 		elif peek() == '-':
@@ -388,7 +410,7 @@ pub class Lexer:
 			offset += 1
 
 		if is_digit(c: peek()):
-			let add_exponent = 0
+			var add_exponent = 0
 			loop:
 				let c = peek()
 				if is_digit(c):

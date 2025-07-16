@@ -2,7 +2,7 @@
 from std import ord
 
 pub fn elf_hash(text: str) -> int:
-	let h = 0
+	var h = 0
 	for c in text:
 		h = (h << 4) + ord(c)
 		let g = h & 0xF0000000
@@ -13,7 +13,7 @@ pub fn elf_hash(text: str) -> int:
 	h
 
 pub fn djb2(text: str) -> int:
-	let hash = 5381
+	var hash = 5381
 	for c in text:
 		# hash = 33 * hash + c
 		hash = (hash << 5) + hash + ord(c)

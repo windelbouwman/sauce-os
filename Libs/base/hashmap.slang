@@ -58,7 +58,7 @@ pub class HashMap[K,V]:
 		create_buckets(n: 16)
 
 	pub fn maybe_get(key: K) -> Option[V]:
-		let next_pair = m_buckets[get_index(key)]
+		var next_pair = m_buckets[get_index(key)]
 		loop:
 			case next_pair:
 				Some(pair):
@@ -73,7 +73,7 @@ pub class HashMap[K,V]:
 	fn get_index(key: K) -> int:
 		if num_buckets == 0:
 			panic("Uninitialized hashmap!")
-		let value = this.f.f_hash(key)
+		var value = this.f.f_hash(key)
 		if value < 0:
 			value = -value
 		modulo(value, divisor: num_buckets)
@@ -99,8 +99,8 @@ pub class HashMap[K,V]:
 		let index = get_index(key)
 
 		# Search for key in bucket:
-		let last_pair_ptr: Option[KeyValuePair[K,V]] = Option.None()
-		let pair_ptr = m_buckets[index]
+		var last_pair_ptr: Option[KeyValuePair[K,V]] = Option.None()
+		var pair_ptr = m_buckets[index]
 		loop:
 			case pair_ptr:
 				Some(pair):
@@ -127,8 +127,8 @@ pub class HashMap[K,V]:
 		let index = get_index(key)
 
 		# Search for key in bucket:
-		let last_pair_ptr: Option[KeyValuePair[K,V]] = Option.None()
-		let pair_ptr = m_buckets[index]
+		var last_pair_ptr: Option[KeyValuePair[K,V]] = Option.None()
+		var pair_ptr = m_buckets[index]
 		loop:
 			case pair_ptr:
 				Some(pair):
@@ -176,9 +176,9 @@ pub class HashMap[K,V]:
 		create_buckets(n: num_buckets * 2)
 
 		# Insert existing pairs:
-		let i = 0
+		var i = 0
 		while i < old_n_buckets:
-			let pair_ptr = old_buckets[i]
+			var pair_ptr = old_buckets[i]
 			loop:
 				case pair_ptr:
 					Some(pair):
@@ -192,7 +192,7 @@ pub class HashMap[K,V]:
 		num_buckets = n
 		m_threshold = (n * 3) / 4  # Rehash at load factor of 75%
 		m_buckets = [n : Option[KeyValuePair[K,V]]]
-		let i = 0
+		var i = 0
 		while i < n:
 			m_buckets[i] = Option.None()
 			i += 1
@@ -201,9 +201,9 @@ pub class HashMap[K,V]:
 	pub fn values() -> List[V]:
 		let res: List[V] = List()
 
-		let i = 0
+		var i = 0
 		while i < num_buckets:
-			let pair_ptr = m_buckets[i]
+			var pair_ptr = m_buckets[i]
 			loop:
 				case pair_ptr:
 					Some(pair):

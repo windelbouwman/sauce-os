@@ -38,7 +38,7 @@ pub class Queue[T]:
 
 	pub fn len() -> int:
 		m_length
-	
+
 	pub fn is_empty() -> bool:
 		m_length == 0
 
@@ -46,7 +46,7 @@ pub class Queue[T]:
 		assert(condition: m_capacity > 0, message: "capacity must larger than zero.")
 
 		let new_capacity = m_capacity * 2
-		let new_items = [new_capacity : T]
+		var new_items = [new_capacity : T]
 
 		# Populate new items:
 		m_tail = 0
@@ -54,8 +54,8 @@ pub class Queue[T]:
 			new_items[m_tail] = m_items[m_head]
 			m_head = inc(m_head)
 			m_tail += 1
-		
-		# Update 
+
+		# Update
 		m_items = new_items
 		m_capacity = new_capacity
 		m_head = 0

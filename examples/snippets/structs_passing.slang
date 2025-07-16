@@ -26,7 +26,7 @@ pub fn main() -> int:
 		b: 5
 
 	bar(kung: k, messages)
-	let x = 31
+	var x = 31
 	x = 10
 	k.a = x
 	bar(kung: k, messages)

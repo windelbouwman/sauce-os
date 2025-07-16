@@ -22,7 +22,7 @@ pub fn get_rt_module() -> ast.Module:
 		parameters: list1(ast.unlabeled_parameter(ty: ast.int_type()))
 		return_type: ast.str_type()
 		location: location_default()
-	ast.module_define_function(module, function_def: int_to_str)
+	module.define_function(function_def: int_to_str)
 
 	let char_to_str = ast.extern_function_def:
 		is_pub
@@ -33,7 +33,7 @@ pub fn get_rt_module() -> ast.Module:
 		parameters: list1(ast.unlabeled_parameter(ty: ast.char_type()))
 		return_type: ast.str_type()
 		location: location_default()
-	ast.module_define_function(module, function_def: char_to_str)
+	module.define_function(function_def: char_to_str)
 
 	let str_concat = ast.extern_function_def:
 		is_pub
@@ -44,7 +44,7 @@ pub fn get_rt_module() -> ast.Module:
 		parameters: list2(ast.unlabeled_parameter(ty: ast.str_type()), ast.unlabeled_parameter(ty: ast.str_type()))
 		return_type: ast.str_type()
 		location: location_default()
-	ast.module_define_function(module, function_def: str_concat)
+	module.define_function(function_def: str_concat)
 
 	let str_compare = ast.extern_function_def:
 		is_pub
@@ -55,7 +55,7 @@ pub fn get_rt_module() -> ast.Module:
 		parameters: list2(ast.unlabeled_parameter(ty: ast.str_type()), ast.unlabeled_parameter(ty: ast.str_type()))
 		return_type: ast.bool_type()
 		location: location_default()
-	ast.module_define_function(module, function_def: str_compare)
+	module.define_function(function_def: str_compare)
 
 	let str_len = ast.extern_function_def:
 		is_pub
@@ -66,7 +66,7 @@ pub fn get_rt_module() -> ast.Module:
 		parameters: list1(ast.labeled_parameter(name: "text", ty: ast.str_type()))
 		return_type: ast.int_type()
 		location: location_default()
-	ast.module_define_function(module, function_def: str_len)
+	module.define_function(function_def: str_len)
 
 	let str_get = ast.extern_function_def:
 		is_pub
@@ -77,6 +77,6 @@ pub fn get_rt_module() -> ast.Module:
 		parameters: list2(ast.labeled_parameter(name: "text", ty: ast.str_type()), ast.labeled_parameter(name: "index", ty: ast.int_type()))
 		return_type: ast.char_type()
 		location: location_default()
-	ast.module_define_function(module, function_def: str_get)
+	module.define_function(function_def: str_get)
 
 	module

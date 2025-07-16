@@ -58,6 +58,7 @@ class HttpClient:
 		content
 
 	pub fn post(url: str):
+		log_debug("Post {url}")
 		unimplemented("POST")
 
 	fn write_lines(lines: List[str]):

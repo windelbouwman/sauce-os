@@ -37,11 +37,11 @@ pub fn new_mat4() -> Mat:
 	new_mat(rows: 4, cols: 4)
 
 pub fn new_mat(rows: int, cols: int) -> Mat:
-	let m = [rows : [float]]
-	let row = 0
+	var m = [rows : [float]]
+	var row = 0
 	while row < rows:
 		m[row] = [cols: float]
-		let col = 0
+		var col = 0
 		while col < cols:
 			m[row][col] = 0.0
 			col += 1
@@ -53,12 +53,12 @@ pub fn matrix_multiply(a: Mat, b: Mat, out: Mat):
 	assert(condition: a.rows == out.rows, message: "Shape mismatch 1")
 	assert(condition: a.cols == b.rows, message: "Shape mismatch 2")
 	assert(condition: b.cols == out.cols, message: "Shape mismatch 3")
-	let row = 0
+	var row = 0
 	while row < out.rows:
-		let col = 0
+		var col = 0
 		while col < out.cols:
-			let sum = 0.0
-			let i = 0
+			var sum = 0.0
+			var i = 0
 			while i < a.cols:
 				sum += a.m[row][i] * b.m[i][col]
 				i += 1

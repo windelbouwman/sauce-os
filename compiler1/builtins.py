@@ -4,10 +4,11 @@ from .location import Location, Span
 from . import ast
 
 
-def create_rt_module() -> ast.Module:
+def create_rt_module(id_context: ast.IdContext) -> ast.Module:
     modname = "rt"
+    id = id_context.new_id(modname)
     span = Span.default()
-    mod = ast.Module(modname, [], [], span)
+    mod = ast.Module(id, "builtins injected by the compiler", [], [], span)
     mod.add_definition(
         ast.ExternFunction(
             modname, "int_to_str", [ast.int_type], ast.str_type, Location.default()

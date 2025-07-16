@@ -8,7 +8,7 @@ pub fn new_screen(width: int, height: int) -> Screen:
 	assert(condition: width > 0, message: "Width must be larger than 0")
 	assert(condition: height > 0, message: "Height must be larger than 0")
 	let image = new_image(width, height)
-	let i = 0
+	var i = 0
 	while i < width * height:
 		image.add_pixel(red: 1, green: 1, blue: 1, alpha: 1)
 		i += 1
@@ -29,9 +29,9 @@ pub class Screen:
 
 	pub fn clear():
 		""" Set entire screen to color. """
-		let y = 0
+		var y = 0
 		while y < m_height:
-			let x = 0
+			var x = 0
 			while x < m_width:
 				put_pixel(x, y)
 				x += 1
@@ -39,7 +39,7 @@ pub class Screen:
 
 	pub fn draw_line(x1: int, y1: int, x2: int, y2: int):
 		""" Draw a line from x1,y1 to x2,y2 in the current color.
-		
+
 		Use Bresenham's algorithm
 
 		See also: https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
@@ -54,24 +54,24 @@ pub class Screen:
 			if abs(x2 - x1) > abs(y2 - y1):
 				if x2 < x1:
 					# Swap p1 and p2
-					let tmp = x1
+					var tmp = x1
 					x1 = x2
 					x2 = tmp
 					tmp = y1
 					y1 = y2
 					y2 = tmp
-				
-				let dx = x2 - x1
-				let dy = y2 - y1
 
-				let sy = 1
+				let dx = x2 - x1
+				var dy = y2 - y1
+
+				var sy = 1
 				if dy < 0:
 					dy = -dy
 					sy = -1
-				let x = x1
-				let y = y1
+				var x = x1
+				var y = y1
 
-				let D = 2 * dy - dx
+				var D = 2 * dy - dx
 
 				while x <= x2:
 					put_pixel(x, y)
@@ -83,24 +83,24 @@ pub class Screen:
 			else:
 				if y2 < y1:
 					# Swap p1 and p2
-					let tmp = x1
+					var tmp = x1
 					x1 = x2
 					x2 = tmp
 					tmp = y1
 					y1 = y2
 					y2 = tmp
 
-				let dx = x2 - x1
+				var dx = x2 - x1
 				let dy = y2 - y1
 
-				let sx = 1
+				var sx = 1
 				if dx < 0:
 					dx = -dx
 					sx = -1
 
-				let x = x1
-				let y = y1
-				let D = 2 * dx - dy
+				var x = x1
+				var y = y1
+				var D = 2 * dx - dy
 
 				while y <= y2:
 					put_pixel(x, y)
@@ -112,7 +112,7 @@ pub class Screen:
 
 	fn draw_vertical_line(x: int, y1: int, y2: int):
 		""" Vertical line """
-		let y = y1
+		var y = y1
 		if y2 < y:
 			y = y2
 			y2 = y1
@@ -122,7 +122,7 @@ pub class Screen:
 
 	fn draw_horizontal_line(y: int, x1: int, x2: int):
 		""" Horizontal line """
-		let x = x1
+		var x = x1
 		if x2 < x1:
 			x = x2
 			x2 = x1

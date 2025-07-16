@@ -45,7 +45,7 @@ fn test_K_table():
 	let K2: [int] = [64 : int]
 	compute_md5_K(K: K1)
 	fill_md5_K(K: K2)
-	let i = 0
+	var i = 0
 	while i < 64:
 		# print("i = {i} {K1[i]} == {K2[i]}")
 		assert_int_equals(K1[i], K2[i])

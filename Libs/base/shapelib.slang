@@ -21,11 +21,11 @@ pub fn shoelace(points: List[Point]) -> float:
 	# Implement shoelace algorithm to find area of polygon.
 	# See: https://en.wikipedia.org/wiki/Shoelace_formula
 	let n = points.len()
-	let i = 0
-	let s = 0
+	var i = 0
+	var s = 0
 	while i < n:
 		let p1 = points.get(index: i)
-		let p2 = p1
+		var p2 = p1
 		if (i + 1) < n:
 			p2 = points.get(index: i + 1)
 		else:

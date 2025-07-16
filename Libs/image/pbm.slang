@@ -30,9 +30,9 @@ pub fn write_pbm(image: Image, filename: str):
 	file_writeln(handle, line: "{image.width} {image.height}")
 	file_writeln(handle, line: "255")
 
-	let y = 0
+	var y = 0
 	while y < image.height:
-		let x = 0
+		var x = 0
 		while x < image.width:
 			let pixel = image.get_pixel(x, y)
 			file_writeln(handle, line: "{pixel.red} {pixel.green} {pixel.blue}")

@@ -10,13 +10,13 @@ pub fn base64_encode(data: Bytes) -> str:
 	# Encode given data as base64 text
 	let base64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-	let i = 0
+	var i = 0
 	let data_length = data.len()
-	let pad_count = modulo(value: data_length, divisor: 3)
-	let result = ""
+	var pad_count = modulo(value: data_length, divisor: 3)
+	var result = ""
 	while i < data_length:
 		# Gather 3 bytes into a 24 bits number:
-		let n = (data.get(index: i) << 16)
+		var n = (data.get(index: i) << 16)
 		if i + 1 < data_length:
 			n += (data.get(index: i + 1) << 8)
 		if i + 2 < data_length:
@@ -47,14 +47,14 @@ pub fn base64_decode(text: str) -> Bytes:
 	# Decode base64 text into bytes
 	# unimplemented("base64_decode")
 	let result = ByteArray()
-	let buf = 0
-	let bufsize = 0
+	var buf = 0
+	var bufsize = 0
 
 	for c2 in text:
 		# Get character:
 		let c = ord(c2)
 
-		let v = 0
+		var v = 0
 		if c >= 65 and c <= 90:
 			# A .. Z
 			v = c - 65
@@ -88,7 +88,7 @@ pub fn base64_decode(text: str) -> Bytes:
 			result.append(buf & 0xFF)
 			bufsize = 0
 			buf = 0
-	
+
 	if bufsize == 3:
 		result.append((buf >> 10) & 0xFF)
 		result.append((buf >> 2) & 0xFF)

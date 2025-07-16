@@ -3,7 +3,7 @@
 import std
 
 pub fn main() -> int:
-	let x = 0
+	var x = 0
 
 	loop:
 		x = x + 1

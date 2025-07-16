@@ -35,7 +35,7 @@ fn f_cubic(x: float) -> float:
 fn plot_function(chart: Chart, name: str, x_min: float, x_max: float, dx: float, f: fn (float) -> float):
 	# Plot a function in the given chart.
 	let line = chart.new_curve(name)
-	let x = x_min
+	var x = x_min
 	while x < x_max:
 		let y = f(x)
 		line.add_point(x, y)

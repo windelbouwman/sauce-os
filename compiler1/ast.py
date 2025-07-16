@@ -681,29 +681,27 @@ class Expression(Node):
         return to_string(self)
 
 
-class Module(Node):
+class Module(ScopedDefinition):
     def __init__(
         self,
-        name: str,
+        id: Id,
+        docstring: str,
         imports: list["BaseImport"],
         definitions: list["Definition"],
         span: Span,
     ):
-        super().__init__(Location.default())
-        assert isinstance(name, str)
-        self.name = name
+        super().__init__(id, docstring, Location.default(), span)
         self.filename = "?no-name?"
         self.imports = list(imports)
         self.definitions = list(definitions)
         self.types = []
-        self.scope: Scope = Scope(span)
 
     def __repr__(self):
         return f"Module({self.name})"
 
     def get_deps(self) -> list[str]:
         deps = [imp.modname for imp in self.imports]
-        if self.name != "rt":
+        if self.id.name != "rt":
             deps.append("rt")
         return deps
 

@@ -33,7 +33,7 @@ class SlangGenerator:
 					# All parameter labels are optional..
 					parameter_texts.append("{get_id(parameter.id)}?: {gen_type(parameter.ty)}")
 				let params = str_join(parts: parameter_texts, sep: ", ")
-				let return_types = ""
+				var return_types = ""
 				if function_def.info.return_type.is_void():
 					pass
 				else:

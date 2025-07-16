@@ -16,7 +16,7 @@ class BasePass(ast.AstVisitor):
         self._was_error = False
 
     def run(self, module: ast.Module):
-        self.begin(module.filename, f"Running {self.name} pass on '{module.name}'")
+        self.begin(module.filename, f"Running {self.name} pass on '{module.id.name}'")
         self.visit_module(module)
         self.finish(f"Pass {self.name} completed:party_popper:")
 

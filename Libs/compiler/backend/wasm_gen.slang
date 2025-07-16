@@ -60,7 +60,7 @@ class WasmGenerator:
 				else:
 					pass
 
-		let counter = imports.len()
+		var counter = imports.len()
 		for module in modules:
 			for definition in module.definitions:
 				case definition:
@@ -146,14 +146,13 @@ class WasmGenerator:
 			results.append(get_wasm_type(return_type))
 		let ft = webassembly.Type(params, results)
 		let key = webassembly.type_to_string(ft)
-		let index = 0
 		if index_mapping.contains(key):
-			index = index_mapping.get(key)
+			index_mapping.get(key)
 		else:
-			index = types.len()
+			let index = types.len()
 			index_mapping.insert(key, value: index)
 			types.append(ft)
-		index
+			index
 
 	fn gen_function(function_def: ast.FunctionDef):
 		log_info("Generating code for: {ast.function_def_to_str(function_def)}")
@@ -297,7 +296,7 @@ class WasmGenerator:
 				gen_malloc_call(size)
 				emit(Instruction.local_set(ptr_index))
 
-				let index = 0
+				var index = 0
 				for value in values:
 					emit(Instruction.local_get(ptr_index))
 					gen_expression(value)
@@ -327,12 +326,10 @@ class WasmGenerator:
 				for argument in call.arguments:
 					gen_expression(argument.value)
 
-				let funcidx = 0
-
-				case call.callee.kind:
+				let funcidx = case call.callee.kind:
 					FunctionRef(function_def, type_arguments):
 						let key = function_def.name
-						funcidx = index_mapping.get(key)
+						index_mapping.get(key)
 				else:
 					gen_expression(call.callee)
 					emit(Instruction.ctrl_call_indirect(1337))
@@ -506,7 +503,7 @@ class WasmGenerator:
 	fn get_struct_layout(ty: ast.Type) -> StructLayout:
 		# TODO: cache results.
 		let struct_def = ty.get_struct_def()
-		let size: int = 0
+		var size: int = 0
 		let offsets: List[int] = List()
 		for field in struct_def.fields:
 			offsets.append(size)
@@ -567,7 +564,7 @@ class WasmGenerator:
 
 	fn get_loop() -> int:
 		let blocks2 = block_stack.reversed()
-		let index = 0
+		var index = 0
 		for b in blocks2:
 			if b:
 				return index

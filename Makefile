@@ -30,6 +30,7 @@ SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 SLANG2_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang/%.slang, $(SLANG_EXAMPLES))
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, $(SLANG_EXAMPLES))
+PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
 C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/snippets/%.exe, $(SLANG_EXAMPLES))
 C_APPS := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
@@ -38,7 +39,7 @@ ALL_TEST_RUNS := $(patsubst tests/test_%.slang, run-test-c-%, $(TESTS))
 ALL_TEST_RUNS_PY := $(patsubst tests/test_%.slang, run-test-py-%, $(TESTS))
 
 .PHONY: all check check-py all-examples all-examples-bc all-examples-c all-examples-python test pytest-exes
-all: ${C_APPS} all-examples
+all: ${C_APPS} ${PY_APPS} all-examples
 all-examples: all-examples-bc all-examples-c all-examples-python all-examples-slang2
 test: pytest-compiler pytest-compiler1 check check-py
 
@@ -233,7 +234,7 @@ ${BUILDDIR}/tmp-compiler4.c: | ${COMPILER3} ${BUILDDIR}
 ${COMPILER4}: ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/slangrt.a runtime/slangrt.h | ${BUILDDIR}
 	gcc ${CFLAGS} -o ${COMPILER4} ${BUILDDIR}/tmp-compiler4.c ${BUILDDIR}/slangrt.a -lm
 
-${BUILDDIR}/tmp-compiler5.c: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS} ${COMPILER4} | ${BUILDDIR}
+${BUILDDIR}/tmp-compiler5.c: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${COMPILER4} | ${BUILDDIR} ${BASE_LIB_SRCS}
 	./${COMPILER4} --backend-c -o ${BUILDDIR}/tmp-compiler5.c ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
 ${COMPILER5}: ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/slangrt.a runtime/slangrt.h | ${BUILDDIR}

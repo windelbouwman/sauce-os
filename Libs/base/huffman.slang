@@ -8,10 +8,10 @@ from bytes import ByteReader, ByteArray, Bytes
 
 pub fn decode_symbol(tree: Tree, bit_reader: BitReader) -> int:
 	""" Decode a value with the given Huffman tree """
-	let len = 1
-	let code = 0
-	let index = 0
-	let first = 0
+	var len = 1
+	var code = 0
+	var index = 0
+	var first = 0
 	while len <= 16:
 		code = code | bit_reader.read_bits(n: 1)
 		let count = tree.counts[len]
@@ -28,12 +28,12 @@ pub fn decode_symbol(tree: Tree, bit_reader: BitReader) -> int:
 
 pub fn create_table(tree: Tree) -> HashMap[int,CodeEntry]:
 	let table: HashMap[int,CodeEntry] = new_hashmap_int()
-	let first = 0
-	let index = 0
-	let len = 1
+	var first = 0
+	var index = 0
+	var len = 1
 	while len <= 16:
 		let count = tree.counts[len]
-		let i = 0
+		var i = 0
 		while i < count:
 			let symbol = tree.symbols[index + i]
 			let code = first + i
@@ -55,7 +55,7 @@ pub fn encode_symbol(table: HashMap[int,CodeEntry], symbol: int, bit_writer: Bit
 	# Huffman codes are written with the MSB transmitted first:
 	if entry.length == 0:
 		panic("Invalid length for symbol: {symbol}")
-	let bit = entry.length
+	var bit = entry.length
 	while bit > 0:
 		bit -= 1
 		let value = (entry.code >> bit) & 1
@@ -83,7 +83,7 @@ pub class BitReader:
 			(m_bitbuf >> m_bitcnt) & mask
 		else:
 			# used for deflate
-			let value = m_bitbuf
+			var value = m_bitbuf
 			while m_bitcnt < n:
 				let byte = m_reader.read_byte()
 				value = (byte << m_bitcnt) | value
@@ -124,8 +124,8 @@ pub struct Tree:
 	symbols: [int]
 
 pub fn zero_int_array(size: int) -> [int]:
-	let array = [size : int]
-	let i = 0
+	var array = [size : int]
+	var i = 0
 	while i < size:
 		array[i] = 0
 		i += 1

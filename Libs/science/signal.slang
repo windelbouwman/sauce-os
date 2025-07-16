@@ -18,9 +18,9 @@ pub fn butter(n: int) -> DigitalFilter:
 	let a: List[float] = List()
 	b.append(1)
 	let gamma = pi / (2.0 * n)
-	let ak = 1.0
+	var ak = 1.0
 	a.append(ak)
-	let k = 0
+	var k = 0
 	while k < n:
 		ak = (cos(k * gamma) / sin((k+1) * gamma)) * ak
 		a.append(ak)
@@ -42,9 +42,9 @@ pub class DigitalFilter:
 
 fn s_poly_to_str(coefficients: List[float]) -> str:
 	let parts: List[str] = List()
-	let i = coefficients.len() - 1
+	var i = coefficients.len() - 1
 	for c in coefficients:
-		let part = float_to_str(c)
+		var part = float_to_str(c)
 		if i > 0:
 			part = "{part}*s^{i}"
 		parts.append(part)

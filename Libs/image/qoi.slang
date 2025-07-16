@@ -1,5 +1,5 @@
 
-# 
+#
 # encoder / decoder for the QOI (quite ok image) format.
 #
 # See also: https://qoiformat.org/
@@ -20,7 +20,7 @@ pub fn read_whole_file_as_bytes(filename: str) -> Bytes:
 	loop:
 		let res = std.file_read_n_bytes(handle, buffer, bufsize: 200)
 		if res > 0:
-			let i = 0
+			var i = 0
 			while i < res:
 				ba.append(int(buffer[i]))
 				i += 1
@@ -32,9 +32,9 @@ pub fn read_whole_file_as_bytes(filename: str) -> Bytes:
 
 pub fn write_bytes_to_file(filename: str, data: Bytes):
 	let handle = std.file_open(filename, mode: "wb")
-	let buffer: [uint8] = [200 : uint8]
-	let i = 0
-	let j = 0
+	var buffer: [uint8] = [200 : uint8]
+	var i = 0
+	var j = 0
 	while i < data.len():
 		buffer[j] = uint8(data[i])
 		j += 1
@@ -84,19 +84,19 @@ class QoiReader:
 
 		let image = new_image(width, height)
 
-		let i = 0
+		var i = 0
 		while i < 64:
 			m_array.append(new_pixel())
 			i += 1
-		
-		let r = 0
-		let g = 0
-		let b = 0
-		let a = 0xFF
 
-		let dr = 0
-		let dg = 0
-		let db = 0
+		var r = 0
+		var g = 0
+		var b = 0
+		var a = 0xFF
+
+		var dr = 0
+		var dg = 0
+		var db = 0
 		while m_pixels.len() < width * height:
 			let tag8 = read_byte()
 			switch tag8:
@@ -143,7 +143,7 @@ class QoiReader:
 						put_pixel(r, g, b, a)
 					0b11:  # QOI_OP_RUN
 						let length = (tag8 & 0x3F) + 1
-						let i = 0
+						var i = 0
 						while i < length:
 							put_pixel(r, g, b, a)
 							i += 1
@@ -152,7 +152,7 @@ class QoiReader:
 				# std.print("Pixel: {r} {g} {b} {a}")
 		image.pixels = m_pixels
 		image
-	
+
 	fn put_pixel(r: int, g: int, b: int, a: int):
 		# std.print("Pixel: {r} {g} {b} {a}")
 		let index = modulo(value: r * 3 + g * 5 + b * 7 + a * 11, divisor: 64)
@@ -162,7 +162,7 @@ class QoiReader:
 
 	fn read_bytes(size?: int) -> Bytes:
 		m_reader.read_bytes(size)
-	
+
 	fn read_byte() -> int:
 		m_reader.read_byte()
 
@@ -188,7 +188,7 @@ class QoiWriter:
 
 		# TODO: we can encode image more efficiently.
 		# for now, store all pixels seperately
-		let i = 0
+		var i = 0
 		while i < image.width * image.height:
 			write_byte(0b11111110) # QOI_OP_RGB
 			write_byte(image.pixels[i].red)

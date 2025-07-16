@@ -152,10 +152,10 @@ class CustomTransformer(LarkTransformer):
         return self.id_context.new_id(name)
 
     def module(self, x):
-        name = self._modname
+        id = self.id_context.new_id(self._modname)
         docstring, imports, definitions, eof = x
         span = get_span(Location.default(), get_loc(eof))
-        return ast.Module(name, imports, definitions, span)
+        return ast.Module(id, docstring, imports, definitions, span)
 
     def eval_expr(self, x):
         return x[0]
@@ -959,8 +959,8 @@ try_statement: KW_TRY block KW_EXCEPT LEFT_PARENTHESIS parameter RIGHT_PARENTHES
 if_statement: KW_IF test block elif_clause* else_clause?
 elif_clause: KW_ELIF test block
 else_clause: KW_ELSE block
-let_statement: KW_LET ID (COLON typ)? EQUALS big_expression
-             | KW_LET ID (COLON typ)? EQUALS block_statement
+let_statement: (KW_LET | KW_VAR) ID (COLON typ)? EQUALS big_expression
+             | (KW_LET | KW_VAR) ID (COLON typ)? EQUALS block_statement
 while_statement: KW_WHILE test block
 loop_statement: KW_LOOP block
 for_statement: KW_FOR ID KW_IN expression block

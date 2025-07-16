@@ -4,7 +4,7 @@ from std import print
 
 pub fn main() -> int:
 	try:
-		let y: int = foo(x: false)
+		var y: int = foo(x: false)
 		try:
 			raise "Ai"
 		except (ex2: str):
@@ -35,7 +35,7 @@ pub fn main() -> int:
 		raise "Moi"
 	except(err2: str):
 		print("non-loop handler: {err2}")
-	
+
 	# Demo exception in an exception handler
 	try:
 		try:

@@ -69,7 +69,7 @@ pub fn main() -> int:
 
 	print("Iteration attempt")
 	let it = x.iter()
-	let n = 0
+	var n = 0
 	loop:
 		let opt = it.next()
 		case opt:
@@ -83,5 +83,5 @@ pub fn main() -> int:
 	for e in x:
 		print("Item[{n}]= {e.value}")
 		n = n + 1
-	
+
 	0

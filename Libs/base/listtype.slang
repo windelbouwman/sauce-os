@@ -186,7 +186,7 @@ pub class List[T]:
 			None:
 				panic("List.get on empty list!")
 			Some(element):
-				let n = 0
+				var n = 0
 				loop:
 					if n == index:
 						return element
@@ -205,8 +205,8 @@ pub class List[T]:
 			None:
 				panic("List.delete_at on empty list!")
 			Some(element):
-				let n = 0
-				let prev_element: Option[ListElement[T]] = Option.None()
+				var n = 0
+				var prev_element: Option[ListElement[T]] = Option.None()
 				loop:
 					if n == index:
 						case prev_element:

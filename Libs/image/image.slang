@@ -17,7 +17,7 @@ pub fn new_empty_image() -> Image:
 
 pub fn new_black_image(width: int, height: int) -> Image:
 	let image = new_image(width, height)
-	let offset = 0
+	var offset = 0
 	while offset < width * height:
 		image.add_pixel(red: 0, green: 0, blue: 0, alpha: 0)
 		offset += 1

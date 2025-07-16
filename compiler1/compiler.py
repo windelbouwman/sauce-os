@@ -54,7 +54,7 @@ def do_compile(
     id_context = ast.IdContext()
 
     modules = []
-    rt_module = create_rt_module()
+    rt_module = create_rt_module(id_context)
     modules.append(rt_module)
     for filename in filenames:
         module = parse_file(id_context, filename)
@@ -121,9 +121,9 @@ def dependency_graph(modules: list[ast.Module]) -> nx.DiGraph:
     """Create a dependency graph of all modules"""
     g = nx.DiGraph()
     for module in modules:
-        g.add_node(module.name)
+        g.add_node(module.id.name)
         for dep in module.get_deps():
-            g.add_edge(module.name, dep)
+            g.add_edge(module.id.name, dep)
     return g
 
 
@@ -142,7 +142,7 @@ def topo_sort_by_graph(modules: list[ast.Module], g: nx.DiGraph):
     """Sort topologically (in-place) given a dependency graph"""
     m = {}
     for module in modules:
-        m[module.name] = module
+        m[module.id.name] = module
 
     order = list(reversed(list(nx.topological_sort(g))))
     logger.info(f"Compilation order: {order}")

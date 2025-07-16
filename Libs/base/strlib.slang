@@ -12,8 +12,8 @@ pub fn split_string2(text: str, sep: str) -> List[str]:
 
 pub fn split_string(text: str, sep: char) -> List[str]:
 	let size = str_len(text)
-	let start = 0
-	let cur = 0
+	var start = 0
+	var cur = 0
 	let parts: List[str] = List()
 	while cur < size:
 		let c = text[cur]
@@ -33,28 +33,28 @@ pub fn string_compare(a: str, b: str) -> bool:
 	str_comparison(a, b) < 0
 
 pub fn str_repeat(text: str, count: int) -> str:
-	let result = ""
-	let i = 0
+	var result = ""
+	var i = 0
 	while i < count:
 		i += 1
 		result = result + text
 	result
 
 pub fn str_pad_right(text: str, length: int, fill: str) -> str:
-	let result = text
+	var result = text
 	while str_len(text: result) < length:
 		result = result + fill
 	result
 
 pub fn str_pad_left(text: str, length: int, fill: str) -> str:
-	let result = text
+	var result = text
 	while str_len(text: result) < length:
 		result = fill + result
 	result
 
 pub fn str_join(parts: List[str], sep: str) -> str:
-	let x = ""
-	let counter = parts.len()
+	var x = ""
+	var counter = parts.len()
 	for part in parts:
 		# TODO: allow += on string variables.
 		x = x + part
@@ -78,9 +78,9 @@ fn is_whitespace(c?: char) -> bool:
 pub fn str_to_int(text?: str) -> int:
 	let n = str_len(text)
 	assert(condition: n > 0, message: "Integer string must be at least a single digit.")
-	let negative = false
-	let first = true
-	let value = 0
+	var negative = false
+	var first = true
+	var value = 0
 	for c in text:
 		if first and c == '-':
 			negative = true
@@ -96,7 +96,7 @@ pub fn hex_to_int(hextext: str) -> int:
 	""" Convert hex text """
 	let n = str_len(text: hextext)
 	assert(condition: n > 0, message: "Hex string must be at least a single digit.")
-	let value = 0
+	var value = 0
 	for c in hextext:
 		value = value * 16 + hex_digit_to_int(c)
 	value
@@ -107,7 +107,7 @@ pub fn bin_to_int(bintext: str) -> int:
 	"""
 	let n = str_len(text: bintext)
 	assert(condition: n > 0, message: "Binary string must be at least a single digit.")
-	let value = 0
+	var value = 0
 	for c in bintext:
 		value = value * 2 + bin_digit_to_int(c)
 	value
@@ -149,8 +149,8 @@ pub fn is_hex_digit(c: char) -> bool:
 		false
 
 pub fn int_to_hex_string(value?: int) -> str:
-	let text = ""
-	let n = 8
+	var text = ""
+	var n = 8
 	while n > 0:
 		let c = hex_char(value & 0xF)
 		value /= 16
@@ -183,8 +183,8 @@ pub fn bin_digit_to_int(c: char) -> int:
 
 pub fn trim(text?: str) -> str:
 	# Trim spaces
-	let i = 0
-	let n = str_len(text)
+	var i = 0
+	var n = str_len(text)
 	while i < n:
 		if is_whitespace(text[i]):
 			i += 1
@@ -202,7 +202,7 @@ pub fn trim(text?: str) -> str:
 	str_slice(text, begin: i, end: n)
 
 pub fn find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
-	let i = 0
+	var i = 0
 	let n = str_len(text)
 	while i < n:
 		let c = text[i]
@@ -214,7 +214,7 @@ pub fn find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
 
 pub fn reverse_find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
 	let n = str_len(text)
-	let i = n
+	var i = n
 	while i > 0:
 		i -= 1
 		let c = text[i]
@@ -225,7 +225,7 @@ pub fn reverse_find_char(text: str, criterium: fn(char) -> bool) -> Option[int]:
 
 # TODO: duplicate with rt_str_compare in C
 fn str_comparison(a: str, b: str) -> int:
-	let index = 0
+	var index = 0
 	let n_a = str_len(text: a)
 	let n_b = str_len(text: b)
 	let n = min(a: n_a, b: n_b)
@@ -242,9 +242,9 @@ fn str_comparison(a: str, b: str) -> int:
 pub fn split_lines(text: str) -> List[str]:
 	# TODO: use split_string here?
 	let lines: List[str] = List()
-	let line_start = 0
+	var line_start = 0
 	let n = str_len(text)
-	let index = 0
+	var index = 0
 	while index < n:
 		if ord(text[index]) == 10:
 			# New line!

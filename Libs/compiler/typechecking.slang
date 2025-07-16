@@ -10,19 +10,21 @@ from strlib import str_join
 from settype import new_str_set
 from location import Location
 from utils import log_info, panic, assert
-from errors import CompilationError, new_errors, new_error, SingleCompilationError
+from errors import CompilationError, new_errors, new_error, SingleCompilationError, print_errors, new_warning
 
-pub fn type_check_modules(module_set: ast.ModuleSet) except CompilationError:
+pub fn type_check_modules(module_set: ast.ModuleSet, display_warnings: bool) except CompilationError:
 	for module in module_set.modules:
-		type_check(module)
+		type_check(module, display_warnings)
 
-fn type_check(module: ast.Module) except CompilationError:
+fn type_check(module: ast.Module, display_warnings: bool) except CompilationError:
 	log_info("Type-checking module {module.name}")
 	let checker = TypeChecker()
 	let visitor = new_type_check_visitor(checker)
 	ast.visit_module(visitor, module)
 	if not checker.errors.is_empty():
 		raise new_errors(filename: module.filename, errors: checker.errors)
+	if not checker.warnings.is_empty() and display_warnings:
+		print_errors(filename: module.filename, errors: checker.warnings)
 
 fn new_type_check_visitor(checker: TypeChecker) -> ast.Visitor[TypeChecker]:
 	ast.Visitor:
@@ -67,7 +69,7 @@ fn checker_on_type(checker: TypeChecker, ty: ast.Type, phase: ast.VisitPhase):
 	pass
 
 fn assign_types(variables: List[ast.Variable], types: Vector[ast.Type]):
-	let index = 0
+	var index = 0
 	for v in variables:
 		v.ty = types[index]
 		index += 1
@@ -108,6 +110,7 @@ fn checker_on_node(checker: TypeChecker, node: ast.VisitNode, phase: ast.VisitPh
 
 class TypeChecker:
 	pub var errors: List[SingleCompilationError] = List()
+	pub var warnings: List[SingleCompilationError] = List()
 	pub var was_errors: bool = false
 	pub var current_function: Option[ast.FunctionDef] = Option.None()
 	pub var loops: int = 0
@@ -152,6 +155,8 @@ class TypeChecker:
 									add_error(location: arm.location, message: "Enum case covered twice")
 							None:
 								add_error(location: arm.location, message: "No such enum variant: {arm.name}")
+						for variable in arm.variables:
+							variable.writable = true
 					if option_is_none(case_statement.else_block):
 						let parts: List[str] = List()
 						for uncovered_arm in uncovered_arms:
@@ -182,6 +187,7 @@ class TypeChecker:
 					for_statement.iter_var.ty = ast.char_type()
 				else:
 					add_error(location: for_statement.iter_value.location, message: "Value cannot be iterated: {for_statement.iter_value.ty}")
+				for_statement.iter_var.writable = true
 			Try(try_statement):
 				exception_handlers.drop_last()
 				try_statement.except_var.ty = try_statement.except_type
@@ -201,7 +207,7 @@ class TypeChecker:
 				coerce(ty: let_statement.variable.ty, value: let_statement.value)
 				statement.ty = m_void_type
 			Case(case_statement):
-				let ty = ast.unreachable_type()
+				var ty = ast.unreachable_type()
 				for arm in case_statement.arms:
 					ty = merge_paths(statement: arm.block.body, ty)
 				case case_statement.else_block:
@@ -212,7 +218,7 @@ class TypeChecker:
 				statement.ty = ty
 			Switch(switch_statement):
 				coerce(ty: m_int_type, value: switch_statement.value)
-				let ty = switch_statement.default_block.body.ty
+				var ty = switch_statement.default_block.body.ty
 				for arm in switch_statement.arms:
 					ty = merge_paths(statement: arm.block.body, ty)
 				statement.ty = ty
@@ -220,8 +226,7 @@ class TypeChecker:
 				statement.ty = expression.ty
 			If(if_statement):
 				coerce(ty: m_bool_type, value: if_statement.condition)
-				let ty = if_statement.true_block.body.ty
-				ty = merge_paths(statement: if_statement.false_block.body, ty)
+				let ty = merge_paths(statement: if_statement.false_block.body, ty: if_statement.true_block.body.ty)
 				statement.ty = ty
 			For(for_statement):
 				assert_void(statement: for_statement.block.body)
@@ -235,6 +240,8 @@ class TypeChecker:
 				statement.ty = m_void_type
 			Assignment(target, op, value):
 				coerce(ty: target.ty, value)
+				if not target.writable:
+					add_warning(location: target.location, message: "Cannot assign read-only expression")
 				statement.ty = m_void_type
 			Return(value):
 				let func = option_unwrap(current_function)
@@ -256,7 +263,7 @@ class TypeChecker:
 			Compound(inner):
 				assert(condition: not inner.is_empty(), message: "Compound statement must not be empty.")
 				let n = inner.len()
-				let i = 0
+				var i = 0
 				for x in inner:
 					i += 1
 					let is_last = i == n
@@ -323,9 +330,11 @@ class TypeChecker:
 				# TODO: clone type?
 				# log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {parameter.ty}")
 				expression.ty = parameter_def.ty
+				expression.writable = true
 			VariableRef(variable):
 				# log_trace("Var ref {ast.node_id_to_string(variable.id)}: {variable.ty}")
 				expression.ty = variable.ty
+				expression.writable = variable.writable
 			FunctionRef(function_def, type_arguments):
 				expression.ty = ast.get_function_type2(function_def, type_arguments)
 			TypeCast(ty, value):
@@ -348,7 +357,7 @@ class TypeChecker:
 				add_error(location: expression.location, message: "Cannot use a type here")
 			Binop(binop):
 				# Heuristics ahead...
-				let ty = binop.lhs.ty
+				var ty = binop.lhs.ty
 				let rhs_ty = binop.rhs.ty
 				if ty.is_int() and rhs_ty.is_float():
 					ty = rhs_ty
@@ -386,12 +395,14 @@ class TypeChecker:
 				case base.ty.maybe_get_field_type(attr, also_private):
 					Some(ty):
 						expression.ty = ty
+						expression.writable = true
 					None:
 						add_error(location: expression.location, message: "Type {base.ty} has no public field: {attr}")
 						expression.ty = ast.undefined_type()
 			GetIndex(base, indici):
 				if base.ty.is_array():
 					expression.ty = base.ty.get_element_type()
+					expression.writable = base.writable
 				elif base.ty.has_method("get"):
 					# Maybe we try to access an object with get/set interface
 					# TODO: we have a few assumptions here, which panic. Should be proper warning:
@@ -431,7 +442,7 @@ class TypeChecker:
 				let element_type: ast.Type = values.first().ty
 
 				# Check all types are equal!
-				let skip = true
+				var skip = true
 				for value in values:
 					# we can skip the first item
 					if skip:
@@ -466,7 +477,7 @@ class TypeChecker:
 
 	fn check_arguments(location: Location, parameter_types: Vector[ast.Type], arguments: List[ast.Expression]):
 		if parameter_types.len() == arguments.len():
-			let index = 0
+			var index = 0
 			for argument in arguments:
 				let p_ty = parameter_types[index]
 				coerce(ty: p_ty, value: argument)
@@ -598,7 +609,7 @@ class TypeChecker:
 	fn unify_many(typs1: Vector[ast.Type], typs2: Vector[ast.Type]) -> bool:
 		if typs1.len() == typs2.len():
 			let n = typs1.len()
-			let index = 0
+			var index = 0
 			while index < n:
 				let ty1 = typs1[index]
 				let ty2 = typs2[index]
@@ -615,3 +626,10 @@ class TypeChecker:
 		let err = new_error(location, message)
 		errors.append(err)
 		was_errors = true
+
+	fn add_warning(location: Location, message: str):
+		let treat_warnings_as_errors = true
+		if treat_warnings_as_errors:
+			add_error(location, message)
+		else:
+			warnings.append(new_warning(location, message))

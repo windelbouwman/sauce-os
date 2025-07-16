@@ -25,7 +25,7 @@ fn merge_sort[T](m: List[T], cmp: fn(T, T) -> bool) -> List[T]:
 		# Split list into two halfs, sort the halfs, and merge them
 		let left: List[T] = List()
 		let right: List[T] = List()
-		let index = 0
+		var index = 0
 		let n: int = m.len() / 2
 		for value in m:
 			if index < n:
@@ -34,9 +34,7 @@ fn merge_sort[T](m: List[T], cmp: fn(T, T) -> bool) -> List[T]:
 				right.append(value)
 			index += 1
 
-		left = merge_sort(m: left, cmp)
-		right = merge_sort(m: right, cmp)
-		merge_two(left, right, cmp)
+		merge_two(left: merge_sort(m: left, cmp), right: merge_sort(m: right, cmp), cmp)
 
 fn merge_two[T](left: List[T], right: List[T], cmp: fn(T, T) -> bool) -> List[T]:
 	let result: List[T] = List()

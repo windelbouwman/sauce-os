@@ -40,7 +40,7 @@ class PyCodeGenerator:
                 if isinstance(definition, ast.VarDef):
                     self.global_names.append(self.gen_id(definition.id))
             for definition in module.definitions:
-                self.gen_definition(module.name, definition)
+                self.gen_definition(module.id.name, definition)
             for definition in module.definitions:
                 if isinstance(definition, ast.VarDef):
                     self.gen_global(definition)

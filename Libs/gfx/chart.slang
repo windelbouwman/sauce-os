@@ -51,7 +51,7 @@ pub class Chart:
 		if rects.is_empty():
 			Option.None()
 		else:
-			let rect = reduce(values: rects, f: containing_rect)
+			var rect = reduce(values: rects, f: containing_rect)
 			rect = grow_rect(source: rect, percent: 0.05)
 			Option.Some(rect)
 
@@ -130,10 +130,10 @@ pub class Curve:
 			Option.None()
 		else:
 			let p1 = points.first()
-			let x_min = p1.x
-			let x_max = x_min
-			let y_min = p1.y
-			let y_max = y_min
+			var x_min = p1.x
+			var x_max = x_min
+			var y_min = p1.y
+			var y_max = y_min
 			for point in points:
 				if point.x > x_max:
 					x_max = point.x
@@ -235,16 +235,15 @@ fn calc_tick_values(axis: Axis, n_ticks: int) -> List[TickValue]:
 	log_info("best: {float_to_str(best)} tick_width: {float_to_str(tick_width)}")
 
 	# Use scale and dx to determine tick values
-	let x = round_to_multiple(value: axis.lower, base: tick_width)
+	var x = round_to_multiple(value: axis.lower, base: tick_width)
 	x = x - 2 * tick_width
 	while x < axis.lower:
 		x += tick_width
 
-	let digits = 0
-	if scale > 0:
-		digits = 0
+	let digits = if scale > 0:
+		0
 	else:
-		digits = int(-scale + 1)
+		int(-scale + 1)
 	let tick_values: List[TickValue] = List()
 	while x < axis.upper:
 		# TODO: use scale to limit amount of decimals

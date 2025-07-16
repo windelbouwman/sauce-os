@@ -74,7 +74,7 @@ class CGenerator:
 		vm.prepare_vm(vm: m_vm, program)
 
 		# Struct forward declarations:
-		let index = 0
+		var index = 0
 		for struct_def in program.structs:
 			emit("struct S{index}_{struct_def.name};")
 			index += 1
@@ -105,7 +105,7 @@ class CGenerator:
 		emit("struct {name} \{")
 		indent()
 
-		let findex = 0
+		var findex = 0
 		for field in struct_def.fields:
 			gen_typed_name(ty: field.ty, name: "f{findex}_{field.name}")
 			emit(";")
@@ -141,7 +141,7 @@ class CGenerator:
 				write("void ")
 		write(extern_function.name)
 		write("(")
-		let index = 0
+		var index = 0
 		for parameter in extern_function.parameters:
 			let name = "P{index}"
 			if index > 0:
@@ -201,7 +201,7 @@ class CGenerator:
 				let struct_def = structs.get(index)
 
 				let parts: List[str] = List()
-				let i = 0
+				var i = 0
 				for v2 in v.values:
 					parts.append(gen_vm_value(ty: struct_def.fields[i].ty, value: v2))
 					i += 1
@@ -240,7 +240,7 @@ class CGenerator:
 		write(" ")
 		write(function.name)
 		write("(")
-		let index = 0
+		var index = 0
 		for parameter in function.parameters:
 			let name = "P{index}_{parameter.name}"
 			if fill_param:
@@ -284,7 +284,7 @@ class CGenerator:
 		emit("// Localz")
 
 		let target_labels = bc.get_target_labels(instructions: function.instructions)
-		let index = 0
+		var index = 0
 		for instruction in function.instructions:
 			if target_labels.contains(index):
 				gen_label_str(index)
@@ -323,9 +323,10 @@ class CGenerator:
 						else:
 							push(Value(name: "0", ty: bc.Type.Bool()))
 					Char(value):
-						let text = "'{value}'"
-						if value == '\':
-							text = "'\\{value}'"
+						let text = if value == '\':
+							"'\\{value}'"
+						else:
+							"'{value}'"
 						push(Value(name: text, ty: bc.Type.Char()))
 					Null:
 						push(Value(name: "0", ty: bc.Type.Ptr()))
@@ -698,7 +699,7 @@ class CGenerator:
 				gen_typed_name(ty, name: varname)
 				let name = "S{index}_{struct_def.name}"
 				emit(" = rt_malloc_with_destroyer(sizeof(struct {name}), {name}_type_info);")
-				let index2 = 0
+				var index2 = 0
 				for value in values:
 					let field = struct_def.fields.get(index: index2)
 					emit("{varname}->f{index2}_{field.name} = {value.name};")
@@ -718,7 +719,7 @@ class CGenerator:
 				write(" = rt_malloc({size} * sizeof(")
 				gen_typed_name(ty: ety, name: "")
 				emit("));")
-				let index = 0
+				var index = 0
 				for value in values:
 					emit("{varname}[{index}] = {value.name};")
 					index += 1
@@ -768,7 +769,7 @@ class CGenerator:
 				pass
 		write(callee)
 		write("(")
-		let first = true
+		var first = true
 		for arg in args:
 			if first:
 				first = false
@@ -813,7 +814,7 @@ class CGenerator:
 					None:
 						write("void")
 				write("(*{name})(")
-				let first = true
+				var first = true
 				for p in parameter_types:
 					if first:
 						first = false

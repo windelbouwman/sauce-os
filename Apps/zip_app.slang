@@ -1,15 +1,15 @@
 
 import std
 from utils import set_log_level, log_error, log_info
-from gzip import zlib_compress
+from gzip import gzip_compress
 from qoi import write_bytes_to_file, read_whole_file_as_bytes
 
 pub fn main() -> int:
 
 	let n = std.get_n_args()
-	let i = 0
-	let input_filename: str = ""
-	let output_filename: str = ""
+	var i = 0
+	var input_filename: str = ""
+	var output_filename: str = ""
 	while i < n:
 		let argument = std.get_arg(arg: i)
 		if i == 0:
@@ -29,7 +29,7 @@ pub fn main() -> int:
 	set_log_level(level: 5)
 	log_info("Reading {input_filename}")
 	let data = read_whole_file_as_bytes(filename: input_filename)
-	let data2 = zlib_compress(data)
+	let data2 = gzip_compress(data)
 	log_info("Writing {output_filename}")
 	write_bytes_to_file(filename: output_filename, data: data2)
 	return 0

@@ -42,7 +42,7 @@ pub class TextGenerator:
 
 	fn write_indent():
 		if m_start_of_line:
-			let i = 0
+			var i = 0
 			while i < m_indentation:
 				file_write(handle: outf, text: m_one_tab)
 				i += 1

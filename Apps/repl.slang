@@ -16,9 +16,9 @@ from vm import VirtualMachine, eval_code, value_to_string
 
 
 pub fn main() -> int:
-	let verbosity = 1
+	var verbosity = 1
 	let n = get_n_args()
-	let i = 0
+	var i = 0
 	while i < n:
 		let argument = get_arg(arg: i)
 		if argument == "-v":

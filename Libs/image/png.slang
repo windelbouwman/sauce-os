@@ -48,12 +48,12 @@ class PngDecoder:
 		# let type_gama = chunk_type_code(name: "gAMA")
 		# let type_gama = chunk_type_code(name: "sRGB")
 
-		let idat: Bytes = new_bytes()
-		let width = 0
-		let height = 0
-		let bpp = 0
-		let colortype = 0
-		
+		var idat: Bytes = new_bytes()
+		var width = 0
+		var height = 0
+		var bpp = 0
+		var colortype = 0
+
 		# Loop over chunks in PNG:
 		loop:
 			let chunk = read_chunk()
@@ -104,7 +104,7 @@ class PngDecoder:
 				type_data.pack_u32_be(chunk.chunk_type)
 				log_warning("Unsupported chunk type: {bytes_to_ascii(data: type_data.to_bytes())}")
 
-		
+
 		# Post processing!
 		# Decompress data:
 		let data2 = zlib_decompress(data: idat)
@@ -113,7 +113,7 @@ class PngDecoder:
 		let image = new_image(width, height)
 		to_pixels(data: data3, image, colortype)
 		image
-	
+
 	fn read_chunk() -> Chunk:
 		let chunk_length = read_u32_be()
 		let chunk_type = read_u32_be()
@@ -183,9 +183,9 @@ class PngEncoder:
 
 fn pixels_to_buffer(image: Image) -> Bytes:
 	let out = ByteArray()
-	let scanline = 0
+	var scanline = 0
 	while scanline < image.height:
-		let x = 0
+		var x = 0
 		while x < image.width:
 			let pixel = image.pixels.get(index: scanline * image.width + x)
 			out.append(pixel.red)
@@ -197,10 +197,10 @@ fn pixels_to_buffer(image: Image) -> Bytes:
 	out.to_bytes()
 
 fn to_pixels(data: Bytes, image: Image, colortype: int):
-	let scanline = 0
-	let index = 0
+	var scanline = 0
+	var index = 0
 	while scanline < image.height:
-		let x = 0
+		var x = 0
 		while x < image.width:
 			let red = data.get(index)
 			index += 1
@@ -209,7 +209,7 @@ fn to_pixels(data: Bytes, image: Image, colortype: int):
 			let blue = data.get(index)
 			index += 1
 
-			let alpha = 0xFF
+			var alpha = 0xFF
 			if colortype == 6:
 				alpha = data.get(index)
 				index += 1
@@ -224,12 +224,12 @@ fn encode_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
 	# Apply filtering as encoding step
 	let out = ByteArray()
 	let bytes_per_line = bpp * width
-	let scanline = 0
-	let index = 0
+	var scanline = 0
+	var index = 0
 	while scanline < height:
 		# Idea: try all filter types, and select filtered line with the lowest entropy
 		out.append(0) # no-op filter type
-		let x = 0
+		var x = 0
 		while x < bytes_per_line:
 			let value = data.get(index)
 			index += 1
@@ -249,8 +249,8 @@ fn post_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
 	let expected_data_size = (width * bpp + 1) * height
 	assert(condition: data.len() == expected_data_size, message: "PNG data size mismatch, expected {expected_data_size}, but got {data.len()}")
 
-	let scanline = 0
-	let index = 0
+	var scanline = 0
+	var index = 0
 	let bytes_per_line = bpp * width
 	let out = ByteArray()
 	while scanline < height:
@@ -258,9 +258,9 @@ fn post_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
 		index += 1
 		# log_debug("Filter type: {filter_type}")
 
-		let x = 0
+		var x = 0
 		while x < bytes_per_line:
-			let value = data.get(index)
+			var value = data.get(index)
 			index += 1
 
 			# filter type:
@@ -272,37 +272,37 @@ fn post_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
 			if filter_type == 0: # No-op
 				pass
 			elif filter_type == 1: # Diff to left pixel
-				let left_value = 0
 				if x >= bpp:
-					left_value = out.get(index: scanline * bytes_per_line + x - bpp)
-				value = modulo(value: value + left_value, divisor: 256)
+					let left_value = out.get(index: scanline * bytes_per_line + x - bpp)
+					value = modulo(value: value + left_value, divisor: 256)
 			elif filter_type == 2: # Diff to above pixel
-				let above_value = 0
 				if scanline > 0:
-					above_value = out.get(index: (scanline - 1) * bytes_per_line + x)
-				value = modulo(value: value + above_value, divisor: 256)
+					let above_value = out.get(index: (scanline - 1) * bytes_per_line + x)
+					value = modulo(value: value + above_value, divisor: 256)
 			elif filter_type == 3:  # Average
-				let left_value = 0
-				if x >= bpp:
-					left_value = out.get(index: scanline * bytes_per_line + x - bpp)
-				let above_value = 0
-				if scanline > 0:
-					above_value = out.get(index: (scanline - 1) * bytes_per_line + x)
+				let left_value = if x >= bpp:
+					out.get(index: scanline * bytes_per_line + x - bpp)
+				else:
+					0
+				let above_value = if scanline > 0:
+					out.get(index: (scanline - 1) * bytes_per_line + x)
+				else:
+					0
 				value = modulo(value: value + average(a: left_value, b: above_value), divisor: 256)
 			elif filter_type == 4:  # Paeth
-				let left_value = 0
+				var left_value = 0
 				if x >= bpp:
 					left_value = out.get(index: scanline * bytes_per_line + x - bpp)
-				let above_value = 0
+				var above_value = 0
 				if scanline > 0:
 					above_value = out.get(index: (scanline - 1) * bytes_per_line + x)
-				let left_up_value = 0
+				var left_up_value = 0
 				if (x >= bpp) and (scanline > 0):
 					left_up_value = out.get(index: (scanline - 1) * bytes_per_line + x - bpp)
 				value = modulo(value: value + paeth_predictor(a: left_value, b: above_value, c: left_up_value), divisor: 256)
 			else:
 				unimplemented("Filter type: {filter_type}")
-			
+
 			out.append(value)
 			x += 1
 		scanline += 1

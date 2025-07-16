@@ -8,7 +8,7 @@ import std
 #    Money(int, float)
 
 # class<x> List:
-	# var element : x 
+	# var element : x
 
 struct Holder:
 	a: int
@@ -28,7 +28,7 @@ pub fn main() -> int:
 		std.print("BOOM a={a} a*a={a*a}")
 
 	# While loop with array:
-	let i = 2
+	var i = 2
 	while i < 7:
 		std.print("WHILE BOOM x[{i}]={x[i]}")
 		i = i + 1

@@ -30,7 +30,7 @@ from vm import run_bytecode
 
 
 pub fn main() -> int:
-	let filenames: List[str] = List()
+	var filenames: List[str] = List()
 
 	let options = CompilationOptions:
 		dump_ast: false
@@ -44,7 +44,7 @@ pub fn main() -> int:
 
 	# Argument processing
 	let n = get_n_args()
-	let i = 0
+	var i = 0
 	while i < n:
 		let argument = get_arg(arg: i)
 		if argument == "-d":
@@ -199,7 +199,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 	if options.dump_ast:
 		ast.print_ast2(module_set)
 
-	type_check_modules(module_set)
+	type_check_modules(module_set, display_warnings: true)
 
 	case options.gen_export:
 		Some(filename):
@@ -212,7 +212,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 	if options.dump_ast:
 		ast.print_ast2(module_set)
 
-	type_check_modules(module_set)
+	type_check_modules(module_set, display_warnings: false)
 
 	if options.dump_ast:
 		ast.print_ast2(module_set)

@@ -4,7 +4,7 @@ from std import print
 pub fn main() -> int:
 	# Becomes: store  void()* @bla, void()** %x_1
 
-	let x: fn() = bla
+	var x: fn() = bla
 	# let y = 2
 	x()
 	call_f(x)

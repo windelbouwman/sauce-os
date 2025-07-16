@@ -51,7 +51,7 @@ class BytecodeGenerator:
 
 	pub fn forward_declarations(module_set: ast.ModuleSet):
 		# struct forward declarations:
-		let index = 0
+		var index = 0
 		for module in module_set.modules:
 			for definition in module.definitions:
 				case definition:
@@ -84,7 +84,7 @@ class BytecodeGenerator:
 				else:
 					pass
 
-		let func_index = extern_functions.len()
+		var func_index = extern_functions.len()
 		for module in module_set.modules:
 			for definition in module.definitions:
 				case definition:
@@ -145,8 +145,8 @@ class BytecodeGenerator:
 		for parameter in function_def.parameters:
 			parameters.append(bc.TypedName(name: parameter.id.name, ty: get_bc_type(parameter.ty)))
 
-		let return_type = Option.None()
-		let no_return = false
+		var return_type = Option.None()
+		var no_return = false
 		if function_def.info.return_type.is_void():
 			pass
 		elif function_def.info.return_type.is_unreachable():
@@ -169,8 +169,8 @@ class BytecodeGenerator:
 					let parameter_index = parameters.len()
 					local_var_mapping.insert(key: parameter.id, value: parameter_index)
 					parameters.append(p2)
-				let return_type = Option.None()
-				let no_return = false
+				var return_type = Option.None()
+				var no_return = false
 				if function_def.info.return_type.is_void():
 					pass
 				elif function_def.info.return_type.is_unreachable():
@@ -281,7 +281,7 @@ class BytecodeGenerator:
 					emit(Instruction.LocalSet(var_index))
 			Compound(inner):
 				let n = inner.len()
-				let i = 0
+				var i = 0
 				for s in inner:
 					i += 1
 					if i == n:
@@ -815,7 +815,7 @@ class BytecodeGenerator:
 
 fn get_attr_index(ty: ast.Type, attr: str) -> int:
 	let struct_def = ty.get_struct_def()
-	let index = 0
+	var index = 0
 	for field in struct_def.fields:
 		if field.name == attr:
 			return index

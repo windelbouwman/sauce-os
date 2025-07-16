@@ -50,12 +50,12 @@ class ScopeFiller(BasePass):
 
     def fill_module(self, module: ast.Module):
         self._definitions = []
-        self.begin(module.filename, f"Filling scopes in module '{module.name}'")
+        self.begin(module.filename, f"Filling scopes in module '{module.id.name}'")
 
-        if module.name in self._modules:
-            self.error(module.location, f"Cannot redefine {module.name}")
+        if module.id.name in self._modules:
+            self.error(module.location, f"Cannot redefine {module.id.name}")
         else:
-            self._modules[module.name] = module
+            self._modules[module.id.name] = module
 
         self.enter_scope(module.scope)
         for imp in module.imports:
@@ -200,7 +200,7 @@ class NameBinder(BasePass):
         self._references = []
 
     def resolve_symbols(self, module: ast.Module):
-        self.begin(module.filename, f"Resolving symbols in '{module.name}'")
+        self.begin(module.filename, f"Resolving symbols in '{module.id.name}'")
         self._references = []
         self.enter_scope(module.scope)
 

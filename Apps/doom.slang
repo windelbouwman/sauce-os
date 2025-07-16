@@ -27,7 +27,7 @@ pub fn main() -> int:
 	s.draw_line(x1: 160, y1: 10, x2: 170, y2: 230) # Right line
 
 	s.set_color(red: 255, green: 255, blue: 0)
-	let a = 0
+	var a = 0
 	while a < 360:
 		let x = 160 + int(100 * cos(radians(degrees: a)))
 		let y = 120 + int(100 * sin(radians(degrees: a)))

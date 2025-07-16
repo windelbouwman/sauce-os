@@ -1,11 +1,11 @@
 
-from utils import log_info, log_trace
+from utils import log_info, log_trace, unimplemented
 from location import Location, location_default
 from listtype import List
 from optiontype import Option, option_is_some
 from hashmap import HashMap
 import ast
-from errors import CompilationError, new_error, new_errors, SingleCompilationError, render_message
+from errors import CompilationError, new_error, new_errors, SingleCompilationError, print_errors, new_warning
 
 pub fn bind_names(module: ast.Module, module_map: HashMap[str,ast.Module], tycon_map: HashMap[ast.NodeId,ast.TyCon]) except CompilationError:
 	log_info("Filling scopes for {module.name}")
@@ -33,14 +33,17 @@ pub fn bind_names(module: ast.Module, module_map: HashMap[str,ast.Module], tycon
 	binder.enter_scope(scope: base_scope())
 	binder.enter_scope(scope: module.scope)
 	ast.visit_module(visitor: bind_visitor, module)
+	let warnings: List[SingleCompilationError] = List()
 	for symbol in module.scope.get_symbols():
 		if not symbol.is_pub and symbol.get_references() == 0:
 			# TODO: use filename as a hack to reduce amount of warnings:
 			if option_is_some(module.filename):
-				render_message(label: "WARNING", filename: module.filename, location: symbol.location, message: "Symbol '{symbol.name}' defined but unused.")
+				warnings.append(new_warning(location: symbol.location, message: "Symbol '{symbol.name}' defined but unused."))
+	binder.leave_scope()
+	binder.leave_scope()
 
-	binder.leave_scope()
-	binder.leave_scope()
+	if not warnings.is_empty():
+		print_errors(filename: module.filename, errors: warnings)
 
 	if not binder.errors.is_empty():
 		raise new_errors(filename: module.filename, errors: binder.errors)
@@ -65,6 +68,8 @@ pub fn bind_names_expression(expression: ast.Expression) except CompilationError
 fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
 	# try to retrieve a scope, if we have one
 	case definition:
+		Mod(module):
+			unimplemented("mod get scope")
 		Macro(macro_def):
 			Option.None()
 		Function(function_def):
@@ -92,6 +97,8 @@ fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: a
 	case phase:
 		Pre:
 			case definition:
+				Mod(module):
+					unimplemented("filler on def")
 				Macro(macro_def):
 					filler.define(is_pub: false, name: macro_def.name, kind: ast.SymbolKind.Macro(macro_def), location: macro_def.location)
 				Function(function_def):
@@ -462,10 +469,10 @@ class NameBinder:
 	fn resolve_qual_name(name: ast.QualName) -> ast.Symbol except SingleCompilationError:
 		""" Resolve a qualified name to a symbol """
 		let base_name = name.parts[0]
-		let symbol = lookup_base_name(name: base_name, location: name.location)
+		var symbol = lookup_base_name(name: base_name, location: name.location)
 		symbol.add_reference(location: name.location)
 		if name.parts.len() > 1:
-			let first = true
+			var first = true
 			for part in name.parts:
 				if first:
 					first = false

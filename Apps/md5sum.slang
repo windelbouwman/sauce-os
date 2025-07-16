@@ -8,8 +8,8 @@ from qoi import read_whole_file_as_bytes
 
 pub fn main() -> int:
 	let n = std.get_n_args()
-	let i = 0
-	let filename: str = ""
+	var i = 0
+	var filename: str = ""
 	while i < n:
 		let argument = std.get_arg(arg: i)
 		filename = argument

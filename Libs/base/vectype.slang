@@ -21,8 +21,8 @@ pub fn new_vector_with_capacity[T](capacity: int) -> Vector[T]:
 
 pub fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
 	let m_capacity = size
-	let m_elements = [m_capacity : T]
-	let i = 0
+	var m_elements = [m_capacity : T]
+	var i = 0
 	while i < size:
 		m_elements[i] = default
 		i += 1
@@ -81,7 +81,7 @@ pub class Vector[T]:
 		let new_size = m_size + other.len()
 		while m_capacity < new_size:
 			grow()
-		let index = 0
+		var index = 0
 		while index < other.len():
 			m_elements[m_size] = other[index]
 			m_size += 1
@@ -96,7 +96,7 @@ pub class Vector[T]:
 		m_capacity = m_capacity * 2
 		m_elements = [m_capacity : T]
 		# Copy old elements:
-		let i = 0
+		var i = 0
 		while i < m_size:
 			m_elements[i] = old_elements[i]
 			i += 1
@@ -128,7 +128,7 @@ pub class Vector[T]:
 		# Create a new vector with the given amount of items
 		assert(condition: amount < m_size, message: "take: amount must less than size.")
 		let v2: Vector[T] = new_vector()
-		let index = 0
+		var index = 0
 		while index < amount:
 			v2.append(get(index))
 			index += 1
@@ -136,7 +136,7 @@ pub class Vector[T]:
 
 	pub fn skip(amount?: int) -> Vector[T]:
 		let v2: Vector[T] = new_vector()
-		let index = amount
+		var index = amount
 		while index < m_size:
 			v2.append(get(index))
 			index += 1

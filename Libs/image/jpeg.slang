@@ -74,21 +74,21 @@ class JpegDecoder:
 			unimplemented("Marker type: {kind}")
 
 	fn huffman_table():
-		let size = read_u16() - 2
+		var size = read_u16() - 2
 		let header = read_byte()
 		log_debug("DHT of size {size} and header {header}")
 		# let number = header & 0xf
 		# let ty = (header >> 4) & 1
 		let lengths = read_data(size: 16)
 		size -= 17
-		let n_symbols = 0
+		var n_symbols = 0
 		for length in lengths:
 			n_symbols += length
 		assert(condition: n_symbols > 0, message: "n_symbols must be larger than 0.")
-		let counts = zero_int_array(size: 17)
-		let symbols = zero_int_array(size: n_symbols)
-		let bitsize = 1
-		let offset = 0
+		var counts = zero_int_array(size: 17)
+		var symbols = zero_int_array(size: n_symbols)
+		var bitsize = 1
+		var offset = 0
 		for length in lengths:
 			let symbols_data = read_data(size: length)
 			size -= length
@@ -102,7 +102,7 @@ class JpegDecoder:
 		m_huffman_tables.insert(key: header, value: tree)
 
 	fn define_quantization_table():
-		let size = read_u16() - 2
+		var size = read_u16() - 2
 		let header = read_byte()
 		log_debug("DQT of size {size} header={header}")
 		size -= 1
@@ -111,7 +111,7 @@ class JpegDecoder:
 
 	fn start_of_frame(n: int):
 		""" Baseline DCT """
-		let size = read_u16() - 2
+		var size = read_u16() - 2
 		log_debug("SOF{n} of size {size}")
 		let P = read_byte()
 		assert(condition: P == 8, message: "Only 8 bit precision supported")
@@ -122,7 +122,7 @@ class JpegDecoder:
 		m_image = new_black_image(width: m_width, height: m_height)
 		size -= 6
 		assert(condition: size == Nf * 3, message: "Should have 3 bytes per component")
-		let i = 0
+		var i = 0
 		while i < Nf:
 			let C = read_byte()
 			let samp = read_byte()
@@ -135,14 +135,14 @@ class JpegDecoder:
 			i += 1
 
 	fn start_of_scan():
-		let size = read_u16() - 2
+		var size = read_u16() - 2
 		log_debug("SOS of size {size}")
 		let Ns = read_byte()
 		log_debug("Number of components in scan: {Ns}")
 		size -= 1
 		assert(condition: Ns * 2 + 3 == size, message: "Invalid start of scan size: {size}")
 		assert(condition: Ns == m_components.len(), message: "Component amount mismatch")
-		let i = 0
+		var i = 0
 		while i < Ns:
 			let Cs = read_byte()
 			let Tda = read_byte() # DC and AC Huffman table selectors
@@ -168,8 +168,8 @@ class JpegDecoder:
 		let bit_reader = BitReader(m_reader: data.into_reader(), m_reverse: true)
 
 		# Determine minimal coding unit (MCU)
-		let max_H = 1
-		let max_V = 1
+		var max_H = 1
+		var max_V = 1
 		for component in m_components:
 			if component.H > max_H:
 				max_H = component.H
@@ -180,11 +180,11 @@ class JpegDecoder:
 
 		# Loop over image MCU's!
 		log_debug("MCU size {mcu_width}x{mcu_height}")
-		let b_y = 0
+		var b_y = 0
 		let b_y_size = (m_height + mcu_height - 1) / mcu_height
 		let b_x_size = (m_width + mcu_width - 1) / mcu_width
 		while b_y < b_y_size:
-			let b_x = 0
+			var b_x = 0
 			while b_x < b_x_size:
 				# log_debug("x={b_x} y={b_y}")
 				# Read 1 MCU:
@@ -219,20 +219,20 @@ class JpegDecoder:
 
 	fn read_component_mcu(bit_reader: BitReader, component: Component, mcu_width: int, mcu_height: int) -> [int]:
 		""" Read a single MCU data array """
-		let block = zero_int_array(size: mcu_width * mcu_height)
+		var block = zero_int_array(size: mcu_width * mcu_height)
 		let upx = mcu_width / (component.H * 8) # Upsample factor x
 		let upy = mcu_height / (component.V * 8)
 
-		let sby = 0  # sub block y
+		var sby = 0  # sub block y
 		while sby < component.V:
-			let sbx = 0
+			var sbx = 0
 			while sbx < component.H:
 				let m = build_matrix(bit_reader, component)
 
 				# Paste block in proper place into matrix
-				let mx = 0
+				var mx = 0
 				while mx < 8:
-					let my = 0
+					var my = 0
 					while my < 8:
 						let val = m[my * 8 + mx]
 						# x,y in block:
@@ -240,9 +240,9 @@ class JpegDecoder:
 						let y = (sby * 8 + my) * upy
 
 						# upsample value:
-						let dx = 0
+						var dx = 0
 						while dx < upx:
-							let dy = 0
+							var dy = 0
 							while dy < upy:
 								block[(y + dy) * mcu_width + x + dx] = val
 								dy += 1
@@ -265,12 +265,12 @@ class JpegDecoder:
 		let bits = bit_reader.read_bits(n: code)
 		let dc_coeff = decode_number(code, bits) + component.dc_coeff
 		component.dc_coeff = dc_coeff
-		let res = zero_int_array(size: 64)
+		var res = zero_int_array(size: 64)
 		res[0] = dc_coeff * quant[0]
 
-		let index = 1
+		var index = 1
 		while index < 64:
-			let code = decode_symbol(tree: ac_table, bit_reader)
+			var code = decode_symbol(tree: ac_table, bit_reader)
 			# log_debug("b = {code}")
 			if code == 0:
 				break
@@ -293,9 +293,9 @@ class JpegDecoder:
 		let lum_data = mcu[0]
 		let cb_data = mcu[1]
 		let cr_data = mcu[2]
-		let xx = 0
+		var xx = 0
 		while xx < mcu_width:
-			let yy = 0
+			var yy = 0
 			while yy < mcu_height:
 				if x + xx < m_width and y + yy < m_height:
 					let pixel = m_image.get_pixel(x: x + xx, y: y + yy)
@@ -333,9 +333,9 @@ fn zigzag(data: [int]) -> [int]:
 
 	"""
 	let pattern = [0,  1,  5,  6,  14, 15, 27, 28, 2,  4,  7,  13, 16, 26, 29, 42, 3,  8,  12, 17, 25, 30, 41, 43, 9,  11, 18, 24, 31, 40, 44, 53, 10, 19, 23, 32, 39, 45, 52, 54, 20, 22, 33, 38, 46, 51, 55, 60, 21, 34, 37, 47, 50, 56, 59, 61, 35, 36, 48, 49, 57, 58, 62, 63]
-	let res = zero_int_array(size: 64)
+	var res = zero_int_array(size: 64)
 	# log_debug("zigzag")
-	let i = 0
+	var i = 0
 	while i < 64:
 		res[i] = data[pattern[i]]
 		i += 1
@@ -348,14 +348,14 @@ struct IDCT:
 fn new_idct_table() -> IDCT:
 	# log_debug("new_idct_table")
 	let precision = 8
-	let table = [precision * precision : float]
+	var table = [precision * precision : float]
 	let sqrt_2 = math.sqrt(2.0)
-	let u = 0
+	var u = 0
 	while u < precision:
-		let x = 0
+		var x = 0
 		while x < precision:
 			# log_debug("new_idct_table {x} {u}")
-			let c = math.cos(((2.0 * x + 1.0) * u * math.pi) / 16.0)
+			var c = math.cos(((2.0 * x + 1.0) * u * math.pi) / 16.0)
 			if u == 0:
 				c = c / sqrt_2
 			table[u * precision + x] = c
@@ -366,15 +366,15 @@ fn new_idct_table() -> IDCT:
 fn perform_idct(data: [int], idct: IDCT) -> [int]:
 	""" inverse discrete cosine transformation """
 	# log_debug("idct")
-	let res = zero_int_array(size: 64)
-	let x = 0
+	var res = zero_int_array(size: 64)
+	var x = 0
 	while x < 8:
-		let y = 0
+		var y = 0
 		while y < 8:
-			let sum = 0.0
-			let u = 0
+			var sum = 0.0
+			var u = 0
 			while u < idct.precision:
-				let v = 0
+				var v = 0
 				while v < idct.precision:
 					sum += data[v * 8 + u] * idct.table[u * 8 + x] * idct.table[v * 8 + y]
 					v += 1

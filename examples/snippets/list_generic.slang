@@ -24,7 +24,7 @@ fn list_append[T](this: List[T], value: T):
 	let new_tail_element = ListElement:
 		next: Option.None()
 		data: value
-	
+
 	case this.head_element:
 		None:
 			this.head_element = Option.Some(new_tail_element)
@@ -54,8 +54,8 @@ fn list_iter_next[T](this: ListIter[T]) -> Option[T]:
 			Option.Some(next.data)
 
 fn list_walk(x: List[Integer]):
-	let i = 0
-	let mabye_element = x.head_element
+	var i = 0
+	var mabye_element = x.head_element
 	loop:
 		case mabye_element:
 			None:

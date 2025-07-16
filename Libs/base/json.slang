@@ -134,8 +134,15 @@ pub class JsonBrowser:
 		pop_value()
 		value
 
+	pub fn is_string() -> bool:
+		case m_value:
+			String(text):
+				true
+		else:
+			false
+
 	pub fn get_text() -> str:
-		# Get text from current node
+		""" Get text from current node """
 		case m_value:
 			String(text):
 				text
@@ -143,7 +150,7 @@ pub class JsonBrowser:
 			panic("Not a JSON text")
 
 	pub fn get_integer() -> int:
-		# Get integer from current node
+		""" Get integer from current node """
 		case m_value:
 			Integer(value):
 				value
@@ -151,7 +158,7 @@ pub class JsonBrowser:
 			panic("Not a JSON integer")
 
 	pub fn get_boolean() -> bool:
-		# Get boolean from current node
+		""" Get boolean from current node """
 		case m_value:
 			Bool(value):
 				value
@@ -385,7 +392,7 @@ class Lexer:
 	pub fn lex() -> JsonToken:
 		loop:
 			let begin = index
-			let c = str_get(text, index)
+			var c = str_get(text, index)
 			index += 1
 			if is_id(c):
 				while is_id(c: str_get(text, index)):
@@ -416,9 +423,7 @@ class Lexer:
 					if index >= n:
 						return create_token(JsonTokenKind.UnexpectedEof())
 				let end = index
-				begin += 1
-				end -= 1
-				let slice = str_slice(text, begin, end)
+				let slice = str_slice(text, begin: begin + 1, end: end - 1)
 				return create_token(JsonTokenKind.String(slice))
 			elif is_digit(c):
 				while is_digit(c: str_get(text, index)):

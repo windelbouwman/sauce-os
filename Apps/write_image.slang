@@ -46,11 +46,11 @@ fn print_usage():
 pub fn main() -> int:
 	# Argument processing
 	let n = get_n_args()
-	let i = 0
-	let log_level = 0
-	let parse_state = 0
-	let input_image: str = ""
-	let output_image: str = ""
+	var i = 0
+	var log_level = 0
+	var parse_state = 0
+	var input_image: str = ""
+	var output_image: str = ""
 	while i < n:
 		let argument = get_arg(arg: i)
 		if argument == "-h":

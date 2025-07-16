@@ -315,8 +315,8 @@ class Printer:
 	pub fn write_program(program: Program):
 		emit("BYTECODE program")
 		indent()
-		let index = 0
-		let func_index = 0
+		var index = 0
+		var func_index = 0
 
 		for extern_function in program.extern_functions:
 			emit("EXTERN FUNC {func_index} {extern_function.name}")
@@ -364,7 +364,7 @@ class Printer:
 		dedent()
 
 	pub fn write_instructions(instructions: Vector[Instruction]):
-		let index = 0
+		var index = 0
 		for instruction in instructions:
 			emit("{index}: {instruction_to_string(instruction)}")
 			index += 1

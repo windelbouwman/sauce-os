@@ -50,9 +50,9 @@ fn test_roundtrip():
 	assert_int_equals(z, z2)
 
 fn test_12_months_and_14_years():
-	let year = 2016
+	var year = 2016
 	while year < 2030:
-		let month = 1
+		var month = 1
 		while month < 13:
 			let dt2 = DateTime(year, month, day: 25, hour: 13, minute: 37, second: 2)
 			let z3 = datetime_to_unix(dt: dt2)

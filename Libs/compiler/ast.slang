@@ -15,7 +15,7 @@ pub struct NodeId:
 
 fn node_id_equal(node_id1: NodeId, node_id2: NodeId) -> bool:
 	if node_id1.id == node_id2.id:
-		true
+		node_id1.name == node_id2.name
 	else:
 		false
 
@@ -481,9 +481,9 @@ fn type_to_string(ty?: Type) -> str:
 	let txt = type_kind_to_string(kind: ty.kind)
 
 	if ty.was_generic:
-		txt = "@" + txt
-
-	txt
+		"@" + txt
+	else:
+		txt
 
 fn change_type_to(ty: Type, to_type: Type):
 	# Adjust ty to ty2
@@ -609,7 +609,7 @@ pub fn get_variant_payload_types(ty: Type, variant: EnumVariant) -> Vector[Type]
 
 pub fn get_struct_field_index(ty: Type, attr: str) -> int:
 	let struct_def = ty.get_struct_def()
-	let index = 0
+	var index = 0
 	for field in struct_def.fields:
 		if field.name == attr:
 			return index
@@ -925,12 +925,18 @@ pub fn type_var_equals(type_var1: TypeVariable, type_var2: TypeVariable) -> bool
 pub struct ModuleSet:
 	modules: List[Module]
 
-pub struct Module:
-	name: str
-	filename: Option[str]
-	imports: Vector[Import]
-	definitions: List[Definition]
-	scope: Scope
+pub class Module:
+	pub var name: str
+	pub var filename: Option[str]
+	pub var imports: Vector[Import]
+	pub var definitions: List[Definition]
+	pub var scope: Scope
+
+	fn define_symbol(name: str, definition: Definition):
+		definitions.append(definition)
+
+	pub fn define_function(function_def: FunctionDef):
+		define_symbol(name: function_def.name, definition: Definition.Function(function_def))
 
 pub fn new_module(name: str, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> Module:
 	Module:
@@ -940,11 +946,6 @@ pub fn new_module(name: str, filename: Option[str], imports: Vector[Import], def
 		definitions
 		scope: Scope()
 
-fn module_define_symbol(module: Module, name: str, definition: Definition):
-	module.definitions.append(definition)
-
-pub fn module_define_function(module: Module, function_def: FunctionDef):
-	module_define_symbol(module, name: function_def.name, definition: Definition.Function(function_def))
 
 pub fn import_self(modname: str, location: Location) -> Import:
 	Import:
@@ -1057,6 +1058,7 @@ pub class Symbol:
 				"Field({field.name})"
 
 pub enum Definition:
+	Mod(module: Module)
 	Macro(macro_def: MacroDef)
 	Function(function_def: FunctionDef)
 	Enum(enum_def: EnumDef)
@@ -1068,6 +1070,8 @@ pub enum Definition:
 
 pub fn definition_to_str(definition: Definition) -> str:
 	case definition:
+		Mod(module):
+			"mod:{module.name}"
 		Macro(macro_def):
 			macro_def_to_str(macro_def)
 		Function(function_def):
@@ -1375,6 +1379,7 @@ pub class Variable:
 	pub var id: NodeId
 	pub var ty: Type
 	pub var location: Location
+	pub var writable: bool = false
 
 	pub fn ref(location: Location) -> Expression:
 		variable_ref(variable: this, location)
@@ -1582,6 +1587,7 @@ pub class Expression:
 	pub var kind: ExpressionKind
 	pub var ty: Type
 	pub var location: Location
+	pub var writable: bool = false
 
 	pub fn to_string() -> str:
 		expression_to_string(this)
@@ -2105,6 +2111,8 @@ pub fn visit_module[T](visitor: Visitor[T], module: Module):
 fn visit_definition[T](visitor: Visitor[T], definition: Definition):
 	visitor.on_definition(a: visitor.data, definition, phase: VisitPhase.Pre())
 	case definition:
+		Mod(module):
+			visit_module(visitor, module)
 		Macro(macro_def):
 			pass
 		Function(function_def):
@@ -2196,7 +2204,7 @@ pub fn visit_statement[T](visitor: Visitor[T], statement: Statement):
 			visit_expression(visitor, expression: let_statement.value)
 		If(if_statement):
 			visit_expression(visitor, expression: if_statement.condition)
-			let arm_node = VisitNode.ScopeNode(if_statement.true_block.scope)
+			var arm_node = VisitNode.ScopeNode(if_statement.true_block.scope)
 			visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Pre())
 			visit_statement(visitor, statement: if_statement.true_block.body)
 			visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Post())

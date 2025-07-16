@@ -49,9 +49,9 @@ pub fn sqrt(x?: float) -> float:
 		panic("Square root undefined for negative numbers like {float_to_str(x)}")
 
 	let eps = 1e-16
-	let i = 0
+	var i = 0
 	let N = 20
-	let r = x / 2.0
+	var r = x / 2.0
 	while fabs(x - r*r) > eps and i < N:
 		r = (r + x / r) / 2.0
 		i += 1
@@ -67,7 +67,7 @@ pub fn factorial(x?: int) -> int:
 	elif x == 0:
 		1
 	else:
-		let r = x
+		var r = x
 		while x > 2:
 			x -= 1
 			r *= x
@@ -104,10 +104,10 @@ fn sin_kernel(x?: float) -> float:
 	sin(x) ~ x - --- + --- - --- + --- ....
 				  3!    5!    7!
 	"""
-	let result = 0.0
-	let factor = x
+	var result = 0.0
+	var factor = x
 
-	let i = 2
+	var i = 2
 	while i < 30:
 		result = result + factor
 		# Calculate the next factor, based on the previous factor:
@@ -174,7 +174,7 @@ pub fn log(x?: float) -> float:
 		if x > q:
 			# For larger x, use the trick:
 			# log(x) = log(p*q^r) = log(p) + r * log(q)
-			let r = 0
+			var r = 0
 			while x > q:
 				x /= q
 				r += 1
@@ -182,9 +182,9 @@ pub fn log(x?: float) -> float:
 		else:
 			# range 0 .. 1
 			let ratio = (x - 1) / (x + 1)
-			let F = ratio
-			let y = 0.0
-			let n = 1
+			var F = ratio
+			var y = 0.0
+			var n = 1
 			loop:
 				let term = F / n
 				y = y + term
@@ -214,9 +214,9 @@ pub fn exp(x?: float) -> float:
 		let r = exp(x / 3.0)
 		r * r * r
 	else:
-		let sum = 1.0
-		let term = 1.0
-		let n = 1
+		var sum = 1.0
+		var term = 1.0
+		var n = 1
 		loop:
 			term = term * (x / float(n))
 			sum = sum + term

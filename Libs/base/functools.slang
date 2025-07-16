@@ -24,7 +24,7 @@ pub fn sum_integers(values: List[int]) -> int:
 
 pub fn reduce[T](values: List[T], f: fn(T, T) -> T) -> T:
 	# Apply a function on pairs to reduce to a single item.
-	let res = values.pop_front()
+	var res = values.pop_front()
 	for other in values:
 		res = f(res, other)
 	res

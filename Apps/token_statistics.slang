@@ -10,7 +10,7 @@ pub fn main() -> int:
 	let filenames: List[str] = List()
 	let stats: HashMap[str,int] = new_hashmap_str()
 
-	let i = 0
+	var i = 0
 	let n = get_n_args()
 	while i < n:
 		let argument = get_arg(arg: i)
@@ -47,8 +47,8 @@ pub fn main() -> int:
 		let count = stats.get(key)
 		records.append(Record(count, category: key))
 
-	records = sort_list(records, cmp: cmp_records)
-	for record in records:
+	let records2 = sort_list(records, cmp: cmp_records)
+	for record in records2:
 		print("- {record.count}: {record.category}")
 
 	0

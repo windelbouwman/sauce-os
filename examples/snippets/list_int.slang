@@ -34,7 +34,7 @@ fn list_append(this: List, val: int):
 	let new_tail_element = ListElement:
 		next: Option.None()
 		data: val
-	
+
 	case this.head_element:
 		None:
 			this.head_element = Option.Some(new_tail_element)
@@ -48,8 +48,8 @@ fn list_append(this: List, val: int):
 			element.next = Option.Some(new_tail_element)
 
 fn list_walk(x: List):
-	let i = 0
-	let mabye_element = x.head_element
+	var i = 0
+	var mabye_element = x.head_element
 	loop:
 		case mabye_element:
 			None:

@@ -40,7 +40,7 @@ enum Action:
 
 fn find_index(base: [int], bits: [int], size: int, value: int) -> int:
 	# TODO: we could use some bisecting here?
-	let i = 0
+	var i = 0
 	while i < size:
 		if (value >= base[i]) and (value < base[i] + (1 << bits[i])):
 			return i
@@ -63,7 +63,7 @@ fn get_widths(frequencies: [int], size: int) -> Vector[int]:
 	""" Given a set of frequencies, determine the width in bits of each symbol. """
 	# Create priority queue:
 	let q: PriorityQueue[TreeNode] = new_priority_queue_with_capacity(capacity: size, f: cmp_TreeNode)
-	let i = 0
+	var i = 0
 	while i < size:
 		let freq = frequencies[i]
 		if freq > 0:
@@ -102,10 +102,10 @@ class RunLengthEncoder:
 
 	pub fn encode(values: Vector[int]) -> List[RunLengthOpcode]:
 		""" Run length encoding """
-		let count = 1
-		let value = values.get(index: 0)
+		var count = 1
+		var value = values.get(index: 0)
 
-		let i = 1
+		var i = 1
 		while i < values.len():
 			let new_value = values.get(index: i)
 			if value == new_value:
@@ -124,7 +124,7 @@ class RunLengthEncoder:
 
 		if value == 0:  # Repeat zero so many times
 			while count > 0:
-				let rep = count
+				var rep = count
 				if rep >= 11:
 					if rep > 138:
 						rep = 138
@@ -140,7 +140,7 @@ class RunLengthEncoder:
 			emit(RunLengthOpcode.Literal(value))
 			count -= 1
 			while count > 0:
-				let rep = count
+				var rep = count
 				if rep >= 3:
 					if rep > 6:
 						rep = 6
@@ -189,8 +189,8 @@ class DeflateCompressor:
 		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,   6,   7,   7,   8,   8,   9,    9,    10,   10,   11,   11,   12,   12,    13,    13]
 		let dist_base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
 
-		let freqencies_1 = zero_int_array(size: 288) # 0 .. 287
-		let freqencies_2 = zero_int_array(size: 32)  # 0 .. 31
+		var freqencies_1 = zero_int_array(size: 288) # 0 .. 287
+		var freqencies_2 = zero_int_array(size: 32)  # 0 .. 31
 		freqencies_2[0] = 1
 		freqencies_2[1] = 1
 
@@ -200,7 +200,7 @@ class DeflateCompressor:
 				Literal(symbol):
 					freqencies_1[symbol] = freqencies_1[symbol] + 1
 				Copy(distance, length):
-					let i = find_index(base: length_base, bits: length_bits, size: 29, value: length)
+					var i = find_index(base: length_base, bits: length_bits, size: 29, value: length)
 					let symbol = 257 + i
 					freqencies_1[symbol] = freqencies_1[symbol] + 1
 
@@ -217,9 +217,9 @@ class DeflateCompressor:
 		let fixed_lengths2 = create_fixed_distance_lengths()
 
 		# Now we can calculate the entire bit size, using frequencies and bit lengths!
-		let dynamic_bit_size = 0
-		let static_bit_size = 0
-		let i = 0
+		var dynamic_bit_size = 0
+		var static_bit_size = 0
+		var i = 0
 		while i < lengths1.len():
 			dynamic_bit_size += freqencies_1[i] * lengths1.get(index: i)
 			static_bit_size += freqencies_1[i] * fixed_lengths1.get(index: i)
@@ -243,7 +243,7 @@ class DeflateCompressor:
 		let opcodes = rle.encode(values: all_lengths)
 
 		# Determine frequencies:
-		let code_freqencies = zero_int_array(size: 19)  # 0 .. 18
+		var code_freqencies = zero_int_array(size: 19)  # 0 .. 18
 		for opcode in opcodes:
 			case opcode:
 				Literal(value):
@@ -294,7 +294,7 @@ class DeflateCompressor:
 		write_bits(n: 5, value: hdist)
 		write_bits(n: 4, value: hclen - 4)
 
-		let i = 0
+		var i = 0
 		let clcidx = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]
 		while i < hclen:
 			let clen = code_lengths.get(index: clcidx[i])
@@ -341,7 +341,7 @@ class DeflateCompressor:
 				Literal(symbol):
 					write_symbol(table: first_table, symbol)  # Emit byte as literal
 				Copy(distance, length):
-					let i = find_index(base: length_base, bits: length_bits, size: 29, value: length)
+					var i = find_index(base: length_base, bits: length_bits, size: 29, value: length)
 					write_symbol(table: first_table, symbol: 257 + i)
 					if length_bits[i] > 0:
 						write_bits(n: length_bits[i], value: length - length_base[i])
@@ -357,17 +357,17 @@ class DeflateCompressor:
 		let actions: List[Action] = List()
 		m_hash_table.clear()
 		while m_index < m_data.len():
-			let found_length = 0
-			let found_position = 0
+			var found_length = 0
+			var found_position = 0
 			if m_index + 2 < m_data.len():
 				# Search for previous pattern
 				let key = m_data.get(index: m_index) + m_data.get(index: m_index + 1) + m_data.get(index: m_index + 2)
 				if m_hash_table.contains(key):
 					for position in m_hash_table.get(key):
 						# Maximize distance:
-						if m_index - position > 30000:
+						if m_index - position > 32765:
 							continue
-						let i = 0
+						var i = 0
 						while (i < 258) and (m_index + i < m_data.len()) and (m_data.get(index: position + i) == m_data.get(index: m_index + i)):
 							i += 1
 						if i > found_length:
@@ -398,8 +398,8 @@ class DeflateCompressor:
 
 	fn no_compression():
 		while m_index < m_data.len():
-			let size = m_data.len() - m_index
-			let last_block = 0
+			var size = m_data.len() - m_index
+			var last_block = 0
 			if size > 4000:
 				size = 4000
 			else:
@@ -415,7 +415,7 @@ class DeflateCompressor:
 		m_bit_writer.m_output.pack_u16_le(size)
 		m_bit_writer.m_output.pack_u16_le(0xFFFF ^ size)
 
-		let i = 0
+		var i = 0
 		while i < size:
 			m_bit_writer.m_output.append(m_data.get(index: m_index))
 			m_index += 1
@@ -457,7 +457,7 @@ pub class DeflateDecoder:
 		m_output.to_bytes()
 
 	fn copy_uncompressed():
-		let len = read_u16_le()
+		var len = read_u16_le()
 		let nlen = read_u16_le()  # Inverted version
 		log_debug("copy_uncompressed len={len} nlen={nlen}")
 		# TODO: what to do with nlen? Check it?
@@ -473,23 +473,23 @@ pub class DeflateDecoder:
 
 		log_debug("hlit={hlit}, hdist={hdist}, hclen={hclen}")
 
-		let lengths: Vector[int] = new_vector_of_size(size: 19, default: 0)
-		let i = 0
+		let code_lengths: Vector[int] = new_vector_of_size(size: 19, default: 0)
+		var i = 0
 		let clcidx = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]
 		while i < hclen:
 			let clen = read_bits(3)
 			let index = clcidx[i]
-			lengths.set(index, value: clen)
+			code_lengths.set(index, value: clen)
 			i += 1
-		let tree = create_tree(lengths)
+		let tree = create_tree(lengths: code_lengths)
 
 		# Read a fair amount of code lengths:
-		lengths = new_vector()
+		let lengths: Vector[int] = new_vector()
 		while lengths.len() < hlit + hdist:
 			let symbol = decode_symbol(tree, bit_reader: m_bit_reader)
 			# print("symbol={symbol}")
-			let times = 0
-			let L = 0
+			var times = 0
+			var L = 0
 			if symbol < 16:
 				L = symbol
 				times = 1
@@ -528,7 +528,7 @@ pub class DeflateDecoder:
 		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,   6,   7,   7,   8,   8,   9,    9,    10,   10,   11,   11,   12,   12,    13,    13]
 		let dist_base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
 		loop:
-			let symbol = decode_symbol(tree: pair.first, bit_reader: m_bit_reader)
+			var symbol = decode_symbol(tree: pair.first, bit_reader: m_bit_reader)
 			# log_trace("Symbol: {symbol}")
 			if symbol < 256:  # Literal byte
 				emit_byte(symbol)
@@ -539,14 +539,14 @@ pub class DeflateDecoder:
 				symbol -= 257
 
 				assert(condition: symbol < 29, message: "Invalid length code: {symbol}")
-				let length = read_bits(length_bits[symbol]) + length_base[symbol]
+				var length = read_bits(length_bits[symbol]) + length_base[symbol]
 
 				symbol = decode_symbol(tree: pair.second, bit_reader: m_bit_reader)
 				assert(condition: symbol < 30, message: "Invalid distance code: {symbol}")
 				let distance = read_bits(dist_bits[symbol]) + dist_base[symbol]
 
 				log_trace("length={length} distance={distance}")
-				let index = m_output.len() - distance
+				var index = m_output.len() - distance
 				while length > 0:
 					let value = m_output.get(index)
 					emit_byte(value)
@@ -578,24 +578,24 @@ fn create_tree(lengths: Vector[int]) -> Tree:
 	# of each symbol.
 
 	# Step 1: count number of codes for each non-zero length
-	let counts: [int] = zero_int_array(size: 17)
+	var counts: [int] = zero_int_array(size: 17)
 
 	for length in lengths:
 		assert(condition: length < 17, message: "Length must be less than 17")
 		counts[length] = counts[length] + 1
 
 	# Step 2: determine start code for each bit length:
-	let offsets: [int] = zero_int_array(size: 17)
+	var offsets: [int] = zero_int_array(size: 17)
 
-	let bits = 1
+	var bits = 1
 	while bits < 16:
 		offsets[bits + 1] = offsets[bits] + counts[bits]
 		bits += 1
 
 	# Step 3: Fill in table with used symbols:
-	let symbols: [int] = zero_int_array(size: 288)
+	var symbols: [int] = zero_int_array(size: 288)
 
-	let symbol = 0
+	var symbol = 0
 	for length in lengths:
 		if length > 0:
 			symbols[offsets[length]] = symbol
@@ -613,7 +613,7 @@ fn create_fixed_trees() -> TreePair:
 
 fn create_fixed_literal_lengths() -> Vector[int]:
 	let lengths: Vector[int] = new_vector()
-	let symbol = 0
+	var symbol = 0
 	while symbol < 144:
 		lengths.append(8)
 		symbol += 1
@@ -630,7 +630,7 @@ fn create_fixed_literal_lengths() -> Vector[int]:
 
 fn create_fixed_distance_lengths() -> Vector[int]:
 	let lengths: Vector[int] = new_vector()
-	let symbol = 0
+	var symbol = 0
 	while symbol < 32:
 		lengths.append(5)
 		symbol += 1

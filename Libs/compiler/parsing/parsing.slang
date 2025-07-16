@@ -66,8 +66,8 @@ class Parser:
 
 		let definitions: List[ast.Definition] = List()
 		loop:
-			let tok = get_token()
-			let is_pub = false
+			var tok = get_token()
+			var is_pub = false
 			case tok.kind:
 				KwPub:
 					is_pub = true
@@ -172,7 +172,7 @@ class Parser:
 		let docstring = parse_optional_docstring()
 
 		let variants: List[ast.EnumVariant] = List()
-		let tag_index = 0
+		var tag_index = 0
 		while not try_parse_dedent():
 			let variant_name_at = parse_name()
 			let payload_types: Vector[ast.Type] = new_vector()
@@ -260,8 +260,8 @@ class Parser:
 		let this_type = ast.undefined_type()
 		loop:
 			# expect var/fn def or dedent (eventually)
-			let is_pub2 = false
-			let tok = get_token()
+			var is_pub2 = false
+			var tok = get_token()
 			case tok.kind:
 				KwPub:
 					is_pub2 = true
@@ -495,7 +495,8 @@ class Parser:
 			parse_newline()
 			Option.None()
 
-		let variable = ast.variable(name, id: new_id(), ty, location: name_at.location)
+		var variable = ast.variable(name, id: new_id(), ty, location: name_at.location)
+		variable.writable = true
 		ast.VariableDef(is_pub, variable, value: ast.VariableDefValue.Intern(value: var_init))
 
 	fn parse_type() -> ast.Type except CompilationError:
@@ -624,7 +625,9 @@ class Parser:
 				parse_newline()
 				ast.continue_statement(location)
 			KwLet:
-				parse_let_statement()
+				parse_let_statement(writable: false)
+			KwVar:
+				parse_let_statement(writable: true)
 			KwIf:
 				parse_if_statement()
 			KwLoop:
@@ -676,12 +679,13 @@ class Parser:
 		parse_newline()
 		ast.assignment_statement(target, op, value, location)
 
-	fn parse_let_statement() -> ast.Statement except CompilationError:
+	fn parse_let_statement(writable: bool) -> ast.Statement except CompilationError:
 		let location = get_token().location
 		let name_at = parse_name()
 		let var_name = name_at.name
 		let var_type = ast.undefined_type()
 		let variable = ast.variable(name: var_name, id: new_id(), ty: var_type, location: name_at.location)
+		variable.writable = writable
 
 		let type_hint: Option[ast.Type] = case m_peek.kind:
 			Colon:
@@ -913,64 +917,63 @@ class Parser:
 		parse_expression2(min_prec: 0)
 
 	fn parse_expression2(min_prec: int) -> ast.Expression except CompilationError:
-		let expr = parse_unary()
+		var expr = parse_unary()
 
 		loop:
 			# Determine next token and new precedence
-			let prec = 0
-			let op: ast.BinaryOperator = ast.BinaryOperator.Add()
-			case m_peek.kind:
+			var prec = 0
+			let op: ast.BinaryOperator = case m_peek.kind:
 				KwOr:
-					op = ast.BinaryOperator.Or()
 					prec = 20
+					ast.BinaryOperator.Or()
 				KwAnd:
-					op = ast.BinaryOperator.And()
 					prec = 25
+					ast.BinaryOperator.And()
 				Less:
-					op = ast.BinaryOperator.Less()
 					prec = 30
+					ast.BinaryOperator.Less()
 				LessEquals:
-					op = ast.BinaryOperator.LessEquals()
 					prec = 30
+					ast.BinaryOperator.LessEquals()
 				Greater:
-					op = ast.BinaryOperator.Greater()
 					prec = 30
+					ast.BinaryOperator.Greater()
 				GreaterEquals:
-					op = ast.BinaryOperator.GreaterEquals()
 					prec = 30
+					ast.BinaryOperator.GreaterEquals()
 				EqualsEquals:
-					op = ast.BinaryOperator.Equals()
 					prec = 30
+					ast.BinaryOperator.Equals()
 				NotEquals:
-					op = ast.BinaryOperator.NotEquals()
 					prec = 30
+					ast.BinaryOperator.NotEquals()
 				BitOr:
-					op = ast.BinaryOperator.BitOr()
 					prec = 51
+					ast.BinaryOperator.BitOr()
 				BitXor:
-					op = ast.BinaryOperator.BitXor()
 					prec = 52
+					ast.BinaryOperator.BitXor()
 				BitAnd:
-					op = ast.BinaryOperator.BitAnd()
 					prec = 53
+					ast.BinaryOperator.BitAnd()
 				ShiftLeft:
-					op = ast.BinaryOperator.ShiftLeft()
 					prec = 55
+					ast.BinaryOperator.ShiftLeft()
 				ShiftRight:
-					op = ast.BinaryOperator.ShiftRight()
 					prec = 55
+					ast.BinaryOperator.ShiftRight()
 				Plus:
-					op = ast.BinaryOperator.Add()
 					prec = 60
+					ast.BinaryOperator.Add()
 				Minus:
-					op = ast.BinaryOperator.Sub()
 					prec = 60
+					ast.BinaryOperator.Sub()
 				Slash:
-					op = ast.BinaryOperator.Div()
 					prec = 80
+					ast.BinaryOperator.Div()
 				Asterix:
-					op = ast.BinaryOperator.Mul()
 					prec = 80
+					ast.BinaryOperator.Mul()
 			else:
 				break
 
@@ -1004,7 +1007,7 @@ class Parser:
 
 	fn parse_atom() -> ast.Expression except CompilationError:
 		let tok = get_token()
-		let expr = case tok.kind:
+		var expr = case tok.kind:
 			Integer(value):
 				ast.integer_literal(value, location: tok.location)
 			Float(value):
@@ -1047,7 +1050,7 @@ class Parser:
 
 	fn parse_raw_string() -> str except CompilationError:
 		""" Parse string without interpolation """
-		let tok = get_token()
+		var tok = get_token()
 		case tok.kind:
 			StringStart:
 				pass
@@ -1082,8 +1085,8 @@ class Parser:
 					parts.append(raw_string_expr)
 
 				BraceOpen:
-					let to_string_expr = parse_expression()
-					to_string_expr = ast.to_string(value: to_string_expr, location: to_string_expr.location)
+					let value = parse_expression()
+					let to_string_expr = ast.to_string(value, location: value.location)
 					parts.append(to_string_expr)
 					parse_brace_close()
 
@@ -1096,7 +1099,7 @@ class Parser:
 		if parts.is_empty():
 			ast.string_literal(value: "", location)
 		else:
-			let x = parts.pop_front()
+			var x = parts.pop_front()
 			while not parts.is_empty():
 				let rhs = parts.pop_front()
 				let location = Location(begin: x.location.begin, end: rhs.location.end)
@@ -1105,7 +1108,7 @@ class Parser:
 
 	fn parse_index_suffix(base: ast.Expression) -> ast.Expression except CompilationError:
 		let begin = base.location.begin
-		let end = base.location.end
+		var end = base.location.end
 		let indici: List[ast.Expression] = List()
 		loop:
 			indici.append(parse_expression())
@@ -1127,7 +1130,7 @@ class Parser:
 		# Or '()' or '(arg1)'
 		let arguments: List[ast.LabeledExpression] = List()
 		let begin = callee.location.begin
-		let end = m_peek.location.end
+		var end = m_peek.location.end
 		case m_peek.kind:
 			ParenthesisClose:
 				# no args call

@@ -14,7 +14,7 @@ fn test_intersection():
 	let s2 = new_int_set(begin: 2, end: 4)
 	let s3 = new_int_set(begin: 3, end: 6)
 	let s4 = new_int_set(begin: 3, end: 4)
-	let s5 = s1.union(other: s2)
+	var s5 = s1.union(other: s2)
 	s5 = s5.union(other: s3)
 	assert_true(integer_set_equals(a: s4, b: s5))
 

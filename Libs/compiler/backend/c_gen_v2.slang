@@ -50,7 +50,7 @@ class CGenerator2:
 			for definition in module.definitions:
 				case definition:
 					Function(function_def):
-						let decl = gen_function_decl(function_def)
+						var decl = gen_function_decl(function_def)
 						if function_def.info.return_type.is_unreachable():
 							decl = "{decl} __attribute__((noreturn))"
 						emit("{decl};")
@@ -139,11 +139,10 @@ class CGenerator2:
 			let parameter_name = gen_id(id: parameter_def.id)
 			parameter_parts.append(gen_type(ty: parameter_def.ty, name: parameter_name))
 		let parameter_text = str_join(parts: parameter_parts, sep: ", ")
-		let return_type_text = "void"
-		if function_def.info.return_type.is_void():
-			return_type_text = "void {name}"
+		let return_type_text = if function_def.info.return_type.is_void():
+			"void {name}"
 		else:
-			return_type_text = gen_type(ty: function_def.info.return_type, name)
+			gen_type(ty: function_def.info.return_type, name)
 		"{return_type_text}({parameter_text})"
 
 	fn gen_function(function_def: ast.FunctionDef):

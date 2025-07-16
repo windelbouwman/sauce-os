@@ -23,12 +23,12 @@ class Game:
 
 	pub fn draw():
 		# screen_clear(0, 0, 255)
-		let y = 0
+		var y = 0
 		while y < height:
-			let x = 0
-			let line = ""
+			var x = 0
+			var line = ""
 			while x < width:
-				let cell = " "
+				var cell = " "
 				if y == 0:
 					cell = "#"
 				elif y == height - 1:
