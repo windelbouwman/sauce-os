@@ -914,7 +914,23 @@ class Parser:
 
 	pub fn parse_expression() -> ast.Expression except CompilationError:
 		# log_trace("Parsing expression")
-		parse_expression2(min_prec: 0)
+		var expr = parse_expression2(min_prec: 0)
+		loop:
+			case m_peek.kind:
+				KwIf:
+					let location = m_peek.location
+					move_token()
+					expr = parse_if_expression(true_value: expr, location)
+			else:
+				break
+		expr
+
+	fn parse_if_expression(true_value: ast.Expression, location: Location) -> ast.Expression except CompilationError:
+		let condition = parse_expression()
+		parse_kw_else()
+		let false_value = parse_expression()
+		let if_statement = ast.IfExpression(condition, true_value, false_value)
+		ast.Expression(kind: ast.ExpressionKind.If(if_statement), ty: true_value.ty, location)
 
 	fn parse_expression2(min_prec: int) -> ast.Expression except CompilationError:
 		var expr = parse_unary()

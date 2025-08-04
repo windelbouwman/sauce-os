@@ -677,9 +677,13 @@ class CustomTransformer(LarkTransformer):
     def expression(self, x):
         if len(x) == 1:
             return x[0]
-        else:
+        elif len(x) == 3:
             lhs, op, rhs = x
             return binop(lhs, op.value, rhs)
+        else:
+            assert len(x) == 5
+            true_value, kw_if, condition, kw_else, false_value = x
+            return ast.if_expression(condition, true_value, false_value, get_loc(kw_if))
 
     def bitor(self, x):
         if len(x) == 1:
@@ -984,6 +988,7 @@ comparison: expression cmpop expression
 cmpop: LESS_THAN | GREATER_THAN | EQUALS_EQUALS | LESS_EQUALS | GREATER_EQUALS | NOT_EQUALS
 
 expression: bitor
+          | expression KW_IF test KW_ELSE expression
 bitor: bitor BITOR bitxor
      | bitxor
 bitxor: bitxor BITXOR bitand

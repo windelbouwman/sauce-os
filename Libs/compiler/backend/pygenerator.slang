@@ -217,10 +217,7 @@ class PyGenerator:
 	fn gen_expression(expression?: ast.Expression, parens: bool) -> str:
 		case expression.kind:
 			BoolLiteral(v):
-				if v:
-					"True"
-				else:
-					"False"
+				"True" if v else "False"
 			IntLiteral(v):
 				"{v}"
 			StringLiteral(s):
@@ -283,18 +280,18 @@ class PyGenerator:
 					Minus:
 						"-"
 				let txt = "{op2}{gen_expression(value, parens: true)}"
-				if parens:
-					"({txt})"
-				else:
-					txt
+				"({txt})" if parens else txt
 			Binop(binop):
 				let float_division = binop.lhs.ty.is_float()
 				let op = binary_operator_to_str(op: binop.op, float_division)
 				let txt = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
-				if parens:
-					"({txt})"
-				else:
-					txt
+				"({txt})" if parens else txt
+			If(if_expression):
+				let true_value = gen_expression(if_expression.true_value, parens: false)
+				let condition = gen_expression(if_expression.condition, parens: false)
+				let false_value = gen_expression(if_expression.false_value, parens: false)
+				let txt = "{true_value} if {condition} else {false_value}"
+				"({txt})" if parens else txt
 		else:
 			panic("Unsupported: {expression}")
 
@@ -341,10 +338,7 @@ fn binary_operator_to_str(op: ast.BinaryOperator, float_division: bool) -> str:
 		Mul:
 			"*"
 		Div:
-			if float_division:
-				"/"
-			else:
-				"//"
+			"/" if float_division else "//"
 		BitAnd:
 			"&"
 		BitXor:

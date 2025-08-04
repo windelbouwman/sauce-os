@@ -16,12 +16,14 @@
                 ],
                 "pattern": [
                     {
-                        "regexp": "^([^\\s]+):(\\d+).(\\d+): (warning|error) (.+$)",
+                        "regexp": "^([^\\s]+):(\\d+).(\\d+)-(\\d+).(\\d+): (warning|error) (.+$)",
                         "file": 1,
                         "line": 2,
                         "column": 3,
-                        "severity": 4,
-                        "message": 5
+                        "endLine": 4,
+                        "endColumn": 5,
+                        "severity": 6,
+                        "message": 7
                     }
                 ]
             },

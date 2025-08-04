@@ -11,10 +11,7 @@ pub fn new_vector[T]() -> Vector[T]:
 	new_vector_with_capacity(capacity: 7)
 
 pub fn new_vector_with_capacity[T](capacity: int) -> Vector[T]:
-	let m_capacity = if capacity < 1:
-		1
-	else:
-		capacity
+	let m_capacity = 1 if capacity < 1 else capacity
 	let m_elements = [m_capacity : T]
 	let v: Vector[T] = Vector(m_size: 0, m_capacity, m_elements)
 	v

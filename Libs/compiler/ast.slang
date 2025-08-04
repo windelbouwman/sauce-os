@@ -1140,10 +1140,7 @@ pub struct StructDef:
 	scope: Scope
 
 fn struct_def_to_str(struct_def: StructDef) -> str:
-	let t = if struct_def.is_union:
-		"Union"
-	else:
-		"Struct"
+	let t = "Union" if struct_def.is_union else "Struct"
 	"{t}({node_id_to_string(struct_def.id)})"
 
 pub class StructBuilder:
@@ -1661,6 +1658,7 @@ pub enum ExpressionKind:
 	Variant(ty: Type, variant: EnumVariant)
 	EnumLiteral(ty: Type, variant: EnumVariant, values: List[Expression])
 	Stmt(statement: Statement)
+	If(if_expression: IfExpression)
 	Null
 
 pub struct LabeledExpression:
@@ -1779,6 +1777,11 @@ pub fn binop(lhs: Expression, op: BinaryOperator, rhs: Expression, ty: Type, loc
 	let b = BinopExpression(lhs, op, rhs)
 	let kind = ExpressionKind.Binop(b)
 	Expression(kind, ty, location)
+
+pub struct IfExpression:
+	condition: Expression
+	true_value: Expression
+	false_value: Expression
 
 pub enum UnaryOperator:
 	Not
@@ -2019,6 +2022,8 @@ fn expression_to_string(expression?: Expression) -> str:
 			"ENUM-LITERAL"
 		Stmt(statement):
 			statement_to_string(statement)
+		If(if_expression):
+			"IF-EXPR"
 
 fn print_ast_expression(printer: AstPrinter, expression: Expression, phase: VisitPhase):
 	case phase:
@@ -2321,6 +2326,10 @@ pub fn visit_expression[T](visitor: Visitor[T], expression: Expression):
 				visit_expression(visitor, expression: value)
 		Stmt(statement):
 			visit_statement(visitor, statement)
+		If(if_expression):
+			visit_expression(visitor, expression: if_expression.true_value)
+			visit_expression(visitor, expression: if_expression.condition)
+			visit_expression(visitor, expression: if_expression.false_value)
 	else:
 		pass
 

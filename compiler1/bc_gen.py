@@ -428,6 +428,30 @@ class ByteCodeGenerator:
                 raise NotImplementedError(str(obj))
         elif isinstance(kind, ast.StatementExpression):
             raise RuntimeError("can not use StatementExpression")
+        elif isinstance(kind, ast.IfExpression):
+            variable = ast.Variable(
+                ast.Id("_TMP", 0), kind.true_value.ty, kind.true_value.location
+            )
+            target = self.new_local(variable)
+
+            true_label = self.new_label()
+            false_label = self.new_label()
+            final_label = self.new_label()
+            self.gen_expression(kind.condition)
+            self.emit(OpCode.JUMP_IF, true_label, false_label)
+
+            self.set_label(true_label)
+            self.gen_expression(kind.true_value)
+            self.emit(OpCode.LOCAL_SET, target)
+            self.emit(OpCode.JUMP, final_label)
+
+            self.set_label(false_label)
+            self.gen_expression(kind.false_value)
+            self.emit(OpCode.LOCAL_SET, target)
+            self.emit(OpCode.JUMP, final_label)
+
+            self.set_label(final_label)
+            self.emit(OpCode.LOCAL_GET, target)
         else:
             raise NotImplementedError(str(kind))
 

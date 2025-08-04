@@ -240,6 +240,11 @@ class PyCodeGenerator:
             return f"{callee}({args})"
         elif isinstance(kind, ast.StatementExpression):
             raise RuntimeError("Cannot generate statement expression on the stack")
+        elif isinstance(kind, ast.IfExpression):
+            true_value = self.gen_expression(kind.true_value)
+            condition = self.gen_expression(kind.condition)
+            false_value = self.gen_expression(kind.false_value)
+            return f"{true_value} if {condition} else {false_value}"
         elif isinstance(kind, ast.NewOperator):
             return self.gen_expression(kind.value)
         else:

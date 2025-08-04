@@ -474,6 +474,10 @@ class TypeChecker:
 				expression.ty = ast.float_type()
 			Stmt(statement):
 				expression.ty = statement.ty
+			If(if_expression):
+				coerce(ty: m_bool_type, value: if_expression.condition)
+				check_type(given_ty: if_expression.false_value.ty, expected_ty: if_expression.true_value.ty, location: if_expression.false_value.location)
+				expression.ty = if_expression.true_value.ty
 
 	fn check_arguments(location: Location, parameter_types: Vector[ast.Type], arguments: List[ast.Expression]):
 		if parameter_types.len() == arguments.len():

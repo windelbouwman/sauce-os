@@ -416,6 +416,13 @@ class TypeChecker(BasePass):
         elif isinstance(kind, ast.StatementExpression):
             expression.ty = kind.statement.ty
             expression.is_lvalue = False
+        elif isinstance(kind, ast.IfExpression):
+            expression.ty = kind.true_value.ty
+            self.coerce(kind.condition, ast.bool_type)
+            self.check_type(
+                kind.false_value.ty, kind.true_value.ty, kind.false_value.location
+            )
+            expression.is_lvalue = False
         elif isinstance(kind, ast.NewOperator):
             expression.ty = ast.pointer_type(kind.value.ty)
             expression.is_lvalue = False

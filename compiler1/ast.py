@@ -1816,6 +1816,28 @@ class StatementExpression(ExpressionKind):
         self.statement = statement
 
 
+def if_expression(condition, true_value, false_value, location):
+    kind = IfExpression(condition, true_value, false_value)
+    ty = true_value.ty
+    return Expression(kind, ty, location)
+
+
+class IfExpression(ExpressionKind):
+    def __init__(
+        self,
+        condition: "Expression",
+        true_value: "Expression",
+        false_value: "Expression",
+    ):
+        super().__init__()
+        assert isinstance(condition, Expression)
+        assert isinstance(true_value, Expression)
+        assert isinstance(false_value, Expression)
+        self.condition = condition
+        self.true_value = true_value
+        self.false_value = false_value
+
+
 class Variable(Definition):
     def __init__(self, id: Id, ty: Type, location: Location):
         super().__init__(id, location)
@@ -2076,6 +2098,10 @@ class AstVisitor:
             self.visit_expression(kind.value)
         elif isinstance(kind, StatementExpression):
             self.visit_statement(kind.statement)
+        elif isinstance(kind, IfExpression):
+            self.visit_expression(kind.true_value)
+            self.visit_expression(kind.condition)
+            self.visit_expression(kind.false_value)
         elif isinstance(kind, NewOperator):
             self.visit_expression(kind.value)
 

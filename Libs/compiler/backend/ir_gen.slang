@@ -599,8 +599,32 @@ class BytecodeGenerator:
 			Unbox(value, to_type):
 				gen_expression(value)
 				emit(Instruction.FromOpaque(get_bc_type(to_type)))
+			If(if_expression):
+				gen_if_expression(if_expression)
 		else:
 			panic("gen_expression: Unsupported: {expression}")
+
+	fn gen_if_expression(if_expression: ast.IfExpression):
+		let index = new_local(name: "tmp", ty: get_bc_type(if_expression.true_value.ty))
+
+		let true_label = new_label()
+		let false_label = new_label()
+		let final_label = new_label()
+
+		gen_condition(condition: if_expression.condition, true_label, false_label)
+
+		set_label(true_label)
+		gen_expression(if_expression.true_value)
+		emit(Instruction.LocalSet(index))
+		jump(final_label)
+
+		set_label(false_label)
+		gen_expression(if_expression.false_value)
+		emit(Instruction.LocalSet(index))
+		jump(final_label)
+
+		set_label(final_label)
+		emit(Instruction.LocalGet(index))
 
 	fn gen_call(call: ast.FunctionCall):
 		for argument in call.arguments:
