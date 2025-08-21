@@ -10,6 +10,8 @@ Properties:
 - basic types, integers and floating points
 - Load and store from memory
 
+Optimizers might operate on SIL
+
 SSA IL
 Similar to QBE IL
 See: https://c9x.me/compile/doc/il.html
@@ -42,12 +44,15 @@ pub class DataBlob:
 		print("   ==> [{data.as_hex()}]")
 
 pub class Function:
+	"""A graph of control flow between blocks"""
 	pub var name: str
+	pub var parameters: List[Value]
 	pub var start: Block
 	pub var blocks: List[Block]
 
 	pub fn to_string() -> str:
-		"function {name}()"
+		let args = comma_sep(values: parameters)
+		"function {name}({args})"
 
 	pub fn dump():
 		print("{this}")
@@ -55,6 +60,7 @@ pub class Function:
 			block.dump()
 
 pub class Block:
+	"""A linear flow of instructions"""
 	pub var name: str
 	pub var instructions: List[Instruction]
 
@@ -110,10 +116,7 @@ pub class Instruction:
 			JumpNonZero(condition, label1, label2):
 				"jmp-non-zero {value_to_string(condition)} @{label1}, @{label2}"
 			Call(dst, callee, arguments):
-				let parts: List[str] = List()
-				for argument in arguments:
-					parts.append(value_to_string(argument))
-				let args = str_join(parts, sep: ", ")
+				let args = comma_sep(values: arguments)
 				let txt = "call {value_to_string(callee)}({args})"
 				case dst:
 					Some(target):
@@ -128,6 +131,12 @@ pub class Instruction:
 						"return"
 			Halt:
 				"hlt"
+
+fn comma_sep(values: List[Value]) -> str:
+	let parts: List[str] = List()
+	for value in values:
+		parts.append(value_to_string(value))
+	str_join(parts, sep: ", ")
 
 pub enum OpCode:
 	Nop

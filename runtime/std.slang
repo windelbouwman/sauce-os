@@ -29,6 +29,8 @@ extern "slangrt" fn file_writeln(handle: int, line: str)
 extern "slangrt" fn file_write(handle: int, text: str)
 extern "slangrt" fn file_read_n_bytes(handle: int, buffer: [uint8], bufsize: int) -> int
 extern "slangrt" fn file_write_n_bytes(handle: int, buffer: [uint8], bufsize: int) -> int
+extern "slangrt" fn file_seek(handle: int, pos: int)
+extern "slangrt" fn file_tell(handle: int) -> int
 extern "slangrt" fn file_close(handle: int)
 
 extern "slangrt" fn get_n_args() -> int

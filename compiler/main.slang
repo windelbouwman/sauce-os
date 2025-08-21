@@ -248,11 +248,10 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 			gen_webassembly(module_set)
 		Riscv:
 			let program = gen_bytecode(module_set)
-			let program2 = to_sil(program)
-			gen_riscv(program: program2)
+			gen_riscv(program: to_sil(program))
 		X86:
 			let program = gen_bytecode(module_set)
-			gen_x86(program)
+			gen_x86(program: to_sil(program))
 
 fn topo_sort(modules: List[ast.Module]):
 	# Sort modules (in-place) based on which module import the other one

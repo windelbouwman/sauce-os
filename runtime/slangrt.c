@@ -268,6 +268,33 @@ SLANG_API slang_int_t std_file_write_n_bytes(slang_int_t handle,
     }
 }
 
+SLANG_API void std_file_seek(slang_int_t handle, slang_int_t pos)
+{
+    if (handle != 0) {
+        FILE* f = (FILE*)handle;
+        int res = fseek(f, pos, SEEK_SET);
+        if (res != 0) {
+            std_panic("std_file_seek: fseek failed");
+        }
+    } else {
+        std_panic("std_file_seek: invalid file");
+    }
+}
+
+SLANG_API slang_int_t std_file_tell(slang_int_t handle)
+{
+    if (handle != 0) {
+        FILE* f = (FILE*)handle;
+        int res = ftell(f);
+        if (res < 0) {
+            std_panic("std_file_tell: ftell failed");
+        }
+        return res;
+    } else {
+        std_panic("std_file_tell: invalid file");
+    }
+}
+
 SLANG_API void std_file_close(slang_int_t handle)
 {
     if (handle != 0) {

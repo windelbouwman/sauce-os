@@ -34,6 +34,7 @@ class SilGen:
 	var m_blocks: List[sil.Block] = List()
 	var m_current_block: Option[sil.Block] = Option.None()
 	var m_block_is_terminated: bool = false
+	var m_parameters: List[sil.Value] = List()
 	var m_locals: List[sil.Value] = List()
 	var m_tmp_number: int = 0
 	var m_value_stack: List[sil.Value] = List()
@@ -47,8 +48,20 @@ class SilGen:
 		log_info("Gen code for function {function.name}")
 		m_blocks = List()
 		m_value_stack = List()
+		m_parameters = List()
+		m_locals.clear()
 		let start = new_block(name: "start")
 		set_current_block(start)
+
+		let parameters: List[sil.Value] = List()
+		for n in function.parameters:
+			let p = new_tmp()
+			parameters.append(p)
+			let addr = new_tmp()
+			let size = 8 # TODO
+			emit(op: sil.OpCode.Alloc(addr, size))
+			emit(op: sil.OpCode.Store(dst: addr, value: p))
+			m_parameters.append(addr)
 
 		for n in function.locals:
 			let addr = new_tmp()
@@ -67,7 +80,7 @@ class SilGen:
 			gen_opcode(opcode)
 			index += 1
 
-		let sil_function = sil.Function(name: function.name, start, blocks: m_blocks)
+		let sil_function = sil.Function(name: function.name, parameters, start, blocks: m_blocks)
 		m_functions.append(sil_function)
 
 	fn gen_opcode(opcode: bc.Instruction):
@@ -134,6 +147,15 @@ class SilGen:
 				push(value)
 			LocalSet(index):
 				let addr = m_locals[index]
+				let value = pop()
+				emit(sil.OpCode.Store(addr, value))
+			ParameterGet(index):
+				let addr = m_parameters[index]
+				let value = new_tmp()
+				emit(sil.OpCode.Load(dst: value, addr))
+				push(value)
+			ParameterSet(index):
+				let addr = m_parameters[index]
 				let value = pop()
 				emit(sil.OpCode.Store(addr, value))
 			JumpIf(label1, label2):

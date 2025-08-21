@@ -37,6 +37,9 @@ pub class Bytes:
 			index += 1
 		txt
 
+	pub fn as_array() -> [uint8]:
+		m_bytes
+
 	pub fn into_reader() -> ByteReader:
 		ByteReader(m_bytes: this)
 
@@ -165,6 +168,9 @@ pub class ByteArray:
 	pub fn pack_u16_be(value?: int):
 		append((value & 0xff00) >> 8)
 		append(value & 0xff)
+
+	pub fn is_empty() -> bool:
+		m_bytes.is_empty()
 
 	pub fn len() -> int:
 		m_bytes.len()

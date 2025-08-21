@@ -104,5 +104,13 @@ def std_file_write_n_bytes(handle: int, buf: list, bufsize: int) -> int:
     return len(data)
 
 
+def std_file_seek(handle: int, pos: int):
+    handle.seek(pos)
+
+
+def std_file_tell(handle: int) -> int:
+    return handle.tell()
+
+
 def std_file_close(handle: int):
     handle.close()
