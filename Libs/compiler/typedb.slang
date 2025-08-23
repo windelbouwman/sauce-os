@@ -173,10 +173,15 @@ class SymbolSaver:
 			m_ser.end_object_as_element()
 		m_ser.end_array_as_attribute(attr: "parameters")
 		save_function_info(info: function_def.info)
+		case function_def.body:
+			Extern(libname):
+				m_ser.add_text_attribute(attr: "libname", text: libname)
+		else:
+			pass
 
 	fn save_function_info(info: ast.FunctionInfo):
-		save_type(attr: "return-type", ty: info.return_type)
-		save_type(attr: "except-type", ty: info.except_type)
+		save_type_if_non_void(attr: "return-type", ty: info.return_type)
+		save_type_if_non_void(attr: "except-type", ty: info.except_type)
 
 	fn save_struct_def(struct_def: ast.StructDef):
 		log_debug("Saving meta-info for struct-def: {ast.node_id_to_string(struct_def.id)}")
@@ -450,9 +455,13 @@ class SymbolLoader:
 		let docstring = load_docstring()
 		let parameters = load_parameters()
 		let info = load_function_info()
+		let libname = if m_des.has_attribute(attr: "libname"):
+			m_des.get_text_attribute(attr: "libname")
+		else:
+			m_libname
 		let f = ast.extern_function_def:
 			is_pub
-			libname: m_libname
+			libname
 			name: def_name
 			docstring
 			type_parameters

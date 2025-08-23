@@ -24,9 +24,10 @@ jobs:
 
   test-compiler1:
     needs: check-python-formatting
-    matrix:
-      python-version: ["3.11", "3.13"]
-      os: ["ubuntu-latest", "windows-latest"]
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+        os: ["ubuntu-latest", "windows-latest"]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code

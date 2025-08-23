@@ -168,8 +168,8 @@ enum Backend:
 
 fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
 	let id_gen = IdGen()
-	let modules: List[ast.Module] = List()
-	let module_map: HashMap[str,ast.Module] = new_hashmap_str()
+	let modules: List[ast.ModuleDef] = List()
+	let module_map: HashMap[str,ast.ModuleDef] = new_hashmap_str()
 
 	let rt_module = get_rt_module()
 	modules.append(rt_module)
@@ -256,11 +256,11 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 			let program = gen_bytecode(module_set)
 			gen_x86(program: to_sil(program))
 
-fn topo_sort(modules: List[ast.Module]):
+fn topo_sort(modules: List[ast.ModuleDef]):
 	# Sort modules (in-place) based on which module import the other one
 	# TBD: implicitly, all modules depend upon the 'rt' module. Add this as edge?
 	let g: DiGraph = DiGraph()
-	let mapping: HashMap[str,ast.Module] = new_hashmap_str()
+	let mapping: HashMap[str,ast.ModuleDef] = new_hashmap_str()
 	for m in modules:
 		g.add_node(m.name)
 		mapping.insert(key: m.name, value: m)

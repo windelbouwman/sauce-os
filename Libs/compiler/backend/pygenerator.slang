@@ -96,8 +96,7 @@ class PyGenerator:
 						emit("")
 						emit("")
 					Extern(libname):
-						if function_def.is_pub:
-							emit("from {libname} import {function_def.name}")
+						pass
 					None:
 						panic("Function declarations not supported")
 
