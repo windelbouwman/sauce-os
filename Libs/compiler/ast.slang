@@ -923,9 +923,9 @@ pub fn type_var_equals(type_var1: TypeVariable, type_var2: TypeVariable) -> bool
 	type_var1.unique == type_var2.unique
 
 pub struct ModuleSet:
-	modules: List[Module]
+	modules: List[ModuleDef]
 
-pub class Module:
+pub class ModuleDef:
 	pub var name: str
 	pub var filename: Option[str]
 	pub var imports: Vector[Import]
@@ -938,8 +938,8 @@ pub class Module:
 	pub fn define_function(function_def: FunctionDef):
 		define_symbol(name: function_def.name, definition: Definition.Function(function_def))
 
-pub fn new_module(name: str, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> Module:
-	Module:
+pub fn new_module(name: str, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> ModuleDef:
+	ModuleDef:
 		name
 		filename
 		imports
@@ -1012,7 +1012,7 @@ pub class Scope:
 		symbols.values()
 
 pub enum SymbolKind:
-	Mod(module: Module)
+	Module(module: ModuleDef)
 	Macro(macro_def: MacroDef)
 	Function(function_def: FunctionDef)
 	Parameter(parameter_def: ParameterDef)
@@ -1038,7 +1038,7 @@ pub class Symbol:
 
 	pub fn to_string() -> str:
 		case kind:
-			Mod(module):
+			Module(module):
 				"mod:{module.name}"
 			Macro(macro_def):
 				macro_def_to_str(macro_def)
@@ -1058,7 +1058,7 @@ pub class Symbol:
 				"Field({field.name})"
 
 pub enum Definition:
-	Mod(module: Module)
+	Module(module: ModuleDef)
 	Macro(macro_def: MacroDef)
 	Function(function_def: FunctionDef)
 	Enum(enum_def: EnumDef)
@@ -1070,7 +1070,7 @@ pub enum Definition:
 
 pub fn definition_to_str(definition: Definition) -> str:
 	case definition:
-		Mod(module):
+		Module(module):
 			"mod:{module.name}"
 		Macro(macro_def):
 			macro_def_to_str(macro_def)
@@ -1363,8 +1363,8 @@ pub class ParameterDef:
 	pub fn ref(location: Location) -> Expression:
 		parameter_ref(parameter_def: this, location)
 
-pub fn unlabeled_parameter(ty: Type) -> ParameterDef:
-	parameter_def(name: "noname", id: 0, label_is_optional: true, ty, location: location_default())
+pub fn unlabeled_parameter(name: str, ty: Type) -> ParameterDef:
+	parameter_def(name, id: 0, label_is_optional: true, ty, location: location_default())
 
 pub fn labeled_parameter(name: str, ty: Type) -> ParameterDef:
 	parameter_def(name, id: 0, label_is_optional: false, ty, location: location_default())
@@ -1827,7 +1827,7 @@ pub fn print_ast2(module_set: ModuleSet):
 	for module in module_set.modules:
 		print_ast(module)
 
-pub fn print_ast(module: Module):
+pub fn print_ast(module: ModuleDef):
 	print("Module: " + module.name)
 	let printer = AstPrinter()
 	printer.indent()
@@ -2021,7 +2021,8 @@ fn expression_to_string(expression?: Expression) -> str:
 		EnumLiteral(ty, v, values):
 			"ENUM-LITERAL"
 		Stmt(statement):
-			statement_to_string(statement)
+			let txt = statement_to_string(statement)
+			"STMT-{txt}"
 		If(if_expression):
 			"IF-EXPR"
 
@@ -2099,7 +2100,7 @@ pub enum VisitPhase:
 pub enum VisitNode:
 	Arm(arm: CaseArm)
 	ScopeNode(scope: Scope)
-	ModuleNode(module: Module)
+	ModuleNode(module: ModuleDef)
 
 pub fn visit_module_set[T](visitor: Visitor[T], module_set: ModuleSet):
 	for module in module_set.modules:
@@ -2108,7 +2109,7 @@ pub fn visit_module_set[T](visitor: Visitor[T], module_set: ModuleSet):
 		visit_module(visitor, module)
 		visitor.on_node(data: visitor.data, module_node, phase: VisitPhase.Post())
 
-pub fn visit_module[T](visitor: Visitor[T], module: Module):
+pub fn visit_module[T](visitor: Visitor[T], module: ModuleDef):
 	for definition in module.definitions:
 		visit_definition(visitor, definition)
 
@@ -2116,7 +2117,7 @@ pub fn visit_module[T](visitor: Visitor[T], module: Module):
 fn visit_definition[T](visitor: Visitor[T], definition: Definition):
 	visitor.on_definition(a: visitor.data, definition, phase: VisitPhase.Pre())
 	case definition:
-		Mod(module):
+		Module(module):
 			visit_module(visitor, module)
 		Macro(macro_def):
 			pass

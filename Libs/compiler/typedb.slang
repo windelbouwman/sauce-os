@@ -46,7 +46,7 @@ class SymbolSaver:
 		m_ser.end_array_as_attribute(attr: "modules")
 		m_ser.end_object()
 
-	fn save_module(module: ast.Module):
+	fn save_module(module: ast.ModuleDef):
 		m_ser.begin_object()
 		m_ser.add_text_attribute(attr: "name", text: module.name)
 		m_ser.begin_array()
@@ -93,7 +93,7 @@ class SymbolSaver:
 		log_debug("Saving {ast.definition_to_str(definition)}")
 		m_ser.begin_object()
 		case definition:
-			Mod(module):
+			Module(module):
 				save_module(module)
 			Macro(macro_def):
 				save_macro_def(macro_def)
@@ -247,6 +247,12 @@ class SymbolSaver:
 				m_ser.end_object_as_element()
 			m_ser.end_array_as_attribute(attr)
 
+	fn save_type_if_non_void(attr: str, ty: ast.Type):
+		if ty.is_void():
+			pass
+		else:
+			save_type(attr, ty)
+
 	fn save_type(attr: str, ty: ast.Type):
 		if ty.is_void():
 			m_ser.add_text_attribute(attr, text: "void")
@@ -306,8 +312,8 @@ class SymbolSaver:
 					m_ser.end_object_as_element()
 				m_ser.end_array_as_attribute(attr: "parameter-types")
 				m_ser.add_boolean_attribute(attr: "no-return", value: false) # TODO
-				save_type(attr: "return-type", ty: return_type)
-				save_type(attr: "except-type", ty: except_type)
+				save_type_if_non_void(attr: "return-type", ty: return_type)
+				save_type_if_non_void(attr: "except-type", ty: except_type)
 			else:
 				panic("save_type: Not-impl: {ty}")
 			m_ser.end_object_as_attribute(attr)
@@ -331,7 +337,7 @@ class SymbolSaver:
 		m_ser.add_text_attribute(attr: "name", text: id.name)
 		m_ser.add_integer_attribute(attr: "id", value: id.id)
 
-pub fn load_symbol_table(filename: str) -> List[ast.Module]:
+pub fn load_symbol_table(filename: str) -> List[ast.ModuleDef]:
 	log_info("Read type info from: {filename}")
 	let loader = SymbolLoader()
 	try:
@@ -351,12 +357,12 @@ class SymbolLoader:
 	pub fn push_json(value: JsonValue):
 		m_des.push_value(value)
 
-	pub fn load_modules() -> List[ast.Module]:
+	pub fn load_modules() -> List[ast.ModuleDef]:
 		let compiler_version_info = m_des.get_text_attribute(attr: "compiler-version")
 		log_info("Compiler-info: {compiler_version_info}")
 		m_libname = m_des.get_text_attribute(attr: "libname")
 
-		let modules: List[ast.Module] = List()
+		let modules: List[ast.ModuleDef] = List()
 		for module_obj in m_des.get_array_attribute(attr: "modules"):
 			m_des.push_value(value: module_obj)
 			let module = load_module()
@@ -365,7 +371,7 @@ class SymbolLoader:
 
 		modules
 
-	fn load_module() -> ast.Module:
+	fn load_module() -> ast.ModuleDef:
 		let mod_name = m_des.get_text_attribute(attr: "name")
 		log_info("Load info for module: {mod_name}")
 
@@ -463,8 +469,8 @@ class SymbolLoader:
 		f
 
 	fn load_function_info() -> ast.FunctionInfo:
-		let return_type = load_type(attr: "return-type")
-		let except_type = load_type(attr: "except-type")
+		let return_type = load_type_or_void(attr: "return-type")
+		let except_type = load_type_or_void(attr: "except-type")
 		ast.FunctionInfo(return_type, except_type)
 
 	fn load_parameters() -> List[ast.ParameterDef]:
@@ -616,6 +622,13 @@ class SymbolLoader:
 				types.append(load_type(attr: "type"))
 				m_des.pop_value()
 		types
+
+	fn load_type_or_void(attr: str) -> ast.Type:
+		"""Load type from attribute, or void, if attribute is absent"""
+		if m_des.has_attribute(attr):
+			load_type(attr)
+		else:
+			ast.void_type()
 
 	fn load_type(attr: str) -> ast.Type:
 		m_des.enter_attribute(attr)

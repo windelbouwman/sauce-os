@@ -16,7 +16,6 @@ pub fn cgen[I](program: sil.Program, backend: Backend[I]):
 	let code = g.gen_program(program)
 	log_info("Create {code.len()} bytes of binary code")
 	write_elf(filename: "test.elf", code)
-	log_info("OK.")
 
 pub struct Backend[I]:
 	""" Set with machine specific functions """
@@ -27,6 +26,11 @@ pub struct Backend[I]:
 
 pub class SelectionContext[I]:
 	var codes: Vector[mil.Instruction[I]] = new_vector()
+	var m_counter: int = 0
+	# var m_x
+
+	pub fn get_value_vreg(value?: sil.Value) -> mil.Register:
+		new_vreg(kind: 0)
 
 	pub fn emit(instruction?: I):
 		#let code = riscv.encode_instruction(instruction)
@@ -50,7 +54,8 @@ pub class SelectionContext[I]:
 		codes
 
 	pub fn new_vreg(kind: int) -> mil.Register:
-		mil.Register(color: 0, kind)
+		m_counter += 1
+		mil.Register(id: m_counter, color: 0, kind)
 
 class Codegen[I]:
 	""" Machine independent code generator """

@@ -12,7 +12,7 @@ from utils import log_info, log_error, log_trace, panic, assert, set_log_level
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
 from basepass import IdGen
-from transforms import transform
+from transforms import transform, TransformOptions
 from builtins import get_rt_module
 from listtype import List
 from optiontype import option_unwrap, Option
@@ -79,6 +79,8 @@ pub fn main() -> int:
 			options.backend = Backend.Bytecode()
 		elif argument == "--backend-c":
 			options.backend = Backend.C()
+		elif argument == "--backend-c-v2":
+			options.backend = Backend.C2()
 		elif argument == "--backend-py":
 			options.backend = Backend.Python()
 		elif argument == "--backend-null":
@@ -156,6 +158,7 @@ struct CompilationOptions:
 enum Backend:
 	Bytecode
 	C
+	C2
 	Python
 	Slang
 	WebAssembly
@@ -207,7 +210,9 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 		None:
 			pass
 
-	transform(module_set, id_gen, rt_module)
+	let transform_options = TransformOptions:
+		keep_switch: false
+	transform(module_set, id_gen, rt_module, options: transform_options)
 
 	if options.dump_ast:
 		ast.print_ast2(module_set)
@@ -234,16 +239,14 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 			else:
 				bc.print_bc_program_to_file(program, filename: options.output_filename)
 		C:
-			let use_v2 = false
-			if use_v2:
-				# Generate C-code straight from AST:
-				gen_c_code_v2(module_set, output_filename: options.output_filename)
-			else:
-				# Generate C-code via bytecode:
-				let program = gen_bytecode(module_set)
-				if options.verbosity > 1:
-					bc.print_bc_program(program)
-				gen_c_code(program, output_filename: options.output_filename)
+			# Generate C-code via bytecode:
+			let program = gen_bytecode(module_set)
+			if options.verbosity > 1:
+				bc.print_bc_program(program)
+			gen_c_code(program, output_filename: options.output_filename)
+		C2:
+			# Generate C-code straight from AST:
+			gen_c_code_v2(module_set, output_filename: options.output_filename)
 		WebAssembly:
 			gen_webassembly(module_set)
 		Riscv:

@@ -69,7 +69,7 @@ leakcheck: ${COMPILER5} | ${BUILDDIR}
 pytest-compiler1:
 	pytest -v test_compiler1.py
 
-pytest-compiler: $(C_EXAMPLES)
+pytest-compiler: $(C_EXAMPLES) ${PY_EXAMPLES}
 	pytest -vv test_compiler.py
 
 # Example to bytecode compilation
@@ -88,7 +88,7 @@ ${BUILDDIR}/slang/%.slang: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR
 # Example compiled to Python code:
 all-examples-python: $(PY_EXAMPLES)
 
-${BUILDDIR}/python/snippet-%.py: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/python
+${BUILDDIR}/python/snippet-%.py: examples/snippets/%.slang runtime/std.slang ${BUILDDIR}/python/slangrt.py ${SLANGC_DEPS} | ${BUILDDIR}/python
 	${SLANGC} --backend-py -o $@ $< runtime/std.slang
 
 # examples compiled to C code:

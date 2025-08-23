@@ -7,7 +7,7 @@ from hashmap import HashMap
 import ast
 from errors import CompilationError, new_error, new_errors, SingleCompilationError, print_errors, new_warning
 
-pub fn bind_names(module: ast.Module, module_map: HashMap[str,ast.Module], tycon_map: HashMap[ast.NodeId,ast.TyCon]) except CompilationError:
+pub fn bind_names(module: ast.ModuleDef, module_map: HashMap[str,ast.ModuleDef], tycon_map: HashMap[ast.NodeId,ast.TyCon]) except CompilationError:
 	log_info("Filling scopes for {module.name}")
 	let binder = NameBinder(tycon_map)
 	let fil_vis: ast.Visitor[NameBinder] = ast.Visitor:
@@ -68,8 +68,8 @@ pub fn bind_names_expression(expression: ast.Expression) except CompilationError
 fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
 	# try to retrieve a scope, if we have one
 	case definition:
-		Mod(module):
-			unimplemented("mod get scope")
+		Module(module):
+			Option.Some(module.scope)
 		Macro(macro_def):
 			Option.None()
 		Function(function_def):
@@ -97,7 +97,7 @@ fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: a
 	case phase:
 		Pre:
 			case definition:
-				Mod(module):
+				Module(module):
 					unimplemented("filler on def")
 				Macro(macro_def):
 					filler.define(is_pub: false, name: macro_def.name, kind: ast.SymbolKind.Macro(macro_def), location: macro_def.location)
@@ -319,7 +319,7 @@ fn binder_on_expression(binder: NameBinder, expression: ast.Expression, phase: a
 						case base.kind:
 							LoadSymbol(sym):
 								case sym.kind:
-									Mod(module):
+									Module(module):
 										let symbol = binder.resolve_attribute(module, attr, location: expression.location)
 										expression.kind = symbol_to_kind(symbol)
 								else:
@@ -383,13 +383,13 @@ class NameBinder:
 	pub var tycon_map: HashMap[ast.NodeId,ast.TyCon]
 	var was_class_scope: bool = false # HACK for multiple return values?
 
-	pub fn import_mod(imp: ast.Import, module_map: HashMap[str,ast.Module]):
+	pub fn import_mod(imp: ast.Import, module_map: HashMap[str,ast.ModuleDef]):
 		log_trace("Import {imp.modname}")
 		case module_map.maybe_get(key: imp.modname):
 			Some(module):
 				case imp.kind:
 					Self:
-						define(is_pub: false, name: module.name, kind: ast.SymbolKind.Mod(module), location: imp.location)
+						define(is_pub: false, name: module.name, kind: ast.SymbolKind.Module(module), location: imp.location)
 					Names(names):
 						for name in names:
 							log_trace("Importing {name.name} from {module.name}")
@@ -478,14 +478,14 @@ class NameBinder:
 					first = false
 					continue
 				case symbol.kind:
-					Mod(module):
+					Module(module):
 						symbol = resolve_attribute(module, attr: part, location: name.location)
 				else:
 					raise new_error(location: name.location, message: "Not a module we want to get {part} from")
 
 		symbol
 
-	pub fn resolve_attribute(module: ast.Module, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
+	pub fn resolve_attribute(module: ast.ModuleDef, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
 		""" Try to load an attribute from a module. """
 		case module.scope.lookup(name: attr):
 			Some(symbol):

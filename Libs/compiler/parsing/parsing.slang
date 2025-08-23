@@ -14,7 +14,7 @@ from utils import log_debug, log_trace
 from errors import CompilationError
 import errors
 
-pub fn parse_source(filename: str, id_gen: IdGen) -> ast.Module except CompilationError:
+pub fn parse_source(filename: str, id_gen: IdGen) -> ast.ModuleDef except CompilationError:
 	let source = std.read_file(filename)
 	let modname = basename(path: filename)
 	let parser = Parser(id_gen)
@@ -47,7 +47,7 @@ class Parser:
 		m_peek = lex.next_token()
 		m_peek2 = lex.next_token()
 
-	pub fn parse_module(filename: str, name: str) -> ast.Module except CompilationError:
+	pub fn parse_module(filename: str, name: str) -> ast.ModuleDef except CompilationError:
 		this.filename = Option.Some(filename)
 		this.modname = Option.Some(name)
 		let docstring = parse_optional_docstring()

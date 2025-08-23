@@ -20,7 +20,11 @@ from hashmap import HashMap, new_hashmap_str
 from errors import CompilationError
 import ast
 
-pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module) except CompilationError:
+pub struct TransformOptions:
+	# If the backend can generate code for switch statements, set this boolean to true
+	keep_switch: bool
+
+pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.ModuleDef, options: TransformOptions) except CompilationError:
 	log_debug("Transforming modules")
 	let transformer = Transformer:
 		class_rewriter: ClassRewriter(id_gen, rt_module)
@@ -663,7 +667,7 @@ class ClassRewriter:
 	pub var interface_impl2_map: HashMap[ast.NodeId,InterfaceImpl2] = ast.new_hashmap_nodeid()
 	pub var new_definitions: List[ast.Definition] = List()
 	var id_gen: IdGen
-	var rt_module: ast.Module
+	var rt_module: ast.ModuleDef
 
 	pub fn rewrite_class_def(class_def: ast.ClassDef):
 		log_info("Rewriting class def {class_def.id.name}")

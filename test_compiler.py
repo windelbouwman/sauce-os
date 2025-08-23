@@ -2,134 +2,75 @@
 Build compiler, and test snippets.
 """
 
-import os
 import subprocess
-import pytest
-import glob
 import sys
-import io
-from functools import lru_cache
-from compiler1 import compiler, errors, builtins
+from pathlib import Path
+
+import pytest
+
+root_path = Path(__file__).resolve().parent
+snippets_path = root_path / "examples" / "snippets"
+example_filenames = sorted(snippets_path.glob("*.slang"))
+std_module_path = root_path / "runtime" / "std.slang"
 
 
-example_filenames = list(glob.glob("examples/snippets/*.slang"))
-sys.path.insert(0, "runtime")
+def run_compiler(args) -> str:
+    # invoke compiler5 in build folder
+    exe_path = root_path / "build" / "compiler5"
+    result = subprocess.run([exe_path] + args, capture_output=True, check=True)
+    return result.stdout.decode("ascii")
 
 
-@lru_cache
-def slang_compiler():
-    options = compiler.CompilationOptions(backend="py")
-    sources = glob.glob("compiler/**/*.slang", recursive=True)
-    sources.extend(glob.glob("Libs/base/*.slang"))
-    sources.append("runtime/std.slang")
-
-    f = io.StringIO()
-    try:
-        compiler.do_compile(sources, f, options)
-    except errors.CompilationError as ex:
-        print("ERRORS")
-        errors.print_errors(ex.errors)
-        raise ValueError("No compiler")
-    else:
-        print("OK")
-        py_code = f.getvalue()
-        # with open("tmptmptmp.py", "w") as f2:
-        #    f2.write(py_code)
-        return py_code
-
-
-def run_compiler(args):
-    compiled_here = False
-    if compiled_here:
-
-        slang_compiler_py_code = slang_compiler()
-
-        f1 = io.StringIO()
-        global_map = builtins.get_builtins(args=args, stdout=f1)
-        exec(slang_compiler_py_code, global_map)
-        exit_code = global_map["main"]()
-        compiler_output = f1.getvalue()
-        if exit_code == 0:
-            return compiler_output
-        else:
-            print(compiler_output)
-            raise ValueError(f"Compiler failed: {exit_code}")
-    else:
-        # invoke compiler5 in build folder
-        exe_path = os.path.join("build", "compiler5")
-        result = subprocess.run([exe_path] + args, capture_output=True)
-        stdout = result.stdout.decode("ascii")
-        assert result.returncode == 0
-        return stdout
-
-
-def get_reference_output(example_filename):
-    reference_output_filename = os.path.splitext(example_filename)[0] + ".stdout"
-    if os.path.exists(reference_output_filename):
-        with open(reference_output_filename) as f:
-            expected_output = f.read()
-            return expected_output
+def check_reference_output(example_filename: Path, stdout: str):
+    """Compare output with expected reference output"""
+    reference_output_filename = example_filename.with_suffix(".stdout")
+    if reference_output_filename.exists():
+        expected_output = reference_output_filename.read_text()
+        assert stdout == expected_output
 
 
 @pytest.mark.parametrize("filename", example_filenames)
-def test_examples_py_backend(filename):
-    """
-    Test all examples can be compiled to python code
+def test_examples_py_backend(filename: Path):
+    """Test all examples can be compiled to python code
 
     Recipe:
-    1. invoke slang compiler on the example, to produce python code (again)
-    2. invoke example program
-    3. compare example output with reference output
+    1. invoke python code generated from snippet
+    2. compare example output with reference output
 
     """
 
-    args = ["-rt", "--backend-py", "runtime/std.slang"] + [filename]
-    program_py_code = run_compiler(args)
-
-    # Execute produced python code:
-    f2 = io.StringIO()
-    program_global_map = builtins.get_builtins(args=[], stdout=f2)
-    exec(program_py_code, program_global_map)
-
-    def std_print(txt: str):
-        print(txt, file=f2)
-
-    program_global_map["std_print"] = std_print
-
-    program_global_map["main2"]()
-    stdout = f2.getvalue()
-
-    reference_output = get_reference_output(filename)
-    if reference_output:
-        assert stdout == reference_output
+    script_path = root_path / "build" / "python" / f"snippet-{filename.stem}.py"
+    cmd = [sys.executable, script_path]
+    result = subprocess.run(cmd, capture_output=True, check=True)
+    stdout = result.stdout.decode("ascii")
+    check_reference_output(filename, stdout)
 
 
 @pytest.mark.parametrize("filename", example_filenames)
-def test_examples_c_backend(filename):
-    """
-    Test example can be compiled to C code
+def test_examples_c_backend(filename: Path):
+    """Test example can be compiled to C code
 
     Recipe:
     1. invoke slang compiler on the example, to produce C code
-
     """
 
-    args = ["--backend-c", "runtime/std.slang"] + [filename]
+    args = ["--backend-c", std_module_path, filename]
     run_compiler(args)
 
+
 @pytest.mark.parametrize("filename", example_filenames)
-def test_examples_slang_backend(filename):
+def test_examples_slang_backend(filename: Path):
     """
     Recipe:
     1. invoke slang compiler on the example, to produce Slang code
-
     """
 
-    args = ["--backend-slang", "runtime/std.slang"] + [filename]
+    args = ["--backend-slang", std_module_path, filename]
     run_compiler(args)
 
+
 @pytest.mark.parametrize("filename", example_filenames)
-def test_examples_bc_backend(filename):
+def test_examples_bc_backend(filename: Path):
     """
     Test all examples can be compiled to bytecode.
 
@@ -139,28 +80,15 @@ def test_examples_bc_backend(filename):
 
     """
 
-    args = ["--run", "--backend-bc", "runtime/std.slang"] + [filename]
+    args = ["--run", "--backend-bc", std_module_path, filename]
     stdout = run_compiler(args)
-
-    reference_output = get_reference_output(filename)
-    if reference_output:
-        assert stdout == reference_output
+    check_reference_output(filename, stdout)
 
 
 @pytest.mark.parametrize("filename", example_filenames)
 def test_examples_exe(filename):
-    """
-    Test compiled executable against expected output.
-
-    """
-
-    exe_filename = os.path.splitext(os.path.basename(filename))[0] + ".exe"
-    exe_path = os.path.join("build", "c", "snippets", exe_filename)
-
-    result = subprocess.run([exe_path], capture_output=True)
+    """Test compiled executable against expected output."""
+    exe_path = root_path / "build" / "c" / "snippets" / f"{filename.stem}.exe"
+    result = subprocess.run([exe_path], capture_output=True, check=True)
     stdout = result.stdout.decode("ascii")
-    assert result.returncode == 0
-
-    reference_output = get_reference_output(filename)
-    if reference_output:
-        assert stdout == reference_output
+    check_reference_output(filename, stdout)

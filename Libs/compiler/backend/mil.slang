@@ -27,5 +27,6 @@ pub class Instruction[X]:
 		defs.append(r)
 
 pub struct Register:
+	id: int
 	kind: int
 	color: int

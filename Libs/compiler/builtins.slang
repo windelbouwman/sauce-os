@@ -5,7 +5,7 @@ from optiontype import Option
 from vectype import new_vector
 from location import location_default
 
-pub fn get_rt_module() -> ast.Module:
+pub fn get_rt_module() -> ast.ModuleDef:
 	let is_pub = true
 	let libname = "slangrt"
 	let docstring: Option[str] = Option.None()
@@ -19,7 +19,7 @@ pub fn get_rt_module() -> ast.Module:
 		name: "int_to_str"
 		docstring
 		type_parameters
-		parameters: list1(ast.unlabeled_parameter(ty: ast.int_type()))
+		parameters: list1(ast.unlabeled_parameter(name: "x", ty: ast.int_type()))
 		return_type: ast.str_type()
 		location: location_default()
 	module.define_function(function_def: int_to_str)
@@ -30,7 +30,7 @@ pub fn get_rt_module() -> ast.Module:
 		name: "char_to_str"
 		docstring
 		type_parameters
-		parameters: list1(ast.unlabeled_parameter(ty: ast.char_type()))
+		parameters: list1(ast.unlabeled_parameter(name: "value", ty: ast.char_type()))
 		return_type: ast.str_type()
 		location: location_default()
 	module.define_function(function_def: char_to_str)
@@ -41,7 +41,7 @@ pub fn get_rt_module() -> ast.Module:
 		name: "str_concat"
 		docstring
 		type_parameters
-		parameters: list2(ast.unlabeled_parameter(ty: ast.str_type()), ast.unlabeled_parameter(ty: ast.str_type()))
+		parameters: list2(ast.unlabeled_parameter(name: "a", ty: ast.str_type()), ast.unlabeled_parameter(name: "b", ty: ast.str_type()))
 		return_type: ast.str_type()
 		location: location_default()
 	module.define_function(function_def: str_concat)
@@ -52,7 +52,7 @@ pub fn get_rt_module() -> ast.Module:
 		name: "str_compare"
 		docstring
 		type_parameters
-		parameters: list2(ast.unlabeled_parameter(ty: ast.str_type()), ast.unlabeled_parameter(ty: ast.str_type()))
+		parameters: list2(ast.unlabeled_parameter(name: "a", ty: ast.str_type()), ast.unlabeled_parameter(name: "b", ty: ast.str_type()))
 		return_type: ast.bool_type()
 		location: location_default()
 	module.define_function(function_def: str_compare)

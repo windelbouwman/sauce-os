@@ -57,12 +57,16 @@ class SilGen:
 		for n in function.parameters:
 			let p = new_tmp()
 			parameters.append(p)
+
+		# Create stack slots for mutable parameters:
+		for p in parameters:
 			let addr = new_tmp()
 			let size = 8 # TODO
 			emit(op: sil.OpCode.Alloc(addr, size))
 			emit(op: sil.OpCode.Store(dst: addr, value: p))
 			m_parameters.append(addr)
 
+		# Create stack slots for mutable locals:
 		for n in function.locals:
 			let addr = new_tmp()
 			let size = 8 # TODO

@@ -21,7 +21,7 @@ pub fn gen_slang(module_set: ast.ModuleSet, output_filename: Option[str]):
 class SlangGenerator:
 	pub var out: TextGenerator = TextGenerator()
 
-	pub fn gen_module(module: ast.Module):
+	pub fn gen_module(module: ast.ModuleDef):
 		for definition in module.definitions:
 			gen_definition(definition)
 

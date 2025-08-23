@@ -306,30 +306,7 @@ class CGenerator:
 				push(value)
 
 			Literal(literal):
-				case literal:
-					Int(value):
-						push(Value(name: "{value}", ty: bc.Type.Int(signed: true, bits: 64)))
-					Float(value):
-						push(Value(name: float_to_str2(value, digits: 20), ty: bc.Type.Float(bits: 64)))
-					Str(value):
-						let varname = new_local_var()
-						let ty = bc.Type.Str()
-						gen_typed_name(ty, name: varname)
-						emit(" = \"{escape_string(value)}\";")
-						push(Value(name: varname, ty))
-					Bool(value):
-						if value:
-							push(Value(name: "1", ty: bc.Type.Bool()))
-						else:
-							push(Value(name: "0", ty: bc.Type.Bool()))
-					Char(value):
-						let text = if needs_escaping(c: value):
-							"'{escape_char(c: value)}'"
-						else:
-							"'{value}'"
-						push(Value(name: text, ty: bc.Type.Char()))
-					Null:
-						push(Value(name: "0", ty: bc.Type.Ptr()))
+				gen_literal(literal)
 
 			Jump(label):
 				gen_goto(label)
@@ -544,44 +521,7 @@ class CGenerator:
 				push(Value(name: varname, ty))
 
 			FromOpaque(ty):
-				# Unbox value from opaque pointer type
-				let value = pop()
-				let varname = new_local_var()
-				gen_typed_name(ty, name: varname)
-				write(" = ")
-				case ty:
-					Int(signed, bits):
-						if signed:
-							write("SLANG_UNBOX_INT")
-						else:
-							write("SLANG_UNBOX_UINT")
-						write(str(bits))
-					Float(bits):
-						write("SLANG_UNBOX_FLOAT")
-						write(str(bits))
-					Bool:
-						write("SLANG_UNBOX_BOOL")
-					Str:
-						write("(char*)")
-					Char:
-						write("SLANG_UNBOX_CHAR")
-					Function(parameter_types, return_type):
-						panic("Cannot unbox ptr to function")
-					Array(element_type):
-						write("(")
-						gen_typed_name(ty: element_type, name: "")
-						write("*)")
-					Ptr:
-						pass
-					StructRef(index):
-						write("(")
-						gen_typed_name(ty, name: "")
-						write(")")
-				write("(")
-				write(value.name)
-				emit(");")
-				let value2 = Value(name: varname, ty)
-				push(value2)
+				gen_from_opaque(ty)
 
 			Call(index):
 				if index < extern_functions.len():
@@ -734,6 +674,72 @@ class CGenerator:
 				gen_typed_name(ty: ty2, name: "")
 				emit("));")
 				push(Value(name: varname, ty))
+
+	fn gen_literal(literal: bc.LiteralValue):
+		case literal:
+			Int(value):
+				push(Value(name: "{value}", ty: bc.Type.Int(signed: true, bits: 64)))
+			Float(value):
+				push(Value(name: float_to_str2(value, digits: 20), ty: bc.Type.Float(bits: 64)))
+			Str(value):
+				let varname = new_local_var()
+				let ty = bc.Type.Str()
+				gen_typed_name(ty, name: varname)
+				emit(" = \"{escape_string(value)}\";")
+				push(Value(name: varname, ty))
+			Bool(value):
+				if value:
+					push(Value(name: "1", ty: bc.Type.Bool()))
+				else:
+					push(Value(name: "0", ty: bc.Type.Bool()))
+			Char(value):
+				let text = if needs_escaping(c: value):
+					"'{escape_char(c: value)}'"
+				else:
+					"'{value}'"
+				push(Value(name: text, ty: bc.Type.Char()))
+			Null:
+				push(Value(name: "0", ty: bc.Type.Ptr()))
+
+	fn gen_from_opaque(ty: bc.Type):
+		# Unbox value from opaque pointer type
+		let value = pop()
+		let varname = new_local_var()
+		gen_typed_name(ty, name: varname)
+		write(" = ")
+		case ty:
+			Int(signed, bits):
+				if signed:
+					write("SLANG_UNBOX_INT")
+				else:
+					write("SLANG_UNBOX_UINT")
+				write(str(bits))
+			Float(bits):
+				write("SLANG_UNBOX_FLOAT")
+				write(str(bits))
+			Bool:
+				write("SLANG_UNBOX_BOOL")
+			Str:
+				write("(char*)")
+			Char:
+				write("SLANG_UNBOX_CHAR")
+			Function(parameter_types, return_type):
+				panic("Cannot unbox ptr to function")
+			Array(element_type):
+				write("(")
+				gen_typed_name(ty: element_type, name: "")
+				write("*)")
+			Ptr:
+				pass
+			StructRef(index):
+				write("(")
+				gen_typed_name(ty, name: "")
+				write(")")
+		write("(")
+		write(value.name)
+		emit(");")
+		let value2 = Value(name: varname, ty)
+		push(value2)
 
 	fn get_function_callee(index: int) -> str:
 		if index < extern_functions.len():

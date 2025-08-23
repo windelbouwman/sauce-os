@@ -10,8 +10,10 @@ jobs:
   check-python-formatting:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Install python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -20,18 +22,38 @@ jobs:
       - name: Run black formatting checker
         run: python -m black compiler1 --check
 
-  linux-build:
-    runs-on: ubuntu-latest
+  test-compiler1:
+    needs: check-python-formatting
+    matrix:
+      python-version: ["3.11", "3.13"]
+      os: ["ubuntu-latest", "windows-latest"]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Install python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
       - name: Install dependencies
         run: pip install -r compiler1/requirements.txt
       - name: Test with pytest
         run: pytest test_compiler1.py -v
+
+  linux-build:
+    needs: test-compiler1
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+      - name: Install dependencies
+        run: pip install -r compiler1/requirements.txt
       - name: Bootstrap
         run: bash bootstrap2.sh
       - name: Build all
@@ -40,6 +62,7 @@ jobs:
         run: make test
 
   windows-build:
+    needs: test-compiler1
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,4 +81,3 @@ jobs:
       #   run: | 
       #     mkdir build
       #     nmake /f Makefile.win32 build\compiler5.exe
-

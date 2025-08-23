@@ -5,6 +5,7 @@ import ast
 from utils import panic, log_info, unimplemented
 from listtype import List
 from optiontype import option_unwrap, Option
+from settype import Set, new_str_set
 from std import float_to_str2, str_len, str_slice
 from strlib import str_join
 from text_gen import TextGenerator
@@ -19,6 +20,7 @@ pub fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_file
 class PyGenerator:
 	pub var out: TextGenerator = TextGenerator()
 	var global_header: str = ""
+	var importe_modules: Set[str] = new_str_set()
 
 	pub fn generate(module_set: ast.ModuleSet, generate_runtime: bool):
 		emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
@@ -31,10 +33,19 @@ class PyGenerator:
 			emit("sys.exit(main2())")
 			dedent()
 
-	pub fn gen_module(module: ast.Module):
+	pub fn gen_module(module: ast.ModuleDef):
 		let global_names: List[str] = List()
+
 		for definition in module.definitions:
 			case definition:
+				Function(function_def):
+					case function_def.body:
+						Extern(libname):
+							if not importe_modules.contains(libname):
+								emit("import {libname}")
+								importe_modules.add(libname)
+					else:
+						pass
 				Var(variable_def):
 					case variable_def.value:
 						Intern(value):
@@ -57,7 +68,7 @@ class PyGenerator:
 
 	fn gen_definition(definition: ast.Definition):
 		case definition:
-			Mod(module):
+			Module(module):
 				panic("pygen module")
 			Macro(macro_def):
 				pass
@@ -85,7 +96,8 @@ class PyGenerator:
 						emit("")
 						emit("")
 					Extern(libname):
-						emit("from {libname} import {function_def.name}")
+						if function_def.is_pub:
+							emit("from {libname} import {function_def.name}")
 					None:
 						panic("Function declarations not supported")
 
@@ -266,7 +278,13 @@ class PyGenerator:
 			VariableRef(variable):
 				get_id(id: variable.id)
 			FunctionRef(function_def, type_arguments):
-				function_def.name
+				case function_def.body:
+					Extern(libname):
+						"{libname}.{function_def.name}"
+					Intern(body):
+						function_def.name
+					None:
+						function_def.name
 			Call(call):
 				let expressions: List[ast.Expression] = List()
 				for argument in call.arguments:

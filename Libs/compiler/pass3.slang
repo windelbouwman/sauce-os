@@ -10,7 +10,7 @@ from hashmap import HashMap, new_hashmap_str
 from vectype import Vector, new_vector, new_vector_with_capacity
 from strlib import str_join
 
-pub fn resolve_newops(module: ast.Module, id_gen: IdGen) except CompilationError:
+pub fn resolve_newops(module: ast.ModuleDef, id_gen: IdGen) except CompilationError:
 	log_info("resolve new-ops for {module.name}")
 	let newop = NewOp(id_gen)
 	let visitor: ast.Visitor[NewOp] = ast.Visitor:

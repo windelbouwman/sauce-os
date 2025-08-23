@@ -38,9 +38,9 @@ class WasmGenerator:
 	var literal_offset: int = 0
 	var block_stack: List[bool] = List()
 
-	pub fn gen_module_set(modules: List[ast.Module]):
+	pub fn gen_module_set(modules: List[ast.ModuleDef]):
 		let type_parameters: List[ast.TypeParameter] = List()
-		let parameters = list1(ast.unlabeled_parameter(ty: ast.int_type()))
+		let parameters = list1(ast.unlabeled_parameter(name: "size", ty: ast.int_type()))
 		let docstring: Option[str] = Option.None()
 		let malloc_def = ast.extern_function_def(is_pub: true, libname: "js", name: "js_malloc", docstring, type_parameters, parameters, return_type: ast.opaque_type(), location: location_default())
 		gen_external_function(function_def: malloc_def)
@@ -109,7 +109,7 @@ class WasmGenerator:
 		else:
 			panic("Invalid extern function")
 
-	fn gen_module(module: ast.Module):
+	fn gen_module(module: ast.ModuleDef):
 		for definition in module.definitions:
 			case definition:
 				Function(function_def):

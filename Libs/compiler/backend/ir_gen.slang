@@ -100,7 +100,7 @@ class BytecodeGenerator:
 				else:
 					pass
 
-	pub fn gen_prog(module: ast.Module):
+	pub fn gen_prog(module: ast.ModuleDef):
 		log_info("Generating bytecode for {module.name}")
 		for definition in module.definitions:
 			case definition:
