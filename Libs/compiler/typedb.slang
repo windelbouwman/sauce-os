@@ -391,7 +391,7 @@ class SymbolLoader:
 			m_des.push_value(value: definition_obj)
 			definitions.append(load_definition())
 			m_des.pop_value()
-		ast.new_module(name: mod_name, filename: Option.None(), imports, definitions)
+		ast.new_module(name: mod_name, location: location_default(), filename: Option.None(), imports, definitions)
 
 	fn load_import() -> ast.Import:
 		let modname = m_des.get_text_attribute(attr: "modname")

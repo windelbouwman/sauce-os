@@ -4,7 +4,7 @@ import ast
 import std
 from lexer import Lexer
 from token import token_to_string, Token, default_token
-from location import Location
+from location import Location, location_default
 from listtype import List, list1
 from optiontype import Option
 from vectype import Vector, new_vector
@@ -116,7 +116,7 @@ class Parser:
 			else:
 				raise unexpected_token(tok, expected: "import, fn, enum, struct, class, extern")
 
-		ast.new_module(name, filename: this.filename, imports, definitions)
+		ast.new_module(name, location: location_default(), filename: this.filename, imports, definitions)
 
 	fn parse_import() -> ast.Import except CompilationError:
 		let modname = parse_name()

@@ -6,7 +6,7 @@ from errors import display_error, CompilationError
 from parsing import parse_source
 from namebinding import bind_names
 from pass3 import resolve_newops
-from typechecking import type_check_modules
+from typechecking import type_check
 from typedb import store_symbol_table, load_symbol_table
 from utils import log_info, log_error, log_trace, panic, assert, set_log_level
 from ir_gen import gen_bytecode
@@ -15,6 +15,7 @@ from basepass import IdGen
 from transforms import transform, TransformOptions
 from builtins import get_rt_module
 from listtype import List
+from location import location_default
 from optiontype import option_unwrap, Option
 from hashmap import HashMap, new_hashmap_str
 from strlib import lexical_sort
@@ -168,18 +169,21 @@ enum Backend:
 
 fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
 	let id_gen = IdGen()
+	let top_module = ast.new_empty_module(name: "toplevel", location: location_default())
 	let modules: List[ast.ModuleDef] = List()
 	let module_map: HashMap[str,ast.ModuleDef] = new_hashmap_str()
 
 	let rt_module = get_rt_module()
 	modules.append(rt_module)
-	module_map.insert(key: "rt", value: rt_module)
+	module_map.insert(key: rt_module.name, value: rt_module)
+	top_module.add_module(rt_module)
 
 	for filename in options.add_imports:
 		let imported_modules = load_symbol_table(filename)
 		for module in imported_modules:
 			modules.append(module)
 			module_map.insert(key: module.name, value: module)
+			top_module.add_module(module)
 
 	for filename in filenames:
 		log_info("Parsing: {filename}")
@@ -190,19 +194,18 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 			ast.print_ast(module: program)
 		modules.append(program)
 		module_map.insert(key: program.name, value: program)
+		top_module.add_module(program)
 
 	topo_sort(modules)
 	let module_set = ast.ModuleSet(modules)
 
-	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
-	for module in modules:
-		bind_names(module, module_map, tycon_map)
-		resolve_newops(module, id_gen)
+	bind_names(module: top_module, module_map)
+	resolve_newops(module: top_module, id_gen)
 
 	if options.dump_ast:
 		ast.print_ast2(module_set)
 
-	type_check_modules(module_set, display_warnings: true)
+	type_check(module: top_module, display_warnings: true)
 
 	case options.gen_export:
 		Some(filename):
@@ -217,7 +220,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 	if options.dump_ast:
 		ast.print_ast2(module_set)
 
-	type_check_modules(module_set, display_warnings: false)
+	type_check(module: top_module, display_warnings: false)
 
 	if options.dump_ast:
 		ast.print_ast2(module_set)

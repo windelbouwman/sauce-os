@@ -4,7 +4,10 @@
 
 from utils import panic, assert
 
-pub fn new_queue[T](capacity: int) -> Queue[T]:
+pub fn new_queue[T]() -> Queue[T]:
+	new_queue_with_capacity(capacity: 7)
+
+pub fn new_queue_with_capacity[T](capacity: int) -> Queue[T]:
 	assert(condition: capacity > 0, message: "capacity must larger than zero.")
 	Queue(m_items: [capacity : T], m_capacity: capacity)
 

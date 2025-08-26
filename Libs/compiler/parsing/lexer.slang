@@ -20,7 +20,7 @@ enum Result[T,E]:
 	Error(value: E)
 
 pub class Lexer:
-	var pending: Queue[Token] = new_queue(capacity: 7)
+	var pending: Queue[Token] = new_queue()
 	var indent_stack: List[int] = List()
 	var at_bol: bool = true  # at begin-of-line (bol)
 	var at_end: bool = false

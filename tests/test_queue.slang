@@ -1,7 +1,7 @@
 
 
 from std import print
-from deque import Queue, new_queue
+from deque import Queue, new_queue_with_capacity
 from unittest import assert_int_equals
 
 
@@ -12,7 +12,7 @@ pub fn main() -> int:
 
 
 fn test_queue():
-	let x: Queue[int] = new_queue(capacity: 2)
+	let x: Queue[int] = new_queue_with_capacity(capacity: 2)
 	assert_int_equals(0, x.len())
 	x.push(1)
 	assert_int_equals(1, x.len())
@@ -29,4 +29,3 @@ fn test_queue():
 
 	assert_int_equals(1337, x.pop())
 	assert_int_equals(0, x.len())
-	

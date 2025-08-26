@@ -261,7 +261,7 @@ def parse_escape_sequence(text):
         return "\t"
     elif text[1] == "r":
         return "\r"
-    elif text[1] in "\"'\{\}\\":
+    elif text[1] in "\"'{}\\":
         return text[1]
     elif text[1] == "x":
         assert len(text) == 4

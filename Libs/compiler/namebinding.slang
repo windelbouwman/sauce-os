@@ -3,14 +3,15 @@ from utils import log_info, log_trace, unimplemented
 from location import Location, location_default
 from listtype import List
 from optiontype import Option, option_is_some
-from hashmap import HashMap
+from hashmap import HashMap, new_hashmap_str
 import ast
 from errors import CompilationError, new_error, new_errors, SingleCompilationError, print_errors, new_warning
 
-pub fn bind_names(module: ast.ModuleDef, module_map: HashMap[str,ast.ModuleDef], tycon_map: HashMap[ast.NodeId,ast.TyCon]) except CompilationError:
+pub fn bind_names(module: ast.ModuleDef, module_map: HashMap[str,ast.ModuleDef]) except CompilationError:
+	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
 	log_info("Filling scopes for {module.name}")
-	let binder = NameBinder(tycon_map)
-	let fil_vis: ast.Visitor[NameBinder] = ast.Visitor:
+	let binder = NameBinder(module_map, tycon_map)
+	let fill_visitor: ast.Visitor[NameBinder] = ast.Visitor:
 		data: binder
 		on_definition: filler_on_definition
 		on_type: filler_on_type
@@ -18,17 +19,17 @@ pub fn bind_names(module: ast.ModuleDef, module_map: HashMap[str,ast.ModuleDef],
 		on_expression: filler_on_expression
 		on_node: filler_on_node
 	binder.enter_scope(scope: module.scope)
-
-	for imp in module.imports:
-		binder.import_mod(imp, module_map)
-
-	ast.visit_module(visitor: fil_vis, module)
+	ast.visit_module(visitor: fill_visitor, module)
 	binder.leave_scope()
 	if not binder.errors.is_empty():
 		raise new_errors(filename: module.filename, errors: binder.errors)
 
-	log_info("Binding names for {module.name}")
+	# Now import symbols
+	log_info("Resolving imported symbols")
+	let import_visitor = new_import_visitor(binder)
+	ast.visit_module(visitor: import_visitor, module)
 
+	log_info("Binding names for {module.name}")
 	let bind_visitor = new_bind_visitor(binder)
 	binder.enter_scope(scope: base_scope())
 	binder.enter_scope(scope: module.scope)
@@ -58,8 +59,9 @@ fn new_bind_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
 		on_node: binder_on_node
 
 pub fn bind_names_expression(expression: ast.Expression) except CompilationError:
+	let module_map: HashMap[str,ast.ModuleDef] = new_hashmap_str()
 	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
-	let binder = NameBinder(tycon_map)
+	let binder = NameBinder(module_map, tycon_map)
 	let bind_visitor = new_bind_visitor(binder)
 	ast.visit_expression(visitor: bind_visitor, expression)
 	if not binder.errors.is_empty():
@@ -97,8 +99,10 @@ fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: a
 	case phase:
 		Pre:
 			case definition:
-				Module(module):
-					unimplemented("filler on def")
+				Module(module_def):
+					log_info("Entering module {module_def.name}")
+					#filler.define(is_pub: true, name: module_def.name, kind: ast.SymbolKind.Module(module_def), location: module_def.location)
+					filler.enter_scope(scope: module_def.scope)
 				Macro(macro_def):
 					filler.define(is_pub: false, name: macro_def.name, kind: ast.SymbolKind.Macro(macro_def), location: macro_def.location)
 				Function(function_def):
@@ -222,6 +226,47 @@ fn filler_on_node(filler: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 	else:
 		pass
 
+fn new_import_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
+	ast.Visitor:
+		data: binder
+		on_definition: importer_on_definition
+		on_type: importer_on_type
+		on_statement: importer_on_statement
+		on_expression: importer_on_expression
+		on_node: importer_on_node
+
+fn importer_on_definition(binder: NameBinder, definition: ast.Definition, phase: ast.VisitPhase):
+	case phase:
+		Pre:
+			case definition:
+				Module(module_def):
+					log_info("Importing symbols into module {module_def.name}")
+					binder.enter_scope(scope: module_def.scope)
+					for imp in module_def.imports:
+						binder.import_mod(imp)
+			else:
+				pass
+		Post:
+			case definition:
+				Module(module_def):
+					binder.leave_scope()
+			else:
+				pass
+	else:
+		pass
+
+fn importer_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
+	pass
+
+fn importer_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.VisitPhase):
+	pass
+
+fn importer_on_expression(binder: NameBinder, expression: ast.Expression, phase: ast.VisitPhase):
+	pass
+
+fn importer_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase):
+	pass
+
 fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: ast.VisitPhase):
 	case phase:
 		Pre:
@@ -268,7 +313,6 @@ fn binder_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
 				binder.errors.append(error)
 	else:
 		pass
-
 
 fn binder_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.VisitPhase):
 	case phase:
@@ -380,10 +424,11 @@ class NameBinder:
 	""" Helper class to fill scopes, and resolve names from scopes. """
 	var scopes: List[ast.Scope] = List()
 	pub var errors: List[SingleCompilationError] = List()
+	var module_map: HashMap[str,ast.ModuleDef]
 	pub var tycon_map: HashMap[ast.NodeId,ast.TyCon]
 	var was_class_scope: bool = false # HACK for multiple return values?
 
-	pub fn import_mod(imp: ast.Import, module_map: HashMap[str,ast.ModuleDef]):
+	pub fn import_mod(imp: ast.Import):
 		log_trace("Import {imp.modname}")
 		case module_map.maybe_get(key: imp.modname):
 			Some(module):

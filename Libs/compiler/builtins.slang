@@ -2,7 +2,6 @@
 import ast
 from listtype import List, list1, list2
 from optiontype import Option
-from vectype import new_vector
 from location import location_default
 
 pub fn get_rt_module() -> ast.ModuleDef:
@@ -10,7 +9,7 @@ pub fn get_rt_module() -> ast.ModuleDef:
 	let libname = "slangrt"
 	let docstring: Option[str] = Option.None()
 	let modname = "rt"
-	let module = ast.new_module(name: modname, filename: Option.None(), imports: new_vector(), definitions: List())
+	let module = ast.new_empty_module(name: modname, location: location_default())
 	let type_parameters: List[ast.TypeParameter] = List()
 
 	let int_to_str = ast.extern_function_def:

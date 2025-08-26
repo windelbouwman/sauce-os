@@ -2,8 +2,8 @@
 #ifndef SLANGRT_H
 #define SLANGRT_H
 
-#include <stdint.h>
 #include <setjmp.h>
+#include <stdint.h>
 
 // runtime types:
 typedef intptr_t slang_int_t;
@@ -22,23 +22,23 @@ typedef float slang_float32_t;
 typedef double slang_float64_t;
 
 typedef struct slang_exception_handler slang_exception_handler_t;
-struct slang_exception_handler
-{
+struct slang_exception_handler {
     jmp_buf buf;
-    slang_exception_handler_t *prev;
+    slang_exception_handler_t* prev;
 };
 
 // runtime globals:
 extern slang_exception_handler_t* g_except_hook;
 extern void* g_except_value;
+extern void* tmp_array_lit;
 
 // runtime functions:
 void rt_gc_init(void* bos);
 void rt_gc_finalize();
 void* rt_malloc_str(size_t size);
 void* rt_malloc(size_t size);
-void *rt_malloc_with_destroyer(size_t size, const int* ref_offsets);
-char* rt_str_new(const char *);
+void* rt_malloc_with_destroyer(size_t size, const int* ref_offsets);
+char* rt_str_new(const char*);
 // void slangrt_unreachable();
 
 // Boxing and unboxing operations

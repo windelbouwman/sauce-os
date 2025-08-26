@@ -5,7 +5,7 @@ from utils import panic, assert, log_info, log_error
 from location import Location, location_default
 from listtype import List
 from optiontype import Option, option_unwrap, option_is_some
-from vectype import Vector, new_vector_with_capacity
+from vectype import Vector, new_vector_with_capacity, new_vector
 from hashmap import HashMap, new_hashmap_str, new_hashmap, str_hash
 
 # Name coupled with global unique ID:
@@ -927,6 +927,7 @@ pub struct ModuleSet:
 
 pub class ModuleDef:
 	pub var name: str
+	pub var location: Location
 	pub var filename: Option[str]
 	pub var imports: Vector[Import]
 	pub var definitions: List[Definition]
@@ -938,14 +939,25 @@ pub class ModuleDef:
 	pub fn define_function(function_def: FunctionDef):
 		define_symbol(name: function_def.name, definition: Definition.Function(function_def))
 
-pub fn new_module(name: str, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> ModuleDef:
+	pub fn add_module(m?: ModuleDef):
+		definitions.append(Definition.Module(m))
+
+pub fn new_module(name: str, location: Location, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> ModuleDef:
 	ModuleDef:
 		name
+		location
 		filename
 		imports
 		definitions
 		scope: Scope()
 
+pub fn new_empty_module(name: str, location: Location) -> ModuleDef:
+	new_module:
+		name
+		location
+		filename: Option.None()
+		imports: new_vector()
+		definitions: List()
 
 pub fn import_self(modname: str, location: Location) -> Import:
 	Import:

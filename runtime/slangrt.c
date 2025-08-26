@@ -30,6 +30,7 @@ __declspec(noreturn) void std_panic(const char* message);
 
 slang_exception_handler_t* g_except_hook;
 void* g_except_value;
+void* tmp_array_lit;
 
 SLANG_API void std_print(char* message)
 {

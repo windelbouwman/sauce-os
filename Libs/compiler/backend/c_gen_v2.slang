@@ -22,8 +22,14 @@ pub fn gen_c_code_v2(module_set: ast.ModuleSet, output_filename: Option[str]):
 	g.gen_module_set(module_set)
 	g.out.end()
 
+enum BlockType:
+	Try
+	Loop
+
 class CGenerator2:
 	pub var out: TextGenerator = TextGenerator()
+	var next_id: int = 1
+	var m_blocks: List[BlockType] = List()
 
 	pub fn gen_module_set(module_set: ast.ModuleSet):
 		gen_header()
@@ -53,21 +59,14 @@ class CGenerator2:
 			for definition in module.definitions:
 				case definition:
 					Function(function_def):
-						var decl = gen_function_decl(function_def)
+						gen_function_decl(function_def)
 						if function_def.info.return_type.is_unreachable():
-							decl = "{decl} __attribute__((noreturn))"
-						emit("{decl};")
+							write(" __attribute__((noreturn))")
+						emit(";")
 
 					Struct(struct_def):
-						# Create struct constructor function
-						if struct_def.is_union:
-							panic("Unions not supported")
-						let name = gen_id(id: struct_def.id)
-						let parts: List[str] = List()
-						for field in struct_def.fields:
-							parts.append(gen_typed_name(ty: field.ty, name: field.name))
-						let args = str_join(parts, sep: ", ")
-						emit("struct {name}* {name}_new({args});")
+						gen_struct_ctor_decl(struct_def)
+						emit(";")
 				else:
 					pass
 
@@ -78,17 +77,48 @@ class CGenerator2:
 					Struct(struct_def):
 						gen_struct(struct_def)
 					Var(variable_def):
-						let varname = gen_id(id: variable_def.variable.id)
-						let typed_name = gen_typed_name(ty: variable_def.variable.ty, name: varname)
-						case variable_def.value:
-							Intern(value):
-								write("{typed_name} = ")
-								gen_expression(option_unwrap(value))
-								emit(";")
-							Extern(libname, initialized):
-								emit("extern {typed_name};")
+						gen_variable_def(variable_def)
 				else:
 					pass
+
+	fn gen_variable_def(variable_def: ast.VariableDef):
+		let varname = gen_id(id: variable_def.variable.id)
+		case variable_def.value:
+			Intern(value):
+				let text = gen_global_expression(option_unwrap(value))
+				gen_typed_name(ty: variable_def.variable.ty, name: varname)
+				write(" = {text}")
+			Extern(libname, initialized):
+				write("extern ")
+				gen_typed_name(ty: variable_def.variable.ty, name: varname)
+		emit(";")
+
+	fn gen_global_expression(expression?: ast.Expression) -> str:
+		case expression.kind:
+			IntLiteral(value):
+				"{value}"
+			BoolLiteral(value):
+				"1" if value else "0"
+			FloatLiteral(value):
+				float_to_str2(value, digits: 20)
+			StringLiteral(value):
+				"\"{escape_string(value)}\""
+			StructLiteral(ty, values):
+				let struct_def = ty.get_struct_def()
+				let prefix = new_var(name: "glob")
+				let name = "{prefix}_{gen_id(id: struct_def.id)}"
+				let parts: List[str] = List()
+				for value in values:
+					parts.append(gen_global_expression(value))
+				let struct_name = gen_id(id: struct_def.id)
+				write("struct {struct_name} {name} = \{")
+				write(str_join(parts, sep: ", "))
+				emit("\};")
+				"&{name}"
+			FunctionRef(function_def, type_arguments):
+				function_def.name
+		else:
+			panic("gen_global_expression: {expression} not supported")
 
 	fn gen_function_defs(module_set: ast.ModuleSet):
 		for module in module_set.modules:
@@ -97,7 +127,7 @@ class CGenerator2:
 					Function(function_def):
 						gen_function(function_def)
 					Struct(struct_def):
-						gen_struct_ctors(struct_def)
+						gen_struct_ctor(struct_def)
 				else:
 					pass
 
@@ -110,24 +140,36 @@ class CGenerator2:
 		emit("{decl} \{")
 		indent()
 		for field in struct_def.fields:
-			let typed_name = gen_typed_name(ty: field.ty, name: field.name)
-			emit("{typed_name};")
+			gen_typed_name(ty: field.ty, name: field.name)
+			emit(";")
 		dedent()
 		emit("\};")
 		emit("")
 
-	fn gen_struct_ctors(struct_def: ast.StructDef):
+	fn gen_struct_ctor_decl(struct_def: ast.StructDef):
+		# Create struct constructor function
+		if struct_def.is_union:
+			panic("Unions not supported")
+		let name = gen_id(id: struct_def.id)
+		write("struct {name}* {name}_new(")
+		let n = struct_def.fields.len()
+		var i = 0
+		for field in struct_def.fields:
+			gen_typed_name(ty: field.ty, name: field.name)
+			i += 1
+			if i < n:
+				write(", ")
+		write(")")
+
+	fn gen_struct_ctor(struct_def: ast.StructDef):
 		# Create struct constructor function
 		if struct_def.is_union:
 			panic("Unions not supported")
 
-		let struct_name = gen_id(id: struct_def.id)
-		let parts: List[str] = List()
-		for field in struct_def.fields:
-			parts.append(gen_typed_name(ty: field.ty, name: field.name))
-		let args = str_join(parts, sep: ", ")
-		emit("struct {struct_name}* {struct_name}_new({args}) \{")
+		gen_struct_ctor_decl(struct_def)
+		emit(" \{")
 		indent()
+		let struct_name = gen_id(id: struct_def.id)
 		emit("struct {struct_name}* X = malloc(sizeof(struct {struct_name}));")
 		for field in struct_def.fields:
 			emit("X->{field.name} = {field.name};")
@@ -136,28 +178,32 @@ class CGenerator2:
 		emit("\}")
 		emit("")
 
-	fn gen_function_decl(function_def: ast.FunctionDef) -> str:
+	fn gen_function_decl(function_def: ast.FunctionDef):
+		gen_typed_name(ty: function_def.info.return_type, name: "")
 		let name = function_def.name
-		let parameter_parts: List[str] = List()
+		write(" {name}(")
+		let n = function_def.parameters.len()
+		var i = 0
 		for parameter_def in function_def.parameters:
+			i += 1
 			let parameter_name = gen_id(id: parameter_def.id)
-			parameter_parts.append(gen_typed_name(ty: parameter_def.ty, name: parameter_name))
-		let parameter_text = str_join(parts: parameter_parts, sep: ", ")
-		let return_type_text = gen_typed_name(ty: function_def.info.return_type, name: "")
-		"{return_type_text} {name}({parameter_text})"
+			gen_typed_name(ty: parameter_def.ty, name: parameter_name)
+			if i < n:
+				write(", ")
+		write(")")
 
 	fn gen_function(function_def: ast.FunctionDef):
 		case function_def.body:
 			Intern(scoped_block):
-				let decl = gen_function_decl(function_def)
-				emit("{decl} \{")
+				gen_function_decl(function_def)
+				emit(" \{")
 				if scoped_block.body.ty.is_void() or scoped_block.body.ty.is_unreachable():
 					gen_block(scoped_block.body, target: Option.None())
 				else:
 					let res = "__SLANG_SNAG"
 					indent()
-					let typed_var = gen_typed_name(ty: scoped_block.body.ty, name: res)
-					emit("{typed_var};")
+					gen_typed_name(ty: scoped_block.body.ty, name: res)
+					emit(";")
 					dedent()
 					gen_block(scoped_block.body, target: Option.Some(res))
 					indent()
@@ -170,7 +216,10 @@ class CGenerator2:
 			None:
 				panic("Function declarations not supported")
 
-	fn gen_typed_name(ty: ast.Type, name: str) -> str:
+	fn gen_typed_name(ty: ast.Type, name: str):
+		write(gen_typed_name2(ty, name))
+
+	fn gen_typed_name2(ty: ast.Type, name: str) -> str:
 		if ty.is_int():
 			let signed = ty.is_signed_int()
 			let bits = ty.get_bits()
@@ -197,9 +246,9 @@ class CGenerator2:
 			let ret_ty = ty.get_return_type()
 			let parts: List[str] = List()
 			for param_ty in ty.get_parameter_types():
-				parts.append(gen_typed_name(ty: param_ty.ty, name: ""))
+				parts.append(gen_typed_name2(ty: param_ty.ty, name: ""))
 			let param_text = str_join(parts, sep: ", ")
-			gen_typed_name(ty: ret_ty, name: "(*{name})({param_text})")
+			gen_typed_name2(ty: ret_ty, name: "(*{name})({param_text})")
 		elif ty.is_void():
 			"void {name}"
 		elif ty.is_unreachable():
@@ -207,7 +256,7 @@ class CGenerator2:
 		elif ty.is_array():
 			let ety = ty.get_element_type()
 			# return gen_typed_name(ty: ety, name: "*{name}")
-			let txt = gen_typed_name(ty: ety, name: "")
+			let txt = gen_typed_name2(ty: ety, name: "")
 			"{txt}* {name}"
 		else:
 			panic("Type: {ty} not supported")
@@ -223,13 +272,17 @@ class CGenerator2:
 				write("while (")
 				gen_expression(while_statement.condition)
 				emit(") \{")
+				enter_block(BlockType.Loop())
 				gen_block(while_statement.block.body, target: Option.None())
+				leave_block()
 				emit("\}")
 			If(if_statement):
 				gen_if_statement(if_statement, kw: "if", target)
 			Loop(loop_statement):
 				emit("while (1) \{")
+				enter_block(BlockType.Loop())
 				gen_block(loop_statement.block.body, target: Option.None())
+				leave_block()
 				emit("\}")
 			Compound(body):
 				let n = body.len()
@@ -279,8 +332,7 @@ class CGenerator2:
 				emit(";")
 			Let(let_statement):
 				let var_name = gen_id(id: let_statement.variable.id)
-				let typed_var = gen_typed_name(ty: let_statement.variable.ty, name: var_name)
-				write(typed_var)
+				gen_typed_name(ty: let_statement.variable.ty, name: var_name)
 				case let_statement.value.kind:
 					Stmt(statement2):
 						emit(";")
@@ -290,10 +342,13 @@ class CGenerator2:
 					gen_expression(let_statement.value)
 					emit(";")
 			Break:
+				unwind_blocks(stop_on_loop: true)
 				emit("break;")
 			Continue:
+				unwind_blocks(stop_on_loop: true)
 				emit("continue;")
 			Return(value):
+				unwind_blocks(stop_on_loop: false)
 				write("return")
 				case value:
 					Some(v2):
@@ -318,15 +373,19 @@ class CGenerator2:
 				emit("{bufname}.prev = g_except_hook;")
 				emit("g_except_hook = &{bufname};")
 				emit("if (setjmp(g_except_hook->buf) == 0) \{")
+				enter_block(BlockType.Try())
 				gen_block(try_statement.try_block.body, target: Option.None())
+				leave_block()
 				indent()
-				emit("g_except_hook = {bufname}.prev;")
+				emit("g_except_hook = g_except_hook->prev;")
 				dedent()
 				emit("\} else \{")
 				indent()
-				emit("g_except_hook = {bufname}.prev;")
-				let typed_var = gen_typed_name(ty: try_statement.except_type, name: param_name)
-				emit("{typed_var} = g_except_value;")
+				emit("g_except_hook = g_except_hook->prev;")
+				gen_typed_name(ty: try_statement.except_type, name: param_name)
+				write(" = ")
+				gen_unbox_value(to_type: try_statement.except_type)
+				emit("g_except_value));")
 				gen_statement(try_statement.except_block.body, target: Option.None())
 				dedent()
 				emit("\}")
@@ -340,7 +399,7 @@ class CGenerator2:
 
 			Raise(value):
 				write("g_except_value = ")
-				gen_expression(value)
+				gen_box_value(value)
 				emit(";")
 				emit("longjmp(g_except_hook->buf, 1);")
 
@@ -364,6 +423,21 @@ class CGenerator2:
 			emit("\} else \{")
 			gen_block(if_statement.false_block.body, target)
 			emit("\}")
+
+	fn enter_block(bt?: BlockType):
+		m_blocks.prepend(bt)
+
+	fn leave_block():
+		m_blocks.drop_front()
+
+	fn unwind_blocks(stop_on_loop: bool):
+		for bt in m_blocks:
+			case bt:
+				Loop:
+					if stop_on_loop:
+						break
+				Try:
+					emit("g_except_hook = g_except_hook->prev;")
 
 	fn gen_expression(expression?: ast.Expression):
 		# TODO/TBD: optional parenthesis?
@@ -403,24 +477,24 @@ class CGenerator2:
 				write("]")
 			TypeCast(ty, value):
 				write("(")
-				let fnc = if ty.is_float():
-					"(double)"
+				if ty.is_float():
+					write("(double)")
 				elif ty.is_opaque():
-					"(void*)"
+					write("(void*)")
 				elif ty.is_str():
-					"(char*)"
+					write("(char*)")
 				elif ty.is_int():
-					"(intptr_t)"
+					write("(intptr_t)")
 				elif ty.is_bool():
-					"(intptr_t)"
+					write("(intptr_t)")
 				elif ty.is_struct():
-					let to_type2 = gen_typed_name(ty: ty, name: "")
-					"({to_type2})"
+					write("(")
+					gen_typed_name(ty: ty, name: "")
+					write(")")
 				elif ty.is_char():
-					"(char)"
+					write("(char)")
 				else:
 					panic("Unsupported cast to: {ty}")
-				write(fnc)
 				write("(")
 				gen_expression(value)
 				write("))")
@@ -450,73 +524,31 @@ class CGenerator2:
 				gen_expression_list(values)
 				write(")")
 			ArrayLiteral(values):
-				write("\{ ")
-				gen_expression_list(values)
-				write(" \}")
+				let n = values.len()
+				let ety = expression.ty.get_element_type()
+				write("(tmp_array_lit = calloc({n}, sizeof(")
+				gen_typed_name(ty: ety, name: "")
+				write("))")
+				var i = 0
+				for value in values:
+					write(", ((")
+					gen_typed_name(ty: ety, name: "")
+					write("*)tmp_array_lit)[{i}] = ")
+					gen_expression(value)
+					i += 1
+				write(", tmp_array_lit)")
 			ArrayLiteral2(size, ty):
 				write("calloc(")
 				gen_expression(size)
-				let ty_2 = gen_typed_name(ty, name: "")
-				write(", sizeof({ty_2}))")
+				write(", sizeof(")
+				gen_typed_name(ty, name: "")
+				write("))")
 			Null:
 				write("NULL")
 			Box(value):
-				write("(")
-				if value.ty.is_int():
-					let signed = value.ty.is_signed_int()
-					let bits = value.ty.get_bits()
-					if signed:
-						write("SLANG_BOX_INT")
-					else:
-						write("SLANG_BOX_UINT")
-					write(str(bits))
-				elif value.ty.is_bool():
-					write("SLANG_BOX_BOOL")
-				elif value.ty.is_char():
-					write("SLANG_BOX_CHAR")
-				elif value.ty.is_str():
-					write("(void*)")
-				elif value.ty.is_float():
-					let bits = value.ty.get_bits()
-					write("SLANG_BOX_FLOAT")
-					write(str(bits))
-				elif value.ty.is_struct():
-					write("(void*)")
-				elif value.ty.is_opaque():
-					pass
-				else:
-					panic("Cannot box: {value.ty}")
-				write("(")
-				gen_expression(value)
-				write("))")
+				gen_box_value(value)
 			Unbox(value, to_type):
-				write("(")
-				if to_type.is_int():
-					let signed = to_type.is_signed_int()
-					let bits = to_type.get_bits()
-					if signed:
-						write("SLANG_UNBOX_INT")
-					else:
-						write("SLANG_UNBOX_UINT")
-					write(str(bits))
-				elif to_type.is_bool():
-					write("SLANG_UNBOX_BOOL")
-				elif to_type.is_char():
-					write("SLANG_UNBOX_CHAR")
-				elif to_type.is_float():
-					let bits = to_type.get_bits()
-					write("SLANG_UNBOX_FLOAT")
-					write(str(bits))
-				elif to_type.is_str():
-					write("(char*)")
-				elif to_type.is_opaque():
-					pass
-				elif to_type.is_struct():
-					let type_str = gen_typed_name(ty: to_type, name: "")
-					write("({type_str}*)")
-				else:
-					panic("Cannot unbox: {to_type}")
-				write("(")
+				gen_unbox_value(to_type)
 				gen_expression(value)
 				write("))")
 			If(if_expression):
@@ -539,11 +571,75 @@ class CGenerator2:
 			if i < n:
 				write(", ")
 
+	fn gen_box_value(value: ast.Expression):
+		write("(")
+		if value.ty.is_int():
+			let signed = value.ty.is_signed_int()
+			let bits = value.ty.get_bits()
+			if signed:
+				write("SLANG_BOX_INT")
+			else:
+				write("SLANG_BOX_UINT")
+			write(str(bits))
+		elif value.ty.is_bool():
+			write("SLANG_BOX_BOOL")
+		elif value.ty.is_char():
+			write("SLANG_BOX_CHAR")
+		elif value.ty.is_str():
+			write("(void*)")
+		elif value.ty.is_float():
+			let bits = value.ty.get_bits()
+			write("SLANG_BOX_FLOAT")
+			write(str(bits))
+		elif value.ty.is_struct() or value.ty.is_array():
+			write("(void*)")
+		elif value.ty.is_opaque():
+			pass
+		else:
+			panic("Cannot box: {value.ty}")
+		write("(")
+		gen_expression(value)
+		write("))")
+
+	fn gen_unbox_value(to_type: ast.Type):
+		write("(")
+		if to_type.is_int():
+			let signed = to_type.is_signed_int()
+			let bits = to_type.get_bits()
+			if signed:
+				write("SLANG_UNBOX_INT")
+			else:
+				write("SLANG_UNBOX_UINT")
+			write(str(bits))
+		elif to_type.is_bool():
+			write("SLANG_UNBOX_BOOL")
+		elif to_type.is_char():
+			write("SLANG_UNBOX_CHAR")
+		elif to_type.is_float():
+			let bits = to_type.get_bits()
+			write("SLANG_UNBOX_FLOAT")
+			write(str(bits))
+		elif to_type.is_str():
+			write("(char*)")
+		elif to_type.is_opaque():
+			pass
+		elif to_type.is_struct() or to_type.is_array():
+			write("(")
+			gen_typed_name(ty: to_type, name: "")
+			write(")")
+		else:
+			panic("Cannot unbox: {to_type}")
+		write("(")
+
 	fn gen_id(id: ast.NodeId) -> str:
 		if id.name == "main":
 			"{id.name}2"
 		else:
 			"X{id.id}_{id.name}"
+
+	fn new_var(name: str) -> str:
+		next_id += 1
+		"V{next_id}_{name}"
 
 	fn indent():
 		out.indent()

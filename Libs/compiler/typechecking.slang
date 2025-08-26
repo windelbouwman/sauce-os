@@ -16,7 +16,7 @@ pub fn type_check_modules(module_set: ast.ModuleSet, display_warnings: bool) exc
 	for module in module_set.modules:
 		type_check(module, display_warnings)
 
-fn type_check(module: ast.ModuleDef, display_warnings: bool) except CompilationError:
+pub fn type_check(module: ast.ModuleDef, display_warnings: bool) except CompilationError:
 	log_info("Type-checking module {module.name}")
 	let checker = TypeChecker()
 	let visitor = new_type_check_visitor(checker)
