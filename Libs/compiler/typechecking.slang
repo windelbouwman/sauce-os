@@ -10,7 +10,7 @@ from strlib import str_join
 from settype import new_str_set
 from location import Location
 from utils import log_info, panic, assert
-from errors import CompilationError, new_errors, new_error, SingleCompilationError, print_errors, new_warning
+from errors import CompilationError, ErrorCollector
 
 pub fn type_check_modules(module_set: ast.ModuleSet, display_warnings: bool) except CompilationError:
 	for module in module_set.modules:
@@ -21,10 +21,7 @@ pub fn type_check(module: ast.ModuleDef, display_warnings: bool) except Compilat
 	let checker = TypeChecker()
 	let visitor = new_type_check_visitor(checker)
 	ast.visit_module(visitor, module)
-	if not checker.errors.is_empty():
-		raise new_errors(filename: module.filename, errors: checker.errors)
-	if not checker.warnings.is_empty() and display_warnings:
-		print_errors(filename: module.filename, errors: checker.warnings)
+	checker.errors.render_or_raise()
 
 fn new_type_check_visitor(checker: TypeChecker) -> ast.Visitor[TypeChecker]:
 	ast.Visitor:
@@ -39,8 +36,7 @@ pub fn type_check_expression(expression: ast.Expression) except CompilationError
 	let checker = TypeChecker()
 	let visitor = new_type_check_visitor(checker)
 	ast.visit_expression(visitor, expression)
-	if not checker.errors.is_empty():
-		raise new_errors(filename: Option.None(), errors: checker.errors)
+	checker.errors.render_or_raise()
 
 fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase: ast.VisitPhase):
 	case phase:
@@ -51,6 +47,8 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
 					checker.was_errors = false
 					if not function_def.info.except_type.is_void():
 						checker.exception_handlers.append(function_def.info.except_type)
+				Module(module_def):
+					checker.errors.enter_file(filename: module_def.filename)
 			else:
 				pass
 		Post:
@@ -60,6 +58,8 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
 					checker.current_function = Option.None()
 					if not function_def.info.except_type.is_void():
 						checker.exception_handlers.drop_last()
+				Module(module_def):
+					checker.errors.leave_file()
 			else:
 				pass
 	else:
@@ -109,8 +109,7 @@ fn checker_on_node(checker: TypeChecker, node: ast.VisitNode, phase: ast.VisitPh
 	pass
 
 class TypeChecker:
-	pub var errors: List[SingleCompilationError] = List()
-	pub var warnings: List[SingleCompilationError] = List()
+	pub var errors: ErrorCollector = ErrorCollector()
 	pub var was_errors: bool = false
 	pub var current_function: Option[ast.FunctionDef] = Option.None()
 	pub var loops: int = 0
@@ -627,8 +626,7 @@ class TypeChecker:
 	fn add_error(location: Location, message: str):
 		# This can be handy if type checking fails half way:
 		# log_error(message)
-		let err = new_error(location, message)
-		errors.append(err)
+		errors.add_error(location, message)
 		was_errors = true
 
 	fn add_warning(location: Location, message: str):
@@ -636,4 +634,4 @@ class TypeChecker:
 		if treat_warnings_as_errors:
 			add_error(location, message)
 		else:
-			warnings.append(new_warning(location, message))
+			errors.add_warning(location, message)

@@ -4,12 +4,14 @@
 from std import print, read_line, get_n_args, get_arg
 from utils import log_info, log_debug, set_log_level
 from basepass import IdGen
-from parsing import parse_statement_from_text
+from location import location_default
+from parsing import parse_statement_from_text, ParseError
 from namebinding import bind_names_expression
 from typechecking import type_check_expression
 from ir_gen import gen_expression_bytecode
+from optiontype import Option
 import bc
-from errors import CompilationError, display_error #, print_error_line
+from errors import CompilationError, display_error, new_single_error
 import ast
 import vm
 from vm import VirtualMachine, eval_code, value_to_string
@@ -44,7 +46,7 @@ class Repl:
 	pub fn eval(line: str):
 		try:
 			log_info("Parsing [{line}]")
-			let statement = parse_statement_from_text(source: line, id_gen)
+			let statement = parse_line(line, id_gen)
 			case statement.kind:
 				Expr(expression):
 					let x = eval_expression(expression)
@@ -70,6 +72,14 @@ class Repl:
 		log_debug("Executing")
 		let x = eval_code(vm: m_vm, code)
 		return x
+
+fn parse_line(line: str, id_gen: IdGen) -> ast.Statement except CompilationError:
+	var statement = ast.pass_statement(location: location_default())
+	try:
+		statement = parse_statement_from_text(source: line, id_gen)
+	except (err: ParseError):
+		raise new_single_error(filename: Option.None(), location: err.location, message: err.message)
+	statement
 
 fn print_statement_ast(statement: ast.Statement):
 	let visitor = ast.new_print_visitor(printer: ast.AstPrinter())

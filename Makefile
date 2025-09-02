@@ -48,7 +48,7 @@ check-py: ${ALL_TEST_RUNS_PY}
 
 # Profiling
 profile: ${COMPILER5} | ${BUILDDIR}
-	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-c ${BASE_LIB_SRCS}
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-c-v2 ${BASE_LIB_SRCS}
 	kcachegrind build/callgrind.out
 
 profile2: ${BUILDDIR}/c/apps/write_image.exe | ${BUILDDIR}
@@ -99,29 +99,29 @@ ${BUILDDIR}/c/snippets/%.exe: ${BUILDDIR}/c/snippets/%.c ${BUILDDIR}/slangrt.a r
 	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/slangrt.a -lm
 
 ${BUILDDIR}/c/snippets/%.c: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/c/snippets
-	${SLANGC} --backend-c -o $@ $< runtime/std.slang
+	${SLANGC} --backend-c-v2 -o $@ $< runtime/std.slang
 
 # Base lib as DLL:
 ${BUILDDIR}/c/libbase.c ${BUILDDIR}/c/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/c
-	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libbase.json -o ${BUILDDIR}/c/libbase.c ${BASE_LIB_SRCS}
+	${SLANGC} --backend-c-v2 --gen-export ${BUILDDIR}/c/libbase.json -o ${BUILDDIR}/c/libbase.c ${BASE_LIB_SRCS}
 
 ${BUILDDIR}/c/libregex.c ${BUILDDIR}/c/libregex.json: ${REGEX_LIB_SRCS} ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
-	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libregex.json -o ${BUILDDIR}/c/libregex.c --add-import ${BUILDDIR}/c/libbase.json ${REGEX_LIB_SRCS}
+	${SLANGC} --backend-c-v2 --gen-export ${BUILDDIR}/c/libregex.json -o ${BUILDDIR}/c/libregex.c --add-import ${BUILDDIR}/c/libbase.json ${REGEX_LIB_SRCS}
 
 ${BUILDDIR}/c/libimage.c ${BUILDDIR}/c/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
-	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libimage.json -o ${BUILDDIR}/c/libimage.c --add-import ${BUILDDIR}/c/libbase.json ${IMAGE_LIB_SRCS}
+	${SLANGC} --backend-c-v2 --gen-export ${BUILDDIR}/c/libimage.json -o ${BUILDDIR}/c/libimage.c --add-import ${BUILDDIR}/c/libbase.json ${IMAGE_LIB_SRCS}
 
 ${BUILDDIR}/c/libgfx.c ${BUILDDIR}/c/libgfx.json: ${GFX_LIB_SRCS} ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
-	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libgfx.json -o ${BUILDDIR}/c/libgfx.c --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libbase.json ${GFX_LIB_SRCS}
+	${SLANGC} --backend-c-v2 --gen-export ${BUILDDIR}/c/libgfx.json -o ${BUILDDIR}/c/libgfx.c --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libbase.json ${GFX_LIB_SRCS}
 
 ${BUILDDIR}/c/libweb.c ${BUILDDIR}/c/libweb.json: ${WEB_LIB_SRCS} ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
-	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libweb.json -o ${BUILDDIR}/c/libweb.c --add-import ${BUILDDIR}/c/libbase.json ${WEB_LIB_SRCS}
+	${SLANGC} --backend-c-v2 --gen-export ${BUILDDIR}/c/libweb.json -o ${BUILDDIR}/c/libweb.c --add-import ${BUILDDIR}/c/libbase.json ${WEB_LIB_SRCS}
 
 ${BUILDDIR}/c/libscience.c ${BUILDDIR}/c/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
-	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libscience.json -o ${BUILDDIR}/c/libscience.c --add-import ${BUILDDIR}/c/libbase.json ${SCIENCE_LIB_SRCS}
+	${SLANGC} --backend-c-v2 --gen-export ${BUILDDIR}/c/libscience.json -o ${BUILDDIR}/c/libscience.c --add-import ${BUILDDIR}/c/libbase.json ${SCIENCE_LIB_SRCS}
 
 ${BUILDDIR}/c/libcompiler.c ${BUILDDIR}/c/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
-	${SLANGC} --backend-c --gen-export ${BUILDDIR}/c/libcompiler.json -o ${BUILDDIR}/c/libcompiler.c --add-import ${BUILDDIR}/c/libbase.json ${COMPILER_LIB_SRCS}
+	${SLANGC} --backend-c-v2 --gen-export ${BUILDDIR}/c/libcompiler.json -o ${BUILDDIR}/c/libcompiler.c --add-import ${BUILDDIR}/c/libbase.json ${COMPILER_LIB_SRCS}
 
 .PRECIOUS: ${BUILDDIR}/c/lib%.so
 ${BUILDDIR}/c/lib%.so: ${BUILDDIR}/c/lib%.c
@@ -186,7 +186,7 @@ run-test-c-%: ${BUILDDIR}/tests/test_%.exe
 	$<
 
 ${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c/libcompiler.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libscience.json ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/tests
-	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json
+	${SLANGC} --backend-c-v2 -o $@ $< --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json
 
 ${BUILDDIR}/tests/test_%.exe: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/slangrt.a
 	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libcompiler.so -l:libimage.so -l:libscience.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.a -lm

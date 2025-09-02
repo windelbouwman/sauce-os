@@ -29,6 +29,7 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
 	let transformer = Transformer:
 		class_rewriter: ClassRewriter(id_gen, rt_module)
 		modname: "?"
+		options
 
 	let visitor: ast.Visitor[Transformer] = ast.Visitor:
 		data: transformer
@@ -174,6 +175,7 @@ fn remove_union_defs(module_set: ast.ModuleSet):
 struct Transformer:
 	class_rewriter: ClassRewriter
 	modname: str
+	options: TransformOptions
 
 fn transformer_on_definition0(transformer: Transformer, definition: ast.Definition, phase: ast.VisitPhase):
 	pass
@@ -307,7 +309,8 @@ fn transformer_on_statement5(transformer: Transformer, statement: ast.Statement,
 		Post:
 			case statement.kind:
 				Switch(switch_statement):
-					statement.kind = transformer.class_rewriter.transform_switch(switch_statement, location: statement.location)
+					if not transformer.options.keep_switch:
+						statement.kind = transformer.class_rewriter.transform_switch(switch_statement, location: statement.location)
 			else:
 				pass
 	else:

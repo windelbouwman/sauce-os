@@ -392,8 +392,23 @@ class CGenerator2:
 
 			Switch(switch_statement):
 				# We actually have switch in C!
-				emit("switch (value) \{")
+				write("switch (")
+				gen_expression(switch_statement.value)
+				emit(") \{")
 				indent()
+				for arm in switch_statement.arms:
+					write("case ")
+					gen_expression(arm.value)
+					emit(":")
+					gen_block(arm.block.body, target)
+					indent()
+					emit("break;")
+					dedent()
+				emit("default:")
+				gen_block(switch_statement.default_block.body, target)
+				indent()
+				emit("break;")
+				dedent()
 				dedent()
 				emit("\}")
 

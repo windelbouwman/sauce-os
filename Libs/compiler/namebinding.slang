@@ -1,11 +1,11 @@
 
-from utils import log_info, log_trace, unimplemented
+from utils import log_info, log_trace
 from location import Location, location_default
 from listtype import List
 from optiontype import Option, option_is_some
 from hashmap import HashMap, new_hashmap_str
 import ast
-from errors import CompilationError, new_error, new_errors, SingleCompilationError, print_errors, new_warning
+from errors import CompilationError, SingleCompilationError, ErrorCollector
 
 pub fn bind_names(module: ast.ModuleDef, module_map: HashMap[str,ast.ModuleDef]) except CompilationError:
 	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
@@ -21,8 +21,7 @@ pub fn bind_names(module: ast.ModuleDef, module_map: HashMap[str,ast.ModuleDef])
 	binder.enter_scope(scope: module.scope)
 	ast.visit_module(visitor: fill_visitor, module)
 	binder.leave_scope()
-	if not binder.errors.is_empty():
-		raise new_errors(filename: module.filename, errors: binder.errors)
+	binder.render_or_raise()
 
 	# Now import symbols
 	log_info("Resolving imported symbols")
@@ -34,20 +33,12 @@ pub fn bind_names(module: ast.ModuleDef, module_map: HashMap[str,ast.ModuleDef])
 	binder.enter_scope(scope: base_scope())
 	binder.enter_scope(scope: module.scope)
 	ast.visit_module(visitor: bind_visitor, module)
-	let warnings: List[SingleCompilationError] = List()
-	for symbol in module.scope.get_symbols():
-		if not symbol.is_pub and symbol.get_references() == 0:
-			# TODO: use filename as a hack to reduce amount of warnings:
-			if option_is_some(module.filename):
-				warnings.append(new_warning(location: symbol.location, message: "Symbol '{symbol.name}' defined but unused."))
 	binder.leave_scope()
 	binder.leave_scope()
 
-	if not warnings.is_empty():
-		print_errors(filename: module.filename, errors: warnings)
-
-	if not binder.errors.is_empty():
-		raise new_errors(filename: module.filename, errors: binder.errors)
+	let used_symbol_visitor = new_used_symbol_visitor(binder)
+	ast.visit_module(visitor: used_symbol_visitor, module)
+	binder.render_or_raise()
 
 fn new_bind_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
 	ast.Visitor:
@@ -64,8 +55,7 @@ pub fn bind_names_expression(expression: ast.Expression) except CompilationError
 	let binder = NameBinder(module_map, tycon_map)
 	let bind_visitor = new_bind_visitor(binder)
 	ast.visit_expression(visitor: bind_visitor, expression)
-	if not binder.errors.is_empty():
-		raise new_errors(filename: Option.None(), errors: binder.errors)
+	binder.render_or_raise()
 
 fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
 	# try to retrieve a scope, if we have one
@@ -242,6 +232,7 @@ fn importer_on_definition(binder: NameBinder, definition: ast.Definition, phase:
 				Module(module_def):
 					log_info("Importing symbols into module {module_def.name}")
 					binder.enter_scope(scope: module_def.scope)
+					binder.errors.enter_file(filename: module_def.filename)
 					for imp in module_def.imports:
 						binder.import_mod(imp)
 			else:
@@ -250,6 +241,7 @@ fn importer_on_definition(binder: NameBinder, definition: ast.Definition, phase:
 			case definition:
 				Module(module_def):
 					binder.leave_scope()
+					binder.errors.leave_file()
 			else:
 				pass
 	else:
@@ -275,12 +267,22 @@ fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: a
 					pass
 				Some(scope):
 					binder.enter_scope(scope)
+			case definition:
+				Module(module_def):
+					binder.errors.enter_file(filename: module_def.filename)
+			else:
+				pass
 		Post:
 			case get_scope(definition):
 				None:
 					pass
 			else:
 				binder.leave_scope()
+			case definition:
+				Module(module_def):
+					binder.errors.leave_file()
+			else:
+				pass
 	else:
 		pass
 
@@ -398,6 +400,51 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 	else:
 		pass
 
+
+fn new_used_symbol_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
+	ast.Visitor:
+		data: binder
+		on_definition: used_symbol_on_definition
+		on_type: used_symbol_on_type
+		on_statement: used_symbol_on_statement
+		on_expression: used_symbol_on_expression
+		on_node: used_symbol_on_node
+
+fn used_symbol_on_definition(binder: NameBinder, definition: ast.Definition, phase: ast.VisitPhase):
+	case phase:
+		Pre:
+			case definition:
+				Module(module_def):
+					binder.errors.enter_file(filename: module_def.filename)
+
+					for symbol in module_def.scope.get_symbols():
+						if not symbol.is_pub and symbol.get_references() == 0:
+							# TODO: use filename as a hack to reduce amount of warnings:
+							if option_is_some(module_def.filename):
+								binder.add_warning(location: symbol.location, message: "Symbol '{symbol.name}' defined but unused.")
+			else:
+				pass
+		Post:
+			case definition:
+				Module(module_def):
+					binder.errors.leave_file()
+			else:
+				pass
+	else:
+		pass
+
+fn used_symbol_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
+	pass
+
+fn used_symbol_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.VisitPhase):
+	pass
+
+fn used_symbol_on_expression(binder: NameBinder, expression: ast.Expression, phase: ast.VisitPhase):
+	pass
+
+fn used_symbol_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase):
+	pass
+
 fn base_scope() -> ast.Scope:
 	let s = ast.Scope()
 	let location = location_default()
@@ -423,10 +470,10 @@ fn base_scope() -> ast.Scope:
 class NameBinder:
 	""" Helper class to fill scopes, and resolve names from scopes. """
 	var scopes: List[ast.Scope] = List()
-	pub var errors: List[SingleCompilationError] = List()
 	var module_map: HashMap[str,ast.ModuleDef]
 	pub var tycon_map: HashMap[ast.NodeId,ast.TyCon]
 	var was_class_scope: bool = false # HACK for multiple return values?
+	pub var errors: ErrorCollector = ErrorCollector()
 
 	pub fn import_mod(imp: ast.Import):
 		log_trace("Import {imp.modname}")
@@ -500,7 +547,7 @@ class NameBinder:
 			TypeConstructor(tycon):
 				ast.TypeKind.UnApp(tycon)
 		else:
-			raise new_error(location: name.location, message: "Not a type: {symbol}")
+			raise make_error(location: name.location, message: "Not a type: {symbol}")
 
 	pub fn resolve_tycon(name: ast.QualName) -> ast.TyCon except SingleCompilationError:
 		""" Resolve qualified name to a type constructor """
@@ -509,7 +556,7 @@ class NameBinder:
 			TypeConstructor(tycon):
 				tycon
 		else:
-			raise new_error(location: name.location, message: "Not a tycon: {symbol}")
+			raise make_error(location: name.location, message: "Not a tycon: {symbol}")
 
 	fn resolve_qual_name(name: ast.QualName) -> ast.Symbol except SingleCompilationError:
 		""" Resolve a qualified name to a symbol """
@@ -526,7 +573,7 @@ class NameBinder:
 					Module(module):
 						symbol = resolve_attribute(module, attr: part, location: name.location)
 				else:
-					raise new_error(location: name.location, message: "Not a module we want to get {part} from")
+					raise make_error(location: name.location, message: "Not a module we want to get {part} from")
 
 		symbol
 
@@ -537,9 +584,9 @@ class NameBinder:
 				if symbol.is_pub:
 					symbol
 				else:
-					raise new_error(location, message: "Symbol '{attr}' is private")
+					raise make_error(location, message: "Symbol '{attr}' is private")
 			None:
-				raise new_error(location, message: "module '{module.name}' has no symbol: '{attr}'")
+				raise make_error(location, message: "module '{module.name}' has no symbol: '{attr}'")
 
 	fn lookup_base_name(name: str, location: Location) -> ast.Symbol except SingleCompilationError:
 		for scope in scopes:
@@ -549,7 +596,7 @@ class NameBinder:
 					return symbol
 				None:
 					pass
-		raise new_error(location, message: "'{name}' not defined!")
+		raise make_error(location, message: "'{name}' not defined!")
 
 	pub fn enter_scope(scope: ast.Scope):
 		scopes.prepend(scope)
@@ -557,6 +604,14 @@ class NameBinder:
 	pub fn leave_scope():
 		scopes.drop_front()
 
+	fn make_error(location: Location, message: str) -> SingleCompilationError:
+		errors.make_error(location, message)
+
 	pub fn add_error(location: Location, message: str):
-		let err = new_error(location, message)
-		errors.append(err)
+		errors.add_error(location, message)
+
+	pub fn add_warning(location: Location, message: str):
+		errors.add_warning(location, message)
+
+	pub fn render_or_raise() except CompilationError:
+		errors.render_or_raise()

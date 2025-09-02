@@ -3,7 +3,7 @@ import ast
 from location import Location
 from basepass import IdGen
 from utils import log_info, panic
-from errors import new_error, new_errors, CompilationError, SingleCompilationError
+from errors import CompilationError, ErrorCollector
 from listtype import List
 from optiontype import Option
 from hashmap import HashMap, new_hashmap_str
@@ -21,11 +21,24 @@ pub fn resolve_newops(module: ast.ModuleDef, id_gen: IdGen) except CompilationEr
 		on_expression: newop_on_expression
 		on_node: newop_on_node
 	ast.visit_module(visitor, module)
-	if not newop.errors.is_empty():
-		raise new_errors(filename: module.filename, errors: newop.errors)
+	newop.errors.render_or_raise()
 
 fn newop_on_definition(newop: NewOp, definition: ast.Definition, phase: ast.VisitPhase):
-	pass
+	case phase:
+		Pre:
+			case definition:
+				Module(module_def):
+					newop.errors.enter_file(filename: module_def.filename)
+			else:
+				pass
+		Post:
+			case definition:
+				Module(module_def):
+					newop.errors.leave_file()
+			else:
+				pass
+	else:
+		pass
 
 fn newop_on_type(newop: NewOp, ty: ast.Type, phase: ast.VisitPhase):
 	case phase:
@@ -158,7 +171,7 @@ fn newop_on_node(newop: NewOp, node: ast.VisitNode, phase: ast.VisitPhase):
 	pass
 
 class NewOp:
-	pub var errors: List[SingleCompilationError] = List()
+	pub var errors: ErrorCollector = ErrorCollector()
 	var id_gen: IdGen
 
 	fn try_as_type(expression: ast.Expression) -> Option[ast.Type]:
@@ -170,7 +183,7 @@ class NewOp:
 			Option.None()
 
 	pub fn add_error(location: Location, message: str):
-		errors.append(new_error(location, message))
+		errors.add_error(location, message)
 
 	pub fn turn_tycon_to_type(tycon: ast.TyCon) -> ast.Type:
 		let type_arguments: Vector[ast.Type] = new_vector()

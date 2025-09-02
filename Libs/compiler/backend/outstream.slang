@@ -5,31 +5,45 @@ from hashmap import HashMap, new_hashmap_str
 from bytes import ByteArray, Bytes
 
 pub struct Section:
-	data: Bytes
+	name: str
+	data: ByteArray
+	symbols: HashMap[str, int]
 
 pub class BinaryOutput:
-	var sections: HashMap[str, ByteArray] = new_hashmap_str()
+	var sections: HashMap[str, Section] = new_hashmap_str()
 	var current_section: Option[str] = Option.None()
 
 	pub fn select_section(name: str):
 		if not sections.contains(key: name):
-			sections.insert(key: name, value: ByteArray())
+			let new_section = Section:
+				name
+				data: ByteArray()
+				symbols: new_hashmap_str()
+			sections.insert(key: name, value: new_section)
 		current_section = Option.Some(name)
 
-	fn get_current_section() -> ByteArray:
+	fn get_current_section() -> Section:
 		case current_section:
 			Some(name):
 				sections.get(key: name)
 			None:
 				panic("No output section selected")
 
+	pub fn export_symbol(name?: str):
+		let section = get_current_section()
+		if section.symbols.contains(key: name):
+			panic("Duplicate symbol: {name}")
+		else:
+			let offset = section.data.len()
+			section.symbols.insert(key: name, value: offset)
+
 	pub fn write_byte(value?: int):
-		let b = get_current_section()
-		b.append(value)
+		let section = get_current_section()
+		section.data.append(value)
 
 	pub fn write_bytes(data: Bytes):
-		let b = get_current_section()
-		b.extend(data)
+		let section = get_current_section()
+		section.data.extend(data)
 
-	pub fn get_section_data(name: str) -> Bytes:
-		sections.get(key: name).to_bytes()
+	pub fn get_section(name: str) -> Section:
+		sections.get(key: name)

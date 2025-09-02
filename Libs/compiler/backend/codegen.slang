@@ -3,18 +3,19 @@ import mil
 from std import print
 from register_allocation import reg_alloc
 from vectype import Vector, new_vector # , vec1
+from listtype import List
 from utils import log_info  # , unimplemented, panic
 # from strlib import int_to_hex_string
 from hexfile import HexFile
 from elf_file import write_elf
 from bytes import ByteArray, Bytes
-from outstream import BinaryOutput
+from outstream import BinaryOutput, Section
 
 pub fn cgen[I](program: sil.Program, backend: Backend[I]):
 	program.dump()
 	let g = Codegen(backend)
 	let code = g.gen_program(program)
-	log_info("Create {code.len()} bytes of binary code")
+	# log_info("Create {code.data.len()} bytes of binary code")
 	write_elf(filename: "test.elf", code)
 
 pub struct Backend[I]:
@@ -23,6 +24,8 @@ pub struct Backend[I]:
 	materializer: fn(mil.Instruction[I]) -> I
 	instruction_as_str: fn(I) -> str
 	to_binstream: fn(I, BinaryOutput)
+	emit_prologue: fn(BinaryOutput)
+	emit_epilogue: fn(BinaryOutput)
 
 pub class SelectionContext[I]:
 	var codes: Vector[mil.Instruction[I]] = new_vector()
@@ -61,12 +64,15 @@ class Codegen[I]:
 	""" Machine independent code generator """
 	var backend: Backend[I]
 
-	pub fn gen_program(program: sil.Program) -> Bytes:
+	pub fn gen_program(program: sil.Program) -> List[Section]:
 		let outstream = BinaryOutput()
 		outstream.select_section(name: ".text")
 		for function in program.functions:
 			gen_function(function, outstream)
-		outstream.get_section_data(name: ".text")
+		let text_section = outstream.get_section(name: ".text")
+		let sections: List[Section] = List()
+		sections.append(text_section)
+		sections
 
 	fn gen_function(function: sil.Function, outstream: BinaryOutput):
 		# Instruction selection
@@ -77,6 +83,8 @@ class Codegen[I]:
 
 		# Instantiate actual instructions (instructions and registers are now determined):
 		print("Machine Function: {mfunc.name}:")
+		outstream.export_symbol(mfunc.name)
+		backend.emit_prologue(outstream)
 		for mblock in mfunc.blocks:
 			print("  Machine Block: {mblock.name}:")
 			# TODO
@@ -86,6 +94,7 @@ class Codegen[I]:
 				print("   > {txt}")
 			# 	print("   {riscv.instruction_to_string(instruction)}")
 				backend.to_binstream(instruction, outstream)
+		backend.emit_epilogue(outstream)
 
 	fn select_function(function: sil.Function) -> mil.Function[I]:
 		"""Turn abstract instructions into machine specific instructions.

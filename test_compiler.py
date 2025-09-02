@@ -11,6 +11,7 @@ import pytest
 root_path = Path(__file__).resolve().parent
 snippets_path = root_path / "examples" / "snippets"
 example_filenames = sorted(snippets_path.glob("*.slang"))
+ids = [filename.stem for filename in example_filenames]
 std_module_path = root_path / "runtime" / "std.slang"
 
 
@@ -29,7 +30,7 @@ def check_reference_output(example_filename: Path, stdout: str):
         assert stdout == expected_output
 
 
-@pytest.mark.parametrize("filename", example_filenames)
+@pytest.mark.parametrize("filename", example_filenames, ids=ids)
 def test_examples_py_backend(filename: Path):
     """Test all examples can be compiled to python code
 
@@ -46,7 +47,7 @@ def test_examples_py_backend(filename: Path):
     check_reference_output(filename, stdout)
 
 
-@pytest.mark.parametrize("filename", example_filenames)
+@pytest.mark.parametrize("filename", example_filenames, ids=ids)
 def test_examples_c_backend(filename: Path):
     """Test example can be compiled to C code
 
@@ -58,7 +59,7 @@ def test_examples_c_backend(filename: Path):
     run_compiler(args)
 
 
-@pytest.mark.parametrize("filename", example_filenames)
+@pytest.mark.parametrize("filename", example_filenames, ids=ids)
 def test_examples_slang_backend(filename: Path):
     """
     Recipe:
@@ -69,7 +70,7 @@ def test_examples_slang_backend(filename: Path):
     run_compiler(args)
 
 
-@pytest.mark.parametrize("filename", example_filenames)
+@pytest.mark.parametrize("filename", example_filenames, ids=ids)
 def test_examples_bc_backend(filename: Path):
     """
     Test all examples can be compiled to bytecode.
@@ -85,7 +86,7 @@ def test_examples_bc_backend(filename: Path):
     check_reference_output(filename, stdout)
 
 
-@pytest.mark.parametrize("filename", example_filenames)
+@pytest.mark.parametrize("filename", example_filenames, ids=ids)
 def test_examples_exe(filename):
     """Test compiled executable against expected output."""
     exe_path = root_path / "build" / "c" / "snippets" / f"{filename.stem}.exe"

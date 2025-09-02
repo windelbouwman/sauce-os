@@ -1,12 +1,11 @@
 
 from std import print, read_file, str_get, str_len
-from listtype import List
+from listtype import List, list1
 from optiontype import Option
 from strlib import split_lines, str_repeat, str_pad_left, is_lf
 from location import Location, Position
 
 pub struct CompilationError:
-	filename: Option[str]
 	errors: List[SingleCompilationError]
 
 enum Severity:
@@ -14,27 +13,73 @@ enum Severity:
 	Warning
 
 pub struct SingleCompilationError:
+	filename: Option[str]
 	severity: Severity
 	location: Location
 	message: str
 
-pub fn new_error(location: Location, message: str) -> SingleCompilationError:
-	SingleCompilationError(severity: Severity.Error(), location, message)
+pub class ErrorCollector:
+	var m_messages: List[SingleCompilationError] = List()
+	var m_filename: Option[str] = Option.None()
 
-pub fn new_warning(location: Location, message: str) -> SingleCompilationError:
-	SingleCompilationError(severity: Severity.Warning(), location, message)
+	pub fn enter_file(filename: Option[str]):
+		m_filename = filename
 
-pub fn new_errors(filename: Option[str], errors: List[SingleCompilationError]) -> CompilationError:
-	CompilationError(filename, errors)
+	pub fn leave_file():
+		m_filename = Option.None()
+
+	pub fn make_error(location: Location, message: str) -> SingleCompilationError:
+		new_error(filename: m_filename, location, message)
+
+	pub fn add_error(location: Location, message: str):
+		append(new_error(filename: m_filename, location, message))
+
+	pub fn add_warning(location: Location, message: str):
+		append(new_warning(filename: m_filename, location, message))
+
+	pub fn append(error?: SingleCompilationError):
+		m_messages.append(error)
+
+	pub fn render_or_raise() except CompilationError:
+		let real_errors: List[SingleCompilationError] = List()
+		let real_warnings: List[SingleCompilationError] = List()
+		for err in m_messages:
+			case err.severity:
+				Error:
+					real_errors.append(err)
+				Warning:
+					real_warnings.append(err)
+
+		if not real_warnings.is_empty():
+			print_errors(errors: real_warnings)
+
+		if not real_errors.is_empty():
+			raise new_errors(errors: real_errors)
+
+pub fn new_error(filename: Option[str], location: Location, message: str) -> SingleCompilationError:
+	SingleCompilationError(filename, severity: Severity.Error(), location, message)
+
+pub fn new_warning(filename: Option[str], location: Location, message: str) -> SingleCompilationError:
+	SingleCompilationError(filename, severity: Severity.Warning(), location, message)
+
+pub fn new_single_error(filename: Option[str], location: Location, message: str) -> CompilationError:
+	let errors = list1(new_error(filename, location, message))
+	CompilationError(errors)
+
+pub fn new_error_with_filename(filename: str, location: Location, message: str) -> CompilationError:
+	new_single_error(filename: Option.Some(filename), location, message)
+
+pub fn new_errors(errors: List[SingleCompilationError]) -> CompilationError:
+	CompilationError(errors)
 
 pub fn display_error(error: CompilationError):
-	print_errors(filename: error.filename, errors: error.errors)
+	print_errors(errors: error.errors)
 
-pub fn print_errors(filename: Option[str], errors: List[SingleCompilationError]):
+pub fn print_errors(errors: List[SingleCompilationError]):
 	for message in errors:
-		render_message(filename, message)
+		render_message(message)
 
-fn render_message(filename: Option[str], message: SingleCompilationError):
+fn render_message(message: SingleCompilationError):
 	# reset = \033[0m
 	# red = \033[31m
 	# green = \033[32m
@@ -48,7 +93,7 @@ fn render_message(filename: Option[str], message: SingleCompilationError):
 		Warning:
 			"\033[33mwarning\033[0m"
 	# let one_line = false
-	case filename:
+	case message.filename:
 		Some(filename):
 			# if one_line:
 			print_error_one_line(label, filename, message)
@@ -118,15 +163,3 @@ fn count_leading_tabs(text: str) -> int:
 		else:
 			break
 	index
-
-# fn print_error_line(line: str, location: Location, message: str):
-#     print(" {line}")
-#     let indent = str_repeat(text: " ", count: location.begin.column)
-#     let lexeme_width = 1
-#     if location.end.column > location.begin.column:
-#         lexeme_width = location.end.column - location.begin.column + 1
-#     let pointer = str_repeat(text: "^", count: lexeme_width)
-#     let indent2 = indent + str_repeat(text: " ", count: lexeme_width / 2)
-#     print("{indent}{pointer}")
-#     print("{indent2}|")
-#     print("{indent2}+-----< {message}")

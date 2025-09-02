@@ -6,6 +6,7 @@ import sil
 import mil
 import x86
 from codegen import cgen, SelectionContext, Backend
+from outstream import BinaryOutput
 
 # TODO:
 # type SelectionContext[x86.Instruction] Ctx
@@ -17,6 +18,8 @@ pub fn gen_x86(program: sil.Program):
 		materializer: materialize
 		instruction_as_str: x86.instruction_to_string
 		to_binstream: x86.emit_instruction
+		emit_prologue: gen_prologue
+		emit_epilogue: gen_epilogue
 	cgen(program, backend)
 
 fn fetch_value(context: SelectionContext[x86.Instruction], value: sil.Value) -> mil.Register:
@@ -86,3 +89,16 @@ fn mat_rm(rm: x86.Rm, color: int) -> x86.Rm:
 			x86.Rm.MemDisp32(reg: color, disp)
 		Reg(reg):
 			x86.Rm.Reg(reg: color)
+
+fn gen_prologue(out: BinaryOutput):
+	let rsp = 4
+	let rbp = 5
+	x86.emit_instruction(i: x86.Instruction.Push(reg: rbp), out)
+	x86.emit_instruction(i: x86.Instruction.SubRmImm(rm: x86.Rm.Reg(reg: rsp), imm: 0x20), out)
+
+fn gen_epilogue(out: BinaryOutput):
+	let rsp = 4
+	let rbp = 5
+	x86.emit_instruction(i: x86.Instruction.AddRmImm(rm: x86.Rm.Reg(reg: rsp), imm: 0x20), out)
+	x86.emit_instruction(i: x86.Instruction.Pop(reg: rbp), out)
+	x86.emit_instruction(i: x86.Instruction.Ret(), out)

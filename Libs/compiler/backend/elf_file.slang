@@ -3,8 +3,10 @@ ELF file format
 """
 
 import std
+from listtype import List
 from bytes import Bytes, ByteArray, new_bytes, bytes_from_ascii
 from utils import assert, log_error, log_info
+from outstream import Section
 
 # TODO: support global constants:
 # let SHT_NULL = 0
@@ -13,7 +15,7 @@ from utils import assert, log_error, log_info
 # let SHT_STRTAB = 3
 # let SHT_RELA = 4
 
-pub fn write_elf(filename: str, code: Bytes):
+pub fn write_elf(filename: str, code: List[Section]):
 	""" Write ELF file."""
 	log_info("Writing elf file: {filename}")
 	let handle = std.file_open(filename, mode: "wb")
@@ -22,42 +24,61 @@ pub fn write_elf(filename: str, code: Bytes):
 	# Skip over header, will be patched later.
 	writer.seek(pos: writer.m_header.e_ehsize)
 
-	let string_table = StringTable()
-	let sh_null = new_sh()
-	sh_null.sh_name = string_table.add_name("")
+	let sh_null = writer.new_section(name: "")
+	let st_null = writer.new_symbol(name: "UNDEF")
 
 	# TODO: write eventual program headers here
+	for section in code:
+		write_section(writer, section)
+	write_symbol_table(writer)
+	write_section_headers(writer)
+	writer.seek(pos: 0)
+	writer.write_header()
+	std.file_close(handle)
 
-	# .text section
-	let sh_text = new_sh()
-	sh_text.sh_name = string_table.add_name(".text")
+fn write_section(writer: ElfWriter, section: Section):
+	"""Write a single section"""
+	let sh_text = writer.new_section(name: section.name)
+	writer.write_section_data(sh: sh_text, data: section.data.to_bytes())
 	sh_text.sh_type = 1 # PROGBITS
 	sh_text.sh_flags = 2 | 4  # ALLOC | EXECINSTR
-	sh_text.sh_offset = writer.tell()
 	sh_text.sh_addralign = 1
-	writer.write_bytes(code)
-	sh_text.sh_size = writer.tell() - sh_text.sh_offset
 
+	for name in section.symbols:
+		let offset = section.symbols.get(key: name)
+		let ste = writer.new_symbol(name)
+		ste.st_value = offset
+		ste.st_info = (1 << 4) | (2)  # bind=global, type=func
+		ste.st_shndx = writer.section_headers.len() - 1
+
+fn write_symbol_table(writer: ElfWriter):
+	# Symbol table:
+	let sh_symtab = writer.new_section(name: ".symtab")
+	sh_symtab.sh_type = 2 # SYMTAB
+	sh_symtab.sh_offset = writer.tell()
+	sh_symtab.sh_addralign = 1
+	sh_symtab.sh_link = writer.section_headers.len()  # str tab follows directly
+	sh_symtab.sh_entsize = 24
+	for ste in writer.symbol_table:
+		writer.write_symtab_entry(ste)
+	sh_symtab.sh_size = writer.tell() - sh_symtab.sh_offset
+
+	let sh_strtab = writer.new_section(name: ".strtab")
+	writer.write_section_data(sh: sh_strtab, data: writer.strtab.get_data())
+	sh_strtab.sh_type = 3 # SHT_STRTAB
+	sh_strtab.sh_addralign = 1
+
+fn write_section_headers(writer: ElfWriter):
 	# section header string table
-	let sh_shstrtab = new_sh()
-	sh_shstrtab.sh_name = string_table.add_name(".shstrtab")
+	let sh_shstrtab = writer.new_section(name: ".shstrtab")
 	sh_shstrtab.sh_type = 3 # SHT_STRTAB
-	sh_shstrtab.sh_offset = writer.tell()
 	sh_shstrtab.sh_addralign = 1
-	writer.write_bytes(string_table.get_data())
-	sh_shstrtab.sh_size = writer.tell() - sh_shstrtab.sh_offset
+	writer.write_section_data(sh: sh_shstrtab, data: writer.sh_string_table.get_data())
 
 	# Write section headers now:
-	writer.write_section_header(sh_null)
-	writer.write_section_header(sh_text)
-	writer.m_header.e_shstrndx = writer.m_header.e_shnum
-	writer.write_section_header(sh_shstrtab)
-
-	# Write header:
-	writer.seek(pos: 0)
-	writer.write_header()  # Write final header again
-
-	std.file_close(handle)
+	for sh in writer.section_headers:
+		writer.write_section_header(sh)
+	writer.m_header.e_shstrndx = writer.m_header.e_shnum - 1
 
 pub fn read_elf(filename: str):
 	let handle = std.file_open(filename, mode: "rb")
@@ -134,6 +155,14 @@ struct SectionHeader:
 	sh_addralign: int
 	sh_entsize: int
 
+struct SymbolTableEntry:
+	st_name: int
+	st_value: int
+	st_size: int
+	st_info: int
+	st_other: int
+	st_shndx: int
+
 class ElfReader:
 	var handle: int
 	var is_32bit: bool = false
@@ -202,6 +231,33 @@ class ElfWriter:
 	var is_32bit: bool = false
 	var is_big_endian: bool = false
 	pub var m_header: ElfHeader = new_64bit_header()
+	pub var sh_string_table: StringTable = StringTable()
+	pub var section_headers: List[SectionHeader] = List()
+	pub var symbol_table: List[SymbolTableEntry] = List()
+	pub var strtab: StringTable = StringTable()
+
+	pub fn new_symbol(name: str) -> SymbolTableEntry:
+		let entry = SymbolTableEntry:
+			st_name: strtab.add_name(name)
+			st_value: 0
+			st_size: 0
+			st_info: 0
+			st_other: 0
+			st_shndx: 0
+		symbol_table.append(entry)
+		entry
+
+	pub fn new_section(name: str) -> SectionHeader:
+		let sh = new_sh()
+		sh.sh_name = sh_string_table.add_name(name)
+		section_headers.append(sh)
+		sh
+
+	pub fn write_section_data(sh: SectionHeader, data: Bytes):
+		""" Write data, recording offset and size """
+		sh.sh_offset = tell()
+		write_bytes(data)
+		sh.sh_size = tell() - sh.sh_offset
 
 	pub fn write_header():
 		write_array([0x7F, 0x45, 0x4c, 0x46], size: 4)  # EI_MAG
@@ -286,6 +342,18 @@ class ElfWriter:
 				m_header.e_phentsize = 0x38
 			let n_written = tell() - m_header.e_phoff
 			assert(condition: m_header.e_phentsize == n_written, message: "Inconsistent e_phentsize")
+
+	pub fn write_symtab_entry(ste?: SymbolTableEntry):
+		write32(ste.st_name)
+		if is_32bit:
+			write32(ste.st_value)
+			write32(ste.st_size)
+		write8(ste.st_info)
+		write8(ste.st_other)
+		write16(ste.st_shndx)
+		if not is_32bit:
+			write64(ste.st_value)
+			write64(ste.st_size)
 
 	pub fn seek(pos: int):
 		std.file_seek(handle, pos)

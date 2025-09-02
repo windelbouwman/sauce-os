@@ -15,9 +15,10 @@ from compiler1 import compiler
 root_path = Path(__file__).resolve().parent
 snippets_path = root_path / "examples" / "snippets"
 example_filenames = sorted(snippets_path.glob("*.slang"))
+ids = [filename.stem for filename in example_filenames]
 
 
-@pytest.mark.parametrize("filename", example_filenames)
+@pytest.mark.parametrize("filename", example_filenames, ids=ids)
 @pytest.mark.parametrize("backend", ["vm", "py"])
 def test_compiles(filename: Path, backend: str):
     options = compiler.CompilationOptions(

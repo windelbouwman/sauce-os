@@ -2,8 +2,8 @@
 from std import print, get_n_args, get_arg
 import ast
 import bc
-from errors import display_error, CompilationError
-from parsing import parse_source
+from errors import display_error, CompilationError, new_error_with_filename
+from parsing import parse_source, ParseError
 from namebinding import bind_names
 from pass3 import resolve_newops
 from typechecking import type_check
@@ -188,13 +188,16 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 	for filename in filenames:
 		log_info("Parsing: {filename}")
 
-		let program = parse_source(filename, id_gen)
-		log_trace("Parsed module: {program.name}")
-		if options.dump_ast:
-			ast.print_ast(module: program)
-		modules.append(program)
-		module_map.insert(key: program.name, value: program)
-		top_module.add_module(program)
+		try:
+			let program = parse_source(filename, id_gen)
+			log_trace("Parsed module: {program.name}")
+			if options.dump_ast:
+				ast.print_ast(module: program)
+			modules.append(program)
+			module_map.insert(key: program.name, value: program)
+			top_module.add_module(program)
+		except (e: ParseError):
+			raise new_error_with_filename(filename, location: e.location, message: e.message)
 
 	topo_sort(modules)
 	let module_set = ast.ModuleSet(modules)
@@ -215,6 +218,13 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 
 	let transform_options = TransformOptions:
 		keep_switch: false
+	# TODO: When keeping switch statements, we get a break in a break
+	# case options.backend:
+	# 	C2:
+	# 		transform_options.keep_switch = true
+	# else:
+	# 	pass
+
 	transform(module_set, id_gen, rt_module, options: transform_options)
 
 	if options.dump_ast:

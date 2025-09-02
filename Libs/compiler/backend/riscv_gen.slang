@@ -35,6 +35,9 @@ pub fn gen_riscv(program: sil.Program):
 		materializer: materialize
 		instruction_as_str: riscv.instruction_to_string
 		to_binstream: do_emit
+		emit_prologue: gen_prologue
+		emit_epilogue: gen_epilogue
+
 	cgen(program, backend)
 
 # class RiscvGen:
@@ -156,3 +159,9 @@ fn do_emit(instruction: riscv.Instruction, outstream: BinaryOutput):
 	b.pack_u32_le(code)
 	let data = b.to_bytes()
 	outstream.write_bytes(data)
+
+fn gen_prologue(out: BinaryOutput):
+	pass
+
+fn gen_epilogue(out: BinaryOutput):
+	pass
