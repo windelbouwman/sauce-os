@@ -38,6 +38,7 @@ pub fn write_elf(filename: str, code: List[Section]):
 
 fn write_section(writer: ElfWriter, section: Section):
 	"""Write a single section"""
+	log_info("Writing section {section.name} of {section.data.len()} bytes")
 	let sh_text = writer.new_section(name: section.name)
 	writer.write_section_data(sh: sh_text, data: section.data.to_bytes())
 	sh_text.sh_type = 1 # PROGBITS
@@ -58,6 +59,7 @@ fn write_symbol_table(writer: ElfWriter):
 	sh_symtab.sh_offset = writer.tell()
 	sh_symtab.sh_addralign = 1
 	sh_symtab.sh_link = writer.section_headers.len()  # str tab follows directly
+	sh_symtab.sh_info = 1  # Index of first global symbol
 	sh_symtab.sh_entsize = 24
 	for ste in writer.symbol_table:
 		writer.write_symtab_entry(ste)
@@ -91,7 +93,7 @@ pub fn read_elf(filename: str):
 
 fn new_64bit_header() -> ElfHeader:
 	let header = ElfHeader:
-		e_type: 3  # 2=exec, 3=dynamic
+		e_type: 1  # 0=None, 1=REL, 2=exec, 3=dynamic
 		e_machine: 0x3e  # 0x3E = x86-64
 		e_entry: 0
 		e_phoff: 0

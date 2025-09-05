@@ -47,6 +47,7 @@ pub class Function:
 	"""A graph of control flow between blocks"""
 	pub var name: str
 	pub var parameters: List[Value]
+	pub var stacksize: int
 	pub var start: Block
 	pub var blocks: List[Block]
 
@@ -79,6 +80,8 @@ pub class Instruction:
 		case op:
 			Nop:
 				"nop"
+			Const(dst, value):
+				"{value_to_string(dst)} = {value}"
 			Binop(dst, op2, lhs, rhs):
 				let txt = case op2:
 					Add:
@@ -140,6 +143,7 @@ fn comma_sep(values: List[Value]) -> str:
 
 pub enum OpCode:
 	Nop
+	Const(dst: Value, value: int)
 	Binop(dst: Value, op: BinaryOp, lhs: Value, rhs: Value)
 	Compare(dst: Value, op: CompOp, lhs: Value, rhs: Value)
 	Alloc(addr: Value, size: int)
@@ -166,15 +170,15 @@ pub enum CompOp:
 	Lte
 
 pub enum Value:
-	Integer(value: int)
 	Tmp(name: str)
 	Global(name: str)
+	StackSlot(offset: int)
 
 pub fn value_to_string(value?: Value) -> str:
 	case value:
-		Integer(value):
-			"{value}"
 		Tmp(name):
 			"%{name}"
 		Global(name):
 			"${name}"
+		StackSlot(offset):
+			"[stack + {offset}]"

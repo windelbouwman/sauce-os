@@ -156,8 +156,8 @@ fn write_rm_imm(reg: int, rm: Rm, imm: int, out: BinaryOutput):
 	write_rm_reg(rm, reg, out)
 	write32(imm, out)
 
-pub fn emit_instruction(i: Instruction, out: BinaryOutput):
-	case i:
+pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
+	case instruction:
 		AddRmReg(rm, reg):
 			write_mod_rm(opcode: 0x01, rm, reg, out)
 		AddRegRm(reg, rm):

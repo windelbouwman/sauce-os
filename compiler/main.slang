@@ -267,7 +267,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 			gen_riscv(program: to_sil(program))
 		X86:
 			let program = gen_bytecode(module_set)
-			gen_x86(program: to_sil(program))
+			gen_x86(program: to_sil(program), filename: options.output_filename)
 
 fn topo_sort(modules: List[ast.ModuleDef]):
 	# Sort modules (in-place) based on which module import the other one

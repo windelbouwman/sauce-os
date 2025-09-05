@@ -38,6 +38,7 @@ class SilGen:
 	var m_locals: List[sil.Value] = List()
 	var m_tmp_number: int = 0
 	var m_value_stack: List[sil.Value] = List()
+	var m_stack_offset: int = 0
 
 	pub fn gen_program() -> sil.Program:
 		for function in m_bc_program.functions:
@@ -50,6 +51,7 @@ class SilGen:
 		m_value_stack = List()
 		m_parameters = List()
 		m_locals.clear()
+		m_stack_offset = 0
 		let start = new_block(name: "start")
 		set_current_block(start)
 
@@ -60,16 +62,16 @@ class SilGen:
 
 		# Create stack slots for mutable parameters:
 		for p in parameters:
-			let addr = new_tmp()
 			let size = 8 # TODO
+			let addr = new_stack_slot(size)
 			emit(op: sil.OpCode.Alloc(addr, size))
 			emit(op: sil.OpCode.Store(dst: addr, value: p))
 			m_parameters.append(addr)
 
 		# Create stack slots for mutable locals:
 		for n in function.locals:
-			let addr = new_tmp()
 			let size = 8 # TODO
+			let addr = new_stack_slot(size)
 			emit(op: sil.OpCode.Alloc(addr, size))
 			m_locals.append(addr)
 
@@ -84,7 +86,7 @@ class SilGen:
 			gen_opcode(opcode)
 			index += 1
 
-		let sil_function = sil.Function(name: function.name, parameters, start, blocks: m_blocks)
+		let sil_function = sil.Function(name: function.name, parameters, stacksize: m_stack_offset, start, blocks: m_blocks)
 		m_functions.append(sil_function)
 
 	fn gen_opcode(opcode: bc.Instruction):
@@ -178,9 +180,12 @@ class SilGen:
 					let function = m_bc_program.functions[index]
 					let callee = new_global(function.name)
 					gen_call(callee, n_args: function.parameters.len(), return_type: function.return_type)
-
 			Return(v):
-				emit(sil.OpCode.Return(value: Option.None()))
+				if v == 0:
+					emit(sil.OpCode.Return(value: Option.None()))
+				elif v == 1:
+					let value = pop()
+					emit(sil.OpCode.Return(value: Option.Some(value)))
 			Unreachable:
 				emit(sil.OpCode.Halt())
 		else:
@@ -204,6 +209,11 @@ class SilGen:
 	fn new_tmp() -> sil.Value:
 		sil.Value.Tmp(name: "x{new_id()}")
 
+	fn new_stack_slot(size: int) -> sil.Value:
+		let offset = m_stack_offset
+		m_stack_offset += size
+		sil.Value.StackSlot(offset)
+
 	fn new_id() -> int:
 		m_tmp_number += 1
 		m_tmp_number
@@ -218,7 +228,9 @@ class SilGen:
 		sil.Value.Global(name)
 
 	fn push_int(value?: int):
-		push(sil.Value.Integer(value))
+		let dst = new_tmp()
+		push(dst)
+		emit(sil.OpCode.Const(dst, value))
 
 	fn push(value?: sil.Value):
 		m_value_stack.append(value)

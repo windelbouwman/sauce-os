@@ -23,14 +23,14 @@ import sil
 import mil
 import riscv
 from bytes import ByteArray
-from codegen import Backend, cgen, SelectionContext
+from codegen import BackendV2, cgen, SelectionContextV2
 from outstream import BinaryOutput
 from utils import log_info, unimplemented
 
 pub fn gen_riscv(program: sil.Program):
 	log_info("Generating riscv code")
 	program.dump()
-	let backend: Backend[riscv.Instruction] = Backend:
+	let backend = BackendV2:
 		selector: select_instruction
 		materializer: materialize
 		instruction_as_str: riscv.instruction_to_string
@@ -38,14 +38,17 @@ pub fn gen_riscv(program: sil.Program):
 		emit_prologue: gen_prologue
 		emit_epilogue: gen_epilogue
 
-	cgen(program, backend)
+	unimplemented("TODO")
+	# cgen(program, backend)
 
 # class RiscvGen:
-fn select_instruction(context: SelectionContext[riscv.Instruction], instruction: sil.Instruction):
+fn select_instruction(context: SelectionContextV2[riscv.Instruction], instruction: sil.Instruction):
 	""" Select machine instruction based on sil operator """
 	case instruction.op:
 		Nop:
 			context.emit(riscv.Instruction.ADDI(rd: 0, rs1: 0, imm: 0))
+		Const(dst, value):
+			unimplemented("Const")
 		Jump(label):
 			context.emit(riscv.Instruction.JAL(rd: 0, imm: 0))
 		JumpNonZero(condition, label1, label2):

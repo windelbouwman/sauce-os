@@ -1,104 +1,118 @@
+"""
+X86 backend
+"""
 
-# x86 backend
-
-from utils import log_info, unimplemented
+from utils import log_info, unimplemented, panic
 import sil
 import mil
 import x86
-from codegen import cgen, SelectionContext, Backend
+from codegen import cgen, SelectionContextV1, SelectionContextV2, Backend, Frame
 from outstream import BinaryOutput
+from optiontype import Option
 
 # TODO:
 # type SelectionContext[x86.Instruction] Ctx
 
-pub fn gen_x86(program: sil.Program):
+pub fn gen_x86(program: sil.Program, filename: Option[str]):
 	log_info("Generating x86 instructions")
-	let backend: Backend[x86.Instruction] = Backend:
-		selector: select_instruction
-		materializer: materialize
-		instruction_as_str: x86.instruction_to_string
-		to_binstream: x86.emit_instruction
+	let backend: Backend = Backend:
+		selector: select_instruction_v1
+		# materializer: materialize
+		# instruction_as_str: x86.instruction_to_string
+		# to_binstream: x86.emit_instruction
 		emit_prologue: gen_prologue
 		emit_epilogue: gen_epilogue
-	cgen(program, backend)
+	cgen(program, backend, filename)
 
-fn fetch_value(context: SelectionContext[x86.Instruction], value: sil.Value) -> mil.Register:
+fn emit_v1(context: SelectionContextV1, instruction?: x86.Instruction):
+	x86.emit_instruction(instruction, out: context.m_outstream)
+
+fn fetch_rm_v1(context: SelectionContextV1, value?: sil.Value) -> x86.Rm:
 	case value:
-		Integer(value):
-			context.emit(x86.Instruction.MovRegImm(reg: 0, imm: value))
-			context.new_vreg(kind: 0)
 		Global(name):
 			unimplemented("global value")
 		Tmp(name):
-			context.new_vreg(kind: 0)
+			let reg = context.get_reg(name)
+			x86.Rm.Reg(reg)
+		StackSlot(offset):
+			let rbp = 5  # TODO: support global constants
+			x86.Rm.MemDisp8(reg: rbp, disp: offset)
 
-fn select_instruction(context: SelectionContext[x86.Instruction], instruction: sil.Instruction):
+fn fetch_reg_v1(context: SelectionContextV1, value?: sil.Value) -> int:
+	case value:
+		Global(name):
+			unimplemented("global value as reg")
+		Tmp(name):
+			context.get_reg(name)
+		StackSlot(offset):
+			unimplemented("stack slot as reg")
+
+fn select_instruction_v1(context: SelectionContextV1, instruction: sil.Instruction):
 	""" Select machine instruction based on sil operator """
 	case instruction.op:
 		Alloc(addr, size):
 			pass
+		Const(dst, value):
+			let dst_reg = fetch_reg_v1(context, dst)
+			emit_v1(context, x86.Instruction.MovRegImm(reg: dst_reg, imm: value))
 		Binop(dst, op2, lhs, rhs):
+			let dst_reg = fetch_reg_v1(context, dst)
+			let lhs_rm = fetch_rm_v1(context, lhs)
+			let rhs_rm = fetch_rm_v1(context, rhs)
+			emit_v1(context, x86.Instruction.MovRegRm(reg: dst_reg, rm: lhs_rm))
 			case op2:
 				Add:
-					let dst_reg = context.get_value_vreg(dst)
-					let lhs_reg = fetch_value(context, value: lhs)
-					let rhs_reg = fetch_value(context, value: rhs)
-
-					let x1 = context.emit_and_get(x86.Instruction.MovRegRm(reg: 0, rm: x86.Rm.Reg(reg: 0)))
-					x1.add_def(r: dst_reg)
-					x1.add_use(r: lhs_reg)
-
-					let x2 = context.emit_and_get(x86.Instruction.AddRmReg(rm: x86.Rm.Reg(reg: 0), reg: 0))
-					x2.add_def(r: dst_reg)
-					x2.add_use(r: dst_reg)
-					x2.add_use(r: rhs_reg)
+					emit_v1(context, x86.Instruction.AddRegRm(reg: dst_reg, rm: rhs_rm))
+				Sub:
+					emit_v1(context, x86.Instruction.SubRegRm(reg: dst_reg, rm: rhs_rm))
 			else:
 				unimplemented("select: {instruction}")
 		Call(dst, callee, arguments):
-			context.emit(x86.Instruction.Call())
+			# emit_v1(context, x86.Instruction.Call())
+			unimplemented("call")
 		Load(dst, addr):
-			let x = context.emit_and_get(x86.Instruction.MovRegRm(reg: 0, rm: x86.Rm.MemDisp8(reg: 0, disp: 5)))
-			let dst_reg = context.get_value_vreg(dst)
-			let addr_reg = context.get_value_vreg(addr)
-			x.add_def(r: dst_reg)
-			x.add_use(r: addr_reg)
+			let dst_reg = fetch_reg_v1(context, dst)
+			let rm_addr = fetch_rm_v1(context, addr)
+			emit_v1(context, x86.Instruction.MovRegRm(reg: dst_reg, rm: rm_addr))
 		Store(addr, value):
-			context.emit(x86.Instruction.MovRmReg(rm: x86.Rm.MemDisp8(reg: 0, disp: 9), reg: 0))
+			let rm_addr = fetch_rm_v1(context, addr)
+			let r = fetch_reg_v1(context, value)
+			emit_v1(context, x86.Instruction.MovRmReg(rm: rm_addr, reg: r))
 		Return(v):
-			context.emit(x86.Instruction.Ret())
+			case v:
+				Some(v):
+					let rax = 0
+					let res_value = fetch_rm_v1(context, v)
+					emit_v1(context, x86.Instruction.MovRegRm(reg: rax, rm: res_value))
+				None:
+					pass
+			# TODO: Jump to epilogue
+			# emit_v1(context, x86.Instruction.Ret())
 	else:
 		unimplemented("select: {instruction}")
 
-fn materialize(x: mil.Instruction[x86.Instruction]) -> x86.Instruction:
-	case x.instruction:
-		MovRegRm(reg, rm):
-			let reg2 = x.defs.get(index: 0).color
-			let rm3 = mat_rm(rm, color: x.uses.get(index: 0).color)
-			x86.Instruction.MovRegRm(reg: reg2, rm: rm3)
-	else:
-		x.instruction
-
-fn mat_rm(rm: x86.Rm, color: int) -> x86.Rm:
-	""" Materialize a Rm """
-	case rm:
-		Mem(reg):
-			x86.Rm.Mem(reg: color)
-		MemDisp8(reg, disp):
-			x86.Rm.MemDisp8(reg: color, disp)
-		MemDisp32(reg, disp):
-			x86.Rm.MemDisp32(reg: color, disp)
-		Reg(reg):
-			x86.Rm.Reg(reg: color)
-
-fn gen_prologue(out: BinaryOutput):
+fn gen_prologue(frame: Frame, out: BinaryOutput):
+	let rbx = 3
 	let rsp = 4
 	let rbp = 5
-	x86.emit_instruction(i: x86.Instruction.Push(reg: rbp), out)
-	x86.emit_instruction(i: x86.Instruction.SubRmImm(rm: x86.Rm.Reg(reg: rsp), imm: 0x20), out)
+	x86.emit_instruction(x86.Instruction.Push(reg: rbp), out)
+	x86.emit_instruction(x86.Instruction.SubRmImm(rm: x86.Rm.Reg(reg: rsp), imm: frame.stacksize), out)
 
-fn gen_epilogue(out: BinaryOutput):
+	# Stack slot:
+	x86.emit_instruction(x86.Instruction.MovRegRm(reg: rbp, rm: x86.Rm.Reg(reg: rsp)), out)
+
+	# Callee save registers:
+	x86.emit_instruction(x86.Instruction.Push(reg: rbx), out)
+
+fn gen_epilogue(frame: Frame, out: BinaryOutput):
+	let rbx = 3
 	let rsp = 4
 	let rbp = 5
-	x86.emit_instruction(i: x86.Instruction.AddRmImm(rm: x86.Rm.Reg(reg: rsp), imm: 0x20), out)
+
+	# Callee save registers:
+	x86.emit_instruction(i: x86.Instruction.Pop(reg: rbx), out)
+
+	# Stack slot:
+	x86.emit_instruction(i: x86.Instruction.AddRmImm(rm: x86.Rm.Reg(reg: rsp), imm: frame.stacksize), out)
 	x86.emit_instruction(i: x86.Instruction.Pop(reg: rbp), out)
 	x86.emit_instruction(i: x86.Instruction.Ret(), out)

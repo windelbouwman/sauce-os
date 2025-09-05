@@ -122,6 +122,9 @@ pub class HashMap[K,V]:
 				m_buckets[index] = new_pair
 		m_size += 1
 
+	pub fn drop(key: K):
+		let x = pop(key)
+
 	pub fn pop(key: K) -> Option[V]:
 		""" remove an item from this dictionary """
 		let index = get_index(key)

@@ -300,7 +300,8 @@ class CGenerator2:
 				else:
 					case target:
 						Some(res):
-							write("{res} = ")
+							write(res)
+							write(" = ")
 							gen_expression(expression)
 							emit(";")
 						None:
@@ -309,7 +310,8 @@ class CGenerator2:
 				case target.kind:
 					GetAttr(base, attr):
 						gen_expression(base)
-						write("->{attr}")
+						write("->")
+						write(attr)
 					GetIndex(base, indici):
 						gen_expression(base)
 						write("[")
@@ -322,12 +324,13 @@ class CGenerator2:
 				else:
 					panic("Unsupported assignment target: {target}")
 
-				let op_text = case operator:
+				write(" ")
+				case operator:
 					Some(op):
-						"{binary_op_to_str(op)}="
+						write(binary_op_to_str(op))
 					None:
-						"="
-				write(" {op_text} ")
+						pass
+				write("= ")
 				gen_expression(value)
 				emit(";")
 			Let(let_statement):

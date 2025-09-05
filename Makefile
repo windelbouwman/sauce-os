@@ -168,6 +168,17 @@ ${BUILDDIR}/c/linkage/main.exe: ${BUILDDIR}/c/linkage/main.c ${BUILDDIR}/c/linka
 
 linkage: ${BUILDDIR}/c/linkage/main.exe
 
+${BUILDDIR}/c/native_example/t1.o: examples/native/t1.slang ${SLANGC_DEPS} | ${BUILDDIR}/c/native_example
+	${SLANGC} --backend-x86 -v -v -o $@ $<
+
+${BUILDDIR}/c/native_example/main.exe: examples/native/main.c ${BUILDDIR}/c/native_example/t1.o | ${BUILDDIR}/c/native_example
+	gcc -o $@ $< ${BUILDDIR}/c/native_example/t1.o
+
+${BUILDDIR}/c/native_example:
+	mkdir -p ${BUILDDIR}/c/native_example
+
+native_example: ${BUILDDIR}/c/native_example/main.exe
+
 # Wasm examples:
 all-examples-wasm: $(WASM_EXAMPLES)
 
