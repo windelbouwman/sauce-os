@@ -8,7 +8,7 @@
 		},
 		{
 			"name": "keyword.other",
-			"match": "\\b(var|let|fn|struct|class|enum|interface|impl|from|and|or|not|import|extern|pub)\\b"
+			"match": "\\b(var|type|let|fn|struct|class|enum|interface|impl|from|and|or|not|import|extern|pub)\\b"
 		},
 		{
 			"name": "keyword.operator",

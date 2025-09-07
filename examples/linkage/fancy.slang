@@ -1,6 +1,6 @@
 
 import std
-from fubar import Foo #, Yes
+from fubar import Foo, NUM
 import fubar
 
 var glbl: int = 3
@@ -9,7 +9,7 @@ pub fn add3(a: int, b: int) -> int:
 	a + b + 3
 
 
-pub fn mul5(a: int) -> int:
+pub fn mul5(a: NUM) -> NUM:
 	a * (2 + 2 + 1)
 
 pub struct NumberAndText:

@@ -78,6 +78,8 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
 					pass
 				Impl(impl_def):
 					pass
+				Type(type_def):
+					pass
 			else:
 				new_defs2.append(def2)
 

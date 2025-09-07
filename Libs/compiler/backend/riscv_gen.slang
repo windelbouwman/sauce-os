@@ -23,11 +23,12 @@ import sil
 import mil
 import riscv
 from bytes import ByteArray
+from optiontype import Option
 from codegen import BackendV2, cgen, SelectionContextV2
 from outstream import BinaryOutput
 from utils import log_info, unimplemented
 
-pub fn gen_riscv(program: sil.Program):
+pub fn gen_riscv(program: sil.Program, filename: Option[str]):
 	log_info("Generating riscv code")
 	program.dump()
 	let backend = BackendV2:

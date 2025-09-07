@@ -115,6 +115,9 @@ class Parser:
 				KwVar:
 					let var_def = parse_var_def(is_pub)
 					definitions.append(ast.Definition.Var(var_def))
+				KwType:
+					let type_def = parse_type_def(is_pub, location: tok.location)
+					definitions.append(ast.Definition.Type(type_def))
 			else:
 				raise unexpected_token(tok, expected: "import, fn, enum, struct, class, extern")
 
@@ -372,6 +375,14 @@ class Parser:
 			location
 			definitions
 			scope: ast.Scope()
+
+	fn parse_type_def(is_pub: bool, location: Location) -> ast.TypeDef except ParseError:
+		let name_at = parse_name()
+		let id = ast.NodeId(name: name_at.name, id: new_id())
+		parse_equals()
+		let ty = parse_type()
+		parse_newline()
+		ast.TypeDef(is_pub, id, ty, location: name_at.location)
 
 	fn parse_func_def(is_pub: bool, this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except ParseError:
 		let name_at = parse_name()

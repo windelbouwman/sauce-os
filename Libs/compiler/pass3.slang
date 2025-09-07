@@ -1,3 +1,5 @@
+""" This pass runs after names have been resolved, and before types can be checked.
+"""
 
 import ast
 from location import Location
@@ -43,11 +45,14 @@ fn newop_on_definition(newop: NewOp, definition: ast.Definition, phase: ast.Visi
 fn newop_on_type(newop: NewOp, ty: ast.Type, phase: ast.VisitPhase):
 	case phase:
 		Post:
-			case ty.kind:
-				UnApp(tycon):
-					ty.change_to(to_type: newop.turn_tycon_to_type(tycon))
-			else:
-				pass
+			loop:
+				case ty.kind:
+					UnApp(tycon):
+						ty.change_to(to_type: newop.turn_tycon_to_type(tycon))
+					Def(type_def):
+						ty.change_to(to_type: type_def.ty)
+				else:
+					break
 	else:
 		pass
 

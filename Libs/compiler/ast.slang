@@ -661,6 +661,8 @@ pub enum TypeKind:
 	UnApp(tycon: TyCon)
 	App(tycon: TyCon, type_arguments: Vector[Type])
 
+	Def(type_def: TypeDef)
+
 fn type_kind_to_string(kind: TypeKind) -> str:
 	case kind:
 		Base(base):
@@ -700,6 +702,8 @@ fn type_kind_to_string(kind: TypeKind) -> str:
 			else:
 				let args = types_to_string(typs: type_arguments)
 				tycon_to_str(tycon) + args
+		Def(type_def):
+			type_def_to_str(type_def)
 
 pub struct ParameterType:
 	label: Option[str]
@@ -1079,6 +1083,7 @@ pub enum Definition:
 	Interface(interface_def: InterfaceDef)
 	Impl(impl_df: ImplDef)
 	Var(var_def: VariableDef)
+	Type(type_def: TypeDef)
 
 pub fn definition_to_str(definition: Definition) -> str:
 	case definition:
@@ -1100,6 +1105,8 @@ pub fn definition_to_str(definition: Definition) -> str:
 			"Impl"
 		Var(variable_def):
 			variable_def_to_str(variable_def)
+		Type(type_def):
+			type_def_to_str(type_def)
 
 pub struct MacroDef:
 	name: str
@@ -1261,6 +1268,15 @@ pub struct ImplDef:
 	location: Location
 	definitions: List[Definition]
 	scope: Scope
+
+pub struct TypeDef:
+	is_pub: bool
+	id: NodeId
+	ty: Type
+	location: Location
+
+fn type_def_to_str(type_def: TypeDef) -> str:
+	"typedef-{node_id_to_string(type_def.id)}:{type_def.ty}"
 
 pub fn function_def(is_pub: bool, name: str, docstring: Option[str], type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
 	let info = FunctionInfo:
@@ -2181,6 +2197,8 @@ fn visit_definition[T](visitor: Visitor[T], definition: Definition):
 							pass
 				Extern(libname, initialized):
 					pass
+		Type(type_def):
+			visit_type(visitor, ty: type_def.ty)
 
 	visitor.on_definition(data: visitor.data, definition, phase: VisitPhase.Post())
 

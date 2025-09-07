@@ -127,6 +127,8 @@ class PyGenerator:
 				panic("enum-def not supported")
 			Var(variable_def):
 				pass
+			Type(type_def):
+				pass
 
 	fn gen_definition_variables(definition: ast.Definition):
 		case definition:

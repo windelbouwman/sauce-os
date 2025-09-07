@@ -549,6 +549,7 @@ fn fill_keyword_dictionary(keywords: HashMap[str,TokenKind]):
 	keywords.insert(key: "while", value: TokenKind.KwWhile())
 	keywords.insert(key: "true", value: TokenKind.Bool(value: true))
 	keywords.insert(key: "false", value: TokenKind.Bool(value: false))
+	keywords.insert(key: "type", value: TokenKind.KwType())
 
 	# keywords.insert(key: "box", value: TokenKind.Bool(value: false))
 	# keywords.insert(key: "unbox", value: TokenKind.Bool(value: false))

@@ -78,6 +78,8 @@ class TypeEvaluation(BasePass):
 
             elif isinstance(obj, ast.Type):
                 expression.kind = ast.TypeLiteral(obj)
+            elif isinstance(obj, ast.TypeDef):
+                expression.kind = ast.TypeLiteral(obj.ty)
             elif isinstance(obj, ast.TypeParameter):
                 expression.kind = ast.TypeLiteral(ast.type_parameter_ref(obj))
 

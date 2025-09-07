@@ -44,6 +44,7 @@ pub enum TokenKind:
 	KwStruct
 	KwSwitch
 	KwTry
+	KwType
 	KwVar
 	KwWhile
 
@@ -167,6 +168,8 @@ pub fn token_to_string(tok: Token) -> str:
 			"SWITCH"
 		KwTry:
 			"TRY"
+		KwType:
+			"TYPE"
 		KwVar:
 			"VAR"
 		KwWhile:

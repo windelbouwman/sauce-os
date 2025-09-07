@@ -2,3 +2,5 @@ a = 1
 c = drie
 p = x
 c[2] = i
+z = 10
+addZ = 5

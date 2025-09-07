@@ -3,7 +3,7 @@ from std import print, float_to_str2
 from fancy import add3, mul5
 from fancy import display_both, NumberAndText
 from fancy import get_bar
-from fubar import Foo
+from fubar import Foo, NUM
 from fancy import Device
 
 pub fn main() -> int:

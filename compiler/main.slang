@@ -264,7 +264,7 @@ fn compile(filenames: List[str], options: CompilationOptions) except Compilation
 			gen_webassembly(module_set)
 		Riscv:
 			let program = gen_bytecode(module_set)
-			gen_riscv(program: to_sil(program))
+			gen_riscv(program: to_sil(program), filename: options.output_filename)
 		X86:
 			let program = gen_bytecode(module_set)
 			gen_x86(program: to_sil(program), filename: options.output_filename)

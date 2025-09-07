@@ -1,8 +1,10 @@
 
 
-pub struct Location:
+pub struct Location2:
 	begin: int
 	end: int
+
+pub type Location = Location2
 
 pub fn location_default() -> Location:
 	location_at(offset: 0)

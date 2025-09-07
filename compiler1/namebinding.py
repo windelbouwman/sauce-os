@@ -271,6 +271,8 @@ class NameBinder(BasePass):
                     ty.kind = ast.UnApp(obj)
                 elif isinstance(obj, ast.TypeParameter):
                     ty.kind = ast.TypeParameterKind(obj)
+                elif isinstance(obj, ast.TypeDef):
+                    ty.change_to(obj.ty)
                 else:
                     raise ValueError(f"Invalid type: {obj}")
             elif isinstance(ty.kind, ast.AbstractApp):

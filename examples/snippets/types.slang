@@ -2,6 +2,8 @@
 # Example with some basic types
 from std import print
 
+type Z = int
+
 pub fn main() -> int:
 	let a: int = 1
 	let b: float = 2.0
@@ -17,11 +19,14 @@ pub fn main() -> int:
 	let l: float32 = float32(12.12)
 	let m: float64 = 13.13
 	let p: char = 'x'
+	let z: Z = 10
 
 	print("a = {a}")
 	print("c = {c}")
 	print("p = {p}")
 	print("c[2] = {c[2]}")
+	print("z = {z}")
+	print("addZ = {addZ(a: 3)}")
 
 	let ee = add16(a: uint16(7), b: e)
 	# d = 255
@@ -29,3 +34,6 @@ pub fn main() -> int:
 
 fn add16(a: uint16, b: uint16) -> uint16:
 	a + b
+
+fn addZ(a: Z) -> Z:
+	a + 2

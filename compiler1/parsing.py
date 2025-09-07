@@ -396,8 +396,11 @@ class CustomTransformer(LarkTransformer):
         return ast.EnumVariant(name, payload, get_loc(x[0]))
 
     def type_def(self, x):
-        name, typ = x[1].value, x[3]
-        return ast.type_def(name, typ, get_loc(x[0]))
+        """is_pub KW_TYPE ID EQUALS typ NEWLINE"""
+        location = get_loc(x[1])
+        name = self.new_id(x[2].value)
+        typ = x[4]
+        return ast.type_def(name, typ, location)
 
     def id_and_type_parameters(self, x):
         # id_and_type_parameters: ID type_parameters?
@@ -914,7 +917,7 @@ struct_field: ID COLON typ NEWLINE
 enum_def: is_pub KW_ENUM id_and_type_parameters COLON NEWLINE INDENT docstring enum_variant+ DEDENT
 enum_variant: ID NEWLINE
             | ID LEFT_PARENTHESIS parameters RIGHT_PARENTHESIS NEWLINE
-type_def: KW_TYPE ID EQUALS typ NEWLINE
+type_def: is_pub KW_TYPE ID EQUALS typ NEWLINE
 id_and_type_parameters: ID type_parameters?
 type_parameters: LEFT_BRACKET ids RIGHT_BRACKET
 types: typ

@@ -557,6 +557,8 @@ class ClassRewriter(BaseTransformer):
         for definition in module.definitions:
             if isinstance(definition, ast.ClassDef):
                 self.rewrite_class_def(definition)
+            elif isinstance(definition, ast.TypeDef):
+                pass  # TODO: might be nicer to filter type-defs in a separate pass.
             else:
                 self.new_defs.append(definition)
 

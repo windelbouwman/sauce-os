@@ -84,6 +84,8 @@ fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
 			Option.Some(impl_def.scope)
 		Var(v):
 			Option.None()
+		Type(type_def):
+			Option.None()
 
 fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: ast.VisitPhase):
 	case phase:
@@ -147,6 +149,9 @@ fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: a
 					filler.enter_scope(scope: impl_def.scope)
 				Var(variable_def):
 					filler.define_variable(is_pub: variable_def.is_pub, variable: variable_def.variable)
+				Type(type_def):
+					let typ = ast.new_type(kind: ast.TypeKind.Def(type_def))
+					filler.define(is_pub: type_def.is_pub, name: type_def.id.name, kind: ast.SymbolKind.Typ(typ), location: type_def.location)
 		Post:
 			case get_scope(definition):
 				None:

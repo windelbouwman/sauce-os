@@ -111,6 +111,8 @@ class SymbolSaver:
 				save_enum_def(enum_def)
 			Var(variable_def):
 				save_var_def(variable_def)
+			Type(type_def):
+				save_type_def(type_def)
 		m_ser.end_object_as_element()
 
 	fn save_macro_def(macro_def: ast.MacroDef):
@@ -127,6 +129,12 @@ class SymbolSaver:
 			Extern(libname, initialized):
 				initialized
 		m_ser.add_boolean_attribute(attr: "initialized", value: is_initialized)
+
+	fn save_type_def(type_def: ast.TypeDef):
+		m_ser.add_text_attribute(attr: "kind", text: "type")
+		m_ser.add_boolean_attribute(attr: "pub", value: type_def.is_pub)
+		save_id(id: type_def.id)
+		save_type(attr: "type", ty: type_def.ty)
 
 	fn save_enum_def(enum_def: ast.EnumDef):
 		m_ser.add_text_attribute(attr: "kind", text: "enum")
@@ -434,6 +442,9 @@ class SymbolLoader:
 		elif def_kind == "impl":
 			let impl_def = load_impl_def()
 			ast.Definition.Impl(impl_def)
+		elif def_kind == "type":
+			let type_def = load_type_def(def_name, def_id)
+			ast.Definition.Type(type_def)
 		else:
 			panic("Not implemented definition kind: {def_kind}")
 
@@ -517,6 +528,13 @@ class SymbolLoader:
 		struct_def.docstring = docstring
 		struct_def.scope = ast.Scope()
 		struct_def
+
+	fn load_type_def(def_name: str, def_id: int) -> ast.TypeDef:
+		let is_pub = m_des.get_boolean_attribute(attr: "pub")
+		let id = ast.NodeId(name: def_name, id: def_id)
+		let location = location_default()
+		let ty = load_type(attr: "type")
+		ast.TypeDef(is_pub, id, location, ty)
 
 	fn load_enum_def(def_name: str, def_id: int) -> ast.EnumDef:
 		let location = location_default()

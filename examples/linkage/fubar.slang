@@ -3,3 +3,5 @@ pub enum Foo[T]:
 
 # pub interface Yes:
 # 	fn no(x: int)
+
+pub type NUM = int

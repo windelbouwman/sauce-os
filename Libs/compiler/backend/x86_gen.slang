@@ -2,11 +2,10 @@
 X86 backend
 """
 
-from utils import log_info, unimplemented, panic
+from utils import log_info, unimplemented
 import sil
-import mil
 import x86
-from codegen import cgen, SelectionContextV1, SelectionContextV2, Backend, Frame
+from codegen import cgen, SelectionContextV1, Backend, Frame
 from outstream import BinaryOutput
 from optiontype import Option
 
