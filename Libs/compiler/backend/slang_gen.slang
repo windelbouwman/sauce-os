@@ -1,5 +1,9 @@
+""" Slang backend
+Idea: This backend emits slang code, sort of a no-op operation?
 
-# Idea: This backend emits slang code, sort of a no-op operation?
+Also useful for debugging transformed code
+
+"""
 
 from utils import panic, log_info
 from std import float_to_str
@@ -14,6 +18,7 @@ pub fn gen_slang(module_set: ast.ModuleSet, output_filename: Option[str]):
 	log_info("Generating slang code")
 	let g = SlangGenerator()
 	g.out.begin(output_filename)
+	g.out.m_one_tab = "\t"
 	for module in module_set.modules:
 		g.gen_module(module)
 	g.out.end()
@@ -46,6 +51,7 @@ class SlangGenerator:
 					Intern(scoped_block):
 						emit("fn {function_def.name}({params}){return_types}:")
 						gen_block(scoped_block)
+						emit("")
 					Extern(libname):
 						emit("extern \"{libname}\" fn {function_def.name}({params}){return_types}")
 					None:
@@ -58,6 +64,7 @@ class SlangGenerator:
 					let typed_name = gen_type(field.ty)
 					emit("{field.name}: {gen_type(field.ty)}")
 				dedent()
+				emit("")
 			Var(variable_def):
 				let variable_name = get_id(variable_def.variable.id)
 				case variable_def.value:
@@ -72,7 +79,6 @@ class SlangGenerator:
 						emit("extern var {variable_name}")
 		else:
 			panic("gen_definition: Unsupported: {ast.definition_to_str(definition)}")
-		emit("")
 
 	fn gen_type(ty?: ast.Type) -> str:
 		if ty.is_int():
@@ -131,13 +137,17 @@ class SlangGenerator:
 			Let(let_statement):
 				# TODO: insert type hint?
 				let varname = get_id(let_statement.variable.id)
+				if let_statement.variable.writable:
+					write("var")
+				else:
+					write("let")
+				write(" {varname} = ")
 				case let_statement.value.kind:
 					Stmt(statement2):
 						# TODO: this is invalid slang-lang:
-						emit("let {varname} = ")
 						gen_statement(statement2)
 				else:
-					emit("let {varname} = {gen_expression(let_statement.value, parens: false)}")
+					emit(gen_expression(let_statement.value, parens: false))
 			Pass:
 				emit("pass")
 			Break:
@@ -266,6 +276,9 @@ class SlangGenerator:
 
 	fn emit(txt?: str):
 		out.emit(txt)
+
+	fn write(txt?: str):
+		out.write(txt)
 
 	fn indent():
 		out.indent()

@@ -4,7 +4,7 @@ import ast
 import std
 from lexer import Lexer
 from token import token_to_string, Token, default_token
-from location import Location, location_default
+from location import Location, location_default, merge_locations
 from listtype import List
 from optiontype import Option
 from vectype import Vector, new_vector
@@ -1012,7 +1012,7 @@ class Parser:
 			move_token()
 
 			let rhs = parse_expression2(min_prec: prec + 1)
-			let location = Location(begin: expr.location.begin, end: rhs.location.end)
+			let location = merge_locations(begin: expr.location, end: rhs.location)
 			expr = ast.binop(lhs: expr, op, rhs, ty: ast.undefined_type(), location)
 
 		expr
@@ -1065,7 +1065,7 @@ class Parser:
 					move_token()
 					# handle '.attribute' suffix
 					let attr_at = parse_name()
-					let location = Location(begin: expr.location.begin, end: attr_at.location.end)
+					let location = merge_locations(begin: expr.location, end: attr_at.location)
 					expr = ast.get_attr(base: expr, field: attr_at.name, ty: ast.undefined_type(), location)
 				ParenthesisOpen:
 					move_token()
@@ -1131,26 +1131,26 @@ class Parser:
 			var x = parts.pop_front()
 			while not parts.is_empty():
 				let rhs = parts.pop_front()
-				let location = Location(begin: x.location.begin, end: rhs.location.end)
+				let location = merge_locations(begin: x.location, end: rhs.location)
 				x = ast.binop(lhs: x, op: ast.BinaryOperator.Add(), rhs, ty: ast.str_type(), location)
 			x
 
 	fn parse_index_suffix(base: ast.Expression) -> ast.Expression except ParseError:
-		let begin = base.location.begin
-		var end = base.location.end
+		let begin = base.location
+		var end = base.location
 		let indici: List[ast.Expression] = List()
 		loop:
 			indici.append(parse_expression())
 			let tok4 = get_token()
 			case tok4.kind:
 				BracketClose:
-					end = tok4.location.end
+					end = tok4.location
 					break
 				Comma:
 					continue
 			else:
 				raise unexpected_token(tok: tok4, expected: "']' or ','")
-		let location = Location(begin, end)
+		let location = merge_locations(begin, end)
 		ast.subscript(base, indici, ty: ast.undefined_type(), location)
 
 	fn parse_call_suffix(callee: ast.Expression) -> ast.Expression except ParseError:
@@ -1158,8 +1158,8 @@ class Parser:
 		# Handle '(arg1,arg2)' suffix
 		# Or '()' or '(arg1)'
 		let arguments: List[ast.LabeledExpression] = List()
-		let begin = callee.location.begin
-		var end = m_peek.location.end
+		let begin = callee.location
+		var end = m_peek.location
 		case m_peek.kind:
 			ParenthesisClose:
 				# no args call
@@ -1172,14 +1172,14 @@ class Parser:
 				let tok4 = get_token()
 				case tok4.kind:
 					ParenthesisClose:
-						end = tok4.location.end
+						end = tok4.location
 						break
 					Comma:
 						continue
 				else:
 					raise unexpected_token(tok: tok4, expected: "')' or ','")
 
-		let location = Location(begin, end)
+		let location = merge_locations(begin, end)
 		ast.call(callee, arguments, ty: ast.undefined_type(), location)
 
 	fn parse_array_literal(location: Location) -> ast.Expression except ParseError:
@@ -1191,7 +1191,7 @@ class Parser:
 			let tok5 = get_token()
 			case tok5.kind:
 				BracketClose:
-					location = Location(begin: location.begin, end: tok5.location.end)
+					location = merge_locations(begin: location, end: tok5.location)
 					break
 				Comma:
 					continue
@@ -1210,7 +1210,7 @@ class Parser:
 		else:
 			raise unexpected_token(tok: tok5, expected: "']'")
 
-		location = Location(begin: location.begin, end: tok5.location.end)
+		location = merge_locations(begin: location, end: tok5.location)
 		ast.array_literal2(size, ty, location)
 
 	fn parse_name() -> ast.NameAtLocation except ParseError:

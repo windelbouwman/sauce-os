@@ -5,7 +5,7 @@ import std
 from utils import panic
 from std import ord, chr, str_len
 from token import Token, TokenKind
-from location import Location, location_at
+from location import Location, location_at, new_location
 from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab
 from listtype import List
 from deque import Queue, new_queue
@@ -122,7 +122,7 @@ pub class Lexer:
 				String:
 					parse_string_token()
 
-			let location = Location(begin: tok_begin, end: offset - 1)
+			let location = new_location(begin: tok_begin, end: offset - 1)
 			Token(kind, location)
 		else:
 			Token(kind: TokenKind.Eof(), location: location_at(offset))

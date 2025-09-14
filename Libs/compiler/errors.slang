@@ -3,7 +3,7 @@ from std import print, read_file, str_get, str_len
 from listtype import List, list1
 from optiontype import Option
 from strlib import split_lines, str_repeat, str_pad_left, is_lf
-from location import Location, Position
+from location import Location, Position, get_begin, get_end
 
 pub struct CompilationError:
 	errors: List[SingleCompilationError]
@@ -95,9 +95,6 @@ fn render_message(message: SingleCompilationError):
 	# let one_line = false
 	case message.filename:
 		Some(filename):
-			# if one_line:
-			print_error_one_line(label, filename, message)
-			# else:
 			print_error(label, filename, message)
 		None:
 			print("{label}: {message.message}")
@@ -117,17 +114,12 @@ fn offset_to_position(offset: int, code: str) -> Position:
 		index += 1
 	Position(row, column)
 
-fn print_error_one_line(label: str, filename: str, message: SingleCompilationError):
-	let code = read_file(filename)
-	let begin = offset_to_position(offset: message.location.begin, code)
-	let end = offset_to_position(offset: message.location.end, code)
-	print("{filename}:{begin.row}.{begin.column}-{end.row}.{end.column+1}: {label} {message.message}")
-
 fn print_error(label: str, filename: str, message: SingleCompilationError):
-	print("     +---------------[ {filename} ]-----------------")
 	let code = read_file(filename)
-	let begin = offset_to_position(offset: message.location.begin, code)
-	let end = offset_to_position(offset: message.location.end, code)
+	let begin = offset_to_position(offset: get_begin(message.location), code)
+	let end = offset_to_position(offset: get_end(message.location), code)
+	print("{filename}:{begin.row}.{begin.column}-{end.row}.{end.column+1}: {label} {message.message}")
+	print("     +---------------[ {filename} ]-----------------")
 	let target_row = begin.row
 	let nr_context_rows = 4
 	var row = 1

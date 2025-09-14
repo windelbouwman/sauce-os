@@ -1,9 +1,9 @@
 
-from location import Location
+from location import Location, location_default
 
 pub fn default_token() -> Token:
 	Token:
-		location: Location(begin: 0, end: 0)
+		location: location_default()
 		kind: TokenKind.None()
 
 pub struct Token:
