@@ -28,6 +28,7 @@ SLANG_APPS := $(wildcard Apps/*.slang)
 CFLAGS=-Werror -Wfatal-errors -Wreturn-type -g -Iruntime -rdynamic
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 SLANG2_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang/%.slang, $(SLANG_EXAMPLES))
+SLANG3_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang3/%.slang, $(SLANG_EXAMPLES))
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, $(SLANG_EXAMPLES))
 PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
@@ -40,7 +41,7 @@ ALL_TEST_RUNS_PY := $(patsubst tests/test_%.slang, run-test-py-%, $(TESTS))
 
 .PHONY: all check check-py all-examples all-examples-bc all-examples-c all-examples-python test pytest-exes
 all: ${C_APPS} ${PY_APPS} all-examples
-all-examples: all-examples-bc all-examples-c all-examples-python all-examples-slang2
+all-examples: all-examples-bc all-examples-c all-examples-python all-examples-slang
 test: pytest-compiler pytest-compiler1 check check-py
 
 check: ${ALL_TEST_RUNS}
@@ -78,12 +79,24 @@ all-examples-bc: $(BC_EXAMPLES)
 ${BUILDDIR}/bc/%.txt: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/bc
 	${SLANGC} -o $@ --backend-bc $< runtime/std.slang
 
+${BUILDDIR}/bc:
+	mkdir -p ${BUILDDIR}/bc
+
 # Example compiled to slang-code!
-all-examples-slang2: $(SLANG2_EXAMPLES)
+all-examples-slang: $(SLANG2_EXAMPLES) # TODO: $(SLANG3_EXAMPLES)
 
 ${BUILDDIR}/slang/%.slang: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/slang
 	${SLANGC} -o $@ --backend-slang $< runtime/std.slang
-#	${SLANGC} --backend-null $@  # Validate slang code
+
+${BUILDDIR}/slang:
+	mkdir -p ${BUILDDIR}/slang
+
+# Validate slang code by compiling generated slang code again:
+${BUILDDIR}/slang3/%.slang: ${BUILDDIR}/slang/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/slang3
+	${SLANGC} -o $@ --backend-slang $< runtime/std.slang
+
+${BUILDDIR}/slang3:
+	mkdir -p ${BUILDDIR}/slang3
 
 # Example compiled to Python code:
 all-examples-python: $(PY_EXAMPLES)
@@ -100,6 +113,9 @@ ${BUILDDIR}/c/snippets/%.exe: ${BUILDDIR}/c/snippets/%.c ${BUILDDIR}/slangrt.a r
 
 ${BUILDDIR}/c/snippets/%.c: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/c/snippets
 	${SLANGC} --backend-c-v2 -o $@ $< runtime/std.slang
+
+${BUILDDIR}/c/snippets:
+	mkdir -p ${BUILDDIR}/c/snippets
 
 # Base lib as DLL:
 ${BUILDDIR}/c/libbase.c ${BUILDDIR}/c/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/c
@@ -165,6 +181,9 @@ ${BUILDDIR}/c/linkage/libfancy.so: ${BUILDDIR}/c/linkage/libfancy.c
 
 ${BUILDDIR}/c/linkage/main.exe: ${BUILDDIR}/c/linkage/main.c ${BUILDDIR}/c/linkage/libfancy.so ${BUILDDIR}/slangrt.a runtime/slangrt.h
 	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c/linkage -Wl,-rpath=`pwd`/${BUILDDIR}/c/linkage -l:libfancy.so ${BUILDDIR}/slangrt.a -lm
+
+${BUILDDIR}/c/linkage:
+	mkdir -p ${BUILDDIR}/c/linkage
 
 linkage: ${BUILDDIR}/c/linkage/main.exe
 
@@ -264,23 +283,11 @@ ${BUILDDIR}:
 ${BUILDDIR}/c:
 	mkdir -p ${BUILDDIR}/c
 
-${BUILDDIR}/c/snippets:
-	mkdir -p ${BUILDDIR}/c/snippets
-
-${BUILDDIR}/c/linkage:
-	mkdir -p ${BUILDDIR}/c/linkage
-
 ${BUILDDIR}/python:
 	mkdir -p ${BUILDDIR}/python
 
-${BUILDDIR}/slang:
-	mkdir -p ${BUILDDIR}/slang
-
 ${BUILDDIR}/wasm:
 	mkdir -p ${BUILDDIR}/wasm
-
-${BUILDDIR}/bc:
-	mkdir -p ${BUILDDIR}/bc
 
 ${BUILDDIR}/tests:
 	mkdir -p ${BUILDDIR}/tests

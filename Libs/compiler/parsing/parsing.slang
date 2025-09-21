@@ -519,6 +519,8 @@ class Parser:
 				parse_function_type()
 			BracketOpen:
 				parse_array_type()
+			KwUnreachable:
+				ast.unreachable_type()
 			Identifier(name):
 				let qname = parse_qual_name(name, location: tok.location)
 				case m_peek.kind:
@@ -633,6 +635,10 @@ class Parser:
 				let location = get_token().location
 				parse_newline()
 				ast.break_statement(location)
+			KwUnreachable:
+				let location = get_token().location
+				parse_newline()
+				ast.unreachable_statement(location)
 			KwContinue:
 				let location = get_token().location
 				parse_newline()
@@ -1055,6 +1061,20 @@ class Parser:
 				expr
 			BracketOpen:
 				parse_array_literal(location: tok.location)
+			KwNull:
+				ast.null_value(location: tok.location)
+			KwBox:
+				parse_parenthesis_open()
+				let value = parse_expression()
+				parse_parenthesis_close()
+				ast.box_expression(value, location: tok.location)
+			KwUnbox:
+				parse_parenthesis_open()
+				let value = parse_expression()
+				parse_comma()
+				let to_type = parse_type()
+				parse_parenthesis_close()
+				ast.unbox_expression(value, to_type, location: tok.location)
 		else:
 			raise unexpected_token(tok, expected: "integer, string, identifier, '('")
 
@@ -1295,18 +1315,28 @@ class Parser:
 			raise unexpected_token(tok, expected: "'for'")
 
 	fn parse_colon() except ParseError:
-		case m_peek.kind:
+		let tok = get_token()
+		case tok.kind:
 			Colon:
-				move_token()
+				pass
 		else:
-			raise unexpected_token(tok: m_peek, expected: "':'")
+			raise unexpected_token(tok, expected: "':'")
+
+	fn parse_comma() except ParseError:
+		let tok = get_token()
+		case tok.kind:
+			Comma:
+				pass
+		else:
+			raise unexpected_token(tok, expected: "','")
 
 	fn parse_equals() except ParseError:
-		case m_peek.kind:
+		let tok = get_token()
+		case tok.kind:
 			Equals:
-				move_token()
+				pass
 		else:
-			raise unexpected_token(tok: m_peek, expected: "'='")
+			raise unexpected_token(tok, expected: "'='")
 
 	fn move_token():
 		m_peek = m_peek2

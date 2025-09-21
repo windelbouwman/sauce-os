@@ -1720,11 +1720,11 @@ pub fn get_attr(base: Expression, field: str, ty: Type, location: Location) -> E
 	let kind = ExpressionKind.GetAttr(base, field)
 	Expression(kind, ty, location)
 
-pub fn box(value: Expression, location: Location) -> Expression:
+pub fn box_expression(value: Expression, location: Location) -> Expression:
 	let kind = ExpressionKind.Box(value)
 	Expression(kind, ty: undefined_type(), location)
 
-pub fn unbox(value: Expression, to_type: Type, location: Location) -> Expression:
+pub fn unbox_expression(value: Expression, to_type: Type, location: Location) -> Expression:
 	let kind = ExpressionKind.Unbox(value, to_type)
 	Expression(kind, ty: undefined_type(), location)
 
@@ -2083,7 +2083,7 @@ pub fn binary_op_to_str(op?: BinaryOperator) -> str:
 		LessEquals:
 			"<="
 		Equals:
-			"="
+			"=="
 		NotEquals:
 			"!="
 		BitAnd:

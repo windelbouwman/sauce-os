@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "slangrt.h"
 
@@ -394,6 +395,13 @@ SLANG_API slang_int_t std_get_n_args(void)
 SLANG_API char* std_get_arg(slang_int_t index)
 {
     return rt_str_new(g_argv[index + 1]);
+}
+
+SLANG_API slang_int_t std_get_time(void)
+{
+    clock_t now = clock();
+    // Time in nano seconds
+    return now * (1000000000 / CLOCKS_PER_SEC);
 }
 
 // Create a string on the heap..

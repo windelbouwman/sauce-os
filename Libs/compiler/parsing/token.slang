@@ -47,6 +47,10 @@ pub enum TokenKind:
 	KwType
 	KwVar
 	KwWhile
+	KwUnreachable
+	KwBox
+	KwUnbox
+	KwNull
 
 	# Literals:
 	Float(value: float)
@@ -174,6 +178,14 @@ pub fn token_to_string(tok: Token) -> str:
 			"VAR"
 		KwWhile:
 			"WHILE"
+		KwUnreachable:
+			"UNREACHABLE"
+		KwBox:
+			"BOX"
+		KwUnbox:
+			"UNBOX"
+		KwNull:
+			"NULL"
 		Identifier(id):
 			"ID({id})"
 		StringStart:

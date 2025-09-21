@@ -169,8 +169,8 @@ class SlangGenerator:
 			Try(try_statement):
 				emit("try:")
 				gen_block(try_statement.try_block)
-				let ex_name = "ex_{get_id(try_statement.except_var.id)}"
-				emit("except ValueError as {ex_name}:")
+				let ex_name = get_id(try_statement.except_var.id)
+				emit("except ({ex_name}: {gen_type(ty: try_statement.except_var.ty)}):")
 				gen_block(try_statement.except_block)
 			Return(value):
 				case value:
@@ -238,11 +238,11 @@ class SlangGenerator:
 			FunctionRef(function_def, type_arguments):
 				function_def.name
 			TypeCast(ty, value):
-				"cast {gen_type(ty)}({gen_expression(value, parens: true)})"
+				"{gen_type(ty)}({gen_expression(value, parens: false)})"
 			Box(value):
-				"box {gen_expression(value, parens: true)}"
+				"box({gen_expression(value, parens: true)})"
 			Unbox(value, to_type):
-				"unbox({gen_expression(value, parens: true)} as {gen_type(to_type)})"
+				"unbox({gen_expression(value, parens: true)}, {gen_type(to_type)})"
 			Call(call):
 				let expressions: List[ast.Expression] = List()
 				for argument in call.arguments:

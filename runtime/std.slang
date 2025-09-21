@@ -35,3 +35,5 @@ extern "slangrt" fn file_close(handle: int)
 
 extern "slangrt" fn get_n_args() -> int
 extern "slangrt" fn get_arg(arg: int) -> str
+
+extern "slangrt" fn get_time() -> int

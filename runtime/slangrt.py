@@ -2,7 +2,7 @@
 
 import sys
 import os
-import math
+import time
 
 
 def std_get_n_args() -> int:
@@ -114,3 +114,7 @@ def std_file_tell(handle: int) -> int:
 
 def std_file_close(handle: int):
     handle.close()
+
+
+def std_get_time() -> int:
+    time.time_ns()

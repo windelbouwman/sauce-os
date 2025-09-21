@@ -583,7 +583,7 @@ fn upcast_type(expression: ast.Expression):
 	# Perform type promotion, when this type was a generic
 	if expression.ty.was_generic:
 		let old_expression = ast.clone_expression(value: expression)
-		let new_expression = ast.unbox(value: old_expression, to_type: expression.ty, location: expression.location)
+		let new_expression = ast.unbox_expression(value: old_expression, to_type: expression.ty, location: expression.location)
 		expression.change_to(to: new_expression)
 
 fn transformer_on_node0(transformer: Transformer, node: ast.VisitNode, phase: ast.VisitPhase):
@@ -626,13 +626,13 @@ fn transformer_on_expression9(transformer: Transformer, expression: ast.Expressi
 			case expression.kind:
 				UnionLiteral(ty, attr, value):
 					# Box value
-					let boxed_value = ast.box(value, location: expression.location)
+					let boxed_value = ast.box_expression(value, location: expression.location)
 					expression.change_to(to: boxed_value)
 				GetAttr(base, name):
 					if base.ty.is_union_struct():
 						# Unbox value
 						let to_type = base.ty.get_field_type(attr: name)
-						let unboxed_value = ast.unbox(value: base, to_type, location: expression.location)
+						let unboxed_value = ast.unbox_expression(value: base, to_type, location: expression.location)
 						expression.change_to(to: unboxed_value)
 			else:
 				pass
@@ -962,7 +962,7 @@ class ClassRewriter:
 			location
 
 		parameters.append(this_param)
-		let this_unboxed = ast.unbox:
+		let this_unboxed = ast.unbox_expression:
 			value: this_param.ref(location)
 			to_type: method.parameters.get(index: 0).ty
 			location
@@ -1007,7 +1007,7 @@ class ClassRewriter:
 		let iface_type = ast.apply_tycon(tycon: ast.TyCon.Struct(impl2.struct_def), type_arguments: type_arguments2)
 		let vtable_global_var = impl2.get_impl_vtable(ty: value.ty)
 		let vtable_ptr = vtable_global_var.ref(location: value.location)
-		let data_ptr = ast.box(value, location: value.location)
+		let data_ptr = ast.box_expression(value, location: value.location)
 		let values: List[ast.Expression] = list2(data_ptr, vtable_ptr)
 		ast.struct_literal(ty: iface_type, values, location: value.location)
 
@@ -1363,7 +1363,7 @@ class ClassRewriter:
 						let payload_types = ast.get_variant_payload_types(ty: case_statement.value.ty, variant)
 						assert(condition: payload_types.len() == 1, message: "number of types must be 1")
 						let to_type = payload_types.first()
-						let value = ast.unbox(value: x_var_ref1, to_type, location: arm.location)
+						let value = ast.unbox_expression(value: x_var_ref1, to_type, location: arm.location)
 						let store_var = ast.let_statement(variable: arm.variables.first(), type_hint: Option.None(), value, location: arm.location)
 
 						optional_false_body = Option.Some(ast.compound(inner: vec2(store_var, arm.block.body), location: arm.location))
@@ -1422,7 +1422,7 @@ class ClassRewriter:
 				if values.len() == 0:
 					ast.null_value(location)
 				elif values.len() == 1:
-					ast.box(value: values.first(), location)
+					ast.box_expression(value: values.first(), location)
 				else:
 					panic("Bad nullable")
 			Struct(struct_def):
@@ -1445,7 +1445,7 @@ class ClassRewriter:
 	pub fn erase_type(ft: ast.Type, value: ast.Expression, assign: bool):
 		if ft.was_generic and not assign:
 			let old_value = ast.clone_expression(value)
-			let new_value = ast.box(value: old_value, location: value.location)
+			let new_value = ast.box_expression(value: old_value, location: value.location)
 			value.change_to(to: new_value)
 		elif ft.is_function_type():
 			let parameter_types = ast.get_types_from_parameter_types(ft.get_parameter_types())
@@ -1497,7 +1497,7 @@ class ClassRewriter:
 			let argument = ast.LabeledExpression(name: Option.Some(parameter.id.name), value: parameter_ref, location)
 			if needs_cast:
 				# Introduce cast from opaque to specific type here.
-				argument.value = ast.unbox(value: argument.value, to_type: parameter.ty, location)
+				argument.value = ast.unbox_expression(value: argument.value, to_type: parameter.ty, location)
 			arguments.append(argument)
 
 		let function_ref = ast.function_ref(function_def, type_arguments: new_vector(), location)
@@ -1509,7 +1509,7 @@ class ClassRewriter:
 			var value = function_call
 			if needs_opaque_cast(return_type):
 				return_type2 = ast.opaque_type()
-				value = ast.box(value, location)
+				value = ast.box_expression(value, location)
 			ast.return_statement(value: Option.Some(value), location)
 
 		let bridge_function = ast.function_def:

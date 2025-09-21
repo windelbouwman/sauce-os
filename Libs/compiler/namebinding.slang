@@ -469,7 +469,7 @@ fn base_scope() -> ast.Scope:
 	s.define(is_pub, name: "float", kind: ast.SymbolKind.Typ(ty: ast.float_type()), location)
 	s.define(is_pub, name: "float32", kind: ast.SymbolKind.Typ(ty: ast.float32_type()), location)
 	s.define(is_pub, name: "float64", kind: ast.SymbolKind.Typ(ty: ast.float64_type()), location)
-	s.define(is_pub, name: "unreachable", kind: ast.SymbolKind.Typ(ty: ast.unreachable_type()), location)
+	s.define(is_pub, name: "ptr", kind: ast.SymbolKind.Typ(ty: ast.opaque_type()), location)
 	s
 
 class NameBinder:
