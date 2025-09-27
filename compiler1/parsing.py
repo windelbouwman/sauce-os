@@ -899,7 +899,7 @@ definition: func_def
 
 is_pub: KW_PUB?
 class_def: is_pub KW_CLASS id_and_type_parameters COLON NEWLINE INDENT docstring (func_def | var_def)+ DEDENT
-var_def: is_pub KW_VAR ID COLON typ var_def_init
+var_def: is_pub (KW_VAR | KW_LET) ID COLON typ var_def_init
 var_def_init: NEWLINE
             | EQUALS big_expression
 func_def: is_pub KW_FN id_and_type_parameters function_signature COLON NEWLINE INDENT docstring statement+ DEDENT

@@ -1,10 +1,12 @@
-
-# json data serialization library
+"""
+JSON data serialization library
+"""
 
 from utils import panic
+from logging import log_info
 from std import str_len, str_get, ord, str_slice
-from std import read_file
-from std import file_writeln, file_open, file_close
+from std import read_file, file_exists
+from std import file_writeln, file_write, file_open, file_close
 from strlib import str_join, is_digit, str_to_int
 from listtype import List
 from optiontype import Option, option_is_some
@@ -24,6 +26,14 @@ struct KeyValue:
 pub fn write_json_to_file(filename: str, obj: JsonValue):
 	let json_txt = json_to_string(obj)
 	# print("JSON: {json_txt}")
+	if false:
+		if file_exists(filename):
+			log_info("Existing json file {filename} .")
+			let original_text = read_file(filename)
+			if original_text == json_txt:
+				log_info("Not writing {filename}, since the content is the same.")
+				return
+	log_info("File must be written: {filename}")
 	let handle = file_open(filename, mode: "w")
 	file_writeln(handle, line: json_txt)
 	file_close(handle)

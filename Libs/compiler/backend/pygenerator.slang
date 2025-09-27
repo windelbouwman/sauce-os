@@ -2,7 +2,8 @@
 """
 
 import ast
-from utils import panic, log_info, unimplemented
+from utils import panic, unimplemented
+from logging import log_info
 from listtype import List
 from optiontype import option_unwrap, Option
 from settype import Set, new_str_set

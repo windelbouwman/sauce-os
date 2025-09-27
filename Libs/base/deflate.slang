@@ -4,8 +4,8 @@ Implement RFC 1951: deflate format.
 DEFLATE uses huffman trees and LZ77 compression.
 """
 
-from utils import panic, assert
-from utils import log_trace, log_debug, unimplemented
+from utils import panic, assert, unimplemented
+from logging import log_trace, log_debug
 from listtype import List, list1
 from bytes import Bytes, ByteArray, ByteReader
 from vectype import Vector, new_vector, new_vector_of_size

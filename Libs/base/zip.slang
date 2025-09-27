@@ -1,7 +1,7 @@
 """ ZIP file format.
 """
 
-from utils import log_info
+from logging import log_info
 
 pub fn open_archive(filename: str) -> ZipArchive:
 	log_info("Opening zip file: {filename}")

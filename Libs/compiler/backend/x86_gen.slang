@@ -2,7 +2,8 @@
 X86 backend
 """
 
-from utils import log_info, unimplemented
+from utils import unimplemented
+from logging import log_info
 import sil
 import x86
 from codegen import cgen, SelectionContextV1, Backend, Frame

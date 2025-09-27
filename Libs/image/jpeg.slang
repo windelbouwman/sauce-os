@@ -6,7 +6,8 @@ See also: https://www.w3.org/Graphics/JPEG/itu-t81.pdf
 """
 
 import math
-from utils import panic, unimplemented, log_info, log_debug, assert
+from utils import panic, unimplemented, assert
+from logging import log_info, log_debug
 from vectype import Vector, new_vector
 from bytes import ByteReader, Bytes, ByteArray
 from huffman import BitReader, Tree, decode_symbol, zero_int_array

@@ -4,7 +4,8 @@
 import ast
 from location import Location
 from basepass import IdGen
-from utils import log_info, panic
+from utils import panic
+from logging import log_info
 from errors import CompilationError, ErrorCollector
 from listtype import List
 from optiontype import Option

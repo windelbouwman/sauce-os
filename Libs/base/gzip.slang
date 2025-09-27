@@ -3,7 +3,8 @@
 
 from datetime import unix_to_str
 from math import modulo
-from utils import unimplemented, assert, log_debug
+from utils import unimplemented, assert
+from logging import log_debug
 from bytes import Bytes, ByteArray, ByteReader
 from deflate import new_deflate_decoder
 from deflate import deflate_compress

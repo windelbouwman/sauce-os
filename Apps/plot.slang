@@ -1,7 +1,7 @@
 
 # A plotting example program.
 
-from utils import log_info, set_log_level
+from logging import log_info, set_log_level
 from chart import Chart
 from lttb import lttb
 

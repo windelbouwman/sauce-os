@@ -1,6 +1,7 @@
 
 # Idea: a canvas like API!
-from utils import panic, log_info
+from utils import panic
+from logging import log_info
 from optiontype import Option
 from xml import Node, emit_xml
 

@@ -5,7 +5,8 @@ from listtype import List
 from optiontype import option_unwrap, Option
 from vectype import Vector, new_vector, new_vector_with_capacity
 from hashmap import HashMap, new_hashmap_int, new_hashmap_str
-from utils import panic, log_info, log_debug, assert, log_trace
+from utils import panic, assert
+from logging import log_info, log_debug, log_trace
 from bc import Instruction
 import bc
 

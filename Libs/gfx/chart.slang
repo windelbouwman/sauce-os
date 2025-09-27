@@ -6,7 +6,8 @@ from math import floor, log10, powf, fabs, fmin, fmax
 from listtype import List
 from optiontype import Option
 from sorting import find_min_value
-from utils import log_info, assert
+from logging import log_info
+from utils import assert
 from canvas import Canvas, HorizontalAnchor, VerticalAnchor
 from functools import reduce
 from shapelib import Point

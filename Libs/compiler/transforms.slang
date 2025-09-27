@@ -10,7 +10,8 @@ Ideas for transformations:
 """
 
 from location import Location
-from utils import panic, log_info, log_debug, assert
+from utils import panic, assert
+from logging import log_info, log_debug
 from basepass import IdGen
 from typechecking import type_check_modules
 from listtype import List, list1, list2

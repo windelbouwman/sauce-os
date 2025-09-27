@@ -5,7 +5,8 @@ Also useful for debugging transformed code
 
 """
 
-from utils import panic, log_info
+from utils import panic
+from logging import log_info
 from std import float_to_str
 from strlib import str_join
 import ast

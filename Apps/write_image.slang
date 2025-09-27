@@ -2,7 +2,8 @@
 # Demo of saving images
 
 from std import get_n_args, get_arg, print
-from utils import set_log_level, panic
+from logging import set_log_level
+from utils import panic
 from strlib import split_string
 from image import Image
 from pbm import write_pbm

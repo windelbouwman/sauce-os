@@ -10,7 +10,8 @@ from strlib import str_join
 import ast
 from listtype import List
 from optiontype import option_unwrap, Option
-from utils import panic, log_info
+from utils import panic
+from logging import log_info
 from text_gen import TextGenerator
 from pygenerator import escape_string, needs_escaping, escape_char
 

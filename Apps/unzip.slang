@@ -4,7 +4,7 @@ Unzip app
 
 import std
 from std import print
-from utils import set_log_level, log_error
+from logging import set_log_level, log_error, log_info
 # from zip import open_archive
 from qoi import read_whole_file_as_bytes
 from gzip import gzip_decompress

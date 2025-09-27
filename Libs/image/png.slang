@@ -4,7 +4,8 @@ PNG read / write routines
 See RFC 2083
 """
 
-from utils import unimplemented, panic, assert, log_warning, log_debug
+from utils import unimplemented, panic, assert
+from logging import log_warning, log_debug
 from math import abs, modulo
 from bytes import Bytes, ByteReader, bytes_from_ascii, bytes_from_hex_text, ByteArray, bytes_to_ascii, new_bytes
 from gzip import calc_crc32, zlib_decompress, zlib_compress

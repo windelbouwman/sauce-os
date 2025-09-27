@@ -20,7 +20,7 @@
 # """
 
 from std import file_writeln, file_open, file_close
-from utils import log_info
+from logging import log_info
 from image import Image
 
 pub fn write_pbm(image: Image, filename: str):

@@ -144,25 +144,25 @@ ${BUILDDIR}/c/lib%.so: ${BUILDDIR}/c/lib%.c
 	gcc ${CFLAGS} -shared -fPIC -o $@ $<
 
 # Base lib as python module
-${BUILDDIR}/python/libbase.py ${BUILDDIR}/python/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/python
+${BUILDDIR}/python/libbase.py ${BUILDDIR}/python/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libbase.json -o ${BUILDDIR}/python/libbase.py ${BASE_LIB_SRCS}
 
-${BUILDDIR}/python/libregex.py ${BUILDDIR}/python/libregex.json: ${REGEX_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+${BUILDDIR}/python/libregex.py ${BUILDDIR}/python/libregex.json: ${REGEX_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libregex.json -o ${BUILDDIR}/python/libregex.py --add-import ${BUILDDIR}/python/libbase.json ${REGEX_LIB_SRCS}
 
-${BUILDDIR}/python/libimage.py ${BUILDDIR}/python/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+${BUILDDIR}/python/libimage.py ${BUILDDIR}/python/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libimage.json -o ${BUILDDIR}/python/libimage.py --add-import ${BUILDDIR}/python/libbase.json ${IMAGE_LIB_SRCS}
 
-${BUILDDIR}/python/libgfx.py ${BUILDDIR}/python/libgfx.json: ${GFX_LIB_SRCS} ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
+${BUILDDIR}/python/libgfx.py ${BUILDDIR}/python/libgfx.json: ${GFX_LIB_SRCS} ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libgfx.json -o ${BUILDDIR}/python/libgfx.py --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libbase.json ${GFX_LIB_SRCS}
 
-${BUILDDIR}/python/libweb.py ${BUILDDIR}/python/libweb.json: ${WEB_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
-	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libweb.json -o ${BUILDDIR}/python/libweb.py --add-import ${BUILDDIR}/c/libbase.json ${WEB_LIB_SRCS}
+${BUILDDIR}/python/libweb.py ${BUILDDIR}/python/libweb.json: ${WEB_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
+	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libweb.json -o ${BUILDDIR}/python/libweb.py --add-import ${BUILDDIR}/python/libbase.json ${WEB_LIB_SRCS}
 
-${BUILDDIR}/python/libscience.py ${BUILDDIR}/python/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+${BUILDDIR}/python/libscience.py ${BUILDDIR}/python/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libscience.json -o ${BUILDDIR}/python/libscience.py --add-import ${BUILDDIR}/python/libbase.json ${SCIENCE_LIB_SRCS}
 
-${BUILDDIR}/python/libcompiler.py ${BUILDDIR}/python/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+${BUILDDIR}/python/libcompiler.py ${BUILDDIR}/python/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libcompiler.json -o ${BUILDDIR}/python/libcompiler.py --add-import ${BUILDDIR}/python/libbase.json ${COMPILER_LIB_SRCS}
 
 # linkage-example: ${BUILDDIR}/c/linkage-main.exe

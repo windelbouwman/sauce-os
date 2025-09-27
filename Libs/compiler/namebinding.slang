@@ -1,5 +1,5 @@
 
-from utils import log_info, log_trace
+from logging import log_info, log_trace
 from location import Location, location_default
 from listtype import List
 from optiontype import Option, option_is_some

@@ -9,7 +9,8 @@ from vectype import Vector
 from strlib import str_join
 from settype import new_str_set
 from location import Location
-from utils import log_info, panic, assert
+from utils import panic, assert
+from logging import log_info
 from errors import CompilationError, ErrorCollector
 
 pub fn type_check_modules(module_set: ast.ModuleSet, display_warnings: bool) except CompilationError:

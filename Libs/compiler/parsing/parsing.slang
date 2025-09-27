@@ -10,7 +10,7 @@ from optiontype import Option
 from vectype import Vector, new_vector
 from pathlib import basename
 from basepass import IdGen
-from utils import log_debug, log_trace
+from logging import log_debug, log_trace
 
 
 pub fn parse_source(filename: str, id_gen: IdGen) -> ast.ModuleDef except ParseError:
@@ -113,7 +113,10 @@ class Parser:
 					let impl_def = parse_impl_def(location: tok.location)
 					definitions.append(ast.Definition.Impl(impl_def))
 				KwVar:
-					let var_def = parse_var_def(is_pub)
+					let var_def = parse_var_def(is_pub, writable: true)
+					definitions.append(ast.Definition.Var(var_def))
+				KwLet:
+					let var_def = parse_var_def(is_pub, writable: false)
 					definitions.append(ast.Definition.Var(var_def))
 				KwType:
 					let type_def = parse_type_def(is_pub, location: tok.location)
@@ -278,7 +281,7 @@ class Parser:
 
 			case tok.kind:
 				KwVar:
-					let var_def = parse_var_def(is_pub: is_pub2)
+					let var_def = parse_var_def(is_pub: is_pub2, writable: true)
 					definitions.append(ast.Definition.Var(var_def))
 				KwFn:
 					let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
@@ -493,7 +496,7 @@ class Parser:
 		else:
 			false
 
-	fn parse_var_def(is_pub: bool) -> ast.VariableDef except ParseError:
+	fn parse_var_def(is_pub: bool, writable: bool) -> ast.VariableDef except ParseError:
 		let name_at = parse_name()
 		let name = name_at.name
 		parse_colon()
@@ -509,7 +512,7 @@ class Parser:
 			Option.None()
 
 		var variable = ast.variable(name, id: new_id(), ty, location: name_at.location)
-		variable.writable = true
+		variable.writable = writable
 		ast.VariableDef(is_pub, variable, value: ast.VariableDefValue.Intern(value: var_init))
 
 	fn parse_type() -> ast.Type except ParseError:

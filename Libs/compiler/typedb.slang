@@ -1,8 +1,10 @@
 
-# Functions to serialize type definitions to JSON.
+"""
+Functions to serialize type definitions to JSON.
+"""
 
 from utils import unimplemented, panic
-from utils import log_info, log_debug, log_trace
+from logging import log_info, log_debug, log_trace
 from listtype import List
 from optiontype import Option, option_is_some
 from vectype import Vector, new_vector, new_vector_with_capacity

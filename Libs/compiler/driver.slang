@@ -11,7 +11,8 @@ from namebinding import bind_names
 from pass3 import resolve_newops
 from typechecking import type_check
 from typedb import store_symbol_table, load_symbol_table
-from utils import log_info, log_trace, panic, assert
+from utils import panic, assert
+from logging import log_info, log_trace
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
 from basepass import IdGen
@@ -55,6 +56,7 @@ pub enum Backend:
 	X86
 
 pub fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
+	""" Batch compile """
 	let p = Profiler()
 	p.enter(name: "compile")
 	let id_gen = IdGen()

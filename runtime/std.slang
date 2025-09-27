@@ -20,6 +20,7 @@ extern "slangrt" fn get_path_separator() -> char
 # TODO: improve syntax for noreturn functions
 extern "slangrt" fn exit(code: int) -> unreachable
 
+extern "slangrt" fn file_exists(filename: str) -> bool
 extern "slangrt" fn read_file(filename: str) -> str
 extern "slangrt" fn file_get_stdin() -> int
 extern "slangrt" fn file_get_stdout() -> int

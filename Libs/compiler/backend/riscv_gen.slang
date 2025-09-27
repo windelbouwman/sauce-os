@@ -26,7 +26,8 @@ from bytes import ByteArray
 from optiontype import Option
 from codegen import BackendV2, cgen, SelectionContextV2
 from outstream import BinaryOutput
-from utils import log_info, unimplemented
+from utils import unimplemented
+from logging import log_info
 
 pub fn gen_riscv(program: sil.Program, filename: Option[str]):
 	log_info("Generating riscv code")

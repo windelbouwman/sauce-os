@@ -1,7 +1,8 @@
 
 from std import print, float_to_str
 from strlib import str_repeat, str_join
-from utils import panic, assert, log_info, log_error
+from utils import panic, assert
+from logging import log_info, log_error
 from location import Location, location_default
 from listtype import List
 from optiontype import Option, option_unwrap, option_is_some

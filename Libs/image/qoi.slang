@@ -6,7 +6,8 @@
 # https://qoiformat.org/qoi-specification.pdf
 
 import std
-from utils import panic, log_info, assert
+from utils import panic, assert
+from logging import log_info
 from bytes import Bytes, ByteReader, ByteArray, bytes_to_ascii, bytes_from_ascii
 from vectype import Vector, new_vector
 from math import modulo

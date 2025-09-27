@@ -3,7 +3,7 @@
 This function is machine independant. It assigns colors to use / def registers.
 """
 
-from utils import log_info
+from logging import log_info
 from settype import Set, new_int_set
 from listtype import List
 import mil

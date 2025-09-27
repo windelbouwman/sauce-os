@@ -1,6 +1,6 @@
 
 from std import print
-from utils import set_log_level, log_info
+from logging import set_log_level, log_info
 from unittest import assert_bytes_equals, assert_int_equals
 from bytes import bytes_from_hex_text, fill_bytes, bytes_from_ascii, Bytes
 from gzip import gzip_decompress, gzip_compress, calc_crc32

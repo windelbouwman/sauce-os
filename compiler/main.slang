@@ -3,7 +3,7 @@ SlangC compiler
 """
 
 from std import print, get_n_args, get_arg
-from utils import log_info, log_error, set_log_level
+from logging import log_info, log_error, set_log_level
 from optiontype import Option
 from listtype import List
 from strlib import lexical_sort

@@ -5,7 +5,8 @@
 from listtype import List
 from std import print, float_to_str
 from strlib import str_join
-from utils import unimplemented, log_debug
+from utils import unimplemented
+from logging import log_debug
 from math import sin, cos
 
 # TODO: import pi from math:

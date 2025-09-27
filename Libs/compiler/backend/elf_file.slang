@@ -5,7 +5,8 @@ ELF file format
 import std
 from listtype import List
 from bytes import Bytes, ByteArray, new_bytes, bytes_from_ascii
-from utils import assert, log_error, log_info
+from utils import assert
+from logging import log_error, log_info
 from outstream import Section
 
 # TODO: support global constants:

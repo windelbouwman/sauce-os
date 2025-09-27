@@ -174,6 +174,17 @@ SLANG_API char rt_str_get(char* txt, slang_int_t pos)
     return std_str_get(txt, pos);
 }
 
+SLANG_API slang_bool_t std_file_exists(char* filename)
+{
+    FILE* file = fopen(filename, "r");
+    if (file) {
+        fclose(file);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 SLANG_API char* std_read_file(char* filename)
 {
     char* buffer = 0;

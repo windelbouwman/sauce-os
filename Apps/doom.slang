@@ -4,7 +4,7 @@ This is a long shot: try a software renderer.
 
 """
 
-from utils import set_log_level
+from logging import set_log_level
 from std import print
 from math import sin, cos, radians
 from screen import new_screen

@@ -95,8 +95,8 @@ KEYWORDS = {
     "type",
     "var",
     "while",
-    "new",
-    "delete",
+    # "new",
+    # "delete",
 }
 
 

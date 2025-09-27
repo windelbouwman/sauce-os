@@ -10,7 +10,8 @@ Features of this pass:
 from listtype import List
 from optiontype import Option
 from bytes import Bytes, bytes_from_ascii
-from utils import log_info, panic, unimplemented
+from utils import panic, unimplemented
+from logging import log_info
 import bc
 import sil
 

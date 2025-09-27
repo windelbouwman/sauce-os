@@ -8,7 +8,8 @@ from settype import Set, new_str_set
 from listtype import List
 from optiontype import Option
 from sorting import sort_list
-from utils import log_info, unimplemented, panic
+from utils import unimplemented, panic
+from logging import log_info
 # from strlib import int_to_hex_string
 from hexfile import HexFile
 from elf_file import write_elf

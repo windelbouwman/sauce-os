@@ -1,5 +1,5 @@
 
-SLANG_COMPILER=../compiler2/target/debug/compiler2
+SLANG_COMPILER=../build/compiler5
 BUILDDIR=build
 
 all: ${BUILDDIR} ${BUILDDIR}/kernel.elf
@@ -22,17 +22,11 @@ ${BUILDDIR}/kernel.o: kernel.c
 	gcc -m32 -ffreestanding -c -o ${BUILDDIR}/kernel.o kernel.c
 
 ${BUILDDIR}/boot.o: boot.asm
-	# Use NASM assembler
 	nasm -f elf32 -o ${BUILDDIR}/boot.o boot.asm
 
-${BUILDDIR}/%.o: ${BUILDDIR}/%.ll
-	llc --relocation-model=pic -filetype=obj -march=x86 -o $@ $<
-
 .SUFFIXES: .slang
-.PRECIOUS: ${BUILDDIR}/%.ll
 ${BUILDDIR}/%.ll: %.slang
-	${SLANG_COMPILER} --output $@ $<
-
+	${SLANG_COMPILER} -o $@ $<
 
 clean:
 	rm -rf ${BUILDDIR}

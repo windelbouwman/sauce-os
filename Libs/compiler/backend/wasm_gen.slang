@@ -17,7 +17,8 @@ from optiontype import Option
 from hashmap import HashMap, new_hashmap_str
 from location import location_default
 from std import str_len, ord
-from utils import panic, log_info, log_debug, assert
+from utils import panic, assert
+from logging import log_info, log_debug
 
 pub fn gen_webassembly(module_set: ast.ModuleSet):
 	log_info("Generating WebAssembly")

@@ -67,6 +67,10 @@ def rt_str_compare(a, b):
     return a == b
 
 
+def std_file_exists(filename: str) -> bool:
+    return os.path.exists(filename)
+
+
 def std_file_open(filename: str, mode: str) -> int:
     return open(filename, mode)
 
@@ -117,4 +121,4 @@ def std_file_close(handle: int):
 
 
 def std_get_time() -> int:
-    time.time_ns()
+    return time.time_ns()

@@ -1,6 +1,8 @@
-
-# GIF fileformat
-from utils import unimplemented, panic, assert, log_debug, log_trace
+"""
+GIF fileformat
+"""
+from utils import unimplemented, panic, assert
+from logging import log_debug, log_trace
 from listtype import List
 from bytes import Bytes, new_bytes, ByteReader, ByteArray
 from bytes import bytes_to_ascii, fill_bytes

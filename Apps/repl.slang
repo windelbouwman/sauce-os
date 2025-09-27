@@ -2,7 +2,7 @@
 """
 
 from std import print, read_line, get_n_args, get_arg
-from utils import log_info, log_debug, set_log_level
+from logging import log_info, log_debug, set_log_level
 from basepass import IdGen
 from location import location_default
 from parsing import parse_statement_from_text, ParseError
