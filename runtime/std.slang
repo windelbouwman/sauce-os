@@ -39,5 +39,5 @@ extern "slangrt" fn get_arg(arg: int) -> str
 
 extern "slangrt" fn get_time() -> int
 
-extern "slangrt" fn sdl_init()
+extern "slangrt" fn sdl_init(title: str)
 extern "slangrt" fn sdl_exit()

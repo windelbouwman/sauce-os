@@ -2,17 +2,17 @@
 Snake implemented in slang
 """
 
-from std import print
+from std import print, sdl_init, sdl_exit
 from screen import Screen, new_screen
 
 pub fn main() -> int:
 	let game = Game()
 	print("Snake!")
-	std.sdl_init()
+	sdl_init()
 	while game.is_running:
 		game.draw()
 		game.handle_input()
-	std.sdl_exit()
+	sdl_exit()
 	0
 
 class Game:

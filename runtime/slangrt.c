@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <SDL3/SDL.h>
 
 #include "slangrt.h"
 
@@ -437,10 +438,24 @@ int rt_str_compare(char* a, char* b)
     return res;
 }
 
-void rt_sdl_init(void) {
+
+typedef struct {
+    SDL_Window *window;
+} SDL_State;
+
+static SDL_State sdl;
+
+void std_sdl_init(const char *title) {
     printf("SDL Init from C\n");
+    if(sdl.window) return;
+    SDL_InitSubSystem(SDL_INIT_EVENTS);
+    SDL_InitSubSystem(SDL_INIT_AUDIO);
+    SDL_InitSubSystem(SDL_INIT_VIDEO);
+    SDL_InitSubSystem(SDL_INIT_GAMEPAD);
+    sdl.window = SDL_CreateWindow(title, 800, 600, SDL_WINDOW_RESIZABLE);
 }
 
-void rt_sdl_exit(void) {
-    printf("SDL exit from C\n");
+void std_sdl_exit(void) {
+    printf("SDL quit from C\n");
+    SDL_Quit();
 }
