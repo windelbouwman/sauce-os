@@ -436,3 +436,11 @@ int rt_str_compare(char* a, char* b)
     int res = (strcmp(a, b) == 0) ? 1 : 0;
     return res;
 }
+
+void rt_sdl_init(void) {
+    printf("SDL Init from C\n");
+}
+
+void rt_sdl_exit(void) {
+    printf("SDL exit from C\n");
+}
