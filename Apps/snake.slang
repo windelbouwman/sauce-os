@@ -7,7 +7,7 @@ from screen import Screen, new_screen
 
 pub fn main() -> int:
 	let game = Game()
-	sdl_init(title: "Slang!")
+	sdl_init(title: "Slang!", width: 800, height: 600)
 	while game.is_running:
 		game.step()
 		game.draw()
@@ -20,6 +20,7 @@ class Game:
 	var height: int = 25
 	var head: Position = Position(x: 10, y: 10)
 	var screen: Screen = new_screen(width: 320, height: 240)
+	var buffer: [uint8] = [25*25*3 : uint8]
 
 	var direction: Direction = Direction.Up()
 
@@ -29,7 +30,6 @@ class Game:
 			is_running = false
 
 	pub fn draw():
-		# screen_clear(0, 0, 255)
 		var y = 0
 		while y < height:
 			var x = 0
@@ -52,7 +52,12 @@ class Game:
 				x += 1
 			print(line)
 			y += 1
-		sdl_draw()
+		# let pixels = pixels_to_buffer(screen.m_image.pixels)
+		var i = 0
+		buffer[3*0 + 0] = uint8(255)
+		buffer[3*1 + 1] = uint8(255)
+		buffer[3*2 + 2] = uint8(255)
+		sdl_draw(width, height, pixels: buffer)
 
 	pub fn move():
 		case direction:

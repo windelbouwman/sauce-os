@@ -442,38 +442,58 @@ int rt_str_compare(char* a, char* b)
 #define LIB_SYM(NAME) typeof(NAME) *NAME
 
 typedef struct {
+    // Handles
     SDL_Window *window;
     SDL_Renderer *renderer;
+    SDL_Texture *texture;
 
+    uint32_t width, height;
+    uint32_t texture_width, texture_height;
+
+    // Input
     bool input_quit;
 
-    void *handle;
+    // Dynamic library
+    void *lib;
     LIB_SYM(SDL_InitSubSystem);
+    LIB_SYM(SDL_Quit);
     LIB_SYM(SDL_CreateWindow);
     LIB_SYM(SDL_CreateRenderer);
-    LIB_SYM(SDL_PollEvent);
+    LIB_SYM(SDL_DestroyRenderer);
+    LIB_SYM(SDL_DestroyTexture);
+    LIB_SYM(SDL_CreateTexture);
     LIB_SYM(SDL_RenderPresent);
-    LIB_SYM(SDL_Quit);
+    LIB_SYM(SDL_RenderTexture);
+    LIB_SYM(SDL_PollEvent);
+    LIB_SYM(SDL_UpdateTexture);
 } SDL_State;
 
 static SDL_State sdl;
 
-#define LIB_LOAD(NAME) sdl.NAME = dlsym(sdl.handle, #NAME)
-void std_sdl_init(const char *title) {
+#define LIB_LOAD(NAME) sdl.NAME = dlsym(sdl.lib, #NAME)
+void std_sdl_init(const char *title, int width, int height) {
     printf("SDL Init from C\n");
     if(sdl.window) return;
-    sdl.handle = dlopen("libSDL3.so", RTLD_LOCAL | RTLD_NOW);
+    sdl.lib = dlopen("libSDL3.so", RTLD_LOCAL | RTLD_NOW);
     LIB_LOAD(SDL_InitSubSystem);
+    LIB_LOAD(SDL_Quit);
     LIB_LOAD(SDL_CreateWindow);
     LIB_LOAD(SDL_CreateRenderer);
-    LIB_LOAD(SDL_PollEvent);
+    LIB_LOAD(SDL_DestroyRenderer);
+    LIB_LOAD(SDL_DestroyTexture);
+    LIB_LOAD(SDL_CreateTexture);
     LIB_LOAD(SDL_RenderPresent);
+    LIB_LOAD(SDL_RenderTexture);
+    LIB_LOAD(SDL_PollEvent);
+    LIB_LOAD(SDL_UpdateTexture);
 
     sdl.SDL_InitSubSystem(SDL_INIT_EVENTS);
     sdl.SDL_InitSubSystem(SDL_INIT_AUDIO);
     sdl.SDL_InitSubSystem(SDL_INIT_VIDEO);
     sdl.SDL_InitSubSystem(SDL_INIT_GAMEPAD);
-    sdl.window = sdl.SDL_CreateWindow(title, 800, 600, SDL_WINDOW_RESIZABLE);
+    sdl.width = width;
+    sdl.height = height;
+    sdl.window = sdl.SDL_CreateWindow(title, width, height, 0);
     sdl.renderer = sdl.SDL_CreateRenderer(sdl.window, NULL);
 }
 
@@ -489,7 +509,16 @@ void std_sdl_poll(void) {
     }
 }
 
-void std_sdl_draw(void) {
+void std_sdl_draw(int width, int height, uint8_t *pixels) {
+    if(!sdl.texture ||width != sdl.texture_width || height != sdl.texture_height) {
+        if(sdl.texture) sdl.SDL_DestroyTexture(sdl.texture);
+        sdl.texture_width = width;
+        sdl.texture_height = height;
+        sdl.texture = sdl.SDL_CreateTexture(sdl.renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, width, height);
+    }
+
+    sdl.SDL_UpdateTexture(sdl.texture, NULL, pixels, width * 3);
+    sdl.SDL_RenderTexture(sdl.renderer, sdl.texture, NULL, NULL);
     sdl.SDL_RenderPresent(sdl.renderer);
 }
 
@@ -498,6 +527,7 @@ bool std_sdl_input_quit(void) {
 }
 
 void std_sdl_quit(void) {
-    printf("SDL quit from C\n");
+    sdl.SDL_DestroyTexture(sdl.texture);
+    sdl.SDL_DestroyRenderer(sdl.renderer);
     sdl.SDL_Quit();
 }
