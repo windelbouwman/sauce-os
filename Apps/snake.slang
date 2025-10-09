@@ -7,9 +7,9 @@ from screen import Screen, new_screen
 
 pub fn main() -> int:
 	let game = Game()
-	print("Snake!")
-	sdl_init()
+	sdl_init(title: "Slang!")
 	while game.is_running:
+		sdl_poll()
 		game.draw()
 		game.handle_input()
 	sdl_exit()

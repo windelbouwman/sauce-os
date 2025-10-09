@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <dlfcn.h>
 #include <SDL3/SDL.h>
 
 #include "slangrt.h"
@@ -453,6 +454,10 @@ void std_sdl_init(const char *title) {
     SDL_InitSubSystem(SDL_INIT_VIDEO);
     SDL_InitSubSystem(SDL_INIT_GAMEPAD);
     sdl.window = SDL_CreateWindow(title, 800, 600, SDL_WINDOW_RESIZABLE);
+}
+
+void std_sdl_poll(void) {
+    printf("SDL poll from C\n");
 }
 
 void std_sdl_exit(void) {
