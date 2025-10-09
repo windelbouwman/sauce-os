@@ -43,4 +43,5 @@ extern "slangrt" fn sdl_init(title: str, width: int, height: int)
 extern "slangrt" fn sdl_poll()
 extern "slangrt" fn sdl_input_quit() -> bool
 extern "slangrt" fn sdl_draw(width: int, height: int, pixels: [uint8])
+extern "slangrt" fn sdl_sync(interval: int)
 extern "slangrt" fn sdl_quit()

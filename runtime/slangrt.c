@@ -466,13 +466,14 @@ typedef struct {
     LIB_SYM(SDL_RenderTexture);
     LIB_SYM(SDL_PollEvent);
     LIB_SYM(SDL_UpdateTexture);
+    LIB_SYM(SDL_DelayPrecise);
+    LIB_SYM(SDL_SetTextureScaleMode);
 } SDL_State;
 
 static SDL_State sdl;
 
 #define LIB_LOAD(NAME) sdl.NAME = dlsym(sdl.lib, #NAME)
 void std_sdl_init(const char *title, int width, int height) {
-    printf("SDL Init from C\n");
     if(sdl.window) return;
     sdl.lib = dlopen("libSDL3.so", RTLD_LOCAL | RTLD_NOW);
     LIB_LOAD(SDL_InitSubSystem);
@@ -486,6 +487,8 @@ void std_sdl_init(const char *title, int width, int height) {
     LIB_LOAD(SDL_RenderTexture);
     LIB_LOAD(SDL_PollEvent);
     LIB_LOAD(SDL_UpdateTexture);
+    LIB_LOAD(SDL_DelayPrecise);
+    LIB_LOAD(SDL_SetTextureScaleMode);
 
     sdl.SDL_InitSubSystem(SDL_INIT_EVENTS);
     sdl.SDL_InitSubSystem(SDL_INIT_AUDIO);
@@ -498,7 +501,6 @@ void std_sdl_init(const char *title, int width, int height) {
 }
 
 void std_sdl_poll(void) {
-    printf("SDL poll from C\n");
     SDL_Event event;
 
     // Reset input events
@@ -515,11 +517,16 @@ void std_sdl_draw(int width, int height, uint8_t *pixels) {
         sdl.texture_width = width;
         sdl.texture_height = height;
         sdl.texture = sdl.SDL_CreateTexture(sdl.renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, width, height);
+        sdl.SDL_SetTextureScaleMode(sdl.texture, SDL_SCALEMODE_NEAREST);
     }
 
     sdl.SDL_UpdateTexture(sdl.texture, NULL, pixels, width * 3);
     sdl.SDL_RenderTexture(sdl.renderer, sdl.texture, NULL, NULL);
     sdl.SDL_RenderPresent(sdl.renderer);
+}
+
+void std_sdl_sync(int interval) {
+    sdl.SDL_DelayPrecise(interval * 1000 * 1000);
 }
 
 bool std_sdl_input_quit(void) {

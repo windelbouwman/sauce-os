@@ -2,11 +2,12 @@
 Snake implemented in slang
 """
 
-from std import print, sdl_init, sdl_poll, sdl_quit, sdl_input_quit, sdl_draw
-from screen import Screen, new_screen
+from std import sdl_init, sdl_poll, sdl_quit, sdl_input_quit, sdl_draw, sdl_sync
 
 pub fn main() -> int:
 	let game = Game()
+	game.init()
+
 	sdl_init(title: "Slang!", width: 800, height: 600)
 	while game.is_running:
 		game.step()
@@ -14,61 +15,135 @@ pub fn main() -> int:
 	sdl_quit()
 	0
 
+enum Direction:
+	Up
+	Down
+	Left
+	Right
+
 class Game:
 	pub var is_running: bool = true
-	var width: int = 25
-	var height: int = 25
-	var head: Position = Position(x: 10, y: 10)
-	var screen: Screen = new_screen(width: 320, height: 240)
-	var buffer: [uint8] = [25*25*3 : uint8]
 
+	# World
+	var width: int = 40
+	var height: int = 30
+
+	# 0 -> empty
+	# 1 -> wall
+	# 2 -> snake
+	var world:  [uint8] = [40*30 : uint8]
+
+	# Graphics
+	var screen: [uint8] = [40*30*3 : uint8]
+
+	# Snake
 	var direction: Direction = Direction.Up()
+	var snake_len: int = 0
+	var snake: [Position] = [40*30:Position]
+
+	pub fn init():
+		var i = 0
+		var y = 0
+		while y < height:
+			var x = 0
+			while x < width:
+				if y == 0 or y == height - 1 or x ==0 or x == width - 1:
+					world[i] = uint8(1)
+				else:
+					world[i] = uint8(0)
+				x += 1
+				i += 1
+			y += 1
+
+		snake_len = 1
+		snake[0] = Position(x: width / 2, y: height / 2)
+		cell_put(x: snake[0].x, y: snake[0].y, value:2)
+
+	fn cell_at(x: int , y: int) -> int:
+		int(world[y*width + x])
+
+	fn cell_put(x: int, y: int, value:int):
+		world[y*width + x] = uint8(value)
 
 	pub fn step():
+		# Gather Input
 		sdl_poll()
 		if sdl_input_quit():
 			is_running = false
 
-	pub fn draw():
-		var y = 0
-		while y < height:
-			var x = 0
-			var line = ""
-			while x < width:
-				var cell = " "
-				if y == 0:
-					cell = "#"
-				elif y == height - 1:
-					cell = "#"
-				elif x == 0:
-					cell = "#"
-				elif x == width - 1:
-					cell = "#"
+		let head = snake[snake_len - 1]
+		let next = Position(x: head.x, y: head.y)
 
-				if head.x == x and head.y == y:
-					cell = "@"
+		case direction:
+			Up:
+				next.y -= 1
+			Down:
+				next.y += 1
+			Left:
+				next.x -= 1
+			Right:
+				next.x += 1
 
-				line = line + cell + cell
-				x += 1
-			print(line)
-			y += 1
-		# let pixels = pixels_to_buffer(screen.m_image.pixels)
+		if snake_len >= 4:
+			shrink()
+
+		let cell = cell_at(x: next.x, y: next.y)
+
+		if cell == 1 or cell == 2:
+			is_running = false
+
+		grow(x: next.x, y: next.y)
+
+	fn shrink():
+		cell_put(x: snake[0].x, y: snake[0].y, value: 0)
 		var i = 0
-		buffer[3*0 + 0] = uint8(255)
-		buffer[3*1 + 1] = uint8(255)
-		buffer[3*2 + 2] = uint8(255)
-		sdl_draw(width, height, pixels: buffer)
+		while i < snake_len - 1:
+			snake[i].x = snake[i + 1].x
+			snake[i].y = snake[i + 1].y
+			i += 1
+		snake_len -= 1
+
+	fn grow(x: int, y: int):
+		snake_len += 1
+		let i = snake_len - 1
+		snake[i] = Position(x: x, y: y)
+		cell_put(x: x, y: y, value: 2)
+
+
+	pub fn draw():
+		var i = 0
+		var j = 0
+		while i < width*height:
+			if world[i] == uint8(1):
+				screen[j + 0] = uint8(255)
+				screen[j + 1] = uint8(255)
+				screen[j + 2] = uint8(255)
+			elif world[i] == uint8(2):
+				screen[j + 0] = uint8(0)
+				screen[j + 1] = uint8(255)
+				screen[j + 2] = uint8(0)
+			else:
+				screen[j + 0] = uint8(0)
+				screen[j + 1] = uint8(0)
+				screen[j + 2] = uint8(0)
+			i += 1
+			j += 3
+		screen[3*0 + 0] = uint8(255)
+		screen[3*1 + 1] = uint8(255)
+		screen[3*2 + 2] = uint8(255)
+		sdl_draw(width, height, pixels: screen)
+		sdl_sync(interval: 1000)
 
 	pub fn move():
 		case direction:
 			Up:
-				head.y -= 1
+				snake[0].y -= 1
 			Down:
-				head.y += 1
+				snake[0].y += 1
 			Left:
-				head.x -= 1
+				snake[0].x -= 1
 			Right:
-				head.x += 1
+				snake[0].x += 1
 
 	pub fn handle_key(key: Key):
 		case key:
@@ -110,12 +185,6 @@ enum Option:
 struct Position:
 	x: int
 	y: int
-
-enum Direction:
-	Up
-	Down
-	Left
-	Right
 
 enum Key:
 	Left

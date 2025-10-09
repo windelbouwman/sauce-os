@@ -1,0 +1,13 @@
+# Clsses
+
+```
+class Game:
+	var width: int
+	var height: int
+	var screen: [uint8] = [width*height*3 : uint8]
+```
+- Kan ik variables gebruiken in de constructor?
+- Geen let in class?
+
+# Functions
+- Kan ik een struct returnen?
