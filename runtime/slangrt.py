@@ -123,8 +123,17 @@ def std_file_close(handle: int):
 def std_get_time() -> int:
     return time.time_ns()
 
-def std_sdl_init():
-    print("SDL init from python")
+def std_sdl_init(title):
+    print(f"SDL init from python: {title}")
 
-def std_sdl_exit():
-    print("SDL exit from python")
+def std_sdl_poll():
+    pass
+
+def std_sdl_input_quit():
+    return False;
+
+def std_sdl_draw():
+    pass
+
+def std_sdl_quit():
+    pass

@@ -2,17 +2,16 @@
 Snake implemented in slang
 """
 
-from std import print, sdl_init, sdl_exit
+from std import print, sdl_init, sdl_poll, sdl_quit, sdl_input_quit, sdl_draw
 from screen import Screen, new_screen
 
 pub fn main() -> int:
 	let game = Game()
 	sdl_init(title: "Slang!")
 	while game.is_running:
-		sdl_poll()
+		game.step()
 		game.draw()
-		game.handle_input()
-	sdl_exit()
+	sdl_quit()
 	0
 
 class Game:
@@ -23,6 +22,11 @@ class Game:
 	var screen: Screen = new_screen(width: 320, height: 240)
 
 	var direction: Direction = Direction.Up()
+
+	pub fn step():
+		sdl_poll()
+		if sdl_input_quit():
+			is_running = false
 
 	pub fn draw():
 		# screen_clear(0, 0, 255)
@@ -48,6 +52,7 @@ class Game:
 				x += 1
 			print(line)
 			y += 1
+		sdl_draw()
 
 	pub fn move():
 		case direction:
@@ -59,9 +64,6 @@ class Game:
 				head.x -= 1
 			Right:
 				head.x += 1
-
-	pub fn handle_input():
-		is_running = false
 
 	pub fn handle_key(key: Key):
 		case key:

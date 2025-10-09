@@ -439,28 +439,65 @@ int rt_str_compare(char* a, char* b)
     return res;
 }
 
+#define LIB_SYM(NAME) typeof(NAME) *NAME
 
 typedef struct {
     SDL_Window *window;
+    SDL_Renderer *renderer;
+
+    bool input_quit;
+
+    void *handle;
+    LIB_SYM(SDL_InitSubSystem);
+    LIB_SYM(SDL_CreateWindow);
+    LIB_SYM(SDL_CreateRenderer);
+    LIB_SYM(SDL_PollEvent);
+    LIB_SYM(SDL_RenderPresent);
+    LIB_SYM(SDL_Quit);
 } SDL_State;
 
 static SDL_State sdl;
 
+#define LIB_LOAD(NAME) sdl.NAME = dlsym(sdl.handle, #NAME)
 void std_sdl_init(const char *title) {
     printf("SDL Init from C\n");
     if(sdl.window) return;
-    SDL_InitSubSystem(SDL_INIT_EVENTS);
-    SDL_InitSubSystem(SDL_INIT_AUDIO);
-    SDL_InitSubSystem(SDL_INIT_VIDEO);
-    SDL_InitSubSystem(SDL_INIT_GAMEPAD);
-    sdl.window = SDL_CreateWindow(title, 800, 600, SDL_WINDOW_RESIZABLE);
+    sdl.handle = dlopen("libSDL3.so", RTLD_LOCAL | RTLD_NOW);
+    LIB_LOAD(SDL_InitSubSystem);
+    LIB_LOAD(SDL_CreateWindow);
+    LIB_LOAD(SDL_CreateRenderer);
+    LIB_LOAD(SDL_PollEvent);
+    LIB_LOAD(SDL_RenderPresent);
+
+    sdl.SDL_InitSubSystem(SDL_INIT_EVENTS);
+    sdl.SDL_InitSubSystem(SDL_INIT_AUDIO);
+    sdl.SDL_InitSubSystem(SDL_INIT_VIDEO);
+    sdl.SDL_InitSubSystem(SDL_INIT_GAMEPAD);
+    sdl.window = sdl.SDL_CreateWindow(title, 800, 600, SDL_WINDOW_RESIZABLE);
+    sdl.renderer = sdl.SDL_CreateRenderer(sdl.window, NULL);
 }
 
 void std_sdl_poll(void) {
     printf("SDL poll from C\n");
+    SDL_Event event;
+
+    // Reset input events
+    sdl.input_quit = 0;
+    while (sdl.SDL_PollEvent(&event)) {
+        if (event.type == SDL_EVENT_QUIT)
+            sdl.input_quit = 1;
+    }
 }
 
-void std_sdl_exit(void) {
+void std_sdl_draw(void) {
+    sdl.SDL_RenderPresent(sdl.renderer);
+}
+
+bool std_sdl_input_quit(void) {
+    return sdl.input_quit;
+}
+
+void std_sdl_quit(void) {
     printf("SDL quit from C\n");
-    SDL_Quit();
+    sdl.SDL_Quit();
 }

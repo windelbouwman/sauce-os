@@ -41,4 +41,6 @@ extern "slangrt" fn get_time() -> int
 
 extern "slangrt" fn sdl_init(title: str)
 extern "slangrt" fn sdl_poll()
-extern "slangrt" fn sdl_exit()
+extern "slangrt" fn sdl_input_quit() -> bool
+extern "slangrt" fn sdl_draw()
+extern "slangrt" fn sdl_quit()
