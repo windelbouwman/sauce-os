@@ -2,7 +2,8 @@
 Snake implemented in slang
 """
 
-from std import sdl_init, sdl_poll, sdl_quit, sdl_input_quit, sdl_draw, sdl_sync
+from math import fmin, fmax
+from std import sdl_init, sdl_poll, sdl_quit, sdl_input_down, sdl_input_click, sdl_draw, sdl_sync, Key
 
 pub fn main() -> int:
 	let game = Game()
@@ -20,6 +21,10 @@ enum Direction:
 	Down
 	Left
 	Right
+
+struct Position:
+	x: int
+	y: int
 
 class Game:
 	pub var is_running: bool = true
@@ -68,11 +73,26 @@ class Game:
 	pub fn step():
 		# Gather Input
 		sdl_poll()
-		if sdl_input_quit():
+
+		if sdl_input_click(key: Key.KEY_APP_QUIT()):
 			is_running = false
 
 		let head = snake[snake_len - 1]
 		let next = Position(x: head.x, y: head.y)
+
+		let last_direction = direction
+
+		if last_direction != Direction.Down() and (sdl_input_click(key: Key.KEY_W()) or sdl_input_click(key: Key.KEY_I())):
+			direction = Direction.Up()
+
+		if last_direction != Direction.Up() and (sdl_input_click(key: Key.KEY_S()) or sdl_input_click(key: Key.KEY_K())):
+			direction = Direction.Down()
+
+		if last_direction != Direction.Right() and (sdl_input_click(key: Key.KEY_A()) or sdl_input_click(key: Key.KEY_J())):
+			direction = Direction.Left()
+
+		if last_direction != Direction.Left() and (sdl_input_click(key: Key.KEY_D()) or sdl_input_click(key: Key.KEY_L())):
+			direction = Direction.Right()
 
 		case direction:
 			Up:
@@ -84,7 +104,7 @@ class Game:
 			Right:
 				next.x += 1
 
-		if snake_len >= 4:
+		if snake_len >= 4 and not sdl_input_down(key: Key.KEY_G()):
 			shrink()
 
 		let cell = cell_at(x: next.x, y: next.y)
@@ -132,7 +152,9 @@ class Game:
 		screen[3*1 + 1] = uint8(255)
 		screen[3*2 + 2] = uint8(255)
 		sdl_draw(width, height, pixels: screen)
-		sdl_sync(interval: 1000)
+
+		let speed = snake_len
+		sdl_sync(interval: 0.1 + 1 / (1 + fmax(0, snake_len - 4)))
 
 	pub fn move():
 		case direction:
@@ -145,47 +167,3 @@ class Game:
 			Right:
 				snake[0].x += 1
 
-	pub fn handle_key(key: Key):
-		case key:
-			Left:
-				direction = rotate_left(direction)
-			Right:
-				direction = rotate_right(direction)
-
-fn rotate_right(d?: Direction) -> Direction:
-	case d:
-		Up:
-			Direction.Right()
-		Down:
-			Direction.Left()
-		Left:
-			Direction.Up()
-		Right:
-			Direction.Down()
-
-fn rotate_left(d?: Direction) -> Direction:
-	case d:
-		Up:
-			Direction.Left()
-		Down:
-			Direction.Right()
-		Left:
-			Direction.Down()
-		Right:
-			Direction.Up()
-
-struct BodyElement:
-	position: Position
-	next: Option
-
-enum Option:
-	Some(value: BodyElement)
-	None
-
-struct Position:
-	x: int
-	y: int
-
-enum Key:
-	Left
-	Right

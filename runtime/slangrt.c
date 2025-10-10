@@ -441,6 +441,76 @@ int rt_str_compare(char* a, char* b)
 
 #define LIB_SYM(NAME) typeof(NAME) *NAME
 
+typedef enum {
+    KEY_NONE,
+
+    // Keys
+    KEY_0,
+    KEY_1,
+    KEY_2,
+    KEY_3,
+    KEY_4,
+    KEY_5,
+    KEY_6,
+    KEY_7,
+    KEY_8,
+    KEY_9,
+
+    KEY_A,
+    KEY_B,
+    KEY_C,
+    KEY_D,
+    KEY_E,
+    KEY_F,
+    KEY_G,
+    KEY_H,
+    KEY_I,
+    KEY_J,
+    KEY_K,
+    KEY_L,
+    KEY_M,
+    KEY_N,
+    KEY_O,
+    KEY_P,
+    KEY_Q,
+    KEY_R,
+    KEY_S,
+    KEY_T,
+    KEY_U,
+    KEY_V,
+    KEY_W,
+    KEY_X,
+    KEY_Y,
+    KEY_Z,
+
+    // Special Keys
+    KEY_UP,
+    KEY_DOWN,
+    KEY_LEFT,
+    KEY_RIGHT,
+    KEY_SPACE,
+    KEY_ESCAPE,
+
+    // Mouse
+    KEY_MOUSE_LEFT,
+    KEY_MOUSE_MIDDLE,
+    KEY_MOUSE_RIGHT,
+    KEY_MOUSE_FORWARD,
+    KEY_MOUSE_BACK,
+
+    // Mods
+    KEY_SHIFT,
+    KEY_CONTROL,
+    KEY_WIN,
+    KEY_ALT,
+
+
+    // Special Keys
+    KEY_APP_QUIT,
+
+    KEY_COUNT,
+} Key;
+
 typedef struct {
     // Handles
     SDL_Window *window;
@@ -451,7 +521,8 @@ typedef struct {
     uint32_t texture_width, texture_height;
 
     // Input
-    bool input_quit;
+    uint8_t key_down[KEY_COUNT];
+    uint8_t key_click[KEY_COUNT];
 
     // Dynamic library
     void *lib;
@@ -472,10 +543,17 @@ typedef struct {
 
 static SDL_State sdl;
 
-#define LIB_LOAD(NAME) sdl.NAME = dlsym(sdl.lib, #NAME)
+static void sdl_emit_key(Key key, bool down) {
+    bool was_up = !sdl.key_down[key];
+    if(down && was_up) sdl.key_click[key] = 1;
+    sdl.key_down[key] = down;
+}
+
 void std_sdl_init(const char *title, int width, int height) {
     if(sdl.window) return;
     sdl.lib = dlopen("libSDL3.so", RTLD_LOCAL | RTLD_NOW);
+
+#define LIB_LOAD(NAME) sdl.NAME = dlsym(sdl.lib, #NAME)
     LIB_LOAD(SDL_InitSubSystem);
     LIB_LOAD(SDL_Quit);
     LIB_LOAD(SDL_CreateWindow);
@@ -489,6 +567,7 @@ void std_sdl_init(const char *title, int width, int height) {
     LIB_LOAD(SDL_UpdateTexture);
     LIB_LOAD(SDL_DelayPrecise);
     LIB_LOAD(SDL_SetTextureScaleMode);
+#undef LIB_LOAD
 
     sdl.SDL_InitSubSystem(SDL_INIT_EVENTS);
     sdl.SDL_InitSubSystem(SDL_INIT_AUDIO);
@@ -503,12 +582,52 @@ void std_sdl_init(const char *title, int width, int height) {
 void std_sdl_poll(void) {
     SDL_Event event;
 
-    // Reset input events
-    sdl.input_quit = 0;
-    while (sdl.SDL_PollEvent(&event)) {
-        if (event.type == SDL_EVENT_QUIT)
-            sdl.input_quit = 1;
+    // Reset click events
+    for(Key key = 0; key < KEY_COUNT; ++key) {
+        sdl.key_click[key] = 0;
     }
+    while (sdl.SDL_PollEvent(&event)) {
+        switch (event.type) {
+            case SDL_EVENT_QUIT: {
+                sdl_emit_key(KEY_APP_QUIT, true);
+            } break;
+
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            case SDL_EVENT_MOUSE_BUTTON_UP: {
+                Key key = KEY_NONE;
+                if (event.button.button == SDL_BUTTON_LEFT) key = KEY_MOUSE_LEFT;
+                if (event.button.button == SDL_BUTTON_MIDDLE) key = KEY_MOUSE_MIDDLE;
+                if (event.button.button == SDL_BUTTON_RIGHT) key = KEY_MOUSE_RIGHT;
+                if (event.button.button == SDL_BUTTON_X1) key = KEY_MOUSE_FORWARD;
+                if (event.button.button == SDL_BUTTON_X2) key = KEY_MOUSE_BACK;
+                if(key != KEY_NONE) sdl_emit_key(key, event.button.down);
+            } break;
+
+            case SDL_EVENT_KEY_DOWN:
+            case SDL_EVENT_KEY_UP: {
+                if (event.key.repeat) break;
+                Key key = KEY_NONE;
+                uint32_t sdlk = event.key.key;
+                if (sdlk >= SDLK_A && sdlk <= SDLK_Z) key = sdlk - 'a' + KEY_A;
+                if (sdlk >= SDLK_0 && sdlk <= SDLK_9) key = sdlk - '0' + KEY_0;
+                if (sdlk == SDLK_SPACE) key = KEY_SPACE;
+                if (sdlk == SDLK_ESCAPE) key = KEY_ESCAPE;
+                if (sdlk == SDLK_LCTRL || sdlk == SDLK_RCTRL) key = KEY_CONTROL;
+                if (sdlk == SDLK_LSHIFT || sdlk == SDLK_RSHIFT) key = KEY_SHIFT;
+                if (sdlk == SDLK_LALT || sdlk == SDLK_RALT) key = KEY_ALT;
+                if (sdlk == SDLK_LGUI || sdlk == SDLK_RGUI) key = KEY_WIN;
+                if(key != KEY_NONE) sdl_emit_key(key, event.key.down);
+            } break;
+        }
+    }
+}
+
+bool std_sdl_input_down(Key key) {
+    return sdl.key_down[key];
+}
+
+bool std_sdl_input_click(Key key) {
+    return sdl.key_click[key];
 }
 
 void std_sdl_draw(int width, int height, uint8_t *pixels) {
@@ -525,12 +644,9 @@ void std_sdl_draw(int width, int height, uint8_t *pixels) {
     sdl.SDL_RenderPresent(sdl.renderer);
 }
 
-void std_sdl_sync(int interval) {
-    sdl.SDL_DelayPrecise(interval * 1000 * 1000);
-}
-
-bool std_sdl_input_quit(void) {
-    return sdl.input_quit;
+void std_sdl_sync(double interval) {
+    uint64_t interval_us = interval * 1e6;
+    sdl.SDL_DelayPrecise(interval_us * 1000);
 }
 
 void std_sdl_quit(void) {
