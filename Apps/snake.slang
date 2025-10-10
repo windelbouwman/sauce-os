@@ -91,22 +91,14 @@ class Game:
 				i += 1
 			y += 1
 
+		snake_target = 4
 		snake_len = 1
 		snake[0] = Position(x: width / 2, y: height / 2)
 		cell_put(x: snake[0].x, y: snake[0].y, value:2)
-		play_sound2(freq: 880.0)
+		gfx.sync(interval: 1)
+		play_sound(freq: 880.0)
 
-	pub fn play_sound():
-		var i = 0
-		var t = 0
-		var dt = 1 / 48000
-		while i < 48000:
-			sound[i] = int16((rand_float() * 2 - 1) * 32767)
-			i += 1
-			t += dt
-		gfx.play(count: 48000, samples: sound)
-
-	pub fn play_sound2(freq: float):
+	pub fn play_sound(freq: float):
 		var i = 0
 		var t = 0.0
 		var dt = 1.0 / 48000
@@ -196,9 +188,11 @@ class Game:
 		# Food
 		if cell == 3:
 			snake_target += 1
+			play_sound(freq: 880.0)
+		else:
+			play_sound(freq: 440.0)
 
 		grow(x: next.x, y: next.y)
-		play_sound2(freq: 440.0)
 
 	fn shrink():
 		cell_put(x: snake[0].x, y: snake[0].y, value: 0)
