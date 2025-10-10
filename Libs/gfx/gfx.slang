@@ -54,10 +54,10 @@ pub enum Key:
 	KEY_APP_QUIT
 	KEY_COUNT
 
-extern "slangrt" fn init(title: str, width: int, height: int)
-extern "slangrt" fn poll()
-extern "slangrt" fn input_down(key: Key) -> bool
-extern "slangrt" fn input_click(key: Key) -> bool
-extern "slangrt" fn draw(width: int, height: int, pixels: [uint8])
-extern "slangrt" fn sync(interval: float)
-extern "slangrt" fn quit()
+extern "gfx" fn init(title: str, width: int, height: int)
+extern "gfx" fn poll()
+extern "gfx" fn input_down(key: Key) -> bool
+extern "gfx" fn input_click(key: Key) -> bool
+extern "gfx" fn draw(width: int, height: int, pixels: [uint8])
+extern "gfx" fn sync(interval: float)
+extern "gfx" fn quit()
