@@ -4,6 +4,7 @@ Snake implemented in slang
 
 from math import fmin, fmax
 import gfx
+import math
 
 pub fn main() -> int:
 	gfx.init(title: "Slang!", width: 800, height: 600)
@@ -74,6 +75,7 @@ class Game:
 	var snake_len:    int = 0
 	var snake_target: int = 4
 	var snake: [Position] = [40*30:Position]
+	var sound: [int16] = [48000:int16]
 
 	pub fn init():
 		var i = 0
@@ -92,6 +94,29 @@ class Game:
 		snake_len = 1
 		snake[0] = Position(x: width / 2, y: height / 2)
 		cell_put(x: snake[0].x, y: snake[0].y, value:2)
+		play_sound2(freq: 880.0)
+
+	pub fn play_sound():
+		var i = 0
+		var t = 0
+		var dt = 1 / 48000
+		while i < 48000:
+			sound[i] = int16((rand_float() * 2 - 1) * 32767)
+			i += 1
+			t += dt
+		gfx.play(count: 48000, samples: sound)
+
+	pub fn play_sound2(freq: float):
+		var i = 0
+		var t = 0.0
+		var dt = 1.0 / 48000
+		while i < 4800:
+			let v = math.sin(t*math.pi*2)
+			sound[i] = int16(v * 32767)
+			i += 1
+			t += dt*freq
+			t -= float(int(t))
+		gfx.play(count: 4800, samples: sound)
 
 	fn cell_at(x: int , y: int) -> int:
 		int(world[y*width + x])
@@ -173,6 +198,7 @@ class Game:
 			snake_target += 1
 
 		grow(x: next.x, y: next.y)
+		play_sound2(freq: 440.0)
 
 	fn shrink():
 		cell_put(x: snake[0].x, y: snake[0].y, value: 0)

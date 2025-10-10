@@ -1,6 +1,7 @@
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 #include <dlfcn.h>
+#include <stdio.h>
 
 #define LIB_SYM(NAME) typeof(NAME) *NAME
 
@@ -86,7 +87,7 @@ typedef struct {
     // ordered list of samples
     SDL_AudioStream *audio_stream;
     uint32_t audio_count;
-    float audio_buffer[48000];
+    int16_t audio_buffer[48000];
 
     // Input
     uint8_t key_down[KEY_COUNT];
@@ -226,24 +227,25 @@ void gfx_draw(int width, int height, uint8_t *pixels) {
 
 static void gfx_audio_callback(void *user, SDL_AudioStream *stream, int additional_amount, int total_amount) {
     gfx.SDL_LockAudioStream(stream);
-    uint32_t count = additional_amount / sizeof(float);
+    uint32_t count = additional_amount / sizeof(int16_t);
     if (count > gfx.audio_count)
         count = gfx.audio_count;
     if (count > 0) {
-        gfx.SDL_PutAudioStreamData(stream, gfx.audio_buffer, count * sizeof(float));
+        gfx.SDL_PutAudioStreamData(stream, gfx.audio_buffer, count * sizeof(int16_t));
         uint32_t remaining = gfx.audio_count - count;
         memmove(gfx.audio_buffer, gfx.audio_buffer + count,
-                remaining * sizeof(float));
+                remaining * sizeof(int16_t));
+        gfx.audio_count = remaining;
     }
     gfx.SDL_UnlockAudioStream(stream);
 }
 
 
-void gfx_play(int count, float *samples) {
+void gfx_play(int count, int16_t *samples) {
     if(!gfx.audio_stream) {
         // Init audio
         SDL_AudioSpec audio_spec = {
-            .format = SDL_AUDIO_F32,
+            .format = SDL_AUDIO_S16,
             .channels = 1,
             .freq = 48000,
         };
