@@ -35,8 +35,10 @@ struct Position:
 
 var rand_seed: uint64 = 0
 
-# Generae a random 32 bit number
-# range: [0, U32_MAX]
+"""
+Generate a random 32 bit number
+range: [0, U32_MAX]
+"""
 fn rand_next() -> uint32:
 	rand_seed = uint64(6364136223846793005) * rand_seed + uint64(1)
 	let xorshifted = ((rand_seed >> uint64(18)) ^ rand_seed) >> uint64(27)
@@ -44,6 +46,10 @@ fn rand_next() -> uint32:
 	let ret = uint32((xorshifted >> rot) | (xorshifted << ((-rot) & uint64(31))))
 	ret
 
+"""
+Generate a random float
+range: [0, 1)
+"""
 fn rand_float() -> float:
 	float(rand_next()) / 0x100000000
 
@@ -127,13 +133,8 @@ class Game:
 			Right:
 				next.x += 1
 
-		if gfx.input_down(key: gfx.Key.KEY_G()):
-			snake_target += 1
-
 		if snake_len >= snake_target:
 			shrink()
-
-
 
 		var i = 0
 		var food_count  = 0
