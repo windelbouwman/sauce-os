@@ -35,22 +35,22 @@ struct Position:
 
 var rand_seed: uint64 = 0
 
-"""
-Generate a random 32 bit number
-range: [0, U32_MAX]
-"""
 fn rand_next() -> uint32:
+	"""
+	Generate a random 32 bit number
+	range: [0, U32_MAX]
+	"""
 	rand_seed = uint64(6364136223846793005) * rand_seed + uint64(1)
 	let xorshifted = ((rand_seed >> uint64(18)) ^ rand_seed) >> uint64(27)
 	let rot = rand_seed >> uint64(59)
 	let ret = uint32((xorshifted >> rot) | (xorshifted << ((-rot) & uint64(31))))
 	ret
 
-"""
-Generate a random float
-range: [0, 1)
-"""
 fn rand_float() -> float:
+	"""
+	Generate a random float
+	range: [0, 1)
+	"""
 	float(rand_next()) / 0x100000000
 
 class Game:
