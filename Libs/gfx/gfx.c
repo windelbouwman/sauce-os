@@ -112,6 +112,7 @@ typedef struct {
     LIB_SYM(SDL_ResumeAudioDevice);
     LIB_SYM(SDL_LockAudioStream);
     LIB_SYM(SDL_UnlockAudioStream);
+    LIB_SYM(SDL_PutAudioStreamData);
 } Gfx_State;
 
 static Gfx_State gfx;
@@ -145,6 +146,7 @@ void gfx_init(const char *title, int width, int height) {
     LIB_LOAD(SDL_ResumeAudioDevice);
     LIB_LOAD(SDL_LockAudioStream);
     LIB_LOAD(SDL_UnlockAudioStream);
+    LIB_LOAD(SDL_PutAudioStreamData);
 #undef LIB_LOAD
 
     gfx.SDL_InitSubSystem(SDL_INIT_EVENTS);
@@ -228,7 +230,7 @@ static void gfx_audio_callback(void *user, SDL_AudioStream *stream, int addition
     if (count > gfx.audio_count)
         count = gfx.audio_count;
     if (count > 0) {
-        SDL_PutAudioStreamData(stream, gfx.audio_buffer, count * sizeof(float));
+        gfx.SDL_PutAudioStreamData(stream, gfx.audio_buffer, count * sizeof(float));
         uint32_t remaining = gfx.audio_count - count;
         memmove(gfx.audio_buffer, gfx.audio_buffer + count,
                 remaining * sizeof(float));
@@ -245,7 +247,7 @@ void gfx_play(int count, float *samples) {
             .channels = 1,
             .freq = 48000,
         };
-        gfx.audio_stream = gfx.SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audio_spec, gfx_audio_callback, gfx);
+        gfx.audio_stream = gfx.SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audio_spec, gfx_audio_callback, 0);
         SDL_AudioDeviceID audio_device = gfx.SDL_GetAudioStreamDevice(gfx.audio_stream);
         gfx.SDL_ResumeAudioDevice(audio_device);
     }
