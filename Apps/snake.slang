@@ -6,13 +6,14 @@ from math import fmin, fmax
 import gfx
 
 pub fn main() -> int:
+	gfx.init(title: "Slang!", width: 800, height: 600)
+
 	let game = Game()
 	game.init()
-
-	gfx.init(title: "Slang!", width: 800, height: 600)
 	while game.is_running:
 		game.step()
 		game.draw()
+
 	gfx.quit()
 	0
 
@@ -21,6 +22,12 @@ enum Direction:
 	Down
 	Left
 	Right
+
+enum Cell:
+	Empty
+	Wall
+	Snake
+	Food
 
 struct Position:
 	x: int
@@ -36,6 +43,7 @@ class Game:
 	# 0 -> empty
 	# 1 -> wall
 	# 2 -> snake
+	# 3 -> food
 	var world:  [uint8] = [40*30 : uint8]
 
 	# Graphics
@@ -43,7 +51,8 @@ class Game:
 
 	# Snake
 	var direction: Direction = Direction.Up()
-	var snake_len: int = 0
+	var snake_len:    int = 0
+	var snake_target: int = 4
 	var snake: [Position] = [40*30:Position]
 
 	pub fn init():
@@ -104,13 +113,50 @@ class Game:
 			Right:
 				next.x += 1
 
-		if snake_len >= 4 and not gfx.input_down(key: gfx.Key.KEY_G()):
+		if gfx.input_down(key: gfx.Key.KEY_G()):
+			snake_target += 1
+
+		if snake_len >= snake_target:
 			shrink()
+
+
+
+		var i = 0
+		var food_count  = 0
+		var empty_count = 0
+		while i < width*height:
+			if world[i] == uint8(0):
+				empty_count += 1
+
+			if world[i] == uint8(3):
+				food_count += 1
+			i += 1
+
+		if food_count < 4:
+			# Todo rand
+			var food_ix = empty_count / 2
+
+			var i = 0
+			while i < width*height:
+				if world[i] == uint8(0):
+					if food_ix == 0:
+						world[i] = uint8(3)
+						break
+					else:
+						food_ix -= 1
+				i += 1
 
 		let cell = cell_at(x: next.x, y: next.y)
 
+		# Wall or Snake
 		if cell == 1 or cell == 2:
-			is_running = false
+			gfx.sync(interval: 1)
+			init()
+			return
+
+		# Food
+		if cell == 3:
+			snake_target += 1
 
 		grow(x: next.x, y: next.y)
 
@@ -142,19 +188,20 @@ class Game:
 				screen[j + 0] = uint8(0)
 				screen[j + 1] = uint8(255)
 				screen[j + 2] = uint8(0)
+			elif world[i] == uint8(3):
+				screen[j + 0] = uint8(255)
+				screen[j + 1] = uint8(255)
+				screen[j + 2] = uint8(0)
 			else:
 				screen[j + 0] = uint8(0)
 				screen[j + 1] = uint8(0)
 				screen[j + 2] = uint8(0)
 			i += 1
 			j += 3
-		screen[3*0 + 0] = uint8(255)
-		screen[3*1 + 1] = uint8(255)
-		screen[3*2 + 2] = uint8(255)
 		gfx.draw(width, height, pixels: screen)
 
 		let speed = snake_len
-		gfx.sync(interval: 0.1 + 1 / (1 + fmax(0, snake_len - 4)))
+		gfx.sync(interval: 0.1 + 0.8 / (1 + fmax(0, snake_len - 4)))
 
 	pub fn move():
 		case direction:
