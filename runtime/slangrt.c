@@ -1,3 +1,4 @@
+
 #include <execinfo.h>
 #include <inttypes.h>
 #include <math.h>
@@ -8,8 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <dlfcn.h>
-#include <SDL3/SDL.h>
 
 #include "slangrt.h"
 
@@ -437,4 +436,3 @@ int rt_str_compare(char* a, char* b)
     int res = (strcmp(a, b) == 0) ? 1 : 0;
     return res;
 }
-
