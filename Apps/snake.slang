@@ -33,6 +33,20 @@ struct Position:
 	x: int
 	y: int
 
+var rand_seed: uint64 = 0
+
+# Generae a random 32 bit number
+# range: [0, U32_MAX]
+fn rand_next() -> uint32:
+	rand_seed = uint64(6364136223846793005) * rand_seed + uint64(1)
+	let xorshifted = ((rand_seed >> uint64(18)) ^ rand_seed) >> uint64(27)
+	let rot = rand_seed >> uint64(59)
+	let ret = uint32((xorshifted >> rot) | (xorshifted << ((-rot) & uint64(31))))
+	ret
+
+fn rand_float() -> float:
+	float(rand_next()) / 0x100000000
+
 class Game:
 	pub var is_running: bool = true
 
@@ -133,8 +147,7 @@ class Game:
 			i += 1
 
 		if food_count < 4:
-			# Todo rand
-			var food_ix = empty_count / 2
+			var food_ix = int(empty_count * rand_float())
 
 			var i = 0
 			while i < width*height:
