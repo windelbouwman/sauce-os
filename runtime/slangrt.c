@@ -539,21 +539,21 @@ typedef struct {
     LIB_SYM(SDL_UpdateTexture);
     LIB_SYM(SDL_DelayPrecise);
     LIB_SYM(SDL_SetTextureScaleMode);
-} SDL_State;
+} Gfx_State;
 
-static SDL_State sdl;
+static Gfx_State gfx;
 
-static void sdl_emit_key(Key key, bool down) {
-    bool was_up = !sdl.key_down[key];
-    if(down && was_up) sdl.key_click[key] = 1;
-    sdl.key_down[key] = down;
+static void gfx_emit_key(Key key, bool down) {
+    bool was_up = !gfx.key_down[key];
+    if(down && was_up) gfx.key_click[key] = 1;
+    gfx.key_down[key] = down;
 }
 
-void std_sdl_init(const char *title, int width, int height) {
-    if(sdl.window) return;
-    sdl.lib = dlopen("libSDL3.so", RTLD_LOCAL | RTLD_NOW);
+void gfx_init(const char *title, int width, int height) {
+    if(gfx.window) return;
+    gfx.lib = dlopen("libSDL3.so", RTLD_LOCAL | RTLD_NOW);
 
-#define LIB_LOAD(NAME) sdl.NAME = dlsym(sdl.lib, #NAME)
+#define LIB_LOAD(NAME) gfx.NAME = dlsym(gfx.lib, #NAME)
     LIB_LOAD(SDL_InitSubSystem);
     LIB_LOAD(SDL_Quit);
     LIB_LOAD(SDL_CreateWindow);
@@ -569,27 +569,27 @@ void std_sdl_init(const char *title, int width, int height) {
     LIB_LOAD(SDL_SetTextureScaleMode);
 #undef LIB_LOAD
 
-    sdl.SDL_InitSubSystem(SDL_INIT_EVENTS);
-    sdl.SDL_InitSubSystem(SDL_INIT_AUDIO);
-    sdl.SDL_InitSubSystem(SDL_INIT_VIDEO);
-    sdl.SDL_InitSubSystem(SDL_INIT_GAMEPAD);
-    sdl.width = width;
-    sdl.height = height;
-    sdl.window = sdl.SDL_CreateWindow(title, width, height, 0);
-    sdl.renderer = sdl.SDL_CreateRenderer(sdl.window, NULL);
+    gfx.SDL_InitSubSystem(SDL_INIT_EVENTS);
+    gfx.SDL_InitSubSystem(SDL_INIT_AUDIO);
+    gfx.SDL_InitSubSystem(SDL_INIT_VIDEO);
+    gfx.SDL_InitSubSystem(SDL_INIT_GAMEPAD);
+    gfx.width = width;
+    gfx.height = height;
+    gfx.window = gfx.SDL_CreateWindow(title, width, height, 0);
+    gfx.renderer = gfx.SDL_CreateRenderer(gfx.window, NULL);
 }
 
-void std_sdl_poll(void) {
+void gfx_poll(void) {
     SDL_Event event;
 
     // Reset click events
     for(Key key = 0; key < KEY_COUNT; ++key) {
-        sdl.key_click[key] = 0;
+        gfx.key_click[key] = 0;
     }
-    while (sdl.SDL_PollEvent(&event)) {
+    while (gfx.SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_EVENT_QUIT: {
-                sdl_emit_key(KEY_APP_QUIT, true);
+                gfx_emit_key(KEY_APP_QUIT, true);
             } break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
@@ -600,7 +600,7 @@ void std_sdl_poll(void) {
                 if (event.button.button == SDL_BUTTON_RIGHT) key = KEY_MOUSE_RIGHT;
                 if (event.button.button == SDL_BUTTON_X1) key = KEY_MOUSE_FORWARD;
                 if (event.button.button == SDL_BUTTON_X2) key = KEY_MOUSE_BACK;
-                if(key != KEY_NONE) sdl_emit_key(key, event.button.down);
+                if(key != KEY_NONE) gfx_emit_key(key, event.button.down);
             } break;
 
             case SDL_EVENT_KEY_DOWN:
@@ -616,41 +616,41 @@ void std_sdl_poll(void) {
                 if (sdlk == SDLK_LSHIFT || sdlk == SDLK_RSHIFT) key = KEY_SHIFT;
                 if (sdlk == SDLK_LALT || sdlk == SDLK_RALT) key = KEY_ALT;
                 if (sdlk == SDLK_LGUI || sdlk == SDLK_RGUI) key = KEY_WIN;
-                if(key != KEY_NONE) sdl_emit_key(key, event.key.down);
+                if(key != KEY_NONE) gfx_emit_key(key, event.key.down);
             } break;
         }
     }
 }
 
-bool std_sdl_input_down(Key key) {
-    return sdl.key_down[key];
+bool gfx_input_down(Key key) {
+    return gfx.key_down[key];
 }
 
-bool std_sdl_input_click(Key key) {
-    return sdl.key_click[key];
+bool gfx_input_click(Key key) {
+    return gfx.key_click[key];
 }
 
-void std_sdl_draw(int width, int height, uint8_t *pixels) {
-    if(!sdl.texture ||width != sdl.texture_width || height != sdl.texture_height) {
-        if(sdl.texture) sdl.SDL_DestroyTexture(sdl.texture);
-        sdl.texture_width = width;
-        sdl.texture_height = height;
-        sdl.texture = sdl.SDL_CreateTexture(sdl.renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, width, height);
-        sdl.SDL_SetTextureScaleMode(sdl.texture, SDL_SCALEMODE_NEAREST);
+void gfx_draw(int width, int height, uint8_t *pixels) {
+    if(!gfx.texture ||width != gfx.texture_width || height != gfx.texture_height) {
+        if(gfx.texture) gfx.SDL_DestroyTexture(gfx.texture);
+        gfx.texture_width = width;
+        gfx.texture_height = height;
+        gfx.texture = gfx.SDL_CreateTexture(gfx.renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, width, height);
+        gfx.SDL_SetTextureScaleMode(gfx.texture, SDL_SCALEMODE_NEAREST);
     }
 
-    sdl.SDL_UpdateTexture(sdl.texture, NULL, pixels, width * 3);
-    sdl.SDL_RenderTexture(sdl.renderer, sdl.texture, NULL, NULL);
-    sdl.SDL_RenderPresent(sdl.renderer);
+    gfx.SDL_UpdateTexture(gfx.texture, NULL, pixels, width * 3);
+    gfx.SDL_RenderTexture(gfx.renderer, gfx.texture, NULL, NULL);
+    gfx.SDL_RenderPresent(gfx.renderer);
 }
 
-void std_sdl_sync(double interval) {
+void gfx_sync(double interval) {
     uint64_t interval_us = interval * 1e6;
-    sdl.SDL_DelayPrecise(interval_us * 1000);
+    gfx.SDL_DelayPrecise(interval_us * 1000);
 }
 
-void std_sdl_quit(void) {
-    sdl.SDL_DestroyTexture(sdl.texture);
-    sdl.SDL_DestroyRenderer(sdl.renderer);
-    sdl.SDL_Quit();
+void gfx_quit(void) {
+    gfx.SDL_DestroyTexture(gfx.texture);
+    gfx.SDL_DestroyRenderer(gfx.renderer);
+    gfx.SDL_Quit();
 }

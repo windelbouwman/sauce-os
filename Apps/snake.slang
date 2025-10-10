@@ -3,17 +3,17 @@ Snake implemented in slang
 """
 
 from math import fmin, fmax
-from std import sdl_init, sdl_poll, sdl_quit, sdl_input_down, sdl_input_click, sdl_draw, sdl_sync, Key
+import gfx
 
 pub fn main() -> int:
 	let game = Game()
 	game.init()
 
-	sdl_init(title: "Slang!", width: 800, height: 600)
+	gfx.init(title: "Slang!", width: 800, height: 600)
 	while game.is_running:
 		game.step()
 		game.draw()
-	sdl_quit()
+	gfx.quit()
 	0
 
 enum Direction:
@@ -72,9 +72,9 @@ class Game:
 
 	pub fn step():
 		# Gather Input
-		sdl_poll()
+		gfx.poll()
 
-		if sdl_input_click(key: Key.KEY_APP_QUIT()):
+		if gfx.input_click(key: gfx.Key.KEY_APP_QUIT()):
 			is_running = false
 
 		let head = snake[snake_len - 1]
@@ -82,16 +82,16 @@ class Game:
 
 		let last_direction = direction
 
-		if last_direction != Direction.Down() and (sdl_input_click(key: Key.KEY_W()) or sdl_input_click(key: Key.KEY_I())):
+		if last_direction != Direction.Down() and (gfx.input_click(key: gfx.Key.KEY_W()) or gfx.input_click(key: gfx.Key.KEY_I())):
 			direction = Direction.Up()
 
-		if last_direction != Direction.Up() and (sdl_input_click(key: Key.KEY_S()) or sdl_input_click(key: Key.KEY_K())):
+		if last_direction != Direction.Up() and (gfx.input_click(key: gfx.Key.KEY_S()) or gfx.input_click(key: gfx.Key.KEY_K())):
 			direction = Direction.Down()
 
-		if last_direction != Direction.Right() and (sdl_input_click(key: Key.KEY_A()) or sdl_input_click(key: Key.KEY_J())):
+		if last_direction != Direction.Right() and (gfx.input_click(key: gfx.Key.KEY_A()) or gfx.input_click(key: gfx.Key.KEY_J())):
 			direction = Direction.Left()
 
-		if last_direction != Direction.Left() and (sdl_input_click(key: Key.KEY_D()) or sdl_input_click(key: Key.KEY_L())):
+		if last_direction != Direction.Left() and (gfx.input_click(key: gfx.Key.KEY_D()) or gfx.input_click(key: gfx.Key.KEY_L())):
 			direction = Direction.Right()
 
 		case direction:
@@ -104,7 +104,7 @@ class Game:
 			Right:
 				next.x += 1
 
-		if snake_len >= 4 and not sdl_input_down(key: Key.KEY_G()):
+		if snake_len >= 4 and not gfx.input_down(key: gfx.Key.KEY_G()):
 			shrink()
 
 		let cell = cell_at(x: next.x, y: next.y)
@@ -151,10 +151,10 @@ class Game:
 		screen[3*0 + 0] = uint8(255)
 		screen[3*1 + 1] = uint8(255)
 		screen[3*2 + 2] = uint8(255)
-		sdl_draw(width, height, pixels: screen)
+		gfx.draw(width, height, pixels: screen)
 
 		let speed = snake_len
-		sdl_sync(interval: 0.1 + 1 / (1 + fmax(0, snake_len - 4)))
+		gfx.sync(interval: 0.1 + 1 / (1 + fmax(0, snake_len - 4)))
 
 	pub fn move():
 		case direction:
