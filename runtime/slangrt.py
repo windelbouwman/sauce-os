@@ -122,22 +122,3 @@ def std_file_close(handle: int):
 
 def std_get_time() -> int:
     return time.time_ns()
-
-def std_sdl_init(title: str, width: int, height: int):
-    pass
-
-def std_sdl_poll():
-    pass
-
-def std_sdl_input_quit() -> bool:
-    pass
-
-def std_sdl_draw(width: int, height: int, pixels):
-    pass
-
-def std_sdl_sync(interval: int):
-    pass
-
-def std_sdl_quit():
-    pass
-
