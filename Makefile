@@ -143,6 +143,9 @@ ${BUILDDIR}/c/libcompiler.c ${BUILDDIR}/c/libcompiler.json: ${COMPILER_LIB_SRCS}
 ${BUILDDIR}/c/lib%.so: ${BUILDDIR}/c/lib%.c
 	gcc ${CFLAGS} -shared -fPIC -o $@ $<
 
+${BUILDDIR}/c/libgfx.so: ${BUILDDIR}/c/libgfx.c Libs/gfx/gfx.c
+	gcc ${CFLAGS} -shared -fPIC -o $@ $^
+
 # Base lib as python module
 ${BUILDDIR}/python/libbase.py ${BUILDDIR}/python/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libbase.json -o ${BUILDDIR}/python/libbase.py ${BASE_LIB_SRCS}
