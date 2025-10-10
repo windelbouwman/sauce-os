@@ -59,5 +59,6 @@ extern "gfx" fn poll()
 extern "gfx" fn input_down(key: Key) -> bool
 extern "gfx" fn input_click(key: Key) -> bool
 extern "gfx" fn draw(width: int, height: int, pixels: [uint8])
+extern "gfx" fn play(rate: int, count: int, samples: [uint8])
 extern "gfx" fn sync(interval: float)
 extern "gfx" fn quit()

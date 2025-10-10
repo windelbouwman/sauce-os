@@ -83,6 +83,11 @@ typedef struct {
     uint32_t width, height;
     uint32_t texture_width, texture_height;
 
+    // ordered list of samples
+    SDL_AudioStream *audio_stream;
+    uint32_t audio_count;
+    float audio_buffer[48000];
+
     // Input
     uint8_t key_down[KEY_COUNT];
     uint8_t key_click[KEY_COUNT];
@@ -102,6 +107,11 @@ typedef struct {
     LIB_SYM(SDL_UpdateTexture);
     LIB_SYM(SDL_DelayPrecise);
     LIB_SYM(SDL_SetTextureScaleMode);
+    LIB_SYM(SDL_OpenAudioDeviceStream);
+    LIB_SYM(SDL_GetAudioStreamDevice);
+    LIB_SYM(SDL_ResumeAudioDevice);
+    LIB_SYM(SDL_LockAudioStream);
+    LIB_SYM(SDL_UnlockAudioStream);
 } Gfx_State;
 
 static Gfx_State gfx;
@@ -130,6 +140,11 @@ void gfx_init(const char *title, int width, int height) {
     LIB_LOAD(SDL_UpdateTexture);
     LIB_LOAD(SDL_DelayPrecise);
     LIB_LOAD(SDL_SetTextureScaleMode);
+    LIB_LOAD(SDL_OpenAudioDeviceStream);
+    LIB_LOAD(SDL_GetAudioStreamDevice);
+    LIB_LOAD(SDL_ResumeAudioDevice);
+    LIB_LOAD(SDL_LockAudioStream);
+    LIB_LOAD(SDL_UnlockAudioStream);
 #undef LIB_LOAD
 
     gfx.SDL_InitSubSystem(SDL_INIT_EVENTS);
@@ -205,6 +220,47 @@ void gfx_draw(int width, int height, uint8_t *pixels) {
     gfx.SDL_UpdateTexture(gfx.texture, NULL, pixels, width * 3);
     gfx.SDL_RenderTexture(gfx.renderer, gfx.texture, NULL, NULL);
     gfx.SDL_RenderPresent(gfx.renderer);
+}
+
+static void gfx_audio_callback(void *user, SDL_AudioStream *stream, int additional_amount, int total_amount) {
+    gfx.SDL_LockAudioStream(stream);
+    uint32_t count = additional_amount / sizeof(float);
+    if (count > gfx.audio_count)
+        count = gfx.audio_count;
+    if (count > 0) {
+        SDL_PutAudioStreamData(stream, gfx.audio_buffer, count * sizeof(float));
+        uint32_t remaining = gfx.audio_count - count;
+        memmove(gfx.audio_buffer, gfx.audio_buffer + count,
+                remaining * sizeof(float));
+    }
+    gfx.SDL_UnlockAudioStream(stream);
+}
+
+
+void gfx_play(int count, float *samples) {
+    if(!gfx.audio_stream) {
+        // Init audio
+        SDL_AudioSpec audio_spec = {
+            .format = SDL_AUDIO_F32,
+            .channels = 1,
+            .freq = 48000,
+        };
+        gfx.audio_stream = gfx.SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audio_spec, gfx_audio_callback, gfx);
+        SDL_AudioDeviceID audio_device = gfx.SDL_GetAudioStreamDevice(gfx.audio_stream);
+        gfx.SDL_ResumeAudioDevice(audio_device);
+    }
+
+    gfx.SDL_LockAudioStream(gfx.audio_stream);
+    // Reserve space for more samples if needed
+    while (gfx.audio_count < count) {
+        gfx.audio_buffer[gfx.audio_count++] = 0;
+    }
+
+    for (uint32_t i = 0; i < count; ++i) {
+        gfx.audio_buffer[i] += samples[i];
+    }
+
+    gfx.SDL_UnlockAudioStream(gfx.audio_stream);
 }
 
 void gfx_sync(double interval) {
