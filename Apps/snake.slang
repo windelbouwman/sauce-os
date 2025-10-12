@@ -56,7 +56,7 @@ fn rand_float() -> float:
 
 
 let SOUND_RATE: int = 48000
-let SOUND_BUF_LEN: int = SOUND_RATE
+let SOUND_BUF_LEN: int = 48000
 
 let WORLD_WIDTH:  int = 40
 let WORLD_HEIGHT: int = 30
