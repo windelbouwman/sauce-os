@@ -293,7 +293,7 @@ class Game:
 				food_count += 1
 			i += 1
 
-		if food_count < 100:
+		if food_count < 4:
 			var food_ix = int(empty_count * rand.next_float())
 
 			var i = 0
