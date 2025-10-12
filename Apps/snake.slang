@@ -54,41 +54,45 @@ fn rand_float() -> float:
 	"""
 	float(rand_next()) / 0x100000000
 
-let CELL_EMPTY : uint8 =  0
-let CELL_WALL  : uint8 =  1
-let CELL_SNAKE : uint8 =  2
-let CELL_FOOD  : uint8 =  3
+
+let SOUND_RATE: int = 48000
+
+let WORLD_WIDTH:  int = 40
+let WORLD_HEIGHT: int = 30
+
+let CELL_EMPTY: uint8 =  0
+let CELL_WALL:  uint8 =  1
+let CELL_SNAKE: uint8 =  2
+let CELL_FOOD:  uint8 =  3
 
 class Game:
 	pub var is_running: bool = true
 
-	# World
-	var width: int = 40
-	var height: int = 30
-
-	# 0 -> empty
-	# 1 -> wall
-	# 2 -> snake
-	# 3 -> food
-	var world:  [uint8] = [40*30 : uint8]
+	# Game world
+	var world:  [uint8] = [WORLD_WIDTH * WORLD_HEIGHT : uint8]
 
 	# Graphics
-	var screen: [uint8] = [40*30*3 : uint8]
+	var screen: [uint8] = [WORLD_WIDTH * WORLD_HEIGHT * 3 : uint8]
 
 	# Snake
 	var direction: Direction = Direction.Up()
 	var snake_len:    int = 0
 	var snake_target: int = 4
-	var snake: [Position] = [40*30:Position]
-	var sound: [int16] = [48000:int16]
+
+	# An ordered sequence of snake body parts
+	var snake: [Position] = [WORLD_WIDTH*WORLD_HEIGHT:Position]
+
+	# Buffer for playing sounds (max 1 second)
+	# Passed to gfx.play()
+	var sound: [int16] = [SOUND_RATE:int16]
 
 	pub fn init():
 		var i = 0
 		var y = 0
-		while y < height:
+		while y < WORLD_HEIGHT:
 			var x = 0
-			while x < width:
-				if y == 0 or y == height - 1 or x ==0 or x == width - 1:
+			while x < WORLD_WIDTH:
+				if y == 0 or y == WORLD_HEIGHT - 1 or x ==0 or x == WORLD_WIDTH - 1:
 					world[i] = uint8(1)
 				else:
 					world[i] = uint8(0)
@@ -98,7 +102,7 @@ class Game:
 
 		snake_target = 4
 		snake_len = 1
-		snake[0] = Position(x: width / 2, y: height / 2)
+		snake[0] = Position(x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2)
 		cell_put(x: snake[0].x, y: snake[0].y, value:2)
 		gfx.sync(interval: 1)
 		play_sound(freq: 880.0, duration: 0.2)
@@ -127,10 +131,10 @@ class Game:
 		gfx.play(count: sample_count, samples: sound)
 
 	fn cell_at(x: int , y: int) -> int:
-		int(world[y*width + x])
+		int(world[y*WORLD_WIDTH + x])
 
 	fn cell_put(x: int, y: int, value:int):
-		world[y*width + x] = uint8(value)
+		world[y*WORLD_WIDTH + x] = uint8(value)
 
 	pub fn step():
 		# Gather Input
@@ -172,7 +176,7 @@ class Game:
 		var i = 0
 		var food_count  = 0
 		var empty_count = 0
-		while i < width*height:
+		while i < WORLD_WIDTH*WORLD_HEIGHT:
 			if world[i] == uint8(0):
 				empty_count += 1
 
@@ -184,7 +188,7 @@ class Game:
 			var food_ix = int(empty_count * rand_float())
 
 			var i = 0
-			while i < width*height:
+			while i < WORLD_WIDTH*WORLD_HEIGHT:
 				if world[i] == uint8(0):
 					if food_ix == 0:
 						world[i] = uint8(3)
@@ -229,7 +233,7 @@ class Game:
 	pub fn draw():
 		var i = 0
 		var j = 0
-		while i < width*height:
+		while i < WORLD_WIDTH*WORLD_HEIGHT:
 			if world[i] == uint8(1):
 				screen[j + 0] = uint8(255)
 				screen[j + 1] = uint8(255)
@@ -248,7 +252,7 @@ class Game:
 				screen[j + 2] = uint8(0)
 			i += 1
 			j += 3
-		gfx.draw(width, height, pixels: screen)
+		gfx.draw(width: WORLD_WIDTH, height: WORLD_HEIGHT, pixels: screen)
 
 		let speed = snake_len
 		gfx.sync(interval: 0.1 + 0.8 / (1 + fmax(0, snake_len - 4)))
