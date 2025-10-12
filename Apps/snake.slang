@@ -2,10 +2,9 @@
 Snake implemented in slang
 """
 
-from math import fmin, fmax
 import gfx
-from listtype import List
 import math
+from listtype import List
 
 pub fn main() -> int:
 	gfx.init(title: "Slang!", width: 800, height: 600)
@@ -147,7 +146,7 @@ class Game:
 	var time_since_step: float = 0
 
 	pub fn update():
-		let step_time = 0.1 + 0.9 / (1 + fmax(0, snake_len - 4))
+		let step_time = 0.1 + 0.9 / (1 + math.fmax(0, snake_len - 4))
 		input()
 
 		if time_since_step > step_time:
@@ -253,7 +252,7 @@ class Game:
 			snake_target += 1
 			play_sound(freq: 880.0, duration: 0.2)
 		else:
-			play_sound(freq: 440.0, duration: (0.1 + 0.9 / (1 + fmax(0, snake_len - 4))) * 0.2)
+			play_sound(freq: 440.0, duration: (0.1 + 0.9 / (1 + math.fmax(0, snake_len - 4))) * 0.2)
 
 		grow(x: next.x, y: next.y)
 
