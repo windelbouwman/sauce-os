@@ -1,0 +1,29 @@
+- wat is het verschil tussen class en struct? alleen methods en pub/priv zoals c++?
+- En enum? methods op enum zou cool zijn
+
+
+```
+class Rand
+	...
+	fn float() -> float:
+```
+
+Geeft "error: Not a type: function:float"
+
+----
+
+```
+class Rand:
+	pub var state: uint64 = 0
+```
+
+Geeft error zonder genoeg info
+
+moet
+
+```
+class Rand:
+	pub var state: uint64 = uint64(0)
+```
+
+zijn
