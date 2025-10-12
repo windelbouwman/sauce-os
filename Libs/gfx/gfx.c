@@ -1,80 +1,10 @@
+#include "gfx.h"
 #include <SDL3/SDL.h>
-#include <stdlib.h>
 #include <dlfcn.h>
 #include <stdio.h>
 
 #define LIB_SYM(NAME) typeof(NAME) *NAME
 #define ARRAY_COUNT(A) (sizeof(A) / sizeof(A[0]))
-
-typedef enum {
-    KEY_NONE,
-
-    // Keys
-    KEY_0,
-    KEY_1,
-    KEY_2,
-    KEY_3,
-    KEY_4,
-    KEY_5,
-    KEY_6,
-    KEY_7,
-    KEY_8,
-    KEY_9,
-
-    KEY_A,
-    KEY_B,
-    KEY_C,
-    KEY_D,
-    KEY_E,
-    KEY_F,
-    KEY_G,
-    KEY_H,
-    KEY_I,
-    KEY_J,
-    KEY_K,
-    KEY_L,
-    KEY_M,
-    KEY_N,
-    KEY_O,
-    KEY_P,
-    KEY_Q,
-    KEY_R,
-    KEY_S,
-    KEY_T,
-    KEY_U,
-    KEY_V,
-    KEY_W,
-    KEY_X,
-    KEY_Y,
-    KEY_Z,
-
-    // Special Keys
-    KEY_UP,
-    KEY_DOWN,
-    KEY_LEFT,
-    KEY_RIGHT,
-    KEY_SPACE,
-    KEY_ESCAPE,
-
-    // Mouse
-    KEY_MOUSE_LEFT,
-    KEY_MOUSE_MIDDLE,
-    KEY_MOUSE_RIGHT,
-    KEY_MOUSE_FORWARD,
-    KEY_MOUSE_BACK,
-
-    // Mods
-    KEY_SHIFT,
-    KEY_CONTROL,
-    KEY_WIN,
-    KEY_ALT,
-
-
-    // Special Keys
-    KEY_APP_QUIT,
-
-    KEY_COUNT,
-} Key;
 
 typedef struct {
     // Handles
@@ -130,6 +60,8 @@ static void gfx_emit_key(Key key, bool down) {
 
 void gfx_init(const char *title, int width, int height) {
     if(gfx.window) return;
+
+    // Load lib dynamically so that we don't have to link to sdl3 directly
     gfx.lib = dlopen("libSDL3.so", RTLD_LOCAL | RTLD_NOW);
 
 #define LIB_LOAD(NAME) gfx.NAME = dlsym(gfx.lib, #NAME)
