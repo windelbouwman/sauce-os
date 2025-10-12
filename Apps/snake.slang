@@ -114,6 +114,7 @@ class Game:
 	var snake_len:    int = 0
 	var snake_target: int = 4
 	var score: int = 0
+	var high_score: int = 0
 
 	# An ordered sequence of snake body parts
 	var snake: [Position] = [WORLD_WIDTH*WORLD_HEIGHT:Position]
@@ -150,6 +151,10 @@ class Game:
 	fn game_over():
 		play_sound(freq: 220.0, duration: 0.2)
 
+		let has_highscore = score > high_score
+		if has_highscore:
+			high_score = score
+
 		var reaction = "..."
 
 		if score < 5:
@@ -163,9 +168,15 @@ class Game:
 		else:
 			reaction = choose(4, [ "That was awesome!", "Very Amazing!", "You Win!", "You are the ultimate snake champion!" ])
 
+		std.print("")
 		std.print("===== Game Over =====")
 		std.print("Score: {score}")
 		std.print("Conclusion: {reaction}")
+		std.print("")
+		std.print("Best: {high_score}")
+		if has_highscore:
+			std.print(">>>> NEW HIGHSCORE! <<<<")
+		std.print("")
 
 		gfx.sync(interval: 1)
 		init()
