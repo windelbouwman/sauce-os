@@ -4,6 +4,7 @@ Snake implemented in slang
 
 from math import fmin, fmax
 import gfx
+from listtype import List
 import math
 
 pub fn main() -> int:
@@ -12,9 +13,7 @@ pub fn main() -> int:
 	let game = Game()
 	game.init()
 	while game.is_running:
-		game.step()
-		game.draw()
-
+		game.update()
 	gfx.quit()
 	0
 
@@ -23,6 +22,17 @@ enum Direction:
 	Down
 	Left
 	Right
+
+fn direction_opposite(direction: Direction) -> Direction:
+	case direction:
+		Up:
+			Direction.Down()
+		Down:
+			Direction.Up()
+		Left:
+			Direction.Right()
+		Right:
+			Direction.Left()
 
 enum Cell:
 	Empty
@@ -77,6 +87,7 @@ class Game:
 
 	# Snake
 	var direction: Direction = Direction.Up()
+	var next_direction: List[Direction] = List()
 	var snake_len:    int = 0
 	var snake_target: int = 4
 
@@ -132,13 +143,42 @@ class Game:
 	fn cell_put(x: int, y: int, value:uint8):
 		world[y*WORLD_WIDTH + x] = value
 
-	pub fn step():
+	var dt: float = 1.0 / 60
+	var time_since_step: float = 0
+
+	pub fn update():
+		let step_time = 0.1 + 0.9 / (1 + fmax(0, snake_len - 4))
+		input()
+
+		if time_since_step > step_time:
+			time_since_step -= step_time
+			step()
+		time_since_step += dt
+
+		draw()
+
+		gfx.sync(interval: dt)
+
+	pub fn input():
 		# Gather Input
 		gfx.poll()
 
 		if gfx.input_click(key: gfx.Key.KEY_APP_QUIT()):
 			is_running = false
 
+		if gfx.input_click(key: gfx.Key.KEY_W()) or gfx.input_click(key: gfx.Key.KEY_I()):
+			next_direction.append(Direction.Up())
+
+		if gfx.input_click(key: gfx.Key.KEY_S()) or gfx.input_click(key: gfx.Key.KEY_K()):
+			next_direction.append(Direction.Down())
+
+		if gfx.input_click(key: gfx.Key.KEY_A()) or gfx.input_click(key: gfx.Key.KEY_J()):
+			next_direction.append(Direction.Left())
+
+		if gfx.input_click(key: gfx.Key.KEY_D()) or gfx.input_click(key: gfx.Key.KEY_L()):
+			next_direction.append(Direction.Right())
+
+	pub fn step():
 		# Startup
 		if snake_len == 0:
 			snake_target = 4
@@ -148,22 +188,19 @@ class Game:
 			play_sound(freq: 880.0, duration: 0.2)
 			return
 
+		# Step
 		let head = snake[snake_len - 1]
 		let next = Position(x: head.x, y: head.y)
 
-		let last_direction = direction
+		while not next_direction.is_empty():
+			let candi = next_direction.pop_front()
 
-		if last_direction != Direction.Down() and (gfx.input_click(key: gfx.Key.KEY_W()) or gfx.input_click(key: gfx.Key.KEY_I())):
-			direction = Direction.Up()
+			# Skip invalid directions
+			if candi == direction_opposite(direction) or candi == direction:
+				continue
 
-		if last_direction != Direction.Up() and (gfx.input_click(key: gfx.Key.KEY_S()) or gfx.input_click(key: gfx.Key.KEY_K())):
-			direction = Direction.Down()
-
-		if last_direction != Direction.Right() and (gfx.input_click(key: gfx.Key.KEY_A()) or gfx.input_click(key: gfx.Key.KEY_J())):
-			direction = Direction.Left()
-
-		if last_direction != Direction.Left() and (gfx.input_click(key: gfx.Key.KEY_D()) or gfx.input_click(key: gfx.Key.KEY_L())):
-			direction = Direction.Right()
+			direction = candi
+			break
 
 		case direction:
 			Up:
@@ -259,9 +296,6 @@ class Game:
 			i += 1
 			j += 3
 		gfx.draw(width: WORLD_WIDTH, height: WORLD_HEIGHT, pixels: screen)
-
-		let speed = snake_len
-		gfx.sync(interval: 0.1 + 0.9 / (1 + fmax(0, snake_len - 4)))
 
 	pub fn move():
 		case direction:

@@ -12,7 +12,7 @@ typedef struct {
     SDL_Renderer *renderer;
     SDL_Texture *texture;
 
-    uint32_t width, height;
+    uint32_t window_width, window_height;
     uint32_t texture_width, texture_height;
 
     // ordered list of samples
@@ -90,8 +90,8 @@ void gfx_init(const char *title, int width, int height) {
     gfx.SDL_InitSubSystem(SDL_INIT_AUDIO);
     gfx.SDL_InitSubSystem(SDL_INIT_VIDEO);
     gfx.SDL_InitSubSystem(SDL_INIT_GAMEPAD);
-    gfx.width = width;
-    gfx.height = height;
+    gfx.window_width = width;
+    gfx.window_height = height;
     gfx.window = gfx.SDL_CreateWindow(title, width, height, 0);
     gfx.renderer = gfx.SDL_CreateRenderer(gfx.window, NULL);
 }
