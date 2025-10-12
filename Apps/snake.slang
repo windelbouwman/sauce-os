@@ -100,13 +100,7 @@ class Game:
 				x += 1
 				i += 1
 			y += 1
-
-		snake_target = 4
-		snake_len = 1
-		snake[0] = Position(x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2)
-		cell_put(x: snake[0].x, y: snake[0].y, value:CELL_SNAKE)
-		play_sound(freq: 880.0, duration: 0.2)
-		gfx.sync(interval: 1)
+		snake_len = 0
 
 	pub fn play_sound(freq: float, duration: float):
 		# Constants
@@ -121,7 +115,8 @@ class Game:
 		var t = 0.0
 		while sample_ix < sample_count:
 			# Simple pure sound
-			let v = math.sin(phase*math.pi*2)*t
+			let volume = 4*t - 4*t*t
+			let v = math.sin(phase*math.pi*2)*volume
 			sound_buf[sample_ix] = int16(v * I16_MAX)
 
 			# Limit phase from 0-1 to keep precision
@@ -131,8 +126,8 @@ class Game:
 			t += dt / duration
 		gfx.play(count: sample_count, samples: sound_buf)
 
-	fn cell_at(x: int , y: int) -> int:
-		int(world[y*WORLD_WIDTH + x])
+	fn cell_at(x: int , y: int) -> uint8:
+		world[y*WORLD_WIDTH + x]
 
 	fn cell_put(x: int, y: int, value:uint8):
 		world[y*WORLD_WIDTH + x] = value
@@ -143,6 +138,15 @@ class Game:
 
 		if gfx.input_click(key: gfx.Key.KEY_APP_QUIT()):
 			is_running = false
+
+		# Startup
+		if snake_len == 0:
+			snake_target = 4
+			snake_len = 1
+			snake[0] = Position(x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2)
+			cell_put(x: snake[0].x, y: snake[0].y, value:CELL_SNAKE)
+			play_sound(freq: 880.0, duration: 0.2)
+			return
 
 		let head = snake[snake_len - 1]
 		let next = Position(x: head.x, y: head.y)
@@ -201,17 +205,18 @@ class Game:
 		let cell = cell_at(x: next.x, y: next.y)
 
 		# Wall or Snake
-		if cell == 1 or cell == 2:
+		if cell == CELL_WALL or cell == CELL_SNAKE:
+			play_sound(freq: 220.0, duration: 0.2)
 			gfx.sync(interval: 1)
 			init()
 			return
 
 		# Food
-		if cell == 3:
+		if cell == CELL_FOOD:
 			snake_target += 1
-			play_sound(freq: 880.0, duration: 0.1)
+			play_sound(freq: 880.0, duration: 0.2)
 		else:
-			play_sound(freq: 440.0, duration: 0.1)
+			play_sound(freq: 440.0, duration: (0.1 + 0.9 / (1 + fmax(0, snake_len - 4))) * 0.2)
 
 		grow(x: next.x, y: next.y)
 
@@ -256,7 +261,7 @@ class Game:
 		gfx.draw(width: WORLD_WIDTH, height: WORLD_HEIGHT, pixels: screen)
 
 		let speed = snake_len
-		gfx.sync(interval: 0.1 + 0.8 / (1 + fmax(0, snake_len - 4)))
+		gfx.sync(interval: 0.1 + 0.9 / (1 + fmax(0, snake_len - 4)))
 
 	pub fn move():
 		case direction:
