@@ -16,6 +16,8 @@ pub fn main() -> int:
 	gfx.quit()
 	0
 
+
+# Direction
 enum Direction:
 	Up
 	Down
@@ -64,22 +66,19 @@ fn rand_float() -> float:
 	float(rand_next()) / 0x100000000
 
 
+let I16_MAX: int = 32767
+
 let SOUND_RATE: int = 48000
 let SOUND_BUF_LEN: int = 48000
 
 let WORLD_WIDTH:  int = 40
 let WORLD_HEIGHT: int = 30
 
-let CELL_EMPTY: uint8 =  0
-let CELL_WALL:  uint8 =  1
-let CELL_SNAKE: uint8 =  2
-let CELL_FOOD:  uint8 =  3
-
 class Game:
 	pub var is_running: bool = true
 
 	# Game world
-	var world:  [uint8] = [WORLD_WIDTH * WORLD_HEIGHT : uint8]
+	var world:  [Cell] = [WORLD_WIDTH * WORLD_HEIGHT : Cell]
 
 	# Graphics
 	var screen: [uint8] = [WORLD_WIDTH * WORLD_HEIGHT * 3 : uint8]
@@ -104,9 +103,9 @@ class Game:
 			var x = 0
 			while x < WORLD_WIDTH:
 				if y == 0 or y == WORLD_HEIGHT - 1 or x ==0 or x == WORLD_WIDTH - 1:
-					world[i] = CELL_WALL
+					world[i] = Cell.Wall()
 				else:
-					world[i] = CELL_EMPTY
+					world[i] = Cell.Empty()
 				x += 1
 				i += 1
 			y += 1
@@ -114,7 +113,6 @@ class Game:
 
 	pub fn play_sound(freq: float, duration: float):
 		# Constants
-		let I16_MAX = 32767
 		let sample_count = math.min(a: int(SOUND_RATE * duration), b: SOUND_BUF_LEN)
 
 		# Time between samples
@@ -136,10 +134,10 @@ class Game:
 			t += dt / duration
 		gfx.play(count: sample_count, samples: sound_buf)
 
-	fn cell_at(x: int , y: int) -> uint8:
+	fn cell_at(x: int , y: int) -> Cell:
 		world[y*WORLD_WIDTH + x]
 
-	fn cell_put(x: int, y: int, value:uint8):
+	fn cell_put(x: int, y: int, value:Cell):
 		world[y*WORLD_WIDTH + x] = value
 
 	var dt: float = 1.0 / 60
@@ -183,7 +181,7 @@ class Game:
 			snake_target = 4
 			snake_len = 1
 			snake[0] = Position(x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2)
-			cell_put(x: snake[0].x, y: snake[0].y, value:CELL_SNAKE)
+			cell_put(x: snake[0].x, y: snake[0].y, value:Cell.Snake())
 			play_sound(freq: 880.0, duration: 0.2)
 			return
 
@@ -218,10 +216,10 @@ class Game:
 		var food_count  = 0
 		var empty_count = 0
 		while i < WORLD_WIDTH*WORLD_HEIGHT:
-			if world[i] == uint8(0):
+			if world[i] == Cell.Empty():
 				empty_count += 1
 
-			if world[i] == uint8(3):
+			if world[i] == Cell.Food():
 				food_count += 1
 			i += 1
 
@@ -230,9 +228,9 @@ class Game:
 
 			var i = 0
 			while i < WORLD_WIDTH*WORLD_HEIGHT:
-				if world[i] == uint8(0):
+				if world[i] == Cell.Empty():
 					if food_ix == 0:
-						world[i] = uint8(3)
+						world[i] = Cell.Food()
 						break
 					else:
 						food_ix -= 1
@@ -241,14 +239,14 @@ class Game:
 		let cell = cell_at(x: next.x, y: next.y)
 
 		# Wall or Snake
-		if cell == CELL_WALL or cell == CELL_SNAKE:
+		if cell == Cell.Wall() or cell == Cell.Snake():
 			play_sound(freq: 220.0, duration: 0.2)
 			gfx.sync(interval: 1)
 			init()
 			return
 
 		# Food
-		if cell == CELL_FOOD:
+		if cell == Cell.Food():
 			snake_target += 1
 			play_sound(freq: 880.0, duration: 0.2)
 		else:
@@ -257,7 +255,7 @@ class Game:
 		grow(x: next.x, y: next.y)
 
 	fn shrink():
-		cell_put(x: snake[0].x, y: snake[0].y, value: CELL_EMPTY)
+		cell_put(x: snake[0].x, y: snake[0].y, value: Cell.Empty())
 		var i = 0
 		while i < snake_len - 1:
 			snake[i].x = snake[i + 1].x
@@ -269,22 +267,22 @@ class Game:
 		snake_len += 1
 		let i = snake_len - 1
 		snake[i] = Position(x: x, y: y)
-		cell_put(x: x, y: y, value: CELL_SNAKE)
+		cell_put(x: x, y: y, value: Cell.Snake())
 
 
 	pub fn draw():
 		var i = 0
 		var j = 0
 		while i < WORLD_WIDTH*WORLD_HEIGHT:
-			if world[i] == uint8(1):
+			if world[i] == Cell.Wall():
 				screen[j + 0] = uint8(255)
 				screen[j + 1] = uint8(255)
 				screen[j + 2] = uint8(255)
-			elif world[i] == uint8(2):
+			elif world[i] == Cell.Snake():
 				screen[j + 0] = uint8(0)
 				screen[j + 1] = uint8(255)
 				screen[j + 2] = uint8(0)
-			elif world[i] == uint8(3):
+			elif world[i] == Cell.Food():
 				screen[j + 0] = uint8(255)
 				screen[j + 1] = uint8(255)
 				screen[j + 2] = uint8(0)
@@ -295,15 +293,3 @@ class Game:
 			i += 1
 			j += 3
 		gfx.draw(width: WORLD_WIDTH, height: WORLD_HEIGHT, pixels: screen)
-
-	pub fn move():
-		case direction:
-			Up:
-				snake[0].y -= 1
-			Down:
-				snake[0].y += 1
-			Left:
-				snake[0].x -= 1
-			Right:
-				snake[0].x += 1
-
