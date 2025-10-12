@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #define LIB_SYM(NAME) typeof(NAME) *NAME
+#define ARRAY_COUNT(A) (sizeof(A) / sizeof(A[0]))
 
 typedef enum {
     KEY_NONE,
@@ -89,9 +90,12 @@ typedef struct {
     uint32_t audio_count;
     int16_t audio_buffer[48000];
 
-    // Input
+    // Down Events
+    uint32_t key_click_count;
+    Key key_click[16];
+
+    // Down state
     uint8_t key_down[KEY_COUNT];
-    uint8_t key_click[KEY_COUNT];
 
     // Dynamic library
     void *lib;
@@ -120,7 +124,7 @@ static Gfx_State gfx;
 
 static void gfx_emit_key(Key key, bool down) {
     bool was_up = !gfx.key_down[key];
-    if(down && was_up) gfx.key_click[key] = 1;
+    if(down && was_up && gfx.key_click_count < ARRAY_COUNT(gfx.key_click)) gfx.key_click[gfx.key_click_count++] = key;
     gfx.key_down[key] = down;
 }
 
@@ -164,9 +168,7 @@ void gfx_poll(void) {
     SDL_Event event;
 
     // Reset click events
-    for(Key key = 0; key < KEY_COUNT; ++key) {
-        gfx.key_click[key] = 0;
-    }
+    gfx.key_click_count = 0;
     while (gfx.SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_EVENT_QUIT: {
@@ -208,7 +210,10 @@ bool gfx_input_down(Key key) {
 }
 
 bool gfx_input_click(Key key) {
-    return gfx.key_click[key];
+    for (uint32_t i = 0; i < gfx.key_click_count; ++i) {
+        if (gfx.key_click[i] == key) return true;
+    }
+    return false;
 }
 
 void gfx_draw(int width, int height, uint8_t *pixels) {
