@@ -56,6 +56,7 @@ fn rand_float() -> float:
 
 
 let SOUND_RATE: int = 48000
+let SOUND_BUF_LEN: int = SOUND_RATE
 
 let WORLD_WIDTH:  int = 40
 let WORLD_HEIGHT: int = 30
@@ -84,7 +85,7 @@ class Game:
 
 	# Buffer for playing sounds (max 1 second)
 	# Passed to gfx.play()
-	var sound: [int16] = [SOUND_RATE:int16]
+	var sound_buf: [int16] = [SOUND_BUF_LEN:int16]
 
 	pub fn init():
 		var i = 0
@@ -93,9 +94,9 @@ class Game:
 			var x = 0
 			while x < WORLD_WIDTH:
 				if y == 0 or y == WORLD_HEIGHT - 1 or x ==0 or x == WORLD_WIDTH - 1:
-					world[i] = uint8(1)
+					world[i] = CELL_WALL
 				else:
-					world[i] = uint8(0)
+					world[i] = CELL_EMPTY
 				x += 1
 				i += 1
 			y += 1
@@ -103,38 +104,38 @@ class Game:
 		snake_target = 4
 		snake_len = 1
 		snake[0] = Position(x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2)
-		cell_put(x: snake[0].x, y: snake[0].y, value:2)
-		gfx.sync(interval: 1)
+		cell_put(x: snake[0].x, y: snake[0].y, value:CELL_SNAKE)
 		play_sound(freq: 880.0, duration: 0.2)
+		gfx.sync(interval: 1)
 
 	pub fn play_sound(freq: float, duration: float):
 		# Constants
-		let i16_max = 32767
-		let rate = 48000
-		let max_buf = 48000
-		let sample_count = math.min(a: int(rate * duration), b: max_buf)
+		let I16_MAX = 32767
+		let sample_count = math.min(a: int(SOUND_RATE * duration), b: SOUND_BUF_LEN)
 
 		# Time between samples
-		let dt = 1.0 / rate
+		let dt = 1.0 / SOUND_RATE
 
 		var sample_ix = 0
 		var phase = 0.0
+		var t = 0.0
 		while sample_ix < sample_count:
 			# Simple pure sound
-			let v = math.sin(phase*math.pi*2)
-			sound[sample_ix] = int16(v * i16_max)
+			let v = math.sin(phase*math.pi*2)*t
+			sound_buf[sample_ix] = int16(v * I16_MAX)
 
 			# Limit phase from 0-1 to keep precision
 			phase += dt*freq
 			phase -= float(int(phase))
 			sample_ix += 1
-		gfx.play(count: sample_count, samples: sound)
+			t += dt / duration
+		gfx.play(count: sample_count, samples: sound_buf)
 
 	fn cell_at(x: int , y: int) -> int:
 		int(world[y*WORLD_WIDTH + x])
 
-	fn cell_put(x: int, y: int, value:int):
-		world[y*WORLD_WIDTH + x] = uint8(value)
+	fn cell_put(x: int, y: int, value:uint8):
+		world[y*WORLD_WIDTH + x] = value
 
 	pub fn step():
 		# Gather Input
@@ -215,7 +216,7 @@ class Game:
 		grow(x: next.x, y: next.y)
 
 	fn shrink():
-		cell_put(x: snake[0].x, y: snake[0].y, value: 0)
+		cell_put(x: snake[0].x, y: snake[0].y, value: CELL_EMPTY)
 		var i = 0
 		while i < snake_len - 1:
 			snake[i].x = snake[i + 1].x
@@ -227,7 +228,7 @@ class Game:
 		snake_len += 1
 		let i = snake_len - 1
 		snake[i] = Position(x: x, y: y)
-		cell_put(x: x, y: y, value: 2)
+		cell_put(x: x, y: y, value: CELL_SNAKE)
 
 
 	pub fn draw():
