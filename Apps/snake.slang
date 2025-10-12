@@ -54,6 +54,11 @@ fn rand_float() -> float:
 	"""
 	float(rand_next()) / 0x100000000
 
+let CELL_EMPTY : uint8 =  0
+let CELL_WALL  : uint8 =  1
+let CELL_SNAKE : uint8 =  2
+let CELL_FOOD  : uint8 =  3
+
 class Game:
 	pub var is_running: bool = true
 
@@ -96,19 +101,30 @@ class Game:
 		snake[0] = Position(x: width / 2, y: height / 2)
 		cell_put(x: snake[0].x, y: snake[0].y, value:2)
 		gfx.sync(interval: 1)
-		play_sound(freq: 880.0)
+		play_sound(freq: 880.0, duration: 0.2)
 
-	pub fn play_sound(freq: float):
-		var i = 0
-		var t = 0.0
-		var dt = 1.0 / 48000
-		while i < 4800:
-			let v = math.sin(t*math.pi*2)
-			sound[i] = int16(v * 32767)
-			i += 1
-			t += dt*freq
-			t -= float(int(t))
-		gfx.play(count: 4800, samples: sound)
+	pub fn play_sound(freq: float, duration: float):
+		# Constants
+		let i16_max = 32767
+		let rate = 48000
+		let max_buf = 48000
+		let sample_count = math.min(a: int(rate * duration), b: max_buf)
+
+		# Time between samples
+		let dt = 1.0 / rate
+
+		var sample_ix = 0
+		var phase = 0.0
+		while sample_ix < sample_count:
+			# Simple pure sound
+			let v = math.sin(phase*math.pi*2)
+			sound[sample_ix] = int16(v * i16_max)
+
+			# Limit phase from 0-1 to keep precision
+			phase += dt*freq
+			phase -= float(int(phase))
+			sample_ix += 1
+		gfx.play(count: sample_count, samples: sound)
 
 	fn cell_at(x: int , y: int) -> int:
 		int(world[y*width + x])
@@ -188,9 +204,9 @@ class Game:
 		# Food
 		if cell == 3:
 			snake_target += 1
-			play_sound(freq: 880.0)
+			play_sound(freq: 880.0, duration: 0.1)
 		else:
-			play_sound(freq: 440.0)
+			play_sound(freq: 440.0, duration: 0.1)
 
 		grow(x: next.x, y: next.y)
 
