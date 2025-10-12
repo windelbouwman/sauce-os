@@ -35,35 +35,59 @@ fn direction_opposite(direction: Direction) -> Direction:
 		Right:
 			Direction.Left()
 
+# Position
+struct Position:
+	x: int
+	y: int
+
+	# Move current point one step towrads the given direction
+	def add(direction: Direction):
+		case direction:
+			Up:
+				y -= 1
+			Down:
+				y += 1
+			Left:
+				x -= 1
+			Right:
+				x += 1
+
+# World
 enum Cell:
 	Empty
 	Wall
 	Snake
 	Food
 
-struct Position:
-	x: int
-	y: int
 
-var rand_seed: uint64 = 0
+# Rand
+class Rand:
+	"""
+	PCG random number generator
+	https://www.pcg-random.org/
+	"""
+	state: uint64 = 0
+	inc: uint64 = 0
 
-fn rand_next() -> uint32:
-	"""
-	Generate a random 32 bit number
-	range: [0, U32_MAX]
-	"""
-	rand_seed = uint64(6364136223846793005) * rand_seed + uint64(1)
-	let xorshifted = ((rand_seed >> uint64(18)) ^ rand_seed) >> uint64(27)
-	let rot = rand_seed >> uint64(59)
-	let ret = uint32((xorshifted >> rot) | (xorshifted << ((-rot) & uint64(31))))
-	ret
+	fn next() -> uint32:
+		"""
+		Generate a random 32 bit number
+		range: 0 <= x < 2**32
+		"""
+		let old_state = state
+		state = uint64(6364136223846793005) * old_state + (inc | uint64(1))
 
-fn rand_float() -> float:
-	"""
-	Generate a random float
-	range: [0, 1)
-	"""
-	float(rand_next()) / 0x100000000
+		let xorshifted = uint32(((old_state >> uint64(18)) ^ old_state) >> uint64(27))
+		let rot = uint32(old_state >> uint64(59))
+		let ret = uint32((xorshifted >> rot) | (xorshifted << ((-rot) & uint32(31))))
+		ret
+
+	fn float() -> float:
+		"""
+		Generate a random float
+		range: 0 <= x < 1
+		"""
+		float(next()) / 0x100000000
 
 
 let I16_MAX: int = 32767
@@ -95,6 +119,8 @@ class Game:
 	# Buffer for playing sounds (max 1 second)
 	# Passed to gfx.play()
 	var sound_buf: [int16] = [SOUND_BUF_LEN:int16]
+
+	var rand: Rand = Rand()
 
 	pub fn init():
 		var i = 0
@@ -224,7 +250,7 @@ class Game:
 			i += 1
 
 		if food_count < 4:
-			var food_ix = int(empty_count * rand_float())
+			var food_ix = int(empty_count * rand.float())
 
 			var i = 0
 			while i < WORLD_WIDTH*WORLD_HEIGHT:
