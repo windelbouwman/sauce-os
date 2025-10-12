@@ -36,12 +36,12 @@ fn direction_opposite(direction: Direction) -> Direction:
 			Direction.Left()
 
 # Position
-struct Position:
-	x: int
-	y: int
+class Position:
+	pub var x: int
+	pub var y: int
 
-	# Move current point one step towrads the given direction
-	def add(direction: Direction):
+	fn add(direction: Direction):
+		"""Move current point one step towrads the given direction"""
 		case direction:
 			Up:
 				y -= 1
@@ -66,10 +66,10 @@ class Rand:
 	PCG random number generator
 	https://www.pcg-random.org/
 	"""
-	state: uint64 = 0
-	inc: uint64 = 0
+	pub var state: uint64 = uint64(0)
+	pub var inc: uint64 = uint64(0)
 
-	fn next() -> uint32:
+	pub fn next() -> uint32:
 		"""
 		Generate a random 32 bit number
 		range: 0 <= x < 2**32
@@ -82,12 +82,12 @@ class Rand:
 		let ret = uint32((xorshifted >> rot) | (xorshifted << ((-rot) & uint32(31))))
 		ret
 
-	fn float() -> float:
+	pub fn next_float() -> float:
 		"""
 		Generate a random float
 		range: 0 <= x < 1
 		"""
-		float(next()) / 0x100000000
+		float(next()) / float(uint64(1) << uint64(32))
 
 
 let I16_MAX: int = 32767
@@ -250,7 +250,7 @@ class Game:
 			i += 1
 
 		if food_count < 4:
-			var food_ix = int(empty_count * rand.float())
+			var food_ix = int(empty_count * rand.next_float())
 
 			var i = 0
 			while i < WORLD_WIDTH*WORLD_HEIGHT:
