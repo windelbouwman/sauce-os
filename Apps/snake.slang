@@ -170,12 +170,11 @@ class Game:
 
 		std.print("")
 		std.print("===== Game Over =====")
-		std.print("Score: {score}")
-		std.print("Conclusion: {reaction}")
-		std.print("")
-		std.print("Best: {high_score}")
 		if has_highscore:
 			std.print(">>>> NEW HIGHSCORE! <<<<")
+		std.print("Score: {score}")
+		std.print("Best: {high_score}")
+		std.print("Conclusion: {reaction}")
 		std.print("")
 
 		gfx.sync(interval: 1)
@@ -184,6 +183,7 @@ class Game:
 	pub fn play_sound(freq: float, duration: float):
 		# Constants
 		let sample_count = math.min(a: int(SOUND_RATE * duration), b: SOUND_BUF_LEN)
+		std.print("play: {sample_count}")
 
 		# Time between samples
 		let dt = 1.0 / SOUND_RATE
@@ -195,7 +195,7 @@ class Game:
 			# Simple pure sound
 			let volume = 4*t - 4*t*t
 			let v = math.sin(phase*math.pi*2)*volume
-			sound_buf[sample_ix] = int16(v * I16_MAX)
+			sound_buf[sample_ix] = int16(v * 0.25 * I16_MAX)
 
 			# Limit phase from 0-1 to keep precision
 			phase += dt*freq
@@ -248,7 +248,7 @@ class Game:
 	pub fn step():
 		# Startup
 		if snake_len == 0:
-			snake_target = 4
+			snake_target = 4 + 25
 			snake_len = 1
 			snake[0] = Position(x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2)
 			cell_put(x: snake[0].x, y: snake[0].y, value:Cell.Snake())
@@ -317,7 +317,7 @@ class Game:
 		if cell == Cell.Food():
 			snake_target += 1
 			score += 1
-			play_sound(freq: 880.0, duration: 0.2)
+			play_sound(freq: 220.0 + 880.0*rand.next_float(), duration: 0.2)
 		else:
 			play_sound(freq: 440.0, duration: (0.1 + 0.9 / (1 + math.fmax(0, snake_len - 4))) * 0.2)
 
@@ -353,7 +353,7 @@ class Game:
 				screen[j + 2] = uint8(0)
 			elif world[i] == Cell.Food():
 				screen[j + 0] = uint8(255)
-				screen[j + 1] = uint8(255)
+				screen[j + 1] = uint8(0)
 				screen[j + 2] = uint8(0)
 			else:
 				screen[j + 0] = uint8(0)

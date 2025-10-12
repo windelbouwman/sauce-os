@@ -192,6 +192,11 @@ void gfx_play(int count, int16_t *samples) {
     }
 
     gfx.SDL_LockAudioStream(gfx.audio_stream);
+
+    // Limit count
+    if (count > ARRAY_COUNT(gfx.audio_buffer))
+        count = ARRAY_COUNT(gfx.audio_buffer);
+
     // Reserve space for more samples if needed
     while (gfx.audio_count < count) {
         gfx.audio_buffer[gfx.audio_count++] = 0;
