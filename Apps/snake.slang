@@ -3,6 +3,7 @@ Snake implemented in slang
 """
 
 import gfx
+import std
 import math
 from listtype import List
 
@@ -112,6 +113,7 @@ class Game:
 	var next_direction: List[Direction] = List()
 	var snake_len:    int = 0
 	var snake_target: int = 4
+	var score: int = 0
 
 	# An ordered sequence of snake body parts
 	var snake: [Position] = [WORLD_WIDTH*WORLD_HEIGHT:Position]
@@ -123,6 +125,10 @@ class Game:
 	var rand: Rand = Rand()
 
 	pub fn init():
+		# seed the rng a bit
+		let _1 = rand.next()
+		let _2 = rand.next()
+
 		var i = 0
 		var y = 0
 		while y < WORLD_HEIGHT:
@@ -136,6 +142,33 @@ class Game:
 				i += 1
 			y += 1
 		snake_len = 0
+		score = 0
+
+	fn choose(n?: int, list?: [str]) -> str:
+		list[math.modulo(value: int(rand.next()), divisor: n)]
+
+	fn game_over():
+		play_sound(freq: 220.0, duration: 0.2)
+
+		var reaction = "..."
+
+		if score < 5:
+			reaction = choose(6, [ "That was horrible.", "You play like my grandma.", "Don't forget to connect the keybaord.", "Impressive, for playing blindfolded.", "lol", "Try harder! You can do it!" ])
+		elif score < 10:
+			reaction = choose(6, [ "Hmm, now we are getting somewhere", "Good, not great", "Well, at least you tried", "Try again, you might still improve", "Ok", "Decent" ])
+		elif score < 20:
+			reaction = choose(3, [ "Good!", "Nice!", "I see potential" ])
+		elif score < 80:
+			reaction = choose(3, [ "Wow, very good!", "Amazing!", "You Win!" ])
+		else:
+			reaction = choose(4, [ "That was awesome!", "Very Amazing!", "You Win!", "You are the ultimate snake champion!" ])
+
+		std.print("===== Game Over =====")
+		std.print("Score: {score}")
+		std.print("Conclusion: {reaction}")
+
+		gfx.sync(interval: 1)
+		init()
 
 	pub fn play_sound(freq: float, duration: float):
 		# Constants
@@ -170,7 +203,7 @@ class Game:
 	var time_since_step: float = 0
 
 	pub fn update():
-		let step_time = 0.1 + 0.9 / (1 + math.fmax(0, snake_len - 4))
+		let step_time = 0.1 + 2.0 / math.max(snake_len, 4)
 		input()
 
 		if time_since_step > step_time:
@@ -249,7 +282,7 @@ class Game:
 				food_count += 1
 			i += 1
 
-		if food_count < 4:
+		if food_count < 100:
 			var food_ix = int(empty_count * rand.next_float())
 
 			var i = 0
@@ -266,14 +299,13 @@ class Game:
 
 		# Wall or Snake
 		if cell == Cell.Wall() or cell == Cell.Snake():
-			play_sound(freq: 220.0, duration: 0.2)
-			gfx.sync(interval: 1)
-			init()
+			game_over()
 			return
 
 		# Food
 		if cell == Cell.Food():
 			snake_target += 1
+			score += 1
 			play_sound(freq: 880.0, duration: 0.2)
 		else:
 			play_sound(freq: 440.0, duration: (0.1 + 0.9 / (1 + math.fmax(0, snake_len - 4))) * 0.2)

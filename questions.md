@@ -32,3 +32,16 @@ class Rand:
 ```
 
 zijn
+
+# 3
+List of strings moeten op een line? beetje kut
+
+[ "afjasfkjalkf", "jkldjafd", ... ]
+
+vs
+
+let l = [
+	"afjasfkjalkf",
+	"jkldjafd",
+	 ...
+]
