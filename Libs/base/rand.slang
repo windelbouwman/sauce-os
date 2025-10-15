@@ -24,9 +24,22 @@ pub class Rand:
 
 	pub fn next_float() -> float:
 		"""
-		Generate a random float
+		Generate a random float with 32 bits of randomness
 		range: 0 <= x < 1
+
+		Note that '1' is not included in the possible range.
 		"""
 		float(next()) / float(uint64(1) << uint64(32))
 
+	pub fn next_int(min: int, max: int) -> int:
+		"""
+		Generate a random interger
 
+		range:
+			min <= x < max
+			or
+			min <= x <= (max - 1)
+
+		Note that 'max' is not included in the possible range.
+		"""
+		min + int(next_float() * (max - min))
