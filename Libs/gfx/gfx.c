@@ -1,7 +1,6 @@
 #include "gfx.h"
-#include <SDL3/SDL.h>
+#include <SDL2/SDL.h>
 #include <dlfcn.h>
-#include <stdio.h>
 
 #define LIB_SYM(NAME) typeof(NAME) *NAME
 #define ARRAY_COUNT(A) (sizeof(A) / sizeof(A[0]))
@@ -16,7 +15,7 @@ typedef struct {
     uint32_t texture_width, texture_height;
 
     // ordered list of samples
-    SDL_AudioStream *audio_stream;
+    int audio_device;
     uint32_t audio_count;
     int16_t audio_buffer[48000];
 
@@ -43,11 +42,11 @@ void gfx_init(const char *title, int width, int height) {
     SDL_InitSubSystem(SDL_INIT_EVENTS);
     SDL_InitSubSystem(SDL_INIT_AUDIO);
     SDL_InitSubSystem(SDL_INIT_VIDEO);
-    SDL_InitSubSystem(SDL_INIT_GAMEPAD);
+    SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);
     gfx.window_width = width;
     gfx.window_height = height;
-    gfx.window = SDL_CreateWindow(title, width, height, 0);
-    gfx.renderer = SDL_CreateRenderer(gfx.window, NULL);
+    gfx.window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, 0);
+    gfx.renderer = SDL_CreateRenderer(gfx.window, -1, 0);
 }
 
 void gfx_poll(void) {
@@ -57,27 +56,27 @@ void gfx_poll(void) {
     gfx.key_click_count = 0;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
-            case SDL_EVENT_QUIT: {
+            case SDL_QUIT: {
                 gfx_emit_key(KEY_APP_QUIT, true);
             } break;
 
-            case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            case SDL_EVENT_MOUSE_BUTTON_UP: {
+            case SDL_MOUSEBUTTONDOWN:
+            case SDL_MOUSEBUTTONUP: {
                 Key key = KEY_NONE;
                 if (event.button.button == SDL_BUTTON_LEFT) key = KEY_MOUSE_LEFT;
                 if (event.button.button == SDL_BUTTON_MIDDLE) key = KEY_MOUSE_MIDDLE;
                 if (event.button.button == SDL_BUTTON_RIGHT) key = KEY_MOUSE_RIGHT;
                 if (event.button.button == SDL_BUTTON_X1) key = KEY_MOUSE_FORWARD;
                 if (event.button.button == SDL_BUTTON_X2) key = KEY_MOUSE_BACK;
-                if(key != KEY_NONE) gfx_emit_key(key, event.button.down);
+                if(key != KEY_NONE) gfx_emit_key(key, event.button.state == SDL_PRESSED);
             } break;
 
-            case SDL_EVENT_KEY_DOWN:
-            case SDL_EVENT_KEY_UP: {
+            case SDL_KEYDOWN:
+            case SDL_KEYUP: {
                 if (event.key.repeat) break;
                 Key key = KEY_NONE;
-                uint32_t sdlk = event.key.key;
-                if (sdlk >= SDLK_A && sdlk <= SDLK_Z) key = sdlk - 'a' + KEY_A;
+                uint32_t sdlk = event.key.keysym.sym;
+                if (sdlk >= SDLK_a && sdlk <= SDLK_z) key = sdlk - 'a' + KEY_A;
                 if (sdlk >= SDLK_0 && sdlk <= SDLK_9) key = sdlk - '0' + KEY_0;
                 if (sdlk == SDLK_SPACE) key = KEY_SPACE;
                 if (sdlk == SDLK_ESCAPE) key = KEY_ESCAPE;
@@ -85,7 +84,7 @@ void gfx_poll(void) {
                 if (sdlk == SDLK_LSHIFT || sdlk == SDLK_RSHIFT) key = KEY_SHIFT;
                 if (sdlk == SDLK_LALT || sdlk == SDLK_RALT) key = KEY_ALT;
                 if (sdlk == SDLK_LGUI || sdlk == SDLK_RGUI) key = KEY_WIN;
-                if(key != KEY_NONE) gfx_emit_key(key, event.key.down);
+                if(key != KEY_NONE) gfx_emit_key(key, event.key.state == SDL_PRESSED);
             } break;
         }
     }
@@ -108,44 +107,65 @@ void gfx_draw(int width, int height, uint8_t *pixels) {
         gfx.texture_width = width;
         gfx.texture_height = height;
         gfx.texture = SDL_CreateTexture(gfx.renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, width, height);
-        SDL_SetTextureScaleMode(gfx.texture, SDL_SCALEMODE_NEAREST);
+        SDL_SetTextureScaleMode(gfx.texture, SDL_ScaleModeNearest);
     }
 
     SDL_UpdateTexture(gfx.texture, NULL, pixels, width * 3);
-    SDL_RenderTexture(gfx.renderer, gfx.texture, NULL, NULL);
+    SDL_RenderCopy(gfx.renderer, gfx.texture, NULL, NULL);
     SDL_RenderPresent(gfx.renderer);
 }
 
-static void gfx_audio_callback(void *user, SDL_AudioStream *stream, int additional_amount, int total_amount) {
-    SDL_LockAudioStream(stream);
-    uint32_t count = additional_amount / sizeof(int16_t);
-    if (count > gfx.audio_count)
-        count = gfx.audio_count;
-    if (count > 0) {
-        SDL_PutAudioStreamData(stream, gfx.audio_buffer, count * sizeof(int16_t));
-        uint32_t remaining = gfx.audio_count - count;
-        memmove(gfx.audio_buffer, gfx.audio_buffer + count,
-                remaining * sizeof(int16_t));
-        gfx.audio_count = remaining;
+static void gfx_audio_callback(void *user, uint8_t *stream, int len) {
+    // Number of samples (one sample is 16 bit)
+    uint32_t output_count = len / sizeof(int16_t);
+    int16_t* output_buffer = (int16_t*)stream;
+
+    uint32_t consumed_count = output_count;
+    if (consumed_count > gfx.audio_count)
+        consumed_count = gfx.audio_count;
+
+    // Copy queued audio samples
+    for (uint32_t i = 0; i < consumed_count; ++i) {
+        output_buffer[i] = gfx.audio_buffer[i];
     }
-    SDL_UnlockAudioStream(stream);
+
+    // Clear remaining output samples
+    for(uint32_t i = consumed_count; i < output_count; ++i) {
+        output_buffer[i] = 0;
+    }
+
+    // Update internal audio queue
+    if (consumed_count == 0) {
+        // Nothing consumed, so nothing to move
+    } else if (consumed_count == gfx.audio_count) {
+        // Everything is consumed, so no need to move
+        gfx.audio_count = 0;
+    } else {
+        // Some samples are consumed,
+        // remove them and move the remaining samples to the start
+        uint32_t remaining_count = gfx.audio_count - consumed_count;
+        for (uint32_t i = 0; i < remaining_count; ++i) {
+            gfx.audio_buffer[i] = gfx.audio_buffer[i + consumed_count];
+        }
+        gfx.audio_count = remaining_count;
+    }
 }
 
 
 void gfx_play(int count, int16_t *samples) {
-    if(!gfx.audio_stream) {
+    if(!gfx.audio_device) {
         // Init audio
         SDL_AudioSpec audio_spec = {
-            .format = SDL_AUDIO_S16,
-            .channels = 1,
             .freq = 48000,
+            .format = AUDIO_S16,
+            .channels = 1,
+            .callback = gfx_audio_callback,
         };
-        gfx.audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audio_spec, gfx_audio_callback, 0);
-        SDL_AudioDeviceID audio_device = SDL_GetAudioStreamDevice(gfx.audio_stream);
-        SDL_ResumeAudioDevice(audio_device);
+        gfx.audio_device = SDL_OpenAudioDevice(NULL, 0, &audio_spec, NULL, 0);
+        SDL_PauseAudioDevice(gfx.audio_device, 0);
     }
 
-    SDL_LockAudioStream(gfx.audio_stream);
+    SDL_LockAudioDevice(gfx.audio_device);
 
     // Limit count
     if (count > ARRAY_COUNT(gfx.audio_buffer))
@@ -160,12 +180,12 @@ void gfx_play(int count, int16_t *samples) {
         gfx.audio_buffer[i] += samples[i];
     }
 
-    SDL_UnlockAudioStream(gfx.audio_stream);
+    SDL_UnlockAudioDevice(gfx.audio_device);
 }
 
 void gfx_sync(double interval) {
-    uint64_t interval_us = interval * 1e6;
-    SDL_DelayPrecise(interval_us * 1000);
+    uint64_t interval_ms = interval * 1000;
+    SDL_Delay(interval_ms);
 }
 
 void gfx_quit(void) {

@@ -144,7 +144,7 @@ ${BUILDDIR}/c/lib%.so: ${BUILDDIR}/c/lib%.c
 	gcc ${CFLAGS} -shared -fPIC -o $@ $<
 
 ${BUILDDIR}/c/libgfx.so: ${BUILDDIR}/c/libgfx.c Libs/gfx/gfx.c
-	gcc ${CFLAGS} -shared -fPIC -lSDL3 -o $@ $^
+	gcc ${CFLAGS} -shared -fPIC -lSDL2 -o $@ $^
 
 # Base lib as python module
 ${BUILDDIR}/python/libbase.py ${BUILDDIR}/python/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
