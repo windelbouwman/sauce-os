@@ -25,6 +25,9 @@ typedef struct {
 
     // Down state
     uint8_t key_down[KEY_COUNT];
+
+    // Timing
+    uint32_t time;
 } Gfx_State;
 
 static Gfx_State gfx;
@@ -46,7 +49,8 @@ void gfx_init(const char *title, int width, int height) {
     gfx.window_width = width;
     gfx.window_height = height;
     gfx.window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, 0);
-    gfx.renderer = SDL_CreateRenderer(gfx.window, -1, 0);
+    gfx.renderer = SDL_CreateRenderer(gfx.window, -1, SDL_RENDERER_ACCELERATED);
+    gfx.time = SDL_GetTicks();
 }
 
 void gfx_poll(void) {
@@ -155,7 +159,6 @@ static void gfx_audio_callback(void *user, uint8_t *stream, int len) {
     }
 }
 
-
 void gfx_play(int count, int16_t *samples) {
     if(!gfx.audio_device) {
         // Init audio
@@ -189,7 +192,20 @@ void gfx_play(int count, int16_t *samples) {
 
 void gfx_sync(double interval) {
     uint64_t interval_ms = interval * 1000;
-    SDL_Delay(interval_ms);
+
+    uint32_t current_time = SDL_GetTicks();
+    uint32_t last_time = gfx.time;
+    uint32_t next_time = last_time + interval_ms;
+
+    // Limit next time to at least now
+    if(next_time < current_time) next_time = current_time;
+
+    uint32_t sleep_time = next_time - current_time;
+    uint32_t used_time  = current_time - last_time;
+    // printf("Used: %u, Sleep: %u\n", used_time, sleep_time);
+    if (sleep_time > 0)
+        SDL_Delay(sleep_time);
+    gfx.time = next_time;
 }
 
 void gfx_quit(void) {

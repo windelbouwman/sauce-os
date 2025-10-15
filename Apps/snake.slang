@@ -186,7 +186,8 @@ class Game:
 	fn cell_put(x: int, y: int, value:Cell):
 		world[y*WORLD_WIDTH + x] = value
 
-	var dt: float = 1.0 / 60
+	# Game update rate
+	var dt: float = 1.0 / 120
 	var time_since_step: float = 0
 
 	pub fn update():
