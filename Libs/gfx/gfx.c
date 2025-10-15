@@ -84,7 +84,11 @@ void gfx_poll(void) {
                 if (sdlk == SDLK_LSHIFT || sdlk == SDLK_RSHIFT) key = KEY_SHIFT;
                 if (sdlk == SDLK_LALT || sdlk == SDLK_RALT) key = KEY_ALT;
                 if (sdlk == SDLK_LGUI || sdlk == SDLK_RGUI) key = KEY_WIN;
-                if(key != KEY_NONE) gfx_emit_key(key, event.key.state == SDL_PRESSED);
+                if (sdlk == SDLK_UP) key = KEY_UP;
+                if (sdlk == SDLK_DOWN) key = KEY_DOWN;
+                if (sdlk == SDLK_LEFT) key = KEY_LEFT;
+                if (sdlk == SDLK_RIGHT) key = KEY_RIGHT;
+                if (key != KEY_NONE) gfx_emit_key(key, event.key.state == SDL_PRESSED);
             } break;
         }
     }

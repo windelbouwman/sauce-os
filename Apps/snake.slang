@@ -209,16 +209,16 @@ class Game:
 		if gfx.input_click(key: gfx.Key.KEY_APP_QUIT()):
 			is_running = false
 
-		if gfx.input_click(key: gfx.Key.KEY_W()) or gfx.input_click(key: gfx.Key.KEY_I()):
+		if gfx.input_click(key: gfx.Key.KEY_UP()) or gfx.input_click(key: gfx.Key.KEY_W()) or gfx.input_click(key: gfx.Key.KEY_I()):
 			next_direction.append(Direction.Up())
 
-		if gfx.input_click(key: gfx.Key.KEY_S()) or gfx.input_click(key: gfx.Key.KEY_K()):
+		if gfx.input_click(key: gfx.Key.KEY_DOWN()) or gfx.input_click(key: gfx.Key.KEY_S()) or gfx.input_click(key: gfx.Key.KEY_K()):
 			next_direction.append(Direction.Down())
 
-		if gfx.input_click(key: gfx.Key.KEY_A()) or gfx.input_click(key: gfx.Key.KEY_J()):
+		if gfx.input_click(key: gfx.Key.KEY_LEFT()) or gfx.input_click(key: gfx.Key.KEY_A()) or gfx.input_click(key: gfx.Key.KEY_J()):
 			next_direction.append(Direction.Left())
 
-		if gfx.input_click(key: gfx.Key.KEY_D()) or gfx.input_click(key: gfx.Key.KEY_L()):
+		if gfx.input_click(key: gfx.Key.KEY_RIGHT()) or gfx.input_click(key: gfx.Key.KEY_D()) or gfx.input_click(key: gfx.Key.KEY_L()):
 			next_direction.append(Direction.Right())
 
 	pub fn step():
