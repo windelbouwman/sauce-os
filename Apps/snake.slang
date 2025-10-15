@@ -292,11 +292,13 @@ class Game:
 		var food_count  = 0
 		var empty_count = 0
 		while i < WORLD_WIDTH*WORLD_HEIGHT:
-			if world[i] == Cell.Empty():
-				empty_count += 1
-
-			if world[i] == Cell.Food():
-				food_count += 1
+			case world[i]:
+				Empty:
+					empty_count += 1
+				Food:
+					food_count += 1
+			else:
+				pass
 			i += 1
 
 		if food_count < 4:
@@ -350,18 +352,19 @@ class Game:
 		var i = 0
 		var j = 0
 		while i < WORLD_WIDTH*WORLD_HEIGHT:
-			if world[i] == Cell.Wall():
-				screen[j + 0] = uint8(255)
-				screen[j + 1] = uint8(255)
-				screen[j + 2] = uint8(255)
-			elif world[i] == Cell.Snake():
-				screen[j + 0] = uint8(0)
-				screen[j + 1] = uint8(255)
-				screen[j + 2] = uint8(0)
-			elif world[i] == Cell.Food():
-				screen[j + 0] = uint8(255)
-				screen[j + 1] = uint8(0)
-				screen[j + 2] = uint8(0)
+			case world[i]:
+				Wall:
+					screen[j + 0] = uint8(255)
+					screen[j + 1] = uint8(255)
+					screen[j + 2] = uint8(255)
+				Snake:
+					screen[j + 0] = uint8(0)
+					screen[j + 1] = uint8(255)
+					screen[j + 2] = uint8(0)
+				Food:
+					screen[j + 0] = uint8(255)
+					screen[j + 1] = uint8(0)
+					screen[j + 2] = uint8(0)
 			else:
 				screen[j + 0] = uint8(10)
 				screen[j + 1] = uint8(60)
