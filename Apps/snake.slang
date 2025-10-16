@@ -191,7 +191,13 @@ class Game:
 	var time_since_step: float = 0
 
 	pub fn update():
-		let step_time = 0.1 + 2.0 / math.max(snake_len, 4)
+		let a = 1.0 / (score + 1)
+
+		let rate_start = 2
+		let rate_end   = 10
+
+		let rate = rate_start + (1-1/(1+float(score)/4))*(rate_end - rate_start)
+		let step_time = 1 / rate
 		input()
 
 		if time_since_step > step_time:
@@ -294,7 +300,7 @@ class Game:
 
 		# Food
 		if cell == Cell.Food():
-			snake_target += 1
+			snake_target += 4
 			score += 1
 			play_sound(freq: 220.0 + 440.0*rand.next_float(), duration: 0.2)
 		else:
@@ -325,9 +331,9 @@ class Game:
 		while i < WORLD_WIDTH*WORLD_HEIGHT:
 			case world[i]:
 				Wall:
-					screen[j + 0] = uint8(255)
-					screen[j + 1] = uint8(255)
-					screen[j + 2] = uint8(255)
+					screen[j + 0] = uint8(10)
+					screen[j + 1] = uint8(30)
+					screen[j + 2] = uint8(10)
 				Snake:
 					screen[j + 0] = uint8(0)
 					screen[j + 1] = uint8(255)
