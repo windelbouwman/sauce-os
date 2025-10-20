@@ -541,6 +541,7 @@ class TypeChecker(BasePass):
                 or b.is_char()
                 or b.is_enum()
                 or b.is_pointer()
+                or b.is_array()
             ):
                 # TODO: check if b contains meta-var
                 # Assign type to meta-var:

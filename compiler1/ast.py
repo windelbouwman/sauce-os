@@ -697,7 +697,7 @@ class Module(ScopedDefinition):
         self.types = []
 
     def __repr__(self):
-        return f"Module({self.name})"
+        return f"Module({self.id.name})"
 
     def get_deps(self) -> list[str]:
         deps = [imp.modname for imp in self.imports]

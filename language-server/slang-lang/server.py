@@ -228,8 +228,8 @@ class IncrementalCompiler:
                 filename = source[0]
                 if filename in self.module_cache:
                     m = self.module_cache[filename]
-                    if self.dependency_graph.has_node(m.name):
-                        needed_by = nx.ancestors(self.dependency_graph, m.name)
+                    if self.dependency_graph.has_node(m.id.name):
+                        needed_by = nx.ancestors(self.dependency_graph, m.id.name)
                         for n in needed_by:
                             if n in self.known_modules:
                                 dependant_filename = self.known_modules[n].filename
@@ -245,8 +245,8 @@ class IncrementalCompiler:
                 module = self.module_cache[source]
             else:
                 module = slangc.parse_file(self.id_context, source)
-                if module.name in self.known_modules:
-                    self.known_modules.pop(module.name)
+                if module.id.name in self.known_modules:
+                    self.known_modules.pop(module.id.name)
             modules.append(module)
 
         self.dependency_graph = slangc.dependency_graph(modules)
@@ -254,7 +254,7 @@ class IncrementalCompiler:
 
         # Analyze modules:
         for module in modules:
-            if module.name in self.known_modules:
+            if module.id.name in self.known_modules:
                 continue
             slangc.resolve_names(self.known_modules, module)
             slangc.evaluate_types(module)
