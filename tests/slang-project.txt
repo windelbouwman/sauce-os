@@ -7,4 +7,3 @@
 ../Libs/regex/rangelib.slang
 ../Libs/regex/regex.slang
 ../runtime/std.slang
-../compiler/utils
