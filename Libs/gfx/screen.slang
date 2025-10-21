@@ -1,17 +1,13 @@
 
 from utils import assert
 from math import abs
-from image import Image, new_image, Pixel
+from image import Image, new_image, Pixel, ColorMode
 from png import write_png_to_file
 
 pub fn new_screen(width: int, height: int) -> Screen:
 	assert(condition: width > 0, message: "Width must be larger than 0")
 	assert(condition: height > 0, message: "Height must be larger than 0")
-	let image = new_image(width, height)
-	var i = 0
-	while i < width * height:
-		image.add_pixel(red: 1, green: 1, blue: 1, alpha: 1)
-		i += 1
+	let image = new_image(width, height, mode: ColorMode.ColorAlpha())
 	Screen(m_width: width, m_height: height, m_image: image)
 
 pub class Screen:
@@ -131,7 +127,7 @@ pub class Screen:
 			x += 1
 
 	pub fn put_pixel(x: int, y: int):
-		m_image.set_pixel(x, y, red: m_color.red, green: m_color.green, blue: m_color.blue, alpha: 255)
+		m_image.set_pixel(x, y, pixel: m_color)
 
 	pub fn save_png(filename: str):
 		write_png_to_file(image: m_image, filename)

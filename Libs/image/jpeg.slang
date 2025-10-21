@@ -12,7 +12,7 @@ from vectype import Vector, new_vector
 from bytes import ByteReader, Bytes, ByteArray
 from huffman import BitReader, Tree, decode_symbol, zero_int_array
 from hashmap import HashMap, new_hashmap_int
-from image import Image, new_black_image, Pixel, new_empty_image
+from image import Image, new_black_image, Pixel, new_empty_image, new_pixel
 from qoi import read_whole_file_as_bytes
 
 pub fn read_jpg_from_file(filename: str) -> Image:
@@ -294,17 +294,18 @@ class JpegDecoder:
 		let lum_data = mcu[0]
 		let cb_data = mcu[1]
 		let cr_data = mcu[2]
+		let pixel = new_pixel()
 		var xx = 0
 		while xx < mcu_width:
 			var yy = 0
 			while yy < mcu_height:
 				if x + xx < m_width and y + yy < m_height:
-					let pixel = m_image.get_pixel(x: x + xx, y: y + yy)
 					let i = yy * mcu_width + xx
 					let lum = lum_data[i]
 					let cb = cb_data[i]
 					let cr = cr_data[i]
 					color_conversion(lum, cb, cr, pixel)
+					m_image.set_pixel(x: x + xx, y: y + yy, pixel)
 				yy += 1
 			xx += 1
 

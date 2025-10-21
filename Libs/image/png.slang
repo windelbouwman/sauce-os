@@ -10,7 +10,8 @@ from math import abs, modulo
 from bytes import Bytes, ByteReader, bytes_from_ascii, bytes_from_hex_text, ByteArray, bytes_to_ascii, new_bytes
 from gzip import calc_crc32, zlib_decompress, zlib_compress
 from qoi import read_whole_file_as_bytes, write_bytes_to_file
-from image import Image, new_image, Pixel
+from image import Image, new_image, Pixel, new_pixel, ColorMode
+from vectype import Vector, new_vector
 
 pub fn read_png_from_file(filename: str) -> Image:
 	log_debug("Loading PNG from {filename}")
@@ -37,6 +38,13 @@ pub fn write_png_to_file(image: Image, filename: str):
 
 class PngDecoder:
 	var m_byte_reader: ByteReader
+	var pallete: Vector[Pixel] = new_vector()
+	var width: int = 0
+	var height: int = 0
+	var bitdepth: int = 0
+	var samples: int = 0
+	var bpp: int = 0
+	var colortype: int = 0
 
 	pub fn read_image() -> Image:
 		let signature = read_bytes(8)
@@ -46,57 +54,31 @@ class PngDecoder:
 		let type_ihdr = chunk_type_code(name: "IHDR")
 		let type_idat = chunk_type_code(name: "IDAT")
 		let type_iend = chunk_type_code(name: "IEND")
-		# let type_gama = chunk_type_code(name: "gAMA")
-		# let type_gama = chunk_type_code(name: "sRGB")
+		let type_gama = chunk_type_code(name: "gAMA")
+		let type_sbit = chunk_type_code(name: "sBIT")
+		let type_plte = chunk_type_code(name: "PLTE")
+		let type_srgb = chunk_type_code(name: "sRGB")
 
 		var idat: Bytes = new_bytes()
-		var width = 0
-		var height = 0
-		var bpp = 0
-		var colortype = 0
 
 		# Loop over chunks in PNG:
 		loop:
 			let chunk = read_chunk()
 			if chunk.chunk_type == type_ihdr:
 				log_debug("IHDR chunk")
+				parse_header(chunk)
+			elif chunk.chunk_type == type_gama:
 				let r = chunk.data.into_reader()
-				width = r.read_u32_be()
-				height = r.read_u32_be()
-
-				let bitdepth = r.read_byte()
-				colortype = r.read_byte()
-				let compression = r.read_byte()
-				let filter_method = r.read_byte()
-				let interlace_method = r.read_byte()
-				log_debug("width={width} height={height} bitdepth={bitdepth} colortype={colortype}")
-				log_debug("compression={compression} filter_method={filter_method} interlace_method={interlace_method}")
-				assert(condition: bitdepth == 8, message: "Only support 8 bits depth")
-				# color types:
-				# 0 = grayscale
-				# 2 = rgb
-				# 3 = indexed
-				# 4 = grayscal and alpha
-				# 6 = rgb + alpha
-
-				if colortype == 2: # rgb
-					bpp = 3
-				elif colortype == 6: # rgb a
-					bpp = 4
-				else:
-					panic("Unsupported color type: {colortype}")
-
-				# compression type 0 --> zlib deflate format
-				assert(condition: compression == 0, message: "compression must be 0")
-
-				# Filter method 0, means 5 pre defined filter types
-				assert(condition: filter_method == 0, message: "filter must be 0")
-				assert(condition: interlace_method == 0, message: "Only support no interlace")
-
+				let gamma = r.read_u32_be()
+				log_debug("gamma={gamma}")
+			elif chunk.chunk_type == type_sbit:
+				log_debug("sBIT chunk")
+			elif chunk.chunk_type == type_plte:
+				log_debug("PLTE chunk")
+				parse_palette(chunk)
 			elif chunk.chunk_type == type_idat:
 				log_debug("IDAT chunk")
 				idat = idat.concat(other: chunk.data)
-
 			elif chunk.chunk_type == type_iend:
 				log_debug("IEND chunk")
 				break
@@ -105,14 +87,17 @@ class PngDecoder:
 				type_data.pack_u32_be(chunk.chunk_type)
 				log_warning("Unsupported chunk type: {bytes_to_ascii(data: type_data.to_bytes())}")
 
+		let bytes_per_line = (bitdepth * samples * width + 7) / 8
+		log_debug("bpp={bpp}, bytes_per_line={bytes_per_line}")
 
 		# Post processing!
 		# Decompress data:
 		let data2 = zlib_decompress(data: idat)
 		log_debug("Decompressed {data2.len()} bytes")
-		let data3 = post_filter(data: data2, width, height, bpp)
-		let image = new_image(width, height)
-		to_pixels(data: data3, image, colortype)
+		let data3 = post_filter(data: data2, width, height, bytes_per_line, bpp)
+		let image = new_image(width, height, mode: ColorMode.ColorAlpha())
+		to_pixels(data: data3, image, colortype, depth: bitdepth, pallete)
+		log_debug("Read image of {width}x{height} pixels")
 		image
 
 	fn read_chunk() -> Chunk:
@@ -127,6 +112,66 @@ class PngDecoder:
 		let crc = calc_crc32(data: crc_data.to_bytes())
 		assert(condition: crc == chunk_crc, message: "CRC mismatch: {crc} != {chunk_crc}")
 		Chunk(chunk_type, data)
+
+	fn parse_header(chunk: Chunk):
+		let r = chunk.data.into_reader()
+		width = r.read_u32_be()
+		height = r.read_u32_be()
+
+		bitdepth = r.read_byte()
+		colortype = r.read_byte()
+		let compression = r.read_byte()
+		let filter_method = r.read_byte()
+		let interlace_method = r.read_byte()
+		log_debug("width={width} height={height} bitdepth={bitdepth} colortype={colortype}")
+		log_debug("compression={compression} filter_method={filter_method} interlace_method={interlace_method}")
+
+		if not (bitdepth == 16 or bitdepth == 8 or bitdepth == 4 or bitdepth == 2 or bitdepth == 1):
+			panic("Invalid bit depth: {bitdepth}")
+
+		# color types:
+		# 0 = grayscale
+		# 2 = rgb
+		# 3 = indexed
+		# 4 = grayscal and alpha
+		# 6 = rgb + alpha
+		if colortype == 0: # grayscale
+			samples = 1
+		elif colortype == 2: # rgb
+			samples = 3
+		elif colortype == 3: # pallete based image
+			samples = 1
+		elif colortype == 4: # grayscale+alpha
+			samples = 2
+		elif colortype == 6: # rgb+alpha
+			samples = 4
+		else:
+			panic("Unsupported color type: {colortype}")
+
+		# bytes per complete pixel, rounded up:
+		bpp = (samples * bitdepth + 7) / 8
+
+		# compression type 0 --> zlib deflate format
+		assert(condition: compression == 0, message: "compression must be 0")
+
+		# Filter method 0, means 5 pre defined filter types
+		assert(condition: filter_method == 0, message: "filter must be 0")
+		assert(condition: interlace_method == 0, message: "Only support no interlace")
+
+	fn parse_palette(chunk: Chunk):
+		let num_colors: int = chunk.data.len() / 3
+		if num_colors * 3 != chunk.data.len():
+			panic("Invalid PLTE chunk")
+		if (num_colors < 1) or (num_colors > 256):
+			panic("Invalid pallete with {num_colors} colors")
+		let r = chunk.data.into_reader()
+		var i = 0
+		while i < num_colors:
+			let red = r.read_byte()
+			let green = r.read_byte()
+			let blue = r.read_byte()
+			pallete.append(Pixel(red, green, blue, alpha: 255))
+			i += 1
 
 	fn read_bytes(size?: int) -> Bytes:
 		m_byte_reader.read_bytes(size)
@@ -150,7 +195,7 @@ class PngEncoder:
 		out.pack_u32_be(width)
 		out.pack_u32_be(height)
 		out.append(8) # bit depth
-		out.append(2) # color type (2 = rgd)
+		out.append(2) # color type (2 = rgb)
 		out.append(0) # compression type
 		out.append(0) # filter method
 		out.append(0) # interlace method
@@ -185,10 +230,11 @@ class PngEncoder:
 fn pixels_to_buffer(image: Image) -> Bytes:
 	let out = ByteArray()
 	var scanline = 0
+	let pixel = new_pixel()
 	while scanline < image.height:
 		var x = 0
 		while x < image.width:
-			let pixel = image.pixels.get(index: scanline * image.width + x)
+			image.get_pixel(x, y: scanline, pixel)
 			out.append(pixel.red)
 			out.append(pixel.green)
 			out.append(pixel.blue)
@@ -197,32 +243,96 @@ fn pixels_to_buffer(image: Image) -> Bytes:
 		scanline += 1
 	out.to_bytes()
 
-fn to_pixels(data: Bytes, image: Image, colortype: int):
+class Sampler:
+	""" Extract samples with a certain bit depth from a byte array """
+	var m_data: Bytes
+	var m_depth: int  # depth in bits
+	var m_index: int = 0
+	var m_bit_index: int = 0
+
+	fn get_bits(bits: int) -> int:
+		if bits == 8:
+			let v = m_data.get(index: m_index)
+			m_index += 1
+			v
+		elif bits == 16:
+			var v = (m_data.get(index: m_index) << 8) | m_data.get(index: m_index + 1)
+			m_index += 2
+			v
+		elif bits < 8:
+			let x = m_data.get(index: m_index)
+			let mask = (1 << bits) - 1
+			m_bit_index += bits
+			let v = (x >> (8 - m_bit_index)) & mask
+			if m_bit_index == 8:
+				m_bit_index = 0
+				m_index += 1
+			v
+		else:
+			panic("Invalid bit depth: {m_depth}")
+
+	pub fn get_value() -> int:
+		let v = get_bits(bits: m_depth)
+		# Normalize to 8 bit:
+		if m_depth < 8:
+			v << (8 - m_depth)
+		elif m_depth > 8:
+			v >> (m_depth - 8)
+		else:
+			v
+
+	pub fn new_line():
+		if m_bit_index > 0:
+			m_bit_index = 0
+			m_index += 1
+
+	pub fn complete():
+		log_debug("Samples done: index={m_index}, size={m_data.len()}")
+
+fn to_pixels(data: Bytes, image: Image, colortype: int, depth: int, pallete: Vector[Pixel]):
+	let sampler = Sampler(m_data: data, m_depth: depth)
 	var scanline = 0
-	var index = 0
+	let pixel = new_pixel()
+	pixel.alpha = 0xFF
 	while scanline < image.height:
 		var x = 0
 		while x < image.width:
-			let red = data.get(index)
-			index += 1
-			let green = data.get(index)
-			index += 1
-			let blue = data.get(index)
-			index += 1
+			if colortype == 0:
+				# Grayscale
+				pixel.green = sampler.get_value()
+			elif colortype == 2:
+				# rgb
+				pixel.red = sampler.get_value()
+				pixel.green = sampler.get_value()
+				pixel.blue = sampler.get_value()
+			elif colortype == 3:
+				# palletted
+				let index = sampler.get_value()
+				let color = pallete.get(index)
+				pixel.red = color.red
+				pixel.green = color.green
+				pixel.blue = color.blue
+			elif colortype == 4:
+				# grayscale-a
+				pixel.green = sampler.get_value()
+				pixel.alpha = sampler.get_value()
+			elif colortype == 6:
+				# RGB-A
+				pixel.red = sampler.get_value()
+				pixel.green = sampler.get_value()
+				pixel.blue = sampler.get_value()
+				pixel.alpha = sampler.get_value()
+			else:
+				panic("Unsupported color type: {colortype}")
 
-			var alpha = 0xFF
-			if colortype == 6:
-				alpha = data.get(index)
-				index += 1
-
-			# Push pixel:
-			let pixel = Pixel(red, green, blue, alpha)
-			image.pixels.append(pixel)
+			image.set_pixel(x, y: scanline, pixel)
 			x += 1
+		sampler.new_line()
 		scanline += 1
+	sampler.complete()
 
 fn encode_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
-	# Apply filtering as encoding step
+	""" Apply filtering as encoding step """
 	let out = ByteArray()
 	let bytes_per_line = bpp * width
 	var scanline = 0
@@ -243,16 +353,16 @@ fn encode_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
 	assert(condition: filtered.len() == expected_data_size, message: "Expected {expected_data_size}, but created {filtered.len()}")
 	filtered
 
-fn post_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
-	# Perform post filtering on a byte basis.
-	# Note that we have no notion of bit depth or color space at this point.
+fn post_filter(data: Bytes, width: int, height: int, bytes_per_line: int, bpp: int) -> Bytes:
+	""" Perform post filtering on a byte basis.
+	Note that we have no notion of bit depth or color space at this point.
+	"""
 
-	let expected_data_size = (width * bpp + 1) * height
+	let expected_data_size = (bytes_per_line + 1) * height
 	assert(condition: data.len() == expected_data_size, message: "PNG data size mismatch, expected {expected_data_size}, but got {data.len()}")
 
 	var scanline = 0
 	var index = 0
-	let bytes_per_line = bpp * width
 	let out = ByteArray()
 	while scanline < height:
 		let filter_type = data.get(index)

@@ -1,5 +1,6 @@
-
-# Demo of saving images
+"""
+Demo of saving images
+"""
 
 from std import get_n_args, get_arg, print
 from logging import set_log_level
@@ -71,12 +72,13 @@ pub fn main() -> int:
 				return 1
 		i += 1
 
-	if parse_state != 2:
+	if parse_state == 0:
 		print_usage()
 		return 1
 
 	set_log_level(level: log_level)
 	let image = load_image(filename: input_image)
-	save_image(image, filename: output_image)
+	if parse_state > 1:
+		save_image(image, filename: output_image)
 
 	return 0

@@ -1,9 +1,10 @@
-
-# Vector datatype.
-# As opposed to the Linked List, we use an array here.
-# The allocated array will be larger than the actual amount of values,
-# and when appendingwe might need to re-allocate the array and copy
-# the old values.
+"""
+Vector datatype.
+As opposed to the Linked List, we use an array here.
+The allocated array will be larger than the actual amount of values,
+and when appendingwe might need to re-allocate the array and copy
+the old values.
+"""
 
 from utils import panic, assert
 
@@ -122,7 +123,7 @@ pub class Vector[T]:
 		m_elements[m_size - 1]
 
 	pub fn take(amount?: int) -> Vector[T]:
-		# Create a new vector with the given amount of items
+		""" Create a new vector with the given amount of items """
 		assert(condition: amount < m_size, message: "take: amount must less than size.")
 		let v2: Vector[T] = new_vector()
 		var index = 0
