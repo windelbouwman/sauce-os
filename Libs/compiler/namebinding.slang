@@ -95,6 +95,7 @@ fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: a
 					log_info("Entering module {module_def.name}")
 					#filler.define(is_pub: true, name: module_def.name, kind: ast.SymbolKind.Module(module_def), location: module_def.location)
 					filler.enter_scope(scope: module_def.scope)
+					filler.errors.enter_file(filename: module_def.filename)
 				Macro(macro_def):
 					filler.define(is_pub: false, name: macro_def.name, kind: ast.SymbolKind.Macro(macro_def), location: macro_def.location)
 				Function(function_def):
@@ -158,6 +159,11 @@ fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: a
 					pass
 			else:
 				filler.leave_scope()
+			case definition:
+				Module(module_def):
+					filler.errors.leave_file()
+			else:
+				pass
 	else:
 		pass
 

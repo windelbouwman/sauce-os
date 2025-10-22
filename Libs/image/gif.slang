@@ -7,7 +7,7 @@ from listtype import List
 from bytes import Bytes, new_bytes, ByteReader, ByteArray
 from bytes import bytes_to_ascii, fill_bytes
 from vectype import Vector, new_vector
-from image import Image, new_image
+from image import Image, new_image, ColorMode, new_pixel
 from qoi import read_whole_file_as_bytes
 
 
@@ -109,10 +109,21 @@ class GifReader:
 		let uncompressed = lzw_decode(data: lzw_data.to_bytes())
 
 		assert(condition: uncompressed.len() == width * height, message: "width and height do not match decompressed data")
-		let image = new_image(width, height)
+		let image = new_image(width, height, mode: ColorMode.ColorAlpha())
+		let pixel = new_pixel()
+		var x = 0
+		var y = 0
 		for value in uncompressed:
 			let color = m_palette[value]
-			image.add_pixel(red: color.r, green: color.g, blue: color.b, alpha: 255)
+			pixel.red = color.r
+			pixel.green = color.g
+			pixel.blue = color.b
+			pixel.alpha = 255
+			image.set_pixel(x, y, pixel)
+			x += 1
+			if x == width:
+				x = 0
+				y += 1
 
 		m_images.append(image)
 

@@ -1,5 +1,5 @@
 
-from std import print, exit, get_time
+from std import print, exit
 
 pub fn panic(message?: str) -> unreachable:
 	print("PANIC: {message}")

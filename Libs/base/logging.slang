@@ -2,7 +2,7 @@
 
 """
 
-from std import print, exit, get_time
+from std import print, get_time
 
 var log_level: int = 0
 
