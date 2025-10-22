@@ -97,8 +97,8 @@ class Game:
 
 	pub fn init():
 		# seed the rng a bit
-		let _1 = rand.next()
-		let _2 = rand.next()
+		let tmp_1 = rand.next()
+		let tmp_2 = rand.next()
 
 		var i = 0
 		var y = 0
