@@ -24,7 +24,7 @@ import mil
 import riscv
 from bytes import ByteArray
 from optiontype import Option
-from codegen import BackendV2, cgen, SelectionContextV2
+from codegen import BackendV2, SelectionContextV2
 from outstream import BinaryOutput
 from utils import unimplemented
 from logging import log_info

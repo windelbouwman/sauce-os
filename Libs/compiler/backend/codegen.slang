@@ -3,14 +3,12 @@ import mil
 from std import print
 from register_allocation import reg_alloc
 from hashmap import HashMap, new_hashmap_str
-from vectype import Vector, new_vector # , vec1
+from vectype import Vector, new_vector
 from settype import Set, new_str_set
 from listtype import List
 from optiontype import Option
 from sorting import sort_list
-from utils import unimplemented, panic
-from logging import log_info
-# from strlib import int_to_hex_string
+from utils import panic
 from hexfile import HexFile
 from elf_file import write_elf
 from bytes import ByteArray

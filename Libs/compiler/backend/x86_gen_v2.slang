@@ -2,8 +2,7 @@ from utils import unimplemented
 import sil
 import mil
 import x86
-from codegen import cgen, SelectionContextV2
-from outstream import BinaryOutput
+from codegen import SelectionContextV2
 
 
 fn fetch_value_v2(context: SelectionContextV2[x86.Instruction], value: sil.Value) -> mil.Register:
@@ -15,7 +14,7 @@ fn fetch_value_v2(context: SelectionContextV2[x86.Instruction], value: sil.Value
 		StackSlot(offset):
 			unimplemented("stack value")
 
-fn select_instruction_v2(context: SelectionContextV2[x86.Instruction], instruction: sil.Instruction):
+pub fn select_instruction_v2(context: SelectionContextV2[x86.Instruction], instruction: sil.Instruction):
 	""" Select machine instruction based on sil operator """
 	case instruction.op:
 		Alloc(addr, size):
@@ -52,7 +51,7 @@ fn select_instruction_v2(context: SelectionContextV2[x86.Instruction], instructi
 	else:
 		unimplemented("select: {instruction}")
 
-fn materialize(x: mil.Instruction[x86.Instruction]) -> x86.Instruction:
+pub fn materialize(x: mil.Instruction[x86.Instruction]) -> x86.Instruction:
 	case x.instruction:
 		MovRegRm(reg, rm):
 			let reg2 = x.defs.get(index: 0).color
