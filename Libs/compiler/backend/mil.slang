@@ -20,10 +20,10 @@ pub class Instruction[X]:
 	pub var uses: Vector[Register]
 	pub var defs: Vector[Register]
 
-	pub fn add_use(r: Register):
+	pub fn add_use(r?: Register):
 		uses.append(r)
 
-	pub fn add_def(r: Register):
+	pub fn add_def(r?: Register):
 		defs.append(r)
 
 pub struct Register:

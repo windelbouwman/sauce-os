@@ -13,9 +13,28 @@ https://blog.jcoglan.com/2017/04/25/myers-diff-in-linear-space-implementation/
 
 from logging import log_debug
 from utils import panic
+from std import str_len, str_get
 from listtype import List
-from hashmap import HashMap, new_hashmap_int, str_eq, int_eq
-from vectype import Vector, new_vector, new_vector_of_size
+from hashmap import HashMap, new_hashmap_int, str_eq, int_eq, char_eq
+from math import max
+
+pub fn ratio(a: str, b: str) -> float:
+	""" Calculate similarity ratio between two strings.
+
+	This has remotely to do with Levenshtein distance.
+
+	Returns a value between 0 and 1 indicating similarity
+	"""
+	let n = str_len(text: a)
+	let m = str_len(text: b)
+	var d = 0
+	for edit in diff_strings(a, b):
+		case edit:
+			Equal(pos1, pos2, value):
+				pass
+		else:
+			d += 1
+	1.0 - float(d) / max(n, m)
 
 pub fn diff_lines(a: List[str], b: List[str]) -> List[Edit[str]]:
 	""" Compare two lists of strings """
@@ -24,6 +43,23 @@ pub fn diff_lines(a: List[str], b: List[str]) -> List[Edit[str]]:
 pub fn diff_numbers(a: List[int], b: List[int]) -> List[Edit[int]]:
 	""" Compare two lists of integers """
 	diff_items(a, b, eq: int_eq)
+
+pub fn diff_strings(a: str, b: str) -> List[Edit[char]]:
+	""" Compare two strings """
+	diff_chars(a: str_to_char_list(a), b: str_to_char_list(b))
+
+fn str_to_char_list(s?: str) -> List[char]:
+	let r: List[char] = List()
+	let n = str_len(text: s)
+	var i = 0
+	while i < n:
+		r.append(str_get(text: s, index: i))
+		i += 1
+	r
+
+pub fn diff_chars(a: List[char], b: List[char]) -> List[Edit[char]]:
+	""" Compare two lists of chars """
+	diff_items(a, b, eq: char_eq)
 
 pub fn diff_items[T](a: List[T], b: List[T], eq: fn(T,T) -> bool) -> List[Edit[T]]:
 	let ctx: Context[T] = Context(a, b, eq)

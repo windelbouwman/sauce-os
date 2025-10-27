@@ -17,7 +17,7 @@ pub class IntegerSet:
 			parts.append(range_to_string(r))
 		str_join(parts, sep: ",")
 
-	pub fn equals(other: IntegerSet) -> bool:
+	pub fn equals(other?: IntegerSet) -> bool:
 		integer_set_equals(a: this, b: other)
 
 	pub fn is_empty() -> bool:
@@ -29,10 +29,10 @@ pub class IntegerSet:
 				return true
 		false
 
-	pub fn difference(other: IntegerSet) -> IntegerSet:
+	pub fn difference(other?: IntegerSet) -> IntegerSet:
 		integer_set_difference(self: this, other)
 
-	pub fn union(other: IntegerSet) -> IntegerSet:
+	pub fn union(other?: IntegerSet) -> IntegerSet:
 		integer_set_intersection(self: this, other)
 
 	pub fn first() -> int:

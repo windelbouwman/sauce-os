@@ -1,4 +1,4 @@
-""" Turn bytecode into riscv code
+""" Generate riscv code
 
  Register usage convention:    (saver)
  x0 -> zero -> hardwired 0
@@ -24,7 +24,8 @@ import mil
 import riscv
 from bytes import ByteArray
 from optiontype import Option
-from codegen import BackendV2, SelectionContextV2
+from listtype import List, list4
+from codegen import Backend, SelectionContext, Frame, cgen
 from outstream import BinaryOutput
 from utils import unimplemented
 from logging import log_info
@@ -32,35 +33,51 @@ from logging import log_info
 pub fn gen_riscv(program: sil.Program, filename: Option[str]):
 	log_info("Generating riscv code")
 	program.dump()
-	let backend = BackendV2:
+	let all_regs: List[int] = list4(18, 19, 20, 21)
+	let backend: Backend[VirtInst] = Backend:
+		all_regs
+		enter: enter_function
 		selector: select_instruction
+		to_str: vinst_to_str
 		materializer: materialize
-		instruction_as_str: riscv.instruction_to_string
-		to_binstream: do_emit
 		emit_prologue: gen_prologue
 		emit_epilogue: gen_epilogue
 
 	unimplemented("TODO")
-	# cgen(program, backend)
+	cgen(program, backend, filename)
 
-# class RiscvGen:
-fn select_instruction(context: SelectionContextV2[riscv.Instruction], instruction: sil.Instruction):
+enum VirtInst:
+	Jal
+	Mov
+	Add
+	Sub
+	Load
+	Store
+	X(i: riscv.Instruction)
+
+fn vinst_to_str(vi: VirtInst) -> str:
+	"virt-ins"
+
+fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
+	pass
+
+fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Instruction):
 	""" Select machine instruction based on sil operator """
 	case instruction.op:
 		Nop:
-			context.emit(riscv.Instruction.ADDI(rd: 0, rs1: 0, imm: 0))
+			pass
 		Const(dst, value):
 			unimplemented("Const")
 		Jump(label):
-			context.emit(riscv.Instruction.JAL(rd: 0, imm: 0))
+			context.emit(VirtInst.Jal())
 		JumpNonZero(condition, label1, label2):
-			context.emit(riscv.Instruction.JAL(rd: 0, imm: 0))
+			context.emit(VirtInst.Jal())
 		Binop(dst, op2, lhs, rhs):
 			case op2:
 				Add:
-					context.emit(riscv.Instruction.ADD(rd: 0, rs1: 0, rs2: 0))
+					context.emit(VirtInst.Add())
 				Sub:
-					context.emit(riscv.Instruction.SUB(rd: 0, rs1: 0, rs2: 0))
+					context.emit(VirtInst.Sub())
 				Div:
 					unimplemented("Divide")
 				Mul:
@@ -75,18 +92,18 @@ fn select_instruction(context: SelectionContextV2[riscv.Instruction], instructio
 			for argument in arguments:
 				case argument:
 					Tmp(name):
-						context.emit(riscv.Instruction.ADDI(rd: 7, rs1: 8, imm: 0))
+						context.emit(VirtInst.Mov())
 					Global(name):
-						context.emit(riscv.Instruction.LA(rd: 7, offset: 0))
+						context.emit(VirtInst.Load())
 				else:
 					unimplemented("arg: {sil.value_to_string(argument)}")
 
 			# Invoke function
 			case callee:
 				Global(name):
-					context.emit(riscv.Instruction.JAL(rd: 1, imm: 0))
+					context.emit(VirtInst.Jal())
 				Tmp(name):
-					context.emit(riscv.Instruction.JALR(rd: 1, rs1: 9, imm: 0))
+					context.emit(VirtInst.Jal())
 			else:
 				unimplemented("Call: {sil.value_to_string(callee)}")
 
@@ -97,18 +114,17 @@ fn select_instruction(context: SelectionContextV2[riscv.Instruction], instructio
 				None:
 					pass
 		Return(v):
-			context.emit(riscv.Instruction.RET())
+			context.emit(VirtInst.X(i: riscv.Instruction.RET()))
 		Halt:
-			context.emit(riscv.Instruction.EBREAK())
+			context.emit(VirtInst.X(i: riscv.Instruction.EBREAK()))
 		Alloc(addr, size):
-			# unimplemented("Alloc")
 			pass
 		Load(dst, addr):
 			let offset = 0
-			context.emit(riscv.Instruction.LW(rd: 0, rs1: 0, imm: offset))
+			context.emit(VirtInst.Load())
 		Store(addr, value):
 			let offset = 0
-			context.emit(riscv.Instruction.SW(rs1: 0, rs2: 0, imm: offset))
+			context.emit(VirtInst.Store())
 
 	# fn gen_literal(literal: bc.LiteralValue):
 	#     case literal:
@@ -149,14 +165,15 @@ fn select_instruction(context: SelectionContextV2[riscv.Instruction], instructio
 
 
 
-fn materialize(v: mil.Instruction[riscv.Instruction]) -> riscv.Instruction:
+fn materialize(v: mil.Instruction[VirtInst], outstream: BinaryOutput):
 	""" Apply actual registers to instruction now. """
 	case v.instruction:
-		JAL(rd, imm):
+		Jal:
 			# rd = v.defs[0]
-			riscv.Instruction.JAL(rd, imm)
+			let instruction = riscv.Instruction.JAL(rd: 0, imm: 0)
+			do_emit(instruction, outstream)
 	else:
-		v.instruction
+		unimplemented("TODO!")
 
 fn do_emit(instruction: riscv.Instruction, outstream: BinaryOutput):
 	let code = riscv.encode_instruction(instruction)
@@ -165,8 +182,9 @@ fn do_emit(instruction: riscv.Instruction, outstream: BinaryOutput):
 	let data = b.to_bytes()
 	outstream.write_bytes(data)
 
-fn gen_prologue(out: BinaryOutput):
+fn gen_prologue(frame: Frame, out: BinaryOutput):
+	# TODO: reserve stack space
 	pass
 
-fn gen_epilogue(out: BinaryOutput):
+fn gen_epilogue(frame: Frame, out: BinaryOutput):
 	pass

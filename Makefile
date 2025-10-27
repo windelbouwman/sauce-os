@@ -33,6 +33,7 @@ WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLAN
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, $(SLANG_EXAMPLES))
 PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
 C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/snippets/%.exe, $(SLANG_EXAMPLES))
+X86_EXAMPLES := $(patsubst examples/snippets/%.slang, build/x86/%.o, $(SLANG_EXAMPLES))
 C_APPS := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
@@ -187,6 +188,7 @@ ${BUILDDIR}/c/linkage:
 
 linkage: ${BUILDDIR}/c/linkage/main.exe
 
+# Native code
 ${BUILDDIR}/c/native_example/t1.o: examples/native/t1.slang ${SLANGC_DEPS} | ${BUILDDIR}/c/native_example
 	${SLANGC} --backend-x86 -v -v -o $@ $<
 
@@ -196,7 +198,16 @@ ${BUILDDIR}/c/native_example/main.exe: examples/native/main.c ${BUILDDIR}/c/nati
 ${BUILDDIR}/c/native_example:
 	mkdir -p ${BUILDDIR}/c/native_example
 
+# x86 backend
 native_example: ${BUILDDIR}/c/native_example/main.exe
+
+${BUILDDIR}/x86/%.o: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/x86
+	${SLANGC} --backend-x86 -v -v -o $@ $< runtime/std.slang
+
+${BUILDDIR}/x86:
+	mkdir -p ${BUILDDIR}/x86
+
+native: build/x86/hello_world.o
 
 # Wasm examples:
 all-examples-wasm: $(WASM_EXAMPLES)

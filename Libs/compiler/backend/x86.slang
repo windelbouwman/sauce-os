@@ -1,4 +1,3 @@
-
 """
 X86 instruction set
 
@@ -85,6 +84,27 @@ fn rm_to_str(rm: Rm) -> str:
 		Reg(reg):
 			reg_to_str(reg)
 
+fn reg64_to_str(reg: int) -> str:
+	switch reg:
+		0:
+			"rax"
+		1:
+			"rcx"
+		2:
+			"rdx"
+		3:
+			"rbx"
+		4:
+			"rsp"
+		5:
+			"rbp"
+		6:
+			"rsi"
+		7:
+			"rdi"
+	else:
+		"?{reg}"
+
 fn reg_to_str(reg: int) -> str:
 	switch reg:
 		0:
@@ -103,6 +123,48 @@ fn reg_to_str(reg: int) -> str:
 			"esi"
 		7:
 			"edi"
+	else:
+		"?{reg}"
+
+fn reg16_to_str(reg: int) -> str:
+	switch reg:
+		0:
+			"ax"
+		1:
+			"cx"
+		2:
+			"dx"
+		3:
+			"bx"
+		4:
+			"sp"
+		5:
+			"bp"
+		6:
+			"si"
+		7:
+			"di"
+	else:
+		"?{reg}"
+
+fn reg8_to_str(reg: int) -> str:
+	switch reg:
+		0:
+			"al"
+		1:
+			"cl"
+		2:
+			"dl"
+		3:
+			"bl"
+		4:
+			"ah"
+		5:
+			"ch"
+		6:
+			"dh"
+		7:
+			"bh"
 	else:
 		"?{reg}"
 
