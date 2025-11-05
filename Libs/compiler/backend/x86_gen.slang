@@ -6,6 +6,7 @@ from logging import log_info
 import sil
 import mil
 import x86
+from report import Report
 from listtype import List, list4, list5
 from codegen import cgen, SelectionContext, Backend, Frame
 from outstream import BinaryOutput
@@ -20,7 +21,7 @@ let rbp: int = 5
 let rsi: int = 6
 let rdi: int = 7
 
-pub fn gen_x86(program: sil.Program, filename: Option[str]):
+pub fn gen_x86(program: sil.Program, filename: Option[str], report: Report):
 	log_info("Generating x86 instructions")
 	let all_regs: List[int] = list5(rcx, rdx, rbx, rsi, rdi)
 	let backend: Backend[VirtInst] = Backend:
@@ -31,7 +32,8 @@ pub fn gen_x86(program: sil.Program, filename: Option[str]):
 		materializer: materialize
 		emit_prologue: gen_prologue
 		emit_epilogue: gen_epilogue
-	cgen(program, backend, filename)
+		fixer: x86.apply_reloc
+	cgen(program, backend, filename, report)
 
 pub enum VirtInst:
 	Entry
@@ -39,12 +41,15 @@ pub enum VirtInst:
 	RegRm(op: VirtOp, reg: mil.Register, rm: VirtRm)
 	Mov(dst: mil.Register, src: mil.Register)
 	MovImm(dst: mil.Register, value: int)
-	Call
-	Ret
+	Lea(reg: mil.Register, rm: VirtRm)
+	Call(target: str)
+	Jmp(target: str)
+	Exit
 
 pub enum VirtRm:
 	Reg(reg: mil.Register)
 	StackSlot(offset: int)
+	Global(name: str)
 
 pub enum VirtOp:
 	Mov
@@ -53,18 +58,36 @@ pub enum VirtOp:
 
 fn vinst_to_str(vi?: VirtInst) -> str:
 	case vi:
+		Entry:
+			"entry"
 		RmReg(op, rm, reg):
-			"rm-reg {vop_to_str(op)}"
+			"{vop_to_str(op)} {vrm_to_str(rm)}, {vr_to_str(reg)}"
 		RegRm(op, reg, rm):
-			"reg-rm {vop_to_str(op)}"
+			"{vop_to_str(op)} {vr_to_str(reg)}, {vrm_to_str(rm)}"
 		Mov(dst, src):
-			"mov"
+			"mov {vr_to_str(dst)}, {vr_to_str(src)}"
 		MovImm(dst, value):
-			"mov imm {value}"
-		Ret:
-			"ret"
-	else:
-		"virt"
+			"mov {vr_to_str(dst)}, {value}"
+		Lea(dst, rm):
+			"lea {vr_to_str(dst)}, {vrm_to_str(rm)}"
+		Call(target):
+			"call {target}"
+		Jmp(target):
+			"jmp {target}"
+		Exit:
+			"exit"
+
+fn vrm_to_str(vrm?: VirtRm) -> str:
+	case vrm:
+		Reg(reg):
+			vr_to_str(reg)
+		StackSlot(offset):
+			"[rbp + {offset}]"
+		Global(name):
+			"[{name}]"
+
+fn vr_to_str(vr?: mil.Register) -> str:
+	"R{vr.id}"
 
 fn vop_to_str(vop?: VirtOp) -> str:
 	case vop:
@@ -108,8 +131,6 @@ fn gen_epilogue(frame: Frame, out: BinaryOutput):
 fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Instruction):
 	""" Select machine instruction based on sil operator """
 	case instruction.op:
-		Alloc(addr, size):
-			pass
 		Const(dst, value):
 			let dst_reg = context.get_value_vreg(dst)
 			let mov_ins = context.emit_and_get(VirtInst.MovImm(reg: dst_reg, imm: value))
@@ -135,19 +156,56 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			op_ins.add_use(dst_reg)
 			op_ins.add_use(rhs_reg)
 		Call(dst, callee, arguments):
-			context.emit(VirtInst.Call())
-		Load(dst, addr):
+			# Move arguments in proper locations:
+			let parameter_regs: List[int] = list4(rdi, rsi, rdx, rcx)
+			let p_regs: List[mil.Register] = List()
+			var index = 0
+			for arg in arguments:
+				let a_reg = context.get_value_vreg(arg)
+				let p_reg = context.new_vreg(kind: 0)
+				let nr = parameter_regs.get(index)
+				p_reg.color = nr
+				let mov_ins = context.emit_and_get(VirtInst.Mov(dst: p_reg, src: a_reg))
+				mov_ins.add_def(p_reg)
+				mov_ins.add_use(a_reg)
+				p_regs.append(p_reg)
+				index += 1
+
+			let call_ins = case callee:
+				Global(target):
+					context.emit_and_get(VirtInst.Call(target))
+			else:
+				unimplemented("Call indirect")
+			# call_ins # TODO: add register clobber information
+			for p_reg in p_regs:
+				call_ins.add_use(p_reg)
+			case dst:
+				Some(x):
+					unimplemented("call with return value")
+				None:
+					pass
+		GetAddress(dst, address):
 			let reg = context.get_value_vreg(dst)
-			let rm = load_addr(addr)
+			let rm = load_addr(address)
+			let mov_ins = context.emit_and_get(VirtInst.Lea(reg, rm))
+			mov_ins.add_def(reg)
+		Load(dst, address):
+			let reg = context.get_value_vreg(dst)
+			let rm = load_addr(address)
 			let mov_ins = context.emit_and_get(VirtInst.RegRm(op: VirtOp.Mov(), reg, rm))
 			mov_ins.add_def(reg)
-		Store(addr, value):
-			let rm = load_addr(addr)
+		Store(address, value):
+			let rm = load_addr(address)
 			let reg = context.get_value_vreg(value)
 			let mov_ins = context.emit_and_get(VirtInst.RmReg(op: VirtOp.Mov(), rm, reg))
 			mov_ins.add_use(reg)
+		Jump(label):
+			context.emit(VirtInst.Jmp(label))
+		JumpNonZero(condition, label1, label2):
+			# TODO!
+			pass
 		Return(v):
-			let ret_ins = context.emit_and_get(VirtInst.Ret())
+			let ret_ins = context.emit_and_get(VirtInst.Exit())
 			case v:
 				Some(v):
 					let reg = context.get_value_vreg(v)
@@ -157,12 +215,10 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 	else:
 		unimplemented("select: {instruction}")
 
-fn load_addr(addr: sil.Value) -> VirtRm:
-	case addr:
+fn load_addr(address: sil.Address) -> VirtRm:
+	case address:
 		Global(name):
-			unimplemented("load_addr: global value")
-		Tmp(name):
-			unimplemented("load_addr: tmp value")
+			VirtRm.Global(name)
 		StackSlot(offset):
 			VirtRm.StackSlot(offset)
 
@@ -174,6 +230,9 @@ fn materialize(minst: mil.Instruction[VirtInst], outstream: BinaryOutput):
 		MovImm(dst, value):
 			let reg2 = mat_reg(reg: dst)
 			let instruction = x86.Instruction.MovRegImm(reg: reg2, imm: value)
+			x86.emit_instruction(instruction, out: outstream)
+		Lea(dst, rm):
+			let instruction = x86.Instruction.Lea(reg: mat_reg(reg: dst), rm: mat_rm(rm))
 			x86.emit_instruction(instruction, out: outstream)
 		RegRm(op, reg, rm):
 			let reg2 = mat_reg(reg)
@@ -201,15 +260,17 @@ fn materialize(minst: mil.Instruction[VirtInst], outstream: BinaryOutput):
 			let dst_reg = mat_reg(reg: dst)
 			let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
 			x86.emit_instruction(instruction: x86.Instruction.MovRegRm(reg: dst_reg, rm), out: outstream)
-		Ret:
+		Exit:
 			# x86.emit_instruction(instruction: x86.Instruction.Ret(), out: outstream)
 			if minst.uses.len() > 0:
 				let src = minst.uses.get(index: 0)
 				let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
 				x86.emit_instruction(instruction: x86.Instruction.MovRegRm(reg: rax, rm), out: outstream)
 			# TODO: jump to end label?
-		Call:
-			x86.emit_instruction(instruction: x86.Instruction.Call(), out: outstream)
+		Call(target):
+			x86.emit_instruction(instruction: x86.Instruction.Call(target), out: outstream)
+		Jmp(target):
+			x86.emit_instruction(instruction: x86.Instruction.Jmp(target), out: outstream)
 
 fn mat_reg(reg: mil.Register) -> int:
 	reg.color
@@ -221,3 +282,5 @@ fn mat_rm(rm: VirtRm) -> x86.Rm:
 			x86.Rm.Reg(reg: mat_reg(reg))
 		StackSlot(offset):
 			x86.Rm.MemDisp8(reg: rbp, disp: offset)
+		Global(name):
+			x86.Rm.RipDisp32(name)

@@ -27,12 +27,13 @@ from optiontype import Option
 from listtype import List, list4
 from codegen import Backend, SelectionContext, Frame, cgen
 from outstream import BinaryOutput
+from report import Report
 from utils import unimplemented
 from logging import log_info
 
-pub fn gen_riscv(program: sil.Program, filename: Option[str]):
+pub fn gen_riscv(program: sil.Program, filename: Option[str], report: Report):
 	log_info("Generating riscv code")
-	program.dump()
+	program.dump(report)
 	let all_regs: List[int] = list4(18, 19, 20, 21)
 	let backend: Backend[VirtInst] = Backend:
 		all_regs
@@ -42,9 +43,10 @@ pub fn gen_riscv(program: sil.Program, filename: Option[str]):
 		materializer: materialize
 		emit_prologue: gen_prologue
 		emit_epilogue: gen_epilogue
+		fixer: apply_reloc
 
 	unimplemented("TODO")
-	cgen(program, backend, filename)
+	cgen(program, backend, filename, report)
 
 enum VirtInst:
 	Jal
@@ -64,8 +66,6 @@ fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
 fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Instruction):
 	""" Select machine instruction based on sil operator """
 	case instruction.op:
-		Nop:
-			pass
 		Const(dst, value):
 			unimplemented("Const")
 		Jump(label):
@@ -84,6 +84,8 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 					unimplemented("Multiply")
 		Compare(dst, op2, lhs, rhs):
 			unimplemented("Comparison")
+		GetAddress(dst, address):
+			unimplemented("GetAddress")
 		Call(dst, callee, arguments):
 			# panic("TODO: Call")
 			# TODO: address?
@@ -93,19 +95,13 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 				case argument:
 					Tmp(name):
 						context.emit(VirtInst.Mov())
-					Global(name):
-						context.emit(VirtInst.Load())
-				else:
-					unimplemented("arg: {sil.value_to_string(argument)}")
 
 			# Invoke function
 			case callee:
 				Global(name):
 					context.emit(VirtInst.Jal())
-				Tmp(name):
-					context.emit(VirtInst.Jal())
 			else:
-				unimplemented("Call: {sil.value_to_string(callee)}")
+				unimplemented("Call: {sil.address_to_string(callee)}")
 
 			# Eventually gather return value
 			case dst:
@@ -117,8 +113,6 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			context.emit(VirtInst.X(i: riscv.Instruction.RET()))
 		Halt:
 			context.emit(VirtInst.X(i: riscv.Instruction.EBREAK()))
-		Alloc(addr, size):
-			pass
 		Load(dst, addr):
 			let offset = 0
 			context.emit(VirtInst.Load())
@@ -174,6 +168,9 @@ fn materialize(v: mil.Instruction[VirtInst], outstream: BinaryOutput):
 			do_emit(instruction, outstream)
 	else:
 		unimplemented("TODO!")
+
+fn apply_reloc(data: ByteArray, offset: int, typ: int, addend: int, symbol: int):
+	pass
 
 fn do_emit(instruction: riscv.Instruction, outstream: BinaryOutput):
 	let code = riscv.encode_instruction(instruction)

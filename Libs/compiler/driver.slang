@@ -32,6 +32,7 @@ from x86_gen import gen_x86
 from slang_gen import gen_slang
 from vm import run_bytecode
 from profiling import Profiler
+from report import Report
 
 pub struct CompilationOptions:
 	dump_ast: bool
@@ -43,6 +44,7 @@ pub struct CompilationOptions:
 	runtime: bool
 	run_code: bool
 	time_trace: bool
+	report: bool
 
 pub enum Backend:
 	Bytecode
@@ -141,6 +143,8 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 		ast.print_ast2(module_set)
 
 	p.enter(name: "backend")
+	let report = Report()
+	report.set_enabled(options.report)
 	case options.backend:
 		Null:  # no-op backend.
 			pass
@@ -170,10 +174,11 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 			gen_webassembly(module_set)
 		Riscv:
 			let program = gen_bytecode(module_set)
-			gen_riscv(program: to_sil(program), filename: options.output_filename)
+			gen_riscv(program: to_sil(program), filename: options.output_filename, report)
 		X86:
 			let program = gen_bytecode(module_set)
-			gen_x86(program: to_sil(program), filename: options.output_filename)
+			gen_x86(program: to_sil(program), filename: options.output_filename, report)
+	report.set_enabled(false)
 	p.leave()
 
 	p.leave()

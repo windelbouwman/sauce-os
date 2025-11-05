@@ -9,7 +9,7 @@ Features of this pass:
 
 from listtype import List
 from optiontype import Option
-from bytes import Bytes, bytes_from_ascii
+from bytes import Bytes, bytes_from_ascii, fill_bytes
 from utils import panic, unimplemented
 from logging import log_info
 import bc
@@ -30,21 +30,25 @@ pub fn to_sil(program: bc.Program) -> sil.Program:
 
 class SilGen:
 	var m_bc_program: bc.Program
+	var m_externs: List[sil.Extern] = List()
 	var m_functions: List[sil.Function] = List()
 	var m_blobs: List[sil.DataBlob] = List()
 	var m_blocks: List[sil.Block] = List()
 	var m_current_block: Option[sil.Block] = Option.None()
 	var m_block_is_terminated: bool = false
-	var m_parameters: List[sil.Value] = List()
-	var m_locals: List[sil.Value] = List()
+	var m_parameters: List[sil.Address] = List()
+	var m_locals: List[sil.Address] = List()
 	var m_tmp_number: int = 0
 	var m_value_stack: List[sil.Value] = List()
 	var m_stack_offset: int = 0
 
 	pub fn gen_program() -> sil.Program:
+		for extern_function in m_bc_program.extern_functions:
+			m_externs.append(sil.Extern(name: extern_function.name))
+
 		for function in m_bc_program.functions:
 			gen_function(function)
-		sil.Program(functions: m_functions, blobs: m_blobs)
+		sil.Program(externs: m_externs, functions: m_functions, blobs: m_blobs)
 
 	fn gen_function(function: bc.Function):
 		log_info("Gen code for function {function.name}")
@@ -65,7 +69,6 @@ class SilGen:
 		for p in parameters:
 			let size = 8 # TODO
 			let addr = new_stack_slot(size)
-			emit(op: sil.OpCode.Alloc(addr, size))
 			emit(op: sil.OpCode.Store(dst: addr, value: p))
 			m_parameters.append(addr)
 
@@ -73,14 +76,13 @@ class SilGen:
 		for n in function.locals:
 			let size = 8 # TODO
 			let addr = new_stack_slot(size)
-			emit(op: sil.OpCode.Alloc(addr, size))
 			m_locals.append(addr)
 
 		let target_indici = bc.get_target_labels(instructions: function.instructions)
 		var index = 0
 		for opcode in function.instructions:
 			if target_indici.contains(index):
-				let name = "b_{index}"
+				let name = "x_{index}"
 				if not m_block_is_terminated:
 					emit(sil.OpCode.Jump(name))
 				set_current_block(new_block(name))
@@ -102,10 +104,11 @@ class SilGen:
 					Float(value):
 						push_int(99999) # TODO
 					Str(value):
-						# emit(op: sil.OpCode.Nop())
-						let data = bytes_from_ascii(text: value)
-						let literal_label = add_data_blob(data)
-						push(literal_label)
+						let data = bytes_from_ascii(text: value).concat(other: fill_bytes(n: 1, fill: 0))
+						let literal_address = add_data_blob(data)
+						let dst_value = new_tmp()
+						emit(sil.OpCode.GetAddress(dst_value, literal_address))
+						push(dst_value)
 					Bool(value):
 						if value:
 							push_int(1)
@@ -192,7 +195,7 @@ class SilGen:
 		else:
 			unimplemented(bc.instruction_to_string(opcode))
 
-	fn gen_call(callee: sil.Value, n_args: int, return_type: Option[bc.Type]):
+	fn gen_call(callee: sil.Address, n_args: int, return_type: Option[bc.Type]):
 		let arguments = pop_n(count: n_args)
 		case return_type:
 			Some(ty):
@@ -210,23 +213,23 @@ class SilGen:
 	fn new_tmp() -> sil.Value:
 		sil.Value.Tmp(name: "x{new_id()}")
 
-	fn new_stack_slot(size: int) -> sil.Value:
+	fn new_stack_slot(size: int) -> sil.Address:
 		let offset = m_stack_offset
 		m_stack_offset += size
-		sil.Value.StackSlot(offset)
+		sil.Address.StackSlot(offset)
 
 	fn new_id() -> int:
 		m_tmp_number += 1
 		m_tmp_number
 
-	fn new_global(name?: str) -> sil.Value:
-		sil.Value.Global(name)
+	fn new_global(name?: str) -> sil.Address:
+		sil.Address.Global(name)
 
-	fn add_data_blob(data?: Bytes) -> sil.Value:
+	fn add_data_blob(data?: Bytes) -> sil.Address:
 		# TODO: we have a chance to deduplicate blobs here!
 		let name = "lit_{new_id()}"
 		m_blobs.append(sil.DataBlob(name, data))
-		sil.Value.Global(name)
+		sil.Address.Global(name)
 
 	fn push_int(value?: int):
 		let dst = new_tmp()

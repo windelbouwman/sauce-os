@@ -125,6 +125,9 @@ pub class ByteArray:
 	pub fn get(index: int) -> int:
 		int(m_bytes[index])
 
+	pub fn set(index: int, value: int):
+		m_bytes.set(index, value: uint8(value))
+
 	pub fn extend(bytes?: Bytes):
 		for b in bytes:
 			append(b)

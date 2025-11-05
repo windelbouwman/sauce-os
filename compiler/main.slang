@@ -24,6 +24,7 @@ pub fn main() -> int:
 		runtime: true
 		run_code: false
 		time_trace: false
+		report: false
 
 	# Argument processing
 	let n = get_n_args()
@@ -82,6 +83,8 @@ pub fn main() -> int:
 			options.run_code = true
 		elif argument == "--time-trace":
 			options.time_trace = true
+		elif argument == "--report":
+			options.report = true
 		else:
 			# Assume source file
 			filenames.append(argument)

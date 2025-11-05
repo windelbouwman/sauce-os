@@ -7,22 +7,21 @@ from register_allocation import reg_alloc
 from vectype import Vector, new_vector
 from hashmap import HashMap, new_hashmap_str
 from strlib import str_join
+from bytes import ByteArray
 from logging import log_debug
 from utils import unimplemented
 from listtype import List
+from report import Report
 from optiontype import Option
 from elf_file import write_elf
-from outstream import BinaryOutput, Section
+from outstream import BinaryOutput
 
-pub fn cgen[V](program: sil.Program, backend: Backend[V], filename: Option[str]):
-	program.dump()
-	let outstream = BinaryOutput()
-	let g = Codegen(backend)
-	g.gen_program(program, outstream)
-
-	let text_section = outstream.get_section(name: ".text")
-	let sections: List[Section] = List()
-	sections.append(text_section)
+pub fn cgen[V](program: sil.Program, backend: Backend[V], filename: Option[str], report: Report):
+	report.writeln("# Compilation report!")
+	program.dump(report)
+	let out = BinaryOutput()
+	let g = Codegen(backend, report)
+	g.gen_program(program, out)
 
 	let filename2 = case filename:
 		Some(name):
@@ -30,7 +29,7 @@ pub fn cgen[V](program: sil.Program, backend: Backend[V], filename: Option[str])
 		None:
 			"test.elf"
 
-	write_elf(filename: filename2, code: sections)
+	write_elf(filename: filename2, object: out.get_object())
 
 pub struct Backend[V]:
 	""" Backend based on first instruction selection, then register allocation. """
@@ -41,6 +40,7 @@ pub struct Backend[V]:
 	materializer: fn(mil.Instruction[V], BinaryOutput)
 	emit_prologue: fn(Frame, BinaryOutput)
 	emit_epilogue: fn(Frame, BinaryOutput)
+	fixer: fn(ByteArray, int, int, int, int)
 
 pub struct Frame:
 	stacksize: int
@@ -52,12 +52,8 @@ pub class SelectionContext[V]:
 
 	pub fn get_value_vreg(value?: sil.Value) -> mil.Register:
 		case value:
-			Global(name):
-				unimplemented("global value")
 			Tmp(name):
 				get_vreg_for_tmp(name)
-			StackSlot(offset):
-				unimplemented("stack value")
 
 	pub fn get_vreg_for_tmp(name: str) -> mil.Register:
 		if m_tmp_regs.contains(key: name):
@@ -94,24 +90,33 @@ pub class SelectionContext[V]:
 class Codegen[V]:
 	""" Machine independent code generator """
 	var backend: Backend[V]
+	var report: Report
 
-	pub fn gen_program(program: sil.Program, outstream: BinaryOutput):
-		outstream.select_section(name: ".text")
+	pub fn gen_program(program: sil.Program, out: BinaryOutput):
+		for ext in program.externs:
+			out.import_symbol(name: ext.name)
+		out.select_section(name: ".text")
 		for function in program.functions:
-			gen_function(function, outstream)
+			gen_function(function, out)
+		out.select_section(name: ".rodata")
+		for blob in program.blobs:
+			out.export_symbol(name: blob.name)
+			out.write_bytes(data: blob.data)
 
-	fn gen_function(function: sil.Function, outstream: BinaryOutput):
+	fn gen_function(function: sil.Function, out: BinaryOutput):
 		let frame = Frame(stacksize: function.stacksize)
 		let mfunc = select_function(function)
 		dump_mfunc(mfunc)
 		reg_alloc(mfunc, all_regs: backend.all_regs)
 		log_debug("Materializing instructions")
-		outstream.export_symbol(mfunc.name)
-		backend.emit_prologue(frame, outstream)
+		out.export_symbol(mfunc.name)
+		backend.emit_prologue(frame, out)
 		for mblock in mfunc.blocks:
+			out.define_label(name: mblock.name)
 			for minst in mblock.instructions:
-				backend.materializer(v: minst, outstream)
-		backend.emit_epilogue(frame, outstream)
+				backend.materializer(v: minst, out)
+		backend.emit_epilogue(frame, out)
+		out.do_fixups(fixer: backend.fixer)
 
 	fn select_function(function: sil.Function) -> mil.Function[V]:
 		"""Turn abstract instructions into abstract machine specific instructions.
@@ -126,14 +131,18 @@ class Codegen[V]:
 		mil.Function(name: function.name, blocks: mblocks)
 
 	fn dump_mfunc(mfunc: mil.Function[V]):
-		log_debug(" > Function '{mfunc.name}'")
+		if not report.is_enabled():
+			return
+		report.writeln("----======================----")
+		report.writeln("--- Function '{mfunc.name}")
 		for mblock in mfunc.blocks:
-			log_debug(" --+-> Block '{mblock.name}'")
+			report.writeln("  Block '{mblock.name}'")
 			for minst in mblock.instructions:
 				let txt = backend.to_str(minst.instruction)
 				let defs = reg_to_str(regs: minst.defs)
 				let uses = reg_to_str(regs: minst.uses)
-				log_debug("   +-> Ins {txt} defs=[{defs}] uses=[{uses}]")
+				report.writeln("    > {txt}                        defs=[{defs}] uses=[{uses}]")
+		report.writeln("")
 
 fn reg_to_str(regs: Vector[mil.Register]) -> str:
 	let parts: List[str] = List()

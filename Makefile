@@ -202,12 +202,15 @@ ${BUILDDIR}/c/native_example:
 native_example: ${BUILDDIR}/c/native_example/main.exe
 
 ${BUILDDIR}/x86/%.o: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} --backend-x86 -v -v -o $@ $< runtime/std.slang
+	${SLANGC} --backend-x86 --report -v -v -o $@ $< runtime/std.slang
+
+${BUILDDIR}/x86/%.exe: ${BUILDDIR}/x86/%.o build/slangrt.o build/slangrt_mm.o | ${BUILDDIR}/x86
+	gcc -o $@ $< build/slangrt.o build/slangrt_mm.o
 
 ${BUILDDIR}/x86:
 	mkdir -p ${BUILDDIR}/x86
 
-native: build/x86/hello_world.o
+native: build/x86/hello_world.exe
 
 # Wasm examples:
 all-examples-wasm: $(WASM_EXAMPLES)

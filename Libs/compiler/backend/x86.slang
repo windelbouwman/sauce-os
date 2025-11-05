@@ -11,17 +11,28 @@ caller save: the other registers
 
 """
 
+from utils import unimplemented
 from bytes import ByteArray
 from outstream import BinaryOutput
+
+let R_X86_64_NONE: int = 0
+let R_X86_64_64: int = 1  # S + A
+let R_X86_64_PC32: int = 2 # S + A - P
+let R_X86_64_GOT32: int = 3 # G + A
+let R_X86_64_PLT32: int = 4 # L + A - P
+let R_X86_64_32: int = 10  # S + A
+let R_X86_64_16: int = 12  # S + A
 
 pub enum Instruction:
 	AddRmReg(rm: Rm, reg: int)
 	AddRegRm(reg: int, rm: Rm)
 	SubRmReg(rm: Rm, reg: int)
 	SubRegRm(reg: int, rm: Rm)
-	Call
+	Call(target: str)
+	Jmp(target: str)
 	AddRmImm(rm: Rm, imm: int)
 	SubRmImm(rm: Rm, imm: int)
+	Lea(reg: int, rm: Rm)
 	MovRmReg(rm: Rm, reg: int)
 	MovRegRm(reg: int, rm: Rm)
 	MovRegImm(reg: int, imm: int)
@@ -33,6 +44,7 @@ pub enum Rm:
 	Mem(reg: int)
 	MemDisp8(reg: int, disp: int)
 	MemDisp32(reg: int, disp: int)
+	RipDisp32(name: str)
 	Reg(reg: int)
 
 pub fn instruction_to_string(instruction: Instruction) -> str:
@@ -45,12 +57,16 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			rm_reg_to_str("sub", rm, reg)
 		SubRegRm(reg, rm):
 			reg_rm_to_str("sub", reg, rm)
-		Call:
-			"call"
+		Call(target):
+			"call {target}"
+		Jmp(target):
+			"jmp {target}"
 		AddRmImm(rm, imm):
 			rm_imm_to_str("add", rm, imm)
 		SubRmImm(rm, imm):
 			rm_imm_to_str("sub", rm, imm)
+		Lea(reg, rm):
+			"lea {reg_to_str(reg)}, {rm_to_str(rm)}"
 		MovRmReg(rm, reg):
 			rm_reg_to_str("mov", rm, reg)
 		MovRegRm(reg, rm):
@@ -81,6 +97,8 @@ fn rm_to_str(rm: Rm) -> str:
 			"[{reg_to_str(reg)} + {disp}]"
 		MemDisp32(reg, disp):
 			"[{reg_to_str(reg)} + {disp}]"
+		RipDisp32(name):
+			"[{name}]"
 		Reg(reg):
 			reg_to_str(reg)
 
@@ -209,6 +227,10 @@ fn write_rm_reg(rm: Rm, reg: int, out: BinaryOutput):
 		MemDisp32(reg2, disp):
 			write_mod_rm_byte(mod: 2, rm: reg2, reg, out)
 			write32(disp, out)
+		RipDisp32(name):
+			write_mod_rm_byte(mod: 0, rm: 5, reg, out)
+			out.add_fixup(symbol: name, typ: R_X86_64_PC32, addend: -4)
+			write32(0, out)
 		Reg(reg2):
 			write_mod_rm_byte(mod: 3, rm: reg2, reg, out)
 
@@ -228,8 +250,14 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			write_mod_rm(opcode: 0x29, rm, reg, out)
 		SubRegRm(reg, rm):
 			write_mod_rm(opcode: 0x2B, rm, reg, out)
-		Call:
-			out.write_byte(0x8E)
+		Call(target):
+			out.write_byte(0xE8)
+			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
+			write32(0, out)
+		Jmp(target):
+			# EB = short jump, E9 = near jump
+			out.write_byte(0xE9)
+			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
 			write32(0, out)
 		AddRmImm(rm, imm):
 			write_rm_imm(reg: 0, rm, imm, out)
@@ -239,6 +267,8 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			write_mod_rm(opcode: 0x89, rm, reg, out)
 		MovRegRm(reg, rm):
 			write_mod_rm(opcode: 0x8B, rm, reg, out)
+		Lea(reg, rm):
+			write_mod_rm(opcode: 0x8D, rm, reg, out)
 		MovRegImm(reg, imm):
 			write_rex_byte(out)
 			out.write_byte(0xB8 + reg)
@@ -249,3 +279,15 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			out.write_byte(0x58 + reg)
 		Ret:
 			out.write_byte(0xC3)
+
+pub fn apply_reloc(data: ByteArray, offset: int, typ: int, addend: int, symbol: int):
+	# log_info
+	switch typ:
+		2:  # PC32
+			let value = symbol + addend - offset
+			data.set(index: offset + 0, value: value & 0xFF)
+			data.set(index: offset + 1, value: (value >> 8) & 0xFF)
+			data.set(index: offset + 2, value: (value >> 16) & 0xFF)
+			data.set(index: offset + 3, value: (value >> 24) & 0xFF)
+	else:
+		unimplemented("reloc type: {typ}")
