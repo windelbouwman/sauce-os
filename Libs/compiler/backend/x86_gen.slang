@@ -42,8 +42,7 @@ pub enum VirtInst:
 	Mov(dst: mil.Register, src: mil.Register)
 	MovImm(dst: mil.Register, value: int)
 	Lea(reg: mil.Register, rm: VirtRm)
-	Call(target: str)
-	Jmp(target: str)
+	Actual(instruction: x86.Instruction)
 	Exit
 
 pub enum VirtRm:
@@ -55,6 +54,7 @@ pub enum VirtOp:
 	Mov
 	Add
 	Sub
+	Cmp
 
 fn vinst_to_str(vi?: VirtInst) -> str:
 	case vi:
@@ -70,10 +70,8 @@ fn vinst_to_str(vi?: VirtInst) -> str:
 			"mov {vr_to_str(dst)}, {value}"
 		Lea(dst, rm):
 			"lea {vr_to_str(dst)}, {vrm_to_str(rm)}"
-		Call(target):
-			"call {target}"
-		Jmp(target):
-			"jmp {target}"
+		Actual(instruction):
+			x86.instruction_to_string(instruction)
 		Exit:
 			"exit"
 
@@ -97,6 +95,8 @@ fn vop_to_str(vop?: VirtOp) -> str:
 			"add"
 		Sub:
 			"sub"
+		Cmp:
+			"cmp"
 
 fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
 	let parameter_regs: List[int] = list4(rdi, rsi, rdx, rcx)
@@ -173,7 +173,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 
 			let call_ins = case callee:
 				Global(target):
-					context.emit_and_get(VirtInst.Call(target))
+					context.emit_and_get(VirtInst.Actual(instruction: x86.Instruction.Call(target)))
 			else:
 				unimplemented("Call indirect")
 			# call_ins # TODO: add register clobber information
@@ -200,10 +200,29 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			let mov_ins = context.emit_and_get(VirtInst.RmReg(op: VirtOp.Mov(), rm, reg))
 			mov_ins.add_use(reg)
 		Jump(label):
-			context.emit(VirtInst.Jmp(label))
-		JumpNonZero(condition, label1, label2):
-			# TODO!
-			pass
+			context.emit(VirtInst.Actual(instruction: x86.Instruction.Jmp(label)))
+		JumpIf(lhs, condition, rhs, label1, label2):
+			let lhs_reg = context.get_value_vreg(lhs)
+			let rhs_reg = context.get_value_vreg(rhs)
+			let rm3 = VirtRm.Reg(reg: lhs_reg)
+			let cmp_ins = context.emit_and_get(VirtInst.RmReg(op: VirtOp.Cmp(), rm3, reg3: rhs_reg))
+			cmp_ins.add_use(lhs_reg)
+			cmp_ins.add_use(rhs_reg)
+			let cmp_op = case condition:
+					Eq:
+						x86.Cond.Jz()
+					Neq:
+						x86.Cond.Jnz()
+					Gt:
+						x86.Cond.Jg()
+					Lt:
+						x86.Cond.Jl()
+					Gte:
+						x86.Cond.Jge()
+					Lte:
+						x86.Cond.Jle()
+			context.emit(VirtInst.Actual(instruction: x86.Instruction.Jcc(cmp_op, label1)))
+			context.emit(VirtInst.Actual(instruction: x86.Instruction.Jmp(label2)))
 		Return(v):
 			let ret_ins = context.emit_and_get(VirtInst.Exit())
 			case v:
@@ -244,6 +263,8 @@ fn materialize(minst: mil.Instruction[VirtInst], outstream: BinaryOutput):
 					x86.Instruction.AddRegRm(reg: reg2, rm: rm2)
 				Sub:
 					x86.Instruction.SubRegRm(reg: reg2, rm: rm2)
+				Cmp:
+					x86.Instruction.CmpRegRm(reg: reg2, rm: rm2)
 			x86.emit_instruction(instruction, out: outstream)
 		RmReg(op, rm, reg):
 			let rm2 = mat_rm(rm)
@@ -255,6 +276,8 @@ fn materialize(minst: mil.Instruction[VirtInst], outstream: BinaryOutput):
 					x86.Instruction.AddRmReg(rm: rm2, reg: reg2)
 				Sub:
 					x86.Instruction.SubRmReg(rm: rm2, reg: reg2)
+				Cmp:
+					x86.Instruction.CmpRmReg(rm: rm2, reg: reg2)
 			x86.emit_instruction(instruction, out: outstream)
 		Mov(dst, src):
 			let dst_reg = mat_reg(reg: dst)
@@ -267,10 +290,8 @@ fn materialize(minst: mil.Instruction[VirtInst], outstream: BinaryOutput):
 				let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
 				x86.emit_instruction(instruction: x86.Instruction.MovRegRm(reg: rax, rm), out: outstream)
 			# TODO: jump to end label?
-		Call(target):
-			x86.emit_instruction(instruction: x86.Instruction.Call(target), out: outstream)
-		Jmp(target):
-			x86.emit_instruction(instruction: x86.Instruction.Jmp(target), out: outstream)
+		Actual(instruction):
+			x86.emit_instruction(instruction, out: outstream)
 
 fn mat_reg(reg: mil.Register) -> int:
 	reg.color

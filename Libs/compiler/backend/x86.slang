@@ -28,8 +28,11 @@ pub enum Instruction:
 	AddRegRm(reg: int, rm: Rm)
 	SubRmReg(rm: Rm, reg: int)
 	SubRegRm(reg: int, rm: Rm)
+	CmpRmReg(rm: Rm, reg: int)
+	CmpRegRm(reg: int, rm: Rm)
 	Call(target: str)
 	Jmp(target: str)
+	Jcc(condition: Cond, target: str)
 	AddRmImm(rm: Rm, imm: int)
 	SubRmImm(rm: Rm, imm: int)
 	Lea(reg: int, rm: Rm)
@@ -39,6 +42,18 @@ pub enum Instruction:
 	Push(reg: int)
 	Pop(reg: int)
 	Ret
+
+pub enum Cond:
+	Jb
+	Jae
+	Jz
+	Jnz
+	Jbe
+	Ja
+	Jl
+	Jge
+	Jle
+	Jg
 
 pub enum Rm:
 	Mem(reg: int)
@@ -57,10 +72,16 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			rm_reg_to_str("sub", rm, reg)
 		SubRegRm(reg, rm):
 			reg_rm_to_str("sub", reg, rm)
+		CmpRmReg(rm, reg):
+			rm_reg_to_str("cmp", rm, reg)
+		CmpRegRm(reg, rm):
+			reg_rm_to_str("cmp", reg, rm)
 		Call(target):
 			"call {target}"
 		Jmp(target):
 			"jmp {target}"
+		Jcc(condition, target):
+			"jcc {target}"
 		AddRmImm(rm, imm):
 			rm_imm_to_str("add", rm, imm)
 		SubRmImm(rm, imm):
@@ -250,6 +271,10 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			write_mod_rm(opcode: 0x29, rm, reg, out)
 		SubRegRm(reg, rm):
 			write_mod_rm(opcode: 0x2B, rm, reg, out)
+		CmpRmReg(rm, reg):
+			write_mod_rm(opcode: 0x39, rm, reg, out)
+		CmpRegRm(reg, rm):
+			write_mod_rm(opcode: 0x3B, rm, reg, out)
 		Call(target):
 			out.write_byte(0xE8)
 			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
@@ -257,6 +282,31 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 		Jmp(target):
 			# EB = short jump, E9 = near jump
 			out.write_byte(0xE9)
+			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
+			write32(0, out)
+		Jcc(condition, target):
+			out.write_byte(0x0F)
+			case condition:
+				Jb:
+					out.write_byte(0x82)
+				Jae:
+					out.write_byte(0x83)
+				Jz:
+					out.write_byte(0x84)
+				Jnz:
+					out.write_byte(0x85)
+				Jbe:
+					out.write_byte(0x86)
+				Ja:
+					out.write_byte(0x87)
+				Jl:
+					out.write_byte(0x8C)
+				Jge:
+					out.write_byte(0x8D)
+				Jle:
+					out.write_byte(0x8E)
+				Jg:
+					out.write_byte(0x8F)
 			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
 			write32(0, out)
 		AddRmImm(rm, imm):

@@ -432,7 +432,9 @@ fn used_symbol_on_definition(binder: NameBinder, definition: ast.Definition, pha
 						if not symbol.is_pub and symbol.get_references() == 0:
 							# TODO: use filename as a hack to reduce amount of warnings:
 							if option_is_some(module_def.filename):
-								binder.add_warning(location: symbol.location, message: "Symbol '{symbol.name}' defined but unused.")
+								# TODO: re-enable / put behind option flag?
+								if false:
+									binder.add_warning(location: symbol.location, message: "Symbol '{symbol.name}' defined but unused.")
 			else:
 				pass
 		Post:

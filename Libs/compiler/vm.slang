@@ -384,32 +384,6 @@ pub class VirtualMachine:
 						push(Value.Float(-v))
 				else:
 					panic("Cannot negate: {value_to_string(value)}")
-			Comparison(op):
-				let rhs = pop()
-				let lhs = pop()
-				case lhs:
-					Int(lhs_value):
-						let rhs_value = int_from_value(rhs)
-						let value = eval_comparison_int(op, lhs: lhs_value, rhs: rhs_value)
-						push(Value.Bool(value))
-					Float(lhs_value):
-						let rhs_value = float_from_value(rhs)
-						let value = eval_comparison_float(op, lhs: lhs_value, rhs: rhs_value)
-						push(Value.Bool(value))
-					List(values):
-						case rhs:
-							Null:
-								push(Value.Bool(false))
-						else:
-							panic("Cannot compare list to: {value_to_string(rhs)}")
-					Null:
-						case rhs:
-							Null:
-								push(Value.Bool(true))
-						else:
-							panic("Cannot compare null to: {value_to_string(rhs)}")
-				else:
-					panic("Cannot compare: {value_to_string(lhs)}")
 			Binop(op):
 				let rhs = pop()
 				let lhs = pop()
@@ -447,10 +421,11 @@ pub class VirtualMachine:
 				pass  # VM values are all opaque
 			Jump(target):
 				jump(target)
-			JumpIf(target, target2):
-				let value = pop()
-				if bool_from_value(value):
-					jump(target)
+			JumpIf(op, target1, target2):
+				let rhs = pop()
+				let lhs = pop()
+				if eval_comparison(op, lhs, rhs):
+					jump(target1)
 				else:
 					jump(target2)
 			Call(index):
@@ -647,3 +622,33 @@ fn eval_bitop(op: bc.BitOperator, lhs: int, rhs: int) -> int:
 			lhs | rhs
 		Xor:
 			lhs ^ rhs
+
+fn eval_comparison(op: bc.ComparisonOperator, lhs: Value, rhs: Value) -> bool:
+	case lhs:
+		Int(lhs_value):
+			let rhs_value = int_from_value(rhs)
+			eval_comparison_int(op, lhs: lhs_value, rhs: rhs_value)
+		Float(lhs_value):
+			let rhs_value = float_from_value(rhs)
+			eval_comparison_float(op, lhs: lhs_value, rhs: rhs_value)
+		Bool(lhs_value):
+			let rhs_value = bool_from_value(rhs)
+			case op:
+				Equals:
+					lhs_value == rhs_value
+			else:
+				panic("Can only compare booleans for equality")
+		List(values):
+			case rhs:
+				Null:
+					false
+			else:
+				panic("Cannot compare list to: {value_to_string(rhs)}")
+		Null:
+			case rhs:
+				Null:
+					true
+			else:
+				panic("Cannot compare null to: {value_to_string(rhs)}")
+	else:
+		panic("Cannot compare: {value_to_string(lhs)}")

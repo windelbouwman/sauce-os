@@ -70,7 +70,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			unimplemented("Const")
 		Jump(label):
 			context.emit(VirtInst.Jal())
-		JumpNonZero(condition, label1, label2):
+		JumpIf(lhs, condition, rhs, label1, label2):
 			context.emit(VirtInst.Jal())
 		Binop(dst, op2, lhs, rhs):
 			case op2:
@@ -82,8 +82,6 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 					unimplemented("Divide")
 				Mul:
 					unimplemented("Multiply")
-		Compare(dst, op2, lhs, rhs):
-			unimplemented("Comparison")
 		GetAddress(dst, address):
 			unimplemented("GetAddress")
 		Call(dst, callee, arguments):

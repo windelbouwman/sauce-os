@@ -92,30 +92,7 @@ pub class Instruction:
 			Const(dst, value):
 				"{value_to_string(dst)} = {value}"
 			Binop(dst, op2, lhs, rhs):
-				let txt = case op2:
-					Add:
-						"add"
-					Sub:
-						"sub"
-					Mul:
-						"mul"
-					Div:
-						"div"
-				"{value_to_string(dst)} = {txt} {value_to_string(lhs)}, {value_to_string(rhs)}"
-			Compare(dst, op2, lhs, rhs):
-				let txt = case op2:
-					Eq:
-						"eq"
-					Neq:
-						"ne"
-					Gt:
-						"gt"
-					Gte:
-						"gte"
-					Lt:
-						"lt"
-					Lte:
-						"lte"
+				let txt = op_to_string(op2)
 				"{value_to_string(dst)} = {txt} {value_to_string(lhs)}, {value_to_string(rhs)}"
 			GetAddress(dst, address):
 				"{value_to_string(dst)} = get address {address_to_string(address)}"
@@ -125,8 +102,9 @@ pub class Instruction:
 				"store {address_to_string(address)}, {value_to_string(value)}"
 			Jump(label):
 				"jmp @{label}"
-			JumpNonZero(condition, label1, label2):
-				"jmp-non-zero {value_to_string(condition)} @{label1}, @{label2}"
+			JumpIf(lhs, condition, rhs, label1, label2):
+				let txt = comparison_to_string(condition)
+				"jmp-if {value_to_string(lhs)} {txt} {value_to_string(rhs)} => @{label1}, @{label2}"
 			Call(dst, callee, arguments):
 				let args = comma_sep(values: arguments)
 				let txt = "call {address_to_string(callee)}({args})"
@@ -153,12 +131,11 @@ fn comma_sep(values: List[Value]) -> str:
 pub enum OpCode:
 	Const(dst: Value, value: int)
 	Binop(dst: Value, op: BinaryOp, lhs: Value, rhs: Value)
-	Compare(dst: Value, op: CompOp, lhs: Value, rhs: Value)
 	GetAddress(dst: Value, addr: Address)
 	Load(dst: Value, addr: Address)
 	Store(addr: Address, value: Value)
 	Jump(label: str)
-	JumpNonZero(condition: Value, label1: str, label2: str)
+	JumpIf(lhs: Value, condition: CompOp, rhs: Value, label1: str, label2: str)
 	Call(dst: Option[Value], callee: Address, arguments: List[Value])
 	Return(value: Option[Value])
 	Halt
@@ -169,6 +146,17 @@ pub enum BinaryOp:
 	Mul
 	Div
 
+fn op_to_string(op?: BinaryOp) -> str:
+	case op:
+		Add:
+			"add"
+		Sub:
+			"sub"
+		Mul:
+			"mul"
+		Div:
+			"div"
+
 pub enum CompOp:
 	Eq
 	Neq
@@ -176,6 +164,21 @@ pub enum CompOp:
 	Lt
 	Gte
 	Lte
+
+fn comparison_to_string(op?: CompOp) -> str:
+	case op:
+		Eq:
+			"eq"
+		Neq:
+			"ne"
+		Gt:
+			"gt"
+		Gte:
+			"gte"
+		Lt:
+			"lt"
+		Lte:
+			"lte"
 
 pub enum Value:
 	Tmp(name: str)

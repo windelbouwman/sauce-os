@@ -312,9 +312,29 @@ class CGenerator:
 			Jump(label):
 				gen_goto(label)
 
-			JumpIf(label1, label2):
-				let condition = pop()
-				emit("if ({condition.name})")
+			JumpIf(op, label1, label2):
+				let rhs = pop()
+				let lhs = pop()
+				let op_txt = case op:
+					Less:
+						"<"
+					LessEquals:
+						"<="
+					Greater:
+						">"
+					GreaterEquals:
+						">="
+					Equals:
+						"=="
+					NotEquals:
+						"!="
+				write("if (")
+				write(lhs.name)
+				write(" ")
+				write(op_txt)
+				write(" ")
+				write(rhs.name)
+				emit(")")
 				gen_goto(label1)
 				emit("else")
 				gen_goto(label2)
@@ -385,35 +405,6 @@ class CGenerator:
 				write(op_txt)
 				write(rhs.name)
 				emit(";")
-				push(Value(name: varname, ty))
-
-			Comparison(op):
-				let rhs = pop()
-				let lhs = pop()
-				let varname = new_local_var()
-				let ty = bc.Type.Bool()
-				write("const ")
-				gen_typed_name(ty, name: varname)
-				let op_txt = case op:
-					Less:
-						"<"
-					LessEquals:
-						"<="
-					Greater:
-						">"
-					GreaterEquals:
-						">="
-					Equals:
-						"=="
-					NotEquals:
-						"!="
-				write(" = (")
-				write(lhs.name)
-				write(" ")
-				write(op_txt)
-				write(" ")
-				write(rhs.name)
-				emit(");")
 				push(Value(name: varname, ty))
 
 			Bitop(op):

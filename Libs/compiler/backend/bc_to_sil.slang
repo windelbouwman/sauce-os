@@ -131,25 +131,6 @@ class SilGen:
 				let dst = new_tmp()
 				push(dst)
 				emit(sil.OpCode.Binop(dst, op2, lhs, rhs))
-			Comparison(op):
-				let rhs = pop()
-				let lhs = pop()
-				let dst = new_tmp()
-				push(dst)
-				let op2 = case op:
-					Greater:
-						sil.CompOp.Gt()
-					Less:
-						sil.CompOp.Lt()
-					GreaterEquals:
-						sil.CompOp.Gte()
-					LessEquals:
-						sil.CompOp.Lte()
-					Equals:
-						sil.CompOp.Eq()
-					NotEquals:
-						sil.CompOp.Neq()
-				emit(sil.OpCode.Compare(dst, op2, lhs, rhs))
 			LocalGet(index):
 				let addr = m_locals[index]
 				let value = new_tmp()
@@ -168,9 +149,23 @@ class SilGen:
 				let addr = m_parameters[index]
 				let value = pop()
 				emit(sil.OpCode.Store(addr, value))
-			JumpIf(label1, label2):
-				let condition = pop()
-				emit(sil.OpCode.JumpNonZero(condition, label1: "x_{label1}", label2: "x_{label2}"))
+			JumpIf(op, label1, label2):
+				let rhs = pop()
+				let lhs = pop()
+				let op2 = case op:
+					Greater:
+						sil.CompOp.Gt()
+					Less:
+						sil.CompOp.Lt()
+					GreaterEquals:
+						sil.CompOp.Gte()
+					LessEquals:
+						sil.CompOp.Lte()
+					Equals:
+						sil.CompOp.Eq()
+					NotEquals:
+						sil.CompOp.Neq()
+				emit(sil.OpCode.JumpIf(lhs, op: op2, rhs, label1: "x_{label1}", label2: "x_{label2}"))
 			Jump(label):
 				emit(sil.OpCode.Jump(label: "x_{label}"))
 			Call(index):
@@ -263,7 +258,7 @@ class SilGen:
 					case op:
 						Jump(label):
 							m_block_is_terminated = true
-						JumpNonZero(c, label1, label2):
+						JumpIf(lhs, c, rhs, label1, label2):
 							m_block_is_terminated = true
 						Return(value):
 							m_block_is_terminated = true
