@@ -7,7 +7,7 @@ It assigns colors to use / def registers.
 from logging import log_info, log_debug
 from settype import Set, new_int_set
 from hashmap import HashMap, new_hashmap_int
-from utils import unimplemented
+from utils import unimplemented, panic
 from listtype import List
 import mil
 
@@ -43,6 +43,11 @@ class RegAlloc:
 					simplify()
 				else:
 					break
+
+			if not m_simplify_worklist.is_empty():
+				panic("simplify list not empty")
+			if not m_spill_worklist.is_empty():
+				panic("Spill list not empty")
 			assign_colors()
 			# TODO: implement spill by re-trying the loop after code modification
 			break
@@ -82,7 +87,7 @@ class RegAlloc:
 				unimplemented("Spilling")
 			else:
 				let reg = ok_regs.first()
-				log_debug("Color: {reg}")
+				log_debug("Color: R{n.id} {reg}")
 				n.set_color(reg)
 
 	fn is_colorable(m?: IGNode) -> bool:
@@ -160,7 +165,7 @@ fn create_interference_graph[V](cfg: ControlFlowGraph[V]) -> InterferenceGraph:
 	let reg_map = new_hashmap_int()
 	for n in cfg.m_nodes:
 		let block = n.block
-		var live_registers = n.m_live_out
+		var live_registers: Set[int] = n.m_live_out
 		var index = block.instructions.len()
 		while index > 0:
 			index -= 1
@@ -180,6 +185,13 @@ fn create_interference_graph[V](cfg: ControlFlowGraph[V]) -> InterferenceGraph:
 				let n1 = ig.add_node(a)
 				# other live registers interfere:
 				for b in live_registers:
+					let n2 = ig.add_node(b)
+					if a != b:
+						ig.add_edge(n1, n2)
+				# clobber registers interfere:
+				for clobber in mi.clobbers:
+					get_ig_node(ig, reg: clobber)
+					let b = clobber.id
 					let n2 = ig.add_node(b)
 					if a != b:
 						ig.add_edge(n1, n2)

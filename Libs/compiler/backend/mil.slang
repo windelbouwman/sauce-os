@@ -19,12 +19,16 @@ pub class Instruction[X]:
 	pub var instruction: X
 	pub var uses: Vector[Register]
 	pub var defs: Vector[Register]
+	pub var clobbers: Vector[Register]
 
 	pub fn add_use(r?: Register):
 		uses.append(r)
 
 	pub fn add_def(r?: Register):
 		defs.append(r)
+
+	pub fn add_clobber(r?: Register):
+		clobbers.append(r)
 
 pub struct Register:
 	id: int

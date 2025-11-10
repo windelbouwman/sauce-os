@@ -48,6 +48,19 @@ pub fn list6[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T) -> List[T]:
 	vec.append(v6)
 	vec
 
+pub fn list9[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T, v7?: T, v8?: T, v9?: T) -> List[T]:
+	let vec: List[T] = List()
+	vec.append(v1)
+	vec.append(v2)
+	vec.append(v3)
+	vec.append(v4)
+	vec.append(v5)
+	vec.append(v6)
+	vec.append(v7)
+	vec.append(v8)
+	vec.append(v9)
+	vec
+
 pub class List[T]:
 	# Linked list based on a linked list of elements with next pointers.
 

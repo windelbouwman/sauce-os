@@ -5,7 +5,7 @@ import sil
 import mil
 from register_allocation import reg_alloc
 from vectype import Vector, new_vector
-from hashmap import HashMap, new_hashmap_str
+from hashmap import HashMap, new_hashmap_str, new_hashmap_int
 from strlib import str_join
 from bytes import ByteArray
 from logging import log_debug
@@ -48,6 +48,7 @@ pub struct Frame:
 pub class SelectionContext[V]:
 	var codes: Vector[mil.Instruction[V]] = new_vector()
 	var m_tmp_regs: HashMap[str,mil.Register] = new_hashmap_str()
+	var m_pre_colored_regs: HashMap[int,mil.Register] = new_hashmap_int()
 	var m_counter: int = 0
 
 	pub fn get_value_vreg(value?: sil.Value) -> mil.Register:
@@ -63,14 +64,24 @@ pub class SelectionContext[V]:
 			m_tmp_regs.insert(key: name, value: r)
 			r
 
+	pub fn get_pre_colored(color: int) -> mil.Register:
+		if m_pre_colored_regs.contains(key: color):
+			m_pre_colored_regs.get(key: color)
+		else:
+			let r = new_vreg(kind: 0)
+			r.color = color
+			m_pre_colored_regs.insert(key: color, value: r)
+			r
+
 	pub fn emit(instruction?: V):
 		let uses: Vector[mil.Register] = new_vector()
 		let defs: Vector[mil.Register] = new_vector()
-		emit_full(instruction, uses, defs)
+		let clobbers: Vector[mil.Register] = new_vector()
+		emit_full(instruction, uses, defs, clobbers)
 
-	fn emit_full(instruction?: V, uses: Vector[mil.Register], defs: Vector[mil.Register]):
+	fn emit_full(instruction?: V, uses: Vector[mil.Register], defs: Vector[mil.Register], clobbers: Vector[mil.Register]):
 		# let relocation: Option[riscv.Relocation] = Option.None()
-		let minst = mil.Instruction(instruction, uses, defs)
+		let minst = mil.Instruction(instruction, uses, defs, clobbers)
 		codes.append(minst)
 
 	pub fn emit_and_get(instruction?: V) -> mil.Instruction:
@@ -139,13 +150,18 @@ class Codegen[V]:
 			report.writeln("  Block '{mblock.name}'")
 			for minst in mblock.instructions:
 				let txt = backend.to_str(minst.instruction)
-				let defs = reg_to_str(regs: minst.defs)
-				let uses = reg_to_str(regs: minst.uses)
-				report.writeln("    > {txt}                        defs=[{defs}] uses=[{uses}]")
+				let defs = reg_to_str(label: "defs", regs: minst.defs)
+				let uses = reg_to_str(label: "uses", regs: minst.uses)
+				let clobbers = reg_to_str(label: "clobbers", regs: minst.clobbers)
+				report.writeln("    > {txt}                     {defs} {uses} {clobbers}")
 		report.writeln("")
 
-fn reg_to_str(regs: Vector[mil.Register]) -> str:
-	let parts: List[str] = List()
-	for r in regs:
-		parts.append("{r.id}")
-	str_join(parts, sep: ", ")
+fn reg_to_str(label: str, regs: Vector[mil.Register]) -> str:
+	if regs.is_empty():
+		""
+	else:
+		let parts: List[str] = List()
+		for r in regs:
+			parts.append("{r.id}")
+		let txt = str_join(parts, sep: ", ")
+		"{label}=[{txt}]"

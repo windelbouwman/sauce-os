@@ -3,11 +3,12 @@
 
 from utils import unimplemented
 from logging import log_info
+from std import print
 import sil
 import mil
 import x86
 from report import Report
-from listtype import List, list4, list5
+from listtype import List, list4, list5, list9
 from codegen import cgen, SelectionContext, Backend, Frame
 from outstream import BinaryOutput
 from optiontype import Option
@@ -20,10 +21,30 @@ let rsp: int = 4
 let rbp: int = 5
 let rsi: int = 6
 let rdi: int = 7
+let r8: int = 8
+let r9: int = 9
+let r10: int = 10
+let r11: int = 11
+let r12: int = 12
+let r13: int = 13
+let r14: int = 14
+let r15: int = 15
 
 pub fn gen_x86(program: sil.Program, filename: Option[str], report: Report):
 	log_info("Generating x86 instructions")
-	let all_regs: List[int] = list5(rcx, rdx, rbx, rsi, rdi)
+	let all_regs: List[int] = List()
+	all_regs.append(rcx)
+	all_regs.append(rdx)
+	all_regs.append(rbx)
+	all_regs.append(rsi)
+	all_regs.append(rdi)
+	# all_regs.append(r8)
+	# all_regs.append(r9)
+	# all_regs.append(r10)
+	# all_regs.append(r11)
+	# all_regs.append(r12)
+	# all_regs.append(r14)
+	# all_regs.append(r15)
 	let backend: Backend[VirtInst] = Backend:
 		all_regs
 		enter: enter_function
@@ -158,30 +179,36 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 		Call(dst, callee, arguments):
 			# Move arguments in proper locations:
 			let parameter_regs: List[int] = list4(rdi, rsi, rdx, rcx)
+			let clobber_regs: List[int] = list9(rax, rcx, rdx, rdi, rsi, r8, r9, r10, r11)
 			let p_regs: List[mil.Register] = List()
 			var index = 0
 			for arg in arguments:
 				let a_reg = context.get_value_vreg(arg)
-				let p_reg = context.new_vreg(kind: 0)
 				let nr = parameter_regs.get(index)
-				p_reg.color = nr
+				let p_reg = context.get_pre_colored(color: nr)
 				let mov_ins = context.emit_and_get(VirtInst.Mov(dst: p_reg, src: a_reg))
 				mov_ins.add_def(p_reg)
 				mov_ins.add_use(a_reg)
 				p_regs.append(p_reg)
 				index += 1
-
 			let call_ins = case callee:
 				Global(target):
 					context.emit_and_get(VirtInst.Actual(instruction: x86.Instruction.Call(target)))
 			else:
 				unimplemented("Call indirect")
-			# call_ins # TODO: add register clobber information
 			for p_reg in p_regs:
 				call_ins.add_use(p_reg)
+			# add register clobber information:
+			for clobber_reg_nr in clobber_regs:
+				call_ins.add_clobber(context.get_pre_colored(color: clobber_reg_nr))
 			case dst:
-				Some(x):
-					unimplemented("call with return value")
+				Some(dst_value):
+					let ret_reg = context.get_value_vreg(dst_value)
+					let convention_reg = context.get_pre_colored(color: rax)
+					call_ins.add_def(convention_reg)
+					let mov_ins = context.emit_and_get(VirtInst.Mov(dst: ret_reg, src: convention_reg))
+					mov_ins.add_use(convention_reg)
+					mov_ins.add_def(ret_reg)
 				None:
 					pass
 		GetAddress(dst, address):
@@ -249,10 +276,10 @@ fn materialize(minst: mil.Instruction[VirtInst], outstream: BinaryOutput):
 		MovImm(dst, value):
 			let reg2 = mat_reg(reg: dst)
 			let instruction = x86.Instruction.MovRegImm(reg: reg2, imm: value)
-			x86.emit_instruction(instruction, out: outstream)
+			emit(instruction, out: outstream)
 		Lea(dst, rm):
 			let instruction = x86.Instruction.Lea(reg: mat_reg(reg: dst), rm: mat_rm(rm))
-			x86.emit_instruction(instruction, out: outstream)
+			emit(instruction, out: outstream)
 		RegRm(op, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
@@ -265,7 +292,7 @@ fn materialize(minst: mil.Instruction[VirtInst], outstream: BinaryOutput):
 					x86.Instruction.SubRegRm(reg: reg2, rm: rm2)
 				Cmp:
 					x86.Instruction.CmpRegRm(reg: reg2, rm: rm2)
-			x86.emit_instruction(instruction, out: outstream)
+			emit(instruction, out: outstream)
 		RmReg(op, rm, reg):
 			let rm2 = mat_rm(rm)
 			let reg2 = mat_reg(reg)
@@ -278,20 +305,25 @@ fn materialize(minst: mil.Instruction[VirtInst], outstream: BinaryOutput):
 					x86.Instruction.SubRmReg(rm: rm2, reg: reg2)
 				Cmp:
 					x86.Instruction.CmpRmReg(rm: rm2, reg: reg2)
-			x86.emit_instruction(instruction, out: outstream)
+			emit(instruction, out: outstream)
 		Mov(dst, src):
 			let dst_reg = mat_reg(reg: dst)
 			let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
-			x86.emit_instruction(instruction: x86.Instruction.MovRegRm(reg: dst_reg, rm), out: outstream)
+			emit(instruction: x86.Instruction.MovRegRm(reg: dst_reg, rm), out: outstream)
 		Exit:
 			# x86.emit_instruction(instruction: x86.Instruction.Ret(), out: outstream)
 			if minst.uses.len() > 0:
 				let src = minst.uses.get(index: 0)
 				let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
-				x86.emit_instruction(instruction: x86.Instruction.MovRegRm(reg: rax, rm), out: outstream)
+				emit(instruction: x86.Instruction.MovRegRm(reg: rax, rm), out: outstream)
 			# TODO: jump to end label?
 		Actual(instruction):
-			x86.emit_instruction(instruction, out: outstream)
+			emit(instruction, out: outstream)
+
+fn emit(instruction: x86.Instruction, out: BinaryOutput):
+	print(x86.instruction_to_string(instruction))
+	x86.emit_instruction(instruction, out)
+
 
 fn mat_reg(reg: mil.Register) -> int:
 	reg.color

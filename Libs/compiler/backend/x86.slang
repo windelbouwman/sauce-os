@@ -3,15 +3,14 @@ X86 instruction set
 
 Calling conventions 64 bit / system V ABI
 
-arguments: rdi, rsi, rdx, rcx, r8, r9
+arguments:    rdi, rsi, rdx, rcx, r8, r9
 return value: rax
-
-callee save registers: rbx, rsp, rbp, r12, r13, r14, r15
-caller save: the other registers
+callee save:  rbx, rsp, rbp, r12, r13, r14, r15
+caller save:  the other registers
 
 """
 
-from utils import unimplemented
+from utils import unimplemented, panic
 from bytes import ByteArray
 from outstream import BinaryOutput
 
@@ -141,6 +140,22 @@ fn reg64_to_str(reg: int) -> str:
 			"rsi"
 		7:
 			"rdi"
+		8:
+			"r8"
+		9:
+			"r9"
+		10:
+			"r10"
+		11:
+			"r11"
+		12:
+			"r12"
+		13:
+			"r13"
+		14:
+			"r14"
+		15:
+			"r15"
 	else:
 		"?{reg}"
 
@@ -221,20 +236,31 @@ fn write32(value?: int, out: BinaryOutput):
 	x.pack_u32_le(value)
 	out.write_bytes(data: x.to_bytes())
 
-fn write64(value?: int, out: BinaryOutput):
+fn write64(out: BinaryOutput, value?: int):
 	let x = ByteArray()
 	x.pack_u64_le(value)
 	out.write_bytes(data: x.to_bytes())
 
-fn write_rex_byte(out: BinaryOutput):
+fn write_rex_byte(out: BinaryOutput, reg: int):
+	if reg > 7:
+		panic("reg > 7")
+	# let r = (reg >> 3) << 2
 	out.write_byte(0x48) # rex prefix
 
 fn write_mod_rm_byte(mod: int, rm: int, reg: int, out: BinaryOutput):
+	if rm > 7:
+		panic("rm > 7")
+	if rm < 0:
+		panic("rm < 0")
+	if reg > 7:
+		panic("reg > 7")
+	if reg < 0:
+		panic("reg < 0")
 	let mod_rm = (mod << 6) | (reg << 3) | rm
 	out.write_byte(mod_rm)
 
 fn write_mod_rm(opcode: int, rm: Rm, reg: int, out: BinaryOutput):
-	write_rex_byte(out)
+	write_rex_byte(out, reg)
 	out.write_byte(opcode)
 	write_rm_reg(rm, reg, out)
 
@@ -256,7 +282,7 @@ fn write_rm_reg(rm: Rm, reg: int, out: BinaryOutput):
 			write_mod_rm_byte(mod: 3, rm: reg2, reg, out)
 
 fn write_rm_imm(reg: int, rm: Rm, imm: int, out: BinaryOutput):
-	write_rex_byte(out)
+	write_rex_byte(out, reg)
 	out.write_byte(0x81)
 	write_rm_reg(rm, reg, out)
 	write32(imm, out)
@@ -320,9 +346,9 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 		Lea(reg, rm):
 			write_mod_rm(opcode: 0x8D, rm, reg, out)
 		MovRegImm(reg, imm):
-			write_rex_byte(out)
+			write_rex_byte(out, reg)
 			out.write_byte(0xB8 + reg)
-			write64(imm, out)
+			write64(out, imm)
 		Push(reg):
 			out.write_byte(0x50 + reg)
 		Pop(reg):
