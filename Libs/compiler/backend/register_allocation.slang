@@ -18,7 +18,6 @@ pub fn reg_alloc[V](mfunc: mil.Function[V], all_regs: List[int]):
 	let ig = create_interference_graph(cfg)
 	let r = RegAlloc(m_ig: ig, m_regs: all_regs)
 	r.alloc()
-	# color_graph(ig)
 
 class RegAlloc:
 	""" Perform graph coloring
@@ -32,6 +31,7 @@ class RegAlloc:
 	var m_select_stack: List[IGNode] = List()
 	var m_simplify_worklist: List[IGNode] = List()
 	var m_spill_worklist: HashMap[int,IGNode] = new_hashmap_int()
+	var m_freeze_worklist: HashMap[int,IGNode] = new_hashmap_int()
 	var m_pre_colored: HashMap[int,IGNode] = new_hashmap_int()
 
 	pub fn alloc():
@@ -47,7 +47,12 @@ class RegAlloc:
 			if not m_simplify_worklist.is_empty():
 				panic("simplify list not empty")
 			if not m_spill_worklist.is_empty():
+				for spill_id in m_spill_worklist:
+					let spill_node = m_spill_worklist.get(key: spill_id)
+					log_info("> {spill_id} = {spill_node.to_string()}")
 				panic("Spill list not empty")
+			if not m_freeze_worklist.is_empty():
+				panic("Freeze worklist not empty")
 			assign_colors()
 			# TODO: implement spill by re-trying the loop after code modification
 			break
@@ -58,11 +63,13 @@ class RegAlloc:
 				m_pre_colored.insert(key: n.id, value: n)
 			elif not is_colorable(n):
 				m_spill_worklist.insert(key: n.id, value: n)
+			elif is_move_related(n):
+				m_freeze_worklist.insert(key: n.id, value: n)
 			else:
 				m_simplify_worklist.append(n)
 
 	fn simplify():
-		log_debug("simplify")
+		# log_debug("simplify")
 		let n = m_simplify_worklist.pop_front()
 		m_select_stack.append(n)
 		m_ig.mask(n)
@@ -98,6 +105,9 @@ class RegAlloc:
 		else:
 			false
 
+	fn is_move_related(m?: IGNode) -> bool:
+		false
+
 fn create_cfg[V](mfunc: mil.Function[V]) -> ControlFlowGraph[V]:
 	""" Create control flow graph (CFG) for given function """
 	let cfg: ControlFlowGraph[V] = ControlFlowGraph()
@@ -111,12 +121,12 @@ fn create_cfg[V](mfunc: mil.Function[V]) -> ControlFlowGraph[V]:
 			# Register definition kill live range:
 			for r in mi.defs:
 				ins_kill.add(r.id)
-				log_debug("kill: {r.id}")
+				# log_debug("kill: {r.id}")
 
 			# Register use generates a live register:
 			for r in mi.uses:
 				ins_gen.add(r.id)
-				log_debug("gen: {r.id}")
+				# log_debug("gen: {r.id}")
 
 			# Combine effect:
 			full_gen = full_gen.union(ins_gen.difference(full_kill))
@@ -211,10 +221,22 @@ class InterferenceGraph:
 	var m_adj: HashMap[int,Set[int]] = new_hashmap_int()
 
 	pub fn mask(n?: IGNode):
-		n.masked = true
+		if not n.masked:
+			n.masked = true
+			for m_id in get_adj_set(n):
+				let m = m_nodes.get(key: m_id)
+				m.degree -= 1
+		else:
+			panic("Node already masked")
 
 	pub fn unmask(n?: IGNode):
-		n.masked = false
+		if n.masked:
+			n.masked = false
+			for m_id in get_adj_set(n):
+				let m = m_nodes.get(key: m_id)
+				m.degree += 1
+		else:
+			panic("Node already un-masked")
 
 	pub fn is_masked(n?: IGNode) -> bool:
 		n.masked
@@ -238,6 +260,7 @@ class InterferenceGraph:
 		res
 
 	pub fn adjecent(n?: IGNode) -> List[IGNode]:
+		""" Get a list of all non-masked neighbours """
 		let res: List[IGNode] = List()
 		for m_id in get_adj_set(n):
 			let m = m_nodes.get(key: m_id)
@@ -284,3 +307,9 @@ class IGNode:
 
 	pub fn is_colored() -> bool:
 		color >= 0
+
+	pub fn to_string() -> str:
+		var res = "IGNode(degree={degree},regs=["
+		for r in regs:
+			res = res + ",R{r.id}"
+		res + "])"

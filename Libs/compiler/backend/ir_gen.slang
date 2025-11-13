@@ -599,12 +599,20 @@ class BytecodeGenerator:
 				let struct_index = struct_mapping.get(key: struct_def.id)
 				emit(Instruction.StructLiteral(struct_index))
 			ArrayLiteral(values):
+				let size = values.len()
+				emit(Instruction.Literal(bc.LiteralValue.Int(size)))
+				let ty = get_bc_type(values.first().ty)
+				emit(Instruction.ArrayLiteral(ty))
+				var index = 0
 				for value in values:
+					emit(Instruction.Dup())
+					emit(Instruction.Literal(bc.LiteralValue.Int(index)))
 					gen_expression(value)
-				emit(Instruction.ArrayLiteral(n_values: values.len()))
+					emit(Instruction.SetIndex())
+					index += 1
 			ArrayLiteral2(size, ty):
 				gen_expression(size)
-				emit(Instruction.ArrayLiteral2(get_bc_type(ty)))
+				emit(Instruction.ArrayLiteral(get_bc_type(ty)))
 			TypeCast(ty, value):
 				gen_expression(value)
 				if ty.is_float():

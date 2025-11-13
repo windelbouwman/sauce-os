@@ -500,11 +500,7 @@ pub class VirtualMachine:
 				let values = pop_n(count)
 				let list = ListValue(values)
 				push(Value.List(list))
-			ArrayLiteral(count):
-				let values = pop_n(count)
-				let list = ListValue(values)
-				push(Value.List(list))
-			ArrayLiteral2(ty):
+			ArrayLiteral(ty):
 				let size = pop()
 				let value = Value.Undefined()
 				var size2 = int_from_value(size)

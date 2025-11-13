@@ -186,6 +186,7 @@ pub enum Value:
 pub enum Address:
 	Global(name: str)
 	StackSlot(offset: int)
+	Ptr(base: Value, offset: int)
 
 pub fn value_to_string(value?: Value) -> str:
 	case value:
@@ -198,3 +199,5 @@ pub fn address_to_string(address?: Address) -> str:
 			"${name}"
 		StackSlot(offset):
 			"[stack + {offset}]"
+		Ptr(base, offset):
+			"[{value_to_string(base)} + {offset}]"

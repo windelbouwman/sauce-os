@@ -105,8 +105,7 @@ pub enum Instruction:
 	LoadFunc(index: int)
 
 	StructLiteral(struct_index: int)
-	ArrayLiteral(size: int)
-	ArrayLiteral2(ty: Type)
+	ArrayLiteral(ty: Type)
 
 pub fn get_target_labels(instructions: Vector[Instruction]) -> Set[int]:
 	""" Get a set of labels to which is being jumped """
@@ -248,10 +247,8 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 			"load-func({index})"
 		StructLiteral(struct_index):
 			"struct-literal(index={struct_index})"
-		ArrayLiteral(count):
-			"array-literal({count})"
-		ArrayLiteral2(ty):
-			"array-literal2"
+		ArrayLiteral(ty):
+			"array-literal"
 
 fn binop_to_string(op: BinaryOperator) -> str:
 	case op:

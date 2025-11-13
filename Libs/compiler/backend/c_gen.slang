@@ -638,26 +638,7 @@ class CGenerator:
 					index2 += 1
 				push(Value(name: varname, ty))
 
-			ArrayLiteral(size):
-				let varname = new_local_var()
-				let values = pop_n(count: size)
-				let parts: List[str] = List()
-				for value in values:
-					parts.append(value.name)
-				let arg_text = str_join(parts, sep: ", ")
-				let ety = values.first().ty
-				let ty = bc.Type.Array(ty: ety)
-				gen_typed_name(ty, name: varname)
-				write(" = rt_malloc({size} * sizeof(")
-				gen_typed_name(ty: ety, name: "")
-				emit("));")
-				var index = 0
-				for value in values:
-					emit("{varname}[{index}] = {value.name};")
-					index += 1
-				push(Value(name: varname, ty))
-
-			ArrayLiteral2(ty2):
+			ArrayLiteral(ty2):
 				let size = pop()
 				let varname = new_local_var()
 				let ty = bc.Type.Array(ty: ty2)

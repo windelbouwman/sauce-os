@@ -74,14 +74,10 @@ pub class SelectionContext[V]:
 			r
 
 	pub fn emit(instruction?: V):
-		let uses: Vector[mil.Register] = new_vector()
-		let defs: Vector[mil.Register] = new_vector()
-		let clobbers: Vector[mil.Register] = new_vector()
-		emit_full(instruction, uses, defs, clobbers)
+		emit_full(instruction)
 
-	fn emit_full(instruction?: V, uses: Vector[mil.Register], defs: Vector[mil.Register], clobbers: Vector[mil.Register]):
-		# let relocation: Option[riscv.Relocation] = Option.None()
-		let minst = mil.Instruction(instruction, uses, defs, clobbers)
+	fn emit_full(instruction?: V):
+		let minst = mil.Instruction(instruction)
 		codes.append(minst)
 
 	pub fn emit_and_get(instruction?: V) -> mil.Instruction:
@@ -153,7 +149,8 @@ class Codegen[V]:
 				let defs = reg_to_str(label: "defs", regs: minst.defs)
 				let uses = reg_to_str(label: "uses", regs: minst.uses)
 				let clobbers = reg_to_str(label: "clobbers", regs: minst.clobbers)
-				report.writeln("    > {txt}                     {defs} {uses} {clobbers}")
+				let is_move = "move" if minst.is_move else ""
+				report.writeln("    > {txt}                     {defs} {uses} {clobbers} {is_move}")
 		report.writeln("")
 
 fn reg_to_str(label: str, regs: Vector[mil.Register]) -> str:
