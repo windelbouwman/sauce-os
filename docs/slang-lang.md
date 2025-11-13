@@ -5,11 +5,14 @@ language.
 
 # Hello world
 
+The obligatory hello world program.
+
 ```
 import std
 
-fn main():
+pub fn main() -> int:
     std.print("Hello world")
+    0
 
 ```
 
@@ -18,8 +21,6 @@ fn main():
 Function are defined using the `fn` keyword.
 Type annotations are given after the function
 parameters.
-
-Example:
 
 ```
 fn add_two(x: int) -> int:
@@ -31,10 +32,9 @@ fn add_two(x: int) -> int:
 
 If statements are implemented using the `if` and `else` keywords.
 
-Example:
 
 ```
-fn main():
+fn example():
     let x = 15
     if x < 10:
         std.print("x is a small number")
@@ -87,36 +87,58 @@ fn example():
 You can define struct data types, which have one
 or more fields to store a group of related data.
 When creating a struct, make sure to fill all its
-fields.
-
-Example:
+fields. You can use two types of syntax to initialize
+a struct.
 
 ```
-struct Animal:
-    species: str
-    weight: float
 
-fn main():
+fn example():
     let tiger = Animal:
-        species: "cat"
+        name: "tijgertje"
         weight: 143.2
+
+    let cow = Animal(name: "sjakie", weight: 613.8)
+
+struct Animal:
+    name: str
+    weight: float
 
 ```
 
 # Classes
 
+Classes contain both variables and functions.
+
 ```
-
-class X:
-    var x : int = 0
-    var y : int
-
-    fn add(value: int) -> int:
-        return x + y + value
-
 
 fn example():
-    let x = X(7)
-    let s = x.add(42)
+    let bot = Robot()
+    bot.move(amount: 42)
+
+class Robot:
+    var x: int = 0
+    var y: int = 0
+    var angle: int = 0
+
+    fn move(amount: int):
+        if angle == 0:
+            x += amount
+        else:
+            y += amount
+
+    fn rotate(amount: int):
+        angle += amount
 
 ```
+
+# Enums
+
+TODO
+
+# Generics
+
+TODO
+
+# Interfaces
+
+TODO
