@@ -133,11 +133,47 @@ class Robot:
 
 # Enums
 
-TODO
+Enums can be used to have a value with different values inside.
+They behave like rust enums.
+
+```
+from std import print
+
+enum Choice:
+    Some(value: int)
+    None
+    Two(a: int, b: int)
+
+fn example():
+    let choice = Choice.Some(value: 7)
+    print_choice(choice)
+    print_choice(choice: Choice.Two(a: 1, b: 2))
+    print_choice(choice: Choice.None())
+
+fn print_choice(choice: Choice):
+    case choice:
+        Some(value):
+            print("Some value: {value})
+        None:
+            print("Nope")
+        Two(a, b):
+            print("Two values: {a} and {b})
+```
 
 # Generics
 
-TODO
+Structs and classes can be declared to contain generic values,
+so they can be used to contain different types.
+
+```
+struct Message[T]:
+    id: str
+    value: T
+
+fn example():
+    let msg_int: Message[int] = Message(id: "x", value: 1)
+    let msg_str: Message[str] = Message(id: "y", value: "foo")
+```
 
 # Interfaces
 

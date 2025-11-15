@@ -45,6 +45,15 @@ Longer term goal is to develop an OS using the slang-lang language.
 
 # Usage
 
+Make sure you have the following installed:
+- `make` to build using the Makefile
+- `python3` for bootstrapping and testing, with these additional python packages:
+  - `lark` for parsing
+  - `networkx` for module dependency graphs
+  - `pytest` for running the tests
+  - `rich` for colorful console output
+- `gcc` to compile C code
+
 To build the slang-lang compiler and example programs, use make:
 
     $ make
@@ -58,6 +67,10 @@ Run the mandelbrot example:
 Run the compiler manually:
 
     $ ./build/compiler5 -h
+
+To run the hello world example with the bytecode backend:
+
+    $ ./build/compiler5 --run --backend-bc examples/snippets/hello_world.slang runtime/std.slang -v
 
 To run the test suite:
 
@@ -111,3 +124,11 @@ Available libraries:
 - Image formats, such as PNG, JPEG and QOI
 - list, vector, hashmap, set and option types
 - datetime
+
+# License
+
+This work is MIT licensed.
+
+# Why this project?
+
+This project is a recreational coding project. It's main purpose is an extended hobby.

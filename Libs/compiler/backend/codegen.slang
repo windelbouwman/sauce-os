@@ -37,19 +37,21 @@ pub struct Backend[V]:
 	enter: fn(SelectionContext[V], sil.Function)
 	selector: fn(SelectionContext[V], sil.Instruction)
 	to_str: fn(V) -> str
-	materializer: fn(mil.Instruction[V], BinaryOutput)
+	materializer: fn(SelectionContext[V], mil.Instruction[V], BinaryOutput)
 	emit_prologue: fn(Frame, BinaryOutput)
 	emit_epilogue: fn(Frame, BinaryOutput)
 	fixer: fn(ByteArray, int, int, int, int)
 
 pub struct Frame:
 	stacksize: int
+	exit_label: str
 
 pub class SelectionContext[V]:
 	var codes: Vector[mil.Instruction[V]] = new_vector()
 	var m_tmp_regs: HashMap[str,mil.Register] = new_hashmap_str()
 	var m_pre_colored_regs: HashMap[int,mil.Register] = new_hashmap_int()
 	var m_counter: int = 0
+	pub var frame: Frame
 
 	pub fn get_value_vreg(value?: sil.Value) -> mil.Register:
 		case value:
@@ -111,8 +113,9 @@ class Codegen[V]:
 			out.write_bytes(data: blob.data)
 
 	fn gen_function(function: sil.Function, out: BinaryOutput):
-		let frame = Frame(stacksize: function.stacksize)
-		let mfunc = select_function(function)
+		let frame = Frame(stacksize: function.stacksize, exit_label: "{function.name}_@exit")
+		let context = SelectionContext(frame)
+		let mfunc = select_function(function, context)
 		dump_mfunc(mfunc)
 		reg_alloc(mfunc, all_regs: backend.all_regs)
 		log_debug("Materializing instructions")
@@ -121,15 +124,15 @@ class Codegen[V]:
 		for mblock in mfunc.blocks:
 			out.define_label(name: mblock.name)
 			for minst in mblock.instructions:
-				backend.materializer(v: minst, out)
+				backend.materializer(context, v: minst, out)
+		out.define_label(name: frame.exit_label)
 		backend.emit_epilogue(frame, out)
 		out.do_fixups(fixer: backend.fixer)
 
-	fn select_function(function: sil.Function) -> mil.Function[V]:
+	fn select_function(function: sil.Function, context: SelectionContext[V]) -> mil.Function[V]:
 		"""Turn abstract instructions into abstract machine specific instructions.
 		"""
 		let mblocks: Vector[mil.Block[V]] = new_vector()
-		let context = SelectionContext()
 		backend.enter(context, function)
 		for block in function.blocks:
 			for instruction in block.instructions:

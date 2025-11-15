@@ -157,7 +157,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 
 
 
-fn materialize(v: mil.Instruction[VirtInst], outstream: BinaryOutput):
+fn materialize(context: SelectionContext[VirtInst], v: mil.Instruction[VirtInst], outstream: BinaryOutput):
 	""" Apply actual registers to instruction now. """
 	case v.instruction:
 		Jal:

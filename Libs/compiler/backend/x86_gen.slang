@@ -4,6 +4,7 @@
 from utils import unimplemented
 from logging import log_info
 from std import print
+from math import modulo
 import sil
 import mil
 import x86
@@ -123,23 +124,33 @@ fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
 		index += 1
 
 fn gen_prologue(frame: Frame, out: BinaryOutput):
-	x86.emit_instruction(x86.Instruction.Push(reg: rbp), out)
-	x86.emit_instruction(x86.Instruction.SubRmImm(rm: x86.Rm.Reg(reg: rsp), imm: frame.stacksize), out)
-
-	# Stack slot:
-	x86.emit_instruction(x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: rbp, rm: x86.Rm.Reg(reg: rsp)), out)
+	emit(x86.Instruction.Push(reg: rbp), out)
+	emit(x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: rbp, rm: x86.Rm.Reg(reg: rsp)), out)
+	let imm = stack_round_up16(frame.stacksize, taken: 8)
+	if imm > 0:
+		emit(x86.Instruction.SubRmImm(rm: x86.Rm.Reg(reg: rsp), imm), out)
 
 	# Callee save registers:
-	x86.emit_instruction(x86.Instruction.Push(reg: rbx), out)
+	emit(x86.Instruction.Push(reg: rbx), out)
 
 fn gen_epilogue(frame: Frame, out: BinaryOutput):
 	# Callee save registers:
-	x86.emit_instruction(i: x86.Instruction.Pop(reg: rbx), out)
+	emit(x86.Instruction.Pop(reg: rbx), out)
 
 	# Stack slot:
-	x86.emit_instruction(i: x86.Instruction.AddRmImm(rm: x86.Rm.Reg(reg: rsp), imm: frame.stacksize), out)
-	x86.emit_instruction(i: x86.Instruction.Pop(reg: rbp), out)
-	x86.emit_instruction(i: x86.Instruction.Ret(), out)
+	let imm = stack_round_up16(frame.stacksize, taken: 8)
+	if imm > 0:
+		emit(x86.Instruction.AddRmImm(rm: x86.Rm.Reg(reg: rsp), imm), out)
+	emit(x86.Instruction.Pop(reg: rbp), out)
+	emit(x86.Instruction.Ret(), out)
+
+fn stack_round_up16(value?: int, taken: int) -> int:
+	""" Given the fact that we already took 'taken' bytes, round value to a multiple of 16 bytes. """
+	let remainder = modulo(value: value + taken, divisor: 16)
+	if remainder > 0:
+		value + 16 - remainder
+	else:
+		value
 
 fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Instruction):
 	""" Select machine instruction based on sil operator """
@@ -254,8 +265,8 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 					ret_ins.add_use(reg)
 				None:
 					pass
-	else:
-		unimplemented("select: {instruction}")
+		Halt:
+			context.emit(VirtInst.Actual(instruction: x86.Instruction.Int3()))
 
 fn add_rm_uses(minst?: mil.Instruction[VirtInst], rm: VirtRm):
 	""" Add use information for RM mode """
@@ -276,53 +287,59 @@ fn load_addr(context: SelectionContext[VirtInst], address: sil.Address) -> VirtR
 		Global(name):
 			VirtRm.Global(name)
 		StackSlot(offset):
-			VirtRm.StackSlot(offset)
+			VirtRm.StackSlot(offset - context.frame.stacksize)
 		Ptr(base, offset):
 			let base_reg = context.get_value_vreg(base)
 			VirtRm.RegDisp(reg: base_reg, offset)
 
-fn materialize(minst: mil.Instruction[VirtInst], outstream: BinaryOutput):
+fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtInst], out: BinaryOutput):
 	""" Apply selected registers, and emit selected instruction to output stream. """
 	case minst.instruction:
 		Entry:
 			pass
 		MovImm(dst, value):
 			let reg2 = mat_reg(reg: dst)
-			let instruction = x86.Instruction.MovRegImm(reg: reg2, imm: value)
-			emit(instruction, out: outstream)
+			if value == 0:
+				let instruction = x86.Instruction.OpRegRm(op: x86.Op.Xor(), reg: reg2, rm: x86.Rm.Reg(reg2))
+				emit(instruction, out)
+			elif value > 0 and value < 1000000:
+				let instruction = x86.Instruction.MovRegImm32(reg: reg2, imm: value)
+				emit(instruction, out)
+			else:
+				let instruction = x86.Instruction.MovRegImm64(reg: reg2, imm: value)
+				emit(instruction, out)
 		Lea(dst, rm):
 			let instruction = x86.Instruction.Lea(reg: mat_reg(reg: dst), rm: mat_rm(rm))
-			emit(instruction, out: outstream)
+			emit(instruction, out)
 		RegRm(op, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
 			let instruction = x86.Instruction.OpRegRm(op, reg: reg2, rm: rm2)
-			emit(instruction, out: outstream)
+			emit(instruction, out)
 		RmReg(op, rm, reg):
 			let rm2 = mat_rm(rm)
 			let reg2 = mat_reg(reg)
 			let instruction = x86.Instruction.OpRmReg(op, rm: rm2, reg: reg2)
-			emit(instruction, out: outstream)
+			emit(instruction, out)
 		MulRegRm(reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
 			let instruction = x86.Instruction.MulRegRm(reg: reg2, rm: rm2)
-			emit(instruction, out: outstream)
+			emit(instruction, out)
 		Mov(dst, src):
 			let dst_reg = mat_reg(reg: dst)
 			let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
-			emit(instruction: x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: dst_reg, rm), out: outstream)
+			emit(x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: dst_reg, rm), out)
 		Exit:
-			# x86.emit_instruction(instruction: x86.Instruction.Ret(), out: outstream)
 			if minst.uses.len() > 0:
 				let src = minst.uses.get(index: 0)
 				let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
-				emit(instruction: x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: rax, rm), out: outstream)
-			# TODO: jump to end label?
+				emit(x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: rax, rm), out)
+			emit(x86.Instruction.Jmp(context.frame.exit_label), out)
 		Actual(instruction):
-			emit(instruction, out: outstream)
+			emit(instruction, out)
 
-fn emit(instruction: x86.Instruction, out: BinaryOutput):
+fn emit(instruction?: x86.Instruction, out: BinaryOutput):
 	print(x86.instruction_to_string(instruction))
 	x86.emit_instruction(instruction, out)
 

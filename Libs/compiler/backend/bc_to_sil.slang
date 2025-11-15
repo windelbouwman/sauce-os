@@ -45,6 +45,7 @@ class SilGen:
 	pub fn gen_program() -> sil.Program:
 		# Define used runtime functions:
 		m_externs.append(sil.Extern(name: "rt_malloc"))
+		m_externs.append(sil.Extern(name: "slangrt_box_int64"))
 
 		for extern_function in m_bc_program.extern_functions:
 			m_externs.append(sil.Extern(name: extern_function.name))
@@ -163,7 +164,10 @@ class SilGen:
 				let value = pop()
 				case ty3:
 					Int(signed, bits):
-						unimplemented("box int")
+						if signed and bits == 64:
+							call_rt_box_int64(value)
+						else:
+							unimplemented("box int {bits}")
 					Ptr:
 						push(value)
 					StructRef(index):
@@ -279,9 +283,15 @@ class SilGen:
 				emit(sil.OpCode.Call(Option.None(), callee, arguments))
 
 	fn call_rt_malloc(size: sil.Value):
+		call_rt_function_1(name: "rt_malloc", argument: size)
+
+	fn call_rt_box_int64(value: sil.Value):
+		call_rt_function_1(name: "slangrt_box_int64", argument: value)
+
+	fn call_rt_function_1(name: str, argument: sil.Value):
 		let arguments: List[sil.Value] = List()
-		arguments.append(size)
-		call_rt_function(name: "rt_malloc", arguments)
+		arguments.append(argument)
+		call_rt_function(name, arguments)
 
 	fn call_rt_function(name: str, arguments: List[sil.Value]):
 		""" Invoke runtime helper function """

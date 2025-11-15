@@ -12,6 +12,7 @@ extern "slangrt" fn str_get(text: str, index: int) -> char
 extern "slangrt" fn str_slice(text: str, begin: int, end: int) -> str
 
 extern "slangrt" fn print(message?: str)
+extern "slangrt" fn getch() -> int
 extern "slangrt" fn read_line(prompt: str) -> str
 
 extern "slangrt" fn get_path_separator() -> char

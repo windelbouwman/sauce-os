@@ -201,6 +201,8 @@ ${BUILDDIR}/c/native_example:
 # x86 backend
 native_example: ${BUILDDIR}/c/native_example/main.exe
 
+.PRECIOUS: ${BUILDDIR}/x86/%.o
+
 ${BUILDDIR}/x86/%.o: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/x86
 	${SLANGC} --backend-x86 --report -v -v -o $@ $< runtime/std.slang
 

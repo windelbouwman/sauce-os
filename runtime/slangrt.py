@@ -31,6 +31,10 @@ std_read_line = input
 rt_int_to_str = str
 
 
+def std_getch() -> int:
+    raise NotImplementedError("std_getch")
+
+
 def std_float_to_str(value: float) -> str:
     return f"{value:f}"
 

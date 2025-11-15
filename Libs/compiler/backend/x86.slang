@@ -32,10 +32,12 @@ pub enum Instruction:
 	AddRmImm(rm: Rm, imm: int)
 	SubRmImm(rm: Rm, imm: int)
 	Lea(reg: int, rm: Rm)
-	MovRegImm(reg: int, imm: int)
+	MovRegImm64(reg: int, imm: int)
+	MovRegImm32(reg: int, imm: int)
 	Push(reg: int)
 	Pop(reg: int)
 	Ret
+	Int3
 
 pub enum Op:
 	Add
@@ -85,7 +87,9 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			rm_imm_to_str("sub", rm, imm)
 		Lea(reg, rm):
 			"lea {reg_to_str(reg)}, {rm_to_str(rm)}"
-		MovRegImm(reg, imm):
+		MovRegImm64(reg, imm):
+			"mov {reg_to_str(reg)}, {imm}"
+		MovRegImm32(reg, imm):
 			"mov {reg_to_str(reg)}, {imm}"
 		Push(reg):
 			"push {reg_to_str(reg)}"
@@ -93,6 +97,8 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			"pop {reg_to_str(reg)}"
 		Ret:
 			"ret"
+		Int3:
+			"int 3"
 
 pub fn op_to_str(op: Op) -> str:
 	case op:
@@ -270,7 +276,7 @@ fn write32(value?: int, out: BinaryOutput):
 	x.pack_u32_le(value)
 	out.write_bytes(data: x.to_bytes())
 
-fn write64(out: BinaryOutput, value?: int):
+fn write64(value?: int, out: BinaryOutput):
 	let x = ByteArray()
 	x.pack_u64_le(value)
 	out.write_bytes(data: x.to_bytes())
@@ -355,16 +361,21 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			write_rm_imm(reg: 5, rm, imm, out)
 		Lea(reg, rm):
 			write_mod_rm(opcode: 0x8D, rm, reg, out)
-		MovRegImm(reg, imm):
+		MovRegImm64(reg, imm):
 			write_rex_byte(out, reg)
 			out.write_byte(0xB8 + reg)
-			write64(out, imm)
+			write64(imm, out)
+		MovRegImm32(reg, imm):
+			out.write_byte(0xB8 + reg)
+			write32(imm, out)
 		Push(reg):
 			out.write_byte(0x50 + reg)
 		Pop(reg):
 			out.write_byte(0x58 + reg)
 		Ret:
 			out.write_byte(0xC3)
+		Int3:
+			out.write_byte(0xCC)
 
 fn get_opcode(op: Op) -> int:
 	case op:
