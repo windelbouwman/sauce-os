@@ -10,7 +10,7 @@ from qoi import read_whole_file_as_bytes
 from gzip import gzip_decompress
 
 pub fn main() -> int:
-	print("Unzip!")
+	log_info("Unzip!")
 
 	set_log_level(level: 2)
 
@@ -25,6 +25,7 @@ pub fn main() -> int:
 
 	if std.str_len(text: input_filename) == 0:
 		log_error("Needs input filename")
+		print_usage()
 		return 1
 
 	let data = read_whole_file_as_bytes(filename: input_filename)
@@ -33,3 +34,7 @@ pub fn main() -> int:
 	# let x = open_archive(filename)
 
 	0
+
+fn print_usage():
+	print("Usage:")
+	print("CMD> unzip archive.zip")

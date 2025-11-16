@@ -1,62 +1,95 @@
-
 """
 X86 instruction set
 
 Calling conventions 64 bit / system V ABI
 
-arguments: rdi, rsi, rdx, rcx, r8, r9
+arguments:    rdi, rsi, rdx, rcx, r8, r9
 return value: rax
-
-callee save registers: rbx, rsp, rbp, r12, r13, r14, r15
-caller save: the other registers
+callee save:  rbx, rsp, rbp, r12, r13, r14, r15
+caller save:  the other registers
 
 """
 
+from utils import unimplemented, panic
 from bytes import ByteArray
 from outstream import BinaryOutput
 
+let R_X86_64_NONE: int = 0
+let R_X86_64_64: int = 1  # S + A
+let R_X86_64_PC32: int = 2 # S + A - P
+let R_X86_64_GOT32: int = 3 # G + A
+let R_X86_64_PLT32: int = 4 # L + A - P
+let R_X86_64_32: int = 10  # S + A
+let R_X86_64_16: int = 12  # S + A
+
 pub enum Instruction:
-	AddRmReg(rm: Rm, reg: int)
-	AddRegRm(reg: int, rm: Rm)
-	SubRmReg(rm: Rm, reg: int)
-	SubRegRm(reg: int, rm: Rm)
-	Call
+	OpRmReg(op: Op, rm: Rm, reg: int)
+	OpRegRm(op: Op, reg: int, rm: Rm)
+	MulRegRm(reg: int, rm: Rm)
+	Call(target: str)
+	Jmp(target: str)
+	Jcc(condition: Cond, target: str)
 	AddRmImm(rm: Rm, imm: int)
 	SubRmImm(rm: Rm, imm: int)
-	MovRmReg(rm: Rm, reg: int)
-	MovRegRm(reg: int, rm: Rm)
-	MovRegImm(reg: int, imm: int)
+	Lea(reg: int, rm: Rm)
+	MovRegImm64(reg: int, imm: int)
+	MovRegImm32(reg: int, imm: int)
 	Push(reg: int)
 	Pop(reg: int)
 	Ret
+	Int3
+
+pub enum Op:
+	Add
+	Sub
+	Cmp
+	And
+	Or
+	Xor
+	Mov
+
+pub enum Cond:
+	Jb
+	Jae
+	Jz
+	Jnz
+	Jbe
+	Ja
+	Jl
+	Jge
+	Jle
+	Jg
 
 pub enum Rm:
 	Mem(reg: int)
 	MemDisp8(reg: int, disp: int)
 	MemDisp32(reg: int, disp: int)
+	RipDisp32(name: str)
 	Reg(reg: int)
 
 pub fn instruction_to_string(instruction: Instruction) -> str:
 	case instruction:
-		AddRmReg(rm, reg):
-			rm_reg_to_str("add", rm, reg)
-		AddRegRm(reg, rm):
-			reg_rm_to_str("add", reg, rm)
-		SubRmReg(rm, reg):
-			rm_reg_to_str("sub", rm, reg)
-		SubRegRm(reg, rm):
-			reg_rm_to_str("sub", reg, rm)
-		Call:
-			"call"
+		OpRmReg(op, rm, reg):
+			rm_reg_to_str(op_to_str(op), rm, reg)
+		OpRegRm(op, reg, rm):
+			reg_rm_to_str(op_to_str(op), reg, rm)
+		MulRegRm(reg, rm):
+			reg_rm_to_str("mul", reg, rm)
+		Call(target):
+			"call {target}"
+		Jmp(target):
+			"jmp {target}"
+		Jcc(condition, target):
+			"{cc_to_string(condition)} {target}"
 		AddRmImm(rm, imm):
 			rm_imm_to_str("add", rm, imm)
 		SubRmImm(rm, imm):
 			rm_imm_to_str("sub", rm, imm)
-		MovRmReg(rm, reg):
-			rm_reg_to_str("mov", rm, reg)
-		MovRegRm(reg, rm):
-			reg_rm_to_str("mov", reg, rm)
-		MovRegImm(reg, imm):
+		Lea(reg, rm):
+			"lea {reg_to_str(reg)}, {rm_to_str(rm)}"
+		MovRegImm64(reg, imm):
+			"mov {reg_to_str(reg)}, {imm}"
+		MovRegImm32(reg, imm):
 			"mov {reg_to_str(reg)}, {imm}"
 		Push(reg):
 			"push {reg_to_str(reg)}"
@@ -64,12 +97,54 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			"pop {reg_to_str(reg)}"
 		Ret:
 			"ret"
+		Int3:
+			"int 3"
 
-fn rm_reg_to_str(opcode?: str, rm: Rm, reg: int) -> str:
-	"{opcode} {rm_to_str(rm)}, {reg_to_str(reg)}"
+pub fn op_to_str(op: Op) -> str:
+	case op:
+		Add:
+			"add"
+		Sub:
+			"sub"
+		Cmp:
+			"cmp"
+		And:
+			"and"
+		Or:
+			"or"
+		Xor:
+			"xor"
+		Mov:
+			"mov"
 
-fn reg_rm_to_str(opcode?: str, reg: int, rm: Rm) -> str:
-	"{opcode} {reg_to_str(reg)}, {rm_to_str(rm)}"
+fn cc_to_string(condition: Cond) -> str:
+	case condition:
+		Jb:
+			"jb"
+		Jae:
+			"jae"
+		Jz:
+			"jz"
+		Jnz:
+			"jnz"
+		Jbe:
+			"jbe"
+		Ja:
+			"ja"
+		Jl:
+			"jl"
+		Jge:
+			"jge"
+		Jle:
+			"jle"
+		Jg:
+			"jg"
+
+fn rm_reg_to_str(mnemonic?: str, rm: Rm, reg: int) -> str:
+	"{mnemonic} {rm_to_str(rm)}, {reg_to_str(reg)}"
+
+fn reg_rm_to_str(mnemonic?: str, reg: int, rm: Rm) -> str:
+	"{mnemonic} {reg_to_str(reg)}, {rm_to_str(rm)}"
 
 fn rm_imm_to_str(opcode?: str, rm: Rm, imm: int) -> str:
 	"{opcode} {rm_to_str(rm)}, {imm}"
@@ -82,8 +157,47 @@ fn rm_to_str(rm: Rm) -> str:
 			"[{reg_to_str(reg)} + {disp}]"
 		MemDisp32(reg, disp):
 			"[{reg_to_str(reg)} + {disp}]"
+		RipDisp32(name):
+			"[{name}]"
 		Reg(reg):
 			reg_to_str(reg)
+
+fn reg64_to_str(reg: int) -> str:
+	switch reg:
+		0:
+			"rax"
+		1:
+			"rcx"
+		2:
+			"rdx"
+		3:
+			"rbx"
+		4:
+			"rsp"
+		5:
+			"rbp"
+		6:
+			"rsi"
+		7:
+			"rdi"
+		8:
+			"r8"
+		9:
+			"r9"
+		10:
+			"r10"
+		11:
+			"r11"
+		12:
+			"r12"
+		13:
+			"r13"
+		14:
+			"r14"
+		15:
+			"r15"
+	else:
+		"?{reg}"
 
 fn reg_to_str(reg: int) -> str:
 	switch reg:
@@ -106,6 +220,48 @@ fn reg_to_str(reg: int) -> str:
 	else:
 		"?{reg}"
 
+fn reg16_to_str(reg: int) -> str:
+	switch reg:
+		0:
+			"ax"
+		1:
+			"cx"
+		2:
+			"dx"
+		3:
+			"bx"
+		4:
+			"sp"
+		5:
+			"bp"
+		6:
+			"si"
+		7:
+			"di"
+	else:
+		"?{reg}"
+
+fn reg8_to_str(reg: int) -> str:
+	switch reg:
+		0:
+			"al"
+		1:
+			"cl"
+		2:
+			"dl"
+		3:
+			"bl"
+		4:
+			"ah"
+		5:
+			"ch"
+		6:
+			"dh"
+		7:
+			"bh"
+	else:
+		"?{reg}"
+
 pub struct X86Relocation:
 	offset: int
 	typ: X86RelocationType
@@ -125,15 +281,26 @@ fn write64(value?: int, out: BinaryOutput):
 	x.pack_u64_le(value)
 	out.write_bytes(data: x.to_bytes())
 
-fn write_rex_byte(out: BinaryOutput):
+fn write_rex_byte(out: BinaryOutput, reg: int):
+	if reg > 7:
+		panic("reg > 7")
+	# let r = (reg >> 3) << 2
 	out.write_byte(0x48) # rex prefix
 
 fn write_mod_rm_byte(mod: int, rm: int, reg: int, out: BinaryOutput):
+	if rm > 7:
+		panic("rm > 7")
+	if rm < 0:
+		panic("rm < 0")
+	if reg > 7:
+		panic("reg > 7")
+	if reg < 0:
+		panic("reg < 0")
 	let mod_rm = (mod << 6) | (reg << 3) | rm
 	out.write_byte(mod_rm)
 
 fn write_mod_rm(opcode: int, rm: Rm, reg: int, out: BinaryOutput):
-	write_rex_byte(out)
+	write_rex_byte(out, reg)
 	out.write_byte(opcode)
 	write_rm_reg(rm, reg, out)
 
@@ -147,43 +314,119 @@ fn write_rm_reg(rm: Rm, reg: int, out: BinaryOutput):
 		MemDisp32(reg2, disp):
 			write_mod_rm_byte(mod: 2, rm: reg2, reg, out)
 			write32(disp, out)
+		RipDisp32(name):
+			write_mod_rm_byte(mod: 0, rm: 5, reg, out)
+			out.add_fixup(symbol: name, typ: R_X86_64_PC32, addend: -4)
+			write32(0, out)
 		Reg(reg2):
 			write_mod_rm_byte(mod: 3, rm: reg2, reg, out)
 
 fn write_rm_imm(reg: int, rm: Rm, imm: int, out: BinaryOutput):
-	write_rex_byte(out)
+	write_rex_byte(out, reg)
 	out.write_byte(0x81)
 	write_rm_reg(rm, reg, out)
 	write32(imm, out)
 
 pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 	case instruction:
-		AddRmReg(rm, reg):
-			write_mod_rm(opcode: 0x01, rm, reg, out)
-		AddRegRm(reg, rm):
-			write_mod_rm(opcode: 0x03, rm, reg, out)
-		SubRmReg(rm, reg):
-			write_mod_rm(opcode: 0x29, rm, reg, out)
-		SubRegRm(reg, rm):
-			write_mod_rm(opcode: 0x2B, rm, reg, out)
-		Call:
-			out.write_byte(0x8E)
+		OpRmReg(op, rm, reg):
+			let opcode = get_opcode(op) + 1
+			write_mod_rm(opcode, rm, reg, out)
+		OpRegRm(op, reg, rm):
+			let opcode = get_opcode(op) + 3
+			write_mod_rm(opcode, rm, reg, out)
+		MulRegRm(reg, rm):
+			write_rex_byte(out, reg)
+			out.write_byte(0x0F)
+			out.write_byte(0xAF)
+			write_rm_reg(rm, reg, out)
+		Call(target):
+			out.write_byte(0xE8)
+			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
+			write32(0, out)
+		Jmp(target):
+			# EB = short jump, E9 = near jump
+			out.write_byte(0xE9)
+			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
+			write32(0, out)
+		Jcc(condition, target):
+			# Near jumps
+			out.write_byte(0x0F)
+			out.write_byte(0x80 + get_cc_code(condition))
+			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
 			write32(0, out)
 		AddRmImm(rm, imm):
 			write_rm_imm(reg: 0, rm, imm, out)
 		SubRmImm(rm, imm):
 			write_rm_imm(reg: 5, rm, imm, out)
-		MovRmReg(rm, reg):
-			write_mod_rm(opcode: 0x89, rm, reg, out)
-		MovRegRm(reg, rm):
-			write_mod_rm(opcode: 0x8B, rm, reg, out)
-		MovRegImm(reg, imm):
-			write_rex_byte(out)
+		Lea(reg, rm):
+			write_mod_rm(opcode: 0x8D, rm, reg, out)
+		MovRegImm64(reg, imm):
+			write_rex_byte(out, reg)
 			out.write_byte(0xB8 + reg)
 			write64(imm, out)
+		MovRegImm32(reg, imm):
+			out.write_byte(0xB8 + reg)
+			write32(imm, out)
 		Push(reg):
 			out.write_byte(0x50 + reg)
 		Pop(reg):
 			out.write_byte(0x58 + reg)
 		Ret:
 			out.write_byte(0xC3)
+		Int3:
+			out.write_byte(0xCC)
+
+fn get_opcode(op: Op) -> int:
+	case op:
+		Add:
+			0x0
+		Or:
+			0x8
+		# ADC: 0x10
+		# SBB: 0x18
+		And:
+			0x20
+		Sub:
+			0x28
+		Xor:
+			0x30
+		Cmp:
+			0x38
+		Mov:
+			0x88
+
+fn get_cc_code(condition: Cond) -> int:
+	case condition:
+		Jb:
+			0x2
+		Jae:
+			0x3
+		Jz:
+			0x4
+		Jnz:
+			0x5
+		Jbe:
+			0x6
+		Ja:
+			0x7
+		Jl:
+			0xC
+		Jge:
+			0xD
+		Jle:
+			0xE
+		Jg:
+			0xF
+
+pub fn apply_reloc(data: ByteArray, offset: int, typ: int, addend: int, symbol: int):
+	# log_info
+	switch typ:
+		2:  # PC32
+			let value = symbol + addend - offset
+			data.set(index: offset + 0, value: value & 0xFF)
+			data.set(index: offset + 1, value: (value >> 8) & 0xFF)
+			data.set(index: offset + 2, value: (value >> 16) & 0xFF)
+			data.set(index: offset + 3, value: (value >> 24) & 0xFF)
+	else:
+		unimplemented("reloc type: {typ}")

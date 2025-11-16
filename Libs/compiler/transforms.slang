@@ -1252,6 +1252,8 @@ class ClassRewriter:
 					let builder3 = ast.StructBuilder()
 					builder3.set_name(name: "{enum_def.id.name}Data{variant.name}")
 					builder3.set_id(id: get_unique_id())
+					for type_parameter in enum_def.type_parameters:
+						let type_parameter_ref3 = builder3.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
 
 					var idx = 0
 					for payload_type in variant.payload:

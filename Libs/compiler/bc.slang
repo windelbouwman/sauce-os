@@ -69,7 +69,6 @@ pub enum Instruction:
 	Neg
 
 	Binop(op: BinaryOperator)
-	Comparison(op: ComparisonOperator)
 	Bitop(op: BitOperator)
 
 	IntCast(signed: bool, bits: int)
@@ -80,7 +79,7 @@ pub enum Instruction:
 	FromOpaque(ty: Type)
 
 	Jump(label: int)  # Unconditional jump
-	JumpIf(label1: int, label2: int)
+	JumpIf(op: ComparisonOperator, label1: int, label2: int)
 	Call(index: int)
 	CallIndirect(parameters: Vector[TypedName], return_type: Option[Type])  # Call function pointer, on top of stack
 	Return(n_values: int)
@@ -106,8 +105,7 @@ pub enum Instruction:
 	LoadFunc(index: int)
 
 	StructLiteral(struct_index: int)
-	ArrayLiteral(size: int)
-	ArrayLiteral2(ty: Type)
+	ArrayLiteral(ty: Type)
 
 pub fn get_target_labels(instructions: Vector[Instruction]) -> Set[int]:
 	""" Get a set of labels to which is being jumped """
@@ -116,7 +114,7 @@ pub fn get_target_labels(instructions: Vector[Instruction]) -> Set[int]:
 		case instruction:
 			Jump(index):
 				target_labels.add(index)
-			JumpIf(index1, index2):
+			JumpIf(op, index1, index2):
 				target_labels.add(index1)
 				target_labels.add(index2)
 			SetupTry(try_label, except_label):
@@ -183,16 +181,15 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 			literal_to_string(literal)
 		Jump(v):
 			"jump({v})"
-		JumpIf(v1, v2):
-			"jump-if({v1}, {v2})"
+		JumpIf(op, v1, v2):
+			let op2 = comparison_to_string(op)
+			"jump-if({op2}, {v1}, {v2})"
 		Not:
 			"not"
 		Neg:
 			"neg"
 		Binop(op):
 			binop_to_string(op)
-		Comparison(op):
-			comparison_to_string(op)
 		Bitop(op):
 			bitop_to_string(op)
 		IntCast(signed, bits):
@@ -204,12 +201,10 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 			"int-to-float"
 		FloatToInt:
 			"float-to-int"
-
 		ToOpaque(t):
 			"?-to-opaque"
 		FromOpaque(t):
 			"opaque-to-?"
-
 		Call(index):
 			"call({index})"
 		CallIndirect(parameter_types, return_type):
@@ -252,10 +247,8 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 			"load-func({index})"
 		StructLiteral(struct_index):
 			"struct-literal(index={struct_index})"
-		ArrayLiteral(count):
-			"array-literal({count})"
-		ArrayLiteral2(ty):
-			"array-literal2"
+		ArrayLiteral(ty):
+			"array-literal"
 
 fn binop_to_string(op: BinaryOperator) -> str:
 	case op:

@@ -13,10 +13,14 @@ pub fn main() -> int:
 
 fn test_set():
 	let x = new_str_set()
+	let y = new_str_set()
 	assert_true(x.is_empty())
 	x.add("one")
 	x.add("two")
 	x.add("two")
+	y.add("two")
+	y.add("one")
+	assert_true(x.equals(y))
 	assert_false(x.is_empty())
 	assert_true(x.contains("one"))
 	assert_false(x.contains("three"))

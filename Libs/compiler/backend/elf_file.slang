@@ -5,18 +5,37 @@ ELF file format
 import std
 from listtype import List
 from bytes import Bytes, ByteArray, new_bytes, bytes_from_ascii
-from utils import assert
+from utils import assert, panic
 from logging import log_error, log_info
-from outstream import Section
+from hashmap import HashMap, new_hashmap_str
+from outstream import Object, Section
 
-# TODO: support global constants:
-# let SHT_NULL = 0
-# let SHT_PROGBITS = 1
-# let SHT_SYMTAB = 2
-# let SHT_STRTAB = 3
-# let SHT_RELA = 4
+let SHN_UNDEF: int = 0
 
-pub fn write_elf(filename: str, code: List[Section]):
+let SHT_NULL: int = 0
+let SHT_PROGBITS: int = 1
+let SHT_SYMTAB: int = 2
+let SHT_STRTAB: int = 3
+let SHT_RELA: int = 4
+
+let SHF_WRITE: int = 0x1
+let SHF_ALLOC: int = 0x2
+let SHF_EXECINSTR: int = 0x4
+let SHF_INFO_LINK: int = 0x40
+
+let STB_LOCAL: int = 0
+let STB_GLOBAL: int = 1
+let STB_WEAK: int = 2
+
+let STT_NOTYPE: int = 0
+let STT_OBJECT: int = 1
+let STT_FUNC: int = 2
+let STT_SECTION: int = 3
+let STT_FILE: int = 4
+let STT_COMMON: int = 5
+let STT_TLS: int = 6
+
+pub fn write_elf(filename: str, object: Object):
 	""" Write ELF file."""
 	log_info("Writing elf file: {filename}")
 	let handle = std.file_open(filename, mode: "wb")
@@ -26,37 +45,81 @@ pub fn write_elf(filename: str, code: List[Section]):
 	writer.seek(pos: writer.m_header.e_ehsize)
 
 	let sh_null = writer.new_section(name: "")
-	let st_null = writer.new_symbol(name: "UNDEF")
-
 	# TODO: write eventual program headers here
-	for section in code:
-		write_section(writer, section)
-	write_symbol_table(writer)
+
+	let symbol_map: HashMap[str, int] = new_hashmap_str()  # Map name -> symbol table index
+	fill_symbols(writer, object, symbol_map)
+	for section in object.sections:
+		write_section(writer, section, symbol_map)
+	write_symbol_table(writer, object)
 	write_section_headers(writer)
 	writer.seek(pos: 0)
 	writer.write_header()
 	std.file_close(handle)
 
-fn write_section(writer: ElfWriter, section: Section):
+fn fill_symbols(writer: ElfWriter, object: Object, symbol_map: HashMap[str, int]):
+	""" Fill symbol index map """
+	# TODO: perform 2 loops, to fill local symbols first, then global symbols?
+
+	# Special NULL entry:
+	var index = 1
+
+	for symbol in object.symbols:
+		if symbol_map.contains(key: symbol.name):
+			panic("Duplicate symbol: {symbol.name}")
+		else:
+			symbol_map.insert(key: symbol.name, value: index)
+		index += 1
+
+fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str, int]):
 	"""Write a single section"""
 	log_info("Writing section {section.name} of {section.data.len()} bytes")
 	let sh_text = writer.new_section(name: section.name)
 	writer.write_section_data(sh: sh_text, data: section.data.to_bytes())
-	sh_text.sh_type = 1 # PROGBITS
-	sh_text.sh_flags = 2 | 4  # ALLOC | EXECINSTR
-	sh_text.sh_addralign = 1
+	sh_text.sh_type = SHT_PROGBITS
+	sh_text.sh_flags = SHF_ALLOC | SHF_EXECINSTR
+	sh_text.sh_addralign = section.alignment
 
-	for name in section.symbols:
-		let offset = section.symbols.get(key: name)
-		let ste = writer.new_symbol(name)
-		ste.st_value = offset
-		ste.st_info = (1 << 4) | (2)  # bind=global, type=func
-		ste.st_shndx = writer.section_headers.len() - 1
+	# Add relocation info for this section
+	if not section.relocations.is_empty():
+		let sh_rela = writer.new_section(name: ".rela.{section.name}")
+		sh_rela.sh_type = SHT_RELA
+		sh_rela.sh_flags = SHF_INFO_LINK
+		sh_rela.sh_link = 999 # To be filled later
+		sh_rela.sh_info = writer.get_section_index(name: section.name)
+		sh_rela.sh_entsize = 24  # In case of 64 bit
+		sh_rela.sh_offset = writer.tell()
+		for reloc in section.relocations:
+			if not symbol_map.contains(key: reloc.symbol):
+				panic("Undefined symbol: {reloc.symbol}")
+			let sym = symbol_map.get(key: reloc.symbol)
+			let rte = RelaTableEntry:
+				r_offset: reloc.offset
+				r_info: (sym << 32) | reloc.typ
+				r_addend: reloc.addend
+			writer.write_rela_entry(rte)
+		sh_rela.sh_size = writer.tell() - sh_rela.sh_offset
 
-fn write_symbol_table(writer: ElfWriter):
+fn write_symbol_table(writer: ElfWriter, object: Object):
+	let st_null = writer.new_symbol(name: "UNDEF")
+
+	for symbol in object.symbols:
+		let ste = writer.new_symbol(name: symbol.name)
+		case symbol.kind:
+			Intern(section, offset, global):
+				ste.st_value = offset
+				let bind = STB_GLOBAL if global else STB_LOCAL
+				let ty = STT_FUNC if global else STT_NOTYPE
+				ste.st_info = (bind << 4) | ty
+				ste.st_shndx = writer.get_section_index(name: section.name)
+			Extern:
+				let bind = STB_GLOBAL
+				let ty = STT_FUNC
+				ste.st_info = (bind << 4) | ty
+
 	# Symbol table:
 	let sh_symtab = writer.new_section(name: ".symtab")
-	sh_symtab.sh_type = 2 # SYMTAB
+	sh_symtab.sh_type = SHT_SYMTAB
 	sh_symtab.sh_offset = writer.tell()
 	sh_symtab.sh_addralign = 1
 	sh_symtab.sh_link = writer.section_headers.len()  # str tab follows directly
@@ -65,16 +128,21 @@ fn write_symbol_table(writer: ElfWriter):
 	for ste in writer.symbol_table:
 		writer.write_symtab_entry(ste)
 	sh_symtab.sh_size = writer.tell() - sh_symtab.sh_offset
+	let sh_symtab_ndx = writer.section_headers.len() - 1
+	# Patch RELA sh_link to point to this symbol table:
+	for sh in writer.section_headers:
+		if sh.sh_type == SHT_RELA:
+			sh.sh_link = sh_symtab_ndx
 
 	let sh_strtab = writer.new_section(name: ".strtab")
 	writer.write_section_data(sh: sh_strtab, data: writer.strtab.get_data())
-	sh_strtab.sh_type = 3 # SHT_STRTAB
+	sh_strtab.sh_type = SHT_STRTAB
 	sh_strtab.sh_addralign = 1
 
 fn write_section_headers(writer: ElfWriter):
 	# section header string table
 	let sh_shstrtab = writer.new_section(name: ".shstrtab")
-	sh_shstrtab.sh_type = 3 # SHT_STRTAB
+	sh_shstrtab.sh_type = SHT_STRTAB
 	sh_shstrtab.sh_addralign = 1
 	writer.write_section_data(sh: sh_shstrtab, data: writer.sh_string_table.get_data())
 
@@ -166,6 +234,11 @@ struct SymbolTableEntry:
 	st_other: int
 	st_shndx: int
 
+struct RelaTableEntry:
+	r_offset: int
+	r_info: int
+	r_addend: int
+
 class ElfReader:
 	var handle: int
 	var is_32bit: bool = false
@@ -236,6 +309,7 @@ class ElfWriter:
 	pub var m_header: ElfHeader = new_64bit_header()
 	pub var sh_string_table: StringTable = StringTable()
 	pub var section_headers: List[SectionHeader] = List()
+	var section_ids: HashMap[str, int] = new_hashmap_str()
 	pub var symbol_table: List[SymbolTableEntry] = List()
 	pub var strtab: StringTable = StringTable()
 
@@ -253,8 +327,15 @@ class ElfWriter:
 	pub fn new_section(name: str) -> SectionHeader:
 		let sh = new_sh()
 		sh.sh_name = sh_string_table.add_name(name)
+		if section_ids.contains(key: name):
+			panic("Duplicate section: {name}")
+		else:
+			section_ids.insert(key: name, value: section_headers.len())
 		section_headers.append(sh)
 		sh
+
+	pub fn get_section_index(name: str) -> int:
+		section_ids.get(key: name)
 
 	pub fn write_section_data(sh: SectionHeader, data: Bytes):
 		""" Write data, recording offset and size """
@@ -357,6 +438,11 @@ class ElfWriter:
 		if not is_32bit:
 			write64(ste.st_value)
 			write64(ste.st_size)
+
+	pub fn write_rela_entry(rte?: RelaTableEntry):
+		write_size_t(rte.r_offset)
+		write_size_t(rte.r_info)
+		write_size_t(rte.r_addend)
 
 	pub fn seek(pos: int):
 		std.file_seek(handle, pos)

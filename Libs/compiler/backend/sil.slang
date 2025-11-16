@@ -17,31 +17,42 @@ Similar to QBE IL
 See: https://c9x.me/compile/doc/il.html
 """
 
-from std import print
 from bytes import Bytes
 from listtype import List
 from optiontype import Option
 from strlib import str_join
+from report import Report
 
 pub class Program:
+	pub var externs: List[Extern]
 	pub var functions: List[Function]
 	pub var blobs: List[DataBlob]
 
-	pub fn dump():
-		print("SIL program")
+	pub fn dump(report: Report):
+		if not report.is_enabled():
+			return
+		report.writeln("----===========----")
+		report.writeln("--- SIL program ---")
+		for ext in externs:
+			report.writeln(" > Import {ext.name}")
 		for function in functions:
-			function.dump()
+			function.dump(report)
 		for blob in blobs:
-			blob.dump()
+			blob.dump(report)
+		report.writeln("")
+
+pub class Extern:
+	pub var name: str
+	# TODO: parameters?
 
 pub class DataBlob:
 	""" Data block """
 	pub var name: str
 	pub var data: Bytes
 
-	pub fn dump():
-		print("blob {name}")
-		print("   ==> [{data.as_hex()}]")
+	pub fn dump(report: Report):
+		report.writeln("blob {name}")
+		report.writeln("   ==> [{data.as_hex()}]")
 
 pub class Function:
 	"""A graph of control flow between blocks"""
@@ -55,10 +66,10 @@ pub class Function:
 		let args = comma_sep(values: parameters)
 		"function {name}({args})"
 
-	pub fn dump():
-		print("{this}")
+	pub fn dump(report: Report):
+		report.writeln("{this}")
 		for block in blocks:
-			block.dump()
+			block.dump(report)
 
 pub class Block:
 	"""A linear flow of instructions"""
@@ -68,59 +79,35 @@ pub class Block:
 	pub fn to_string() -> str:
 		"  @{name}"
 
-	pub fn dump():
-		print("{this}")
+	pub fn dump(report: Report):
+		report.writeln("{this}")
 		for instruction in instructions:
-			print("    {instruction}")
+			report.writeln("    {instruction}")
 
 pub class Instruction:
 	pub var op: OpCode
 
 	pub fn to_string() -> str:
 		case op:
-			Nop:
-				"nop"
 			Const(dst, value):
 				"{value_to_string(dst)} = {value}"
 			Binop(dst, op2, lhs, rhs):
-				let txt = case op2:
-					Add:
-						"add"
-					Sub:
-						"sub"
-					Mul:
-						"mul"
-					Div:
-						"div"
+				let txt = op_to_string(op2)
 				"{value_to_string(dst)} = {txt} {value_to_string(lhs)}, {value_to_string(rhs)}"
-			Compare(dst, op2, lhs, rhs):
-				let txt = case op2:
-					Eq:
-						"eq"
-					Neq:
-						"ne"
-					Gt:
-						"gt"
-					Gte:
-						"gte"
-					Lt:
-						"lt"
-					Lte:
-						"lte"
-				"{value_to_string(dst)} = {txt} {value_to_string(lhs)}, {value_to_string(rhs)}"
-			Alloc(addr, size):
-				"{value_to_string(addr)} = alloc {size}"
-			Load(dst, addr):
-				"{value_to_string(dst)} = load {value_to_string(addr)}"
-			Store(addr, value):
-				"store {value_to_string(addr)}, {value_to_string(value)}"
+			GetAddress(dst, address):
+				"{value_to_string(dst)} = get address {address_to_string(address)}"
+			Load(dst, address):
+				"{value_to_string(dst)} = load {address_to_string(address)}"
+			Store(address, value):
+				"store {address_to_string(address)}, {value_to_string(value)}"
 			Jump(label):
 				"jmp @{label}"
-			JumpNonZero(condition, label1, label2):
-				"jmp-non-zero {value_to_string(condition)} @{label1}, @{label2}"
+			JumpIf(lhs, condition, rhs, label1, label2):
+				let txt = comparison_to_string(condition)
+				"jmp-if {value_to_string(lhs)} {txt} {value_to_string(rhs)} => @{label1}, @{label2}"
 			Call(dst, callee, arguments):
 				let args = comma_sep(values: arguments)
-				let txt = "call {value_to_string(callee)}({args})"
+				let txt = "call {address_to_string(callee)}({args})"
 				case dst:
 					Some(target):
 						"{value_to_string(target)} = {txt}"
@@ -142,16 +129,14 @@ fn comma_sep(values: List[Value]) -> str:
 	str_join(parts, sep: ", ")
 
 pub enum OpCode:
-	Nop
 	Const(dst: Value, value: int)
 	Binop(dst: Value, op: BinaryOp, lhs: Value, rhs: Value)
-	Compare(dst: Value, op: CompOp, lhs: Value, rhs: Value)
-	Alloc(addr: Value, size: int)
-	Load(dst: Value, addr: Value)
-	Store(addr: Value, value: Value)
+	GetAddress(dst: Value, addr: Address)
+	Load(dst: Value, addr: Address)
+	Store(addr: Address, value: Value)
 	Jump(label: str)
-	JumpNonZero(condition: Value, label1: str, label2: str)
-	Call(dst: Option[Value], callee: Value, arguments: List[Value])
+	JumpIf(lhs: Value, condition: CompOp, rhs: Value, label1: str, label2: str)
+	Call(dst: Option[Value], callee: Address, arguments: List[Value])
 	Return(value: Option[Value])
 	Halt
 
@@ -161,6 +146,17 @@ pub enum BinaryOp:
 	Mul
 	Div
 
+fn op_to_string(op?: BinaryOp) -> str:
+	case op:
+		Add:
+			"add"
+		Sub:
+			"sub"
+		Mul:
+			"mul"
+		Div:
+			"div"
+
 pub enum CompOp:
 	Eq
 	Neq
@@ -169,16 +165,39 @@ pub enum CompOp:
 	Gte
 	Lte
 
+fn comparison_to_string(op?: CompOp) -> str:
+	case op:
+		Eq:
+			"eq"
+		Neq:
+			"ne"
+		Gt:
+			"gt"
+		Gte:
+			"gte"
+		Lt:
+			"lt"
+		Lte:
+			"lte"
+
 pub enum Value:
 	Tmp(name: str)
+
+pub enum Address:
 	Global(name: str)
 	StackSlot(offset: int)
+	Ptr(base: Value, offset: int)
 
 pub fn value_to_string(value?: Value) -> str:
 	case value:
 		Tmp(name):
 			"%{name}"
+
+pub fn address_to_string(address?: Address) -> str:
+	case address:
 		Global(name):
 			"${name}"
 		StackSlot(offset):
 			"[stack + {offset}]"
+		Ptr(base, offset):
+			"[{value_to_string(base)} + {offset}]"

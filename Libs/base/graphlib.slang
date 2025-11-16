@@ -6,6 +6,7 @@ There are directed and undirected graph types.
 from listtype import List
 from optiontype import Option
 from settype import new_str_set, Set
+from deque import Queue, new_queue
 from hashmap import HashMap, new_hashmap_str
 
 pub class DiGraph:
@@ -127,9 +128,9 @@ fn bron_kerbosch(r: Set[str], p: Set[str], x: Set[str], g: Graph, output: List[S
 		let n = g.neighbours(v)
 		let v_set = new_str_set()
 		v_set.add(v)
-		bron_kerbosch(r: r.union(other: v_set), p: p.intersection(other: n), x: x.intersection(other: n), g, output)
-		p = p.difference(other: v_set)
-		x = x.union(other: v_set)
+		bron_kerbosch(r: r.union(v_set), p: p.intersection(n), x: x.intersection(n), g, output)
+		p = p.difference(v_set)
+		x = x.union(v_set)
 
 pub fn find_all_cliques_of_size(g: Graph, k: int) -> List[Set[str]]:
 	let output: List[Set[str]] = List()
@@ -147,6 +148,31 @@ fn bron_kerbosch_k(r: Set[str], p: Set[str], x: Set[str], g: Graph, k: int, outp
 		let n = g.neighbours(v)
 		let v_set = new_str_set()
 		v_set.add(v)
-		bron_kerbosch_k(r: r.union(other: v_set), p: p.intersection(other: n), x: x.intersection(other: n), g, k, output)
-		p = p.difference(other: v_set)
-		x = x.union(other: v_set)
+		bron_kerbosch_k(r: r.union(v_set), p: p.intersection(n), x: x.intersection(n), g, k, output)
+		p = p.difference(v_set)
+		x = x.union(v_set)
+
+pub fn dfs(g: DiGraph, start: str) -> List[str]:
+	""" Depth first search """
+	let visited: Set[str] = new_str_set()
+	let res: List[str] = List()
+	let worklist: Queue[str] = new_queue()
+	worklist.push(start)
+	while worklist.is_empty():
+		let node = worklist.pop()
+		if not visited.contains(node):
+			visited.add(node)
+			res.append(node)
+			for s in g.successors(node):
+				worklist.push(s)
+	res
+
+# str DomTree
+
+pub class LengauerTarjanAlgorithm:
+	""" Lengauer Tarjan algorithm """
+	var a: int = 0
+
+	fn do():
+		# TODO
+		pass

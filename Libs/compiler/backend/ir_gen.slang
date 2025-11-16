@@ -465,19 +465,40 @@ class BytecodeGenerator:
 						gen_condition(condition: binop.lhs, true_label, false_label: middle_label)
 						set_label(middle_label)
 						gen_condition(condition: binop.rhs, true_label, false_label)
+					Equals:
+						gen_comparison(lhs: binop.lhs, op: bc.ComparisonOperator.Equals(), rhs: binop.rhs, true_label, false_label)
+					NotEquals:
+						gen_comparison(lhs: binop.lhs, op: bc.ComparisonOperator.NotEquals(), rhs: binop.rhs, true_label, false_label)
+					Less:
+						gen_comparison(lhs: binop.lhs, op: bc.ComparisonOperator.Less(), rhs: binop.rhs, true_label, false_label)
+					LessEquals:
+						gen_comparison(lhs: binop.lhs, op: bc.ComparisonOperator.LessEquals(), rhs: binop.rhs, true_label, false_label)
+					Greater:
+						gen_comparison(lhs: binop.lhs, op: bc.ComparisonOperator.Greater(), rhs: binop.rhs, true_label, false_label)
+					GreaterEquals:
+						gen_comparison(lhs: binop.lhs, op: bc.ComparisonOperator.GreaterEquals(), rhs: binop.rhs, true_label, false_label)
 				else:
 					gen_expression(condition)
-					jump_if(label: true_label, label2: false_label)
+					jump_if_true(true_label, false_label)
 			Unop(op, rhs):
 				case op:
 					Not:
 						gen_condition(condition: rhs, true_label: false_label, false_label: true_label)
 				else:
 					gen_expression(condition)
-					jump_if(label: true_label, label2: false_label)
+					jump_if_true(true_label, false_label)
 		else:
 			gen_expression(condition)
-			jump_if(label: true_label, label2: false_label)
+			jump_if_true(true_label, false_label)
+
+	fn gen_comparison(lhs: ast.Expression, op: bc.ComparisonOperator, rhs: ast.Expression, true_label: int, false_label: int):
+		gen_expression(lhs)
+		gen_expression(rhs)
+		jump_if(op, true_label, false_label)
+
+	fn jump_if_true(true_label: int, false_label: int):
+		emit(Instruction.Literal(bc.LiteralValue.Bool(value: true)))
+		jump_if(op: bc.ComparisonOperator.Equals(), true_label, false_label)
 
 	fn condition_as_value(condition: ast.Expression):
 		# Evaluate a condition into a value on the stack.
@@ -525,6 +546,18 @@ class BytecodeGenerator:
 						condition_as_value(condition: expression)
 					Or:
 						condition_as_value(condition: expression)
+					NotEquals:
+						condition_as_value(condition: expression)
+					Equals:
+						condition_as_value(condition: expression)
+					Greater:
+						condition_as_value(condition: expression)
+					GreaterEquals:
+						condition_as_value(condition: expression)
+					Less:
+						condition_as_value(condition: expression)
+					LessEquals:
+						condition_as_value(condition: expression)
 				else:
 					gen_binop_expr(binop)
 			Unop(op, value):
@@ -566,12 +599,20 @@ class BytecodeGenerator:
 				let struct_index = struct_mapping.get(key: struct_def.id)
 				emit(Instruction.StructLiteral(struct_index))
 			ArrayLiteral(values):
+				let size = values.len()
+				emit(Instruction.Literal(bc.LiteralValue.Int(size)))
+				let ty = get_bc_type(values.first().ty)
+				emit(Instruction.ArrayLiteral(ty))
+				var index = 0
 				for value in values:
+					emit(Instruction.Dup())
+					emit(Instruction.Literal(bc.LiteralValue.Int(index)))
 					gen_expression(value)
-				emit(Instruction.ArrayLiteral(n_values: values.len()))
+					emit(Instruction.SetIndex())
+					index += 1
 			ArrayLiteral2(size, ty):
 				gen_expression(size)
-				emit(Instruction.ArrayLiteral2(get_bc_type(ty)))
+				emit(Instruction.ArrayLiteral(get_bc_type(ty)))
 			TypeCast(ty, value):
 				gen_expression(value)
 				if ty.is_float():
@@ -672,17 +713,17 @@ class BytecodeGenerator:
 			Div:
 				emit(Instruction.Binop(op: bc.BinaryOperator.Divide()))
 			NotEquals:
-				emit(Instruction.Comparison(op: bc.ComparisonOperator.NotEquals()))
+				panic("No bytecode for not-equals")
 			Equals:
-				emit(Instruction.Comparison(op: bc.ComparisonOperator.Equals()))
+				panic("No bytecode for equals")
 			Greater:
-				emit(Instruction.Comparison(op: bc.ComparisonOperator.Greater()))
+				panic("No bytecode for greater")
 			GreaterEquals:
-				emit(Instruction.Comparison(op: bc.ComparisonOperator.GreaterEquals()))
+				panic("No bytecode for greater-equals")
 			Less:
-				emit(Instruction.Comparison(op: bc.ComparisonOperator.Less()))
+				panic("No bytecode for less")
 			LessEquals:
-				emit(Instruction.Comparison(op: bc.ComparisonOperator.LessEquals()))
+				panic("No bytecode for less-equals")
 			And:
 				panic("unreachable: and")
 			Or:
@@ -722,10 +763,10 @@ class BytecodeGenerator:
 				Jump(label):
 					label = translate_label(label)
 					instructions.append(Instruction.Jump(label))
-				JumpIf(label1, label2):
+				JumpIf(op, label1, label2):
 					label1 = translate_label(label1)
 					label2 = translate_label(label2)
-					instructions.append(Instruction.JumpIf(label1, label2))
+					instructions.append(Instruction.JumpIf(op, label1, label2))
 				SetupTry(try_label, except_label):
 					try_label = translate_label(try_label)
 					except_label = translate_label(except_label)
@@ -738,8 +779,8 @@ class BytecodeGenerator:
 		emit(Instruction.Jump(target: label))
 		is_reachable = false
 
-	fn jump_if(label: int, label2: int):
-		emit(Instruction.JumpIf(label1: label, label2))
+	fn jump_if(op: bc.ComparisonOperator, true_label: int, false_label: int):
+		emit(Instruction.JumpIf(op, label1: true_label, label2: false_label))
 		is_reachable = false
 
 	fn add_local(variable: ast.Variable) -> int:

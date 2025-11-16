@@ -122,6 +122,9 @@ pub class HashMap[K,V]:
 				m_buckets[index] = new_pair
 		m_size += 1
 
+	pub fn remove(key: K):
+		drop(key)
+
 	pub fn drop(key: K):
 		let x = pop(key)
 
