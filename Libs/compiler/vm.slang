@@ -496,20 +496,18 @@ pub class VirtualMachine:
 				push(Value.Int(index))
 			StructLiteral(struct_index):
 				let struc = structs[struct_index]
-				let count = struc.fields.len()
-				let values = pop_n(count)
-				let list = ListValue(values)
-				push(Value.List(list))
+				push_empty_list(count: struc.fields.len())
 			ArrayLiteral(ty):
 				let size = pop()
-				let value = Value.Undefined()
-				var size2 = int_from_value(size)
-				let values: List[Value] = List()
-				while size2 > 0:
-					size2 -= 1
-					values.append(value)
-				let list = ListValue(values)
-				push(Value.List(list))
+				push_empty_list(count: int_from_value(size))
+
+	fn push_empty_list(count: int):
+		let value = Value.Undefined()
+		let values: List[Value] = List()
+		while values.len() < count:
+			values.append(value)
+		let list = ListValue(values)
+		push(Value.List(list))
 
 	fn push(value?: Value):
 		frames.last().stack.append(value)
@@ -519,10 +517,8 @@ pub class VirtualMachine:
 
 	fn pop_n(count: int) -> List[Value]:
 		let values: List[Value] = List()
-		while count > 0:
-			let val = pop()
-			values.prepend(val)
-			count -= 1
+		while values.len() < count:
+			values.prepend(pop())
 		values
 
 	fn jump(pc?: int):

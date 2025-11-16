@@ -7,7 +7,9 @@ Features of this pass:
 
 """
 
+from std import ord
 from listtype import List
+from vectype import Vector, new_vector
 from optiontype import Option
 from bytes import Bytes, bytes_from_ascii, fill_bytes
 from utils import panic, unimplemented
@@ -28,18 +30,36 @@ pub fn to_sil(program: bc.Program) -> sil.Program:
 	let g = SilGen(m_bc_program: program)
 	g.gen_program()
 
+struct StructLayout:
+	""" Information how a structure is mapped into memory """
+	size: int  # Size of entire struct
+	fields: Vector[StructField]
+
+struct StructField:
+	offset: int
+	ty: bc.Type
+
+struct TypedValue:
+	value: sil.Value
+	ty: bc.Type
+
+struct TypedAddress:
+	address: sil.Address
+	ty: bc.Type
+
 class SilGen:
 	var m_bc_program: bc.Program
 	var m_externs: List[sil.Extern] = List()
+	var m_structs: Vector[StructLayout] = new_vector()
 	var m_functions: List[sil.Function] = List()
 	var m_blobs: List[sil.DataBlob] = List()
 	var m_blocks: List[sil.Block] = List()
 	var m_current_block: Option[sil.Block] = Option.None()
 	var m_block_is_terminated: bool = false
-	var m_parameters: List[sil.Address] = List()
-	var m_locals: List[sil.Address] = List()
+	var m_parameters: List[TypedAddress] = List()
+	var m_locals: List[TypedAddress] = List()
 	var m_tmp_number: int = 0
-	var m_value_stack: List[sil.Value] = List()
+	var m_value_stack: List[TypedValue] = List()
 	var m_stack_offset: int = 0
 
 	pub fn gen_program() -> sil.Program:
@@ -50,11 +70,23 @@ class SilGen:
 		for extern_function in m_bc_program.extern_functions:
 			m_externs.append(sil.Extern(name: extern_function.name))
 
+		for struct_def in m_bc_program.structs:
+			calc_struct_layout(struct_def)
+
 		for function in m_bc_program.functions:
 			gen_function(function)
 		sil.Program(externs: m_externs, functions: m_functions, blobs: m_blobs)
 
-	fn get_size_of(ty: bc.Type) -> int:
+	fn calc_struct_layout(struct_def: bc.Struct):
+		var offset = 0
+		let fields: Vector[StructField] = new_vector()
+		for field in struct_def.fields:
+			fields.append(StructField(offset, ty: field.ty))
+			# TODO: take alignment into account
+			offset += get_size_of(field.ty)
+		m_structs.append(StructLayout(size: offset, fields))
+
+	fn get_size_of(ty?: bc.Type) -> int:
 		case ty:
 			Int(signed, bits):
 				8 # TODO
@@ -86,22 +118,18 @@ class SilGen:
 		set_current_block(start)
 
 		let parameters: List[sil.Value] = List()
-		for n in function.parameters:
+		for parameter in function.parameters:
 			let p = new_tmp()
 			parameters.append(p)
-
-		# Create stack slots for mutable parameters:
-		for p in parameters:
-			let size = 8 # TODO
-			let addr = new_stack_slot(size)
-			emit(op: sil.OpCode.Store(dst: addr, value: p))
-			m_parameters.append(addr)
+			# Create stack slots for mutable parameters:
+			let address = new_stack_slot(size: get_size_of(parameter.ty))
+			emit(op: sil.OpCode.Store(dst: address, value: p))
+			m_parameters.append(TypedAddress(address, ty: parameter.ty))
 
 		# Create stack slots for mutable locals:
-		for n in function.locals:
-			let size = 8 # TODO
-			let addr = new_stack_slot(size)
-			m_locals.append(addr)
+		for local_var in function.locals:
+			let address = new_stack_slot(size: get_size_of(local_var.ty))
+			m_locals.append(TypedAddress(address, ty: local_var.ty))
 
 		let target_indici = bc.get_target_labels(instructions: function.instructions)
 		var index = 0
@@ -124,56 +152,70 @@ class SilGen:
 				pass
 			Dup:
 				let value = pop()
-				push(value)
-				push(value)
+				push(value.value, ty: value.ty)
+				push(value.value, ty: value.ty)
 			Literal(literal):
 				case literal:
 					Int(value):
 						push_int(value)
 					Float(value):
-						push_int(99999) # TODO
+						unimplemented("float literal")
+						# push_int(99999) # TODO
 					Str(value):
 						let data = bytes_from_ascii(text: value).concat(other: fill_bytes(n: 1, fill: 0))
 						let literal_address = add_data_blob(data)
 						let dst_value = new_tmp()
 						emit(sil.OpCode.GetAddress(dst_value, literal_address))
-						push(dst_value)
+						push(dst_value, ty: bc.Type.Str())
 					Bool(value):
 						if value:
 							push_int(1)
 						else:
 							push_int(0)
-				else:
-					unimplemented(bc.literal_to_string(literal))
+					Char(value):
+						push_int(ord(value))
+					Null:
+						push_int(0)
 			StructLiteral(index):
 				# malloc
-				# store values
-				let size = 8  # TODO
+				let size = m_structs.get(index).size
 				let byte_size_tmp = new_tmp()
 				emit(sil.OpCode.Const(byte_size_tmp, size))
-				call_rt_malloc(size: byte_size_tmp)
+				call_rt_malloc(size: byte_size_tmp, ty: bc.Type.StructRef(index))
 			ArrayLiteral(ty):
 				let count_tmp = pop()
 				let element_size = get_size_of(ty)
 				let element_size_tmp = new_tmp()
 				emit(sil.OpCode.Const(element_size_tmp, element_size))
 				let byte_size_tmp = new_tmp()
-				emit(sil.OpCode.Binop(dst: byte_size_tmp, op2: sil.BinaryOp.Mul(), lhs: count_tmp, rhs: element_size_tmp))
-				call_rt_malloc(size: byte_size_tmp)
+				emit(sil.OpCode.Binop(dst: byte_size_tmp, op2: sil.BinaryOp.Mul(), lhs: count_tmp.value, rhs: element_size_tmp))
+				call_rt_malloc(size: byte_size_tmp, ty: bc.Type.Array(ty))
 			ToOpaque(ty3):
-				let value = pop()
 				case ty3:
 					Int(signed, bits):
-						if signed and bits == 64:
-							call_rt_box_int64(value)
-						else:
-							unimplemented("box int {bits}")
+						let value = pop()
+						let name = "slangrt_box_int{bits}" if signed else "slangrt_box_uint{bits}"
+						call_rt_function_1(name, ty: bc.Type.Ptr(), argument: value.value)
 					Ptr:
-						push(value)
+						pass
 					StructRef(index):
-						push(value)
+						let value = pop()
+						push(value.value, ty: bc.Type.Ptr())
 				else:
 					unimplemented("To opaque")
+			FromOpaque(ty):
+				case ty:
+					Int(signed, bits):
+						let value = pop()
+						let name = "slangrt_unbox_int{bits}" if signed else "slangrt_unbox_uint{bits}"
+						call_rt_function_1(name, ty, argument: value.value)
+					Ptr:
+						pass
+					StructRef(index):
+						let value = pop()
+						push(value.value, ty)
+				else:
+					unimplemented("from opaque")
 			Binop(op):
 				let rhs = pop()
 				let lhs = pop()
@@ -187,39 +229,47 @@ class SilGen:
 					Multiply:
 						sil.BinaryOp.Mul()
 				let dst = new_tmp()
-				push(dst)
-				emit(sil.OpCode.Binop(dst, op2, lhs, rhs))
+				push(dst, ty: lhs.ty)
+				emit(sil.OpCode.Binop(dst, op2, lhs: lhs.value, rhs: rhs.value))
+			GlobalGet(index):
+				# gen_load(addr)
+				unimplemented("Global get")
+			GlobalSet(index):
+				unimplemented("Global set")
 			LocalGet(index):
-				let addr = m_locals[index]
-				let value = new_tmp()
-				emit(sil.OpCode.Load(dst: value, addr))
-				push(value)
+				let address = m_locals[index]
+				gen_load(address)
 			LocalSet(index):
-				let addr = m_locals[index]
+				let address = m_locals[index]
 				let value = pop()
-				emit(sil.OpCode.Store(addr, value))
+				gen_store(address, value)
 			ParameterGet(index):
-				let addr = m_parameters[index]
-				let value = new_tmp()
-				emit(sil.OpCode.Load(dst: value, addr))
-				push(value)
+				let address = m_parameters[index]
+				gen_load(address)
 			ParameterSet(index):
-				let addr = m_parameters[index]
+				let address = m_parameters[index]
 				let value = pop()
-				emit(sil.OpCode.Store(addr, value))
+				gen_store(address, value)
 			GetIndex:
 				let index = pop()
 				let base = pop()
-				let addr = gen_element_address(base, index)
-				let value = new_tmp()
-				emit(sil.OpCode.Load(dst: value, addr))
-				push(value)
+				let address = gen_element_address(base, index)
+				gen_load(address)
 			SetIndex:
 				let value = pop()
 				let index = pop()
 				let base = pop()
-				let addr = gen_element_address(base, index)
-				emit(sil.OpCode.Store(addr, value))
+				let address = gen_element_address(base, index)
+				gen_store(address, value)
+			GetAttr(index):
+				let base = pop()
+				let address = gen_struct_address(base, index)
+				gen_load(address)
+			SetAttr(index):
+				let value = pop()
+				let base = pop()
+				let address = gen_struct_address(base, index)
+				gen_store(address, value)
 			JumpIf(op, label1, label2):
 				let rhs = pop()
 				let lhs = pop()
@@ -236,7 +286,7 @@ class SilGen:
 						sil.CompOp.Eq()
 					NotEquals:
 						sil.CompOp.Neq()
-				emit(sil.OpCode.JumpIf(lhs, op: op2, rhs, label1: "x_{label1}", label2: "x_{label2}"))
+				emit(sil.OpCode.JumpIf(lhs: lhs.value, op: op2, rhs: rhs.value, label1: "x_{label1}", label2: "x_{label2}"))
 			Jump(label):
 				emit(sil.OpCode.Jump(label: "x_{label}"))
 			Call(index):
@@ -255,22 +305,50 @@ class SilGen:
 					emit(sil.OpCode.Return(value: Option.None()))
 				elif v == 1:
 					let value = pop()
-					emit(sil.OpCode.Return(value: Option.Some(value)))
+					emit(sil.OpCode.Return(value: Option.Some(value.value)))
 			Unreachable:
 				emit(sil.OpCode.Halt())
 		else:
 			unimplemented(bc.instruction_to_string(opcode))
 
-	fn gen_element_address(base: sil.Value, index: sil.Value) -> sil.Address:
+	fn gen_load(address: TypedAddress):
+		""" Load value from address """
+		let value = new_tmp()
+		emit(sil.OpCode.Load(dst: value, address: address.address))
+		push(value, ty: address.ty)
+
+	fn gen_store(address: TypedAddress, value: TypedValue):
+		emit(sil.OpCode.Store(address: address.address, value: value.value))
+
+	fn gen_element_address(base: TypedValue, index: TypedValue) -> TypedAddress:
 		""" base + index * sizeof """
-		let element_size = 8 # TODO
+		let element_ty = case base.ty:
+			Array(element_ty):
+				element_ty
+		else:
+			panic("Cannot get element address of non array type")
+		let element_size = get_size_of(element_ty)
 		let offset = new_tmp()
 		let addr = new_tmp()
 		let size_of = new_tmp()
 		emit(sil.OpCode.Const(size_of, element_size))
-		emit(sil.OpCode.Binop(dst: offset, op: sil.BinaryOp.Mul(), lhs: index, rhs: size_of))
-		emit(sil.OpCode.Binop(dst: addr, op: sil.BinaryOp.Add(), lhs: base, rhs: offset))
-		sil.Address.Ptr(addr, offset: 0)
+		emit(sil.OpCode.Binop(dst: offset, op: sil.BinaryOp.Mul(), lhs: index.value, rhs: size_of))
+		emit(sil.OpCode.Binop(dst: addr, op: sil.BinaryOp.Add(), lhs: base.value, rhs: offset))
+		TypedAddress(address: sil.Address.Ptr(addr, offset: 0), ty: element_ty)
+
+	fn gen_struct_address(base: TypedValue, index: int) -> TypedAddress:
+		let struct_index = case base.ty:
+			StructRef(index):
+				index
+		else:
+			panic("Cannot get struct field address of non struct type")
+		let struct_layout = m_structs.get(index: struct_index)
+		let field = struct_layout.fields.get(index)
+		let offset = new_tmp()
+		emit(sil.OpCode.Const(offset, field.offset))
+		let addr = new_tmp()
+		emit(sil.OpCode.Binop(dst: addr, op: sil.BinaryOp.Add(), lhs: base.value, rhs: offset))
+		TypedAddress(address: sil.Address.Ptr(addr, offset: 0), ty: field.ty)
 
 	fn gen_call(callee: sil.Address, n_args: int, return_type: Option[bc.Type]):
 		let arguments = pop_n(count: n_args)
@@ -278,27 +356,24 @@ class SilGen:
 			Some(ty):
 				let value = new_tmp()
 				emit(sil.OpCode.Call(Option.Some(value), callee, arguments))
-				push(value)
+				push(value, ty)
 			None:
 				emit(sil.OpCode.Call(Option.None(), callee, arguments))
 
-	fn call_rt_malloc(size: sil.Value):
-		call_rt_function_1(name: "rt_malloc", argument: size)
+	fn call_rt_malloc(size: sil.Value, ty: bc.Type):
+		call_rt_function_1(name: "rt_malloc", ty, argument: size)
 
-	fn call_rt_box_int64(value: sil.Value):
-		call_rt_function_1(name: "slangrt_box_int64", argument: value)
-
-	fn call_rt_function_1(name: str, argument: sil.Value):
+	fn call_rt_function_1(name: str, ty: bc.Type, argument: sil.Value):
 		let arguments: List[sil.Value] = List()
 		arguments.append(argument)
-		call_rt_function(name, arguments)
+		call_rt_function(name, ty, arguments)
 
-	fn call_rt_function(name: str, arguments: List[sil.Value]):
+	fn call_rt_function(name: str, ty: bc.Type, arguments: List[sil.Value]):
 		""" Invoke runtime helper function """
 		let callee = sil.Address.Global(name)
 		let value = new_tmp()
 		emit(sil.OpCode.Call(Option.Some(value), callee, arguments))
-		push(value)
+		push(value, ty)
 
 	fn new_block(name: str) -> sil.Block:
 		let block = sil.Block(name, instructions: List())
@@ -328,21 +403,20 @@ class SilGen:
 
 	fn push_int(value?: int):
 		let dst = new_tmp()
-		push(dst)
 		emit(sil.OpCode.Const(dst, value))
+		push(dst, ty: bc.Type.Int(signed: true, bits: 64))
 
-	fn push(value?: sil.Value):
-		m_value_stack.append(value)
+	fn push(value?: sil.Value, ty: bc.Type):
+		m_value_stack.append(TypedValue(value, ty))
 
-	fn pop() -> sil.Value:
+	fn pop() -> TypedValue:
 		m_value_stack.pop_last()
 
 	fn pop_n(count: int) -> List[sil.Value]:
 		let values: List[sil.Value] = List()
-		while count > 0:
+		while values.len() < count:
 			let val = pop()
-			values.prepend(val)
-			count -= 1
+			values.prepend(val.value)
 		values
 
 	fn set_current_block(block?: sil.Block):

@@ -593,11 +593,15 @@ class BytecodeGenerator:
 				let parameter_index = get_parameter_index(parameter_def)
 				emit(Instruction.ParameterGet(parameter_index))
 			StructLiteral(ty, values):
-				for value in values:
-					gen_expression(value)
 				let struct_def = ty.get_struct_def()
 				let struct_index = struct_mapping.get(key: struct_def.id)
 				emit(Instruction.StructLiteral(struct_index))
+				var index = 0
+				for value in values:
+					emit(Instruction.Dup())
+					gen_expression(value)
+					emit(Instruction.SetAttr(index))
+					index += 1
 			ArrayLiteral(values):
 				let size = values.len()
 				emit(Instruction.Literal(bc.LiteralValue.Int(size)))

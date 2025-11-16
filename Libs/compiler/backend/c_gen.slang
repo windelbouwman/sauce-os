@@ -622,20 +622,12 @@ class CGenerator:
 				push(Value(name: callee, ty: bc.Type.Ptr()))
 
 			StructLiteral(index):
-				# we can derive count from struct type:
 				let struct_def = structs.get(index)
-				let values = pop_n(count: struct_def.fields.len())
-				# Malloc it!
 				let varname = new_local_var()
-				let ty = bc.Type.StructRef(index)  # "struct S{index}*"
+				let ty = bc.Type.StructRef(index)
 				gen_typed_name(ty, name: varname)
 				let name = "S{index}_{struct_def.name}"
 				emit(" = rt_malloc_with_destroyer(sizeof(struct {name}), {name}_type_info);")
-				var index2 = 0
-				for value in values:
-					let field = struct_def.fields.get(index: index2)
-					emit("{varname}->f{index2}_{field.name} = {value.name};")
-					index2 += 1
 				push(Value(name: varname, ty))
 
 			ArrayLiteral(ty2):

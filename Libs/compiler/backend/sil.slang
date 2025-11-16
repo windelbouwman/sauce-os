@@ -131,9 +131,9 @@ fn comma_sep(values: List[Value]) -> str:
 pub enum OpCode:
 	Const(dst: Value, value: int)
 	Binop(dst: Value, op: BinaryOp, lhs: Value, rhs: Value)
-	GetAddress(dst: Value, addr: Address)
-	Load(dst: Value, addr: Address)
-	Store(addr: Address, value: Value)
+	GetAddress(dst: Value, address: Address)
+	Load(dst: Value, address: Address)
+	Store(address: Address, value: Value)
 	Jump(label: str)
 	JumpIf(lhs: Value, condition: CompOp, rhs: Value, label1: str, label2: str)
 	Call(dst: Option[Value], callee: Address, arguments: List[Value])
