@@ -64,7 +64,7 @@ fn str_from_value(value?: Value) -> str:
 		Str(value):
 			value
 	else:
-		panic("str_from_value: no str")
+		panic("str_from_value: no str ({value_to_string(value)})")
 
 fn int_from_value(value?: Value) -> int:
 	case value:
@@ -277,14 +277,10 @@ fn frame_from_function(function: Function, arguments: List[Value]) -> Frame:
 		frame.locals.append(Value.Undefined())
 	frame
 
-struct ExceptionHandler:
-	except_label: int
-
 class Frame:
 	pub var arguments: List[Value] = List()
 	pub var locals: List[Value] = List()
 	pub var stack: List[Value] = List()
-	pub var exception_handlers: List[ExceptionHandler] = List()
 	pub var pc: int = 0
 	var code: Vector[Instruction]
 
@@ -296,7 +292,6 @@ class Frame:
 pub class VirtualMachine:
 	pub var frames: List[Frame] = List()
 	pub var globals: Vector[Value] = new_vector()
-	var exception_value: Value = Value.Undefined()
 	pub var m_functions: List[FunctionRef] = List()
 	pub var structs: Vector[bc.Struct] = new_vector()
 
@@ -316,6 +311,11 @@ pub class VirtualMachine:
 				let value = pop()
 				push(value)
 				push(value)
+			Swap:
+				let value1 = pop()
+				let value2 = pop()
+				push(value1)
+				push(value2)
 			Literal(literal):
 				case literal:
 					Int(val):
@@ -461,37 +461,17 @@ pub class VirtualMachine:
 							None:
 								pass
 			Return(amount):
-				if amount == 1:
-					let value = pop()
+				if amount > 0:
+					let values = pop_n(count: amount)
 					let stub_frame = pop_frame()
-					push(value)
+					for value in values:
+						push(value)
 				else:
 					let stub_frame = pop_frame()
 			Unreachable:
 				panic("Reached unreachable")
-			SetupTry(try_label, except_label):
-				frames.last().exception_handlers.append(ExceptionHandler(except_label))
-				jump(try_label)
-			Raise:
-				# Find matching exception handler in inner most frame!
-				exception_value = pop()
-				loop:
-					if frames.is_empty():
-						panic("No exception handler found!")
-					else:
-						let frame = frames.last()
-						if frame.exception_handlers.is_empty():
-							frames.drop_last()
-						else:
-							let handler = frame.exception_handlers.last()
-							jump(handler.except_label)
-							break
-			PopTry:
-				frames.last().exception_handlers.drop_last()
 			DecRef(index):
 				print("TODO?: dec ref {index}")
-			GetExceptionValue:
-				push(exception_value)
 			LoadFunc(index):
 				push(Value.Int(index))
 			StructLiteral(struct_index):
@@ -633,14 +613,22 @@ fn eval_comparison(op: bc.ComparisonOperator, lhs: Value, rhs: Value) -> bool:
 		List(values):
 			case rhs:
 				Null:
-					false
+					case op:
+						Equals:
+							false
+					else:
+						panic("Can only compare list to NULL")
 			else:
 				panic("Cannot compare list to: {value_to_string(rhs)}")
 		Null:
-			case rhs:
-				Null:
-					true
+			case op:
+				Equals:
+					case rhs:
+						Null:
+							true
+					else:
+						false
 			else:
-				panic("Cannot compare null to: {value_to_string(rhs)}")
+				panic("Can only compare NULL to NULL")
 	else:
 		panic("Cannot compare: {value_to_string(lhs)}")

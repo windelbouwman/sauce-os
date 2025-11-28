@@ -58,6 +58,7 @@ class CGenerator:
 	var next_id: int = 1
 	var local_variables: Vector[Value] = new_vector()
 	var local_parameters: Vector[Value] = new_vector()
+	var local_return_ptrs: Vector[Value] = new_vector()
 	var m_vm: vm.VirtualMachine = vm.VirtualMachine()
 	pub var structs: Vector[bc.Struct] = new_vector()
 	pub var globals: Vector[bc.Global] = new_vector()
@@ -67,7 +68,6 @@ class CGenerator:
 	pub fn emit_runtime():
 		emit("#include <stddef.h>")
 		emit("#include <stdint.h>")
-		emit("#include <setjmp.h>")
 		emit("#include <stdlib.h>")
 		emit("#include \"slangrt.h\"")
 
@@ -134,22 +134,7 @@ class CGenerator:
 			emit("__declspec(noreturn)")
 			emit("#endif")
 		write("extern ")
-		case extern_function.return_type:
-			Some(ty):
-				gen_typed_name(ty, name: "")
-				write(" ")
-			None:
-				write("void ")
-		write(extern_function.name)
-		write("(")
-		var index = 0
-		for parameter in extern_function.parameters:
-			let name = "P{index}"
-			if index > 0:
-				write(", ")
-			gen_typed_name(ty: parameter.ty, name)
-			index += 1
-		write(")")
+		gen_function_signature(return_types: extern_function.return_types, name: extern_function.name, parameters: extern_function.parameters, fill_param: false)
 		if extern_function.no_return:
 			emit("")
 			emit("#if defined __GNUC__")
@@ -221,7 +206,9 @@ class CGenerator:
 			emit("#if defined _MSC_VER")
 			emit("__declspec(noreturn)")
 			emit("#endif")
-		gen_function_signature(function, fill_param: false)
+		if not function.is_pub:
+			write("static ")
+		gen_function_signature(return_types: function.return_types, name: function.name, parameters: function.parameters, fill_param: false)
 		if function.no_return:
 			emit("")
 			emit("#if defined __GNUC__")
@@ -229,24 +216,36 @@ class CGenerator:
 			emit("#endif")
 		emit(";")
 
-	fn gen_function_signature(function: bc.Function, fill_param: bool):
-		if not function.is_pub:
-			write("static ")
-
-		case function.return_type:
-			Some(ty):
-				gen_typed_name(ty, name: "")
-			None:
-				write("void")
+	fn gen_function_signature(return_types: Vector[bc.Type], name: str, parameters: Vector[bc.TypedName], fill_param: bool):
+		if return_types.is_empty():
+			write("void")
+		else:
+			let ty = return_types.get(index: 0)
+			gen_typed_name(ty, name: "")
 		write(" ")
-		write(function.name)
+		write(name)
 		write("(")
-		var index = 0
-		for parameter in function.parameters:
+		var index = 1
+		var first = true
+		while index < return_types.len():
+			let name = "Retval_{index}"
+			let ty = return_types.get(index)
+			if fill_param:
+				local_return_ptrs.append(Value(name, ty))
+			if first:
+				first = false
+			else:
+				write(", ")
+			gen_typed_name(ty, name: "*{name}")
+			index += 1
+
+		for parameter in parameters:
 			let name = "P{index}_{parameter.name}"
 			if fill_param:
 				local_parameters.append(Value(name, ty: parameter.ty))
-			if index > 0:
+			if first:
+				first = false
+			else:
 				write(", ")
 			gen_typed_name(ty: parameter.ty, name)
 			index += 1
@@ -257,8 +256,9 @@ class CGenerator:
 		next_id = 1
 		local_variables = new_vector()
 		local_parameters = new_vector()
+		local_return_ptrs = new_vector()
 
-		gen_function_signature(function, fill_param: true)
+		gen_function_signature(return_types: function.return_types, name: function.name, parameters: function.parameters, fill_param: true)
 		emit(" \{")
 		indent()
 		# emit("struct localzz \{")
@@ -306,6 +306,12 @@ class CGenerator:
 				push(value)
 				push(value)
 
+			Swap:
+				let value1 = pop()
+				let value2 = pop()
+				push(value1)
+				push(value2)
+
 			Literal(literal):
 				gen_literal(literal)
 
@@ -339,32 +345,10 @@ class CGenerator:
 				emit("else")
 				gen_goto(label2)
 
-			SetupTry(try_label, except_label):
-				let bufname = "ebuf{try_label}"
-				emit("slang_exception_handler_t {bufname};")
-				emit("{bufname}.prev = g_except_hook;")
-				emit("g_except_hook = &{bufname};")
-				emit("if (setjmp(g_except_hook->buf) == 0)")
-				gen_goto(try_label)
-				emit("else")
-				gen_goto(except_label)
-
-			Raise:
-				let value = pop()
-				emit("g_except_value = {value.name};")
-				emit("longjmp(g_except_hook->buf, 1);")
-
-			PopTry:
-				emit("g_except_hook = g_except_hook->prev;")
-
 			DecRef(index):
 				let varname = local_variables.get(index)
 				#if is_heap(varname.ty):
 				#    emit("rt_decref({varname.name});")
-
-			GetExceptionValue:
-				let value = Value(name: "g_except_value", ty: bc.Type.Ptr())
-				push(value)
 
 			Not:
 				let rhs = pop()
@@ -519,16 +503,16 @@ class CGenerator:
 				if index < extern_functions.len():
 					let function = extern_functions.get(index)
 					let callee = function.name
-					gen_call(callee, parameter_types: function.parameters, return_type: function.return_type)
+					gen_call(callee, parameter_types: function.parameters, return_types: function.return_types)
 				else:
 					index = index - extern_functions.len()
 					let function = functions.get(index)
 					let callee = function.name
-					gen_call(callee, parameter_types: function.parameters, return_type: function.return_type)
+					gen_call(callee, parameter_types: function.parameters, return_types: function.return_types)
 
-			CallIndirect(parameter_types, return_type):
+			CallIndirect(parameter_types, return_types):
 				let target = pop()
-				gen_call(callee: target.name, parameter_types, return_type)
+				gen_call(callee: target.name, parameter_types, return_types)
 
 			LocalGet(index):
 				let varname = local_variables.get(index)
@@ -608,7 +592,14 @@ class CGenerator:
 				emit("{base.name}[{index.name}] = {value.name};")
 
 			Return(amount):
-				if amount == 1:
+				if amount > 0:
+					if amount > 1:
+						let values = pop_n(count: amount - 1)
+						var index = 0
+						for value in values:
+							let target = local_return_ptrs.get(index)
+							emit("*{target.name} = {value.name};")
+							index += 1
 					let value = pop()
 					emit("return {value.name};")
 				else:
@@ -728,19 +719,41 @@ class CGenerator:
 		else:
 			panic("No struct")
 
-	fn gen_call(callee: str, parameter_types: Vector[bc.TypedName], return_type: Option[bc.Type]):
+	fn gen_call(callee: str, parameter_types: Vector[bc.TypedName], return_types: Vector[bc.Type]):
 		let args = pop_n(count: parameter_types.len())
-		case return_type:
-			Some(ty):
-				let varname = new_local_var()
-				gen_typed_name(ty, name: varname)
-				write(" = ")
-				push(Value(name: varname, ty))
-			None:
-				pass
+		let return_vars: Vector[str] = new_vector()
+		for ret_ty in return_types:
+			let varname = new_local_var()
+			return_vars.append(varname)
+			push(Value(name: varname, ty: ret_ty))
+
+		var index = 1
+		while index < return_types.len():
+			let ty = return_types.get(index)
+			let varname = return_vars.get(index)
+			gen_typed_name(ty, name: varname)
+			emit(";")
+			index += 1
+
+		if not return_types.is_empty():
+			let ty = return_types.get(index: 0)
+			let varname = return_vars.get(index: 0)
+			gen_typed_name(ty, name: varname)
+			write(" = ")
+
 		write(callee)
 		write("(")
 		var first = true
+		index = 1
+		while index < return_types.len():
+			if first:
+				first = false
+			else:
+				write(", ")
+			let varname = return_vars.get(index)
+			write("&")
+			write(varname)
+			index += 1
 		for arg in args:
 			if first:
 				first = false
@@ -778,14 +791,22 @@ class CGenerator:
 				let struct_def = structs.get(index)
 				write("struct S{index}_{struct_def.name}* ")
 				write(name)
-			Function(parameter_types, return_type):
-				case return_type:
-					Some(ty):
-						gen_typed_name(ty, name: "")
-					None:
-						write("void")
+			Function(parameter_types, return_types):
+				if return_types.is_empty():
+					write("void")
+				else:
+					let ty = return_types.get(index: 0)
+					gen_typed_name(ty, name: "")
 				write("(*{name})(")
 				var first = true
+				var index = 1
+				while index < return_types.len():
+					if first:
+						first = false
+					else:
+						write(", ")
+					gen_typed_name(ty: return_types.get(index), name: "*")
+					index += 1
 				for p in parameter_types:
 					if first:
 						first = false

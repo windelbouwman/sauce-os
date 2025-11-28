@@ -25,16 +25,22 @@ pub fn gen_expression_bytecode(expression: ast.Expression) -> Vector[Instruction
 
 enum ControlBlock:
 	LoopBlock(loop_: Loop)
-	TryBlock
+	TryBlock(try_: Try)
 	Scope(variables: List[ast.Variable])
 
 struct Loop:
 	continue_label: int
 	break_label: int
 
+struct Try:
+	except_label: int
+	except_var_index: int
+
 class BytecodeGenerator:
 	var id_counter: int = 1
 	var is_reachable: bool = true
+	var m_except_type: ast.Type = ast.undefined_type()
+	var m_return_type: ast.Type = ast.undefined_type()
 	var code: Vector[Instruction] = new_vector()
 
 	pub var global_variables: Vector[bc.Global] = new_vector()
@@ -146,16 +152,19 @@ class BytecodeGenerator:
 		for parameter in function_def.parameters:
 			parameters.append(bc.TypedName(name: parameter.id.name, ty: get_bc_type(parameter.ty)))
 
-		var return_type = Option.None()
+		let return_types: Vector[bc.Type] = new_vector()
 		var no_return = false
 		if function_def.info.return_type.is_void():
 			pass
 		elif function_def.info.return_type.is_unreachable():
 			no_return = true
 		else:
-			return_type = Option.Some(get_bc_type(function_def.info.return_type))
+			return_types.append(get_bc_type(function_def.info.return_type))
 
-		let extern_function = bc.ExternFunction(name, parameters, return_type, no_return)
+		if not function_def.info.except_type.is_void():
+			return_types.append(bc.Type.Ptr())
+
+		let extern_function = bc.ExternFunction(name, parameters, return_types, no_return)
 		extern_functions.append(extern_function)
 		function_map.insert(key: name, value: func_index)
 
@@ -170,21 +179,30 @@ class BytecodeGenerator:
 					let parameter_index = parameters.len()
 					local_var_mapping.insert(key: parameter.id, value: parameter_index)
 					parameters.append(p2)
-				var return_type = Option.None()
+				let return_types: Vector[bc.Type] = new_vector()
 				var no_return = false
 				if function_def.info.return_type.is_void():
 					pass
 				elif function_def.info.return_type.is_unreachable():
 					no_return = true
 				else:
-					return_type = Option.Some(get_bc_type(function_def.info.return_type))
+					return_types.append(get_bc_type(function_def.info.return_type))
+				if not function_def.info.except_type.is_void():
+					return_types.append(bc.Type.Ptr())
 				begin_code()
 				local_variables = new_vector()
+				# TODO: could be stored as 'info'?
+				m_return_type = function_def.info.return_type
+				m_except_type = function_def.info.except_type
 
 				# Emit return to void function, or unreachable
 				if scoped_block.body.ty.is_void():
 					gen_scoped_block(scoped_block, target: Option.None())
-					emit(Instruction.Return(n_arg: 0))
+					if m_except_type.is_void():
+						emit(Instruction.Return(n_arg: 0))
+					else:
+						emit(Instruction.Literal(bc.LiteralValue.Null()))
+						emit(Instruction.Return(n_arg: 1))
 				elif scoped_block.body.ty.is_unreachable():
 					gen_scoped_block(scoped_block, target: Option.None())
 					emit(Instruction.Unreachable())
@@ -197,12 +215,16 @@ class BytecodeGenerator:
 						let index = new_local(name: "__SNAG", ty)
 						gen_scoped_block(scoped_block, target: Option.Some(index))
 						emit(Instruction.LocalGet(index))
-					emit(Instruction.Return(n_arg: 1))
+					if m_except_type.is_void():
+						emit(Instruction.Return(n_arg: 1))
+					else:
+						emit(Instruction.Literal(bc.LiteralValue.Null()))
+						emit(Instruction.Return(n_arg: 2))
 
 				let instructions = get_relocated_instructions()
 				let locals = local_variables
 				let name = function_def.name
-				functions.append(bc.Function(name, is_pub: function_def.is_pub, parameters, return_type, no_return, locals, instructions))
+				functions.append(bc.Function(name, is_pub: function_def.is_pub, parameters, return_types, no_return, locals, instructions))
 			Extern(libname):
 				pass
 			None:
@@ -216,6 +238,15 @@ class BytecodeGenerator:
 			else:
 				block_cleanup(block)
 		panic("Not in a loop!")
+
+	fn goto_inner_try() -> Option[Try]:
+		for block in block_stack:
+			case block:
+				TryBlock(try_):
+					return Option.Some(try_)
+			else:
+				block_cleanup(block)
+		Option.None()
 
 	fn gen_scoped_block(scoped_block?: ast.ScopedBlock, target: Option[int]):
 		# scoped_block.scope
@@ -300,12 +331,18 @@ class BytecodeGenerator:
 				gen_raise(value)
 
 	fn gen_return(opt_val: Option[ast.Expression]):
-		let n_args = case opt_val:
+		var n_args = 0
+
+		case opt_val:
 			Some(val):
 				gen_expression(val)
-				1
+				n_args += 1
 			None:
-				0
+				pass
+
+		if not m_except_type.is_void():
+			emit(Instruction.Literal(bc.LiteralValue.Null()))
+			n_args += 1
 
 		for block in block_stack:
 			block_cleanup(block)
@@ -315,9 +352,22 @@ class BytecodeGenerator:
 
 	fn gen_raise(value: ast.Expression):
 		gen_expression(value)
-		emit(Instruction.ToOpaque(ty: get_bc_type(value.ty)))
-		emit(Instruction.Raise())
-		is_reachable = false
+		actual_do_raise()
+
+	fn actual_do_raise():
+		""" Do local jump, or return special marker value, which lives on top of stack now."""
+		case goto_inner_try():
+			Some(try_):
+				emit(Instruction.LocalSet(try_.except_var_index))
+				jump(try_.except_label)
+			None:
+				var n_args = 1
+				if not (m_return_type.is_void() or m_return_type.is_unreachable()):
+					emit(Instruction.Literal(bc.LiteralValue.Null()))
+					emit(Instruction.Swap())
+					n_args += 1
+				emit(Instruction.Return(n_args))
+				is_reachable = false
 
 	fn gen_assignment(target: ast.Expression, op: Option[ast.BinaryOperator], value: ast.Expression):
 		case target.kind:
@@ -390,19 +440,14 @@ class BytecodeGenerator:
 		let final_label = new_label()
 
 		let except_var_index = add_local(variable: try_statement.except_var)
-		emit(Instruction.SetupTry(try_label, except_label))
 
 		set_label(try_label)
-		enter_block(block: ControlBlock.TryBlock())
+		enter_block(block: ControlBlock.TryBlock(Try(except_label, except_var_index)))
 		gen_scoped_block(try_statement.try_block, target: Option.None())
 		leave_block()
 		jump(final_label)
 
 		set_label(except_label)
-		emit(Instruction.PopTry())
-		emit(Instruction.GetExceptionValue())
-		emit(Instruction.FromOpaque(get_bc_type(try_statement.except_var.ty)))
-		emit(Instruction.LocalSet(index: except_var_index))
 		gen_scoped_block(try_statement.except_block, target: Option.None())
 		jump(final_label)
 
@@ -681,6 +726,38 @@ class BytecodeGenerator:
 				let key = function_def.name
 				let funcidx = function_map.get(key)
 				emit(Instruction.Call(funcidx))
+
+				# If function might raise exception, we handle it!
+				if not function_def.info.except_type.is_void():
+					# Exception lives on top of stack now, below it lives return value (if any)
+					let index = new_local(name: "exception_value", ty: bc.Type.Ptr())
+					emit(Instruction.LocalSet(index))
+
+					let optional_return_value = if not (function_def.info.return_type.is_void() or function_def.info.return_type.is_unreachable()):
+						let index2 = new_local(name: "return_value", ty: get_bc_type(function_def.info.return_type))
+						emit(Instruction.LocalSet(index2))
+						Option.Some(index2)
+					else:
+						Option.None()
+
+					let true_label = new_label()
+					let false_label = new_label()
+					emit(Instruction.Literal(bc.LiteralValue.Null()))
+					emit(Instruction.LocalGet(index))
+					jump_if(op: bc.ComparisonOperator.Equals(), true_label, false_label)
+
+					set_label(false_label)
+					emit(Instruction.LocalGet(index))
+					# unbox?
+					actual_do_raise()
+
+					set_label(true_label)
+					case optional_return_value:
+						Some(index2):
+							emit(Instruction.LocalGet(index2))
+						None:
+							pass
+
 		else:
 			gen_indirect_call(callee: call.callee)
 
@@ -695,11 +772,12 @@ class BytecodeGenerator:
 		for p2 in pty2:
 			parameter_types.append(bc.TypedName(name: "x", ty: get_bc_type(p2.ty)))
 		let return_type2 = callee.ty.get_return_type()
-		let return_type: Option[bc.Type] = if return_type2.is_void():
-			Option.None()
-		else:
-			Option.Some(get_bc_type(return_type2))
-		emit(Instruction.CallIndirect(parameter_types, return_type))
+		let return_types: Vector[bc.Type] = new_vector()
+		if not return_type2.is_void():
+			return_types.append(get_bc_type(return_type2))
+		if not callee.ty.get_except_type().is_void():
+			panic("Indirect calls which raise exceptions not supported")
+		emit(Instruction.CallIndirect(parameter_types, return_types))
 
 	fn gen_binop_expr(binop: ast.BinopExpression):
 		gen_expression(binop.lhs)
@@ -771,10 +849,6 @@ class BytecodeGenerator:
 					label1 = translate_label(label1)
 					label2 = translate_label(label2)
 					instructions.append(Instruction.JumpIf(op, label1, label2))
-				SetupTry(try_label, except_label):
-					try_label = translate_label(try_label)
-					except_label = translate_label(except_label)
-					instructions.append(Instruction.SetupTry(try_label, except_label))
 			else:
 				instructions.append(instruction)
 		instructions
@@ -829,15 +903,17 @@ class BytecodeGenerator:
 			bc.Type.StructRef(index)
 		elif ty2.is_function_type():
 			let parameter_types2 = ty2.get_parameter_types()
-			let return_type2 = ty2.get_return_type()
 			let parameter_types: List[bc.Type] = List()
 			for p2 in parameter_types2:
 				parameter_types.append(get_bc_type(p2.ty))
-			let return_type: Option[bc.Type] = if return_type2.is_void():
-				Option.None()
-			else:
-				Option.Some(get_bc_type(return_type2))
-			bc.Type.Function(parameter_types, return_type)
+			let return_types: Vector[bc.Type] = new_vector()
+			let return_type2 = ty2.get_return_type()
+			if not return_type2.is_void():
+				return_types.append(get_bc_type(return_type2))
+			let except_type2 = ty2.get_except_type()
+			if not except_type2.is_void():
+				return_types.append(bc.Type.Ptr())
+			bc.Type.Function(parameter_types, return_types)
 		elif ty2.is_type_parameter():
 			bc.Type.Ptr()
 		elif ty2.is_bool():
@@ -864,8 +940,6 @@ class BytecodeGenerator:
 			Scope(variables):
 				for variable in variables:
 					emit(Instruction.DecRef(index: get_local_index(variable)))
-			TryBlock:
-				emit(Instruction.PopTry())
 		else:
 			pass
 

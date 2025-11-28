@@ -7,7 +7,7 @@ Features of this pass:
 
 """
 
-from std import ord
+from std import ord, print
 from listtype import List
 from vectype import Vector, new_vector
 from optiontype import Option
@@ -47,6 +47,10 @@ struct TypedAddress:
 	address: sil.Address
 	ty: bc.Type
 
+struct ReturnSlot:
+	address: TypedAddress
+	ty: bc.Type
+
 class SilGen:
 	var m_bc_program: bc.Program
 	var m_externs: List[sil.Extern] = List()
@@ -58,6 +62,7 @@ class SilGen:
 	var m_block_is_terminated: bool = false
 	var m_parameters: List[TypedAddress] = List()
 	var m_locals: List[TypedAddress] = List()
+	var m_return_slots: List[ReturnSlot] = List()
 	var m_tmp_number: int = 0
 	var m_value_stack: List[TypedValue] = List()
 	var m_stack_offset: int = 0
@@ -113,11 +118,22 @@ class SilGen:
 		m_value_stack = List()
 		m_parameters = List()
 		m_locals.clear()
+		m_return_slots.clear()
 		m_stack_offset = 0
 		let start = new_block(name: "start")
 		set_current_block(start)
 
 		let parameters: List[sil.Value] = List()
+		var index = 1
+		while index < function.return_types.len():
+			let p = new_tmp()
+			let ty = bc.Type.Ptr()  # A pointer to whatever type we return
+			parameters.append(p)
+			let address = new_stack_slot(size: get_size_of(ty))
+			emit(op: sil.OpCode.Store(dst: address, value: p))
+			m_return_slots.append(ReturnSlot(address: TypedAddress(address, ty), ty: function.return_types.get(index)))
+			index += 1
+
 		for parameter in function.parameters:
 			let p = new_tmp()
 			parameters.append(p)
@@ -132,7 +148,7 @@ class SilGen:
 			m_locals.append(TypedAddress(address, ty: local_var.ty))
 
 		let target_indici = bc.get_target_labels(instructions: function.instructions)
-		var index = 0
+		index = 0
 		for opcode in function.instructions:
 			if target_indici.contains(index):
 				let name = "x_{index}"
@@ -154,6 +170,11 @@ class SilGen:
 				let value = pop()
 				push(value.value, ty: value.ty)
 				push(value.value, ty: value.ty)
+			Swap:
+				let value1 = pop()
+				let value2 = pop()
+				push(value1.value, ty: value1.ty)
+				push(value2.value, ty: value2.ty)
 			Literal(literal):
 				case literal:
 					Int(value):
@@ -294,16 +315,26 @@ class SilGen:
 				if index < m_bc_program.extern_functions.len():
 					let function = m_bc_program.extern_functions[index]
 					let callee = new_global(function.name)
-					gen_call(callee, n_args: function.parameters.len(), return_type: function.return_type)
+					gen_call(callee, n_args: function.parameters.len(), return_types: function.return_types)
 				else:
 					index = index - m_bc_program.extern_functions.len()
 					let function = m_bc_program.functions[index]
 					let callee = new_global(function.name)
-					gen_call(callee, n_args: function.parameters.len(), return_type: function.return_type)
+					gen_call(callee, n_args: function.parameters.len(), return_types: function.return_types)
 			Return(v):
 				if v == 0:
 					emit(sil.OpCode.Return(value: Option.None()))
-				elif v == 1:
+				else:
+					if v > 1:
+						let values = pop_n_typed(count: v - 1)
+						var index = 0
+						for value in values:
+							let return_slot = m_return_slots.get(index)  # Pointer to pointer to return value
+							let ret_ptr = new_tmp()
+							emit(sil.OpCode.Load(dst: ret_ptr, address: return_slot.address.address))
+							let address = TypedAddress(address: sil.Address.Ptr(addr: ret_ptr, offset: 0), ty: return_slot.ty)
+							gen_store(address, value)
+							index += 1
 					let value = pop()
 					emit(sil.OpCode.Return(value: Option.Some(value.value)))
 			Unreachable:
@@ -350,15 +381,35 @@ class SilGen:
 		emit(sil.OpCode.Binop(dst: addr, op: sil.BinaryOp.Add(), lhs: base.value, rhs: offset))
 		TypedAddress(address: sil.Address.Ptr(addr, offset: 0), ty: field.ty)
 
-	fn gen_call(callee: sil.Address, n_args: int, return_type: Option[bc.Type]):
+	fn gen_call(callee: sil.Address, n_args: int, return_types: Vector[bc.Type]):
 		let arguments = pop_n(count: n_args)
-		case return_type:
-			Some(ty):
-				let value = new_tmp()
+
+		if return_types.is_empty():
+			emit(sil.OpCode.Call(Option.None(), callee, arguments))
+		else:
+			let new_arguments: List[sil.Value] = List()
+			let value = new_tmp()
+			let ty = return_types.get(index: 0)
+			if return_types.len() > 1:
+				var index = 1
+				let extra_values: List[TypedAddress] = List()
+				while index < return_types.len():
+					let rty = return_types.get(index)
+					let address = new_stack_slot(size: get_size_of(rty))
+					extra_values.append(TypedAddress(address, ty: rty))
+					let ret_ptr = new_tmp()
+					emit(sil.OpCode.GetAddress(dst: ret_ptr, address))
+					new_arguments.append(ret_ptr)
+					index += 1
+				new_arguments.extend2(arguments)
+
+				emit(sil.OpCode.Call(Option.Some(value), callee, arguments: new_arguments))
+				push(value, ty)
+				for address in extra_values:
+					gen_load(address)
+			else:
 				emit(sil.OpCode.Call(Option.Some(value), callee, arguments))
 				push(value, ty)
-			None:
-				emit(sil.OpCode.Call(Option.None(), callee, arguments))
 
 	fn call_rt_malloc(size: sil.Value, ty: bc.Type):
 		call_rt_function_1(name: "rt_malloc", ty, argument: size)
@@ -419,6 +470,12 @@ class SilGen:
 			values.prepend(val.value)
 		values
 
+	fn pop_n_typed(count: int) -> List[TypedValue]:
+		let values: List[TypedValue] = List()
+		while values.len() < count:
+			values.prepend(pop())
+		values
+
 	fn set_current_block(block?: sil.Block):
 		m_current_block = Option.Some(block)
 		m_block_is_terminated = false
@@ -426,8 +483,11 @@ class SilGen:
 	fn emit(op?: sil.OpCode):
 		case m_current_block:
 			Some(block):
+				let instruction = sil.Instruction(op)
+				print("> {instruction}")
 				if m_block_is_terminated:
-					panic("Block already terminated!")
+					# panic("Block already terminated!")
+					pass
 				else:
 					case op:
 						Jump(label):
@@ -440,7 +500,6 @@ class SilGen:
 							m_block_is_terminated = true
 					else:
 						pass
-				let instruction = sil.Instruction(op)
 				block.instructions.append(instruction)
 			None:
 				panic("Cannot emit")

@@ -38,6 +38,7 @@ pub enum Instruction:
 	Pop(reg: int)
 	Ret
 	Int3
+	SseOpRegRm(op: SseOp, reg: int, rm: Rm)
 
 pub enum Op:
 	Add
@@ -59,6 +60,14 @@ pub enum Cond:
 	Jge
 	Jle
 	Jg
+
+pub enum SseOp:
+	Add
+	Mul
+	Sub
+	Min
+	Div
+	Max
 
 pub enum Rm:
 	Mem(reg: int)
@@ -99,6 +108,23 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			"ret"
 		Int3:
 			"int 3"
+		SseOpRegRm(op, reg, rm):
+			"{sse_op_to_str(op)}sd {reg_to_str(reg)}, {rm_to_str(rm)}"
+
+fn sse_op_to_str(op: SseOp) -> str:
+	case op:
+		Add:
+			"add"
+		Mul:
+			"mul"
+		Sub:
+			"sub"
+		Min:
+			"min"
+		Div:
+			"div"
+		Max:
+			"max"
 
 pub fn op_to_str(op: Op) -> str:
 	case op:
@@ -376,6 +402,26 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			out.write_byte(0xC3)
 		Int3:
 			out.write_byte(0xCC)
+		SseOpRegRm(op, reg, rm):
+			out.write_byte(0xF2)
+			out.write_byte(0x0F)
+			out.write_byte(get_sse_opcode(op))
+			write_rm_reg(rm, reg, out)
+
+fn get_sse_opcode(op: SseOp) -> int:
+	case op:
+		Add:
+			0x58
+		Mul:
+			0x59
+		Sub:
+			0x5C
+		Min:
+			0x5D
+		Div:
+			0x5E
+		Max:
+			0x5F
 
 fn get_opcode(op: Op) -> int:
 	case op:

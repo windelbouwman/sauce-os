@@ -27,7 +27,7 @@ pub fn new_vector_of_size[T](size: int, default: T) -> Vector[T]:
 	let v: Vector[T] = Vector(m_size: size, m_capacity, m_elements)
 	v
 
-pub fn vec1[T](v1?: T, v2?: T) -> Vector[T]:
+pub fn vec1[T](v1?: T) -> Vector[T]:
 	let vec: Vector[T] = new_vector_with_capacity(capacity: 1)
 	vec.append(v1)
 	vec

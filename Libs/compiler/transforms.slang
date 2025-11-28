@@ -16,7 +16,7 @@ from basepass import IdGen
 from typechecking import type_check_modules
 from listtype import List, list1, list2
 from optiontype import Option, option_unwrap, option_is_none, option_is_some
-from vectype import vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
+from vectype import vec1, vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
 from hashmap import HashMap, new_hashmap_str
 from errors import CompilationError
 import ast
@@ -583,7 +583,7 @@ fn transformer_on_expression7(transformer: Transformer, expression: ast.Expressi
 fn upcast_type(expression: ast.Expression):
 	# Perform type promotion, when this type was a generic
 	if expression.ty.was_generic:
-		let old_expression = ast.clone_expression(value: expression)
+		let old_expression = expression.clone()
 		let new_expression = ast.unbox_expression(value: old_expression, to_type: expression.ty, location: expression.location)
 		expression.change_to(to: new_expression)
 
@@ -802,13 +802,16 @@ class ClassRewriter:
 
 	pub fn load_std_function(name: str, location: Location) -> ast.Expression:
 		# Get expression that loads a builtin runtime function.
-		let symbol = option_unwrap(rt_module.scope.lookup(name))
+		let symbol = load_rt_symbol(name)
 		case symbol.kind:
 			Function(function_def):
 				let type_arguments: Vector[ast.Type] = new_vector()
 				ast.function_ref(function_def, type_arguments, location)
 		else:
 			panic("{name} must be external function")
+
+	fn load_rt_symbol(name: str) -> ast.Symbol:
+		option_unwrap(rt_module.scope.lookup(name))
 
 	pub fn rewrite_interface_def(interface_def: ast.InterfaceDef):
 		# Create method table for this interface
@@ -1447,7 +1450,7 @@ class ClassRewriter:
 
 	pub fn erase_type(ft: ast.Type, value: ast.Expression, assign: bool):
 		if ft.was_generic and not assign:
-			let old_value = ast.clone_expression(value)
+			let old_value = value.clone()
 			let new_value = ast.box_expression(value: old_value, location: value.location)
 			value.change_to(to: new_value)
 		elif ft.is_function_type():

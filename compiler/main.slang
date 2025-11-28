@@ -61,10 +61,10 @@ pub fn main() -> int:
 				print("Expect argument to --gen-export")
 		elif argument == "--backend-bc":
 			options.backend = Backend.Bytecode()
-		elif argument == "--backend-c":
-			options.backend = Backend.C()
 		elif argument == "--backend-c-v2":
 			options.backend = Backend.C2()
+		elif argument == "--backend-c":
+			options.backend = Backend.C()
 		elif argument == "--backend-py":
 			options.backend = Backend.Python()
 		elif argument == "--backend-null":
@@ -123,6 +123,7 @@ fn print_usage():
 	print("    --backend-bc    : Spit out bytecode")
 	print("    --backend-py    : Spit out python code")
 	print("    --backend-c     : Spit out C code")
+	print("    --backend-c-v2  : Spit out C code (version 2)")
 	print("    --backend-wasm  : Spit out WebAssembly")
 	print("    --backend-riscv : Spit out RiscV code")
 	print("    --backend-null  : Skip code generation")

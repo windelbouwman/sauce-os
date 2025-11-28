@@ -944,6 +944,9 @@ pub class ModuleDef:
 	pub fn define_function(function_def: FunctionDef):
 		define_symbol(name: function_def.name, definition: Definition.Function(function_def))
 
+	pub fn define_enum(enum_def: EnumDef):
+		define_symbol(name: enum_def.id.name, definition: Definition.Enum(enum_def))
+
 	pub fn add_module(m?: ModuleDef):
 		definitions.append(Definition.Module(m))
 
@@ -1650,6 +1653,9 @@ pub class Expression:
 
 	pub fn change_to(to: Expression):
 		change_expression_to(expression: this, to)
+
+	pub fn clone() -> Expression:
+		clone_expression(value: this)
 
 pub fn clone_expression(value: Expression) -> Expression:
 	Expression(kind: value.kind, ty: value.ty, location: value.location)

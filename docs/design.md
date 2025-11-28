@@ -257,6 +257,19 @@ fn handle_some(value: str):
 
 We use checked exceptions. This means, you can only raise exceptions within an error handler. This prevents uncaught exceptions.
 
+Functions that raise exceptions:
+
+```
+fn ohnoes(x: int) -> int except str:
+    if x > 10:
+        raise "Oh noes!"
+    else:
+        x + 42
+```
+
+The raise statement can only be used in a try-except block, or in a function that raises an exception. The same
+holds for functions that can raise exceptions.
+
 # Classes
 
 Classes are lowered into structs and functions.

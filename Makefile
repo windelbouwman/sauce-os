@@ -33,6 +33,7 @@ WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLAN
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, $(SLANG_EXAMPLES))
 PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
 C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/snippets/%.exe, $(SLANG_EXAMPLES))
+C_EXAMPLES_2 := $(patsubst examples/snippets/%.slang, build/c/snippets2/%.exe, $(SLANG_EXAMPLES))
 X86_EXAMPLES := $(patsubst examples/snippets/%.slang, build/x86/%.o, $(SLANG_EXAMPLES))
 C_APPS := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
@@ -71,7 +72,7 @@ leakcheck: ${COMPILER5} | ${BUILDDIR}
 pytest-compiler1:
 	pytest -v test_compiler1.py
 
-pytest-compiler: $(C_EXAMPLES) ${PY_EXAMPLES}
+pytest-compiler: all-examples-c all-examples-python
 	pytest -vv test_compiler.py
 
 # Example to bytecode compilation
@@ -106,7 +107,7 @@ ${BUILDDIR}/python/snippet-%.py: examples/snippets/%.slang runtime/std.slang ${B
 	${SLANGC} --backend-py -o $@ $< runtime/std.slang
 
 # examples compiled to C code:
-all-examples-c: $(C_EXAMPLES)
+all-examples-c: $(C_EXAMPLES) $(C_EXAMPLES_2)
 
 .PRECIOUS: ${BUILDDIR}/c/snippets/%.exe ${BUILDDIR}/c/snippets/%.c
 ${BUILDDIR}/c/snippets/%.exe: ${BUILDDIR}/c/snippets/%.c ${BUILDDIR}/slangrt.a runtime/slangrt.h | ${BUILDDIR}/c/snippets
@@ -117,6 +118,17 @@ ${BUILDDIR}/c/snippets/%.c: examples/snippets/%.slang runtime/std.slang ${SLANGC
 
 ${BUILDDIR}/c/snippets:
 	mkdir -p ${BUILDDIR}/c/snippets
+
+# Examples compiled to C code via bytecode:
+.PRECIOUS: ${BUILDDIR}/c/snippets2/%.exe ${BUILDDIR}/c/snippets2/%.c
+${BUILDDIR}/c/snippets2/%.exe: ${BUILDDIR}/c/snippets2/%.c ${BUILDDIR}/slangrt.a runtime/slangrt.h | ${BUILDDIR}/c/snippets2
+	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/slangrt.a -lm
+
+${BUILDDIR}/c/snippets2/%.c: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/c/snippets2
+	${SLANGC} --backend-c -o $@ $< runtime/std.slang
+
+${BUILDDIR}/c/snippets2:
+	mkdir -p ${BUILDDIR}/c/snippets2
 
 # Base lib as DLL:
 ${BUILDDIR}/c/libbase.c ${BUILDDIR}/c/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/c
@@ -212,7 +224,7 @@ ${BUILDDIR}/x86/%.exe: ${BUILDDIR}/x86/%.o build/slangrt.o build/slangrt_mm.o | 
 ${BUILDDIR}/x86:
 	mkdir -p ${BUILDDIR}/x86
 
-native: build/x86/hello_world.exe
+native: build/x86/hello_world.exe $(X86_EXAMPLES)
 
 # Wasm examples:
 all-examples-wasm: $(WASM_EXAMPLES)
@@ -252,7 +264,7 @@ ${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libcompiler.
 # Apps
 .PRECIOUS: ${BUILDDIR}/c/apps/%.c
 ${BUILDDIR}/c/apps/%.c: Apps/%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libscience.json ${BUILDDIR}/c/libgfx.json ${BUILDDIR}/c/libcompiler.json ${BUILDDIR}/c/libweb.json ${SLANGC_DEPS} | ${BUILDDIR}/c/apps
-	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libgfx.json --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libweb.json
+	${SLANGC} --backend-c-v2 -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libgfx.json --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libweb.json
 
 ${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libgfx.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libweb.so ${BUILDDIR}/slangrt.a
 	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libweb.so -l:libcompiler.so -l:libgfx.so -l:libimage.so -l:libscience.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.a -lm

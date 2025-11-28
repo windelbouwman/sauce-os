@@ -29,14 +29,14 @@ pub struct TypedName:
 pub struct ExternFunction:
 	name: str
 	parameters: Vector[TypedName]
-	return_type: Option[Type]
+	return_types: Vector[Type]
 	no_return: bool
 
 pub struct Function:
 	is_pub: bool
 	name: str
 	parameters: Vector[TypedName]
-	return_type: Option[Type]
+	return_types: Vector[Type]
 	no_return: bool
 	locals: Vector[TypedName]
 	instructions: Vector[Instruction]
@@ -50,7 +50,7 @@ pub enum Type:
 	Ptr
 	StructRef(index: int)
 	Array(element_type: Type)
-	Function(parameter_types: List[Type], return_type: Option[Type])
+	Function(parameter_types: List[Type], return_types: Vector[Type])
 
 pub fn get_element_type_from_type(ty?: Type) -> Type:
 	case ty:
@@ -62,6 +62,7 @@ pub fn get_element_type_from_type(ty?: Type) -> Type:
 pub enum Instruction:
 	Nop
 	Dup  # Duplicate stack top
+	Swap
 
 	Literal(literal: LiteralValue)
 
@@ -81,13 +82,9 @@ pub enum Instruction:
 	Jump(label: int)  # Unconditional jump
 	JumpIf(op: ComparisonOperator, label1: int, label2: int)
 	Call(index: int)
-	CallIndirect(parameters: Vector[TypedName], return_type: Option[Type])  # Call function pointer, on top of stack
+	CallIndirect(parameters: Vector[TypedName], return_types: Vector[Type])  # Call function pointer, on top of stack
 	Return(n_values: int)
-	SetupTry(try_label: int, except_label: int)
-	Raise
-	PopTry
 	DecRef(index: int)
-	GetExceptionValue
 	Unreachable
 
 	LocalGet(index: int)
@@ -117,9 +114,6 @@ pub fn get_target_labels(instructions: Vector[Instruction]) -> Set[int]:
 			JumpIf(op, index1, index2):
 				target_labels.add(index1)
 				target_labels.add(index2)
-			SetupTry(try_label, except_label):
-				target_labels.add(try_label)
-				target_labels.add(except_label)
 		else:
 			pass
 	target_labels
@@ -177,6 +171,8 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 			"nop"
 		Dup:
 			"dup"
+		Swap:
+			"swap"
 		Literal(literal):
 			literal_to_string(literal)
 		Jump(v):
@@ -213,16 +209,8 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 			"return({v})"
 		Unreachable:
 			"unreachable"
-		SetupTry(try_label, except_label):
-			"setup-try(try: {try_label}, except: {except_label})"
-		Raise:
-			"raise"
-		PopTry:
-			"pop-try"
 		DecRef(index):
 			"dec ref {index}"
-		GetExceptionValue:
-			"get-exception-value"
 		LocalGet(index):
 			"local-get({index})"
 		LocalSet(index):
@@ -338,11 +326,9 @@ class Printer:
 			for parameter in function.parameters:
 				emit("> {parameter.name}: {type_to_string(ty: parameter.ty)}")
 			dedent()
-			case function.return_type:
-				Some(ty):
-					emit("RETURNS: {type_to_string(ty)}")
-				None:
-					pass
+			emit("RETURNS:")
+			for ty in function.return_types:
+				emit("> {type_to_string(ty)}")
 			emit("LOCALS:")
 			indent()
 			for local in function.locals:

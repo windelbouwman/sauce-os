@@ -87,9 +87,18 @@ def test_examples_bc_backend(filename: Path):
 
 
 @pytest.mark.parametrize("filename", example_filenames, ids=ids)
-def test_examples_exe(filename):
+def test_examples_c_exe(filename):
     """Test compiled executable against expected output."""
     exe_path = root_path / "build" / "c" / "snippets" / f"{filename.stem}.exe"
+    result = subprocess.run([exe_path], capture_output=True, check=True)
+    stdout = result.stdout.decode("ascii")
+    check_reference_output(filename, stdout)
+
+
+@pytest.mark.parametrize("filename", example_filenames, ids=ids)
+def test_examples_c2_exe(filename):
+    """Test compiled executable against expected output."""
+    exe_path = root_path / "build" / "c" / "snippets2" / f"{filename.stem}.exe"
     result = subprocess.run([exe_path], capture_output=True, check=True)
     stdout = result.stdout.decode("ascii")
     check_reference_output(filename, stdout)
