@@ -8,6 +8,11 @@ return value: rax
 callee save:  rbx, rsp, rbp, r12, r13, r14, r15
 caller save:  the other registers
 
+SSE (linux/mac/unix):
+arguments: xmm0 .. xmm7
+return value: xmm0
+callee save: -
+caller save: xmm0 .. xmm15
 """
 
 from utils import unimplemented, panic
@@ -26,6 +31,8 @@ pub enum Instruction:
 	OpRmReg(op: Op, rm: Rm, reg: int)
 	OpRegRm(op: Op, reg: int, rm: Rm)
 	MulRegRm(reg: int, rm: Rm)
+	Cqo
+	DivMul(op: DivMulOp, rm: Rm)  # mul,imul,div,idiv
 	Call(target: str)
 	Jmp(target: str)
 	Jcc(condition: Cond, target: str)
@@ -38,7 +45,11 @@ pub enum Instruction:
 	Pop(reg: int)
 	Ret
 	Int3
+	CvtSi2Sd(reg: int, rm: Rm)
+	Ucomisd(reg: int, rm: Rm)
 	SseOpRegRm(op: SseOp, reg: int, rm: Rm)
+	SseMovRegRm(reg: int, rm: Rm)
+	SseMovRmReg(rm: Rm, reg: int)
 
 pub enum Op:
 	Add
@@ -69,6 +80,12 @@ pub enum SseOp:
 	Div
 	Max
 
+pub enum DivMulOp:
+	Mul
+	IMul
+	Div
+	IDiv
+
 pub enum Rm:
 	Mem(reg: int)
 	MemDisp8(reg: int, disp: int)
@@ -84,6 +101,10 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			reg_rm_to_str(op_to_str(op), reg, rm)
 		MulRegRm(reg, rm):
 			reg_rm_to_str("mul", reg, rm)
+		Cqo:
+			"cqo"
+		DivMul(op, rm):
+			"{div_mul_op_to_str(op)} {rm_to_str(rm)}"
 		Call(target):
 			"call {target}"
 		Jmp(target):
@@ -108,8 +129,27 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			"ret"
 		Int3:
 			"int 3"
+		CvtSi2Sd(reg, rm):
+			"cvtsi2sd .."
+		Ucomisd(reg, rm):
+			"comisd ..."
 		SseOpRegRm(op, reg, rm):
 			"{sse_op_to_str(op)}sd {reg_to_str(reg)}, {rm_to_str(rm)}"
+		SseMovRegRm(reg, rm):
+			"movsd {reg_to_str(reg)}, {rm_to_str(rm)}"
+		SseMovRmReg(rm, reg):
+			"movsd {rm_to_str(rm)}, {reg_to_str(reg)}"
+
+pub fn div_mul_op_to_str(op: DivMulOp) -> str:
+	case op:
+		Mul:
+			"mul"
+		IMul:
+			"imul"
+		Div:
+			"div"
+		IDiv:
+			"idiv"
 
 fn sse_op_to_str(op: SseOp) -> str:
 	case op:
@@ -366,6 +406,22 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			out.write_byte(0x0F)
 			out.write_byte(0xAF)
 			write_rm_reg(rm, reg, out)
+		Cqo:
+			out.write_byte(0x48)
+			out.write_byte(0x99)
+		DivMul(op, rm):
+			let reg = case op:
+				Mul:
+					4
+				IMul:
+					5
+				Div:
+					6
+				IDiv:
+					7
+			write_rex_byte(out, reg)
+			out.write_byte(0xf7)
+			write_rm_reg(rm, reg, out)
 		Call(target):
 			out.write_byte(0xE8)
 			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
@@ -402,10 +458,33 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			out.write_byte(0xC3)
 		Int3:
 			out.write_byte(0xCC)
+		CvtSi2Sd(reg, rm):
+			out.write_byte(0xF2)
+			write_rex_byte(out, reg)
+			out.write_byte(0x0F)
+			out.write_byte(0x2A)
+			write_rm_reg(rm, reg, out)
+		Ucomisd(reg, rm):
+			out.write_byte(0x66)
+			# Only required when reg > 7:
+			# write_rex_byte(out, reg)
+			out.write_byte(0x0F)
+			out.write_byte(0x2E)
+			write_rm_reg(rm, reg, out)
 		SseOpRegRm(op, reg, rm):
 			out.write_byte(0xF2)
 			out.write_byte(0x0F)
 			out.write_byte(get_sse_opcode(op))
+			write_rm_reg(rm, reg, out)
+		SseMovRegRm(reg, rm):
+			out.write_byte(0xF2)
+			out.write_byte(0x0F)
+			out.write_byte(0x10)
+			write_rm_reg(rm, reg, out)
+		SseMovRmReg(rm, reg):
+			out.write_byte(0xF2)
+			out.write_byte(0x0F)
+			out.write_byte(0x11)
 			write_rm_reg(rm, reg, out)
 
 fn get_sse_opcode(op: SseOp) -> int:

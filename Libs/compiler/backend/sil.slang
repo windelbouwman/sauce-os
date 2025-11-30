@@ -100,6 +100,8 @@ pub class Instruction:
 				"{value_to_string(dst)} = load {address_to_string(address)}"
 			Store(address, value):
 				"store {address_to_string(address)}, {value_to_string(value)}"
+			Convert(dst, src):
+				"{value_to_string(dst)} = convert {value_to_string(src)}"
 			Jump(label):
 				"jmp @{label}"
 			JumpIf(lhs, condition, rhs, label1, label2):
@@ -134,6 +136,7 @@ pub enum OpCode:
 	GetAddress(dst: Value, address: Address)
 	Load(dst: Value, address: Address)
 	Store(address: Address, value: Value)
+	Convert(dst: Value, src: Value)
 	Jump(label: str)
 	JumpIf(lhs: Value, condition: CompOp, rhs: Value, label1: str, label2: str)
 	Call(dst: Option[Value], callee: Address, arguments: List[Value])
@@ -180,8 +183,23 @@ fn comparison_to_string(op?: CompOp) -> str:
 		Lte:
 			"lte"
 
-pub enum Value:
-	Tmp(name: str)
+pub struct Value:
+	name: str
+	ty: Type
+
+pub enum Type:
+	I64
+	PTR
+	F64
+
+pub fn type_to_string(ty?: Type) -> str:
+	case ty:
+		I64:
+			"i64"
+		PTR:
+			"ptr"
+		F64:
+			"f64"
 
 pub enum Address:
 	Global(name: str)
@@ -189,9 +207,7 @@ pub enum Address:
 	Ptr(base: Value, offset: int)
 
 pub fn value_to_string(value?: Value) -> str:
-	case value:
-		Tmp(name):
-			"%{name}"
+	"{type_to_string(value.ty)} %{value.name}"
 
 pub fn address_to_string(address?: Address) -> str:
 	case address:

@@ -357,7 +357,7 @@ class Printer:
 	fn emit(text?: str):
 		m_out.emit(text)
 
-fn type_to_string(ty?: Type) -> str:
+pub fn type_to_string(ty?: Type) -> str:
 	case ty:
 		Int(signed, bits):
 			if signed:

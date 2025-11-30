@@ -362,6 +362,8 @@ class TypeChecker:
 				if ty.is_int() and rhs_ty.is_float():
 					ty = rhs_ty
 
+				if not (ty.is_int() or ty.is_str() or ty.is_bool() or ty.is_float() or ty.is_char() or ty.is_opaque()):
+					add_error(location: expression.location, message: "Can only use binary operator with basic types")
 				coerce(ty, value: binop.lhs)
 				coerce(ty, value: binop.rhs)
 				if ast.is_comparison_op(op: binop.op):

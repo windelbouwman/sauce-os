@@ -11,12 +11,14 @@ from utils import unimplemented, panic
 from listtype import List
 import mil
 
-pub fn reg_alloc[V](mfunc: mil.Function[V], all_regs: List[int]):
+pub fn reg_alloc[V](mfunc: mil.Function[V], all_regs: List[int], all_regs2: List[int]):
 	""" Implement iterated register allocation """
 	log_info("Reg-alloc {mfunc.name}")
 	let cfg: ControlFlowGraph[V] = create_cfg(mfunc)
 	let ig = create_interference_graph(cfg)
-	let r = RegAlloc(m_ig: ig, m_regs: all_regs)
+	let r = RegAlloc(m_ig: ig)
+	r.add_register_class(kind: 0, regs: all_regs)
+	r.add_register_class(kind: 1, regs: all_regs2)
 	r.alloc()
 
 class RegAlloc:
@@ -26,16 +28,17 @@ class RegAlloc:
 	and assign them a color
 	"""
 	var m_ig: InterferenceGraph
-	var m_regs: List[int]
-	var m_k: int = 0
+	var m_regs_by_class: HashMap[int, List[int]] = new_hashmap_int()
 	var m_select_stack: List[IGNode] = List()
 	var m_simplify_worklist: List[IGNode] = List()
 	var m_spill_worklist: HashMap[int,IGNode] = new_hashmap_int()
 	var m_freeze_worklist: HashMap[int,IGNode] = new_hashmap_int()
 	var m_pre_colored: HashMap[int,IGNode] = new_hashmap_int()
 
+	pub fn add_register_class(kind: int, regs: List[int]):
+		m_regs_by_class.insert(key: kind, value: regs)
+
 	pub fn alloc():
-		m_k = m_regs.len()
 		loop:
 			fill_data()
 			loop:
@@ -80,30 +83,49 @@ class RegAlloc:
 
 	fn assign_colors():
 		""" Assign colors """
-		let all_regs = new_int_set()
-		for r in m_regs:
-			all_regs.add(r)
+		let all_regs_by_kind: HashMap[int,Set[int]] = new_hashmap_int()
+		for kind in m_regs_by_class:
+			let all_regs = new_int_set()
+			for r in m_regs_by_class.get(key: kind):
+				all_regs.add(r)
+			all_regs_by_kind.insert(key: kind, value: all_regs)
 
 		for n in m_select_stack.reversed():
 			m_ig.unmask(n)
 			let taken_regs = new_int_set()
 			for m in m_ig.adjecent(n):
-				taken_regs.add(m.color)
-			let ok_regs = all_regs.difference(other: taken_regs)
+				# TODO: implement register aliasing
+				if n.kind == m.kind:
+					taken_regs.add(m.color)
+			let ok_regs = all_regs_by_kind.get(key: n.kind).difference(taken_regs)
 			if ok_regs.is_empty():
 				unimplemented("Spilling")
 			else:
 				let reg = ok_regs.first()
-				log_debug("Color: R{n.id} {reg}")
+				log_debug("Color: id={n.id} kind={n.kind} {reg}")
 				n.set_color(reg)
 
 	fn is_colorable(m?: IGNode) -> bool:
 		if m.is_colored():
 			true
-		elif m.degree < m_k:
-			true
 		else:
-			false
+			let num_blocked = calculate_num_blocked(m)
+			let k = m_regs_by_class.get(key: m.kind).len()
+			num_blocked < k
+
+	fn calculate_num_blocked(m?: IGNode) -> int:
+		var x = 0
+		for j in m_ig.adjecent(m):
+			x += q(B: m.kind, C: j.kind)
+		x
+
+	fn q(B: int, C: int) -> int:
+		""" Number of registers from class B that can be block by a register in class C. """
+		# TODO: here we can support register aliasing
+		if B == C:
+			1 # register in same class, so we block 1 other register.
+		else:
+			0
 
 	fn is_move_related(m?: IGNode) -> bool:
 		false
@@ -182,14 +204,14 @@ fn create_interference_graph[V](cfg: ControlFlowGraph[V]) -> InterferenceGraph:
 			let mi = block.instructions.get(index)
 
 			let ins_kill: Set[int] = new_int_set()
-			for r in mi.defs:
-				ins_kill.add(r.id)
-				get_ig_node(ig, reg: r)
+			for reg in mi.defs:
+				ins_kill.add(reg.id)
+				get_ig_node(ig, reg)
 
 			let ins_gen: Set[int] = new_int_set()
-			for r in mi.uses:
-				ins_gen.add(r.id)
-				get_ig_node(ig, reg: r)
+			for reg in mi.uses:
+				ins_gen.add(reg.id)
+				get_ig_node(ig, reg)
 
 			for a in live_registers:
 				let n1 = ig.add_node(a)
@@ -212,6 +234,7 @@ fn create_interference_graph[V](cfg: ControlFlowGraph[V]) -> InterferenceGraph:
 fn get_ig_node(ig: InterferenceGraph, reg: mil.Register):
 	if not ig.has_node(reg.id):
 		let n = ig.add_node(reg.id)
+		n.kind = reg.kind
 		n.add_reg(reg)
 		if reg.color >= 0:
 			n.set_color(reg.color)
@@ -292,6 +315,7 @@ class IGNode:
 	""" Node in the interference graph. """
 	pub var id: int
 	pub var color: int = -1
+	pub var kind: int = -1
 	pub var degree: int = 0
 	pub var masked: bool = false
 

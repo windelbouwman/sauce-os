@@ -201,6 +201,13 @@ class VirtualMachine:
             self._frames[-1]._except_handlers.append(args[0])
         elif opcode == OpCode.POP_EXCEPT:
             self._frames[-1]._except_handlers.pop()
+        elif opcode == OpCode.DIV:
+            rhs = self.pop_value()
+            lhs = self.pop_value()
+            res = lhs / rhs
+            if isinstance(lhs, int) and isinstance(rhs, int):
+                res = int(res)
+            self.push_value(res)
         elif opcode in binary_op_funcs:
             rhs = self.pop_value()
             lhs = self.pop_value()
@@ -310,7 +317,6 @@ class VirtualMachine:
 
 
 binary_op_funcs = {
-    OpCode.DIV: lambda a, b: a / b,
     OpCode.MUL: lambda a, b: a * b,
     OpCode.ADD: lambda a, b: a + b,
     OpCode.SUB: lambda a, b: a - b,

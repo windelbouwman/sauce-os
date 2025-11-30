@@ -204,10 +204,10 @@ class PyCodeGenerator:
             lhs = self.gen_expression(kind.lhs)
             rhs = self.gen_expression(kind.rhs)
             if expression.ty.is_int() and kind.op == "/":
-                op = "//"
+                res = f"int({lhs} / {rhs})"
             else:
                 op = kind.op
-            res = f"{lhs} {op} {rhs}"
+                res = f"{lhs} {op} {rhs}"
             return f"({res})" if parens else res
         elif isinstance(kind, ast.Unop):
             rhs = self.gen_expression(kind.rhs)

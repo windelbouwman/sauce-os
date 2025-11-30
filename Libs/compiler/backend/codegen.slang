@@ -33,7 +33,8 @@ pub fn cgen[V](program: sil.Program, backend: Backend[V], filename: Option[str],
 
 pub struct Backend[V]:
 	""" Backend based on first instruction selection, then register allocation. """
-	all_regs: List[int]
+	all_regs: List[int]  # int regs
+	all_regs2: List[int]  # Float regs
 	enter: fn(SelectionContext[V], sil.Function)
 	selector: fn(SelectionContext[V], sil.Instruction)
 	to_str: fn(V) -> str
@@ -54,23 +55,28 @@ pub class SelectionContext[V]:
 	pub var frame: Frame
 
 	pub fn get_value_vreg(value?: sil.Value) -> mil.Register:
-		case value:
-			Tmp(name):
-				get_vreg_for_tmp(name)
+		get_vreg_for_tmp(name: value.name, ty: value.ty)
 
-	pub fn get_vreg_for_tmp(name: str) -> mil.Register:
+	pub fn get_vreg_for_tmp(name: str, ty: sil.Type) -> mil.Register:
 		if m_tmp_regs.contains(key: name):
 			m_tmp_regs.get(key: name)
 		else:
-			let r = new_vreg(kind: 0)
+			let kind: int = case ty:
+				I64:
+					0
+				F64:
+					1
+				PTR:
+					0
+			let r = new_vreg(kind)
 			m_tmp_regs.insert(key: name, value: r)
 			r
 
-	pub fn get_pre_colored(color: int) -> mil.Register:
+	pub fn get_pre_colored(color: int, kind: int) -> mil.Register:
 		if m_pre_colored_regs.contains(key: color):
 			m_pre_colored_regs.get(key: color)
 		else:
-			let r = new_vreg(kind: 0)
+			let r = new_vreg(kind)
 			r.color = color
 			m_pre_colored_regs.insert(key: color, value: r)
 			r
@@ -117,7 +123,7 @@ class Codegen[V]:
 		let context = SelectionContext(frame)
 		let mfunc = select_function(function, context)
 		dump_mfunc(mfunc)
-		reg_alloc(mfunc, all_regs: backend.all_regs)
+		reg_alloc(mfunc, all_regs: backend.all_regs, all_regs2: backend.all_regs2)
 		log_debug("Materializing instructions")
 		out.export_symbol(mfunc.name)
 		backend.emit_prologue(frame, out)
@@ -149,19 +155,19 @@ class Codegen[V]:
 			report.writeln("  Block '{mblock.name}'")
 			for minst in mblock.instructions:
 				let txt = backend.to_str(minst.instruction)
-				let defs = reg_to_str(label: "defs", regs: minst.defs)
-				let uses = reg_to_str(label: "uses", regs: minst.uses)
-				let clobbers = reg_to_str(label: "clobbers", regs: minst.clobbers)
+				let defs = regs_to_str(label: "defs", regs: minst.defs)
+				let uses = regs_to_str(label: "uses", regs: minst.uses)
+				let clobbers = regs_to_str(label: "clobbers", regs: minst.clobbers)
 				let is_move = "move" if minst.is_move else ""
 				report.writeln("    > {txt}                     {defs} {uses} {clobbers} {is_move}")
 		report.writeln("")
 
-fn reg_to_str(label: str, regs: Vector[mil.Register]) -> str:
+fn regs_to_str(label: str, regs: Vector[mil.Register]) -> str:
 	if regs.is_empty():
 		""
 	else:
 		let parts: List[str] = List()
-		for r in regs:
-			parts.append("{r.id}")
+		for reg in regs:
+			parts.append(mil.vr_to_str(reg))
 		let txt = str_join(parts, sep: ", ")
 		"{label}=[{txt}]"

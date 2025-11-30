@@ -1,7 +1,7 @@
 
 # Data types for bytes
 
-from std import ord, chr
+from std import ord, chr, pack_f64
 from utils import assert, panic
 from vectype import Vector, new_vector
 from strlib import hex_char, hex_digit_to_int, is_hex_digit, is_space
@@ -131,6 +131,14 @@ pub class ByteArray:
 	pub fn extend(bytes?: Bytes):
 		for b in bytes:
 			append(b)
+
+	pub fn pack_f64_le(value: float):
+		let buffer: [uint8] = [8 : uint8]
+		pack_f64(value, buffer)
+		var index = 0
+		while index < 8:
+			append(int(buffer[index]))
+			index += 1
 
 	pub fn pack_u64_le(value?: int):
 		append(value & 0xFF)

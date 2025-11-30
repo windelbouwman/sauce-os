@@ -126,3 +126,7 @@ def std_file_close(handle: int):
 
 def std_get_time() -> int:
     return time.time_ns()
+
+
+def std_pack_f64(value: float, buffer):
+    raise NotImplementedError("std_pack_f64")

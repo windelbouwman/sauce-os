@@ -430,6 +430,11 @@ SLANG_API slang_int_t std_get_time(void)
     return now * (1000000000 / CLOCKS_PER_SEC);
 }
 
+SLANG_API void std_pack_f64(slang_float64_t value, slang_uint8_t* buf)
+{
+    memcpy(buf, &value, sizeof(slang_float64_t));
+}
+
 // Create a string on the heap..
 SLANG_API char* rt_str_new(const char* a)
 {

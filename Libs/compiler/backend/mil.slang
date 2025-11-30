@@ -35,3 +35,11 @@ pub struct Register:
 	id: int
 	kind: int
 	color: int
+
+pub fn vr_to_str(reg?: Register) -> str:
+	if reg.kind == 0:
+		"R{reg.id}"
+	elif reg.kind == 1:
+		"F{reg.id}"
+	else:
+		"R?R{reg.id}"

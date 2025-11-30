@@ -303,8 +303,15 @@ class PyGenerator:
 				"({txt})" if parens else txt
 			Binop(binop):
 				let float_division = binop.lhs.ty.is_float()
-				let op = binary_operator_to_str(op: binop.op, float_division)
-				let txt = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
+				let txt = case binop.op:
+					Div:
+						if float_division:
+							"{gen_expression(binop.lhs, parens: true)} / {gen_expression(binop.rhs, parens: true)}"
+						else:
+							"int({gen_expression(binop.lhs, parens: true)} / {gen_expression(binop.rhs, parens: true)})"
+				else:
+					let op = binary_operator_to_str(op: binop.op, float_division)
+					"{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
 				"({txt})" if parens else txt
 			If(if_expression):
 				let true_value = gen_expression(if_expression.true_value, parens: false)

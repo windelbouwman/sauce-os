@@ -35,8 +35,10 @@ pub fn gen_riscv(program: sil.Program, filename: Option[str], report: Report):
 	log_info("Generating riscv code")
 	program.dump(report)
 	let all_regs: List[int] = list4(18, 19, 20, 21)
+	let all_regs2: List[int] = list4(18, 19, 20, 21)
 	let backend: Backend[VirtInst] = Backend:
 		all_regs
+		all_regs2
 		enter: enter_function
 		selector: select_instruction
 		to_str: vinst_to_str
@@ -84,15 +86,15 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 					unimplemented("Multiply")
 		GetAddress(dst, address):
 			unimplemented("GetAddress")
+		Convert(dst, value):
+			unimplemented("Convert")
 		Call(dst, callee, arguments):
 			# panic("TODO: Call")
 			# TODO: address?
 
 			# Setup arguments
 			for argument in arguments:
-				case argument:
-					Tmp(name):
-						context.emit(VirtInst.Mov())
+				context.emit(VirtInst.Mov())
 
 			# Invoke function
 			case callee:
