@@ -34,16 +34,16 @@ PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, 
 PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
 C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/snippets/%.exe, $(SLANG_EXAMPLES))
 C_EXAMPLES_2 := $(patsubst examples/snippets/%.slang, build/c/snippets2/%.exe, $(SLANG_EXAMPLES))
-X86_EXAMPLES := $(patsubst examples/snippets/%.slang, build/x86/%.o, $(SLANG_EXAMPLES))
+X86_EXAMPLES := $(patsubst examples/snippets/%.slang, build/x86/%.exe, $(SLANG_EXAMPLES))
 C_APPS := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
 ALL_TEST_RUNS := $(patsubst tests/test_%.slang, run-test-c-%, $(TESTS))
 ALL_TEST_RUNS_PY := $(patsubst tests/test_%.slang, run-test-py-%, $(TESTS))
 
-.PHONY: all check check-py all-examples all-examples-bc all-examples-c all-examples-python test pytest-exes
+.PHONY: all check check-py all-examples test pytest-exes
 all: ${C_APPS} ${PY_APPS} all-examples
-all-examples: all-examples-bc all-examples-c all-examples-python all-examples-slang
+all-examples: all-examples-bc all-examples-c all-examples-python all-examples-slang all-examples-x86
 test: pytest-compiler pytest-compiler1 check check-py
 
 check: ${ALL_TEST_RUNS}
@@ -72,10 +72,11 @@ leakcheck: ${COMPILER5} | ${BUILDDIR}
 pytest-compiler1:
 	pytest -v test_compiler1.py
 
-pytest-compiler: all-examples-c all-examples-python
+pytest-compiler: all-examples-c all-examples-python all-examples-x86
 	pytest -vv test_compiler.py
 
 # Example to bytecode compilation
+.PHONY: all-examples-bc
 all-examples-bc: $(BC_EXAMPLES)
 
 ${BUILDDIR}/bc/%.txt: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/bc
@@ -85,6 +86,7 @@ ${BUILDDIR}/bc:
 	mkdir -p ${BUILDDIR}/bc
 
 # Example compiled to slang-code!
+.PHONY: all-examples-slang
 all-examples-slang: $(SLANG2_EXAMPLES) # TODO: $(SLANG3_EXAMPLES)
 
 ${BUILDDIR}/slang/%.slang: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/slang
@@ -101,12 +103,14 @@ ${BUILDDIR}/slang3:
 	mkdir -p ${BUILDDIR}/slang3
 
 # Example compiled to Python code:
+.PHONY: all-examples-python
 all-examples-python: $(PY_EXAMPLES)
 
 ${BUILDDIR}/python/snippet-%.py: examples/snippets/%.slang runtime/std.slang ${BUILDDIR}/python/slangrt.py ${SLANGC_DEPS} | ${BUILDDIR}/python
 	${SLANGC} --backend-py -o $@ $< runtime/std.slang
 
 # examples compiled to C code:
+.PHONY: all-examples-c
 all-examples-c: $(C_EXAMPLES) $(C_EXAMPLES_2)
 
 .PRECIOUS: ${BUILDDIR}/c/snippets/%.exe ${BUILDDIR}/c/snippets/%.c
@@ -224,9 +228,13 @@ ${BUILDDIR}/x86/%.exe: ${BUILDDIR}/x86/%.o build/slangrt.o build/slangrt_mm.o | 
 ${BUILDDIR}/x86:
 	mkdir -p ${BUILDDIR}/x86
 
-native: build/x86/hello_world.exe $(X86_EXAMPLES)
+.PHONY: all-examples-x86
+all-examples-x86: $(X86_EXAMPLES)
+
+native: all-examples-x86 native_example
 
 # Wasm examples:
+.PHONY: all-examples-wasm
 all-examples-wasm: $(WASM_EXAMPLES)
 
 %.wasm: %.wat

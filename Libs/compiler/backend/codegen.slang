@@ -42,6 +42,7 @@ pub struct Backend[V]:
 	emit_prologue: fn(Frame, BinaryOutput)
 	emit_epilogue: fn(Frame, BinaryOutput)
 	fixer: fn(ByteArray, int, int, int, int)
+	emit_pointer: fn(str, BinaryOutput)
 
 pub struct Frame:
 	stacksize: int
@@ -111,12 +112,22 @@ class Codegen[V]:
 		for ext in program.externs:
 			out.import_symbol(name: ext.name)
 		out.select_section(name: ".text")
+		out.set_executable()
 		for function in program.functions:
 			gen_function(function, out)
-		out.select_section(name: ".rodata")
+		out.select_section(name: ".data")
+		out.set_writable()
 		for blob in program.blobs:
+			let section_name = ".rodata" if blob.readonly else ".data"
+			out.select_section(name: section_name)
 			out.export_symbol(name: blob.name)
-			out.write_bytes(data: blob.data)
+			for content in blob.contents:
+				case content:
+					Raw(data):
+						out.write_bytes(data)
+					Ptr(name):
+						backend.emit_pointer(name, out)
+		out.do_fixups(fixer: backend.fixer)
 
 	fn gen_function(function: sil.Function, out: BinaryOutput):
 		let frame = Frame(stacksize: function.stacksize, exit_label: "{function.name}_@exit")

@@ -77,7 +77,11 @@ fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str, i
 	let sh_text = writer.new_section(name: section.name)
 	writer.write_section_data(sh: sh_text, data: section.data.to_bytes())
 	sh_text.sh_type = SHT_PROGBITS
-	sh_text.sh_flags = SHF_ALLOC | SHF_EXECINSTR
+	sh_text.sh_flags = SHF_ALLOC
+	if section.executable:
+		sh_text.sh_flags = sh_text.sh_flags | SHF_EXECINSTR
+	if section.writable:
+		sh_text.sh_flags = sh_text.sh_flags | SHF_WRITE
 	sh_text.sh_addralign = section.alignment
 
 	# Add relocation info for this section

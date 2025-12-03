@@ -8,13 +8,14 @@ Features of this pass:
 """
 
 from std import ord, print
-from listtype import List
+from listtype import List, list1
 from vectype import Vector, new_vector
 from optiontype import Option
 from bytes import Bytes, bytes_from_ascii, fill_bytes, ByteArray
 from utils import panic, unimplemented
-from logging import log_info
+from logging import log_info, log_warning
 import bc
+import vm
 import sil
 
 pub struct SilGenOptions:
@@ -54,6 +55,7 @@ struct ReturnSlot:
 class SilGen:
 	var m_bc_program: bc.Program
 	var m_externs: List[sil.Extern] = List()
+	var m_globals: Vector[TypedAddress] = new_vector()
 	var m_structs: Vector[StructLayout] = new_vector()
 	var m_functions: List[sil.Function] = List()
 	var m_blobs: List[sil.DataBlob] = List()
@@ -63,6 +65,7 @@ class SilGen:
 	var m_parameters: List[TypedAddress] = List()
 	var m_locals: List[TypedAddress] = List()
 	var m_return_slots: List[ReturnSlot] = List()
+	var m_vm: vm.VirtualMachine = vm.VirtualMachine()
 	var m_tmp_number: int = 0
 	var m_value_stack: List[TypedValue] = List()
 	var m_stack_offset: int = 0
@@ -73,15 +76,83 @@ class SilGen:
 		m_externs.append(sil.Extern(name: "slangrt_box_int64"))
 		m_externs.append(sil.Extern(name: "slangrt_unbox_int64"))
 
+		vm.prepare_vm(vm: m_vm, program: m_bc_program)
+
 		for extern_function in m_bc_program.extern_functions:
 			m_externs.append(sil.Extern(name: extern_function.name))
 
 		for struct_def in m_bc_program.structs:
 			calc_struct_layout(struct_def)
 
+		for global in m_bc_program.globals:
+			gen_global(global)
+
 		for function in m_bc_program.functions:
 			gen_function(function)
 		sil.Program(externs: m_externs, functions: m_functions, blobs: m_blobs)
+
+	fn gen_global(global: bc.Global):
+		case global.value:
+			Some(code):
+				let value = vm.eval_code(vm: m_vm, code)
+				let ty = get_sil_type(ty: global.ty)
+				let contents = gen_vm_value(ty: global.ty, value)
+				let name = global.name
+				m_blobs.append(sil.DataBlob(name, readonly: false, contents))
+				let address = sil.Address.Global(name)
+				let typed_address = TypedAddress(address, ty: global.ty)
+				m_globals.append(typed_address)
+			None:
+				panic("TODO: extern global")
+
+	fn gen_vm_value(ty: bc.Type, value: vm.Value) -> List[sil.BlobContent]:
+		case value:
+			Int(value):
+				case ty:
+					Int(signed, bits):
+						let data = pack_i64(value)
+						list1(sil.BlobContent.Raw(data))
+					Function(parameter_types, return_type):
+						let name = get_function_name(index: value)
+						list1(sil.BlobContent.Ptr(name))
+				else:
+					panic("Value must be function or int")
+			Bool(b):
+				let value = 1 if b else 0
+				let data = pack_i64(value)
+				list1(sil.BlobContent.Raw(data))
+			Float(value):
+				let data = pack_f64(value)
+				list1(sil.BlobContent.Raw(data))
+			Str(text):
+				let data = pack_str(text)
+				let name = "_lit_{new_id()}"
+				let literal_contents = list1(sil.BlobContent.Raw(data))
+				m_blobs.append(sil.DataBlob(name, readonly: true, contents: literal_contents))
+				list1(sil.BlobContent.Ptr(name))
+			Char(c):
+				let data = pack_i64(value: ord(value: c))
+				list1(sil.BlobContent.Raw(data))
+			List(v):
+				let index = case ty:
+					StructRef(index):
+						index
+				else:
+					panic("Expect struct type")
+				let struct_def = m_bc_program.structs.get(index)
+				let contents: List[sil.BlobContent] = List()
+				var i = 0
+				for field_value in v.values:
+					let field_contents = gen_vm_value(ty: struct_def.fields[i].ty, value: field_value)
+					contents.extend2(field_contents)
+					i += 1
+				let name = "_lit_struct_{new_id()}"
+				m_blobs.append(sil.DataBlob(name, readonly: false, contents))
+				list1(sil.BlobContent.Ptr(name))
+			Null:
+				panic("TODO: null")
+			Undefined:
+				panic("TODO: undefined")
 
 	fn calc_struct_layout(struct_def: bc.Struct):
 		var offset = 0
@@ -207,8 +278,8 @@ class SilGen:
 						let ty = bc.Type.Float(bits: 64)
 						let address = TypedAddress(address: blob_address, ty)
 						gen_load(address)
-					Str(value):
-						let data = bytes_from_ascii(text: value).concat(other: fill_bytes(n: 1, fill: 0))
+					Str(text):
+						let data = pack_str(text)
 						let literal_address = add_data_blob(data)
 						let dst_value = new_tmp(ty: sil.Type.PTR())
 						emit(sil.OpCode.GetAddress(dst_value, literal_address))
@@ -282,10 +353,12 @@ class SilGen:
 				push(dst, ty: lhs.ty)
 				emit(sil.OpCode.Binop(dst, op2, lhs: lhs.value, rhs: rhs.value))
 			GlobalGet(index):
-				# gen_load(addr)
-				unimplemented("Global get")
+				let address = m_globals.get(index)
+				gen_load(address)
 			GlobalSet(index):
-				unimplemented("Global set")
+				let address = m_globals.get(index)
+				let value = pop()
+				gen_store(address, value)
 			LocalGet(index):
 				let address = m_locals[index]
 				gen_load(address)
@@ -350,6 +423,10 @@ class SilGen:
 					let function = m_bc_program.functions[index]
 					let callee = new_global(function.name)
 					gen_call(callee, n_args: function.parameters.len(), return_types: function.return_types)
+			CallIndirect(parameter_types, return_types):
+				let target = pop()
+				let callee = sil.Address.Ptr(addr: target.value)
+				gen_call(callee, n_args: parameter_types.len(), return_types)
 			Return(v):
 				if v == 0:
 					emit(sil.OpCode.Return(value: Option.None()))
@@ -361,7 +438,7 @@ class SilGen:
 							let return_slot = m_return_slots.get(index)  # Pointer to pointer to return value
 							let ret_ptr = new_tmp(ty: sil.Type.PTR())
 							emit(sil.OpCode.Load(dst: ret_ptr, address: return_slot.address.address))
-							let address = TypedAddress(address: sil.Address.Ptr(addr: ret_ptr, offset: 0), ty: return_slot.ty)
+							let address = TypedAddress(address: sil.Address.Ptr(addr: ret_ptr), ty: return_slot.ty)
 							gen_store(address, value)
 							index += 1
 					let value = pop()
@@ -373,8 +450,37 @@ class SilGen:
 				let value = pop()
 				emit(sil.OpCode.Convert(dst, value: value.value))
 				push(dst, ty: bc.Type.Float(bits: 64))
+			FloatToInt:
+				let dst = new_tmp(ty: sil.Type.I64())
+				let value = pop()
+				emit(sil.OpCode.Convert(dst, value: value.value))
+				push(dst, ty: bc.Type.Int(signed: true, bits: 64))
+			IntCast(signed, bits):
+				log_warning("Int cast implemented as no-op for now.")
+				# unimplemented("INTCAST")
+			Not:
+				unimplemented("NOT")
+			Neg:
+				unimplemented("NEG")
+			Bitop(op):
+				unimplemented("bitop")
+			DecRef(index):
+				log_warning("Dec ref implemented as no-op")
+			LoadFunc(index):
+				let name = get_function_name(index)
+				let address = new_global(name)
+				let dst_value = new_tmp(ty: sil.Type.PTR())
+				emit(sil.OpCode.GetAddress(dst_value, address))
+				push(dst_value, ty: bc.Type.Ptr())
+
+	fn get_function_name(index: int) -> str:
+		if index < m_bc_program.extern_functions.len():
+			let function = m_bc_program.extern_functions.get(index)
+			function.name
 		else:
-			unimplemented(bc.instruction_to_string(opcode))
+			index = index - m_bc_program.extern_functions.len()
+			let function = m_bc_program.functions.get(index)
+			function.name
 
 	fn gen_load(address: TypedAddress):
 		""" Load value from address """
@@ -398,7 +504,7 @@ class SilGen:
 		let size_of = load_int(value: element_size)
 		emit(sil.OpCode.Binop(dst: offset, op: sil.BinaryOp.Mul(), lhs: index.value, rhs: size_of))
 		emit(sil.OpCode.Binop(dst: addr, op: sil.BinaryOp.Add(), lhs: base.value, rhs: offset))
-		TypedAddress(address: sil.Address.Ptr(addr, offset: 0), ty: element_ty)
+		TypedAddress(address: sil.Address.Ptr(addr), ty: element_ty)
 
 	fn gen_struct_address(base: TypedValue, index: int) -> TypedAddress:
 		let struct_index = case base.ty:
@@ -411,7 +517,7 @@ class SilGen:
 		let offset = load_int(value: field.offset)
 		let addr = new_tmp(ty: sil.Type.PTR())
 		emit(sil.OpCode.Binop(dst: addr, op: sil.BinaryOp.Add(), lhs: base.value, rhs: offset))
-		TypedAddress(address: sil.Address.Ptr(addr, offset: 0), ty: field.ty)
+		TypedAddress(address: sil.Address.Ptr(addr), ty: field.ty)
 
 	fn gen_call(callee: sil.Address, n_args: int, return_types: Vector[bc.Type]):
 		let arguments = pop_n(count: n_args)
@@ -486,7 +592,8 @@ class SilGen:
 	fn add_data_blob(data?: Bytes) -> sil.Address:
 		# TODO: we have a chance to deduplicate blobs here!
 		let name = "lit_{new_id()}"
-		m_blobs.append(sil.DataBlob(name, data))
+		let contents = list1(sil.BlobContent.Raw(data))
+		m_blobs.append(sil.DataBlob(name, readonly: true, contents))
 		sil.Address.Global(name)
 
 	fn push_int(value?: int):
@@ -545,3 +652,12 @@ fn pack_f64(value: float) -> Bytes:
 	let ba = ByteArray()
 	ba.pack_f64_le(value)
 	ba.to_bytes()
+
+fn pack_i64(value: int) -> Bytes:
+	""" Place 64 bits integer into 8 bytes """
+	let ba = ByteArray()
+	ba.pack_u64_le(value)
+	ba.to_bytes()
+
+fn pack_str(text: str) -> Bytes:
+	bytes_from_ascii(text).concat(other: fill_bytes(n: 1, fill: 0))

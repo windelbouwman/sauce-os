@@ -87,6 +87,7 @@ pub fn gen_x86(program: sil.Program, filename: Option[str], report: Report):
 		emit_prologue: gen_prologue
 		emit_epilogue: gen_epilogue
 		fixer: x86.apply_reloc
+		emit_pointer: x86.emit_pointer_to_name
 	cgen(program, backend, filename, report)
 
 pub enum VirtInst:
@@ -98,6 +99,7 @@ pub enum VirtInst:
 	Mov(dst: mil.Register, src: mil.Register)
 	MovImm(dst: mil.Register, value: int)
 	Lea(reg: mil.Register, rm: VirtRm)
+	CallRm(rm: VirtRm)
 	CvtSi2Sd(reg: mil.Register, rm: VirtRm)
 	Ucomisd(reg: mil.Register, rm: VirtRm)
 	SseOpRegRm(op: x86.SseOp, reg: mil.Register, rm: VirtRm)
@@ -130,6 +132,8 @@ fn vinst_to_str(vi?: VirtInst) -> str:
 			"mov {mil.vr_to_str(dst)}, {value}"
 		Lea(dst, rm):
 			"lea {mil.vr_to_str(dst)}, {vrm_to_str(rm)}"
+		CallRm(rm):
+			"call {vrm_to_str(rm)}"
 		SseOpRegRm(op, reg, rm):
 			"sse xx {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		CvtSi2Sd(reg, rm):
@@ -281,6 +285,12 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			let call_ins = case callee:
 				Global(target):
 					context.emit_and_get(VirtInst.Actual(instruction: x86.Instruction.Call(target)))
+				Ptr(base):
+					let base_reg = context.get_value_vreg(base)
+					let rm = VirtRm.Reg(reg: base_reg)
+					let call_ins = context.emit_and_get(VirtInst.CallRm(rm))
+					call_ins.add_use(base_reg)
+					call_ins
 			else:
 				unimplemented("Call indirect")
 			for p_reg in p_regs:
@@ -436,9 +446,9 @@ fn load_addr(context: SelectionContext[VirtInst], address: sil.Address) -> VirtR
 			VirtRm.Global(name)
 		StackSlot(offset):
 			VirtRm.StackSlot(offset - context.frame.stacksize)
-		Ptr(base, offset):
+		Ptr(base):
 			let base_reg = context.get_value_vreg(base)
-			VirtRm.RegDisp(reg: base_reg, offset)
+			VirtRm.RegDisp(reg: base_reg, offset: 0)
 
 fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtInst], out: BinaryOutput):
 	""" Apply selected registers, and emit selected instruction to output stream. """
@@ -488,6 +498,9 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 					emit(x86.Instruction.SseMovRegRm(reg: dst_reg, rm), out)
 				else:
 					panic("Move not supported for register class {dst.kind}")
+		CallRm(rm):
+			let rm2 = mat_rm(rm)
+			emit(x86.Instruction.CallRm(rm: rm2), out)
 		SseOpRegRm(op, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)

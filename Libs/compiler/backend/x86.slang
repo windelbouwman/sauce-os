@@ -34,6 +34,7 @@ pub enum Instruction:
 	Cqo
 	DivMul(op: DivMulOp, rm: Rm)  # mul,imul,div,idiv
 	Call(target: str)
+	CallRm(rm: Rm)
 	Jmp(target: str)
 	Jcc(condition: Cond, target: str)
 	AddRmImm(rm: Rm, imm: int)
@@ -107,6 +108,8 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			"{div_mul_op_to_str(op)} {rm_to_str(rm)}"
 		Call(target):
 			"call {target}"
+		CallRm(rm):
+			"call {rm_to_str(rm)}"
 		Jmp(target):
 			"jmp {target}"
 		Jcc(condition, target):
@@ -426,6 +429,12 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			out.write_byte(0xE8)
 			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
 			write32(0, out)
+		CallRm(rm):
+			# FF /2
+			let reg = 2
+			write_rex_byte(out, reg)
+			out.write_byte(0xFF)
+			write_rm_reg(rm, reg, out)
 		Jmp(target):
 			# EB = short jump, E9 = near jump
 			out.write_byte(0xE9)
@@ -555,3 +564,15 @@ pub fn apply_reloc(data: ByteArray, offset: int, typ: int, addend: int, symbol: 
 			data.set(index: offset + 3, value: (value >> 24) & 0xFF)
 	else:
 		unimplemented("reloc type: {typ}")
+
+pub fn emit_pointer_to_name(name: str, out: BinaryOutput):
+	out.add_fixup(symbol: name, typ: R_X86_64_64, addend: 0)
+	out.write_byte(0x0)
+	out.write_byte(0x0)
+	out.write_byte(0x0)
+	out.write_byte(0x0)
+
+	out.write_byte(0x0)
+	out.write_byte(0x0)
+	out.write_byte(0x0)
+	out.write_byte(0x0)

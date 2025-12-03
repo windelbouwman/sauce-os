@@ -48,11 +48,23 @@ pub class Extern:
 pub class DataBlob:
 	""" Data block """
 	pub var name: str
-	pub var data: Bytes
+	pub var readonly: bool
+	pub var contents: List[BlobContent]
 
 	pub fn dump(report: Report):
 		report.writeln("blob {name}")
-		report.writeln("   ==> [{data.as_hex()}]")
+		if readonly:
+			report.writeln("   [read-only]")
+		for content in contents:
+			case content:
+				Raw(data):
+					report.writeln("   ==> [{data.as_hex()}]")
+				Ptr(name):
+					report.writeln("   ==> [{name}]")
+
+pub enum BlobContent:
+	Raw(data: Bytes)
+	Ptr(name: str)
 
 pub class Function:
 	"""A graph of control flow between blocks"""
@@ -204,7 +216,7 @@ pub fn type_to_string(ty?: Type) -> str:
 pub enum Address:
 	Global(name: str)
 	StackSlot(offset: int)
-	Ptr(base: Value, offset: int)
+	Ptr(base: Value)
 
 pub fn value_to_string(value?: Value) -> str:
 	"{type_to_string(value.ty)} %{value.name}"
@@ -215,5 +227,5 @@ pub fn address_to_string(address?: Address) -> str:
 			"${name}"
 		StackSlot(offset):
 			"[stack + {offset}]"
-		Ptr(base, offset):
-			"[{value_to_string(base)} + {offset}]"
+		Ptr(base):
+			"[{value_to_string(base)}]"

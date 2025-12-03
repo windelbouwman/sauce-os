@@ -1,6 +1,6 @@
 {
   "recommendations": [
-    "ms-python.black-formatter",
+    "charliermarsh.ruff",
     "ms-python.python",
     "editorconfig.editorconfig",
     "llvm-vs-code-extensions.vscode-clangd"

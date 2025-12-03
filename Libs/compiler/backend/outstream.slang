@@ -21,6 +21,8 @@ pub struct Section:
 	data: ByteArray
 	relocations: Vector[Relocation]
 	alignment: int
+	executable: bool
+	writable: bool
 
 pub struct Relocation:
 	symbol: str
@@ -42,6 +44,8 @@ fn make_section(name: str) -> Section:
 		data: ByteArray()
 		relocations: new_vector()
 		alignment: 1
+		executable: false
+		writable: false
 
 struct Fixup:
 	symbol: str
@@ -82,6 +86,14 @@ pub class BinaryOutput:
 		define(name, global: false)
 		tmp_labels.push(name)
 
+	pub fn set_writable():
+		let section = get_current_section()
+		section.writable = true
+
+	pub fn set_executable():
+		let section = get_current_section()
+		section.executable = true
+
 	fn define(name: str, global: bool):
 		""" Define a symbol at the current cursor """
 		let section = get_current_section()
@@ -113,7 +125,7 @@ pub class BinaryOutput:
 					Intern(section, offset, global):
 						if (not global) and (section.name == fixup.section.name):
 							# apply reloc locally!
-							log_debug("Apply reloc now")
+							log_debug("Apply reloc now {fixup.symbol}")
 							fixer(data: fixup.section.data, fixup.offset, fixup.typ, fixup.addend, offset)
 							continue
 						else:

@@ -46,6 +46,7 @@ pub fn gen_riscv(program: sil.Program, filename: Option[str], report: Report):
 		emit_prologue: gen_prologue
 		emit_epilogue: gen_epilogue
 		fixer: apply_reloc
+		emit_pointer: gen_pointer
 
 	unimplemented("TODO")
 	cgen(program, backend, filename, report)
@@ -184,4 +185,7 @@ fn gen_prologue(frame: Frame, out: BinaryOutput):
 	pass
 
 fn gen_epilogue(frame: Frame, out: BinaryOutput):
+	pass
+
+fn gen_pointer(name: str, out: BinaryOutput):
 	pass
