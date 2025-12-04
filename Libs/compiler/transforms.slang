@@ -16,7 +16,7 @@ from basepass import IdGen
 from typechecking import type_check_modules
 from listtype import List, list1, list2
 from optiontype import Option, option_unwrap, option_is_none, option_is_some
-from vectype import vec1, vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
+from vectype import vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
 from hashmap import HashMap, new_hashmap_str
 from errors import CompilationError
 import ast

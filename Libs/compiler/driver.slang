@@ -12,7 +12,7 @@ from pass3 import resolve_newops
 from typechecking import type_check
 from typedb import store_symbol_table, load_symbol_table
 from utils import panic, assert
-from logging import log_info, log_trace
+from logging import log_info, log_trace, log_debug
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
 from basepass import IdGen
@@ -204,10 +204,10 @@ fn topo_sort(modules: List[ast.ModuleDef]):
 	modules.clear()
 	case topological_sort(g):
 		Some(names):
-			log_info("topo sorted modules:")
+			log_debug("topo sorted modules:")
 			names = names.reversed()
 			for name in names:
-				log_info("-: {name}")
+				log_debug("-: {name}")
 				if mapping.contains(key: name):
 					modules.append(option_unwrap(mapping.pop(key: name)))
 			assert(condition: mapping.is_empty(), message: "Mapping must be empty")

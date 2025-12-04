@@ -261,6 +261,14 @@ class SlangGenerator:
 				let op = ast.binary_op_to_str(op: binop.op)
 				let txt = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
 				"({txt})" if parens else txt
+			Unop(op, rhs):
+				let op_txt = case op:
+					Not:
+						"not"
+					Minus:
+						"-"
+				let txt = "{op_txt} {gen_expression(rhs, parens: true)}"
+				"({txt})" if parens else txt
 			If(if_expression):
 				"{gen_expression(if_expression.true_value, parens: true)} if {gen_expression(if_expression.condition, parens: true)} else {gen_expression(if_expression.false_value, parens: true)}"
 		else:

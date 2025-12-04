@@ -19,6 +19,12 @@ pub class Report:
 	pub fn is_enabled() -> bool:
 		m_enabled
 
+	pub fn heading(text?: str):
+		writeln("")
+		writeln("===========================")
+		writeln("# {text}")
+		writeln("===========================")
+
 	pub fn writeln(text?: str):
 		if m_enabled:
 			std.file_writeln(handle: m_file, line: text)

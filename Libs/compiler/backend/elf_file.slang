@@ -8,7 +8,7 @@ from bytes import Bytes, ByteArray, new_bytes, bytes_from_ascii
 from utils import assert, panic
 from logging import log_error, log_info
 from hashmap import HashMap, new_hashmap_str
-from outstream import Object, Section
+from outstream import Object, Section, Symbol
 
 let SHN_UNDEF: int = 0
 
@@ -48,23 +48,30 @@ pub fn write_elf(filename: str, object: Object):
 	# TODO: write eventual program headers here
 
 	let symbol_map: HashMap[str, int] = new_hashmap_str()  # Map name -> symbol table index
-	fill_symbols(writer, object, symbol_map)
+	let symbols: List[Symbol] = List()  # Sorted, first come the local symbols
+	fill_symbols(writer, object, symbols, symbol_map)
 	for section in object.sections:
+		# TODO: check empty sections, and skip
 		write_section(writer, section, symbol_map)
-	write_symbol_table(writer, object)
+	write_symbol_table(writer, symbols)
 	write_section_headers(writer)
 	writer.seek(pos: 0)
 	writer.write_header()
 	std.file_close(handle)
 
-fn fill_symbols(writer: ElfWriter, object: Object, symbol_map: HashMap[str, int]):
+fn fill_symbols(writer: ElfWriter, object: Object, symbols: List[Symbol], symbol_map: HashMap[str, int]):
 	""" Fill symbol index map """
-	# TODO: perform 2 loops, to fill local symbols first, then global symbols?
-
-	# Special NULL entry:
-	var index = 1
+	for symbol in object.symbols:
+		if not is_global_symbol(symbol):
+			symbols.append(symbol)
 
 	for symbol in object.symbols:
+		if is_global_symbol(symbol):
+			symbols.append(symbol)
+
+	# Special NULL entry, start at index 1.
+	var index = 1
+	for symbol in symbols:
 		if symbol_map.contains(key: symbol.name):
 			panic("Duplicate symbol: {symbol.name}")
 		else:
@@ -104,10 +111,22 @@ fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str, i
 			writer.write_rela_entry(rte)
 		sh_rela.sh_size = writer.tell() - sh_rela.sh_offset
 
-fn write_symbol_table(writer: ElfWriter, object: Object):
+fn is_global_symbol(symbol: Symbol) -> bool:
+	case symbol.kind:
+		Intern(section, offset, global):
+			global
+		Extern:
+			true
+
+fn write_symbol_table(writer: ElfWriter, symbols: List[Symbol]):
 	let st_null = writer.new_symbol(name: "UNDEF")
 
-	for symbol in object.symbols:
+	var first_global_index = 0
+	var index = 1
+	for symbol in symbols:
+		if first_global_index == 0:
+			if is_global_symbol(symbol):
+				first_global_index = index
 		let ste = writer.new_symbol(name: symbol.name)
 		case symbol.kind:
 			Intern(section, offset, global):
@@ -120,6 +139,7 @@ fn write_symbol_table(writer: ElfWriter, object: Object):
 				let bind = STB_GLOBAL
 				let ty = STT_FUNC
 				ste.st_info = (bind << 4) | ty
+		index += 1
 
 	# Symbol table:
 	let sh_symtab = writer.new_section(name: ".symtab")
@@ -127,7 +147,7 @@ fn write_symbol_table(writer: ElfWriter, object: Object):
 	sh_symtab.sh_offset = writer.tell()
 	sh_symtab.sh_addralign = 1
 	sh_symtab.sh_link = writer.section_headers.len()  # str tab follows directly
-	sh_symtab.sh_info = 1  # Index of first global symbol
+	sh_symtab.sh_info = first_global_index  # Index of first global symbol
 	sh_symtab.sh_entsize = 24
 	for ste in writer.symbol_table:
 		writer.write_symtab_entry(ste)

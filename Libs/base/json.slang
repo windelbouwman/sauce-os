@@ -6,7 +6,7 @@ from utils import panic
 from logging import log_info
 from std import str_len, str_get, ord, str_slice
 from std import read_file, file_exists
-from std import file_writeln, file_write, file_open, file_close
+from std import file_writeln, file_open, file_close
 from strlib import str_join, is_digit, str_to_int
 from listtype import List
 from optiontype import Option, option_is_some

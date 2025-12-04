@@ -39,6 +39,7 @@ pub enum Instruction:
 	Jcc(condition: Cond, target: str)
 	AddRmImm(rm: Rm, imm: int)
 	SubRmImm(rm: Rm, imm: int)
+	ShiftRmCl(op: ShiftOp, rm: Rm)
 	Lea(reg: int, rm: Rm)
 	MovRegImm64(reg: int, imm: int)
 	MovRegImm32(reg: int, imm: int)
@@ -47,6 +48,7 @@ pub enum Instruction:
 	Ret
 	Int3
 	CvtSi2Sd(reg: int, rm: Rm)
+	CvtSd2Si(reg: int, rm: Rm)
 	Ucomisd(reg: int, rm: Rm)
 	SseOpRegRm(op: SseOp, reg: int, rm: Rm)
 	SseMovRegRm(reg: int, rm: Rm)
@@ -87,6 +89,15 @@ pub enum DivMulOp:
 	Div
 	IDiv
 
+pub enum ShiftOp:
+	Rol
+	Ror
+	Rcl
+	Rcr
+	Shl
+	Shr
+	Sar
+
 pub enum Rm:
 	Mem(reg: int)
 	MemDisp8(reg: int, disp: int)
@@ -118,6 +129,8 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			rm_imm_to_str("add", rm, imm)
 		SubRmImm(rm, imm):
 			rm_imm_to_str("sub", rm, imm)
+		ShiftRmCl(op, rm):
+			"{shift_op_to_string(op)} {rm_to_str(rm)}, cl"
 		Lea(reg, rm):
 			"lea {reg_to_str(reg)}, {rm_to_str(rm)}"
 		MovRegImm64(reg, imm):
@@ -134,6 +147,8 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			"int 3"
 		CvtSi2Sd(reg, rm):
 			"cvtsi2sd .."
+		CvtSd2Si(reg, rm):
+			"cvtsd2si .."
 		Ucomisd(reg, rm):
 			"comisd ..."
 		SseOpRegRm(op, reg, rm):
@@ -208,6 +223,23 @@ fn cc_to_string(condition: Cond) -> str:
 			"jle"
 		Jg:
 			"jg"
+
+pub fn shift_op_to_string(op: ShiftOp) -> str:
+	case op:
+		Rol:
+			"rol"
+		Ror:
+			"ror"
+		Rcl:
+			"rcl"
+		Rcr:
+			"rcr"
+		Shl:
+			"shl"
+		Shr:
+			"shr"
+		Sar:
+			"sar"
 
 fn rm_reg_to_str(mnemonic?: str, rm: Rm, reg: int) -> str:
 	"{mnemonic} {rm_to_str(rm)}, {reg_to_str(reg)}"
@@ -287,7 +319,7 @@ fn reg_to_str(reg: int) -> str:
 		7:
 			"edi"
 	else:
-		"?{reg}"
+		"er{reg}"
 
 fn reg16_to_str(reg: int) -> str:
 	switch reg:
@@ -351,8 +383,15 @@ fn write64(value?: int, out: BinaryOutput):
 	out.write_bytes(data: x.to_bytes())
 
 fn write_rex_byte(out: BinaryOutput, reg: int):
+	# var b = 0x48
+	# if rm > 7:
+	# 	panic("rm > 7")
+	# if rm < 0:
+	# 	panic("rm < 0")
 	if reg > 7:
 		panic("reg > 7")
+	if reg < 0:
+		panic("reg < 0")
 	# let r = (reg >> 3) << 2
 	out.write_byte(0x48) # rex prefix
 
@@ -450,6 +489,11 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			write_rm_imm(reg: 0, rm, imm, out)
 		SubRmImm(rm, imm):
 			write_rm_imm(reg: 5, rm, imm, out)
+		ShiftRmCl(op, rm):
+			let reg = get_shift_code(op)
+			write_rex_byte(out, reg)
+			out.write_byte(0xD3)
+			write_rm_reg(rm, reg, out)
 		Lea(reg, rm):
 			write_mod_rm(opcode: 0x8D, rm, reg, out)
 		MovRegImm64(reg, imm):
@@ -472,6 +516,12 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			write_rex_byte(out, reg)
 			out.write_byte(0x0F)
 			out.write_byte(0x2A)
+			write_rm_reg(rm, reg, out)
+		CvtSd2Si(reg, rm):
+			out.write_byte(0xF2)
+			write_rex_byte(out, reg)
+			out.write_byte(0x0F)
+			out.write_byte(0x2D)
 			write_rm_reg(rm, reg, out)
 		Ucomisd(reg, rm):
 			out.write_byte(0x66)
@@ -552,6 +602,30 @@ fn get_cc_code(condition: Cond) -> int:
 			0xE
 		Jg:
 			0xF
+
+fn get_shift_code(op: ShiftOp) -> int:
+	case op:
+		Rol:
+			0
+		Ror:
+			1
+		Rcl:
+			2
+		Rcr:
+			3
+		Shl:
+			4
+		Shr:
+			5
+		Sar:
+			7
+
+pub fn is_pic_reloc(typ: int) -> bool:
+	switch typ:
+		2:  # PC32
+			true
+	else:
+		false
 
 pub fn apply_reloc(data: ByteArray, offset: int, typ: int, addend: int, symbol: int):
 	# log_info

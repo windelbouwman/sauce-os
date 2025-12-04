@@ -82,6 +82,9 @@ pub class BinaryOutput:
 		""" Define symbol, which can be used elsewhere """
 		define(name, global: true)
 
+	pub fn local_symbol(name?: str):
+		define(name, global: false)
+
 	pub fn define_label(name?: str):
 		define(name, global: false)
 		tmp_labels.push(name)
@@ -113,7 +116,7 @@ pub class BinaryOutput:
 		let offset = section.data.len()
 		fixups.push(Fixup(symbol, section, offset, typ, addend))
 
-	pub fn do_fixups(fixer: fn(ByteArray, int, int, int, int)):
+	pub fn do_fixups(fixer: fn(ByteArray, int, int, int, int), is_pic_reloc: fn(int) -> bool):
 		# Apply relocation action now,
 		# or emit full blown relocation record
 		# for the linker to fix later.
@@ -123,7 +126,7 @@ pub class BinaryOutput:
 				let symbol = symbols.get(key: fixup.symbol)
 				case symbol.kind:
 					Intern(section, offset, global):
-						if (not global) and (section.name == fixup.section.name):
+						if (not global) and (section.name == fixup.section.name) and is_pic_reloc(fixup.typ):
 							# apply reloc locally!
 							log_debug("Apply reloc now {fixup.symbol}")
 							fixer(data: fixup.section.data, fixup.offset, fixup.typ, fixup.addend, offset)

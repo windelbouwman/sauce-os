@@ -31,8 +31,7 @@ pub class Program:
 	pub fn dump(report: Report):
 		if not report.is_enabled():
 			return
-		report.writeln("----===========----")
-		report.writeln("--- SIL program ---")
+		report.heading("SIL program")
 		for ext in externs:
 			report.writeln(" > Import {ext.name}")
 		for function in functions:
@@ -48,6 +47,7 @@ pub class Extern:
 pub class DataBlob:
 	""" Data block """
 	pub var name: str
+	pub var is_local: bool  # Symbol visibility
 	pub var readonly: bool
 	pub var contents: List[BlobContent]
 
@@ -106,6 +106,8 @@ pub class Instruction:
 			Binop(dst, op2, lhs, rhs):
 				let txt = op_to_string(op2)
 				"{value_to_string(dst)} = {txt} {value_to_string(lhs)}, {value_to_string(rhs)}"
+			Bitop(dst, op, lhs, rhs):
+				"{value_to_string(dst)} = bitop {value_to_string(lhs)}, {value_to_string(rhs)}"
 			GetAddress(dst, address):
 				"{value_to_string(dst)} = get address {address_to_string(address)}"
 			Load(dst, address):
@@ -145,6 +147,7 @@ fn comma_sep(values: List[Value]) -> str:
 pub enum OpCode:
 	Const(dst: Value, value: int)
 	Binop(dst: Value, op: BinaryOp, lhs: Value, rhs: Value)
+	Bitop(dst: Value, op: BitwiseOp, lhs: Value, rhs: Value)
 	GetAddress(dst: Value, address: Address)
 	Load(dst: Value, address: Address)
 	Store(address: Address, value: Value)
@@ -160,6 +163,14 @@ pub enum BinaryOp:
 	Sub
 	Mul
 	Div
+
+pub enum BitwiseOp:
+	And
+	Or
+	Xor
+	Shl
+	Shr
+	Sar
 
 fn op_to_string(op?: BinaryOp) -> str:
 	case op:

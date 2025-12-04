@@ -327,6 +327,11 @@ binary_op_funcs = {
     OpCode.GTE: lambda a, b: a >= b,
     OpCode.AND: lambda a, b: a and b,
     OpCode.OR: lambda a, b: a or b,
+    OpCode.BITAND: lambda a, b: a & b,
+    OpCode.BITOR: lambda a, b: a | b,
+    OpCode.BITXOR: lambda a, b: a ^ b,
+    OpCode.BITSHL: lambda a, b: a << b,
+    OpCode.BITSHR: lambda a, b: a >> b,
 }
 
 unary_op_funcs = {OpCode.NOT: lambda a: not a}

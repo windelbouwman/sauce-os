@@ -52,6 +52,11 @@ class ByteCodeGenerator:
             "==": OpCode.EQ,
             "and": OpCode.AND,
             "or": OpCode.OR,
+            "&": OpCode.BITAND,
+            "|": OpCode.BITOR,
+            "^": OpCode.BITXOR,
+            "<<": OpCode.BITSHL,
+            ">>": OpCode.BITSHR,
         }
 
         self._unop_map = {

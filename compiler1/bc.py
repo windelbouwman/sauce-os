@@ -122,6 +122,12 @@ class OpCode(Enum):
     OR = 56
     NOT = 57
 
+    BITAND = 60
+    BITOR = 61
+    BITXOR = 62
+    BITSHL = 63
+    BITSHR = 64
+
     STRUCT_LITERAL = 70
     ARRAY_LITERAL = 72
     ARRAY_LITERAL2 = 73

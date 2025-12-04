@@ -28,6 +28,6 @@ pub fn log_trace(message?: str):
 		log_it(level: "TRACE", message)
 
 fn log_it(level: str, message: str):
-	let t = get_time()
-	print("{level} @ {t}: {message}")
+	let t = get_time() / 1000000
+	print("{level} @ {t}ms: {message}")
 	# print("{level}: {message}")

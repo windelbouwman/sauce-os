@@ -34,12 +34,13 @@ PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, 
 PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
 C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/snippets/%.exe, $(SLANG_EXAMPLES))
 C_EXAMPLES_2 := $(patsubst examples/snippets/%.slang, build/c/snippets2/%.exe, $(SLANG_EXAMPLES))
-X86_EXAMPLES := $(patsubst examples/snippets/%.slang, build/x86/%.exe, $(SLANG_EXAMPLES))
+X86_EXAMPLES := $(patsubst examples/snippets/%.slang, build/x86/snippet_%.exe, $(SLANG_EXAMPLES))
 C_APPS := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
 ALL_TEST_RUNS := $(patsubst tests/test_%.slang, run-test-c-%, $(TESTS))
 ALL_TEST_RUNS_PY := $(patsubst tests/test_%.slang, run-test-py-%, $(TESTS))
+ALL_TEST_RUNS_X86 := $(patsubst tests/test_%.slang, run-test-x86-%, $(TESTS))
 
 .PHONY: all check check-py all-examples test pytest-exes
 all: ${C_APPS} ${PY_APPS} all-examples
@@ -48,6 +49,7 @@ test: pytest-compiler pytest-compiler1 check check-py
 
 check: ${ALL_TEST_RUNS}
 check-py: ${ALL_TEST_RUNS_PY}
+check-x86: ${ALL_TEST_RUNS_X86}
 
 # Profiling
 profile: ${COMPILER5} | ${BUILDDIR}
@@ -217,13 +219,13 @@ ${BUILDDIR}/c/native_example:
 # x86 backend
 native_example: ${BUILDDIR}/c/native_example/main.exe
 
-.PRECIOUS: ${BUILDDIR}/x86/%.o
+.PRECIOUS: ${BUILDDIR}/x86/snippet_%.o
 
-${BUILDDIR}/x86/%.o: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/x86
+${BUILDDIR}/x86/snippet_%.o: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/x86
 	${SLANGC} --backend-x86 --report -v -v -o $@ $< runtime/std.slang
 
-${BUILDDIR}/x86/%.exe: ${BUILDDIR}/x86/%.o build/slangrt.o build/slangrt_mm.o | ${BUILDDIR}/x86
-	gcc -o $@ $< build/slangrt.o build/slangrt_mm.o
+${BUILDDIR}/x86/snippet_%.exe: ${BUILDDIR}/x86/snippet_%.o ${BUILDDIR}/slangrt.a | ${BUILDDIR}/x86
+	gcc -o $@ $< ${BUILDDIR}/slangrt.a
 
 ${BUILDDIR}/x86:
 	mkdir -p ${BUILDDIR}/x86
@@ -232,6 +234,25 @@ ${BUILDDIR}/x86:
 all-examples-x86: $(X86_EXAMPLES)
 
 native: all-examples-x86 native_example
+
+# Libs to x86
+${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/x86
+	${SLANGC} --backend-x86 -v --gen-export ${BUILDDIR}/x86/libbase.json -o ${BUILDDIR}/x86/libbase.o ${BASE_LIB_SRCS}
+
+${BUILDDIR}/x86/libregex.o ${BUILDDIR}/x86/libregex.json: ${REGEX_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
+	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libregex.json -o ${BUILDDIR}/x86/libregex.o --add-import ${BUILDDIR}/x86/libbase.json ${REGEX_LIB_SRCS}
+
+.PRECIOUS: ${BUILDDIR}/x86/test_%.o
+${BUILDDIR}/x86/test_%.o: tests/test_%.slang ${BUILDDIR}/x86/libbase.json ${BUILDDIR}/x86/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
+	${SLANGC} --backend-x86 -o $@ $< --add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libregex.json
+
+.PRECIOUS: ${BUILDDIR}/x86/test_%.exe
+${BUILDDIR}/x86/test_%.exe: ${BUILDDIR}/x86/test_%.o ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libregex.o ${BUILDDIR}/slangrt.a
+	gcc -o $@ $< ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libregex.o ${BUILDDIR}/slangrt.a
+
+.PHONY: run-test-x86-%
+run-test-x86-%: ${BUILDDIR}/x86/test_%.exe
+	$<
 
 # Wasm examples:
 .PHONY: all-examples-wasm
@@ -306,8 +327,8 @@ ${BUILDDIR}/tmp-compiler5.c: ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${COMPILER4} 
 ${COMPILER5}: ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/slangrt.a runtime/slangrt.h | ${BUILDDIR}
 	gcc ${CFLAGS} -o ${COMPILER5} ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/slangrt.a -lm
 
-${COMPILER6}: ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${COMPILER5} | ${BUILDDIR}
-	./${COMPILER5} --backend-py -o ${COMPILER6} ${COMPILER_SRCS} ${BASE_LIB_SRCS}
+${COMPILER6}: ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${COMPILER_LIB_SRCS} ${COMPILER5} | ${BUILDDIR}
+	./${COMPILER5} --backend-py -o ${COMPILER6} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
 ${BUILDDIR}/compiler.wat: ${COMPILER_SRCS} ${COMPILER6} | ${BUILDDIR}
 	python ${COMPILER6} -wasm ${COMPILER_SRCS}

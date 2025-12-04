@@ -107,7 +107,7 @@ def test_examples_c2_exe(filename):
 @pytest.mark.parametrize("filename", example_filenames, ids=ids)
 def test_examples_native_exe2(filename):
     """Test compiled executable against expected output."""
-    exe_path = root_path / "build" / "x86" / f"{filename.stem}.exe"
+    exe_path = root_path / "build" / "x86" / f"snippet_{filename.stem}.exe"
     if exe_path.exists():
         result = subprocess.run([exe_path], capture_output=True, check=True)
         stdout = result.stdout.decode("ascii")

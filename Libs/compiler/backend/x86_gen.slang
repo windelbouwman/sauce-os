@@ -9,8 +9,9 @@ import sil
 import mil
 import x86
 from report import Report
-from listtype import List, list4, list5, list8, list9
-from codegen import cgen, SelectionContext, Backend, Frame
+from listtype import List, list4, list5, list8
+from codegen import cgen
+from isel import SelectionContext, Backend, Frame
 from outstream import BinaryOutput
 from optiontype import Option
 
@@ -75,7 +76,15 @@ pub fn gen_x86(program: sil.Program, filename: Option[str], report: Report):
 	all_regs2.append(xmm5)
 	all_regs2.append(xmm6)
 	all_regs2.append(xmm7)
-	# TODO: add xmm8 .. xmm15
+
+	# all_regs2.append(xmm8)
+	# all_regs2.append(xmm9)
+	# all_regs2.append(xmm10)
+	# all_regs2.append(xmm11)
+	# all_regs2.append(xmm12)
+	# all_regs2.append(xmm13)
+	# all_regs2.append(xmm14)
+	# all_regs2.append(xmm15)
 
 	let backend: Backend[VirtInst] = Backend:
 		all_regs
@@ -87,6 +96,7 @@ pub fn gen_x86(program: sil.Program, filename: Option[str], report: Report):
 		emit_prologue: gen_prologue
 		emit_epilogue: gen_epilogue
 		fixer: x86.apply_reloc
+		is_pic_reloc: x86.is_pic_reloc
 		emit_pointer: x86.emit_pointer_to_name
 	cgen(program, backend, filename, report)
 
@@ -99,8 +109,12 @@ pub enum VirtInst:
 	Mov(dst: mil.Register, src: mil.Register)
 	MovImm(dst: mil.Register, value: int)
 	Lea(reg: mil.Register, rm: VirtRm)
+	ShiftRmReg(op: x86.ShiftOp, rm: VirtRm, amount: mil.Register)
+	Push(reg: mil.Register)
+	Pop(reg: mil.Register)
 	CallRm(rm: VirtRm)
 	CvtSi2Sd(reg: mil.Register, rm: VirtRm)
+	CvtSd2Si(reg: mil.Register, rm: VirtRm)
 	Ucomisd(reg: mil.Register, rm: VirtRm)
 	SseOpRegRm(op: x86.SseOp, reg: mil.Register, rm: VirtRm)
 	SseMovRegRm(reg: mil.Register, rm: VirtRm)
@@ -132,12 +146,20 @@ fn vinst_to_str(vi?: VirtInst) -> str:
 			"mov {mil.vr_to_str(dst)}, {value}"
 		Lea(dst, rm):
 			"lea {mil.vr_to_str(dst)}, {vrm_to_str(rm)}"
+		ShiftRmReg(op, rm, reg):
+			"{x86.shift_op_to_string(op)} {vrm_to_str(rm)}, {mil.vr_to_str(reg)}"
+		Push(reg):
+			"push {mil.vr_to_str(reg)}"
+		Pop(reg):
+			"pop {mil.vr_to_str(reg)}"
 		CallRm(rm):
 			"call {vrm_to_str(rm)}"
 		SseOpRegRm(op, reg, rm):
 			"sse xx {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		CvtSi2Sd(reg, rm):
 			"cvtsi2sd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		CvtSd2Si(reg, rm):
+			"cvtsd2si {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		Ucomisd(reg, rm):
 			"ucomisd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		SseMovRegRm(reg, rm):
@@ -162,15 +184,37 @@ fn vrm_to_str(vrm?: VirtRm) -> str:
 
 
 fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
-	let parameter_regs: List[int] = list4(rdi, rsi, rdx, rcx)
+	let parameter_regs_i64: List[int] = list4(rdi, rsi, rdx, rcx)
+	var index_i64 = 0
+	let parameter_regs_f64: List[int] = list8(xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7)
+	var index_f64 = 0
+
 	let entry_ins = context.emit_and_get(VirtInst.Entry())
-	var index = 0
+	var offset = 0x10
 	for p in function.parameters:
 		let reg = context.get_value_vreg(p)
-		let nr = parameter_regs.get(index)
-		reg.color = nr
-		entry_ins.add_def(reg)
-		index += 1
+		if reg.kind == 0:
+			if index_i64 < parameter_regs_i64.len():
+				let nr = parameter_regs_i64.get(index: index_i64)
+				index_i64 += 1
+				reg.color = nr
+				entry_ins.add_def(reg)
+			else:
+				# Load parameter from memory relative to RBP
+				let rm = VirtRm.StackSlot(offset)
+				let load_ins = context.emit_and_get(VirtInst.RegRm(op: x86.Op.Mov(), reg, rm))
+				load_ins.add_def(reg)
+				offset += 8 # TODO: not all values are size 8.
+		elif reg.kind == 1:
+			if index_f64 < parameter_regs_f64.len():
+				let nr = parameter_regs_f64.get(index: index_f64)
+				index_f64 += 1
+				reg.color = nr
+				entry_ins.add_def(reg)
+			else:
+				panic("Floating point arguments via stack not supported.")
+		else:
+			panic("Unsupported parameter register class")
 
 fn gen_prologue(frame: Frame, out: BinaryOutput):
 	emit(x86.Instruction.Push(reg: rbp), out)
@@ -260,6 +304,56 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 				op_ins.add_use(rhs_reg)
 			else:
 				panic("Binop not implemented for register class: {dst_reg.kind}")
+		Bitop(dst, op, lhs, rhs):
+			let dst_reg = context.get_value_vreg(dst)
+			let lhs_reg = context.get_value_vreg(lhs)
+			let rhs_reg = context.get_value_vreg(rhs)
+			if dst_reg.kind == 0:
+				case op:
+					And:
+						move(context, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.RmReg(op: x86.Op.And(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
+						op_ins.add_def(dst_reg)
+						op_ins.add_use(dst_reg)
+						op_ins.add_use(rhs_reg)
+					Or:
+						move(context, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.RmReg(op: x86.Op.Or(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
+						op_ins.add_def(dst_reg)
+						op_ins.add_use(dst_reg)
+						op_ins.add_use(rhs_reg)
+					Xor:
+						move(context, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.RmReg(op: x86.Op.Xor(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
+						op_ins.add_def(dst_reg)
+						op_ins.add_use(dst_reg)
+						op_ins.add_use(rhs_reg)
+					Shl:
+						let rcx_reg = context.get_pre_colored(color: rcx, kind: 0)
+						move(context, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.ShiftRmReg(op: x86.ShiftOp.Shl(), rm: VirtRm.Reg(dst_reg), reg: rhs_reg))
+						op_ins.add_use(dst_reg)
+						op_ins.add_use(rhs_reg)
+						op_ins.add_clobber(rcx_reg)
+						op_ins.add_def(dst_reg)
+					Shr:
+						let rcx_reg = context.get_pre_colored(color: rcx, kind: 0)
+						move(context, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.ShiftRmReg(op: x86.ShiftOp.Shr(), rm: VirtRm.Reg(dst_reg), reg: rhs_reg))
+						op_ins.add_use(dst_reg)
+						op_ins.add_use(rhs_reg)
+						op_ins.add_clobber(rcx_reg)
+						op_ins.add_def(dst_reg)
+					Sar:
+						let rcx_reg = context.get_pre_colored(color: rcx, kind: 0)
+						move(context, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.ShiftRmReg(op: x86.ShiftOp.Sar(), rm: VirtRm.Reg(dst_reg), reg: rhs_reg))
+						op_ins.add_use(dst_reg)
+						op_ins.add_use(rhs_reg)
+						op_ins.add_clobber(rcx_reg)
+						op_ins.add_def(dst_reg)
+			else:
+				unimplemented("bit-op on non-integer register class")
 		Call(dst, callee, arguments):
 			# Move arguments in proper locations:
 			let parameter_regs_i64: List[int] = list4(rdi, rsi, rdx, rcx)
@@ -267,21 +361,39 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			let parameter_regs_f64: List[int] = list8(xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7)
 			var p_index_f64 = 0
 			let p_regs: List[mil.Register] = List()
+
+			let mem_args: List[mil.Register] = List()
+
 			for arg in arguments:
 				let a_reg = context.get_value_vreg(arg)
-				let nr = if a_reg.kind == 0:
-					let nr = parameter_regs_i64.get(index: p_index_i64)
-					p_index_i64 += 1
-					nr
+				if a_reg.kind == 0:
+					if p_index_i64 < parameter_regs_i64.len():
+						let nr = parameter_regs_i64.get(index: p_index_i64)
+						p_index_i64 += 1
+						let p_reg = context.get_pre_colored(color: nr, kind: a_reg.kind)
+						move(context, dst: p_reg, src: a_reg)
+						p_regs.append(p_reg)
+					else:
+						mem_args.append(a_reg)
 				elif a_reg.kind == 1:
-					let nr = parameter_regs_f64.get(index: p_index_f64)
-					p_index_f64 += 1
-					nr
+					if p_index_f64 < parameter_regs_f64.len():
+						let nr = parameter_regs_f64.get(index: p_index_f64)
+						p_index_f64 += 1
+						let p_reg = context.get_pre_colored(color: nr, kind: a_reg.kind)
+						move(context, dst: p_reg, src: a_reg)
+						p_regs.append(p_reg)
+					else:
+						panic("Unsupported: float registers via stack")
 				else:
 					panic("Unknown register class")
-				let p_reg = context.get_pre_colored(color: nr, kind: a_reg.kind)
-				move(context, dst: p_reg, src: a_reg)
-				p_regs.append(p_reg)
+			let used_stack_size = mem_args.len() * 8
+			let mis_align = modulo(value: used_stack_size, divisor: 16)
+			if mis_align != 0:
+				let padding = 16 - mis_align
+				context.emit(VirtInst.Actual(x86.Instruction.SubRmImm(rm: x86.Rm.Reg(rsp), imm: padding)))
+			for mem_arg_reg in mem_args.reversed():
+				let push_ins = context.emit_and_get(VirtInst.Push(mem_arg_reg))
+				push_ins.add_use(mem_arg_reg)
 			let call_ins = case callee:
 				Global(target):
 					context.emit_and_get(VirtInst.Actual(instruction: x86.Instruction.Call(target)))
@@ -320,6 +432,8 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						panic("Invalid return register class")
 				None:
 					pass
+			if used_stack_size > 0:
+				context.emit(VirtInst.Actual(x86.Instruction.AddRmImm(rm: x86.Rm.Reg(rsp), imm: used_stack_size)))
 		GetAddress(dst, address):
 			let reg = context.get_value_vreg(dst)
 			let rm = load_addr(context, address)
@@ -369,7 +483,16 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 							conv_ins.add_def(dst_reg)
 							conv_ins.add_use(value_reg)
 				I64:
-					unimplemented("Convert to i64")
+					case value.ty:
+						PTR:
+							unimplemented("Convert PTR to i64")
+						F64:
+							let rm = VirtRm.Reg(value_reg)
+							let conv_ins = context.emit_and_get(VirtInst.CvtSd2Si(reg: dst_reg, rm))
+							conv_ins.add_def(dst_reg)
+							conv_ins.add_use(value_reg)
+						I64:
+							unimplemented("Convert i64 to i64")
 		Jump(label):
 			context.emit(VirtInst.Actual(instruction: x86.Instruction.Jmp(label)))
 		JumpIf(lhs, condition, rhs, label1, label2):
@@ -498,6 +621,17 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 					emit(x86.Instruction.SseMovRegRm(reg: dst_reg, rm), out)
 				else:
 					panic("Move not supported for register class {dst.kind}")
+		ShiftRmReg(op, rm, reg):
+			let rm2 = mat_rm(rm)
+			let reg2 = mat_reg(reg)
+			emit(x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: rcx, rm: x86.Rm.Reg(reg2)), out)
+			emit(x86.Instruction.ShiftRmCl(op, rm: rm2), out)
+		Push(reg):
+			let reg2 = mat_reg(reg)
+			emit(x86.Instruction.Push(reg: reg2), out)
+		Pop(reg):
+			let reg2 = mat_reg(reg)
+			emit(x86.Instruction.Pop(reg: reg2), out)
 		CallRm(rm):
 			let rm2 = mat_rm(rm)
 			emit(x86.Instruction.CallRm(rm: rm2), out)
@@ -509,6 +643,10 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
 			emit(x86.Instruction.CvtSi2Sd(reg: reg2, rm: rm2), out)
+		CvtSd2Si(reg, rm):
+			let reg2 = mat_reg(reg)
+			let rm2 = mat_rm(rm)
+			emit(x86.Instruction.CvtSd2Si(reg: reg2, rm: rm2), out)
 		Ucomisd(reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
@@ -531,7 +669,7 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 			emit(instruction, out)
 
 fn emit(instruction?: x86.Instruction, out: BinaryOutput):
-	print(x86.instruction_to_string(instruction))
+	# print(x86.instruction_to_string(instruction))
 	x86.emit_instruction(instruction, out)
 
 
@@ -544,7 +682,10 @@ fn mat_rm(rm: VirtRm) -> x86.Rm:
 		Reg(reg):
 			x86.Rm.Reg(reg: mat_reg(reg))
 		StackSlot(offset):
-			x86.Rm.MemDisp8(reg: rbp, disp: offset)
+			if offset > 124 or offset < -124:
+				x86.Rm.MemDisp32(reg: rbp, disp: offset)
+			else:
+				x86.Rm.MemDisp8(reg: rbp, disp: offset)
 		RegDisp(reg, offset):
 			x86.Rm.MemDisp8(reg: mat_reg(reg), disp: offset)
 		Global(name):

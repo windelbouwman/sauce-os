@@ -7,13 +7,13 @@ Features of this pass:
 
 """
 
-from std import ord, print
+from std import ord
 from listtype import List, list1
 from vectype import Vector, new_vector
 from optiontype import Option
 from bytes import Bytes, bytes_from_ascii, fill_bytes, ByteArray
 from utils import panic, unimplemented
-from logging import log_info, log_warning
+from logging import log_info, log_warning, log_debug
 import bc
 import vm
 import sil
@@ -74,7 +74,25 @@ class SilGen:
 		# Define used runtime functions:
 		m_externs.append(sil.Extern(name: "rt_malloc"))
 		m_externs.append(sil.Extern(name: "slangrt_box_int64"))
+		m_externs.append(sil.Extern(name: "slangrt_box_int32"))
+		m_externs.append(sil.Extern(name: "slangrt_box_int16"))
+		m_externs.append(sil.Extern(name: "slangrt_box_int8"))
+		m_externs.append(sil.Extern(name: "slangrt_box_uint64"))
+		m_externs.append(sil.Extern(name: "slangrt_box_uint32"))
+		m_externs.append(sil.Extern(name: "slangrt_box_uint16"))
+		m_externs.append(sil.Extern(name: "slangrt_box_uint8"))
+		m_externs.append(sil.Extern(name: "slangrt_box_char"))
+		m_externs.append(sil.Extern(name: "slangrt_box_bool"))
 		m_externs.append(sil.Extern(name: "slangrt_unbox_int64"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_int32"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_int16"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_int8"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_uint64"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_uint32"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_uint16"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_uint8"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_char"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_bool"))
 
 		vm.prepare_vm(vm: m_vm, program: m_bc_program)
 
@@ -92,18 +110,21 @@ class SilGen:
 		sil.Program(externs: m_externs, functions: m_functions, blobs: m_blobs)
 
 	fn gen_global(global: bc.Global):
+		let name = global.name
 		case global.value:
 			Some(code):
 				let value = vm.eval_code(vm: m_vm, code)
 				let ty = get_sil_type(ty: global.ty)
 				let contents = gen_vm_value(ty: global.ty, value)
-				let name = global.name
-				m_blobs.append(sil.DataBlob(name, readonly: false, contents))
+				m_blobs.append(sil.DataBlob(name, is_local: false, readonly: false, contents))
 				let address = sil.Address.Global(name)
 				let typed_address = TypedAddress(address, ty: global.ty)
 				m_globals.append(typed_address)
 			None:
-				panic("TODO: extern global")
+				m_externs.append(sil.Extern(name))
+				let address = sil.Address.Global(name)
+				let typed_address = TypedAddress(address, ty: global.ty)
+				m_globals.append(typed_address)
 
 	fn gen_vm_value(ty: bc.Type, value: vm.Value) -> List[sil.BlobContent]:
 		case value:
@@ -128,7 +149,7 @@ class SilGen:
 				let data = pack_str(text)
 				let name = "_lit_{new_id()}"
 				let literal_contents = list1(sil.BlobContent.Raw(data))
-				m_blobs.append(sil.DataBlob(name, readonly: true, contents: literal_contents))
+				m_blobs.append(sil.DataBlob(name, is_local: true, readonly: true, contents: literal_contents))
 				list1(sil.BlobContent.Ptr(name))
 			Char(c):
 				let data = pack_i64(value: ord(value: c))
@@ -147,7 +168,7 @@ class SilGen:
 					contents.extend2(field_contents)
 					i += 1
 				let name = "_lit_struct_{new_id()}"
-				m_blobs.append(sil.DataBlob(name, readonly: false, contents))
+				m_blobs.append(sil.DataBlob(name, is_local: true, readonly: false, contents))
 				list1(sil.BlobContent.Ptr(name))
 			Null:
 				panic("TODO: null")
@@ -206,7 +227,7 @@ class SilGen:
 				sil.Type.PTR()
 
 	fn gen_function(function: bc.Function):
-		log_info("Gen code for function {function.name}")
+		log_debug("Gen SIL-code for function {function.name}")
 		m_blocks = List()
 		m_value_stack = List()
 		m_parameters = List()
@@ -273,10 +294,7 @@ class SilGen:
 					Int(value):
 						push_int(value)
 					Float(value):
-						let data = pack_f64(value)
-						let blob_address = add_data_blob(data)
-						let ty = bc.Type.Float(bits: 64)
-						let address = TypedAddress(address: blob_address, ty)
+						let address = add_f64_blob(value)
 						gen_load(address)
 					Str(text):
 						let data = pack_str(text)
@@ -306,37 +324,64 @@ class SilGen:
 				emit(sil.OpCode.Binop(dst: byte_size_tmp, op2: sil.BinaryOp.Mul(), lhs: count_tmp.value, rhs: element_size_tmp))
 				call_rt_malloc(size: byte_size_tmp, ty: bc.Type.Array(ty))
 			ToOpaque(ty3):
+				let ty = bc.Type.Ptr()
 				case ty3:
 					Int(signed, bits):
 						let value = pop()
 						let name = "slangrt_box_int{bits}" if signed else "slangrt_box_uint{bits}"
-						call_rt_function_1(name, ty: bc.Type.Ptr(), argument: value.value)
+						call_rt_function_1(name, ty, argument: value.value)
+					Float(bits):
+						let value = pop()
+						let name = "slangrt_box_float{bits}"
+						call_rt_function_1(name, ty, argument: value.value)
+					Bool:
+						let value = pop()
+						call_rt_function_1(name: "slangrt_box_bool", ty, argument: value.value)
+					Char:
+						let value = pop()
+						call_rt_function_1(name: "slangrt_box_char", ty, argument: value.value)
 					Ptr:
 						pass
 					Str:
 						let value = pop()
-						push(value.value, ty: bc.Type.Ptr())
+						push(value.value, ty)
 					StructRef(index):
 						let value = pop()
-						push(value.value, ty: bc.Type.Ptr())
-				else:
-					unimplemented("To opaque for {bc.type_to_string(ty3)}")
+						push(value.value, ty)
+					Function(parameter_types, return_type):
+						panic("Cannot box function")
+					Array(element_type):
+						let value = pop()
+						push(value.value, ty)
 			FromOpaque(ty):
 				case ty:
 					Int(signed, bits):
 						let value = pop()
 						let name = "slangrt_unbox_int{bits}" if signed else "slangrt_unbox_uint{bits}"
 						call_rt_function_1(name, ty, argument: value.value)
+					Float(bits):
+						let value = pop()
+						let name = "slangrt_unbox_float{bits}"
+						call_rt_function_1(name, ty, argument: value.value)
+					Char:
+						let value = pop()
+						call_rt_function_1(name: "slangrt_unbox_char", ty, argument: value.value)
+					Bool:
+						let value = pop()
+						call_rt_function_1(name: "slangrt_unbox_bool", ty, argument: value.value)
 					Ptr:
 						pass
+					Function(parameter_types, return_type):
+						panic("Cannot unbox ptr to function")
 					Str:
 						let value = pop()
 						push(value.value, ty)
 					StructRef(index):
 						let value = pop()
 						push(value.value, ty)
-				else:
-					unimplemented("from opaque for {bc.type_to_string(ty)}")
+					Array(element_type):
+						let value = pop()
+						push(value.value, ty)
 			Binop(op):
 				let rhs = pop()
 				let lhs = pop()
@@ -459,11 +504,46 @@ class SilGen:
 				log_warning("Int cast implemented as no-op for now.")
 				# unimplemented("INTCAST")
 			Not:
-				unimplemented("NOT")
+				# Xor with 1, to toggle boolean value.
+				let value = pop()
+				let one = load_int(value: 1)
+				let dst = new_tmp(ty: sil.Type.I64())
+				emit(sil.OpCode.Bitop(dst, op: sil.BitwiseOp.Xor(), lhs: value.value, rhs: one))
+				push(dst, ty: bc.Type.Int(signed: true, bits: 64))
 			Neg:
-				unimplemented("NEG")
+				let value = pop()
+				case value.ty:
+					Int(signed, bits):
+						let zero = load_int(value: 0)
+						let dst = new_tmp(ty: sil.Type.I64())
+						emit(sil.OpCode.Binop(dst, op: sil.BinaryOp.Sub(), lhs: zero, rhs: value.value))
+						push(dst, ty: bc.Type.Int(signed: true, bits: 64))
+					Float(bits):
+						let address = add_f64_blob(value: 0.0)
+						gen_load(address)
+						let zero = pop()
+						let dst = new_tmp(ty: sil.Type.F64())
+						emit(sil.OpCode.Binop(dst, op: sil.BinaryOp.Sub(), lhs: zero.value, rhs: value.value))
+						push(dst, ty: bc.Type.Float(bits: 64))
+				else:
+					unimplemented("NEG for {bc.type_to_string(value.ty)}")
 			Bitop(op):
-				unimplemented("bitop")
+				let rhs = pop()
+				let lhs = pop()
+				let op2 = case op:
+					And:
+						sil.BitwiseOp.And()
+					Or:
+						sil.BitwiseOp.Or()
+					Xor:
+						sil.BitwiseOp.Xor()
+					Shr:
+						sil.BitwiseOp.Shr()
+					Shl:
+						sil.BitwiseOp.Shl()
+				let dst = new_tmp(ty: lhs.value.ty)
+				push(dst, ty: lhs.ty)
+				emit(sil.OpCode.Bitop(dst, op2, lhs: lhs.value, rhs: rhs.value))
 			DecRef(index):
 				log_warning("Dec ref implemented as no-op")
 			LoadFunc(index):
@@ -589,11 +669,17 @@ class SilGen:
 	fn new_global(name?: str) -> sil.Address:
 		sil.Address.Global(name)
 
+	fn add_f64_blob(value: float) -> TypedAddress:
+		let data = pack_f64(value)
+		let blob_address = add_data_blob(data)
+		let ty = bc.Type.Float(bits: 64)
+		TypedAddress(address: blob_address, ty)
+
 	fn add_data_blob(data?: Bytes) -> sil.Address:
 		# TODO: we have a chance to deduplicate blobs here!
 		let name = "lit_{new_id()}"
 		let contents = list1(sil.BlobContent.Raw(data))
-		m_blobs.append(sil.DataBlob(name, readonly: true, contents))
+		m_blobs.append(sil.DataBlob(name, is_local: true, readonly: true, contents))
 		sil.Address.Global(name)
 
 	fn push_int(value?: int):
@@ -627,7 +713,7 @@ class SilGen:
 		case m_current_block:
 			Some(block):
 				let instruction = sil.Instruction(op)
-				print("> {instruction}")
+				# print("> {instruction}")
 				if m_block_is_terminated:
 					# panic("Block already terminated!")
 					pass

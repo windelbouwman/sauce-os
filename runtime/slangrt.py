@@ -3,6 +3,7 @@
 import sys
 import os
 import time
+import struct
 
 
 def std_get_n_args() -> int:
@@ -129,4 +130,6 @@ def std_get_time() -> int:
 
 
 def std_pack_f64(value: float, buffer):
-    raise NotImplementedError("std_pack_f64")
+    data = struct.pack("<d", value)
+    for index, v in enumerate(data):
+        buffer[index] = v

@@ -10,7 +10,6 @@ from logging import log_info, log_trace
 from listtype import List
 from optiontype import Option
 from vectype import Vector, new_vector
-from strlib import str_join
 import vm
 import bc
 from text_gen import TextGenerator
@@ -462,39 +461,7 @@ class CGenerator:
 				push(Value(name: varname, ty))
 
 			ToOpaque(ty3):
-				let value = pop()
-				let varname = new_local_var()
-				let ty = bc.Type.Ptr()
-				gen_typed_name(ty, name: varname)
-				write(" = ")
-				case ty3:
-					Float(bits):
-						write("SLANG_BOX_FLOAT")
-						write(str(bits))
-					Int(signed, bits):
-						if signed:
-							write("SLANG_BOX_INT")
-						else:
-							write("SLANG_BOX_UINT")
-						write(str(bits))
-					Bool:
-						write("SLANG_BOX_BOOL")
-					Char:
-						write("SLANG_BOX_CHAR")
-					Ptr:
-						pass
-					Str:
-						write("(void*)")
-					StructRef(index):
-						write("(void*)")
-					Function(parameter_types, return_type):
-						panic("Cannot box function")
-					Array(element_type):
-						write("(void*)")
-				write("(")
-				write(value.name)
-				emit(");")
-				push(Value(name: varname, ty))
+				gen_to_opaque(ty3)
 
 			FromOpaque(ty):
 				gen_from_opaque(ty)
@@ -656,6 +623,41 @@ class CGenerator:
 				push(Value(name: text, ty: bc.Type.Char()))
 			Null:
 				push(Value(name: "0", ty: bc.Type.Ptr()))
+
+	fn gen_to_opaque(ty3: bc.Type):
+		let value = pop()
+		let varname = new_local_var()
+		let ty = bc.Type.Ptr()
+		gen_typed_name(ty, name: varname)
+		write(" = ")
+		case ty3:
+			Float(bits):
+				write("SLANG_BOX_FLOAT")
+				write(str(bits))
+			Int(signed, bits):
+				if signed:
+					write("SLANG_BOX_INT")
+				else:
+					write("SLANG_BOX_UINT")
+				write(str(bits))
+			Bool:
+				write("SLANG_BOX_BOOL")
+			Char:
+				write("SLANG_BOX_CHAR")
+			Ptr:
+				pass
+			Str:
+				write("(void*)")
+			StructRef(index):
+				write("(void*)")
+			Function(parameter_types, return_type):
+				panic("Cannot box function")
+			Array(element_type):
+				write("(void*)")
+		write("(")
+		write(value.name)
+		emit(");")
+		push(Value(name: varname, ty))
 
 	fn gen_from_opaque(ty: bc.Type):
 		# Unbox value from opaque pointer type

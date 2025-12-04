@@ -25,7 +25,8 @@ import riscv
 from bytes import ByteArray
 from optiontype import Option
 from listtype import List, list4
-from codegen import Backend, SelectionContext, Frame, cgen
+from codegen import cgen
+from isel import Backend, SelectionContext, Frame
 from outstream import BinaryOutput
 from report import Report
 from utils import unimplemented
@@ -46,6 +47,7 @@ pub fn gen_riscv(program: sil.Program, filename: Option[str], report: Report):
 		emit_prologue: gen_prologue
 		emit_epilogue: gen_epilogue
 		fixer: apply_reloc
+		is_pic_reloc: is_pic_reloc
 		emit_pointer: gen_pointer
 
 	unimplemented("TODO")
@@ -85,6 +87,8 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 					unimplemented("Divide")
 				Mul:
 					unimplemented("Multiply")
+		Bitop(dst, op, lhs, rhs):
+			unimplemented("Bitop")
 		GetAddress(dst, address):
 			unimplemented("GetAddress")
 		Convert(dst, value):
@@ -169,6 +173,10 @@ fn materialize(context: SelectionContext[VirtInst], v: mil.Instruction[VirtInst]
 			do_emit(instruction, outstream)
 	else:
 		unimplemented("TODO!")
+
+fn is_pic_reloc(typ: int) -> bool:
+	""" Check if the relocation type is position independant """
+	false
 
 fn apply_reloc(data: ByteArray, offset: int, typ: int, addend: int, symbol: int):
 	pass
