@@ -532,68 +532,43 @@ pub class VirtualMachine:
 
 fn eval_binop_int(op: bc.BinaryOperator, lhs: int, rhs: int) -> int:
 	case op:
-		Add:
-			lhs + rhs
-		Sub:
-			lhs - rhs
-		Divide:
-			lhs / rhs
-		Multiply:
-			lhs * rhs
+		Add: lhs + rhs
+		Sub: lhs - rhs
+		Divide: lhs / rhs
+		Multiply: lhs * rhs
 
 fn eval_comparison_int(op: bc.ComparisonOperator, lhs: int, rhs: int) -> bool:
 	case op:
-		Less:
-			lhs < rhs
-		LessEquals:
-			lhs <= rhs
-		Greater:
-			lhs > rhs
-		GreaterEquals:
-			lhs >= rhs
-		Equals:
-			lhs == rhs
-		NotEquals:
-			lhs != rhs
+		Less: lhs < rhs
+		LessEquals: lhs <= rhs
+		Greater: lhs > rhs
+		GreaterEquals: lhs >= rhs
+		Equals: lhs == rhs
+		NotEquals: lhs != rhs
 
 fn eval_binop_float(op: bc.BinaryOperator, lhs: float, rhs: float) -> float:
 	case op:
-		Add:
-			lhs + rhs
-		Sub:
-			lhs - rhs
-		Divide:
-			lhs / rhs
-		Multiply:
-			lhs * rhs
+		Add: lhs + rhs
+		Sub: lhs - rhs
+		Divide: lhs / rhs
+		Multiply: lhs * rhs
 
 fn eval_comparison_float(op: bc.ComparisonOperator, lhs: float, rhs: float) -> bool:
 	case op:
-		Less:
-			lhs < rhs
-		LessEquals:
-			lhs <= rhs
-		Greater:
-			lhs > rhs
-		GreaterEquals:
-			lhs >= rhs
-		Equals:
-			lhs == rhs
-		NotEquals:
-			lhs != rhs
+		Less: lhs < rhs
+		LessEquals: lhs <= rhs
+		Greater: lhs > rhs
+		GreaterEquals: lhs >= rhs
+		Equals: lhs == rhs
+		NotEquals: lhs != rhs
 
 fn eval_bitop(op: bc.BitOperator, lhs: int, rhs: int) -> int:
 	case op:
-		Shr:
-			lhs >> rhs
-		Shl:
-			lhs << rhs
-		And:
-			lhs & rhs
-		Or:
-			lhs | rhs
-		Xor:
-			lhs ^ rhs
+		Shr: lhs >> rhs
+		Shl: lhs << rhs
+		And: lhs & rhs
+		Or: lhs | rhs
+		Xor: lhs ^ rhs
 
 fn eval_comparison(op: bc.ComparisonOperator, lhs: Value, rhs: Value) -> bool:
 	case lhs:

@@ -33,14 +33,10 @@ pub struct Type:
 
 fn value_type_to_string(ty?: ValueType) -> str:
 	case ty:
-		i32:
-			"i32"
-		i64:
-			"i64"
-		f32:
-			"f32"
-		f64:
-			"f64"
+		i32: "i32"
+		i64: "i64"
+		f32: "f32"
+		f64: "f64"
 
 pub fn type_to_string(ty?: Type) -> str:
 	let parts2: List[str] = List()
@@ -718,273 +714,145 @@ fn to_string(instruction: Instruction) -> str:
 		f64_const(value):
 			"f64.const {float_to_str(value)}"
 
-		i32_eqz:
-			"i32.eqz"
-		i32_eq:
-			"i32.eq"
-		i32_ne:
-			"i32.ne"
-		i32_lt_s:
-			"i32.lt_s"
-		i32_lt_u:
-			"i32.lt_u"
-		i32_gt_s:
-			"i32.gt_s"
-		i32_gt_u:
-			"i32.gt_u"
-		i32_le_s:
-			"i32.le_s"
-		i32_le_u:
-			"i32.le_u"
-		i32_ge_s:
-			"i32.ge_s"
-		i32_ge_u:
-			"i32.ge_u"
+		i32_eqz: "i32.eqz"
+		i32_eq: "i32.eq"
+		i32_ne: "i32.ne"
+		i32_lt_s: "i32.lt_s"
+		i32_lt_u: "i32.lt_u"
+		i32_gt_s: "i32.gt_s"
+		i32_gt_u: "i32.gt_u"
+		i32_le_s: "i32.le_s"
+		i32_le_u: "i32.le_u"
+		i32_ge_s: "i32.ge_s"
+		i32_ge_u: "i32.ge_u"
 
 
-		i64_eqz:
-			"i64.eqz"
-		i64_eq:
-			"i64.eq"
-		i64_ne:
-			"i64.ne"
-		i64_lt_s:
-			"i64.lt_s"
-		i64_lt_u:
-			"i64.lt_u"
-		i64_gt_s:
-			"i64.gt_s"
-		i64_gt_u:
-			"i64.gt_u"
-		i64_le_s:
-			"i64.le_s"
-		i64_le_u:
-			"i64.le_u"
-		i64_ge_s:
-			"i64.ge_s"
-		i64_ge_u:
-			"i64.ge_u"
+		i64_eqz: "i64.eqz"
+		i64_eq: "i64.eq"
+		i64_ne: "i64.ne"
+		i64_lt_s: "i64.lt_s"
+		i64_lt_u: "i64.lt_u"
+		i64_gt_s: "i64.gt_s"
+		i64_gt_u: "i64.gt_u"
+		i64_le_s: "i64.le_s"
+		i64_le_u: "i64.le_u"
+		i64_ge_s: "i64.ge_s"
+		i64_ge_u: "i64.ge_u"
 
-		f32_eq:
-			"f32.eq"
-		f32_ne:
-			"f32.ne"
-		f32_lt:
-			"f32.lt"
-		f32_gt:
-			"f32.gt"
-		f32_le:
-			"f32.le"
-		f32_ge:
-			"f32.ge"
+		f32_eq: "f32.eq"
+		f32_ne: "f32.ne"
+		f32_lt: "f32.lt"
+		f32_gt: "f32.gt"
+		f32_le: "f32.le"
+		f32_ge: "f32.ge"
 
-		f64_eq:
-			"f64.eq"
-		f64_ne:
-			"f64.ne"
-		f64_lt:
-			"f64.lt"
-		f64_gt:
-			"f64.gt"
-		f64_le:
-			"f64.le"
-		f64_ge:
-			"f64.ge"
+		f64_eq: "f64.eq"
+		f64_ne: "f64.ne"
+		f64_lt: "f64.lt"
+		f64_gt: "f64.gt"
+		f64_le: "f64.le"
+		f64_ge: "f64.ge"
 
-		i32_clz:
-			"i32.clz"
-		i32_ctz:
-			"i32.ctz"
-		i32_popcnt:
-			"i32.popcnt"
-		i32_add:
-			"i32.add"
-		i32_sub:
-			"i32.sub"
-		i32_mul:
-			"i32.mul"
-		i32_div_s:
-			"i32.div_s"
-		i32_div_u:
-			"i32.div_u"
-		i32_rem_s:
-			"i32.rem_s"
-		i32_rem_u:
-			"i32.rem_u"
-		i32_and:
-			"i32.and"
-		i32_or:
-			"i32.or"
-		i32_xor:
-			"i32.xor"
-		i32_shl:
-			"i32.shl"
-		i32_shr_s:
-			"i32.shr_s"
-		i32_shr_u:
-			"i32.shr_u"
-		i32_rotl:
-			"i32.rotl"
-		i32_rotr:
-			"i32.rotr"
+		i32_clz: "i32.clz"
+		i32_ctz: "i32.ctz"
+		i32_popcnt: "i32.popcnt"
+		i32_add: "i32.add"
+		i32_sub: "i32.sub"
+		i32_mul: "i32.mul"
+		i32_div_s: "i32.div_s"
+		i32_div_u: "i32.div_u"
+		i32_rem_s: "i32.rem_s"
+		i32_rem_u: "i32.rem_u"
+		i32_and: "i32.and"
+		i32_or: "i32.or"
+		i32_xor: "i32.xor"
+		i32_shl: "i32.shl"
+		i32_shr_s: "i32.shr_s"
+		i32_shr_u: "i32.shr_u"
+		i32_rotl: "i32.rotl"
+		i32_rotr: "i32.rotr"
 
 
-		i64_clz:
-			"i64.clz"
-		i64_ctz:
-			"i64.ctz"
-		i64_popcnt:
-			"i64.popcnt"
-		i64_add:
-			"i64.add"
-		i64_sub:
-			"i64.sub"
-		i64_mul:
-			"i64.mul"
-		i64_div_s:
-			"i64.div_s"
-		i64_div_u:
-			"i64.div_u"
-		i64_rem_s:
-			"i64.rem_s"
-		i64_rem_u:
-			"i64.rem_u"
-		i64_and:
-			"i64.and"
-		i64_or:
-			"i64.or"
-		i64_xor:
-			"i64.xor"
-		i64_shl:
-			"i64.shl"
-		i64_shr_s:
-			"i64.shr_s"
-		i64_shr_u:
-			"i64.shr_u"
-		i64_rotl:
-			"i64.rotl"
-		i64_rotr:
-			"i64.rotr"
+		i64_clz: "i64.clz"
+		i64_ctz: "i64.ctz"
+		i64_popcnt: "i64.popcnt"
+		i64_add: "i64.add"
+		i64_sub: "i64.sub"
+		i64_mul: "i64.mul"
+		i64_div_s: "i64.div_s"
+		i64_div_u: "i64.div_u"
+		i64_rem_s: "i64.rem_s"
+		i64_rem_u: "i64.rem_u"
+		i64_and: "i64.and"
+		i64_or: "i64.or"
+		i64_xor: "i64.xor"
+		i64_shl: "i64.shl"
+		i64_shr_s: "i64.shr_s"
+		i64_shr_u: "i64.shr_u"
+		i64_rotl: "i64.rotl"
+		i64_rotr: "i64.rotr"
 
-		f32_abs:
-			"f32.abs"
-		f32_neg:
-			"f32.neg"
-		f32_ceil:
-			"f32.ceil"
-		f32_floor:
-			"f32.floor"
-		f32_trunc:
-			"f32.trunc"
-		f32_nearest:
-			"f32.nearest"
-		f32_sqrt:
-			"f32.sqrt"
-		f32_add:
-			"f32.add"
-		f32_sub:
-			"f32.sub"
-		f32_mul:
-			"f32.mul"
-		f32_div:
-			"f32.div"
-		f32_min:
-			"f32.min"
-		f32_max:
-			"f32.max"
-		f32_copysign:
-			"f32.copysign"
+		f32_abs: "f32.abs"
+		f32_neg: "f32.neg"
+		f32_ceil: "f32.ceil"
+		f32_floor: "f32.floor"
+		f32_trunc: "f32.trunc"
+		f32_nearest: "f32.nearest"
+		f32_sqrt: "f32.sqrt"
+		f32_add: "f32.add"
+		f32_sub: "f32.sub"
+		f32_mul: "f32.mul"
+		f32_div: "f32.div"
+		f32_min: "f32.min"
+		f32_max: "f32.max"
+		f32_copysign: "f32.copysign"
 
-		f64_abs:
-			"f64.abs"
-		f64_neg:
-			"f64.neg"
-		f64_ceil:
-			"f64.ceil"
-		f64_floor:
-			"f64.floor"
-		f64_trunc:
-			"f64.trunc"
-		f64_nearest:
-			"f64.nearest"
-		f64_sqrt:
-			"f64.sqrt"
-		f64_add:
-			"f64.add"
-		f64_sub:
-			"f64.sub"
-		f64_mul:
-			"f64.mul"
-		f64_div:
-			"f64.div"
-		f64_min:
-			"f64.min"
-		f64_max:
-			"f64.max"
-		f64_copysign:
-			"f64.copysign"
+		f64_abs: "f64.abs"
+		f64_neg: "f64.neg"
+		f64_ceil: "f64.ceil"
+		f64_floor: "f64.floor"
+		f64_trunc: "f64.trunc"
+		f64_nearest: "f64.nearest"
+		f64_sqrt: "f64.sqrt"
+		f64_add: "f64.add"
+		f64_sub: "f64.sub"
+		f64_mul: "f64.mul"
+		f64_div: "f64.div"
+		f64_min: "f64.min"
+		f64_max: "f64.max"
+		f64_copysign: "f64.copysign"
 
-		i32_wrap_i64:
-			"i32.wrap_i64"
-		i32_trunc_f32_s:
-			"i32.trunc_f32_s"
-		i32_trunc_f32_u:
-			"i32.trunc_f32_u"
-		i32_trunc_f64_s:
-			"i32.trunc_f64_s"
-		i32_trunc_f64_u:
-			"i32.trunc_f64_u"
-		i64_extend_i32_s:
-			"i64.extend_i32_s"
-		i64_extend_i32_u:
-			"i64.extend_i32_u"
-		i64_trunc_f32_s:
-			"i64.trunc_f32_s"
-		i64_trunc_f32_u:
-			"i64.trunc_f32_u"
-		i64_trunc_f64_s:
-			"i64.trunc_f64_s"
-		i64_trunc_f64_u:
-			"i64.trunc_f64_u"
-		f32_convert_i32_s:
-			"f32.convert_i32_s"
-		f32_convert_i32_u:
-			"f32.convert_i32_u"
-		f32_convert_i64_s:
-			"f32.convert_i64_s"
-		f32_convert_i64_u:
-			"f32.convert_i64_u"
-		f32_demote_f64:
-			"f32.demote_f64"
-		f64_convert_i32_s:
-			"f64.convert_i32_s"
-		f64_convert_i32_u:
-			"f64.convert_i32_u"
-		f64_convert_i64_s:
-			"f64.convert_i64_s"
-		f64_convert_i64_u:
-			"f64.convert_i64_u"
-		f64_promote_f32:
-			"f64.promote_f32"
-		i32_reinterpret_f32:
-			"i32.reinterpret_f32"
-		i64_reinterpret_f64:
-			"i64.reinterpret_f64"
-		f32_reinterpret_i32:
-			"f32.reinterpret_i32"
-		f64_reinterpret_i64:
-			"f64.reinterpret_i64"
+		i32_wrap_i64: "i32.wrap_i64"
+		i32_trunc_f32_s: "i32.trunc_f32_s"
+		i32_trunc_f32_u: "i32.trunc_f32_u"
+		i32_trunc_f64_s: "i32.trunc_f64_s"
+		i32_trunc_f64_u: "i32.trunc_f64_u"
+		i64_extend_i32_s: "i64.extend_i32_s"
+		i64_extend_i32_u: "i64.extend_i32_u"
+		i64_trunc_f32_s: "i64.trunc_f32_s"
+		i64_trunc_f32_u: "i64.trunc_f32_u"
+		i64_trunc_f64_s: "i64.trunc_f64_s"
+		i64_trunc_f64_u: "i64.trunc_f64_u"
+		f32_convert_i32_s: "f32.convert_i32_s"
+		f32_convert_i32_u: "f32.convert_i32_u"
+		f32_convert_i64_s: "f32.convert_i64_s"
+		f32_convert_i64_u: "f32.convert_i64_u"
+		f32_demote_f64: "f32.demote_f64"
+		f64_convert_i32_s: "f64.convert_i32_s"
+		f64_convert_i32_u: "f64.convert_i32_u"
+		f64_convert_i64_s: "f64.convert_i64_s"
+		f64_convert_i64_u: "f64.convert_i64_u"
+		f64_promote_f32: "f64.promote_f32"
+		i32_reinterpret_f32: "i32.reinterpret_f32"
+		i64_reinterpret_f64: "i64.reinterpret_f64"
+		f32_reinterpret_i32: "f32.reinterpret_i32"
+		f64_reinterpret_i64: "f64.reinterpret_i64"
 
-		i32_extend8_s:
-			"i32.extend8_s"
-		i32_extend16_s:
-			"i32.extend16_s"
-		i64_extend8_s:
-			"i64.extend8_s"
-		i64_extend16_s:
-			"i64.extend16_s"
-		i64_extend32_s:
-			"i64.extend32_s"
+		i32_extend8_s: "i32.extend8_s"
+		i32_extend16_s: "i32.extend16_s"
+		i64_extend8_s: "i64.extend8_s"
+		i64_extend16_s: "i64.extend16_s"
+		i64_extend32_s: "i64.extend32_s"
 
 
 pub fn to_wat(module: Module):

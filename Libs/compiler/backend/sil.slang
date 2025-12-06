@@ -174,14 +174,10 @@ pub enum BitwiseOp:
 
 fn op_to_string(op?: BinaryOp) -> str:
 	case op:
-		Add:
-			"add"
-		Sub:
-			"sub"
-		Mul:
-			"mul"
-		Div:
-			"div"
+		Add: "add"
+		Sub: "sub"
+		Mul: "mul"
+		Div: "div"
 
 pub enum CompOp:
 	Eq
@@ -193,18 +189,12 @@ pub enum CompOp:
 
 fn comparison_to_string(op?: CompOp) -> str:
 	case op:
-		Eq:
-			"eq"
-		Neq:
-			"ne"
-		Gt:
-			"gt"
-		Gte:
-			"gte"
-		Lt:
-			"lt"
-		Lte:
-			"lte"
+		Eq: "eq"
+		Neq: "ne"
+		Gt: "gt"
+		Gte: "gte"
+		Lt: "lt"
+		Lte: "lte"
 
 pub struct Value:
 	name: str
@@ -217,12 +207,9 @@ pub enum Type:
 
 pub fn type_to_string(ty?: Type) -> str:
 	case ty:
-		I64:
-			"i64"
-		PTR:
-			"ptr"
-		F64:
-			"f64"
+		I64: "i64"
+		PTR: "ptr"
+		F64: "f64"
 
 pub enum Address:
 	Global(name: str)

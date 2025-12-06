@@ -675,37 +675,20 @@ class CGenerator2:
 
 fn binary_op_to_str(op: ast.BinaryOperator) -> str:
 	case op:
-		And:
-			"&&"
-		Or:
-			"||"
-		Add:
-			"+"
-		Sub:
-			"-"
-		Mul:
-			"*"
-		Div:
-			"/"
-		Less:
-			"<"
-		LessEquals:
-			"<="
-		Greater:
-			">"
-		GreaterEquals:
-			">="
-		Equals:
-			"=="
-		NotEquals:
-			"!="
-		BitAnd:
-			"&"
-		BitXor:
-			"^"
-		BitOr:
-			"|"
-		ShiftLeft:
-			"<<"
-		ShiftRight:
-			">>"
+		And: "&&"
+		Or: "||"
+		Add: "+"
+		Sub: "-"
+		Mul: "*"
+		Div: "/"
+		Less: "<"
+		LessEquals: "<="
+		Greater: ">"
+		GreaterEquals: ">="
+		Equals: "=="
+		NotEquals: "!="
+		BitAnd: "&"
+		BitXor: "^"
+		BitOr: "|"
+		ShiftLeft: "<<"
+		ShiftRight: ">>"

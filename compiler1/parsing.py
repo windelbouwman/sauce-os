@@ -483,12 +483,20 @@ class CustomTransformer(LarkTransformer):
 
     def block(self, x):
         # COLON NEWLINE INDENT statement+ DEDENT
-        assert is_terminal(x[1], "NEWLINE")
-        assert is_terminal(x[2], "INDENT")
-        statements = x[3:-1]
-        assert is_terminal(x[-1], "DEDENT")
-        span = get_loc2(x[0], x[-1])
-        statement = ast.compound_statement(statements, get_loc(x[2]))
+        # | COLON expression NEWLINE
+        assert is_terminal(x[0], "COLON")
+        if is_terminal(x[1], "NEWLINE"):
+            assert is_terminal(x[1], "NEWLINE")
+            assert is_terminal(x[2], "INDENT")
+            statements = x[3:-1]
+            assert is_terminal(x[-1], "DEDENT")
+            span = get_loc2(x[0], x[-1])
+            statement = ast.compound_statement(statements, get_loc(x[2]))
+        else:
+            expression = x[1]
+            assert is_terminal(x[2], "NEWLINE")
+            span = expression.location
+            statement = ast.expression_statement(expression, expression.location)
         return ast.ScopedBlock(statement, span)
 
     def statement(self, x):
@@ -933,6 +941,7 @@ ids: ID
    | ids COMMA ID
 
 block: COLON NEWLINE INDENT statement+ DEDENT
+     | COLON test NEWLINE
 
 statement: simple_statement NEWLINE
          | block_statement

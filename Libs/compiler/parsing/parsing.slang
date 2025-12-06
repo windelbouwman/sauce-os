@@ -617,15 +617,21 @@ class Parser:
 		log_trace("parsing block")
 
 		parse_colon()
-		parse_newline()
-		parse_indent()
+		case m_peek.kind:
+			NewLine:
+				parse_newline()
+				parse_indent()
 
-		let inner: Vector[ast.Statement] = new_vector()
-		while not try_parse_dedent():
-			let statement = parse_statement()
-			inner.append(statement)
-		let location = inner.first().location
-		ast.compound(inner, location)
+				let inner: Vector[ast.Statement] = new_vector()
+				while not try_parse_dedent():
+					let statement = parse_statement()
+					inner.append(statement)
+				let location = inner.first().location
+				ast.compound(inner, location)
+		else:
+			let expression = parse_expression()
+			parse_newline()
+			ast.expression_statement(expr: expression)
 
 	pub fn parse_statement() -> ast.Statement except ParseError:
 		log_trace("parsing statement")

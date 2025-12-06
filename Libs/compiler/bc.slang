@@ -162,17 +162,13 @@ pub fn literal_to_string(literal?: LiteralValue) -> str:
 				"bool(false)"
 		Char(value):
 			"char('{value}')"
-		Null:
-			"Null"
+		Null: "Null"
 
 pub fn instruction_to_string(instruction?: Instruction) -> str:
 	case instruction:
-		Nop:
-			"nop"
-		Dup:
-			"dup"
-		Swap:
-			"swap"
+		Nop: "nop"
+		Dup: "dup"
+		Swap: "swap"
 		Literal(literal):
 			literal_to_string(literal)
 		Jump(v):
@@ -180,57 +176,36 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 		JumpIf(op, v1, v2):
 			let op2 = comparison_to_string(op)
 			"jump-if({op2}, {v1}, {v2})"
-		Not:
-			"not"
-		Neg:
-			"neg"
-		Binop(op):
-			binop_to_string(op)
-		Bitop(op):
-			bitop_to_string(op)
+		Not: "not"
+		Neg: "neg"
+		Binop(op): binop_to_string(op)
+		Bitop(op): bitop_to_string(op)
 		IntCast(signed, bits):
 			if signed:
 				"to-int{bits}"
 			else:
 				"to-uint{bits}"
-		IntToFloat:
-			"int-to-float"
-		FloatToInt:
-			"float-to-int"
-		ToOpaque(t):
-			"?-to-opaque"
-		FromOpaque(t):
-			"opaque-to-?"
-		Call(index):
-			"call({index})"
+		IntToFloat: "int-to-float"
+		FloatToInt: "float-to-int"
+		ToOpaque(t): "?-to-opaque"
+		FromOpaque(t): "opaque-to-?"
+		Call(index): "call({index})"
 		CallIndirect(parameter_types, return_type):
 			"call-indirect({parameter_types.len()})"
 		Return(v):
 			"return({v})"
-		Unreachable:
-			"unreachable"
-		DecRef(index):
-			"dec ref {index}"
-		LocalGet(index):
-			"local-get({index})"
-		LocalSet(index):
-			"local-set({index})"
-		GlobalGet(index):
-			"global-get({index})"
-		GlobalSet(index):
-			"global-set({index})"
-		ParameterGet(index):
-			"parameter-get({index})"
-		ParameterSet(index):
-			"parameter-set({index})"
-		GetAttr(index):
-			"get-attr({index})"
-		SetAttr(index):
-			"set-attr({index})"
-		GetIndex:
-			"get-index"
-		SetIndex:
-			"set-index"
+		Unreachable: "unreachable"
+		DecRef(index): "dec ref {index}"
+		LocalGet(index): "local-get({index})"
+		LocalSet(index): "local-set({index})"
+		GlobalGet(index): "global-get({index})"
+		GlobalSet(index): "global-set({index})"
+		ParameterGet(index): "parameter-get({index})"
+		ParameterSet(index): "parameter-set({index})"
+		GetAttr(index): "get-attr({index})"
+		SetAttr(index): "set-attr({index})"
+		GetIndex: "get-index"
+		SetIndex: "set-index"
 		LoadFunc(index):
 			"load-func({index})"
 		StructLiteral(struct_index):
@@ -240,42 +215,27 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 
 fn binop_to_string(op: BinaryOperator) -> str:
 	case op:
-		Add:
-			"add"
-		Sub:
-			"sub"
-		Divide:
-			"div"
-		Multiply:
-			"mul"
+		Add: "add"
+		Sub: "sub"
+		Divide: "div"
+		Multiply: "mul"
 
 fn comparison_to_string(op: ComparisonOperator) -> str:
 	case op:
-		Less:
-			"lt"
-		LessEquals:
-			"lte"
-		GreaterEquals:
-			"gte"
-		Greater:
-			"gt"
-		Equals:
-			"eq"
-		NotEquals:
-			"ne"
+		Less: "lt"
+		LessEquals: "lte"
+		GreaterEquals: "gte"
+		Greater: "gt"
+		Equals: "eq"
+		NotEquals: "ne"
 
 fn bitop_to_string(op: BitOperator) -> str:
 	case op:
-		Shr:
-			"bit-shr"
-		Shl:
-			"bit-shr"
-		Xor:
-			"bit-xor"
-		And:
-			"bit-and"
-		Or:
-			"bit-or"
+		Shr: "bit-shr"
+		Shl: "bit-shr"
+		Xor: "bit-xor"
+		And: "bit-and"
+		Or: "bit-or"
 
 pub fn print_bc_program_to_file(program: Program, filename: Option[str]):
 	let p = Printer()
@@ -366,14 +326,10 @@ pub fn type_to_string(ty?: Type) -> str:
 				"uint{bits}"
 		Float(bits):
 			"float{bits}"
-		Bool:
-			"bool"
-		Ptr:
-			"ptr"
-		Str:
-			"str"
-		Char:
-			"char"
+		Bool: "bool"
+		Ptr: "ptr"
+		Str: "str"
+		Char: "char"
 		StructRef(index):
 			"struct-ref({index})"
 		Function(parameter_types, return_type):

@@ -160,86 +160,52 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 
 pub fn div_mul_op_to_str(op: DivMulOp) -> str:
 	case op:
-		Mul:
-			"mul"
-		IMul:
-			"imul"
-		Div:
-			"div"
-		IDiv:
-			"idiv"
+		Mul: "mul"
+		IMul: "imul"
+		Div: "div"
+		IDiv: "idiv"
 
 fn sse_op_to_str(op: SseOp) -> str:
 	case op:
-		Add:
-			"add"
-		Mul:
-			"mul"
-		Sub:
-			"sub"
-		Min:
-			"min"
-		Div:
-			"div"
-		Max:
-			"max"
+		Add: "add"
+		Mul: "mul"
+		Sub: "sub"
+		Min: "min"
+		Div: "div"
+		Max: "max"
 
 pub fn op_to_str(op: Op) -> str:
 	case op:
-		Add:
-			"add"
-		Sub:
-			"sub"
-		Cmp:
-			"cmp"
-		And:
-			"and"
-		Or:
-			"or"
-		Xor:
-			"xor"
-		Mov:
-			"mov"
+		Add: "add"
+		Sub: "sub"
+		Cmp: "cmp"
+		And: "and"
+		Or: "or"
+		Xor: "xor"
+		Mov: "mov"
 
 fn cc_to_string(condition: Cond) -> str:
 	case condition:
-		Jb:
-			"jb"
-		Jae:
-			"jae"
-		Jz:
-			"jz"
-		Jnz:
-			"jnz"
-		Jbe:
-			"jbe"
-		Ja:
-			"ja"
-		Jl:
-			"jl"
-		Jge:
-			"jge"
-		Jle:
-			"jle"
-		Jg:
-			"jg"
+		Jb: "jb"
+		Jae: "jae"
+		Jz: "jz"
+		Jnz: "jnz"
+		Jbe: "jbe"
+		Ja: "ja"
+		Jl: "jl"
+		Jge: "jge"
+		Jle: "jle"
+		Jg: "jg"
 
 pub fn shift_op_to_string(op: ShiftOp) -> str:
 	case op:
-		Rol:
-			"rol"
-		Ror:
-			"ror"
-		Rcl:
-			"rcl"
-		Rcr:
-			"rcr"
-		Shl:
-			"shl"
-		Shr:
-			"shr"
-		Sar:
-			"sar"
+		Rol: "rol"
+		Ror: "ror"
+		Rcl: "rcl"
+		Rcr: "rcr"
+		Shl: "shl"
+		Shr: "shr"
+		Sar: "sar"
 
 fn rm_reg_to_str(mnemonic?: str, rm: Rm, reg: int) -> str:
 	"{mnemonic} {rm_to_str(rm)}, {reg_to_str(reg)}"
@@ -265,101 +231,61 @@ fn rm_to_str(rm: Rm) -> str:
 
 fn reg64_to_str(reg: int) -> str:
 	switch reg:
-		0:
-			"rax"
-		1:
-			"rcx"
-		2:
-			"rdx"
-		3:
-			"rbx"
-		4:
-			"rsp"
-		5:
-			"rbp"
-		6:
-			"rsi"
-		7:
-			"rdi"
-		8:
-			"r8"
-		9:
-			"r9"
-		10:
-			"r10"
-		11:
-			"r11"
-		12:
-			"r12"
-		13:
-			"r13"
-		14:
-			"r14"
-		15:
-			"r15"
+		0: "rax"
+		1: "rcx"
+		2: "rdx"
+		3: "rbx"
+		4: "rsp"
+		5: "rbp"
+		6: "rsi"
+		7: "rdi"
+		8: "r8"
+		9: "r9"
+		10: "r10"
+		11: "r11"
+		12: "r12"
+		13: "r13"
+		14: "r14"
+		15: "r15"
 	else:
 		"?{reg}"
 
 fn reg_to_str(reg: int) -> str:
 	switch reg:
-		0:
-			"eax"
-		1:
-			"ecx"
-		2:
-			"edx"
-		3:
-			"ebx"
-		4:
-			"esp"
-		5:
-			"ebp"
-		6:
-			"esi"
-		7:
-			"edi"
+		0: "eax"
+		1: "ecx"
+		2: "edx"
+		3: "ebx"
+		4: "esp"
+		5: "ebp"
+		6: "esi"
+		7: "edi"
 	else:
 		"er{reg}"
 
 fn reg16_to_str(reg: int) -> str:
 	switch reg:
-		0:
-			"ax"
-		1:
-			"cx"
-		2:
-			"dx"
-		3:
-			"bx"
-		4:
-			"sp"
-		5:
-			"bp"
-		6:
-			"si"
-		7:
-			"di"
+		0: "ax"
+		1: "cx"
+		2: "dx"
+		3: "bx"
+		4: "sp"
+		5: "bp"
+		6: "si"
+		7: "di"
 	else:
 		"?{reg}"
 
 fn reg8_to_str(reg: int) -> str:
 	switch reg:
-		0:
-			"al"
-		1:
-			"cl"
-		2:
-			"dl"
-		3:
-			"bl"
-		4:
-			"ah"
-		5:
-			"ch"
-		6:
-			"dh"
-		7:
-			"bh"
+		0: "al"
+		1: "cl"
+		2: "dl"
+		3: "bl"
+		4: "ah"
+		5: "ch"
+		6: "dh"
+		7: "bh"
 	else:
 		"?{reg}"
 
@@ -548,77 +474,47 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 
 fn get_sse_opcode(op: SseOp) -> int:
 	case op:
-		Add:
-			0x58
-		Mul:
-			0x59
-		Sub:
-			0x5C
-		Min:
-			0x5D
-		Div:
-			0x5E
-		Max:
-			0x5F
+		Add: 0x58
+		Mul: 0x59
+		Sub: 0x5C
+		Min: 0x5D
+		Div: 0x5E
+		Max: 0x5F
 
 fn get_opcode(op: Op) -> int:
 	case op:
-		Add:
-			0x0
-		Or:
-			0x8
+		Add: 0x0
+		Or: 0x8
 		# ADC: 0x10
 		# SBB: 0x18
-		And:
-			0x20
-		Sub:
-			0x28
-		Xor:
-			0x30
-		Cmp:
-			0x38
-		Mov:
-			0x88
+		And: 0x20
+		Sub: 0x28
+		Xor: 0x30
+		Cmp: 0x38
+		Mov: 0x88
 
 fn get_cc_code(condition: Cond) -> int:
 	case condition:
-		Jb:
-			0x2
-		Jae:
-			0x3
-		Jz:
-			0x4
-		Jnz:
-			0x5
-		Jbe:
-			0x6
-		Ja:
-			0x7
-		Jl:
-			0xC
-		Jge:
-			0xD
-		Jle:
-			0xE
-		Jg:
-			0xF
+		Jb: 0x2
+		Jae: 0x3
+		Jz: 0x4
+		Jnz: 0x5
+		Jbe: 0x6
+		Ja: 0x7
+		Jl: 0xC
+		Jge: 0xD
+		Jle: 0xE
+		Jg: 0xF
 
 fn get_shift_code(op: ShiftOp) -> int:
 	case op:
-		Rol:
-			0
-		Ror:
-			1
-		Rcl:
-			2
-		Rcr:
-			3
-		Shl:
-			4
-		Shr:
-			5
-		Sar:
-			7
+		Rol: 0
+		Ror: 1
+		Rcl: 2
+		Rcr: 3
+		Shl: 4
+		Shr: 5
+		Sar: 7
 
 pub fn is_pic_reloc(typ: int) -> bool:
 	switch typ:

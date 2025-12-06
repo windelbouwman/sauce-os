@@ -79,10 +79,8 @@ pub class Type:
 				case tycon:
 					Class(x):
 						true
-				else:
-					false
-		else:
-			false
+				else: false
+		else: false
 
 	pub fn is_interface() -> bool:
 		case kind:
@@ -90,10 +88,8 @@ pub class Type:
 				case tycon:
 					Interface(interface_def):
 						true
-				else:
-					false
-		else:
-			false
+				else: false
+		else: false
 
 	pub fn is_int() -> bool:
 		case kind:
@@ -101,10 +97,8 @@ pub class Type:
 				case base:
 					Int(signed, bits):
 						true
-				else:
-					false
-		else:
-			false
+				else: false
+		else: false
 
 	pub fn is_signed_int() -> bool:
 		case kind:
@@ -112,10 +106,8 @@ pub class Type:
 				case base:
 					Int(signed, bits):
 						signed
-				else:
-					false
-		else:
-			false
+				else: false
+		else: false
 
 	pub fn get_bits() -> int:
 		case kind:
@@ -132,57 +124,42 @@ pub class Type:
 
 	pub fn is_void() -> bool:
 		case kind:
-			Void:
-				true
-		else:
-			false
+			Void: true
+		else: false
 
 	pub fn is_unreachable() -> bool:
 		case kind:
-			Unreachable:
-				true
-		else:
-			false
+			Unreachable: true
+		else: false
 
 	pub fn is_undefined() -> bool:
 		case kind:
-			Undefined:
-				true
-		else:
-			false
+			Undefined: true
+		else: false
 
 	pub fn is_str() -> bool:
 		case kind:
 			Base(base):
 				case base:
-					Str:
-						true
-				else:
-					false
-		else:
-			false
+					Str: true
+				else: false
+		else: false
 
 	pub fn is_char() -> bool:
 		case kind:
 			Base(base):
 				case base:
-					Char:
-						true
-				else:
-					false
-		else:
-			false
+					Char: true
+				else: false
+		else: false
 
 	pub fn is_bool() -> bool:
 		case kind:
 			Base(base):
 				case base:
-					Bool:
-						true
-				else:
-					false
-		else:
-			false
+					Bool: true
+				else: false
+		else: false
 
 	pub fn is_float() -> bool:
 		case kind:
@@ -192,15 +169,12 @@ pub class Type:
 						true
 				else:
 					false
-		else:
-			false
+		else: false
 
 	pub fn is_base_type() -> bool:
 		case kind:
-			Base(base):
-				true
-		else:
-			false
+			Base(base): true
+		else: false
 
 	pub fn get_base_type() -> BaseType:
 		case kind:
@@ -211,10 +185,8 @@ pub class Type:
 
 	pub fn is_opaque() -> bool:
 		case kind:
-			Opaque:
-				true
-		else:
-			false
+			Opaque: true
+		else: false
 
 	pub fn is_array() -> bool:
 		case kind:
@@ -243,10 +215,8 @@ pub class Type:
 				case tycon:
 					Struct(struct_def):
 						true
-				else:
-					false
-		else:
-			false
+				else: false
+		else: false
 
 	pub fn is_union_struct() -> bool:
 		case kind:
@@ -254,10 +224,8 @@ pub class Type:
 				case tycon:
 					Struct(struct_def):
 						struct_def.is_union
-				else:
-					false
-		else:
-			false
+				else: false
+		else: false
 
 	pub fn get_struct_def() -> StructDef:
 		case kind:
@@ -2077,47 +2045,28 @@ fn print_ast_node(printer: AstPrinter, node: VisitNode, phase: VisitPhase):
 
 pub fn binary_op_to_str(op?: BinaryOperator) -> str:
 	case op:
-		And:
-			"and"
-		Or:
-			"or"
-		Greater:
-			">"
-		GreaterEquals:
-			">="
-		Less:
-			"<"
-		LessEquals:
-			"<="
-		Equals:
-			"=="
-		NotEquals:
-			"!="
-		BitAnd:
-			"bitand"
-		BitXor:
-			"bitxor"
-		BitOr:
-			"bitor"
-		ShiftLeft:
-			"shl"
-		ShiftRight:
-			"shr"
-		Add:
-			"+"
-		Sub:
-			"-"
-		Mul:
-			"*"
-		Div:
-			"/"
+		And: "and"
+		Or: "or"
+		Greater: ">"
+		GreaterEquals: ">="
+		Less: "<"
+		LessEquals: "<="
+		Equals: "=="
+		NotEquals: "!="
+		BitAnd: "bitand"
+		BitXor: "bitxor"
+		BitOr: "bitor"
+		ShiftLeft: "shl"
+		ShiftRight: "shr"
+		Add: "+"
+		Sub: "-"
+		Mul: "*"
+		Div: "/"
 
 fn unary_op_to_str(op: UnaryOperator) -> str:
 	case op:
-		Not:
-			"not"
-		Minus:
-			"-"
+		Not: "not"
+		Minus: "-"
 
 pub struct Visitor[D]:
 	data: D

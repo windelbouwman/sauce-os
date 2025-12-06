@@ -166,10 +166,7 @@ class CGenerator:
 				else:
 					panic("Value must be function or int")
 			Bool(v):
-				if v:
-					"1"
-				else:
-					"0"
+				"1" if v else "0"
 			Float(value):
 				float_to_str2(value, digits: 20)
 			Str(v):
@@ -375,14 +372,10 @@ class CGenerator:
 				write("const ")
 				gen_typed_name(ty, name: varname)
 				let op_txt = case op:
-					Add:
-						"+"
-					Sub:
-						"-"
-					Multiply:
-						"*"
-					Divide:
-						"/"
+					Add: "+"
+					Sub: "-"
+					Multiply: "*"
+					Divide: "/"
 				write(" = ")
 				write(lhs.name)
 				write(op_txt)
@@ -394,16 +387,11 @@ class CGenerator:
 				let rhs = pop()
 				let lhs = pop()
 				let op_txt = case op:
-					And:
-						"&"
-					Or:
-						"|"
-					Xor:
-						"^"
-					Shr:
-						">>"
-					Shl:
-						"<<"
+					And: "&"
+					Or: "|"
+					Xor: "^"
+					Shr: ">>"
+					Shl: "<<"
 				let ty = lhs.ty
 				let varname = new_local_var()
 				write("const ")
