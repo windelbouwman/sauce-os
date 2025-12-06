@@ -25,16 +25,15 @@ import riscv
 from bytes import ByteArray
 from optiontype import Option
 from listtype import List, list4
-from codegen import cgen
+from codegen import cgen, CodegenOptions
 from isel import Backend, SelectionContext, Frame
 from outstream import BinaryOutput
 from report import Report
 from utils import unimplemented
 from logging import log_info
 
-pub fn gen_riscv(program: sil.Program, filename: Option[str], report: Report):
+pub fn gen_riscv(program: sil.Program, options: CodegenOptions):
 	log_info("Generating riscv code")
-	program.dump(report)
 	let all_regs: List[int] = list4(18, 19, 20, 21)
 	let all_regs2: List[int] = list4(18, 19, 20, 21)
 	let backend: Backend[VirtInst] = Backend:
@@ -51,7 +50,7 @@ pub fn gen_riscv(program: sil.Program, filename: Option[str], report: Report):
 		emit_pointer: gen_pointer
 
 	unimplemented("TODO")
-	cgen(program, backend, filename, report)
+	cgen(program, backend, options)
 
 enum VirtInst:
 	Jal

@@ -10,7 +10,7 @@ import mil
 import x86
 from report import Report
 from listtype import List, list4, list5, list8
-from codegen import cgen
+from codegen import cgen, CodegenOptions
 from isel import SelectionContext, Backend, Frame
 from outstream import BinaryOutput
 from optiontype import Option
@@ -49,7 +49,7 @@ let xmm13: int = 13
 let xmm14: int = 14
 let xmm15: int = 15
 
-pub fn gen_x86(program: sil.Program, filename: Option[str], report: Report):
+pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 	log_info("Generating x86 instructions")
 	let all_regs: List[int] = List()
 	all_regs.append(rax) # Skip rax since it's special purposes
@@ -98,7 +98,7 @@ pub fn gen_x86(program: sil.Program, filename: Option[str], report: Report):
 		fixer: x86.apply_reloc
 		is_pic_reloc: x86.is_pic_reloc
 		emit_pointer: x86.emit_pointer_to_name
-	cgen(program, backend, filename, report)
+	cgen(program, backend, options)
 
 pub enum VirtInst:
 	Entry
@@ -281,7 +281,12 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						let rax_reg = context.get_pre_colored(color: rax, kind: 0)
 						let rdx_reg = context.get_pre_colored(color: rdx, kind: 0)
 						move(context, dst: rax_reg, src: lhs_reg)
+						let cqo_ins = context.emit_and_get(VirtInst.Actual(x86.Instruction.Cqo()))
+						cqo_ins.add_use(rax_reg)
+						cqo_ins.add_def(rdx_reg)
+						cqo_ins.add_def(rax_reg)
 						let op_ins = context.emit_and_get(VirtInst.DivMul(op: x86.DivMulOp.IDiv(), rm: VirtRm.Reg(reg: rhs_reg)))
+						op_ins.add_use(rdx_reg)
 						op_ins.add_use(rax_reg)
 						op_ins.add_use(rhs_reg)
 						op_ins.add_def(rax_reg)
@@ -609,7 +614,6 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 			emit(instruction, out)
 		DivMul(op, rm):
 			let rhs_rm = mat_rm(rm)
-			emit(x86.Instruction.Cqo(), out)
 			emit(x86.Instruction.DivMul(op, rm: rhs_rm), out)
 		Mov(dst, src):
 			if dst.color != src.color:

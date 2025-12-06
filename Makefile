@@ -8,7 +8,6 @@ BASE_LIB_SRCS += runtime/std.slang
 COMPILER_LIB_SRCS := $(wildcard Libs/compiler/*.slang)
 COMPILER_LIB_SRCS += $(wildcard Libs/compiler/*/*.slang)
 COMPILER_SRCS := $(wildcard compiler/main.slang)
-REGEX_LIB_SRCS := $(wildcard Libs/regex/*.slang)
 GFX_LIB_SRCS := $(wildcard Libs/gfx/*.slang)
 SCIENCE_LIB_SRCS := $(wildcard Libs/science/*.slang)
 IMAGE_LIB_SRCS := $(wildcard Libs/image/*.slang)
@@ -24,6 +23,7 @@ COMPILER6=${BUILDDIR}/tmp-compiler6.py
 SLANGC=./${COMPILER5}
 SLANGC_DEPS=${COMPILER5}
 SLANG_APPS := $(wildcard Apps/*.slang)
+AOC_APPS := $(wildcard examples/aoc/*/main.slang)
 
 CFLAGS=-Werror -Wfatal-errors -Wreturn-type -g -Iruntime -rdynamic
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
@@ -32,21 +32,25 @@ SLANG3_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang3/%.slang, $
 WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
 PY_EXAMPLES := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, $(SLANG_EXAMPLES))
 PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
+PY_AOC := $(patsubst examples/aoc/%/main.slang, build/python/aoc-%.py, $(AOC_APPS))
 C_EXAMPLES := $(patsubst examples/snippets/%.slang, build/c/snippets/%.exe, $(SLANG_EXAMPLES))
 C_EXAMPLES_2 := $(patsubst examples/snippets/%.slang, build/c/snippets2/%.exe, $(SLANG_EXAMPLES))
 X86_EXAMPLES := $(patsubst examples/snippets/%.slang, build/x86/snippet_%.exe, $(SLANG_EXAMPLES))
+X86_AOC := $(patsubst examples/aoc/%/main.slang, build/x86/aoc_%.exe, $(AOC_APPS))
 C_APPS := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
 ALL_TEST_RUNS := $(patsubst tests/test_%.slang, run-test-c-%, $(TESTS))
 ALL_TEST_RUNS_PY := $(patsubst tests/test_%.slang, run-test-py-%, $(TESTS))
 ALL_TEST_RUNS_X86 := $(patsubst tests/test_%.slang, run-test-x86-%, $(TESTS))
+X86_TESTS := $(patsubst tests/test_%.slang, build/x86/test_%.exe, $(TESTS))
 
 .PHONY: all check check-py all-examples test pytest-exes
-all: ${C_APPS} ${PY_APPS} all-examples
+all: ${C_APPS} ${PY_APPS} all-examples aoc
 all-examples: all-examples-bc all-examples-c all-examples-python all-examples-slang all-examples-x86
 test: pytest-compiler pytest-compiler1 check check-py
 
+aoc: ${PY_AOC} ${X86_AOC}
 check: ${ALL_TEST_RUNS}
 check-py: ${ALL_TEST_RUNS_PY}
 check-x86: ${ALL_TEST_RUNS_X86}
@@ -61,7 +65,7 @@ profile2: ${BUILDDIR}/c/apps/write_image.exe | ${BUILDDIR}
 	kcachegrind build/callgrind.out
 
 profile3: ${COMPILER5} | ${BUILDDIR}
-	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-c -o build/c/apps/write_image.c Apps/write_image.slang --add-import build/c/libbase.json --add-import build/c/libregex.json --add-import build/c/libimage.json --add-import build/c/libscience.json --add-import build/c/libgfx.json --add-import build/c/libcompiler.json --add-import build/c/libweb.json
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-c -o build/c/apps/write_image.c Apps/write_image.slang --add-import build/c/libbase.json --add-import build/c/libimage.json --add-import build/c/libscience.json --add-import build/c/libgfx.json --add-import build/c/libcompiler.json --add-import build/c/libweb.json
 	kcachegrind build/callgrind.out
 
 profile4: ${COMPILER5} | ${BUILDDIR}
@@ -74,7 +78,7 @@ leakcheck: ${COMPILER5} | ${BUILDDIR}
 pytest-compiler1:
 	pytest -v test_compiler1.py
 
-pytest-compiler: all-examples-c all-examples-python all-examples-x86
+pytest-compiler: all-examples-c all-examples-python all-examples-x86 aoc
 	pytest -vv test_compiler.py
 
 # Example to bytecode compilation
@@ -140,9 +144,6 @@ ${BUILDDIR}/c/snippets2:
 ${BUILDDIR}/c/libbase.c ${BUILDDIR}/c/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/c
 	${SLANGC} --backend-c-v2 --gen-export ${BUILDDIR}/c/libbase.json -o ${BUILDDIR}/c/libbase.c ${BASE_LIB_SRCS}
 
-${BUILDDIR}/c/libregex.c ${BUILDDIR}/c/libregex.json: ${REGEX_LIB_SRCS} ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
-	${SLANGC} --backend-c-v2 --gen-export ${BUILDDIR}/c/libregex.json -o ${BUILDDIR}/c/libregex.c --add-import ${BUILDDIR}/c/libbase.json ${REGEX_LIB_SRCS}
-
 ${BUILDDIR}/c/libimage.c ${BUILDDIR}/c/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/c
 	${SLANGC} --backend-c-v2 --gen-export ${BUILDDIR}/c/libimage.json -o ${BUILDDIR}/c/libimage.c --add-import ${BUILDDIR}/c/libbase.json ${IMAGE_LIB_SRCS}
 
@@ -165,9 +166,6 @@ ${BUILDDIR}/c/lib%.so: ${BUILDDIR}/c/lib%.c
 # Base lib as python module
 ${BUILDDIR}/python/libbase.py ${BUILDDIR}/python/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libbase.json -o ${BUILDDIR}/python/libbase.py ${BASE_LIB_SRCS}
-
-${BUILDDIR}/python/libregex.py ${BUILDDIR}/python/libregex.json: ${REGEX_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
-	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libregex.json -o ${BUILDDIR}/python/libregex.py --add-import ${BUILDDIR}/python/libbase.json ${REGEX_LIB_SRCS}
 
 ${BUILDDIR}/python/libimage.py ${BUILDDIR}/python/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python ${BUILDDIR}/python/slangrt.py
 	${SLANGC} --backend-py --gen-export ${BUILDDIR}/python/libimage.json -o ${BUILDDIR}/python/libimage.py --add-import ${BUILDDIR}/python/libbase.json ${IMAGE_LIB_SRCS}
@@ -237,18 +235,35 @@ native: all-examples-x86 native_example
 
 # Libs to x86
 ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} --backend-x86 -v --gen-export ${BUILDDIR}/x86/libbase.json -o ${BUILDDIR}/x86/libbase.o ${BASE_LIB_SRCS}
+	${SLANGC} -v --backend-x86 -v --gen-export ${BUILDDIR}/x86/libbase.json -o ${BUILDDIR}/x86/libbase.o ${BASE_LIB_SRCS}
 
-${BUILDDIR}/x86/libregex.o ${BUILDDIR}/x86/libregex.json: ${REGEX_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libregex.json -o ${BUILDDIR}/x86/libregex.o --add-import ${BUILDDIR}/x86/libbase.json ${REGEX_LIB_SRCS}
+${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/x86/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
+	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libcompiler.json -o ${BUILDDIR}/x86/libcompiler.o --add-import ${BUILDDIR}/x86/libbase.json ${COMPILER_LIB_SRCS}
+
+${BUILDDIR}/x86/libimage.o ${BUILDDIR}/x86/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
+	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libimage.json -o ${BUILDDIR}/x86/libimage.o --add-import ${BUILDDIR}/x86/libbase.json ${IMAGE_LIB_SRCS}
+
+${BUILDDIR}/x86/libscience.o ${BUILDDIR}/x86/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
+	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libscience.json -o ${BUILDDIR}/x86/libscience.o --add-import ${BUILDDIR}/x86/libbase.json ${SCIENCE_LIB_SRCS}
 
 .PRECIOUS: ${BUILDDIR}/x86/test_%.o
-${BUILDDIR}/x86/test_%.o: tests/test_%.slang ${BUILDDIR}/x86/libbase.json ${BUILDDIR}/x86/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} --backend-x86 -o $@ $< --add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libregex.json
+${BUILDDIR}/x86/test_%.o: tests/test_%.slang ${BUILDDIR}/x86/libbase.json ${BUILDDIR}/x86/libcompiler.json ${BUILDDIR}/x86/libimage.json ${BUILDDIR}/x86/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
+	${SLANGC} -v --backend-x86 -o $@ $< --add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libcompiler.json --add-import ${BUILDDIR}/x86/libimage.json --add-import ${BUILDDIR}/x86/libscience.json
 
 .PRECIOUS: ${BUILDDIR}/x86/test_%.exe
-${BUILDDIR}/x86/test_%.exe: ${BUILDDIR}/x86/test_%.o ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libregex.o ${BUILDDIR}/slangrt.a
-	gcc -o $@ $< ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libregex.o ${BUILDDIR}/slangrt.a
+${BUILDDIR}/x86/test_%.exe: ${BUILDDIR}/x86/test_%.o ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/x86/libimage.o ${BUILDDIR}/x86/libscience.o ${BUILDDIR}/slangrt.a
+	gcc -o $@ $< ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/x86/libimage.o ${BUILDDIR}/x86/libscience.o ${BUILDDIR}/slangrt.a
+
+# Advent-of-Code compiled to X86
+.PRECIOUS: ${BUILDDIR}/x86/aoc_%.o
+${BUILDDIR}/x86/aoc_%.o: examples/aoc/%/main.slang ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
+	${SLANGC} --backend-x86 -o $@ $< --add-import ${BUILDDIR}/x86/libbase.json
+
+${BUILDDIR}/x86/aoc_%.exe: ${BUILDDIR}/x86/aoc_%.o ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/slangrt.a
+	gcc -o $@ $< ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/slangrt.a
+
+.PHONY: all-tests-x86
+all-tests-x86: ${X86_TESTS}
 
 .PHONY: run-test-x86-%
 run-test-x86-%: ${BUILDDIR}/x86/test_%.exe
@@ -272,11 +287,11 @@ ${BUILDDIR}/wasm/%.wat: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEP
 run-test-c-%: ${BUILDDIR}/tests/test_%.exe
 	$<
 
-${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c/libcompiler.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libscience.json ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/tests
-	${SLANGC} --backend-c-v2 -o $@ $< --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json
+${BUILDDIR}/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c/libcompiler.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libscience.json ${BUILDDIR}/c/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/tests
+	${SLANGC} --backend-c-v2 -o $@ $< --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libbase.json
 
-${BUILDDIR}/tests/test_%.exe: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/slangrt.a
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libcompiler.so -l:libimage.so -l:libscience.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.a -lm
+${BUILDDIR}/tests/test_%.exe: ${BUILDDIR}/tests/test_%.c ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libbase.so ${BUILDDIR}/slangrt.a
+	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libcompiler.so -l:libimage.so -l:libscience.so -l:libbase.so ${BUILDDIR}/slangrt.a -lm
 
 # Unit tests with python backend:
 .PHONY: run-test-py-%
@@ -287,20 +302,24 @@ run-test-py-%: ${BUILDDIR}/python/test_%.py ${BUILDDIR}/python/slangrt.py
 ${BUILDDIR}/python/slangrt.py: runtime/slangrt.py | ${BUILDDIR}/python
 	cp $< $@
 
-${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libcompiler.json ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libscience.json ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libregex.json ${SLANGC_DEPS} | ${BUILDDIR}/python
-	${SLANGC} --backend-py -o $@ --add-import ${BUILDDIR}/python/libcompiler.json --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libscience.json --add-import ${BUILDDIR}/python/libbase.json --add-import ${BUILDDIR}/python/libregex.json $<
+${BUILDDIR}/python/test_%.py: tests/test_%.slang ${BUILDDIR}/python/libcompiler.json ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libscience.json ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+	${SLANGC} --backend-py -o $@ --add-import ${BUILDDIR}/python/libcompiler.json --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libscience.json --add-import ${BUILDDIR}/python/libbase.json $<
 
 # Apps
 .PRECIOUS: ${BUILDDIR}/c/apps/%.c
-${BUILDDIR}/c/apps/%.c: Apps/%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libregex.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libscience.json ${BUILDDIR}/c/libgfx.json ${BUILDDIR}/c/libcompiler.json ${BUILDDIR}/c/libweb.json ${SLANGC_DEPS} | ${BUILDDIR}/c/apps
-	${SLANGC} --backend-c-v2 -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libregex.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libgfx.json --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libweb.json
+${BUILDDIR}/c/apps/%.c: Apps/%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/libimage.json ${BUILDDIR}/c/libscience.json ${BUILDDIR}/c/libgfx.json ${BUILDDIR}/c/libcompiler.json ${BUILDDIR}/c/libweb.json ${SLANGC_DEPS} | ${BUILDDIR}/c/apps
+	${SLANGC} --backend-c-v2 -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libgfx.json --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libweb.json
 
-${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libregex.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libgfx.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libweb.so ${BUILDDIR}/slangrt.a
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libweb.so -l:libcompiler.so -l:libgfx.so -l:libimage.so -l:libscience.so -l:libregex.so -l:libbase.so ${BUILDDIR}/slangrt.a -lm
+${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libgfx.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libweb.so ${BUILDDIR}/slangrt.a
+	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libweb.so -l:libcompiler.so -l:libgfx.so -l:libimage.so -l:libscience.so -l:libbase.so ${BUILDDIR}/slangrt.a -lm
 
 # Apps compiled to python
-${BUILDDIR}/python/app-%.py: Apps/%.slang ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libregex.json ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libscience.json ${BUILDDIR}/python/libgfx.json ${BUILDDIR}/python/libcompiler.json ${BUILDDIR}/python/libweb.json ${SLANGC_DEPS} | ${BUILDDIR}/python
-	${SLANGC} --backend-py -o $@ $< --add-import ${BUILDDIR}/python/libbase.json --add-import ${BUILDDIR}/python/libregex.json --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libscience.json --add-import ${BUILDDIR}/python/libgfx.json --add-import ${BUILDDIR}/python/libcompiler.json --add-import ${BUILDDIR}/python/libweb.json
+${BUILDDIR}/python/app-%.py: Apps/%.slang ${BUILDDIR}/python/libbase.json ${BUILDDIR}/python/libimage.json ${BUILDDIR}/python/libscience.json ${BUILDDIR}/python/libgfx.json ${BUILDDIR}/python/libcompiler.json ${BUILDDIR}/python/libweb.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+	${SLANGC} --backend-py -o $@ $< --add-import ${BUILDDIR}/python/libbase.json --add-import ${BUILDDIR}/python/libimage.json --add-import ${BUILDDIR}/python/libscience.json --add-import ${BUILDDIR}/python/libgfx.json --add-import ${BUILDDIR}/python/libcompiler.json --add-import ${BUILDDIR}/python/libweb.json
+
+# Advent-of-Code compiled to python
+${BUILDDIR}/python/aoc-%.py: examples/aoc/%/main.slang ${BUILDDIR}/python/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/python
+	${SLANGC} --backend-py -o $@ $< --add-import ${BUILDDIR}/python/libbase.json
 
 # Bootstrap sequence:
 ${COMPILER1}: | ${BUILDDIR}

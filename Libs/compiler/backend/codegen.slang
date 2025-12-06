@@ -12,25 +12,30 @@ from elf_file import write_elf
 from outstream import BinaryOutput
 from isel import Backend, Frame, SelectionContext
 
-pub fn cgen[V](program: sil.Program, backend: Backend[V], filename: Option[str], report: Report):
-	report.writeln("# Compilation report!")
-	program.dump(report)
+pub struct CodegenOptions:
+	filename: Option[str]
+	report: Report
+	debug: bool
+
+pub fn cgen[V](program: sil.Program, backend: Backend[V], options: CodegenOptions):
+	options.report.writeln("# Compilation report!")
+	program.dump(report: options.report)
 	let out = BinaryOutput()
-	let g = Codegen(backend, report)
+	let g = Codegen(backend, options)
 	g.gen_program(program, out)
 
-	let filename2 = case filename:
+	let filename = case options.filename:
 		Some(name):
 			name
 		None:
 			"test.elf"
 
-	write_elf(filename: filename2, object: out.get_object())
+	write_elf(filename, object: out.get_object())
 
 class Codegen[V]:
 	""" Machine independent code generator """
 	var backend: Backend[V]
-	var report: Report
+	var options: CodegenOptions
 
 	pub fn gen_program(program: sil.Program, out: BinaryOutput):
 		for ext in program.externs:
@@ -42,27 +47,24 @@ class Codegen[V]:
 		out.select_section(name: ".data")
 		out.set_writable()
 		for blob in program.blobs:
-			let section_name = ".rodata" if blob.readonly else ".data"
-			out.select_section(name: section_name)
-			if blob.is_local:
-				out.local_symbol(name: blob.name)
-			else:
-				out.export_symbol(name: blob.name)
-			for content in blob.contents:
-				case content:
-					Raw(data):
-						out.write_bytes(data)
-					Ptr(name):
-						backend.emit_pointer(name, out)
+			gen_blob(blob, out)
+		if options.debug:
+			gen_debug_info(out)
 		out.do_fixups(fixer: backend.fixer, is_pic_reloc: backend.is_pic_reloc)
+
+	fn gen_debug_info(out: BinaryOutput):
+		""" Generate debug info """
+		log_info("Creating debug info")
+		out.select_section(name: ".debug_info")
+		# TODO: Create DWARF debug information
 
 	fn gen_function(function: sil.Function, out: BinaryOutput):
 		log_info("Generating code for function {function.name}")
 		let frame = Frame(stacksize: function.stacksize, exit_label: "{function.name}_@exit")
 		let context = SelectionContext(frame)
 		let mfunc = select_function(function, context)
-		mil.dump_mfunc(report, mfunc, to_str: backend.to_str)
-		reg_alloc(report, backend, mfunc, frame)
+		mil.dump_mfunc(report: options.report, mfunc, to_str: backend.to_str)
+		reg_alloc(report: options.report, backend, mfunc, frame)
 		log_debug("Materializing instructions")
 		out.export_symbol(mfunc.name)
 		backend.emit_prologue(frame, out)
@@ -84,3 +86,17 @@ class Codegen[V]:
 				backend.selector(context, instruction)
 			mblocks.append(mil.Block(name: block.name, instructions: context.get_instructions()))
 		mil.Function(name: function.name, blocks: mblocks)
+
+	fn gen_blob(blob: sil.DataBlob, out: BinaryOutput):
+		let section_name = ".rodata" if blob.readonly else ".data"
+		out.select_section(name: section_name)
+		if blob.is_local:
+			out.local_symbol(name: blob.name)
+		else:
+			out.export_symbol(name: blob.name)
+		for content in blob.contents:
+			case content:
+				Raw(data):
+					out.write_bytes(data)
+				Ptr(name):
+					backend.emit_pointer(name, out)

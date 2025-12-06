@@ -25,6 +25,7 @@ pub fn main() -> int:
 		run_code: false
 		time_trace: false
 		report: false
+		debug: false
 
 	# Argument processing
 	let n = get_n_args()
@@ -81,6 +82,8 @@ pub fn main() -> int:
 			options.backend = Backend.Slang()
 		elif argument == "--run":
 			options.run_code = true
+		elif argument == "--debug":
+			options.debug = true
 		elif argument == "--time-trace":
 			options.time_trace = true
 		elif argument == "--report":

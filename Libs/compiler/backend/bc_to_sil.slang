@@ -83,6 +83,8 @@ class SilGen:
 		m_externs.append(sil.Extern(name: "slangrt_box_uint8"))
 		m_externs.append(sil.Extern(name: "slangrt_box_char"))
 		m_externs.append(sil.Extern(name: "slangrt_box_bool"))
+		m_externs.append(sil.Extern(name: "slangrt_box_float64"))
+		m_externs.append(sil.Extern(name: "slangrt_box_float32"))
 		m_externs.append(sil.Extern(name: "slangrt_unbox_int64"))
 		m_externs.append(sil.Extern(name: "slangrt_unbox_int32"))
 		m_externs.append(sil.Extern(name: "slangrt_unbox_int16"))
@@ -93,6 +95,8 @@ class SilGen:
 		m_externs.append(sil.Extern(name: "slangrt_unbox_uint8"))
 		m_externs.append(sil.Extern(name: "slangrt_unbox_char"))
 		m_externs.append(sil.Extern(name: "slangrt_unbox_bool"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_float64"))
+		m_externs.append(sil.Extern(name: "slangrt_unbox_float32"))
 
 		vm.prepare_vm(vm: m_vm, program: m_bc_program)
 

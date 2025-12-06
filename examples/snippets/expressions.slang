@@ -20,6 +20,11 @@ pub fn main() -> int:
 		else:
 			std.print("Woei3")
 
+	let a = 41
+	std.print("75% of {a} = {threequarters(x: a)}")
 	# This should error:
 	# 2 = 5
 	0
+
+fn threequarters(x: int) -> int:
+	2 + (x * 3) / 4

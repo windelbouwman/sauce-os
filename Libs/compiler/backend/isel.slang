@@ -57,12 +57,14 @@ pub class SelectionContext[V]:
 			r
 
 	pub fn get_pre_colored(color: int, kind: int) -> mil.Register:
-		if m_pre_colored_regs.contains(key: color):
-			m_pre_colored_regs.get(key: color)
+		# TODO: maybe index by tuple of color/kind?
+		let key = 1000 * kind + color
+		if m_pre_colored_regs.contains(key):
+			m_pre_colored_regs.get(key)
 		else:
 			let r = new_vreg(kind)
 			r.color = color
-			m_pre_colored_regs.insert(key: color, value: r)
+			m_pre_colored_regs.insert(key, value: r)
 			r
 
 	pub fn emit(instruction?: V):

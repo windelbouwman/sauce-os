@@ -9,6 +9,7 @@ from errors import CompilationError, new_error_with_filename
 from parsing import parse_source, ParseError
 from namebinding import bind_names
 from pass3 import resolve_newops
+from codegen import CodegenOptions
 from typechecking import type_check
 from typedb import store_symbol_table, load_symbol_table
 from utils import panic, assert
@@ -45,6 +46,7 @@ pub struct CompilationOptions:
 	run_code: bool
 	time_trace: bool
 	report: bool
+	debug: bool
 
 pub enum Backend:
 	Bytecode
@@ -145,6 +147,10 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 	p.enter(name: "backend")
 	let report = Report()
 	report.set_enabled(options.report)
+	let cgen_options = CodegenOptions:
+		filename: options.output_filename
+		report: report
+		debug: options.debug
 	case options.backend:
 		Null:  # no-op backend.
 			pass
@@ -174,10 +180,10 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 			gen_webassembly(module_set)
 		Riscv:
 			let program = gen_bytecode(module_set)
-			gen_riscv(program: to_sil(program), filename: options.output_filename, report)
+			gen_riscv(program: to_sil(program), options: cgen_options)
 		X86:
 			let program = gen_bytecode(module_set)
-			gen_x86(program: to_sil(program), filename: options.output_filename, report)
+			gen_x86(program: to_sil(program), options: cgen_options)
 	report.set_enabled(false)
 	p.leave()
 

@@ -1,5 +1,10 @@
 """
 Regex library
+
+Based on [Brzozowski derivatives](https://en.wikipedia.org/wiki/Brzozowski_derivative).
+
+Ported from code: [MichaelPaddon/epsilon](https://github.com/MichaelPaddon/epsilon)
+
 """
 
 from std import str_get, str_len, ord, print, chr, str_slice
@@ -607,7 +612,7 @@ class Regex:
 fn product_intersections(a?: List[IntegerSet], b?: List[IntegerSet]) -> List[IntegerSet]:
 	# Create cartesian products, and then take union, and check for empty sets.
 	# Ehm, what is this?
-	let combos = List()
+	let combos: List[IntegerSet] = List()
 	for i in a:
 		for j in b:
 			let k = i.union(other: j)
