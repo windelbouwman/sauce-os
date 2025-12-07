@@ -7,16 +7,22 @@ from token import token_to_string, Token, default_token
 from location import Location, location_default, merge_locations
 from listtype import List
 from optiontype import Option
+import dbginfo
 from vectype import Vector, new_vector
 from pathlib import basename
 from basepass import IdGen
 from logging import log_debug, log_trace
 
 
-pub fn parse_source(filename: str, id_gen: IdGen) -> ast.ModuleDef except ParseError:
+pub fn parse_source(filename: str, id_gen: IdGen, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
 	let source = std.read_file(filename)
 	let modname = basename(path: filename)
 	let parser = Parser(id_gen)
+	case debug:
+		Some(info):
+			info.add_source(filename, code: source)
+		None:
+			pass
 	parser.feed(source)
 	parser.parse_module(filename, name: modname)
 

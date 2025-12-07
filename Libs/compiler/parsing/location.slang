@@ -1,4 +1,7 @@
 
+from std import str_get
+from strlib import is_lf
+
 pub struct Location2:
 	begin: int
 	end: int
@@ -35,3 +38,18 @@ pub fn location_at(offset: int) -> Location:
 pub struct Position:
 	row: int
 	column: int
+
+pub fn offset_to_position(offset: int, code: str) -> Position:
+	""" Calculate row and column from offset in string."""
+	var index = 0
+	var row = 1
+	var column = 1
+	while index < offset:
+		let c = str_get(text: code, index)
+		if is_lf(c):
+			row += 1
+			column = 1
+		else:
+			column += 1
+		index += 1
+	Position(row, column)

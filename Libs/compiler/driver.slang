@@ -29,6 +29,7 @@ from c_gen_v2 import gen_c_code_v2
 from wasm_gen import gen_webassembly
 from riscv_gen import gen_riscv
 from bc_to_sil import to_sil
+from dbginfo import DbgInfo
 from x86_gen import gen_x86
 from slang_gen import gen_slang
 from vm import run_bytecode
@@ -80,13 +81,15 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 			module_map.insert(key: module.name, value: module)
 			top_module.add_module(module)
 
+	let debug = Option.Some(DbgInfo()) if options.debug else Option.None()
+
 	p.enter(name: "parsing")
 	for filename in filenames:
 		log_info("Parsing: {filename}")
 		p.enter(name: "parse")
 
 		try:
-			let program = parse_source(filename, id_gen)
+			let program = parse_source(filename, id_gen, debug)
 			log_trace("Parsed module: {program.name}")
 			if options.dump_ast:
 				ast.print_ast(module: program)
@@ -150,7 +153,7 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 	let cgen_options = CodegenOptions:
 		filename: options.output_filename
 		report: report
-		debug: options.debug
+		debug
 	case options.backend:
 		Null:  # no-op backend.
 			pass
@@ -159,7 +162,7 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 		Slang:
 			gen_slang(module_set, output_filename: options.output_filename)
 		Bytecode:
-			let program = gen_bytecode(module_set)
+			let program = gen_bytecode(module_set, debug)
 			if options.run_code:
 				if options.verbosity > 1:
 					bc.print_bc_program(program)
@@ -169,7 +172,7 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 				bc.print_bc_program_to_file(program, filename: options.output_filename)
 		C:
 			# Generate C-code via bytecode:
-			let program = gen_bytecode(module_set)
+			let program = gen_bytecode(module_set, debug)
 			if options.verbosity > 1:
 				bc.print_bc_program(program)
 			gen_c_code(program, output_filename: options.output_filename)
@@ -179,10 +182,10 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 		WebAssembly:
 			gen_webassembly(module_set)
 		Riscv:
-			let program = gen_bytecode(module_set)
+			let program = gen_bytecode(module_set, debug)
 			gen_riscv(program: to_sil(program), options: cgen_options)
 		X86:
-			let program = gen_bytecode(module_set)
+			let program = gen_bytecode(module_set, debug)
 			gen_x86(program: to_sil(program), options: cgen_options)
 	report.set_enabled(false)
 	p.leave()

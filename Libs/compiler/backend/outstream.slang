@@ -21,6 +21,7 @@ pub struct Section:
 	data: ByteArray
 	relocations: Vector[Relocation]
 	alignment: int
+	allocate: bool
 	executable: bool
 	writable: bool
 
@@ -44,6 +45,7 @@ fn make_section(name: str) -> Section:
 		data: ByteArray()
 		relocations: new_vector()
 		alignment: 1
+		allocate: false
 		executable: false
 		writable: false
 
@@ -88,6 +90,10 @@ pub class BinaryOutput:
 	pub fn define_label(name?: str):
 		define(name, global: false)
 		tmp_labels.push(name)
+
+	pub fn set_allocate():
+		let section = get_current_section()
+		section.allocate = true
 
 	pub fn set_writable():
 		let section = get_current_section()
@@ -155,6 +161,16 @@ pub class BinaryOutput:
 		let section = get_current_section()
 		section.data.extend(data)
 
+	pub fn get_offset() -> int:
+		let section = get_current_section()
+		section.data.len()
+
+	pub fn write_bytes_at(data: Bytes, offset: int):
+		let section = get_current_section()
+		for value in data:
+			section.data.set(index: offset, value)
+			offset += 1
+
 	pub fn get_section(name: str) -> Section:
 		sections.get(key: name)
 
@@ -166,3 +182,8 @@ pub class BinaryOutput:
 		for name in symbols:
 			symbols_vector.append(symbols.get(key: name))
 		Object(sections: sections_vector, symbols: symbols_vector)
+
+pub enum DataItem:
+	Raw(data: Bytes)
+	AbsPointer64(name: str)
+	RelPointer32(name: str, addend: int)

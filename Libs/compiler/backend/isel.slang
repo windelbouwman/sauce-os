@@ -6,7 +6,7 @@ from listtype import List
 from hashmap import HashMap, new_hashmap_str, new_hashmap_int
 from vectype import Vector, new_vector
 from bytes import ByteArray
-from outstream import BinaryOutput
+from outstream import BinaryOutput, DataItem
 import sil
 import mil
 
@@ -22,7 +22,7 @@ pub struct Backend[V]:
 	emit_epilogue: fn(Frame, BinaryOutput)
 	fixer: fn(ByteArray, int, int, int, int)
 	is_pic_reloc: fn(int) -> bool
-	emit_pointer: fn(str, BinaryOutput)
+	emit_data: fn(DataItem, BinaryOutput)
 
 pub struct Frame:
 	stacksize: int

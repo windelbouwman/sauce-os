@@ -17,7 +17,7 @@ caller save: xmm0 .. xmm15
 
 from utils import unimplemented, panic
 from bytes import ByteArray
-from outstream import BinaryOutput
+from outstream import BinaryOutput, DataItem
 
 let R_X86_64_NONE: int = 0
 let R_X86_64_64: int = 1  # S + A
@@ -535,14 +535,24 @@ pub fn apply_reloc(data: ByteArray, offset: int, typ: int, addend: int, symbol: 
 	else:
 		unimplemented("reloc type: {typ}")
 
-pub fn emit_pointer_to_name(name: str, out: BinaryOutput):
-	out.add_fixup(symbol: name, typ: R_X86_64_64, addend: 0)
-	out.write_byte(0x0)
-	out.write_byte(0x0)
-	out.write_byte(0x0)
-	out.write_byte(0x0)
+pub fn emit_data_item(data: DataItem, out: BinaryOutput):
+	case data:
+		Raw(b):
+			out.write_bytes(data: b)
+		AbsPointer64(name):
+			out.add_fixup(symbol: name, typ: R_X86_64_64, addend: 0)
+			out.write_byte(0x0)
+			out.write_byte(0x0)
+			out.write_byte(0x0)
+			out.write_byte(0x0)
 
-	out.write_byte(0x0)
-	out.write_byte(0x0)
-	out.write_byte(0x0)
-	out.write_byte(0x0)
+			out.write_byte(0x0)
+			out.write_byte(0x0)
+			out.write_byte(0x0)
+			out.write_byte(0x0)
+		RelPointer32(name, addend):
+			out.add_fixup(symbol: name, typ: R_X86_64_PC32, addend)
+			out.write_byte(0x0)
+			out.write_byte(0x0)
+			out.write_byte(0x0)
+			out.write_byte(0x0)

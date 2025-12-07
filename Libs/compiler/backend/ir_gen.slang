@@ -7,18 +7,19 @@ from vectype import Vector, new_vector, new_vector_with_capacity
 from hashmap import HashMap, new_hashmap_int, new_hashmap_str
 from utils import panic, assert
 from logging import log_info, log_debug, log_trace
+import dbginfo
 from bc import Instruction
 import bc
 
-pub fn gen_bytecode(module_set: ast.ModuleSet) -> bc.Program:
-	let g = BytecodeGenerator()
+pub fn gen_bytecode(module_set: ast.ModuleSet, debug: Option[dbginfo.DbgInfo]) -> bc.Program:
+	let g = BytecodeGenerator(m_debug: debug)
 	g.forward_declarations(module_set)
 	for module in module_set.modules:
 		g.gen_prog(module)
 	bc.Program(functions: g.functions, structs: g.structs, globals: g.global_variables, extern_functions: g.extern_functions)
 
 pub fn gen_expression_bytecode(expression: ast.Expression) -> Vector[Instruction]:
-	let g = BytecodeGenerator()
+	let g = BytecodeGenerator(m_debug: Option.None())
 	g.gen_expression(expression)
 	g.emit(Instruction.Return(n_args: 1))
 	g.get_relocated_instructions()
@@ -55,6 +56,8 @@ class BytecodeGenerator:
 	pub var functions: Vector[bc.Function] = new_vector()
 	var function_map: HashMap[str,int] = new_hashmap_str()
 	var block_stack: List[ControlBlock] = List()
+
+	var m_debug: Option[dbginfo.DbgInfo]
 
 	pub fn forward_declarations(module_set: ast.ModuleSet):
 		# struct forward declarations:
@@ -100,6 +103,15 @@ class BytecodeGenerator:
 							Intern(scoped_block):
 								function_map.insert(key: function_def.name, value: func_index)
 								func_index += 1
+								case m_debug:
+									Some(info):
+										case module.filename:
+											Some(filename2):
+												info.add_function(name: function_def.name, filename: filename2, location: function_def.location)
+											None:
+												pass
+									None:
+										pass
 							Extern(libname):
 								pass
 							None:

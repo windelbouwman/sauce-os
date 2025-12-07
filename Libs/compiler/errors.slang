@@ -2,8 +2,8 @@
 from std import print, read_file, str_get, str_len
 from listtype import List, list1
 from optiontype import Option
-from strlib import split_lines, str_repeat, str_pad_left, is_lf
-from location import Location, Position, get_begin, get_end
+from strlib import split_lines, str_repeat, str_pad_left
+from location import Location, Position, get_begin, get_end, offset_to_position
 
 pub struct CompilationError:
 	errors: List[SingleCompilationError]
@@ -98,21 +98,6 @@ fn render_message(message: SingleCompilationError):
 			print_error(label, filename, message)
 		None:
 			print("{label}: {message.message}")
-
-fn offset_to_position(offset: int, code: str) -> Position:
-	""" Calculate row and column from offset in string."""
-	var index = 0
-	var row = 1
-	var column = 1
-	while index < offset:
-		let c = str_get(text: code, index)
-		if is_lf(c):
-			row += 1
-			column = 1
-		else:
-			column += 1
-		index += 1
-	Position(row, column)
 
 fn print_error(label: str, filename: str, message: SingleCompilationError):
 	let code = read_file(filename)

@@ -97,7 +97,7 @@ pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 		emit_epilogue: gen_epilogue
 		fixer: x86.apply_reloc
 		is_pic_reloc: x86.is_pic_reloc
-		emit_pointer: x86.emit_pointer_to_name
+		emit_data: x86.emit_data_item
 	cgen(program, backend, options)
 
 pub enum VirtInst:

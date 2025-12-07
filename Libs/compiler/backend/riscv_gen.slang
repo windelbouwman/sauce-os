@@ -27,7 +27,7 @@ from optiontype import Option
 from listtype import List, list4
 from codegen import cgen, CodegenOptions
 from isel import Backend, SelectionContext, Frame
-from outstream import BinaryOutput
+from outstream import BinaryOutput, DataItem
 from report import Report
 from utils import unimplemented
 from logging import log_info
@@ -47,7 +47,7 @@ pub fn gen_riscv(program: sil.Program, options: CodegenOptions):
 		emit_epilogue: gen_epilogue
 		fixer: apply_reloc
 		is_pic_reloc: is_pic_reloc
-		emit_pointer: gen_pointer
+		emit_data: gen_data_item
 
 	unimplemented("TODO")
 	cgen(program, backend, options)
@@ -194,5 +194,5 @@ fn gen_prologue(frame: Frame, out: BinaryOutput):
 fn gen_epilogue(frame: Frame, out: BinaryOutput):
 	pass
 
-fn gen_pointer(name: str, out: BinaryOutput):
+fn gen_data_item(item: DataItem, out: BinaryOutput):
 	pass

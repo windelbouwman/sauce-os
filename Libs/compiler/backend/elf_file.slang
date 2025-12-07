@@ -84,7 +84,9 @@ fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str, i
 	let sh_text = writer.new_section(name: section.name)
 	writer.write_section_data(sh: sh_text, data: section.data.to_bytes())
 	sh_text.sh_type = SHT_PROGBITS
-	sh_text.sh_flags = SHF_ALLOC
+	sh_text.sh_flags = 0
+	if section.allocate:
+		sh_text.sh_flags = sh_text.sh_flags | SHF_ALLOC
 	if section.executable:
 		sh_text.sh_flags = sh_text.sh_flags | SHF_EXECINSTR
 	if section.writable:
@@ -519,7 +521,7 @@ class ElfWriter:
 		else:
 			write64(value)
 
-class StringTable:
+pub class StringTable:
 	var m_data: ByteArray = ByteArray()
 
 	pub fn add_name(name?: str) -> int:

@@ -220,7 +220,7 @@ native_example: ${BUILDDIR}/c/native_example/main.exe
 .PRECIOUS: ${BUILDDIR}/x86/snippet_%.o
 
 ${BUILDDIR}/x86/snippet_%.o: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} --backend-x86 --report -v -v -o $@ $< runtime/std.slang
+	${SLANGC} --backend-x86 -v --debug -o $@ $< runtime/std.slang
 
 ${BUILDDIR}/x86/snippet_%.exe: ${BUILDDIR}/x86/snippet_%.o ${BUILDDIR}/slangrt.a | ${BUILDDIR}/x86
 	gcc -o $@ $< ${BUILDDIR}/slangrt.a
@@ -235,7 +235,7 @@ native: all-examples-x86 native_example
 
 # Libs to x86
 ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} -v --backend-x86 -v --gen-export ${BUILDDIR}/x86/libbase.json -o ${BUILDDIR}/x86/libbase.o ${BASE_LIB_SRCS}
+	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libbase.json -o ${BUILDDIR}/x86/libbase.o ${BASE_LIB_SRCS}
 
 ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/x86/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
 	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libcompiler.json -o ${BUILDDIR}/x86/libcompiler.o --add-import ${BUILDDIR}/x86/libbase.json ${COMPILER_LIB_SRCS}
