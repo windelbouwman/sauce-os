@@ -3,6 +3,7 @@
 #define SLANGRT_H
 
 #include <setjmp.h>
+#include <stddef.h>
 #include <stdint.h>
 
 // runtime types:

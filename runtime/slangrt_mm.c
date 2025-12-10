@@ -5,13 +5,17 @@ See also:
 https://github.com/mkirchner/gc
 */
 
-#include <setjmp.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include "slangrt.h"
+#include <setjmp.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define LOG(fmt, ...) do { fprintf(stderr, "[%s:%s:%d] " fmt "\n", __func__, __FILE__, __LINE__, __VA_ARGS__ ); } while(0)
+#define LOG(fmt, ...)                                                          \
+    do {                                                                       \
+        fprintf(stderr, "[%s:%s:%d] " fmt "\n", __func__, __FILE__, __LINE__,  \
+                __VA_ARGS__);                                                  \
+    } while (0)
 #if 0
 #define LOG_DEBUG(fmt, ...) LOG(fmt, __VA_ARGS__)
 #else
@@ -46,7 +50,7 @@ typedef struct AllocationMap {
 
 // Allocation informational record
 typedef struct Allocation {
-    void *ptr;
+    void* ptr;
     size_t size;
     char tag;
     char kind;
@@ -54,13 +58,13 @@ typedef struct Allocation {
     struct Allocation* next;
 } Allocation_t;
 
-
 static size_t gc_hash(void* ptr)
 {
     return ((uintptr_t)ptr) >> 3;
 }
 
-static Allocation_t* gc_allocation_new(size_t size, char kind, const int* offsets)
+static Allocation_t* gc_allocation_new(size_t size, char kind,
+                                       const int* offsets)
 {
     Allocation_t* alloc = (Allocation_t*)malloc(sizeof(Allocation_t) + size);
 
@@ -92,7 +96,8 @@ static void gc_allocation_map_delete(AllocationMap_t* map)
 
 static void gc_allocation_map_resize(AllocationMap_t* map, size_t new_capacity)
 {
-    LOG_DEBUG("Resize hashmap capacity from %d to %d", map->capacity, new_capacity);
+    LOG_DEBUG("Resize hashmap capacity from %d to %d", map->capacity,
+              new_capacity);
 
     Allocation_t** resized_allocs = calloc(new_capacity, sizeof(Allocation_t*));
 
@@ -142,7 +147,7 @@ static void gc_allocation_map_put(AllocationMap_t* map, Allocation_t* alloc)
     size_t index = gc_hash(alloc->ptr) % map->capacity;
     Allocation_t* cur = map->allocs[index];
     Allocation_t* prev = NULL;
-    
+
     // Check for existing record:
     while (cur) {
         if (cur->ptr == alloc->ptr) {
@@ -172,7 +177,7 @@ static void gc_allocation_map_remove(AllocationMap_t* map, Allocation_t* alloc)
     size_t index = gc_hash(alloc->ptr) % map->capacity;
     Allocation_t* cur = map->allocs[index];
     Allocation_t* prev = NULL;
-    
+
     while (cur) {
         Allocation_t* next = cur->next;
         if (cur == alloc) {
@@ -196,22 +201,24 @@ static void gc_mark_alloc(GarbageCollector_t* gc, void* ptr)
         alloc->tag |= GC_TAG_MARK;
 
         switch (alloc->kind) {
-            case GC_KIND_NOPTRS:
-                // This allocation contains no pointers
-                break;
-            case GC_KIND_OFFSETS:
-                // Walk list with offsets, these are pointers offsets in the allocation.
-                for (int i = 0; alloc->offsets[i] >= 0; i++) {
-                    char* p = (char*)alloc->ptr + alloc->offsets[i];
-                    gc_mark_alloc(gc, *(void**)p);
-                }
-                break;
-            default:
-                // Scan the whole blob conservative:
-                for (char* p = (char*)alloc->ptr; p <= (char*)alloc->ptr + alloc->size - PTRSIZE; ++p) {
-                    gc_mark_alloc(gc, *(void**)p);
-                }
-                break;
+        case GC_KIND_NOPTRS:
+            // This allocation contains no pointers
+            break;
+        case GC_KIND_OFFSETS:
+            // Walk list with offsets, these are pointers offsets in the
+            // allocation.
+            for (int i = 0; alloc->offsets[i] >= 0; i++) {
+                char* p = (char*)alloc->ptr + alloc->offsets[i];
+                gc_mark_alloc(gc, *(void**)p);
+            }
+            break;
+        default:
+            // Scan the whole blob conservative:
+            for (char* p = (char*)alloc->ptr;
+                 p <= (char*)alloc->ptr + alloc->size - PTRSIZE; ++p) {
+                gc_mark_alloc(gc, *(void**)p);
+            }
+            break;
         }
     }
 }
@@ -220,7 +227,7 @@ static void gc_mark_stack(GarbageCollector_t* gc)
 {
     void* tos = __builtin_frame_address(0);
     void* bos = gc->bos;
-    for (char* p = (char*) tos; p <= (char*)bos - PTRSIZE; ++p) {
+    for (char* p = (char*)tos; p <= (char*)bos - PTRSIZE; ++p) {
         gc_mark_alloc(gc, *((void**)p));
     }
 }
@@ -286,7 +293,8 @@ static void gc_stop(GarbageCollector_t* gc)
 }
 
 // Main API:
-void* gc_allocate(GarbageCollector_t* gc, size_t size, char kind, const int* offsets)
+void* gc_allocate(GarbageCollector_t* gc, size_t size, char kind,
+                  const int* offsets)
 {
     // If we need garbage collection, run it
     if (gc->alloc_map->size > gc->limit) {
@@ -294,7 +302,8 @@ void* gc_allocate(GarbageCollector_t* gc, size_t size, char kind, const int* off
         // TODO
         gc_run(gc);
         gc->limit = gc->alloc_map->size + gc->alloc_map->capacity;
-        // gc->limit = gc->alloc_map->size + (gc->alloc_map->capacity - gc->alloc_map->size) / 2;
+        // gc->limit = gc->alloc_map->size + (gc->alloc_map->capacity -
+        // gc->alloc_map->size) / 2;
     }
 
     // void* ptr = malloc(sizeof(Allocation_t) + size);
@@ -305,7 +314,8 @@ void* gc_allocate(GarbageCollector_t* gc, size_t size, char kind, const int* off
         exit(1);
     }
     gc_allocation_map_put(gc->alloc_map, alloc);
-    // LOG_DEBUG("alloc: size=%d capacity=%d", gc->alloc_map->size, gc->alloc_map->capacity);
+    // LOG_DEBUG("alloc: size=%d capacity=%d", gc->alloc_map->size,
+    // gc->alloc_map->capacity);
     return alloc->ptr;
 }
 
@@ -324,17 +334,17 @@ void rt_gc_finalize()
     gc_stop(&g_gc);
 }
 
-void *rt_malloc_str(size_t size)
+void* rt_malloc_str(size_t size)
 {
     return gc_allocate(&g_gc, size, GC_KIND_NOPTRS, NULL);
 }
 
-void *rt_malloc(size_t size)
+void* rt_malloc(size_t size)
 {
     return gc_allocate(&g_gc, size, GC_KIND_OPAQUE, NULL);
 }
 
-void *rt_malloc_with_destroyer(size_t size, const int* ref_offsets)
+void* rt_malloc_with_destroyer(size_t size, const int* ref_offsets)
 {
     // return malloc(size);
 

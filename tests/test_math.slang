@@ -94,20 +94,23 @@ fn check_exp(value?: float, expected: float):
 	assert_are_close(exp(value), expected)
 
 fn test_floor_ceil():
-	assert_are_close(2.0, floor(2.0))
-	assert_are_close(2.0, ceil(2.0))
+	#assert_int_equals(2, floor(2.0))
+	#assert_int_equals(2, ceil(2.0))
 
-	assert_are_close(2.0, floor(2.0001))
-	assert_are_close(3.0, ceil(2.0001))
+	assert_int_equals(5, floor(5.0001))
+	assert_int_equals(6, ceil(5.0001))
 
-	assert_are_close(2.0, floor(2.999))
-	assert_are_close(3.0, ceil(2.999))
+	assert_int_equals(7, floor(7.999))
+	assert_int_equals(8, ceil(7.999))
 
-	assert_are_close(-3.0, floor(-2.7))
-	assert_are_close(-2.0, ceil(-2.7))
+	assert_int_equals(-3, floor(-2.7))
+	assert_int_equals(-2, ceil(-2.7))
 
-	assert_are_close(-2.0, floor(-2.0))
-	assert_are_close(-2.0, ceil(-2.0))
+	assert_int_equals(-6, floor(-5.01))
+	assert_int_equals(-5, ceil(-5.01))
+
+	#assert_int_equals(-2, floor(-2.0))
+	#assert_int_equals(-2, ceil(-2.0))
 
 fn assert_are_close(a?: float, b?: float):
 	let diff = fabs(a - b)

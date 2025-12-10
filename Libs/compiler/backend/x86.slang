@@ -49,6 +49,7 @@ pub enum Instruction:
 	Int3
 	CvtSi2Sd(reg: int, rm: Rm)
 	CvtSd2Si(reg: int, rm: Rm)
+	CvttSd2Si(reg: int, rm: Rm)
 	Ucomisd(reg: int, rm: Rm)
 	SseOpRegRm(op: SseOp, reg: int, rm: Rm)
 	SseMovRegRm(reg: int, rm: Rm)
@@ -149,6 +150,8 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			"cvtsi2sd .."
 		CvtSd2Si(reg, rm):
 			"cvtsd2si .."
+		CvttSd2Si(reg, rm):
+			"cvttsd2si .."
 		Ucomisd(reg, rm):
 			"comisd ..."
 		SseOpRegRm(op, reg, rm):
@@ -447,7 +450,13 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			out.write_byte(0xF2)
 			write_rex_byte(out, reg)
 			out.write_byte(0x0F)
-			out.write_byte(0x2D)
+			out.write_byte(0x2D)  # 2D = rounding conversion to int
+			write_rm_reg(rm, reg, out)
+		CvttSd2Si(reg, rm):
+			out.write_byte(0xF2)
+			write_rex_byte(out, reg)
+			out.write_byte(0x0F)
+			out.write_byte(0x2C) # 2C = truncating conversion to int
 			write_rm_reg(rm, reg, out)
 		Ucomisd(reg, rm):
 			out.write_byte(0x66)

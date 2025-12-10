@@ -114,7 +114,7 @@ pub enum VirtInst:
 	Pop(reg: mil.Register)
 	CallRm(rm: VirtRm)
 	CvtSi2Sd(reg: mil.Register, rm: VirtRm)
-	CvtSd2Si(reg: mil.Register, rm: VirtRm)
+	CvttSd2Si(reg: mil.Register, rm: VirtRm)
 	Ucomisd(reg: mil.Register, rm: VirtRm)
 	SseOpRegRm(op: x86.SseOp, reg: mil.Register, rm: VirtRm)
 	SseMovRegRm(reg: mil.Register, rm: VirtRm)
@@ -158,8 +158,8 @@ fn vinst_to_str(vi?: VirtInst) -> str:
 			"sse xx {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		CvtSi2Sd(reg, rm):
 			"cvtsi2sd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
-		CvtSd2Si(reg, rm):
-			"cvtsd2si {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		CvttSd2Si(reg, rm):
+			"cvttsd2si {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		Ucomisd(reg, rm):
 			"ucomisd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		SseMovRegRm(reg, rm):
@@ -391,11 +391,12 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						panic("Unsupported: float registers via stack")
 				else:
 					panic("Unknown register class")
-			let used_stack_size = mem_args.len() * 8
+			var used_stack_size = mem_args.len() * 8
 			let mis_align = modulo(value: used_stack_size, divisor: 16)
 			if mis_align != 0:
 				let padding = 16 - mis_align
 				context.emit(VirtInst.Actual(x86.Instruction.SubRmImm(rm: x86.Rm.Reg(rsp), imm: padding)))
+				used_stack_size += padding
 			for mem_arg_reg in mem_args.reversed():
 				let push_ins = context.emit_and_get(VirtInst.Push(mem_arg_reg))
 				push_ins.add_use(mem_arg_reg)
@@ -493,7 +494,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 							unimplemented("Convert PTR to i64")
 						F64:
 							let rm = VirtRm.Reg(value_reg)
-							let conv_ins = context.emit_and_get(VirtInst.CvtSd2Si(reg: dst_reg, rm))
+							let conv_ins = context.emit_and_get(VirtInst.CvttSd2Si(reg: dst_reg, rm))
 							conv_ins.add_def(dst_reg)
 							conv_ins.add_use(value_reg)
 						I64:
@@ -647,10 +648,10 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
 			emit(x86.Instruction.CvtSi2Sd(reg: reg2, rm: rm2), out)
-		CvtSd2Si(reg, rm):
+		CvttSd2Si(reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
-			emit(x86.Instruction.CvtSd2Si(reg: reg2, rm: rm2), out)
+			emit(x86.Instruction.CvttSd2Si(reg: reg2, rm: rm2), out)
 		Ucomisd(reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)

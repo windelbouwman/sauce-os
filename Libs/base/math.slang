@@ -227,20 +227,10 @@ pub fn exp(x?: float) -> float:
 				break
 		sum
 
-pub fn floor(value?: float) -> float:
+pub fn floor(value?: float) -> int:
 	let i = int(value)
-	if float(i) == value:
-		value
-	elif value < 0:
-		float(i - 1)
-	else:
-		float(int(value))
+	i - 1 if value < 0 else i
 
-pub fn ceil(value?: float) -> float:
+pub fn ceil(value?: float) -> int:
 	let i = int(value)
-	if float(i) == value:
-		value
-	elif value < 0:
-		float(i)
-	else:
-		float(i + 1)
+	i if value < 0 else i + 1

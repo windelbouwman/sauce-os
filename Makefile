@@ -48,7 +48,7 @@ X86_TESTS := $(patsubst tests/test_%.slang, build/x86/test_%.exe, $(TESTS))
 .PHONY: all check check-py all-examples test pytest-exes
 all: ${C_APPS} ${PY_APPS} all-examples aoc
 all-examples: all-examples-bc all-examples-c all-examples-python all-examples-slang all-examples-x86
-test: pytest-compiler pytest-compiler1 check check-py
+test: pytest-compiler pytest-compiler1 check check-py check-x86
 
 aoc: ${PY_AOC} ${X86_AOC}
 check: ${ALL_TEST_RUNS}

@@ -87,7 +87,7 @@ pub fn right_shift(value: int, amount: int) -> int:
 pub fn compute_md5_K(K: [int]):
 	var i = 0
 	while i < 64:
-		K[i] = int(floor(fabs(sin(i + 1)) * 0x100000000))
+		K[i] = floor(fabs(sin(i + 1)) * 0x100000000)
 		i += 1
 
 pub fn fill_md5_K(K: [int]):
