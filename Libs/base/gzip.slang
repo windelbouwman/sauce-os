@@ -2,7 +2,6 @@
 # See RFC-1952: GZIP file format.
 
 from datetime import unix_to_str
-from math import modulo
 from utils import unimplemented, assert
 from logging import log_debug
 from bytes import Bytes, ByteArray, ByteReader
@@ -130,7 +129,7 @@ pub fn zlib_decompress(data: Bytes) -> Bytes:
 	let flg_byte = reader.read_byte()
 
 	# Check fcheck, CMF*256+FLG must be multiple of 31:
-	assert(condition: modulo(value: cmf_byte * 256 + flg_byte, divisor: 31) == 0, message: "FCHECK failed")
+	assert(condition: (cmf_byte * 256 + flg_byte) % 31 == 0, message: "FCHECK failed")
 	let fdict = (flg_byte >> 5) & 1
 	if fdict == 1:
 		unimplemented("FDICT unsupported")
@@ -170,7 +169,7 @@ pub fn calc_adler32(data: Bytes) -> int:
 	var s2 = 0
 	var index = 0
 	while index < data.len():
-		s1 = modulo(value: s1 + data.get(index), divisor: 65521)
-		s2 = modulo(value: s2 + s1, divisor: 65521)
+		s1 = (s1 + data.get(index)) % 65521
+		s2 = (s2 + s1) % 65521
 		index += 1
 	(s2 * 65536) + s1

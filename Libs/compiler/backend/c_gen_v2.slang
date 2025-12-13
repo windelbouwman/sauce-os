@@ -681,6 +681,7 @@ fn binary_op_to_str(op: ast.BinaryOperator) -> str:
 		Sub: "-"
 		Mul: "*"
 		Div: "/"
+		Mod: "%"
 		Less: "<"
 		LessEquals: "<="
 		Greater: ">"

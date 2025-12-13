@@ -342,40 +342,24 @@ class PyGenerator:
 
 fn binary_operator_to_str(op: ast.BinaryOperator, float_division: bool) -> str:
 	case op:
-		And:
-			"and"
-		Or:
-			"or"
-		Greater:
-			">"
-		GreaterEquals:
-			">="
-		Less:
-			"<"
-		LessEquals:
-			"<="
-		Equals:
-			"=="
-		NotEquals:
-			"!="
-		Add:
-			"+"
-		Sub:
-			"-"
-		Mul:
-			"*"
-		Div:
-			"/" if float_division else "//"
-		BitAnd:
-			"&"
-		BitXor:
-			"^"
-		BitOr:
-			"|"
-		ShiftLeft:
-			"<<"
-		ShiftRight:
-			">>"
+		And: "and"
+		Or: "or"
+		Greater: ">"
+		GreaterEquals: ">="
+		Less: "<"
+		LessEquals: "<="
+		Equals: "=="
+		NotEquals: "!="
+		Add: "+"
+		Sub: "-"
+		Mul: "*"
+		Div: "/" if float_division else "//"
+		Mod: "%"
+		BitAnd: "&"
+		BitXor: "^"
+		BitOr: "|"
+		ShiftLeft: "<<"
+		ShiftRight: ">>"
 
 pub fn escape_string(text?: str) -> str:
 	""" Prefix double quotes and backslashes with an extra backslash """

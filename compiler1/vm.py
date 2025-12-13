@@ -208,6 +208,13 @@ class VirtualMachine:
             if isinstance(lhs, int) and isinstance(rhs, int):
                 res = int(res)
             self.push_value(res)
+        elif opcode == OpCode.REM:
+            rhs = self.pop_value()
+            lhs = self.pop_value()
+            res = lhs % rhs
+            if isinstance(lhs, int) and isinstance(rhs, int):
+                res = int(res)
+            self.push_value(res)
         elif opcode in binary_op_funcs:
             rhs = self.pop_value()
             lhs = self.pop_value()

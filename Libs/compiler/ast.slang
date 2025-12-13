@@ -1758,6 +1758,7 @@ pub enum BinaryOperator:
 	Sub
 	Mul
 	Div
+	Mod
 
 pub fn is_comparison_op(op: BinaryOperator) -> bool:
 	case op:
@@ -2062,6 +2063,7 @@ pub fn binary_op_to_str(op?: BinaryOperator) -> str:
 		Sub: "-"
 		Mul: "*"
 		Div: "/"
+		Mod: "%"
 
 fn unary_op_to_str(op: UnaryOperator) -> str:
 	case op:

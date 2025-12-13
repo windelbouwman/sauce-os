@@ -10,7 +10,6 @@ from std import print, ord
 from utils import panic
 from rt import str_compare
 from hashlib import djb2
-from math import modulo
 
 pub fn new_hashmap_int[V]() -> HashMap[int,V]:
 	""" Create a new hashmap with integer keys """
@@ -76,7 +75,7 @@ pub class HashMap[K,V]:
 		var value = this.f.f_hash(key)
 		if value < 0:
 			value = -value
-		modulo(value, divisor: num_buckets)
+		value % num_buckets
 
 	pub fn contains(key: K) -> bool:
 		option_is_some(maybe_get(key))

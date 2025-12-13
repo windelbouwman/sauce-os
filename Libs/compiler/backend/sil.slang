@@ -163,6 +163,7 @@ pub enum BinaryOp:
 	Sub
 	Mul
 	Div
+	Mod
 
 pub enum BitwiseOp:
 	And
@@ -178,6 +179,7 @@ fn op_to_string(op?: BinaryOp) -> str:
 		Sub: "sub"
 		Mul: "mul"
 		Div: "div"
+		Mod: "mod"
 
 pub enum CompOp:
 	Eq

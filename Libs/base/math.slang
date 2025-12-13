@@ -137,8 +137,7 @@ pub fn hypot(x?: float, y: float) -> float:
 	sqrt(x*x + y*y)
 
 pub fn modulo(value: int, divisor: int) -> int:
-	let x = value / divisor
-	value - (divisor * x)
+	value % divisor
 
 pub fn powf(x?: float, y?: float) -> float:
 	""" Raise x to the power of y.

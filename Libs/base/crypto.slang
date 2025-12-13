@@ -1,5 +1,5 @@
 
-from math import modulo, sin, floor, fabs
+from math import sin, floor, fabs
 from bytes import Bytes, ByteArray, ByteReader
 
 pub fn md5(data: Bytes) -> Bytes:
@@ -11,7 +11,7 @@ pub fn md5(data: Bytes) -> Bytes:
 	let data2 = ByteArray()
 	data2.extend(data)
 	data2.append(0x80)
-	while modulo(value: data2.len(), divisor: 64) != 56:
+	while data2.len() % 64 != 56:
 		data2.append(0)
 
 	# Step 2: append length in bits
@@ -48,13 +48,13 @@ pub fn md5(data: Bytes) -> Bytes:
 				g = i
 			elif i < 32:
 				F = (D & B) | ((0xFFffFFFF ^ D) & C)
-				g = modulo(value: 5 * i + 1, divisor: 16)
+				g = (5 * i + 1) % 16
 			elif i < 48:
 				F = B ^ C ^ D
-				g = modulo(value: 3 * i + 5, divisor: 16)
+				g = (3 * i + 5) % 16
 			else:
 				F = C ^ (B | (0xFFFFFFFF ^ D))
-				g = modulo(value: 7 * i, divisor: 16)
+				g = (7 * i) % 16
 			F = wrap_u32(F + A + K[i] + M[g])
 			A = D
 			D = C
@@ -169,7 +169,7 @@ fn sha_pre_process(data: Bytes) -> Bytes:
 	let data2 = ByteArray()
 	data2.extend(data)
 	data2.append(0x80)
-	while modulo(value: data2.len(), divisor: 64) != 56:
+	while data2.len() % 64 != 56:
 		data2.append(0)
 
 	# Step 2: append length in bits

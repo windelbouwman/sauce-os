@@ -17,6 +17,7 @@ pub struct Block[X]:
 	""" Basic block """
 	name: str
 	instructions: Vector[Instruction[X]]
+	jump_targets: List[str]
 
 pub class Instruction[X]:
 	pub var instruction: X

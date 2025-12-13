@@ -396,6 +396,8 @@ class SilGen:
 						sil.BinaryOp.Sub()
 					Divide:
 						sil.BinaryOp.Div()
+					Modulo:
+						sil.BinaryOp.Mod()
 					Multiply:
 						sil.BinaryOp.Mul()
 				let dst = new_tmp(ty: lhs.value.ty)

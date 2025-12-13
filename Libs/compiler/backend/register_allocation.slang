@@ -6,13 +6,12 @@ It assigns colors to use / def registers.
 
 from logging import log_info, log_debug, log_trace
 from settype import Set, new_int_set
-from vectype import Vector, new_vector
 from hashmap import HashMap, new_hashmap_int
 from report import Report
-from strlib import str_join
 from utils import unimplemented, panic
 from listtype import List
 from isel import SelectionContext, Backend, Frame
+from igraph import IGNode, InterferenceGraph, create_interference_graph
 import sil
 import mil
 
@@ -69,8 +68,7 @@ class RegisterAllocator[V]:
 			break
 
 	fn fill_data(mfunc: mil.Function[V]):
-		let cfg: ControlFlowGraph[V] = create_cfg(mfunc)
-		m_ig = create_interference_graph(cfg)
+		m_ig = create_interference_graph(mfunc)
 		m_select_stack.clear()
 		m_simplify_worklist.clear()
 		m_spill_worklist.clear()
@@ -192,212 +190,3 @@ class RegisterAllocator[V]:
 
 	fn is_move_related(m?: IGNode) -> bool:
 		false
-
-fn create_cfg[V](mfunc: mil.Function[V]) -> ControlFlowGraph[V]:
-	""" Create control flow graph (CFG) for given function """
-	let cfg: ControlFlowGraph[V] = ControlFlowGraph()
-	for mblock in mfunc.blocks:
-		# gen and kill sets for this block:
-		var full_gen: Set[int] = new_int_set()
-		var full_kill: Set[int] = new_int_set()
-		for mi in mblock.instructions:
-			let ins_gen: Set[int] = new_int_set()
-			let ins_kill: Set[int] = new_int_set()
-			# Register definition kill live range:
-			for r in mi.defs:
-				ins_kill.add(r.id)
-				# log_debug("kill: {r.id}")
-
-			# Register use generates a live register:
-			for r in mi.uses:
-				ins_gen.add(r.id)
-				# log_debug("gen: {r.id}")
-
-			# Combine effect:
-			full_gen = full_gen.union(ins_gen.difference(full_kill))
-			full_kill = full_kill.union(ins_kill)
-		let node: ControlFlowGraphNode[V] = ControlFlowGraphNode(m_gen: full_gen, m_kill: full_kill, block: mblock)
-		cfg.add_node(node)
-	cfg
-
-class ControlFlowGraph[V]:
-	pub var m_nodes: List[ControlFlowGraphNode[V]] = List()
-
-	pub fn add_node(node?: ControlFlowGraphNode[V]):
-		m_nodes.append(node)
-
-class ControlFlowGraphNode[V]:
-	pub var m_gen: Set[int]
-	pub var m_kill: Set[int]
-	pub var m_live_in: Set[int] = new_int_set()
-	pub var m_live_out: Set[int] = new_int_set()
-	pub var block: mil.Block[V]
-
-fn create_interference_graph[V](cfg: ControlFlowGraph[V]) -> InterferenceGraph:
-	""" Create interference graph
-
-	See also:
-	https://en.wikipedia.org/wiki/Live-variable_analysis
-	"""
-	# Fixed point data flow:
-	var n_iterations = 0
-	loop:
-		n_iterations += 1
-		var change = false
-		for node in cfg.m_nodes:
-			let old_live_in = node.m_live_in
-			let old_live_out = node.m_live_out
-			node.m_live_in = node.m_gen.union(node.m_live_out.difference(node.m_kill))
-			node.m_live_out = new_int_set()
-			# TODO: include successors.
-			if not old_live_in.equals(node.m_live_in) or not old_live_out.equals(node.m_live_out):
-				change = true
-		if not change:
-			break
-	log_debug("Iterations: {n_iterations}")
-
-	let ig = InterferenceGraph()
-	let reg_map = new_hashmap_int()
-	for n in cfg.m_nodes:
-		let block = n.block
-		var live_registers: Set[int] = n.m_live_out
-		var index = block.instructions.len()
-		while index > 0:
-			index -= 1
-			let mi = block.instructions.get(index)
-
-			let ins_kill: Set[int] = new_int_set()
-			for reg in mi.defs:
-				ins_kill.add(reg.id)
-				get_ig_node(ig, reg)
-
-			let ins_gen: Set[int] = new_int_set()
-			for reg in mi.uses:
-				ins_gen.add(reg.id)
-				get_ig_node(ig, reg)
-
-			for a in live_registers:
-				let n1 = ig.add_node(a)
-				# other live registers interfere:
-				for b in live_registers:
-					let n2 = ig.add_node(b)
-					if a != b:
-						ig.add_edge(n1, n2)
-				# clobber registers interfere:
-				for clobber in mi.clobbers:
-					get_ig_node(ig, reg: clobber)
-					let b = clobber.id
-					let n2 = ig.add_node(b)
-					if a != b:
-						ig.add_edge(n1, n2)
-
-			live_registers = ins_gen.union(live_registers.difference(ins_kill))
-	ig
-
-fn get_ig_node(ig: InterferenceGraph, reg: mil.Register):
-	if not ig.has_node(reg.id):
-		let n = ig.add_node(reg.id)
-		n.kind = reg.kind
-		n.add_reg(reg)
-		if reg.color >= 0:
-			n.set_color(reg.color)
-
-class InterferenceGraph:
-	var m_nodes: HashMap[int,IGNode] = new_hashmap_int()
-	var m_adj: HashMap[int,Set[int]] = new_hashmap_int()
-
-	pub fn mask(n?: IGNode):
-		if not n.masked:
-			n.masked = true
-			for m_id in get_adj_set(n):
-				let m = m_nodes.get(key: m_id)
-				m.degree -= 1
-		else:
-			panic("Node already masked")
-
-	pub fn unmask(n?: IGNode):
-		if n.masked:
-			n.masked = false
-			for m_id in get_adj_set(n):
-				let m = m_nodes.get(key: m_id)
-				m.degree += 1
-		else:
-			panic("Node already un-masked")
-
-	pub fn is_masked(n?: IGNode) -> bool:
-		n.masked
-
-	pub fn has_node(id?: int) -> bool:
-		m_nodes.contains(key: id)
-
-	pub fn add_node(id?: int) -> IGNode:
-		if m_nodes.contains(key: id):
-			m_nodes.get(key: id)
-		else:
-			let n = IGNode(id)
-			m_nodes.insert(key: id, value: n)
-			m_adj.insert(key: id, value: new_int_set())
-			n
-
-	pub fn nodes() -> List[IGNode]:
-		let res: List[IGNode] = List()
-		for n in m_nodes:
-			res.append(m_nodes.get(key: n))
-		res
-
-	pub fn adjecent(n?: IGNode) -> List[IGNode]:
-		""" Get a list of all non-masked neighbours """
-		let res: List[IGNode] = List()
-		for m_id in get_adj_set(n):
-			let m = m_nodes.get(key: m_id)
-			if not is_masked(m):
-				res.append(m)
-		res
-
-	pub fn add_edge(a?: IGNode, b?: IGNode):
-		# assert(condition: a != b, message: "a must not be b")
-		if not has_edge(a, b):
-			a.degree += 1
-			b.degree += 1
-			let m1 = get_adj_set(a)
-			m1.add(b.id)
-			let m2 = get_adj_set(b)
-			m2.add(a.id)
-
-	pub fn has_edge(a?: IGNode, b?: IGNode) -> bool:
-		# assert(condition: a != b, message: "a must not be b")
-		get_adj_set(a).contains(b.id)
-
-	fn get_adj_set(n?: IGNode) -> Set[int]:
-		m_adj.get(key: n.id)
-
-	fn get_degree(n?: IGNode) -> int:
-		get_adj_set(n).len()
-
-class IGNode:
-	""" Node in the interference graph. """
-	pub var id: int
-	pub var color: int = -1
-	pub var kind: int = -1
-	pub var degree: int = 0
-	pub var masked: bool = false
-
-	pub var regs: List[mil.Register] = List()
-
-	pub fn add_reg(reg: mil.Register):
-		regs.append(reg)
-
-	pub fn set_color(c?: int):
-		color = c
-		for reg in regs:
-			reg.color = c
-
-	pub fn is_colored() -> bool:
-		color >= 0
-
-	pub fn to_string() -> str:
-		let parts: List[str] = List()
-		for reg in regs:
-			parts.append(mil.vr_to_str(reg))
-		let txt = str_join(parts, sep: ",")
-		"IGNode(degree={degree},regs=[{txt}]"

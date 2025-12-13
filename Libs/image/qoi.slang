@@ -10,7 +10,6 @@ from utils import panic, assert
 from logging import log_info
 from bytes import Bytes, ByteReader, ByteArray, bytes_to_ascii, bytes_from_ascii
 from vectype import Vector, new_vector
-from math import modulo
 from image import Image, new_image, new_empty_image, Pixel, new_pixel, ColorMode, copy_pixel
 
 pub fn read_whole_file_as_bytes(filename: str) -> Bytes:
@@ -156,7 +155,7 @@ class QoiReader:
 
 	fn put_pixel(pixel: Pixel):
 		# std.print("Pixel: {r} {g} {b} {a}")
-		let index = modulo(value: pixel.red * 3 + pixel.green * 5 + pixel.blue * 7 + pixel.alpha * 11, divisor: 64)
+		let index = (pixel.red * 3 + pixel.green * 5 + pixel.blue * 7 + pixel.alpha * 11) % 64
 		copy_pixel(dst: m_array.get(index), src: pixel)
 		m_image.set_pixel(x: m_x, y: m_y, pixel)
 		m_x += 1

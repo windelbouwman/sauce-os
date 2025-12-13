@@ -4,7 +4,6 @@
 from utils import unimplemented, panic
 from logging import log_info
 from std import print
-from math import modulo
 import sil
 import mil
 import x86
@@ -239,7 +238,7 @@ fn gen_epilogue(frame: Frame, out: BinaryOutput):
 
 fn stack_round_up16(value?: int, taken: int) -> int:
 	""" Given the fact that we already took 'taken' bytes, round value to a multiple of 16 bytes. """
-	let remainder = modulo(value: value + taken, divisor: 16)
+	let remainder = (value + taken) % 16
 	if remainder > 0:
 		value + 16 - remainder
 	else:
@@ -292,6 +291,21 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						op_ins.add_def(rax_reg)
 						op_ins.add_clobber(rdx_reg)
 						move(context, dst: dst_reg, src: rax_reg)
+					Mod:
+						let rax_reg = context.get_pre_colored(color: rax, kind: 0)
+						let rdx_reg = context.get_pre_colored(color: rdx, kind: 0)
+						move(context, dst: rax_reg, src: lhs_reg)
+						let cqo_ins = context.emit_and_get(VirtInst.Actual(x86.Instruction.Cqo()))
+						cqo_ins.add_use(rax_reg)
+						cqo_ins.add_def(rdx_reg)
+						cqo_ins.add_def(rax_reg)
+						let op_ins = context.emit_and_get(VirtInst.DivMul(op: x86.DivMulOp.IDiv(), rm: VirtRm.Reg(reg: rhs_reg)))
+						op_ins.add_use(rdx_reg)
+						op_ins.add_use(rax_reg)
+						op_ins.add_use(rhs_reg)
+						op_ins.add_def(rdx_reg)
+						op_ins.add_clobber(rax_reg)
+						move(context, dst: dst_reg, src: rdx_reg)
 			elif dst_reg.kind == 1:
 				let sse_op = case op2:
 					Add:
@@ -302,6 +316,8 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						x86.SseOp.Mul()
 					Div:
 						x86.SseOp.Div()
+					Mod:
+						panic("Cannot modulo floating point")
 				move(context, dst: dst_reg, src: lhs_reg)
 				let op_ins = context.emit_and_get(VirtInst.SseOpRegRm(op: sse_op, reg3: dst_reg, rm: VirtRm.Reg(reg: rhs_reg)))
 				op_ins.add_def(dst_reg)
@@ -392,7 +408,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 				else:
 					panic("Unknown register class")
 			var used_stack_size = mem_args.len() * 8
-			let mis_align = modulo(value: used_stack_size, divisor: 16)
+			let mis_align = used_stack_size % 16
 			if mis_align != 0:
 				let padding = 16 - mis_align
 				context.emit(VirtInst.Actual(x86.Instruction.SubRmImm(rm: x86.Rm.Reg(rsp), imm: padding)))

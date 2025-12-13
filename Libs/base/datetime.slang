@@ -1,7 +1,6 @@
 
 # Date time function
 
-from math import modulo
 from utils import assert
 from strlib import str_pad_left
 
@@ -20,11 +19,11 @@ pub fn unix_to_datetime(z: int) -> DateTime:
 	let month = date.month
 	let day = date.day
 
-	var second = modulo(value: z, divisor: seconds_per_day)
+	var second = z % seconds_per_day
 	var minute = second / 60
-	second = modulo(value: second, divisor: 60)
+	second = second % 60
 	let hour = minute / 60
-	minute = modulo(value: minute, divisor: 60)
+	minute = minute % 60
 
 	DateTime(year, month, day, hour, minute, second)
 

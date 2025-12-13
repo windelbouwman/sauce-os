@@ -18,6 +18,7 @@ COMPILER3=${BUILDDIR}/tmp-compiler3.py
 COMPILER4=${BUILDDIR}/compiler4
 COMPILER5=${BUILDDIR}/compiler5
 COMPILER6=${BUILDDIR}/tmp-compiler6.py
+COMPILER7=${BUILDDIR}/tmp-compiler7.py
 #SLANGC=python ${COMPILER3}
 #SLANGC_DEPS=${COMPILER3}
 SLANGC=./${COMPILER5}
@@ -246,6 +247,7 @@ ${BUILDDIR}/x86/libimage.o ${BUILDDIR}/x86/libimage.json: ${IMAGE_LIB_SRCS} ${BU
 ${BUILDDIR}/x86/libscience.o ${BUILDDIR}/x86/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
 	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libscience.json -o ${BUILDDIR}/x86/libscience.o --add-import ${BUILDDIR}/x86/libbase.json ${SCIENCE_LIB_SRCS}
 
+# Tests to x86
 .PRECIOUS: ${BUILDDIR}/x86/test_%.o
 ${BUILDDIR}/x86/test_%.o: tests/test_%.slang ${BUILDDIR}/x86/libbase.json ${BUILDDIR}/x86/libcompiler.json ${BUILDDIR}/x86/libimage.json ${BUILDDIR}/x86/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
 	${SLANGC} -v --backend-x86 -o $@ $< --add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libcompiler.json --add-import ${BUILDDIR}/x86/libimage.json --add-import ${BUILDDIR}/x86/libscience.json
@@ -253,6 +255,14 @@ ${BUILDDIR}/x86/test_%.o: tests/test_%.slang ${BUILDDIR}/x86/libbase.json ${BUIL
 .PRECIOUS: ${BUILDDIR}/x86/test_%.exe
 ${BUILDDIR}/x86/test_%.exe: ${BUILDDIR}/x86/test_%.o ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/x86/libimage.o ${BUILDDIR}/x86/libscience.o ${BUILDDIR}/slangrt.a
 	gcc -o $@ $< ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/x86/libimage.o ${BUILDDIR}/x86/libscience.o ${BUILDDIR}/slangrt.a
+
+# Compiler to x86
+.PRECIOUS: ${BUILDDIR}/x86/compiler.o
+${BUILDDIR}/x86/compiler.o: ${COMPILER_SRCS} ${BUILDDIR}/x86/libbase.json ${BUILDDIR}/x86/libcompiler.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
+	${SLANGC} --backend-x86 -o $@ ${COMPILER_SRCS} --add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libcompiler.json
+
+${BUILDDIR}/x86/compiler.exe: ${BUILDDIR}/x86/compiler.o ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/slangrt.a
+	gcc -o $@ ${BUILDDIR}/x86/compiler.o ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/slangrt.a
 
 # Advent-of-Code compiled to X86
 .PRECIOUS: ${BUILDDIR}/x86/aoc_%.o
@@ -348,6 +358,9 @@ ${COMPILER5}: ${BUILDDIR}/tmp-compiler5.c ${BUILDDIR}/slangrt.a runtime/slangrt.
 
 ${COMPILER6}: ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${COMPILER_LIB_SRCS} ${COMPILER5} | ${BUILDDIR}
 	./${COMPILER5} --backend-py -o ${COMPILER6} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
+
+${COMPILER7}: ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${COMPILER_LIB_SRCS} ${BUILDDIR}/x86/compiler.exe | ${BUILDDIR}
+	./${BUILDDIR}/x86/compiler.exe --backend-py -o ${COMPILER7} ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
 
 ${BUILDDIR}/compiler.wat: ${COMPILER_SRCS} ${COMPILER6} | ${BUILDDIR}
 	python ${COMPILER6} -wasm ${COMPILER_SRCS}

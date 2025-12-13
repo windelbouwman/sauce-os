@@ -45,6 +45,7 @@ class ByteCodeGenerator:
             "-": OpCode.SUB,
             "*": OpCode.MUL,
             "/": OpCode.DIV,
+            "%": OpCode.REM,
             "<": OpCode.LT,
             ">": OpCode.GT,
             "<=": OpCode.LTE,

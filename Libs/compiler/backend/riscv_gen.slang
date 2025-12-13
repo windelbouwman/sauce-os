@@ -84,6 +84,8 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 					context.emit(VirtInst.Sub())
 				Div:
 					unimplemented("Divide")
+				Mod:
+					unimplemented("Modulo")
 				Mul:
 					unimplemented("Multiply")
 		Bitop(dst, op, lhs, rhs):

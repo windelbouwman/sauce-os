@@ -1021,6 +1021,9 @@ class Parser:
 				Slash:
 					prec = 80
 					ast.BinaryOperator.Div()
+				Percent:
+					prec = 80
+					ast.BinaryOperator.Mod()
 				Asterix:
 					prec = 80
 					ast.BinaryOperator.Mul()

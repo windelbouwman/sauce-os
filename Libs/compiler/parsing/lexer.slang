@@ -228,6 +228,8 @@ pub class Lexer:
 			TokenKind.BitAnd()
 		elif c == '^':
 			TokenKind.BitXor()
+		elif c == '%':
+			TokenKind.Percent()
 		else:
 			TokenKind.Error("Unknown char: '{c}'")
 

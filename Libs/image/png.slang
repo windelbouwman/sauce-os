@@ -6,7 +6,7 @@ See RFC 2083
 
 from utils import unimplemented, panic, assert
 from logging import log_warning, log_debug
-from math import abs, modulo
+from math import abs
 from bytes import Bytes, ByteReader, bytes_from_ascii, bytes_from_hex_text, ByteArray, bytes_to_ascii, new_bytes
 from gzip import calc_crc32, zlib_decompress, zlib_compress
 from qoi import read_whole_file_as_bytes, write_bytes_to_file
@@ -385,11 +385,11 @@ fn post_filter(data: Bytes, width: int, height: int, bytes_per_line: int, bpp: i
 			elif filter_type == 1: # Diff to left pixel
 				if x >= bpp:
 					let left_value = out.get(index: scanline * bytes_per_line + x - bpp)
-					value = modulo(value: value + left_value, divisor: 256)
+					value = (value + left_value) % 256
 			elif filter_type == 2: # Diff to above pixel
 				if scanline > 0:
 					let above_value = out.get(index: (scanline - 1) * bytes_per_line + x)
-					value = modulo(value: value + above_value, divisor: 256)
+					value = (value + above_value) % 256
 			elif filter_type == 3:  # Average
 				let left_value = if x >= bpp:
 					out.get(index: scanline * bytes_per_line + x - bpp)
@@ -399,7 +399,7 @@ fn post_filter(data: Bytes, width: int, height: int, bytes_per_line: int, bpp: i
 					out.get(index: (scanline - 1) * bytes_per_line + x)
 				else:
 					0
-				value = modulo(value: value + average(a: left_value, b: above_value), divisor: 256)
+				value = (value + average(a: left_value, b: above_value)) % 256
 			elif filter_type == 4:  # Paeth
 				var left_value = 0
 				if x >= bpp:
@@ -410,7 +410,7 @@ fn post_filter(data: Bytes, width: int, height: int, bytes_per_line: int, bpp: i
 				var left_up_value = 0
 				if (x >= bpp) and (scanline > 0):
 					left_up_value = out.get(index: (scanline - 1) * bytes_per_line + x - bpp)
-				value = modulo(value: value + paeth_predictor(a: left_value, b: above_value, c: left_up_value), divisor: 256)
+				value = (value + paeth_predictor(a: left_value, b: above_value, c: left_up_value)) % 256
 			else:
 				unimplemented("Filter type: {filter_type}")
 

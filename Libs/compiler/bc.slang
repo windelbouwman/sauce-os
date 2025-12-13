@@ -130,6 +130,7 @@ pub enum BinaryOperator:
 	Add
 	Sub
 	Divide
+	Modulo
 	Multiply
 
 pub enum ComparisonOperator:
@@ -218,6 +219,7 @@ fn binop_to_string(op: BinaryOperator) -> str:
 		Add: "add"
 		Sub: "sub"
 		Divide: "div"
+		Modulo: "mod"
 		Multiply: "mul"
 
 fn comparison_to_string(op: ComparisonOperator) -> str:

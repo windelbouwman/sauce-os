@@ -2,7 +2,6 @@
 # Implement base64 encoding scheme
 
 from utils import panic
-from math import modulo
 from bytes import Bytes, ByteArray
 from std import ord
 
@@ -12,7 +11,7 @@ pub fn base64_encode(data: Bytes) -> str:
 
 	var i = 0
 	let data_length = data.len()
-	var pad_count = modulo(value: data_length, divisor: 3)
+	var pad_count = data_length % 3
 	var result = ""
 	while i < data_length:
 		# Gather 3 bytes into a 24 bits number:

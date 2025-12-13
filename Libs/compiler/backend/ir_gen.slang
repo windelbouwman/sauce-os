@@ -806,6 +806,8 @@ class BytecodeGenerator:
 				emit(Instruction.Binop(op: bc.BinaryOperator.Multiply()))
 			Div:
 				emit(Instruction.Binop(op: bc.BinaryOperator.Divide()))
+			Mod:
+				emit(Instruction.Binop(op: bc.BinaryOperator.Modulo()))
 			NotEquals:
 				panic("No bytecode for not-equals")
 			Equals:

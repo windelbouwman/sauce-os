@@ -376,6 +376,7 @@ class CGenerator:
 					Sub: "-"
 					Multiply: "*"
 					Divide: "/"
+					Modulo: "%"
 				write(" = ")
 				write(lhs.name)
 				write(op_txt)

@@ -5,6 +5,7 @@ import sil
 import mil
 from register_allocation import reg_alloc
 from vectype import Vector, new_vector
+from listtype import List
 from logging import log_debug, log_info
 from report import Report
 from optiontype import Option
@@ -96,7 +97,16 @@ class Codegen[V]:
 		for block in function.blocks:
 			for instruction in block.instructions:
 				backend.selector(context, instruction)
-			mblocks.append(mil.Block(name: block.name, instructions: context.get_instructions()))
+			let jump_targets: List[str] = List()
+			case block.instructions.last().op:
+				Jump(label):
+					jump_targets.append(label)
+				JumpIf(lhs, op, rhs, label1, label2):
+					jump_targets.append(label1)
+					jump_targets.append(label2)
+			else:
+				pass
+			mblocks.append(mil.Block(name: block.name, instructions: context.get_instructions(), jump_targets))
 		mil.Function(name: function.name, blocks: mblocks)
 
 	fn gen_blob(blob: sil.DataBlob, out: BinaryOutput):

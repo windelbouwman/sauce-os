@@ -5,7 +5,6 @@ https://adventofcode.com/2025/day/3
 """
 from std import print, read_file, str_slice, str_len, ord, get_arg
 from strlib import trim, split_string, str_to_int, split_lines
-from math import modulo
 from listtype import List
 from vectype import Vector, new_vector
 from utils import panic

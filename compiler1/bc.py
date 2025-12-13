@@ -109,6 +109,7 @@ class OpCode(Enum):
     SUB = 41
     MUL = 42
     DIV = 43
+    REM = 44
 
     NEG = 45
 

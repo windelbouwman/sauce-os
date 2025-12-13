@@ -535,6 +535,7 @@ fn eval_binop_int(op: bc.BinaryOperator, lhs: int, rhs: int) -> int:
 		Add: lhs + rhs
 		Sub: lhs - rhs
 		Divide: lhs / rhs
+		Modulo: lhs % rhs
 		Multiply: lhs * rhs
 
 fn eval_comparison_int(op: bc.ComparisonOperator, lhs: int, rhs: int) -> bool:
@@ -551,6 +552,8 @@ fn eval_binop_float(op: bc.BinaryOperator, lhs: float, rhs: float) -> float:
 		Add: lhs + rhs
 		Sub: lhs - rhs
 		Divide: lhs / rhs
+		Modulo:
+			panic("Cannot modulo floating point values")
 		Multiply: lhs * rhs
 
 fn eval_comparison_float(op: bc.ComparisonOperator, lhs: float, rhs: float) -> bool:

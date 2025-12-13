@@ -79,6 +79,7 @@ pub enum TokenKind:
 	Plus
 	Minus
 	Slash
+	Percent
 	Asterix
 	Less
 	Greater
@@ -157,11 +158,7 @@ pub fn token_to_string(tok: Token) -> str:
 		Char(value): "CHAR({value})"
 		Integer(value): "INT({value})"
 		Float(v): "FLOAT(...)"
-		Bool(value):
-			if value:
-				"BOOL(yes)"
-			else:
-				"BOOL(no)"
+		Bool(value): "BOOL(yes)" if value else "BOOL(no)"
 		Space(amount): "SPACE({amount})"
 		Tab(amount): "TAB({amount})"
 		Comment(comment): "COMMENT({comment})"
@@ -176,6 +173,7 @@ pub fn token_to_string(tok: Token) -> str:
 		Plus: "+"
 		Minus: "-"
 		Slash: "/"
+		Percent: "%"
 		Asterix: "*"
 		Equals: "="
 		EqualsEquals: "=="

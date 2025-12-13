@@ -92,6 +92,7 @@ class CustomLarkLexer(LarkLexer):
             "+": "PLUS",
             "*": "ASTERIX",
             "/": "SLASH",
+            "%": "PERCENT",
             ">>": "SHR",
             "<<": "SHL",
             "|": "BITOR",
@@ -1015,7 +1016,7 @@ sum: sum addop term
 addop: PLUS | MINUS
 term: term mulop factor
     | factor
-mulop: ASTERIX | SLASH
+mulop: ASTERIX | SLASH | PERCENT
 factor: atom
       | MINUS factor
       | PLUS factor
@@ -1061,7 +1062,7 @@ labeled_expression: test
 
 %declare LEFT_PARENTHESIS RIGHT_PARENTHESIS LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %declare COLON COMMA DOT ARROW QUESTION
-%declare MINUS PLUS ASTERIX SLASH
+%declare MINUS PLUS ASTERIX SLASH PERCENT
 %declare LESS_THAN GREATER_THAN EQUALS_EQUALS LESS_EQUALS GREATER_EQUALS NOT_EQUALS
 %declare EQUALS PLUS_EQUALS MINUS_EQUALS ASTERIX_EQUALS SLASH_EQUALS
 %declare BITAND BITOR BITXOR SHR SHL
