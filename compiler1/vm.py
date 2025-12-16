@@ -328,6 +328,7 @@ binary_op_funcs = {
     OpCode.ADD: lambda a, b: a + b,
     OpCode.SUB: lambda a, b: a - b,
     OpCode.EQ: lambda a, b: a == b,
+    OpCode.NE: lambda a, b: a != b,
     OpCode.LT: lambda a, b: a < b,
     OpCode.GT: lambda a, b: a > b,
     OpCode.LTE: lambda a, b: a <= b,

@@ -56,22 +56,16 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V]) -> InterferenceGraph
 		var full_gen: Set[int] = new_int_set()
 		var full_kill: Set[int] = new_int_set()
 		for mi in mblock.instructions:
-			let ins_gen: Set[int] = new_int_set()
-			let ins_kill: Set[int] = new_int_set()
-			# Register definition kill live range:
-			for reg in mi.defs:
-				ins_kill.add(reg.id)
-				get_ig_node(ig, reg)
-				# log_debug("kill: {r.id}")
-
 			# Register use generates a live register:
 			for reg in mi.uses:
-				ins_gen.add(reg.id)
-				# log_debug("gen: {r.id}")
+				if not full_kill.contains(key: reg.id):
+					full_gen.add(reg.id)
 
-			# Combine effect:
-			full_gen = full_gen.union(ins_gen.difference(full_kill))
-			full_kill = full_kill.union(ins_kill)
+			# Register definition kill live range:
+			for reg in mi.defs:
+				full_kill.add(reg.id)
+				get_ig_node(ig, reg)
+
 		let node: ControlFlowGraphNode[V] = ControlFlowGraphNode(m_gen: full_gen, m_kill: full_kill, block: mblock)
 		cfg.add_node(node)
 

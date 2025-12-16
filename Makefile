@@ -73,8 +73,16 @@ profile4: ${COMPILER5} | ${BUILDDIR}
 	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-null examples/snippets/vtable.slang runtime/std.slang
 	kcachegrind build/callgrind.out
 
+profile5: ${COMPILER5} | ${BUILDDIR}
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-x86 -v ${BASE_LIB_SRCS} -o ${BUILDDIR}/x86/libbase_profile.o
+	kcachegrind build/callgrind.out
+
 leakcheck: ${COMPILER5} | ${BUILDDIR}
 	valgrind ./${COMPILER5} --backend-null ${BASE_LIB_SRCS}
+
+.PHONY: benchmark
+benchmark: ${COMPILER5} | ${BUILDDIR}
+	hyperfine './${COMPILER5} --backend-x86 -v ${BASE_LIB_SRCS} -o ${BUILDDIR}/x86/libbase_benchmark.o'
 
 pytest-compiler1:
 	pytest -v test_compiler1.py

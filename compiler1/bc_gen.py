@@ -51,6 +51,7 @@ class ByteCodeGenerator:
             "<=": OpCode.LTE,
             ">=": OpCode.GTE,
             "==": OpCode.EQ,
+            "!=": OpCode.NE,
             "and": OpCode.AND,
             "or": OpCode.OR,
             "&": OpCode.BITAND,

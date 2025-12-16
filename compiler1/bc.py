@@ -118,10 +118,11 @@ class OpCode(Enum):
     LTE = 52
     GTE = 53
     EQ = 54
+    NE = 55
 
-    AND = 55
-    OR = 56
-    NOT = 57
+    AND = 57
+    OR = 58
+    NOT = 59
 
     BITAND = 60
     BITOR = 61

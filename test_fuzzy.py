@@ -5,12 +5,18 @@ This might be useful:
 
 https://hypothesis.readthedocs.io/en/latest/extras.html#hypothesis.extra.lark.from_lark
 
+Run with:
+
+$ pytest test_fuzzy.py --hypothesis-show-statistics
+
+
 """
 
 import io
 import tempfile
 import sys
 import subprocess
+import string
 from dataclasses import dataclass
 from pathlib import Path
 from compiler1 import compiler
@@ -18,62 +24,44 @@ from compiler1.lexer import KEYWORDS
 from hypothesis import strategies as st
 from hypothesis import given, settings
 
+this_path = Path(__file__).resolve().parent
+reserved_identifiers = [
+    # pre-defined:
+    "true",
+    "false",
+    "null",
+    "main",
+    # Types:
+    "str",
+    "char",
+    "int",
+    "float",
+    "bool",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "float32",
+    "float64",
+    "unreachable",
+]
 
 bit_operators = st.sampled_from(["^", "|", "&", ">>", "<<"])
-arithmatic_operators = st.sampled_from(["+", "-", "*", "/"])
+arithmatic_operators = st.sampled_from(["+", "-"])  # TODO: add '*', '/' and '%'
 comparison_operators = st.sampled_from(["==", "!=", ">", "<", ">=", "<="])
 
 
-@st.composite
-def expression_const(draw) -> str:
-    value = draw(st.integers(min_value=0, max_value=4500))
-    return f"{value}"
+class Context:
+    def __init__(self, func_pool, var_pool):
+        self.func_pool = func_pool
+        self.var_pool = var_pool
 
-
-@st.composite
-def expression_var(draw, var_pool) -> str:
-    name = draw(st.sampled_from(var_pool))
-    return name
-
-
-@st.composite
-def expression_call(draw, func_pool, var_pool) -> str:
-    f = draw(st.sampled_from(func_pool))
-    args = []
-    for p_name in f.parameters:
-        arg = draw(expression_simple(var_pool))
-        args.append(f"{p_name}: {arg}")
-    arg_text = ", ".join(args)
-    return f"{f.name}({arg_text})"
-
-
-def expression(func_pool, var_pool):
-    expr = expression_simple(var_pool)
-    if func_pool:
-        expr = expr | expression_call(func_pool, var_pool)
-    return expr
-
-
-def expression_simple(var_pool):
-    """A simple expression, such as a constant or variable reference."""
-    expr = expression_const()
-    if var_pool:
-        expr = expr | expression_var(var_pool)
-    return expr
-
-
-identifier = st.text(
-    alphabet=st.characters(min_codepoint=97, max_codepoint=122), min_size=4, max_size=9
-)
-
-
-@st.composite
-def unused_identifier(draw, func_pool, var_pool):
-    bad_identifiers = {"true", "false", "null", "main"}
-    bad_identifiers |= KEYWORDS
-    bad_identifiers |= set(var_pool)
-    bad_identifiers |= set(f.name for f in func_pool)
-    return draw(identifier.filter(lambda n: n not in bad_identifiers))
+    def add_variable(self, name):
+        self.var_pool.append(name)
 
 
 @dataclass
@@ -82,22 +70,84 @@ class FunctionDef:
     parameters: list[str]
 
 
+def expression_const() -> str:
+    return st.integers(min_value=0, max_value=4500).map(str)
+
+
+def expression_var(context: Context):
+    return st.sampled_from(context.var_pool)
+
+
 @st.composite
-def function_def(draw, func_pool):
-    var_pool = []
+def expression_binop(draw, context: Context, level) -> str:
+    lhs = draw(expression(context, level=level + 1))
+    op = draw(arithmatic_operators)
+    rhs = draw(expression(context, level=level + 1))
+    return f"({lhs} {op} {rhs})"
+
+
+@st.composite
+def expression_call(draw, context: Context, level) -> str:
+    f = draw(st.sampled_from(context.func_pool))
+    args = []
+    for p_name in f.parameters:
+        arg = draw(expression(context, level=level + 1))
+        args.append(f"{p_name}: {arg}")
+    arg_text = ", ".join(args)
+    return f"{f.name}({arg_text})"
+
+
+def expression(context: Context, level=0):
+    expr = expression_const()
+    if context.var_pool:
+        expr = expr | expression_var(context)
+    if context.func_pool and level < 2:
+        expr = expr | expression_call(context, level)
+    if level < 2:
+        expr = expr | expression_binop(context, level)
+    return expr
+
+
+identifier = st.text(alphabet=string.ascii_letters, min_size=3, max_size=7)
+
+
+@st.composite
+def unused_identifier(draw, context: Context):
+    bad = set(reserved_identifiers)
+    bad |= KEYWORDS
+    bad |= set(context.var_pool)
+    bad |= set(f.name for f in context.func_pool)
+
+    base = draw(identifier)
+
+    if base in bad:
+        i = 0
+        while True:
+            candidate = f"{base}_{i}"
+            if candidate in bad:
+                i += 1
+            else:
+                return candidate
+    else:
+        return base
+
+
+@st.composite
+def function_def(draw, context: Context):
+    context = Context(context.func_pool, [])
     n_param = draw(st.integers(min_value=0, max_value=13))
     p_names = []
     for _ in range(n_param):
-        p_name = draw(unused_identifier(func_pool, var_pool))
-        var_pool.append(p_name)
+        p_name = draw(unused_identifier(context))
+        context.add_variable(p_name)
         p_names.append(p_name)
-    expr = draw(expression(func_pool, var_pool))
-    body = [expr]
-    name = draw(unused_identifier(func_pool, var_pool))
-    func_pool.append(FunctionDef(name, p_names))
+    body = draw(some_statements(context))
+    body.append(draw(expression(context)))
+    name = draw(unused_identifier(context))
+    context.func_pool.append(FunctionDef(name, p_names))
     p_text = ", ".join(f"{n}: int" for n in p_names)
     decl = f"fn {name}({p_text}) -> int:"
-    return [decl] + indented(body)
+    return [decl] + indented(body) + [""]
 
 
 def indented(lines: list[str]) -> list[str]:
@@ -105,21 +155,48 @@ def indented(lines: list[str]) -> list[str]:
 
 
 @st.composite
-def statement_print(draw, func_pool, var_pool):
-    expr = draw(expression(func_pool, var_pool))
-    return f"print(int_to_str({expr}))"
+def statement_print(draw, context: Context):
+    expr = draw(expression(context))
+    return [f"print(int_to_str({expr}))"]
 
 
 @st.composite
-def statement_let(draw, func_pool, var_pool):
-    expr = draw(expression(func_pool, var_pool))
-    varname = draw(unused_identifier(func_pool, var_pool))
-    var_pool.append(varname)
-    return f"let {varname} = {expr}"
+def statement_let(draw, context: Context):
+    expr = draw(expression(context))
+    varname = draw(unused_identifier(context))
+    context.add_variable(varname)
+    return [f"let {varname} = {expr}"]
 
 
-def statement(func_pool, var_pool):
-    return statement_print(func_pool, var_pool) | statement_let(func_pool, var_pool)
+@st.composite
+def statement_if(draw, context: Context, level):
+    lhs = draw(expression(context))
+    op = draw(comparison_operators)
+    rhs = draw(expression(context))
+    yes = indented(draw(scoped_block(context, level + 1)))
+    no = indented(draw(scoped_block(context, level + 1)))
+    return [f"if {lhs} {op} {rhs}:"] + yes + ["else:"] + no
+
+
+def scoped_block(context: Context, level):
+    context = Context(context.func_pool, list(context.var_pool))
+    return some_statements(context, level=level)
+
+
+def statement(context: Context, level=0):
+    s = statement_print(context) | statement_let(context)
+    if level < 2:
+        s = s | statement_if(context, level)
+    return s
+
+
+@st.composite
+def some_statements(draw, context: Context, level=0):
+    code = []
+    n_statements = draw(st.integers(min_value=1, max_value=2))
+    for _ in range(n_statements):
+        code.extend(draw(statement(context)))
+    return code
 
 
 @st.composite
@@ -132,15 +209,11 @@ def slang_module(draw):
     ]
     module.extend(imports)
     n_funcs = draw(st.integers(min_value=1, max_value=5))
-    func_pool = []
+    context = Context([], [])
     for _ in range(n_funcs):
-        module.extend(draw(function_def(func_pool)))
+        module.extend(draw(function_def(context)))
     # Main body:
-    var_pool = []
-    main_body = []
-    n_statements = draw(st.integers(min_value=3, max_value=15))
-    for _ in range(n_statements):
-        main_body.append(draw(statement(func_pool, var_pool)))
+    main_body = draw(some_statements(context))
     main_body.append("0")
     main_function = ["fn main() -> int:"] + indented(main_body)
     module.extend(main_function)
@@ -148,7 +221,7 @@ def slang_module(draw):
 
 
 @given(slang_module())
-@settings(max_examples=50)
+@settings(max_examples=50, deadline=10000)
 def test_w00t(code):
     # Run sample code through different backends, and compare the outputs
     with tempfile.NamedTemporaryFile(mode="w", suffix=".slang", delete=False) as tmp:
@@ -174,15 +247,15 @@ def run_code_via_compiler1(example: Path, backend) -> str:
         dump_ast=False, run_code=True, backend=backend
     )
     f = io.StringIO()
-    runtime_filename = "runtime/std.slang"
+    runtime_filename = this_path / "runtime" / "std.slang"
     compiler.do_compile([example, runtime_filename], f, options)
     stdout = f.getvalue()
     return stdout
 
 
 def run_code_via_compiler(example: Path, backend) -> str:
-    runtime_filename = "runtime/std.slang"
-    compiler_exe = "./build/compiler5"
+    runtime_filename = this_path / "runtime" / "std.slang"
+    compiler_exe = this_path / "build" / "compiler5"
     if backend == "vm":
         cmd = [compiler_exe, "--run", "--backend-bc", example, runtime_filename]
     elif backend == "x86":
@@ -195,7 +268,8 @@ def run_code_via_compiler(example: Path, backend) -> str:
                 obj_file,
                 example,
                 runtime_filename,
-            ]
+            ],
+            check=True,
         )
         exe_file = example.with_suffix(".exe")
         subprocess.run(
@@ -204,8 +278,8 @@ def run_code_via_compiler(example: Path, backend) -> str:
                 "-o",
                 exe_file,
                 obj_file,
-                "./build/slangrt.o",
-                "./build/slangrt_mm.o",
+                this_path / "build" / "slangrt.o",
+                this_path / "build" / "slangrt_mm.o",
             ],
             check=True,
         )
@@ -220,7 +294,8 @@ def run_code_via_compiler(example: Path, backend) -> str:
                 py_file,
                 example,
                 runtime_filename,
-            ]
+            ],
+            check=True,
         )
         cmd = [sys.executable, py_file]
     else:
