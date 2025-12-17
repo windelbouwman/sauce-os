@@ -55,6 +55,11 @@ pub class Set[T]:
 			result.add(n)
 		result
 
+	pub fn union_add(other?: Set[T]):
+		""" Add all items from the other set """
+		for n in other:
+			add(n)
+
 	pub fn intersection(other?: Set[T]) -> Set[T]:
 		""" New set with only items that are in both sets """
 		let result = new_empty_set()

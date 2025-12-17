@@ -229,7 +229,7 @@ native_example: ${BUILDDIR}/c/native_example/main.exe
 .PRECIOUS: ${BUILDDIR}/x86/snippet_%.o
 
 ${BUILDDIR}/x86/snippet_%.o: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} --backend-x86 -v --debug -o $@ $< runtime/std.slang
+	${SLANGC} --backend-x86 --debug -o $@ $< runtime/std.slang
 
 ${BUILDDIR}/x86/snippet_%.exe: ${BUILDDIR}/x86/snippet_%.o ${BUILDDIR}/slangrt.a | ${BUILDDIR}/x86
 	gcc -o $@ $< ${BUILDDIR}/slangrt.a
@@ -258,7 +258,7 @@ ${BUILDDIR}/x86/libscience.o ${BUILDDIR}/x86/libscience.json: ${SCIENCE_LIB_SRCS
 # Tests to x86
 .PRECIOUS: ${BUILDDIR}/x86/test_%.o
 ${BUILDDIR}/x86/test_%.o: tests/test_%.slang ${BUILDDIR}/x86/libbase.json ${BUILDDIR}/x86/libcompiler.json ${BUILDDIR}/x86/libimage.json ${BUILDDIR}/x86/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} -v --backend-x86 -o $@ $< --add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libcompiler.json --add-import ${BUILDDIR}/x86/libimage.json --add-import ${BUILDDIR}/x86/libscience.json
+	${SLANGC} --backend-x86 -o $@ $< --add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libcompiler.json --add-import ${BUILDDIR}/x86/libimage.json --add-import ${BUILDDIR}/x86/libscience.json
 
 .PRECIOUS: ${BUILDDIR}/x86/test_%.exe
 ${BUILDDIR}/x86/test_%.exe: ${BUILDDIR}/x86/test_%.o ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/x86/libimage.o ${BUILDDIR}/x86/libscience.o ${BUILDDIR}/slangrt.a

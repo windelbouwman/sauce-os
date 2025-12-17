@@ -153,6 +153,7 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 	let cgen_options = CodegenOptions:
 		filename: options.output_filename
 		report: report
+		profiler: p
 		debug
 	case options.backend:
 		Null:  # no-op backend.

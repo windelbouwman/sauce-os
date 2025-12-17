@@ -7,6 +7,7 @@ from register_allocation import reg_alloc
 from vectype import Vector, new_vector
 from listtype import List
 from logging import log_debug, log_info
+from profiling import Profiler
 from report import Report
 from optiontype import Option
 from elf_file import write_elf
@@ -18,10 +19,12 @@ from isel import Backend, Frame, SelectionContext
 pub struct CodegenOptions:
 	filename: Option[str]
 	report: Report
+	profiler: Profiler
 	debug: Option[DbgInfo]
 
 pub fn cgen[V](program: sil.Program, backend: Backend[V], options: CodegenOptions):
 	options.report.writeln("# Compilation report!")
+	options.profiler.enter(name: "Code-gen")
 	program.dump(report: options.report)
 	let out = BinaryOutput()
 	let g = Codegen(backend, options)
@@ -33,6 +36,7 @@ pub fn cgen[V](program: sil.Program, backend: Backend[V], options: CodegenOption
 		None:
 			"test.elf"
 
+	options.profiler.leave()
 	write_elf(filename, object: out.get_object())
 
 class Codegen[V]:
@@ -64,6 +68,7 @@ class Codegen[V]:
 
 	fn gen_function(function: sil.Function, out: BinaryOutput):
 		log_info("Generating code for function {function.name}")
+		options.profiler.enter(name: "gen-func-{function.name}")
 		let frame = Frame(stacksize: function.stacksize, exit_label: "{function.name}_@exit")
 		let context = SelectionContext(frame)
 		let mfunc = select_function(function, context)
@@ -88,6 +93,7 @@ class Codegen[V]:
 			None:
 				pass
 		out.do_fixups(fixer: backend.fixer, is_pic_reloc: backend.is_pic_reloc)
+		options.profiler.leave()
 
 	fn select_function(function: sil.Function, context: SelectionContext[V]) -> mil.Function[V]:
 		"""Turn abstract instructions into abstract machine specific instructions.

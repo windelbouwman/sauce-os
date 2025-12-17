@@ -60,6 +60,7 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V]) -> InterferenceGraph
 			for reg in mi.uses:
 				if not full_kill.contains(key: reg.id):
 					full_gen.add(reg.id)
+				get_ig_node(ig, reg)
 
 			# Register definition kill live range:
 			for reg in mi.defs:
@@ -86,7 +87,7 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V]) -> InterferenceGraph
 
 			# include successors:
 			for successor in cfg.get_successors(node):
-				node.m_live_out = node.m_live_out.union(successor.m_live_in)
+				node.m_live_out.union_add(successor.m_live_in)
 			if not old_live_in.equals(node.m_live_in) or not old_live_out.equals(node.m_live_out):
 				change = true
 		if not change:
@@ -103,33 +104,27 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V]) -> InterferenceGraph
 			index -= 1
 			let mi = block.instructions.get(index)
 
-			let ins_kill: Set[int] = new_int_set()
+			# defs and clobbers interfere with live registers
 			for reg in mi.defs:
-				ins_kill.add(reg.id)
-				get_ig_node(ig, reg)
+				add_reg_interference(ig, reg, live_registers)
+			for reg in mi.clobbers:
+				add_reg_interference(ig, reg, live_registers)
 
-			let ins_gen: Set[int] = new_int_set()
+			# Update liveness:
+			for reg in mi.defs:
+				live_registers.remove(reg.id)
+
 			for reg in mi.uses:
-				ins_gen.add(reg.id)
-				get_ig_node(ig, reg)
-
-			for a in live_registers:
-				let n1 = ig.get_node(id: a)
-				# other live registers interfere:
-				for b in live_registers:
-					let n2 = ig.get_node(id: b)
-					if a != b:
-						ig.add_edge(n1, n2)
-				# clobber registers interfere:
-				for clobber in mi.clobbers:
-					get_ig_node(ig, reg: clobber)
-					let b = clobber.id
-					let n2 = ig.get_node(id: b)
-					if a != b:
-						ig.add_edge(n1, n2)
-
-			live_registers = ins_gen.union(live_registers.difference(ins_kill))
+				live_registers.add(reg.id)
 	ig
+
+fn add_reg_interference(ig: InterferenceGraph, reg: mil.Register, live_registers: Set[int]):
+	get_ig_node(ig, reg)
+	let n1 = ig.get_node(id: reg.id)
+	for live in live_registers:
+		if reg.id != live:
+			let n2 = ig.get_node(id: live)
+			ig.add_edge(n1, n2)
 
 fn get_ig_node(ig: InterferenceGraph, reg: mil.Register):
 	if not ig.has_node(reg.id):

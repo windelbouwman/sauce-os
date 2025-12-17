@@ -132,6 +132,8 @@ fn print_usage():
 	print("    --backend-null  : Skip code generation")
 	print("    --backend-slang : Spit out slang")
 	print("    --backend-x86   : Spit out x86 code")
+	print("    --report        : Create compilation report")
+	print("    --time-trace    : Create compilation time-trace report")
 	print("    -rt : Skip runtime?")
 	print("    --run : Run code!")
 	print("")

@@ -1,46 +1,80 @@
 """ Bit set data type.
 """
 
+from utils import unimplemented, panic
 from vectype import Vector, new_vector
+
+pub fn new_bitset(n: int) -> BitSet:
+	""" Create a bit set with n bits. """
+	let n_integers = (n + n_bits_per_int - 1) / n_bits_per_int
+	var data = [n_integers : int]
+	var i = 0
+	while i < n_integers:
+		data[i] = 0
+		i += 1
+	BitSet(m_integers: data, m_num_integers: n_integers, m_width: n)
 
 pub class BitSet:
 	""" Compactly store an vector of booleans
 	"""
-	var m_integers: Vector[int] = new_vector()
-	var m_count: int = 0
-
-	pub fn count() -> int:
-		m_count
+	pub var m_integers: [int]
+	pub var m_num_integers: int
+	pub var m_width: int
 
 	pub fn set(bit?: int):
-		if not isset(bit):
-			m_count += 1
+		if bit < m_width:
 			let index = bit_slot(bit)
-			while not (index < m_integers.len()):
-				m_integers.append(0)
-			let bits = m_integers.get(index)
 			let mask = bit_mask(bit)
-			m_integers.set(index, value: bits | mask)
+			m_integers[index] = m_integers[index] | mask
+		else:
+			panic("set: bit out of range")
 
 	pub fn clear(bit?: int):
-		if isset(bit):
-			m_count -= 1
+		if bit < m_width:
 			let index = bit_slot(bit)
-			let bits = m_integers.get(index)
 			let mask = bit_mask(bit)
-			m_integers.set(index, value: bits ^ mask)
+			let bits = m_integers[index]
+			if bits & mask == mask:
+				m_integers[index] = bits ^ mask
+		else:
+			panic("clear: bit out of range")
 
 	pub fn isset(bit?: int) -> bool:
-		let index = bit_slot(bit)
-		if index < m_integers.len():
-			let bits = m_integers.get(index)
+		if bit < m_width:
+			let index = bit_slot(bit)
 			let mask = bit_mask(bit)
+			let bits = m_integers[index]
 			bits & mask == mask
 		else:
-			false
+			panic("isset: bit out of range")
 
-	pub fn union(other: BitSet) -> BitSet:
-		BitSet()
+	pub fn or_assign(other: BitSet):
+		if m_width == other.m_width:
+			var index = 0
+			while index < m_num_integers:
+				m_integers[index] = m_integers[index] | other.m_integers[index]
+				index += 1
+		else:
+			panic("or_assign: width mismatch")
+
+	pub fn and_assign(other: BitSet):
+		if m_width == other.m_width:
+			var index = 0
+			while index < m_num_integers:
+				m_integers[index] = m_integers[index] & other.m_integers[index]
+				index += 1
+		else:
+			panic("and_assign: width mismatch")
+
+	pub fn andnot_assign(other: BitSet):
+		if m_width == other.m_width:
+			let full_mask = (1 << n_bits_per_int) - 1
+			var index = 0
+			while index < m_num_integers:
+				m_integers[index] = m_integers[index] & (full_mask ^ other.m_integers[index])
+				index += 1
+		else:
+			panic("andnot_assign: width mismatch")
 
 let n_bits_per_int: int = 57
 
