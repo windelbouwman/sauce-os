@@ -8,6 +8,7 @@ Features of this pass:
 """
 
 from std import ord
+from math import max
 from listtype import List, list1
 from vectype import Vector, new_vector
 from optiontype import Option
@@ -34,6 +35,7 @@ pub fn to_sil(program: bc.Program) -> sil.Program:
 struct StructLayout:
 	""" Information how a structure is mapped into memory """
 	size: int  # Size of entire struct
+	alignment: int
 	fields: Vector[StructField]
 
 struct StructField:
@@ -135,6 +137,7 @@ class SilGen:
 			Int(value):
 				case ty:
 					Int(signed, bits):
+						# TODO: pack differently when i8?
 						let data = pack_i64(value)
 						list1(sil.BlobContent.Raw(data))
 					Function(parameter_types, return_type):
@@ -180,18 +183,30 @@ class SilGen:
 				panic("TODO: undefined")
 
 	fn calc_struct_layout(struct_def: bc.Struct):
+		var alignment = 1
 		var offset = 0
 		let fields: Vector[StructField] = new_vector()
 		for field in struct_def.fields:
 			fields.append(StructField(offset, ty: field.ty))
 			# TODO: take alignment into account
-			offset += get_size_of(field.ty)
-		m_structs.append(StructLayout(size: offset, fields))
+			let field_size = get_size_of(field.ty)
+			offset += field_size
+			alignment = max(alignment, field_size)
+		m_structs.append(StructLayout(size: offset, alignment, fields))
 
 	fn get_size_of(ty?: bc.Type) -> int:
 		case ty:
 			Int(signed, bits):
-				8 # TODO
+				if bits == 8:
+					1
+				elif bits == 16:
+					2
+				elif bits == 32:
+					4
+				elif bits == 64:
+					8
+				else:
+					panic("Unsupported integer bit size: {bits} bits int type")
 			Bool:
 				8
 			Char:
@@ -201,7 +216,12 @@ class SilGen:
 			Ptr:
 				8
 			Float(bits):
-				8 # TODO
+				if bits == 32:
+					4
+				elif bits == 64:
+					8
+				else:
+					panic("Unsupported floating point bit size: {bits}")
 			Array(element_type):
 				8
 			StructRef(index):
@@ -209,26 +229,46 @@ class SilGen:
 			Function(parameter_types, return_type):
 				8
 
+	fn get_ptr_type() -> sil.Type:
+		sil.Type.I64()
+
+	fn get_int_type(bits: int) -> sil.Type:
+		if bits == 8:
+			sil.Type.I8()
+		elif bits == 16:
+			sil.Type.I16()
+		elif bits == 32:
+			sil.Type.I32()
+		elif bits == 64:
+			sil.Type.I64()
+		else:
+			panic("Unsupported type: {bits} bits int")
+
 	fn get_sil_type(ty: bc.Type) -> sil.Type:
 		case ty:
 			Int(signed, bits):
-				sil.Type.I64()
+				get_int_type(bits)
 			Bool:
 				sil.Type.I64()
 			Char:
 				sil.Type.I64()
 			Str:
-				sil.Type.PTR()
+				get_ptr_type()
 			Ptr:
-				sil.Type.PTR()
+				get_ptr_type()
 			Float(bits):
-				sil.Type.F64()
+				if bits == 32:
+					sil.Type.F32()
+				elif bits == 64:
+					sil.Type.F64()
+				else:
+					panic("Unsupported type: {bits} bits float")
 			Array(element_type):
-				sil.Type.PTR()
+				get_ptr_type()
 			StructRef(index):
-				sil.Type.PTR()
+				get_ptr_type()
 			Function(parameter_types, return_type):
-				sil.Type.PTR()
+				get_ptr_type()
 
 	fn gen_function(function: bc.Function):
 		log_debug("Gen SIL-code for function {function.name}")
@@ -244,7 +284,7 @@ class SilGen:
 		let parameters: List[sil.Value] = List()
 		var index = 1
 		while index < function.return_types.len():
-			let p = new_tmp(ty: sil.Type.PTR())
+			let p = new_tmp(ty: get_ptr_type())
 			let ty = bc.Type.Ptr()  # A pointer to whatever type we return
 			parameters.append(p)
 			let address = new_stack_slot(size: get_size_of(ty))
@@ -303,7 +343,7 @@ class SilGen:
 					Str(text):
 						let data = pack_str(text)
 						let literal_address = add_data_blob(data)
-						let dst_value = new_tmp(ty: sil.Type.PTR())
+						let dst_value = new_tmp(ty: get_ptr_type())
 						emit(sil.OpCode.GetAddress(dst_value, literal_address))
 						push(dst_value, ty: bc.Type.Str())
 					Bool(value):
@@ -487,7 +527,7 @@ class SilGen:
 						var index = 0
 						for value in values:
 							let return_slot = m_return_slots.get(index)  # Pointer to pointer to return value
-							let ret_ptr = new_tmp(ty: sil.Type.PTR())
+							let ret_ptr = new_tmp(ty: get_ptr_type())
 							emit(sil.OpCode.Load(dst: ret_ptr, address: return_slot.address.address))
 							let address = TypedAddress(address: sil.Address.Ptr(addr: ret_ptr), ty: return_slot.ty)
 							gen_store(address, value)
@@ -507,8 +547,11 @@ class SilGen:
 				emit(sil.OpCode.Convert(dst, value: value.value))
 				push(dst, ty: bc.Type.Int(signed: true, bits: 64))
 			IntCast(signed, bits):
-				log_warning("Int cast implemented as no-op for now.")
-				# unimplemented("INTCAST")
+				let ty = get_int_type(bits)
+				let dst = new_tmp(ty)
+				let value = pop()
+				emit(sil.OpCode.Convert(dst, value: value.value))
+				push(dst, ty: bc.Type.Int(signed, bits))
 			Not:
 				# Xor with 1, to toggle boolean value.
 				let value = pop()
@@ -555,7 +598,7 @@ class SilGen:
 			LoadFunc(index):
 				let name = get_function_name(index)
 				let address = new_global(name)
-				let dst_value = new_tmp(ty: sil.Type.PTR())
+				let dst_value = new_tmp(ty: get_ptr_type())
 				emit(sil.OpCode.GetAddress(dst_value, address))
 				push(dst_value, ty: bc.Type.Ptr())
 
@@ -586,7 +629,7 @@ class SilGen:
 			panic("Cannot get element address of non array type")
 		let element_size = get_size_of(element_ty)
 		let offset = new_tmp(ty: sil.Type.I64())
-		let addr = new_tmp(ty: sil.Type.PTR())
+		let addr = new_tmp(ty: get_ptr_type())
 		let size_of = load_int(value: element_size)
 		emit(sil.OpCode.Binop(dst: offset, op: sil.BinaryOp.Mul(), lhs: index.value, rhs: size_of))
 		emit(sil.OpCode.Binop(dst: addr, op: sil.BinaryOp.Add(), lhs: base.value, rhs: offset))
@@ -601,7 +644,7 @@ class SilGen:
 		let struct_layout = m_structs.get(index: struct_index)
 		let field = struct_layout.fields.get(index)
 		let offset = load_int(value: field.offset)
-		let addr = new_tmp(ty: sil.Type.PTR())
+		let addr = new_tmp(ty: get_ptr_type())
 		emit(sil.OpCode.Binop(dst: addr, op: sil.BinaryOp.Add(), lhs: base.value, rhs: offset))
 		TypedAddress(address: sil.Address.Ptr(addr), ty: field.ty)
 
@@ -621,7 +664,7 @@ class SilGen:
 					let rty = return_types.get(index)
 					let address = new_stack_slot(size: get_size_of(rty))
 					extra_values.append(TypedAddress(address, ty: rty))
-					let ret_ptr = new_tmp(ty: sil.Type.PTR())
+					let ret_ptr = new_tmp(ty: get_ptr_type())
 					emit(sil.OpCode.GetAddress(dst: ret_ptr, address))
 					new_arguments.append(ret_ptr)
 					index += 1

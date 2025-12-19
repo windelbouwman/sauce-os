@@ -272,6 +272,15 @@ ${BUILDDIR}/x86/compiler.o: ${COMPILER_SRCS} ${BUILDDIR}/x86/libbase.json ${BUIL
 ${BUILDDIR}/x86/compiler.exe: ${BUILDDIR}/x86/compiler.o ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/slangrt.a
 	gcc -o $@ ${BUILDDIR}/x86/compiler.o ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/slangrt.a
 
+${BUILDDIR}/x86/compiler8.o: ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${COMPILER_LIB_SRCS} ${BUILDDIR}/x86/compiler.exe | ${BUILDDIR}
+	./${BUILDDIR}/x86/compiler.exe -v --backend-x86 -o $@ ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
+
+${BUILDDIR}/x86/compiler8.exe: ${BUILDDIR}/x86/compiler8.o ${BUILDDIR}/slangrt.a
+	gcc -o $@ ${BUILDDIR}/x86/compiler8.o ${BUILDDIR}/slangrt.a
+
+${BUILDDIR}/x86/compiler9.o: ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${COMPILER_LIB_SRCS} ${BUILDDIR}/x86/compiler8.exe | ${BUILDDIR}
+	./${BUILDDIR}/x86/compiler8.exe -v --backend-x86 -o $@ ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
+
 # Advent-of-Code compiled to X86
 .PRECIOUS: ${BUILDDIR}/x86/aoc_%.o
 ${BUILDDIR}/x86/aoc_%.o: examples/aoc/%/main.slang ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86

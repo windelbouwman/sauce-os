@@ -28,8 +28,8 @@ let R_X86_64_32: int = 10  # S + A
 let R_X86_64_16: int = 12  # S + A
 
 pub enum Instruction:
-	OpRmReg(op: Op, rm: Rm, reg: int)
-	OpRegRm(op: Op, reg: int, rm: Rm)
+	OpRmReg(mode: BitMode, op: Op, rm: Rm, reg: int)
+	OpRegRm(mode: BitMode, op: Op, reg: int, rm: Rm)
 	MulRegRm(reg: int, rm: Rm)
 	Cqo
 	DivMul(op: DivMulOp, rm: Rm)  # mul,imul,div,idiv
@@ -47,6 +47,10 @@ pub enum Instruction:
 	Pop(reg: int)
 	Ret
 	Int3
+	Movsx8(mode: BitMode, reg: int, rm: Rm)
+	Movsx16(mode: BitMode, reg: int, rm: Rm)
+	Movzx8(mode: BitMode, reg: int, rm: Rm)
+	Movzx16(mode: BitMode, reg: int, rm: Rm)
 	CvtSi2Sd(reg: int, rm: Rm)
 	CvtSd2Si(reg: int, rm: Rm)
 	CvttSd2Si(reg: int, rm: Rm)
@@ -58,6 +62,8 @@ pub enum Instruction:
 pub enum Op:
 	Add
 	Sub
+	Adc
+	Sbb
 	Cmp
 	And
 	Or
@@ -99,6 +105,12 @@ pub enum ShiftOp:
 	Shr
 	Sar
 
+pub enum BitMode:
+	R8
+	R16
+	R32
+	R64
+
 pub enum Rm:
 	Mem(reg: int)
 	MemDisp8(reg: int, disp: int)
@@ -108,9 +120,9 @@ pub enum Rm:
 
 pub fn instruction_to_string(instruction: Instruction) -> str:
 	case instruction:
-		OpRmReg(op, rm, reg):
+		OpRmReg(mode, op, rm, reg):
 			rm_reg_to_str(op_to_str(op), rm, reg)
-		OpRegRm(op, reg, rm):
+		OpRegRm(mode, op, reg, rm):
 			reg_rm_to_str(op_to_str(op), reg, rm)
 		MulRegRm(reg, rm):
 			reg_rm_to_str("mul", reg, rm)
@@ -146,6 +158,14 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			"ret"
 		Int3:
 			"int 3"
+		Movsx8(mode, reg, rm):
+			"movsx8 {reg_to_str(reg)}, {rm_to_str(rm)}"
+		Movsx16(mode, reg, rm):
+			"movsx16 {reg_to_str(reg)}, {rm_to_str(rm)}"
+		Movzx8(mode, reg, rm):
+			"movzx8 {reg_to_str(reg)}, {rm_to_str(rm)}"
+		Movzx16(mode, reg, rm):
+			"movzx16 {reg_to_str(reg)}, {rm_to_str(rm)}"
 		CvtSi2Sd(reg, rm):
 			"cvtsi2sd .."
 		CvtSd2Si(reg, rm):
@@ -181,6 +201,8 @@ pub fn op_to_str(op: Op) -> str:
 	case op:
 		Add: "add"
 		Sub: "sub"
+		Adc: "adc"
+		Sbb: "sbb"
 		Cmp: "cmp"
 		And: "and"
 		Or: "or"
@@ -336,8 +358,30 @@ fn write_mod_rm_byte(mod: int, rm: int, reg: int, out: BinaryOutput):
 	let mod_rm = (mod << 6) | (reg << 3) | rm
 	out.write_byte(mod_rm)
 
-fn write_mod_rm(opcode: int, rm: Rm, reg: int, out: BinaryOutput):
-	write_rex_byte(out, reg)
+fn write_mod_rm(mode: BitMode, opcode: int, rm: Rm, reg: int, out: BinaryOutput):
+	case mode:
+		R64:
+			out.write_byte(0x48)
+		R32:
+			pass
+		R16:
+			out.write_byte(0x66)
+		R8:
+			out.write_byte(0x40)
+	out.write_byte(opcode)
+	write_rm_reg(rm, reg, out)
+
+fn write_ext_opcode(mode: BitMode, opcode: int, rm: Rm, reg: int, out: BinaryOutput):
+	case mode:
+		R64:
+			out.write_byte(0x48)
+		R32:
+			pass
+		R16:
+			out.write_byte(0x66)
+		R8:
+			out.write_byte(0x40)
+	out.write_byte(0x0F)
 	out.write_byte(opcode)
 	write_rm_reg(rm, reg, out)
 
@@ -366,12 +410,12 @@ fn write_rm_imm(reg: int, rm: Rm, imm: int, out: BinaryOutput):
 
 pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 	case instruction:
-		OpRmReg(op, rm, reg):
-			let opcode = get_opcode(op) + 1
-			write_mod_rm(opcode, rm, reg, out)
-		OpRegRm(op, reg, rm):
-			let opcode = get_opcode(op) + 3
-			write_mod_rm(opcode, rm, reg, out)
+		OpRmReg(mode, op, rm, reg):
+			let opcode = get_opcode(mode, op)
+			write_mod_rm(mode, opcode, rm, reg, out)
+		OpRegRm(mode, op, reg, rm):
+			let opcode = get_opcode(mode, op) + 2
+			write_mod_rm(mode, opcode, rm, reg, out)
 		MulRegRm(reg, rm):
 			write_rex_byte(out, reg)
 			out.write_byte(0x0F)
@@ -424,7 +468,7 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			out.write_byte(0xD3)
 			write_rm_reg(rm, reg, out)
 		Lea(reg, rm):
-			write_mod_rm(opcode: 0x8D, rm, reg, out)
+			write_mod_rm(mode: BitMode.R64(), opcode: 0x8D, rm, reg, out)
 		MovRegImm64(reg, imm):
 			write_rex_byte(out, reg)
 			out.write_byte(0xB8 + reg)
@@ -440,6 +484,14 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			out.write_byte(0xC3)
 		Int3:
 			out.write_byte(0xCC)
+		Movsx8(mode, reg, rm):
+			write_ext_opcode(mode, opcode: 0xBE, rm, reg, out)
+		Movsx16(mode, reg, rm):
+			write_ext_opcode(mode, opcode: 0xBF, rm, reg, out)
+		Movzx8(mode, reg, rm):
+			write_ext_opcode(mode, opcode: 0xB6, rm, reg, out)
+		Movzx16(mode, reg, rm):
+			write_ext_opcode(mode, opcode: 0xB7, rm, reg, out)
 		CvtSi2Sd(reg, rm):
 			out.write_byte(0xF2)
 			write_rex_byte(out, reg)
@@ -490,17 +542,21 @@ fn get_sse_opcode(op: SseOp) -> int:
 		Div: 0x5E
 		Max: 0x5F
 
-fn get_opcode(op: Op) -> int:
-	case op:
+fn get_opcode(mode: BitMode, op: Op) -> int:
+	let code = case op:
 		Add: 0x0
 		Or: 0x8
-		# ADC: 0x10
-		# SBB: 0x18
+		Adc: 0x10
+		Sbb: 0x18
 		And: 0x20
 		Sub: 0x28
 		Xor: 0x30
 		Cmp: 0x38
 		Mov: 0x88
+	case mode:
+		R8: code
+	else:
+		code + 1
 
 fn get_cc_code(condition: Cond) -> int:
 	case condition:

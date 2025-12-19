@@ -101,20 +101,25 @@ pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 
 pub enum VirtInst:
 	Entry
-	RmReg(op: x86.Op, rm: VirtRm, reg: mil.Register)
-	RegRm(op: x86.Op, reg: mil.Register, rm: VirtRm)
+	RmReg(mode: x86.BitMode, op: x86.Op, rm: VirtRm, reg: mil.Register)
+	RegRm(mode: x86.BitMode, op: x86.Op, reg: mil.Register, rm: VirtRm)
 	MulRegRm(reg: mil.Register, rm: VirtRm)
 	DivMul(op: x86.DivMulOp, rm: VirtRm)
-	Mov(dst: mil.Register, src: mil.Register)
+	Mov(mode: x86.BitMode, dst: mil.Register, src: mil.Register)
 	MovImm(dst: mil.Register, value: int)
 	Lea(reg: mil.Register, rm: VirtRm)
 	ShiftRmReg(op: x86.ShiftOp, rm: VirtRm, amount: mil.Register)
 	Push(reg: mil.Register)
 	Pop(reg: mil.Register)
 	CallRm(rm: VirtRm)
+	Movsx8(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
+	Movsx16(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
+	Movzx8(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
+	Movzx16(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
 	CvtSi2Sd(reg: mil.Register, rm: VirtRm)
 	CvttSd2Si(reg: mil.Register, rm: VirtRm)
 	Ucomisd(reg: mil.Register, rm: VirtRm)
+	SseMov(dst: mil.Register, src: mil.Register)
 	SseOpRegRm(op: x86.SseOp, reg: mil.Register, rm: VirtRm)
 	SseMovRegRm(reg: mil.Register, rm: VirtRm)
 	SseMovRmReg(rm: VirtRm, reg: mil.Register)
@@ -131,15 +136,15 @@ fn vinst_to_str(vi?: VirtInst) -> str:
 	case vi:
 		Entry:
 			"entry"
-		RmReg(op, rm, reg):
+		RmReg(mode, op, rm, reg):
 			"{x86.op_to_str(op)} {vrm_to_str(rm)}, {mil.vr_to_str(reg)}"
-		RegRm(op, reg, rm):
+		RegRm(mode, op, reg, rm):
 			"{x86.op_to_str(op)} {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		MulRegRm(reg, rm):
 			"imul {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		DivMul(op, rm):
 			"{x86.div_mul_op_to_str(op)} {vrm_to_str(rm)}"
-		Mov(dst, src):
+		Mov(mode, dst, src):
 			"mov {mil.vr_to_str(dst)}, {mil.vr_to_str(src)}"
 		MovImm(dst, value):
 			"mov {mil.vr_to_str(dst)}, {value}"
@@ -153,6 +158,16 @@ fn vinst_to_str(vi?: VirtInst) -> str:
 			"pop {mil.vr_to_str(reg)}"
 		CallRm(rm):
 			"call {vrm_to_str(rm)}"
+		Movsx8(mode, reg, rm):
+			"movsx8 {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		Movsx16(mode, reg, rm):
+			"movsx16 {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		Movzx8(mode, reg, rm):
+			"movzx8 {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		Movzx16(mode, reg, rm):
+			"movzx16 {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		SseMov(dst, src):
+			"sse mov {mil.vr_to_str(dst)}, {mil.vr_to_str(src)}"
 		SseOpRegRm(op, reg, rm):
 			"sse xx {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		CvtSi2Sd(reg, rm):
@@ -201,7 +216,7 @@ fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
 			else:
 				# Load parameter from memory relative to RBP
 				let rm = VirtRm.StackSlot(offset)
-				let load_ins = context.emit_and_get(VirtInst.RegRm(op: x86.Op.Mov(), reg, rm))
+				let load_ins = context.emit_and_get(VirtInst.RegRm(mode: x86.BitMode.R64(), op: x86.Op.Mov(), reg, rm))
 				load_ins.add_def(reg)
 				offset += 8 # TODO: not all values are size 8.
 		elif reg.kind == 1:
@@ -217,7 +232,7 @@ fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
 
 fn gen_prologue(frame: Frame, out: BinaryOutput):
 	emit(x86.Instruction.Push(reg: rbp), out)
-	emit(x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: rbp, rm: x86.Rm.Reg(reg: rsp)), out)
+	emit(x86.Instruction.OpRegRm(mode: x86.BitMode.R64(), op: x86.Op.Mov(), reg: rbp, rm: x86.Rm.Reg(reg: rsp)), out)
 	let imm = stack_round_up16(frame.stacksize, taken: 8)
 	if imm > 0:
 		emit(x86.Instruction.SubRmImm(rm: x86.Rm.Reg(reg: rsp), imm), out)
@@ -249,29 +264,33 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 	case instruction.op:
 		Const(dst, value):
 			let dst_reg = context.get_value_vreg(dst)
-			let mov_ins = context.emit_and_get(VirtInst.MovImm(reg: dst_reg, imm: value))
-			mov_ins.add_def(dst_reg)
+			if dst_reg.kind == 0:
+				let mov_ins = context.emit_and_get(VirtInst.MovImm(reg: dst_reg, imm: value))
+				mov_ins.add_def(dst_reg)
+			else:
+				panic("Const not implemented for register class: {dst_reg.kind}")
 		Binop(dst, op2, lhs, rhs):
 			let dst_reg = context.get_value_vreg(dst)
 			let lhs_reg = context.get_value_vreg(lhs)
 			let rhs_reg = context.get_value_vreg(rhs)
 
 			if dst_reg.kind == 0:
+				let mode = get_int_mode(dst.ty)
 				case op2:
 					Add:
-						move(context, dst: dst_reg, src: lhs_reg)
-						let op_ins = context.emit_and_get(VirtInst.RmReg(op: x86.Op.Add(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
+						move(context, mode, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.RmReg(mode, op: x86.Op.Add(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
 						op_ins.add_def(dst_reg)
 						op_ins.add_use(dst_reg)
 						op_ins.add_use(rhs_reg)
 					Sub:
-						move(context, dst: dst_reg, src: lhs_reg)
-						let op_ins = context.emit_and_get(VirtInst.RmReg(op: x86.Op.Sub(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
+						move(context, mode, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.RmReg(mode, op: x86.Op.Sub(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
 						op_ins.add_def(dst_reg)
 						op_ins.add_use(dst_reg)
 						op_ins.add_use(rhs_reg)
 					Mul:
-						move(context, dst: dst_reg, src: lhs_reg)
+						move(context, mode, dst: dst_reg, src: lhs_reg)
 						let op_ins = context.emit_and_get(VirtInst.MulRegRm(reg: dst_reg, rm: VirtRm.Reg(reg: rhs_reg)))
 						op_ins.add_def(dst_reg)
 						op_ins.add_use(dst_reg)
@@ -279,7 +298,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 					Div:
 						let rax_reg = context.get_pre_colored(color: rax, kind: 0)
 						let rdx_reg = context.get_pre_colored(color: rdx, kind: 0)
-						move(context, dst: rax_reg, src: lhs_reg)
+						move(context, mode, dst: rax_reg, src: lhs_reg)
 						let cqo_ins = context.emit_and_get(VirtInst.Actual(x86.Instruction.Cqo()))
 						cqo_ins.add_use(rax_reg)
 						cqo_ins.add_def(rdx_reg)
@@ -290,11 +309,11 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						op_ins.add_use(rhs_reg)
 						op_ins.add_def(rax_reg)
 						op_ins.add_clobber(rdx_reg)
-						move(context, dst: dst_reg, src: rax_reg)
+						move(context, mode, dst: dst_reg, src: rax_reg)
 					Mod:
 						let rax_reg = context.get_pre_colored(color: rax, kind: 0)
 						let rdx_reg = context.get_pre_colored(color: rdx, kind: 0)
-						move(context, dst: rax_reg, src: lhs_reg)
+						move(context, mode, dst: rax_reg, src: lhs_reg)
 						let cqo_ins = context.emit_and_get(VirtInst.Actual(x86.Instruction.Cqo()))
 						cqo_ins.add_use(rax_reg)
 						cqo_ins.add_def(rdx_reg)
@@ -305,7 +324,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						op_ins.add_use(rhs_reg)
 						op_ins.add_def(rdx_reg)
 						op_ins.add_clobber(rax_reg)
-						move(context, dst: dst_reg, src: rdx_reg)
+						move(context, mode, dst: dst_reg, src: rdx_reg)
 			elif dst_reg.kind == 1:
 				let sse_op = case op2:
 					Add:
@@ -318,7 +337,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						x86.SseOp.Div()
 					Mod:
 						panic("Cannot modulo floating point")
-				move(context, dst: dst_reg, src: lhs_reg)
+				sse_move(context, dst: dst_reg, src: lhs_reg)
 				let op_ins = context.emit_and_get(VirtInst.SseOpRegRm(op: sse_op, reg3: dst_reg, rm: VirtRm.Reg(reg: rhs_reg)))
 				op_ins.add_def(dst_reg)
 				op_ins.add_use(dst_reg)
@@ -330,28 +349,29 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			let lhs_reg = context.get_value_vreg(lhs)
 			let rhs_reg = context.get_value_vreg(rhs)
 			if dst_reg.kind == 0:
+				let mode = get_int_mode(dst.ty)
 				case op:
 					And:
-						move(context, dst: dst_reg, src: lhs_reg)
-						let op_ins = context.emit_and_get(VirtInst.RmReg(op: x86.Op.And(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
+						move(context, mode, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.RmReg(mode, op: x86.Op.And(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
 						op_ins.add_def(dst_reg)
 						op_ins.add_use(dst_reg)
 						op_ins.add_use(rhs_reg)
 					Or:
-						move(context, dst: dst_reg, src: lhs_reg)
-						let op_ins = context.emit_and_get(VirtInst.RmReg(op: x86.Op.Or(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
+						move(context, mode, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.RmReg(mode, op: x86.Op.Or(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
 						op_ins.add_def(dst_reg)
 						op_ins.add_use(dst_reg)
 						op_ins.add_use(rhs_reg)
 					Xor:
-						move(context, dst: dst_reg, src: lhs_reg)
-						let op_ins = context.emit_and_get(VirtInst.RmReg(op: x86.Op.Xor(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
+						move(context, mode, dst: dst_reg, src: lhs_reg)
+						let op_ins = context.emit_and_get(VirtInst.RmReg(mode, op: x86.Op.Xor(), rm: VirtRm.Reg(reg: dst_reg), reg3: rhs_reg))
 						op_ins.add_def(dst_reg)
 						op_ins.add_use(dst_reg)
 						op_ins.add_use(rhs_reg)
 					Shl:
 						let rcx_reg = context.get_pre_colored(color: rcx, kind: 0)
-						move(context, dst: dst_reg, src: lhs_reg)
+						move(context, mode, dst: dst_reg, src: lhs_reg)
 						let op_ins = context.emit_and_get(VirtInst.ShiftRmReg(op: x86.ShiftOp.Shl(), rm: VirtRm.Reg(dst_reg), reg: rhs_reg))
 						op_ins.add_use(dst_reg)
 						op_ins.add_use(rhs_reg)
@@ -359,7 +379,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						op_ins.add_def(dst_reg)
 					Shr:
 						let rcx_reg = context.get_pre_colored(color: rcx, kind: 0)
-						move(context, dst: dst_reg, src: lhs_reg)
+						move(context, mode, dst: dst_reg, src: lhs_reg)
 						let op_ins = context.emit_and_get(VirtInst.ShiftRmReg(op: x86.ShiftOp.Shr(), rm: VirtRm.Reg(dst_reg), reg: rhs_reg))
 						op_ins.add_use(dst_reg)
 						op_ins.add_use(rhs_reg)
@@ -367,7 +387,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						op_ins.add_def(dst_reg)
 					Sar:
 						let rcx_reg = context.get_pre_colored(color: rcx, kind: 0)
-						move(context, dst: dst_reg, src: lhs_reg)
+						move(context, mode, dst: dst_reg, src: lhs_reg)
 						let op_ins = context.emit_and_get(VirtInst.ShiftRmReg(op: x86.ShiftOp.Sar(), rm: VirtRm.Reg(dst_reg), reg: rhs_reg))
 						op_ins.add_use(dst_reg)
 						op_ins.add_use(rhs_reg)
@@ -388,11 +408,12 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			for arg in arguments:
 				let a_reg = context.get_value_vreg(arg)
 				if a_reg.kind == 0:
+					let mode = get_int_mode(arg.ty)
 					if p_index_i64 < parameter_regs_i64.len():
 						let nr = parameter_regs_i64.get(index: p_index_i64)
 						p_index_i64 += 1
 						let p_reg = context.get_pre_colored(color: nr, kind: a_reg.kind)
-						move(context, dst: p_reg, src: a_reg)
+						move(context, mode, dst: p_reg, src: a_reg)
 						p_regs.append(p_reg)
 					else:
 						mem_args.append(a_reg)
@@ -401,7 +422,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						let nr = parameter_regs_f64.get(index: p_index_f64)
 						p_index_f64 += 1
 						let p_reg = context.get_pre_colored(color: nr, kind: a_reg.kind)
-						move(context, dst: p_reg, src: a_reg)
+						sse_move(context, dst: p_reg, src: a_reg)
 						p_regs.append(p_reg)
 					else:
 						panic("Unsupported: float registers via stack")
@@ -442,16 +463,17 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			case dst:
 				Some(dst_value):
 					let ret_reg = context.get_value_vreg(dst_value)
-					if ret_reg.kind == 0:
+					if ret_reg.kind == 0:  # i64
+						let mode = get_int_mode(dst_value.ty)
 						let convention_reg = context.get_pre_colored(color: rax, kind: 0)
 						call_ins.add_def(convention_reg)
-						move(context, dst: ret_reg, src: convention_reg)
-					elif ret_reg.kind == 1:
+						move(context, mode, dst: ret_reg, src: convention_reg)
+					elif ret_reg.kind == 1: # f64
 						let convention_reg = context.get_pre_colored(color: xmm0, kind: 1)
 						call_ins.add_def(convention_reg)
-						move(context, dst: ret_reg, src: convention_reg)
+						sse_move(context, dst: ret_reg, src: convention_reg)
 					else:
-						panic("Invalid return register class")
+						panic("Invalid return register class: {ret_reg.kind}")
 				None:
 					pass
 			if used_stack_size > 0:
@@ -465,7 +487,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			let reg = context.get_value_vreg(dst)
 			let rm = load_addr(context, address)
 			if reg.kind == 0:
-				let mov_ins = context.emit_and_get(VirtInst.RegRm(op: x86.Op.Mov(), reg, rm))
+				let mov_ins = context.emit_and_get(VirtInst.RegRm(mode: get_int_mode(dst.ty), op: x86.Op.Mov(), reg, rm))
 				mov_ins.add_def(reg)
 				add_rm_uses(mov_ins, rm)
 			elif reg.kind == 1:
@@ -478,7 +500,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			let rm = load_addr(context, address)
 			let reg = context.get_value_vreg(value)
 			if reg.kind == 0:
-				let mov_ins = context.emit_and_get(VirtInst.RmReg(op: x86.Op.Mov(), rm, reg))
+				let mov_ins = context.emit_and_get(VirtInst.RmReg(mode: get_int_mode(value.ty), op: x86.Op.Mov(), rm, reg))
 				mov_ins.add_use(reg)
 				add_rm_uses(mov_ins, rm)
 			elif reg.kind == 1:
@@ -491,30 +513,103 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			let dst_reg = context.get_value_vreg(dst)
 			let value_reg = context.get_value_vreg(value)
 			case dst.ty:
-				PTR:
-					unimplemented("Convert to ptr")
 				F64:
 					case value.ty:
-						PTR:
-							unimplemented("Convert ptr to f64")
 						F64:
 							unimplemented("Convert f64 to f64")
+						F32:
+							unimplemented("Convert f32 to f64")
 						I64:
 							let rm = VirtRm.Reg(value_reg)
 							let conv_ins = context.emit_and_get(VirtInst.CvtSi2Sd(reg: dst_reg, rm))
 							conv_ins.add_def(dst_reg)
 							conv_ins.add_use(value_reg)
+						I32:
+							unimplemented("Convert i32 to f64")
+						I16:
+							unimplemented("Convert i16 to f64")
+						I8:
+							unimplemented("Convert i8 to f64")
+				F32:
+					unimplemented("Convert to f32")
 				I64:
 					case value.ty:
-						PTR:
-							unimplemented("Convert PTR to i64")
 						F64:
 							let rm = VirtRm.Reg(value_reg)
 							let conv_ins = context.emit_and_get(VirtInst.CvttSd2Si(reg: dst_reg, rm))
 							conv_ins.add_def(dst_reg)
 							conv_ins.add_use(value_reg)
+						F32:
+							unimplemented("Convert F32 to i64")
 						I64:
-							unimplemented("Convert i64 to i64")
+							move(context, mode: x86.BitMode.R64(), dst: dst_reg, src: value_reg)
+						I32:
+							# TODO: Sign extend, use CDQE?
+							unimplemented("Convert i32 to i64")
+						I16:
+							let rm = VirtRm.Reg(value_reg)
+							# TODO: sign extend or zero extend?
+							let sx_ins = context.emit_and_get(VirtInst.Movzx16(mode: x86.BitMode.R64(), reg: dst_reg, rm))
+							sx_ins.add_def(dst_reg)
+							sx_ins.add_use(value_reg)
+						I8:
+							let rm = VirtRm.Reg(value_reg)
+							# TODO: sign extend or zero extend?
+							let sx_ins = context.emit_and_get(VirtInst.Movzx8(mode: x86.BitMode.R64(), reg: dst_reg, rm))
+							sx_ins.add_def(dst_reg)
+							sx_ins.add_use(value_reg)
+				I32:
+					case value.ty:
+						F64:
+							unimplemented("Convert to f64 to i32")
+						F32:
+							unimplemented("Convert to f32 to i32")
+						I64:
+							move(context, mode: x86.BitMode.R32(), dst: dst_reg, src: value_reg)
+						I32:
+							move(context, mode: x86.BitMode.R32(), dst: dst_reg, src: value_reg)
+						I16:
+							let rm = VirtRm.Reg(value_reg)
+							# TODO: sign extend or zero extend?
+							let sx_ins = context.emit_and_get(VirtInst.Movzx16(mode: x86.BitMode.R32(), reg: dst_reg, rm))
+							sx_ins.add_def(dst_reg)
+							sx_ins.add_use(value_reg)
+						I8:
+							let rm = VirtRm.Reg(value_reg)
+							# TODO: sign extend or zero extend?
+							let sx_ins = context.emit_and_get(VirtInst.Movzx8(mode: x86.BitMode.R32(), reg: dst_reg, rm))
+							sx_ins.add_def(dst_reg)
+							sx_ins.add_use(value_reg)
+				I16:
+					case value.ty:
+						F64:
+							unimplemented("Convert to f64 to i16")
+						F32:
+							unimplemented("Convert to f32 to i16")
+						I64:
+							move(context, mode: x86.BitMode.R16(), dst: dst_reg, src: value_reg)
+						I32:
+							move(context, mode: x86.BitMode.R16(), dst: dst_reg, src: value_reg)
+						I16:
+							move(context, mode: x86.BitMode.R16(), dst: dst_reg, src: value_reg)
+						I8:
+							# TODO: Sign extend
+							unimplemented("Convert to i8 to i16")
+				I8:
+					case value.ty:
+						F64:
+							unimplemented("Convert to f64 to i8")
+						F32:
+							unimplemented("Convert to f32 to i8")
+						I64:
+							move(context, mode: x86.BitMode.R8(), dst: dst_reg, src: value_reg)
+						I32:
+							move(context, mode: x86.BitMode.R8(), dst: dst_reg, src: value_reg)
+						I16:
+							move(context, mode: x86.BitMode.R8(), dst: dst_reg, src: value_reg)
+						I8:
+							move(context, mode: x86.BitMode.R8(), dst: dst_reg, src: value_reg)
+
 		Jump(label):
 			context.emit(VirtInst.Actual(instruction: x86.Instruction.Jmp(label)))
 		JumpIf(lhs, condition, rhs, label1, label2):
@@ -522,40 +617,28 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			let rhs_reg = context.get_value_vreg(rhs)
 			if lhs_reg.kind == 0:
 				let rm3 = VirtRm.Reg(reg: lhs_reg)
-				let cmp_ins = context.emit_and_get(VirtInst.RmReg(op: x86.Op.Cmp(), rm3, reg3: rhs_reg))
+				let cmp_ins = context.emit_and_get(VirtInst.RmReg(mode: x86.BitMode.R64(), op: x86.Op.Cmp(), rm3, reg3: rhs_reg))
 				cmp_ins.add_use(lhs_reg)
 				cmp_ins.add_use(rhs_reg)
 				let cmp_op = case condition:
-					Eq:
-						x86.Cond.Jz()
-					Neq:
-						x86.Cond.Jnz()
-					Gt:
-						x86.Cond.Jg()
-					Lt:
-						x86.Cond.Jl()
-					Gte:
-						x86.Cond.Jge()
-					Lte:
-						x86.Cond.Jle()
+					Eq: x86.Cond.Jz()
+					Neq: x86.Cond.Jnz()
+					Gt: x86.Cond.Jg()
+					Lt: x86.Cond.Jl()
+					Gte: x86.Cond.Jge()
+					Lte: x86.Cond.Jle()
 				context.emit(VirtInst.Actual(instruction: x86.Instruction.Jcc(cmp_op, label1)))
 			elif lhs_reg.kind == 1:
 				let cmp_ins = context.emit_and_get(VirtInst.Ucomisd(reg: lhs_reg, rm3: VirtRm.Reg(reg: rhs_reg)))
 				cmp_ins.add_use(lhs_reg)
 				cmp_ins.add_use(rhs_reg)
 				let cmp_op = case condition:
-					Eq:
-						x86.Cond.Jz()
-					Neq:
-						x86.Cond.Jnz()
-					Gt:
-						x86.Cond.Ja()
-					Lt:
-						x86.Cond.Jb()
-					Gte:
-						x86.Cond.Jae()
-					Lte:
-						x86.Cond.Jbe()
+					Eq: x86.Cond.Jz()
+					Neq: x86.Cond.Jnz()
+					Gt: x86.Cond.Ja()
+					Lt: x86.Cond.Jb()
+					Gte: x86.Cond.Jae()
+					Lte: x86.Cond.Jbe()
 				context.emit(VirtInst.Actual(instruction: x86.Instruction.Jcc(cmp_op, label1)))
 			else:
 				panic("Unsupported register class")
@@ -571,6 +654,15 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 		Halt:
 			context.emit(VirtInst.Actual(instruction: x86.Instruction.Int3()))
 
+fn get_int_mode(ty?: sil.Type) -> x86.BitMode:
+	case ty:
+		F64: panic("Invalid integer type f64")
+		F32: panic("Invalid integer type f32")
+		I64: x86.BitMode.R64()
+		I32: x86.BitMode.R32()
+		I16: x86.BitMode.R16()
+		I8: x86.BitMode.R8()
+
 fn add_rm_uses(minst?: mil.Instruction[VirtInst], rm: VirtRm):
 	""" Add use information for RM mode """
 	case rm:
@@ -579,8 +671,14 @@ fn add_rm_uses(minst?: mil.Instruction[VirtInst], rm: VirtRm):
 	else:
 		pass
 
-fn move(context: SelectionContext[VirtInst], dst: mil.Register, src: mil.Register):
-	let mov_ins = context.emit_and_get(VirtInst.Mov(dst, src))
+fn move(context: SelectionContext[VirtInst], mode: x86.BitMode, dst: mil.Register, src: mil.Register):
+	let mov_ins = context.emit_and_get(VirtInst.Mov(mode, dst, src))
+	mov_ins.add_def(dst)
+	mov_ins.add_use(src)
+	mov_ins.is_move = true
+
+fn sse_move(context: SelectionContext[VirtInst], dst: mil.Register, src: mil.Register):
+	let mov_ins = context.emit_and_get(VirtInst.SseMov(dst, src))
 	mov_ins.add_def(dst)
 	mov_ins.add_use(src)
 	mov_ins.is_move = true
@@ -603,7 +701,7 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 		MovImm(dst, value):
 			let reg2 = mat_reg(reg: dst)
 			if value == 0:
-				let instruction = x86.Instruction.OpRegRm(op: x86.Op.Xor(), reg: reg2, rm: x86.Rm.Reg(reg2))
+				let instruction = x86.Instruction.OpRegRm(mode: x86.BitMode.R64(), op: x86.Op.Xor(), reg: reg2, rm: x86.Rm.Reg(reg2))
 				emit(instruction, out)
 			elif value > 0 and value < 1000000:
 				let instruction = x86.Instruction.MovRegImm32(reg: reg2, imm: value)
@@ -614,15 +712,15 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 		Lea(dst, rm):
 			let instruction = x86.Instruction.Lea(reg: mat_reg(reg: dst), rm: mat_rm(rm))
 			emit(instruction, out)
-		RegRm(op, reg, rm):
+		RegRm(mode, op, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
-			let instruction = x86.Instruction.OpRegRm(op, reg: reg2, rm: rm2)
+			let instruction = x86.Instruction.OpRegRm(mode, op, reg: reg2, rm: rm2)
 			emit(instruction, out)
-		RmReg(op, rm, reg):
+		RmReg(mode, op, rm, reg):
 			let rm2 = mat_rm(rm)
 			let reg2 = mat_reg(reg)
-			let instruction = x86.Instruction.OpRmReg(op, rm: rm2, reg: reg2)
+			let instruction = x86.Instruction.OpRmReg(mode, op, rm: rm2, reg: reg2)
 			emit(instruction, out)
 		MulRegRm(reg, rm):
 			let reg2 = mat_reg(reg)
@@ -632,20 +730,18 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 		DivMul(op, rm):
 			let rhs_rm = mat_rm(rm)
 			emit(x86.Instruction.DivMul(op, rm: rhs_rm), out)
-		Mov(dst, src):
+		Mov(mode, dst, src):
 			if dst.color != src.color:
 				let dst_reg = mat_reg(reg: dst)
 				let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
 				if dst.kind == 0:
-					emit(x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: dst_reg, rm), out)
-				elif dst.kind == 1:
-					emit(x86.Instruction.SseMovRegRm(reg: dst_reg, rm), out)
+					emit(x86.Instruction.OpRegRm(mode, op: x86.Op.Mov(), reg: dst_reg, rm), out)
 				else:
 					panic("Move not supported for register class {dst.kind}")
 		ShiftRmReg(op, rm, reg):
 			let rm2 = mat_rm(rm)
 			let reg2 = mat_reg(reg)
-			emit(x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: rcx, rm: x86.Rm.Reg(reg2)), out)
+			emit(x86.Instruction.OpRegRm(mode: x86.BitMode.R64(), op: x86.Op.Mov(), reg: rcx, rm: x86.Rm.Reg(reg2)), out)
 			emit(x86.Instruction.ShiftRmCl(op, rm: rm2), out)
 		Push(reg):
 			let reg2 = mat_reg(reg)
@@ -656,6 +752,30 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 		CallRm(rm):
 			let rm2 = mat_rm(rm)
 			emit(x86.Instruction.CallRm(rm: rm2), out)
+		Movsx8(mode, reg, rm):
+			let rm2 = mat_rm(rm)
+			let reg2 = mat_reg(reg)
+			emit(x86.Instruction.Movsx8(mode, reg: reg2, rm: rm2), out)
+		Movsx16(mode, reg, rm):
+			let rm2 = mat_rm(rm)
+			let reg2 = mat_reg(reg)
+			emit(x86.Instruction.Movsx16(mode, reg: reg2, rm: rm2), out)
+		Movzx8(mode, reg, rm):
+			let rm2 = mat_rm(rm)
+			let reg2 = mat_reg(reg)
+			emit(x86.Instruction.Movzx8(mode, reg: reg2, rm: rm2), out)
+		Movzx16(mode, reg, rm):
+			let rm2 = mat_rm(rm)
+			let reg2 = mat_reg(reg)
+			emit(x86.Instruction.Movzx16(mode, reg: reg2, rm: rm2), out)
+		SseMov(dst, src):
+			if dst.color != src.color:
+				let dst_reg = mat_reg(reg: dst)
+				let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
+				if dst.kind == 1:
+					emit(x86.Instruction.SseMovRegRm(reg: dst_reg, rm), out)
+				else:
+					panic("SseMove not supported for register class {dst.kind}")
 		SseOpRegRm(op, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
@@ -684,7 +804,7 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 			if minst.uses.len() > 0:
 				let src = minst.uses.get(index: 0)
 				let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
-				emit(x86.Instruction.OpRegRm(op: x86.Op.Mov(), reg: rax, rm), out)
+				emit(x86.Instruction.OpRegRm(mode: x86.BitMode.R64(), op: x86.Op.Mov(), reg: rax, rm), out)
 			emit(x86.Instruction.Jmp(context.frame.exit_label), out)
 		Actual(instruction):
 			emit(instruction, out)

@@ -203,15 +203,21 @@ pub struct Value:
 	ty: Type
 
 pub enum Type:
-	I64
-	PTR
 	F64
+	F32
+	I64
+	I32
+	I16
+	I8
 
 pub fn type_to_string(ty?: Type) -> str:
 	case ty:
-		I64: "i64"
-		PTR: "ptr"
 		F64: "f64"
+		F32: "f32"
+		I64: "i64"
+		I32: "i32"
+		I16: "i16"
+		I8: "i8"
 
 pub enum Address:
 	Global(name: str)

@@ -46,12 +46,12 @@ pub class SelectionContext[V]:
 			m_tmp_regs.get(key: name)
 		else:
 			let kind: int = case ty:
-				I64:
-					0
-				F64:
-					1
-				PTR:
-					0
+				F64: 1
+				F32: 1
+				I64: 0
+				I32: 0
+				I16: 0
+				I8: 0
 			let r = new_vreg(kind)
 			m_tmp_regs.insert(key: name, value: r)
 			r
