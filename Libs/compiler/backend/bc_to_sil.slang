@@ -150,7 +150,16 @@ class SilGen:
 				let data = pack_i64(value)
 				list1(sil.BlobContent.Raw(data))
 			Float(value):
-				let data = pack_f64(value)
+				let data = case ty:
+					Float(bits):
+						if bits == 64:
+							pack_f64(value)
+						elif bits == 32:
+							pack_f32(value: float32(value))
+						else:
+							panic("Unsupported floating point if {bits} bits")
+				else:
+					panic("Value must be float")
 				list1(sil.BlobContent.Raw(data))
 			Str(text):
 				let data = pack_str(text)
@@ -244,6 +253,14 @@ class SilGen:
 		else:
 			panic("Unsupported type: {bits} bits int")
 
+	fn get_float_type(bits: int) -> sil.Type:
+		if bits == 32:
+			sil.Type.F32()
+		elif bits == 64:
+			sil.Type.F64()
+		else:
+			panic("Unsupported type: {bits} bits float")
+
 	fn get_sil_type(ty: bc.Type) -> sil.Type:
 		case ty:
 			Int(signed, bits):
@@ -257,12 +274,7 @@ class SilGen:
 			Ptr:
 				get_ptr_type()
 			Float(bits):
-				if bits == 32:
-					sil.Type.F32()
-				elif bits == 64:
-					sil.Type.F64()
-				else:
-					panic("Unsupported type: {bits} bits float")
+				get_float_type(bits)
 			Array(element_type):
 				get_ptr_type()
 			StructRef(index):
@@ -536,22 +548,31 @@ class SilGen:
 					emit(sil.OpCode.Return(value: Option.Some(value.value)))
 			Unreachable:
 				emit(sil.OpCode.Halt())
-			IntToFloat:
-				let dst = new_tmp(ty: sil.Type.F64())
+			IntToFloat(bits):
+				let dst = new_tmp(ty: get_float_type(bits))
 				let value = pop()
-				emit(sil.OpCode.Convert(dst, value: value.value))
-				push(dst, ty: bc.Type.Float(bits: 64))
-			FloatToInt:
-				let dst = new_tmp(ty: sil.Type.I64())
+				emit(sil.OpCode.Convert(signed: true, dst, value: value.value))
+				push(dst, ty: bc.Type.Float(bits))
+			FloatToInt(signed, bits):
+				let dst = new_tmp(ty: get_int_type(bits))
 				let value = pop()
-				emit(sil.OpCode.Convert(dst, value: value.value))
-				push(dst, ty: bc.Type.Int(signed: true, bits: 64))
+				emit(sil.OpCode.Convert(signed: true, dst, value: value.value))
+				push(dst, ty: bc.Type.Int(signed: true, bits))
 			IntCast(signed, bits):
-				let ty = get_int_type(bits)
-				let dst = new_tmp(ty)
+				let dst = new_tmp(ty: get_int_type(bits))
 				let value = pop()
-				emit(sil.OpCode.Convert(dst, value: value.value))
+				let src_is_signed = case value.ty:
+					Int(signed, bits):
+						signed
+				else:
+					panic("Invalid type for int cast")
+				emit(sil.OpCode.Convert(signed: src_is_signed, dst, value: value.value))
 				push(dst, ty: bc.Type.Int(signed, bits))
+			FloatCast(bits):
+				let dst = new_tmp(ty: get_float_type(bits))
+				let value = pop()
+				emit(sil.OpCode.Convert(signed: true, dst, value: value.value))
+				push(dst, ty: bc.Type.Float(bits))
 			Not:
 				# Xor with 1, to toggle boolean value.
 				let value = pop()
@@ -782,10 +803,16 @@ class SilGen:
 			None:
 				panic("Cannot emit")
 
-fn pack_f64(value: float) -> Bytes:
+fn pack_f64(value: float64) -> Bytes:
 	""" Place 64 bits float into 8 bytes """
 	let ba = ByteArray()
 	ba.pack_f64_le(value)
+	ba.to_bytes()
+
+fn pack_f32(value: float32) -> Bytes:
+	""" Place 32 bits float into 4 bytes """
+	let ba = ByteArray()
+	ba.pack_f32_le(value)
 	ba.to_bytes()
 
 fn pack_i64(value: int) -> Bytes:

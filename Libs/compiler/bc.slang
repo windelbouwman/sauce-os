@@ -73,8 +73,9 @@ pub enum Instruction:
 	Bitop(op: BitOperator)
 
 	IntCast(signed: bool, bits: int)
-	IntToFloat
-	FloatToInt
+	FloatCast(bits: int)
+	IntToFloat(bits: int)
+	FloatToInt(signed: bool, bits: int)
 
 	ToOpaque(ty: Type)
 	FromOpaque(ty: Type)
@@ -150,19 +151,11 @@ pub enum BitOperator:
 
 pub fn literal_to_string(literal?: LiteralValue) -> str:
 	case literal:
-		Int(value):
-			"int({value})"
-		Float(value):
-			"float({float_to_str(value)})"
-		Str(value):
-			"str('{value}')"
-		Bool(value):
-			if value:
-				"bool(true)"
-			else:
-				"bool(false)"
-		Char(value):
-			"char('{value}')"
+		Int(value): "int({value})"
+		Float(value): "float({float_to_str(value)})"
+		Str(value): "str('{value}')"
+		Bool(value): "bool(true)" if value else "bool(false)"
+		Char(value): "char('{value}')"
 		Null: "Null"
 
 pub fn instruction_to_string(instruction?: Instruction) -> str:
@@ -172,8 +165,7 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 		Swap: "swap"
 		Literal(literal):
 			literal_to_string(literal)
-		Jump(v):
-			"jump({v})"
+		Jump(v): "jump({v})"
 		JumpIf(op, v1, v2):
 			let op2 = comparison_to_string(op)
 			"jump-if({op2}, {v1}, {v2})"
@@ -181,20 +173,16 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 		Neg: "neg"
 		Binop(op): binop_to_string(op)
 		Bitop(op): bitop_to_string(op)
-		IntCast(signed, bits):
-			if signed:
-				"to-int{bits}"
-			else:
-				"to-uint{bits}"
-		IntToFloat: "int-to-float"
-		FloatToInt: "float-to-int"
+		IntCast(signed, bits): "int-to-int{bits}" if signed else "int-to-uint{bits}"
+		FloatCast(bits): "float-to-float{bits}"
+		IntToFloat(bits): "int-to-float{bits}"
+		FloatToInt(signed, bits): "float-to-int{bits}" if signed else "float-to-uint{bits}"
 		ToOpaque(t): "?-to-opaque"
 		FromOpaque(t): "opaque-to-?"
 		Call(index): "call({index})"
 		CallIndirect(parameter_types, return_type):
 			"call-indirect({parameter_types.len()})"
-		Return(v):
-			"return({v})"
+		Return(v): "return({v})"
 		Unreachable: "unreachable"
 		DecRef(index): "dec ref {index}"
 		LocalGet(index): "local-get({index})"

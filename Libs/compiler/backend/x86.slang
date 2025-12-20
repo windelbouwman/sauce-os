@@ -51,13 +51,14 @@ pub enum Instruction:
 	Movsx16(mode: BitMode, reg: int, rm: Rm)
 	Movzx8(mode: BitMode, reg: int, rm: Rm)
 	Movzx16(mode: BitMode, reg: int, rm: Rm)
-	CvtSi2Sd(reg: int, rm: Rm)
-	CvtSd2Si(reg: int, rm: Rm)
-	CvttSd2Si(reg: int, rm: Rm)
+	CvtSi2Sx(mode: SseMode, reg: int, rm: Rm)
+	CvtSx2Si(truncate: bool, mode: SseMode, reg: int, rm: Rm)
+	CvtSd2Ss(reg: int, rm: Rm)
+	CvtSs2Sd(reg: int, rm: Rm)
 	Ucomisd(reg: int, rm: Rm)
-	SseOpRegRm(op: SseOp, reg: int, rm: Rm)
-	SseMovRegRm(reg: int, rm: Rm)
-	SseMovRmReg(rm: Rm, reg: int)
+	SseOpRegRm(mode: SseMode, op: SseOp, reg: int, rm: Rm)
+	SseMovRegRm(mode: SseMode, reg: int, rm: Rm)
+	SseMovRmReg(mode: SseMode, rm: Rm, reg: int)
 
 pub enum Op:
 	Add
@@ -110,6 +111,10 @@ pub enum BitMode:
 	R16
 	R32
 	R64
+
+pub enum SseMode:
+	Single
+	Double
 
 pub enum Rm:
 	Mem(reg: int)
@@ -166,20 +171,23 @@ pub fn instruction_to_string(instruction: Instruction) -> str:
 			"movzx8 {reg_to_str(reg)}, {rm_to_str(rm)}"
 		Movzx16(mode, reg, rm):
 			"movzx16 {reg_to_str(reg)}, {rm_to_str(rm)}"
-		CvtSi2Sd(reg, rm):
-			"cvtsi2sd .."
-		CvtSd2Si(reg, rm):
-			"cvtsd2si .."
-		CvttSd2Si(reg, rm):
-			"cvttsd2si .."
+		CvtSi2Sx(mode, reg, rm):
+			"cvtsi2{sse_mode_to_str(mode)} {reg_to_str(reg)}, {rm_to_str(rm)}"
+		CvtSx2Si(truncate, mode, reg, rm):
+			let t = "t" if truncate else ""
+			"cvt{t}{sse_mode_to_str(mode)}2si {reg_to_str(reg)}, {rm_to_str(rm)}"
+		CvtSd2Ss(reg, rm):
+			"cvtsd2ss {reg_to_str(reg)}, {rm_to_str(rm)}"
+		CvtSs2Sd(reg, rm):
+			"cvtss2sd {reg_to_str(reg)}, {rm_to_str(rm)}"
 		Ucomisd(reg, rm):
 			"comisd ..."
-		SseOpRegRm(op, reg, rm):
-			"{sse_op_to_str(op)}sd {reg_to_str(reg)}, {rm_to_str(rm)}"
-		SseMovRegRm(reg, rm):
-			"movsd {reg_to_str(reg)}, {rm_to_str(rm)}"
-		SseMovRmReg(rm, reg):
-			"movsd {rm_to_str(rm)}, {reg_to_str(reg)}"
+		SseOpRegRm(mode, op, reg, rm):
+			"{sse_op_to_str(op)}{sse_mode_to_str(mode)} {reg_to_str(reg)}, {rm_to_str(rm)}"
+		SseMovRegRm(mode, reg, rm):
+			"mov{sse_mode_to_str(mode)} {reg_to_str(reg)}, {rm_to_str(rm)}"
+		SseMovRmReg(mode, rm, reg):
+			"mov{sse_mode_to_str(mode)} {rm_to_str(rm)}, {reg_to_str(reg)}"
 
 pub fn div_mul_op_to_str(op: DivMulOp) -> str:
 	case op:
@@ -187,6 +195,13 @@ pub fn div_mul_op_to_str(op: DivMulOp) -> str:
 		IMul: "imul"
 		Div: "div"
 		IDiv: "idiv"
+
+pub fn sse_mode_to_str(mode: SseMode) -> str:
+	case mode:
+		Single: "ss"  # SS=single single
+		Double: "sd"  # SD=single double
+		# PS=packed single
+		# PD=packed double
 
 fn sse_op_to_str(op: SseOp) -> str:
 	case op:
@@ -346,6 +361,12 @@ fn write_rex_byte(out: BinaryOutput, reg: int):
 	# let r = (reg >> 3) << 2
 	out.write_byte(0x48) # rex prefix
 
+fn write_sse_mode_prefix(mode: SseMode, out: BinaryOutput):
+	let prefix = case mode:
+		Single: 0xF3
+		Double: 0xF2
+	out.write_byte(prefix)
+
 fn write_mod_rm_byte(mod: int, rm: int, reg: int, out: BinaryOutput):
 	if rm > 7:
 		panic("rm > 7")
@@ -492,23 +513,32 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			write_ext_opcode(mode, opcode: 0xB6, rm, reg, out)
 		Movzx16(mode, reg, rm):
 			write_ext_opcode(mode, opcode: 0xB7, rm, reg, out)
-		CvtSi2Sd(reg, rm):
-			out.write_byte(0xF2)
+		CvtSi2Sx(mode, reg, rm):
+			write_sse_mode_prefix(mode, out)
 			write_rex_byte(out, reg)
 			out.write_byte(0x0F)
 			out.write_byte(0x2A)
 			write_rm_reg(rm, reg, out)
-		CvtSd2Si(reg, rm):
-			out.write_byte(0xF2)
+		CvtSx2Si(truncate, mode, reg, rm):
+			write_sse_mode_prefix(mode, out)
 			write_rex_byte(out, reg)
+			# 2C = truncating conversion to int
+			# 2D = rounding conversion to int
+			let opcode = 0x2C if truncate else 0x2D
 			out.write_byte(0x0F)
-			out.write_byte(0x2D)  # 2D = rounding conversion to int
+			out.write_byte(opcode)
 			write_rm_reg(rm, reg, out)
-		CvttSd2Si(reg, rm):
+		CvtSs2Sd(reg, rm):
+			out.write_byte(0xF3)
+			write_rex_byte(out, reg)
+			out.write_byte(0x0F)
+			out.write_byte(0x5A)
+			write_rm_reg(rm, reg, out)
+		CvtSd2Ss(reg, rm):
 			out.write_byte(0xF2)
 			write_rex_byte(out, reg)
 			out.write_byte(0x0F)
-			out.write_byte(0x2C) # 2C = truncating conversion to int
+			out.write_byte(0x5A)
 			write_rm_reg(rm, reg, out)
 		Ucomisd(reg, rm):
 			out.write_byte(0x66)
@@ -517,18 +547,18 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			out.write_byte(0x0F)
 			out.write_byte(0x2E)
 			write_rm_reg(rm, reg, out)
-		SseOpRegRm(op, reg, rm):
-			out.write_byte(0xF2)
+		SseOpRegRm(mode, op, reg, rm):
+			write_sse_mode_prefix(mode, out)
 			out.write_byte(0x0F)
 			out.write_byte(get_sse_opcode(op))
 			write_rm_reg(rm, reg, out)
-		SseMovRegRm(reg, rm):
-			out.write_byte(0xF2)
+		SseMovRegRm(mode, reg, rm):
+			write_sse_mode_prefix(mode, out)
 			out.write_byte(0x0F)
 			out.write_byte(0x10)
 			write_rm_reg(rm, reg, out)
-		SseMovRmReg(rm, reg):
-			out.write_byte(0xF2)
+		SseMovRmReg(mode, rm, reg):
+			write_sse_mode_prefix(mode, out)
 			out.write_byte(0x0F)
 			out.write_byte(0x11)
 			write_rm_reg(rm, reg, out)

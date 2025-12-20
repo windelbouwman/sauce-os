@@ -120,7 +120,13 @@ class RegisterAllocator[V]:
 		let address = sil.Address.StackSlot(0) # TODO: determine proper address
 		m_frame.stacksize += 8  # Grow a bit of stack size
 		let context: SelectionContext[V] = SelectionContext(frame: m_frame)
-		let ty = sil.Type.I64()  # TODO: not only spill integers
+		# TODO: not only spill i64 / f64
+		let ty = if register.kind == 0:
+			sil.Type.I64()
+		elif register.kind == 1:
+			sil.Type.F64()
+		else:
+			panic("Invalid class: {register.kind}")
 		let name = "y77"
 		let value = sil.Value(name, ty)
 		context.set_vreg_for_tmp(name, register)

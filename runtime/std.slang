@@ -40,4 +40,5 @@ extern "slangrt" fn get_arg(arg: int) -> str
 
 extern "slangrt" fn get_time() -> int
 
-extern "slangrt" fn pack_f64(value: float, buffer: [uint8])
+extern "slangrt" fn pack_f64(value: float64, buffer: [uint8])
+extern "slangrt" fn pack_f32(value: float32, buffer: [uint8])

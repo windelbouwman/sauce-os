@@ -228,8 +228,13 @@ class PyCodeGenerator:
             else:
                 raise NotImplementedError(str(obj))
         elif isinstance(kind, ast.TypeCast):
-            # TODO!
-            return self.gen_expression(kind.value)
+            value = self.gen_expression(kind.value)
+            if kind.ty.is_int():
+                return f"int({value})"
+            elif kind.ty.is_float():
+                return f"float({value})"
+            else:
+                raise NotImplementedError(f"Cast to {kind.ty}")
         elif isinstance(kind, ast.Box):
             return self.gen_expression(kind.value)
         elif isinstance(kind, ast.Unbox):

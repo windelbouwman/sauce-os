@@ -405,15 +405,17 @@ pub class VirtualMachine:
 				let rhs_value = int_from_value(rhs)
 				let value = eval_bitop(op, lhs: lhs_value, rhs: rhs_value)
 				push(Value.Int(value))
-			IntToFloat:
+			IntToFloat(bits):
 				let value = int_from_value(value: pop())
 				let f = float(value)
 				push(Value.Float(f))
-			FloatToInt:
+			FloatToInt(signed, bits):
 				let value = float_from_value(value: pop())
 				let f = int(value)
 				push(Value.Int(f))
 			IntCast(signed, bits):
+				pass # No-op?
+			FloatCast(bits):
 				pass # No-op?
 			FromOpaque(ty):
 				pass  # VM values are all opaque

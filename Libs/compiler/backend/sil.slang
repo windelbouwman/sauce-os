@@ -114,8 +114,9 @@ pub class Instruction:
 				"{value_to_string(dst)} = load {address_to_string(address)}"
 			Store(address, value):
 				"store {address_to_string(address)}, {value_to_string(value)}"
-			Convert(dst, src):
-				"{value_to_string(dst)} = convert {value_to_string(src)}"
+			Convert(sx, dst, src):
+				let s = "sext" if sx else "zext"
+				"{value_to_string(dst)} = convert {s} {value_to_string(src)}"
 			Jump(label):
 				"jmp @{label}"
 			JumpIf(lhs, condition, rhs, label1, label2):
@@ -151,7 +152,7 @@ pub enum OpCode:
 	GetAddress(dst: Value, address: Address)
 	Load(dst: Value, address: Address)
 	Store(address: Address, value: Value)
-	Convert(dst: Value, src: Value)
+	Convert(sx: bool, dst: Value, src: Value)
 	Jump(label: str)
 	JumpIf(lhs: Value, condition: CompOp, rhs: Value, label1: str, label2: str)
 	Call(dst: Option[Value], callee: Address, arguments: List[Value])

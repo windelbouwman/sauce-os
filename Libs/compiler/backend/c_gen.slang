@@ -406,20 +406,17 @@ class CGenerator:
 				emit(");")
 				push(Value(name: varname, ty))
 
-			IntToFloat:
+			IntToFloat(bits):
 				let value = pop()
 				let varname = new_local_var()
-				let bits = 64 # TODO
 				let ty = bc.Type.Float(bits)
 				gen_typed_name(ty, name: varname)
 				emit(" = (slang_float{bits}_t)({value.name});")
 				push(Value(name: varname, ty))
 
-			FloatToInt:
+			FloatToInt(signed, bits):
 				let value = pop()
 				let varname = new_local_var()
-				let signed = true # TODO
-				let bits = 64 # TODO
 				let ty = bc.Type.Int(signed, bits)
 				gen_typed_name(ty, name: varname)
 				write(" = (")
@@ -445,6 +442,16 @@ class CGenerator:
 					write("slang_uint")
 				write(str(bits))
 				write("_t)(")
+				write(value.name)
+				emit(");")
+				push(Value(name: varname, ty))
+
+			FloatCast(bits):
+				let value = pop()
+				let varname = new_local_var()
+				let ty = bc.Type.Float(bits)
+				gen_typed_name(ty, name: varname)
+				write(" = (slang_float{bits}_t)(")
 				write(value.name)
 				emit(");")
 				push(Value(name: varname, ty))

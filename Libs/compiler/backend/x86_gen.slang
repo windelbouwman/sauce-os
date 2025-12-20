@@ -116,13 +116,15 @@ pub enum VirtInst:
 	Movsx16(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
 	Movzx8(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
 	Movzx16(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
-	CvtSi2Sd(reg: mil.Register, rm: VirtRm)
-	CvttSd2Si(reg: mil.Register, rm: VirtRm)
+	CvtSi2Sx(mode: x86.SseMode, reg: mil.Register, rm: VirtRm)
+	CvtSx2Si(truncate: bool, mode: x86.SseMode, reg: mil.Register, rm: VirtRm)
+	CvtSs2Sd(reg: mil.Register, rm: VirtRm)
+	CvtSd2Ss(reg: mil.Register, rm: VirtRm)
 	Ucomisd(reg: mil.Register, rm: VirtRm)
-	SseMov(dst: mil.Register, src: mil.Register)
-	SseOpRegRm(op: x86.SseOp, reg: mil.Register, rm: VirtRm)
-	SseMovRegRm(reg: mil.Register, rm: VirtRm)
-	SseMovRmReg(rm: VirtRm, reg: mil.Register)
+	SseMov(mode: x86.SseMode, dst: mil.Register, src: mil.Register)
+	SseOpRegRm(mode: x86.SseMode, op: x86.SseOp, reg: mil.Register, rm: VirtRm)
+	SseMovRegRm(mode: x86.SseMode, reg: mil.Register, rm: VirtRm)
+	SseMovRmReg(mode: x86.SseMode, rm: VirtRm, reg: mil.Register)
 	Actual(instruction: x86.Instruction)
 	Exit
 
@@ -166,20 +168,25 @@ fn vinst_to_str(vi?: VirtInst) -> str:
 			"movzx8 {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		Movzx16(mode, reg, rm):
 			"movzx16 {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
-		SseMov(dst, src):
+		SseMov(mode, dst, src):
 			"sse mov {mil.vr_to_str(dst)}, {mil.vr_to_str(src)}"
-		SseOpRegRm(op, reg, rm):
+		SseOpRegRm(mode, op, reg, rm):
 			"sse xx {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
-		CvtSi2Sd(reg, rm):
-			"cvtsi2sd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
-		CvttSd2Si(reg, rm):
-			"cvttsd2si {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		CvtSi2Sx(mode, reg, rm):
+			"cvtsi2{x86.sse_mode_to_str(mode)} {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		CvtSx2Si(truncate, mode, reg, rm):
+			let t = "t" if truncate else ""
+			"cvt{t}{x86.sse_mode_to_str(mode)}2si {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		CvtSs2Sd(reg, rm):
+			"cvtss2sd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		CvtSd2Ss(reg, rm):
+			"cvtsd2ss {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		Ucomisd(reg, rm):
 			"ucomisd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
-		SseMovRegRm(reg, rm):
-			"movsd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
-		SseMovRmReg(rm, reg):
-			"movsd {vrm_to_str(rm)}, {mil.vr_to_str(reg)}"
+		SseMovRegRm(mode, reg, rm):
+			"mov{x86.sse_mode_to_str(mode)} {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		SseMovRmReg(mode, rm, reg):
+			"mov{x86.sse_mode_to_str(mode)} {vrm_to_str(rm)}, {mil.vr_to_str(reg)}"
 		Actual(instruction):
 			x86.instruction_to_string(instruction)
 		Exit:
@@ -337,8 +344,9 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						x86.SseOp.Div()
 					Mod:
 						panic("Cannot modulo floating point")
-				sse_move(context, dst: dst_reg, src: lhs_reg)
-				let op_ins = context.emit_and_get(VirtInst.SseOpRegRm(op: sse_op, reg3: dst_reg, rm: VirtRm.Reg(reg: rhs_reg)))
+				let mode = get_float_mode(dst.ty)
+				sse_move(context, mode, dst: dst_reg, src: lhs_reg)
+				let op_ins = context.emit_and_get(VirtInst.SseOpRegRm(mode, op: sse_op, reg3: dst_reg, rm: VirtRm.Reg(reg: rhs_reg)))
 				op_ins.add_def(dst_reg)
 				op_ins.add_use(dst_reg)
 				op_ins.add_use(rhs_reg)
@@ -418,11 +426,12 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 					else:
 						mem_args.append(a_reg)
 				elif a_reg.kind == 1:
+					let mode = get_float_mode(arg.ty)
 					if p_index_f64 < parameter_regs_f64.len():
 						let nr = parameter_regs_f64.get(index: p_index_f64)
 						p_index_f64 += 1
 						let p_reg = context.get_pre_colored(color: nr, kind: a_reg.kind)
-						sse_move(context, dst: p_reg, src: a_reg)
+						sse_move(context, mode, dst: p_reg, src: a_reg)
 						p_regs.append(p_reg)
 					else:
 						panic("Unsupported: float registers via stack")
@@ -469,9 +478,10 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						call_ins.add_def(convention_reg)
 						move(context, mode, dst: ret_reg, src: convention_reg)
 					elif ret_reg.kind == 1: # f64
+						let mode = get_float_mode(dst_value.ty)
 						let convention_reg = context.get_pre_colored(color: xmm0, kind: 1)
 						call_ins.add_def(convention_reg)
-						sse_move(context, dst: ret_reg, src: convention_reg)
+						sse_move(context, mode, dst: ret_reg, src: convention_reg)
 					else:
 						panic("Invalid return register class: {ret_reg.kind}")
 				None:
@@ -491,7 +501,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 				mov_ins.add_def(reg)
 				add_rm_uses(mov_ins, rm)
 			elif reg.kind == 1:
-				let mov_ins = context.emit_and_get(VirtInst.SseMovRegRm(reg, rm))
+				let mov_ins = context.emit_and_get(VirtInst.SseMovRegRm(mode: get_float_mode(dst.ty), reg, rm))
 				mov_ins.add_def(reg)
 				add_rm_uses(mov_ins, rm)
 			else:
@@ -504,12 +514,12 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 				mov_ins.add_use(reg)
 				add_rm_uses(mov_ins, rm)
 			elif reg.kind == 1:
-				let mov_ins = context.emit_and_get(VirtInst.SseMovRmReg(rm, reg))
+				let mov_ins = context.emit_and_get(VirtInst.SseMovRmReg(mode: get_float_mode(value.ty), rm, reg))
 				mov_ins.add_use(reg)
 				add_rm_uses(mov_ins, rm)
 			else:
 				panic("Store: Unknown register class")
-		Convert(dst, value):
+		Convert(signed, dst, value):
 			let dst_reg = context.get_value_vreg(dst)
 			let value_reg = context.get_value_vreg(value)
 			case dst.ty:
@@ -518,10 +528,13 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						F64:
 							unimplemented("Convert f64 to f64")
 						F32:
-							unimplemented("Convert f32 to f64")
+							let rm = VirtRm.Reg(value_reg)
+							let conv_ins = context.emit_and_get(VirtInst.CvtSs2Sd(reg: dst_reg, rm))
+							conv_ins.add_def(dst_reg)
+							conv_ins.add_use(value_reg)
 						I64:
 							let rm = VirtRm.Reg(value_reg)
-							let conv_ins = context.emit_and_get(VirtInst.CvtSi2Sd(reg: dst_reg, rm))
+							let conv_ins = context.emit_and_get(VirtInst.CvtSi2Sx(mode: x86.SseMode.Double(), reg: dst_reg, rm))
 							conv_ins.add_def(dst_reg)
 							conv_ins.add_use(value_reg)
 						I32:
@@ -531,16 +544,34 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						I8:
 							unimplemented("Convert i8 to f64")
 				F32:
-					unimplemented("Convert to f32")
+					case value.ty:
+						F64:
+							let rm = VirtRm.Reg(value_reg)
+							let conv_ins = context.emit_and_get(VirtInst.CvtSd2Ss(reg: dst_reg, rm))
+							conv_ins.add_def(dst_reg)
+							conv_ins.add_use(value_reg)
+						F32:
+							unimplemented("Convert f32 to f32")
+						I64:
+							unimplemented("Convert i64 to f32")
+						I32:
+							unimplemented("Convert i32 to f32")
+						I16:
+							unimplemented("Convert i16 to f32")
+						I8:
+							unimplemented("Convert i8 to f32")
 				I64:
 					case value.ty:
 						F64:
 							let rm = VirtRm.Reg(value_reg)
-							let conv_ins = context.emit_and_get(VirtInst.CvttSd2Si(reg: dst_reg, rm))
+							let conv_ins = context.emit_and_get(VirtInst.CvtSx2Si(truncate: true, mode: x86.SseMode.Double(), reg: dst_reg, rm))
 							conv_ins.add_def(dst_reg)
 							conv_ins.add_use(value_reg)
 						F32:
-							unimplemented("Convert F32 to i64")
+							let rm = VirtRm.Reg(value_reg)
+							let conv_ins = context.emit_and_get(VirtInst.CvtSx2Si(truncate: true, mode: x86.SseMode.Single(), reg: dst_reg, rm))
+							conv_ins.add_def(dst_reg)
+							conv_ins.add_use(value_reg)
 						I64:
 							move(context, mode: x86.BitMode.R64(), dst: dst_reg, src: value_reg)
 						I32:
@@ -548,14 +579,22 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 							unimplemented("Convert i32 to i64")
 						I16:
 							let rm = VirtRm.Reg(value_reg)
-							# TODO: sign extend or zero extend?
-							let sx_ins = context.emit_and_get(VirtInst.Movzx16(mode: x86.BitMode.R64(), reg: dst_reg, rm))
+							let mode = x86.BitMode.R64()
+							let vi = if signed:
+								VirtInst.Movsx16(mode, reg: dst_reg, rm)
+							else:
+								VirtInst.Movzx16(mode, reg: dst_reg, rm)
+							let sx_ins = context.emit_and_get(vi)
 							sx_ins.add_def(dst_reg)
 							sx_ins.add_use(value_reg)
 						I8:
 							let rm = VirtRm.Reg(value_reg)
-							# TODO: sign extend or zero extend?
-							let sx_ins = context.emit_and_get(VirtInst.Movzx8(mode: x86.BitMode.R64(), reg: dst_reg, rm))
+							let mode = x86.BitMode.R64()
+							let vi = if signed:
+								VirtInst.Movsx8(mode, reg: dst_reg, rm)
+							else:
+								VirtInst.Movzx8(mode, reg: dst_reg, rm)
+							let sx_ins = context.emit_and_get(vi)
 							sx_ins.add_def(dst_reg)
 							sx_ins.add_use(value_reg)
 				I32:
@@ -570,14 +609,22 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 							move(context, mode: x86.BitMode.R32(), dst: dst_reg, src: value_reg)
 						I16:
 							let rm = VirtRm.Reg(value_reg)
-							# TODO: sign extend or zero extend?
-							let sx_ins = context.emit_and_get(VirtInst.Movzx16(mode: x86.BitMode.R32(), reg: dst_reg, rm))
+							let mode = x86.BitMode.R32()
+							let vi = if signed:
+								VirtInst.Movsx16(mode, reg: dst_reg, rm)
+							else:
+								VirtInst.Movzx16(mode, reg: dst_reg, rm)
+							let sx_ins = context.emit_and_get(vi)
 							sx_ins.add_def(dst_reg)
 							sx_ins.add_use(value_reg)
 						I8:
 							let rm = VirtRm.Reg(value_reg)
-							# TODO: sign extend or zero extend?
-							let sx_ins = context.emit_and_get(VirtInst.Movzx8(mode: x86.BitMode.R32(), reg: dst_reg, rm))
+							let mode = x86.BitMode.R32()
+							let vi = if signed:
+								VirtInst.Movsx8(mode, reg: dst_reg, rm)
+							else:
+								VirtInst.Movzx8(mode, reg: dst_reg, rm)
+							let sx_ins = context.emit_and_get(vi)
 							sx_ins.add_def(dst_reg)
 							sx_ins.add_use(value_reg)
 				I16:
@@ -663,6 +710,15 @@ fn get_int_mode(ty?: sil.Type) -> x86.BitMode:
 		I16: x86.BitMode.R16()
 		I8: x86.BitMode.R8()
 
+fn get_float_mode(ty?: sil.Type) -> x86.SseMode:
+	case ty:
+		F64: x86.SseMode.Double()
+		F32: x86.SseMode.Single()
+		I64: panic("Invalid float type i64")
+		I32: panic("Invalid float type i32")
+		I16: panic("Invalid float type i16")
+		I8: panic("Invalid float type i8")
+
 fn add_rm_uses(minst?: mil.Instruction[VirtInst], rm: VirtRm):
 	""" Add use information for RM mode """
 	case rm:
@@ -677,8 +733,8 @@ fn move(context: SelectionContext[VirtInst], mode: x86.BitMode, dst: mil.Registe
 	mov_ins.add_use(src)
 	mov_ins.is_move = true
 
-fn sse_move(context: SelectionContext[VirtInst], dst: mil.Register, src: mil.Register):
-	let mov_ins = context.emit_and_get(VirtInst.SseMov(dst, src))
+fn sse_move(context: SelectionContext[VirtInst], mode: x86.SseMode, dst: mil.Register, src: mil.Register):
+	let mov_ins = context.emit_and_get(VirtInst.SseMov(mode, dst, src))
 	mov_ins.add_def(dst)
 	mov_ins.add_use(src)
 	mov_ins.is_move = true
@@ -768,38 +824,46 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 			let rm2 = mat_rm(rm)
 			let reg2 = mat_reg(reg)
 			emit(x86.Instruction.Movzx16(mode, reg: reg2, rm: rm2), out)
-		SseMov(dst, src):
+		SseMov(mode, dst, src):
 			if dst.color != src.color:
 				let dst_reg = mat_reg(reg: dst)
 				let rm = x86.Rm.Reg(reg: mat_reg(reg: src))
 				if dst.kind == 1:
-					emit(x86.Instruction.SseMovRegRm(reg: dst_reg, rm), out)
+					emit(x86.Instruction.SseMovRegRm(mode, reg: dst_reg, rm), out)
 				else:
 					panic("SseMove not supported for register class {dst.kind}")
-		SseOpRegRm(op, reg, rm):
+		SseOpRegRm(mode, op, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
-			emit(x86.Instruction.SseOpRegRm(op, reg: reg2, rm: rm2), out)
-		CvtSi2Sd(reg, rm):
+			emit(x86.Instruction.SseOpRegRm(mode, op, reg: reg2, rm: rm2), out)
+		CvtSi2Sx(mode, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
-			emit(x86.Instruction.CvtSi2Sd(reg: reg2, rm: rm2), out)
-		CvttSd2Si(reg, rm):
+			emit(x86.Instruction.CvtSi2Sx(mode, reg: reg2, rm: rm2), out)
+		CvtSx2Si(truncate, mode, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
-			emit(x86.Instruction.CvttSd2Si(reg: reg2, rm: rm2), out)
+			emit(x86.Instruction.CvtSx2Si(truncate, mode, reg: reg2, rm: rm2), out)
+		CvtSs2Sd(reg, rm):
+			let reg2 = mat_reg(reg)
+			let rm2 = mat_rm(rm)
+			emit(x86.Instruction.CvtSs2Sd(reg: reg2, rm: rm2), out)
+		CvtSd2Ss(reg, rm):
+			let reg2 = mat_reg(reg)
+			let rm2 = mat_rm(rm)
+			emit(x86.Instruction.CvtSd2Ss(reg: reg2, rm: rm2), out)
 		Ucomisd(reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
 			emit(x86.Instruction.Ucomisd(reg: reg2, rm: rm2), out)
-		SseMovRegRm(reg, rm):
+		SseMovRegRm(mode, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
-			emit(x86.Instruction.SseMovRegRm(reg: reg2, rm: rm2), out)
-		SseMovRmReg(rm, reg):
+			emit(x86.Instruction.SseMovRegRm(mode, reg: reg2, rm: rm2), out)
+		SseMovRmReg(mode, rm, reg):
 			let rm2 = mat_rm(rm)
 			let reg2 = mat_reg(reg)
-			emit(x86.Instruction.SseMovRmReg(rm: rm2, reg: reg2), out)
+			emit(x86.Instruction.SseMovRmReg(mode, rm: rm2, reg: reg2), out)
 		Exit:
 			if minst.uses.len() > 0:
 				let src = minst.uses.get(index: 0)

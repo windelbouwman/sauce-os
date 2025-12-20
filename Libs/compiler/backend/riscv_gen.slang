@@ -92,7 +92,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			unimplemented("Bitop")
 		GetAddress(dst, address):
 			unimplemented("GetAddress")
-		Convert(dst, value):
+		Convert(signed, dst, value):
 			unimplemented("Convert")
 		Call(dst, callee, arguments):
 			# panic("TODO: Call")

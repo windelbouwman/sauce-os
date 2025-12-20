@@ -342,4 +342,4 @@ binary_op_funcs = {
     OpCode.BITSHR: lambda a, b: a >> b,
 }
 
-unary_op_funcs = {OpCode.NOT: lambda a: not a}
+unary_op_funcs = {OpCode.NOT: lambda a: not a, OpCode.NEG: lambda a: -a}

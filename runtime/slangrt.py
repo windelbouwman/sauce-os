@@ -133,3 +133,9 @@ def std_pack_f64(value: float, buffer):
     data = struct.pack("<d", value)
     for index, v in enumerate(data):
         buffer[index] = v
+
+
+def std_pack_f32(value: float, buffer):
+    data = struct.pack("<f", value)
+    for index, v in enumerate(data):
+        buffer[index] = v

@@ -435,6 +435,11 @@ SLANG_API void std_pack_f64(slang_float64_t value, slang_uint8_t* buf)
     memcpy(buf, &value, sizeof(slang_float64_t));
 }
 
+SLANG_API void std_pack_f32(slang_float32_t value, slang_uint8_t* buf)
+{
+    memcpy(buf, &value, sizeof(slang_float32_t));
+}
+
 // Create a string on the heap..
 SLANG_API char* rt_str_new(const char* a)
 {

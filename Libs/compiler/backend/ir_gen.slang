@@ -677,20 +677,19 @@ class BytecodeGenerator:
 			TypeCast(ty, value):
 				gen_expression(value)
 				if ty.is_float():
+					let bits = ty.get_bits()
 					if value.ty.is_int():
-						emit(Instruction.IntToFloat())
+						emit(Instruction.IntToFloat(bits))
 					elif value.ty.is_float():
-						# No-op
-						# TODO: cast from 32 to 64 bits and vice versa?
-						pass
+						emit(Instruction.FloatCast(bits))
 					else:
 						panic("cannot cast to float: {value.ty}")
 				elif ty.is_int():
+					let signed = ty.is_signed_int()
+					let bits = ty.get_bits()
 					if value.ty.is_float():
-						emit(Instruction.FloatToInt())
+						emit(Instruction.FloatToInt(signed, bits))
 					elif value.ty.is_int():
-						let signed = ty.is_signed_int()
-						let bits = ty.get_bits()
 						emit(Instruction.IntCast(signed, bits))
 					else:
 						panic("cannot cast to int: {value.ty}")
