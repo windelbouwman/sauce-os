@@ -6,6 +6,7 @@ It assigns colors to use / def registers.
 
 from logging import log_info, log_debug, log_trace
 from settype import Set, new_int_set
+from vectype import new_vector
 from hashmap import HashMap, new_hashmap_int
 from report import Report
 from utils import unimplemented, panic
@@ -31,7 +32,7 @@ class RegisterAllocator[V]:
 	"""
 	var m_regs_by_class: HashMap[int, List[int]] = new_hashmap_int()
 
-	var m_ig: InterferenceGraph = InterferenceGraph()
+	var m_ig: InterferenceGraph = InterferenceGraph(m_nodes: new_vector(), m_adj: new_vector())
 	var m_select_stack: List[IGNode] = List()
 	var m_simplify_worklist: List[IGNode] = List()
 	var m_spill_worklist: HashMap[int,IGNode] = new_hashmap_int()
@@ -68,7 +69,7 @@ class RegisterAllocator[V]:
 			break
 
 	fn fill_data(mfunc: mil.Function[V]):
-		m_ig = create_interference_graph(mfunc)
+		m_ig = create_interference_graph(mfunc, vregs: m_frame.vregs)
 		m_select_stack.clear()
 		m_simplify_worklist.clear()
 		m_spill_worklist.clear()
@@ -169,7 +170,7 @@ class RegisterAllocator[V]:
 				unimplemented("Spilling")
 			else:
 				let reg = ok_regs.first()
-				log_debug("Color: id={n.id} kind={n.kind} {reg}")
+				# log_debug("Color: id={n.id} kind={n.kind} {reg}")
 				n.set_color(reg)
 
 	fn is_colorable(m?: IGNode) -> bool:

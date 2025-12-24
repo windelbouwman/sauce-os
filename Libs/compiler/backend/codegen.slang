@@ -70,7 +70,10 @@ class Codegen[V]:
 	fn gen_function(function: sil.Function, out: BinaryOutput):
 		log_info("Generating code for function {function.name}")
 		options.profiler.enter(name: "gen-func-{function.name}")
-		let frame = Frame(stacksize: function.stacksize, exit_label: "{function.name}_@exit")
+		let frame = Frame:
+			stacksize: function.stacksize
+			exit_label: "{function.name}_@exit"
+			vregs: new_vector()
 		let context = SelectionContext(frame)
 		let mfunc = select_function(function, context)
 		mil.dump_mfunc(report: options.report, mfunc, to_str: backend.to_str)

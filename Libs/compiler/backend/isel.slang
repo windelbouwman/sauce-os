@@ -28,12 +28,12 @@ pub struct Backend[V]:
 pub struct Frame:
 	stacksize: int
 	exit_label: str
+	vregs: Vector[mil.Register]  # Number of virtual-registers used in total
 
 pub class SelectionContext[V]:
 	var codes: Vector[mil.Instruction[V]] = new_vector()
 	var m_tmp_regs: HashMap[str,mil.Register] = new_hashmap_str()
 	var m_pre_colored_regs: HashMap[int,mil.Register] = new_hashmap_int()
-	var m_counter: int = 0
 	pub var frame: Frame
 
 	pub fn get_value_vreg(value?: sil.Value) -> mil.Register:
@@ -53,7 +53,7 @@ pub class SelectionContext[V]:
 				I32: 0
 				I16: 0
 				I8: 0
-			let r = new_vreg(kind)
+			let r = new_vreg(kind, color: -1)
 			m_tmp_regs.insert(key: name, value: r)
 			r
 
@@ -63,8 +63,7 @@ pub class SelectionContext[V]:
 		if m_pre_colored_regs.contains(key):
 			m_pre_colored_regs.get(key)
 		else:
-			let r = new_vreg(kind)
-			r.color = color
+			let r = new_vreg(kind, color)
 			m_pre_colored_regs.insert(key, value: r)
 			r
 
@@ -87,7 +86,8 @@ pub class SelectionContext[V]:
 		codes = new_vector()
 		res
 
-	pub fn new_vreg(kind: int) -> mil.Register:
-		m_counter += 1
-		let color = -1
-		mil.Register(id: m_counter, color, kind)
+	fn new_vreg(kind: int, color: int) -> mil.Register:
+		let id = frame.vregs.len()
+		let vreg = mil.Register(id, color, kind)
+		frame.vregs.append(vreg)
+		vreg

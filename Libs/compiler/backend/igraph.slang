@@ -3,8 +3,9 @@
 
 from logging import log_debug
 from hashmap import HashMap, new_hashmap_int, new_hashmap_str
-from vectype import Vector, new_vector
-from settype import Set, new_int_set, new_str_set
+from vectype import Vector, new_vector, new_vector_with_capacity
+from settype import Set, SetIter, new_int_set, new_str_set
+from optiontype import Option
 from bitset import BitSet
 from listtype import List
 from strlib import str_join
@@ -41,14 +42,28 @@ pub class ControlFlowGraphNode[V]:
 	pub var m_live_out: Set[int] = new_int_set()
 	pub var block: mil.Block[V]
 
-pub fn create_interference_graph[V](mfunc: mil.Function[V]) -> InterferenceGraph:
+fn new_ig_for_vregs(vregs: Vector[mil.Register]) -> InterferenceGraph:
+	let m_nodes: Vector[IGNode] = new_vector_with_capacity(capacity: vregs.len())
+	let m_adj: Vector[Set[int]] = new_vector_with_capacity(capacity: vregs.len())
+	for vreg in vregs:
+		# We assume that vreg id's are exactly indici.
+		# log_debug("vreg = {vreg.id}")
+		let n = IGNode(id: vreg.id, kind: vreg.kind)
+		n.add_reg(reg: vreg)
+		if vreg.color >= 0:
+			n.set_color(vreg.color)
+		m_nodes.append(n)
+		m_adj.append(new_int_set())
+	InterferenceGraph(m_nodes, m_adj)
+
+pub fn create_interference_graph[V](mfunc: mil.Function[V], vregs: Vector[mil.Register]) -> InterferenceGraph:
 	""" Create interference graph
 
 	See also:
 	https://en.wikipedia.org/wiki/Live-variable_analysis
 	"""
 
-	let ig = InterferenceGraph()
+	let ig = new_ig_for_vregs(vregs)
 
 	let cfg: ControlFlowGraph[V] = ControlFlowGraph()
 	for mblock in mfunc.blocks:
@@ -60,12 +75,10 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V]) -> InterferenceGraph
 			for reg in mi.uses:
 				if not full_kill.contains(key: reg.id):
 					full_gen.add(reg.id)
-				get_ig_node(ig, reg)
 
 			# Register definition kill live range:
 			for reg in mi.defs:
 				full_kill.add(reg.id)
-				get_ig_node(ig, reg)
 
 		let node: ControlFlowGraphNode[V] = ControlFlowGraphNode(m_gen: full_gen, m_kill: full_kill, block: mblock)
 		cfg.add_node(node)
@@ -94,8 +107,6 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V]) -> InterferenceGraph
 			break
 	log_debug("Iterations: {n_iterations}")
 
-
-	let reg_map = new_hashmap_int()
 	for n in cfg.m_nodes:
 		let block = n.block
 		var live_registers: Set[int] = n.m_live_out
@@ -119,29 +130,21 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V]) -> InterferenceGraph
 	ig
 
 fn add_reg_interference(ig: InterferenceGraph, reg: mil.Register, live_registers: Set[int]):
-	get_ig_node(ig, reg)
 	let n1 = ig.get_node(id: reg.id)
 	for live in live_registers:
 		if reg.id != live:
 			let n2 = ig.get_node(id: live)
 			ig.add_edge(n1, n2)
 
-fn get_ig_node(ig: InterferenceGraph, reg: mil.Register):
-	if not ig.has_node(reg.id):
-		let n = ig.add_node(id: reg.id, kind: reg.kind)
-		n.add_reg(reg)
-		if reg.color >= 0:
-			n.set_color(reg.color)
-
 pub class InterferenceGraph:
-	var m_nodes: HashMap[int,IGNode] = new_hashmap_int()
-	var m_adj: HashMap[int,Set[int]] = new_hashmap_int()
+	var m_nodes: Vector[IGNode]
+	var m_adj: Vector[Set[int]]
 
 	pub fn mask(n?: IGNode):
 		if not n.masked:
 			n.masked = true
 			for m_id in get_adj_set(n):
-				let m = m_nodes.get(key: m_id)
+				let m = m_nodes.get(index: m_id)
 				m.degree -= 1
 		else:
 			panic("Node already masked")
@@ -150,7 +153,7 @@ pub class InterferenceGraph:
 		if n.masked:
 			n.masked = false
 			for m_id in get_adj_set(n):
-				let m = m_nodes.get(key: m_id)
+				let m = m_nodes.get(index: m_id)
 				m.degree += 1
 		else:
 			panic("Node already un-masked")
@@ -158,38 +161,15 @@ pub class InterferenceGraph:
 	pub fn is_masked(n?: IGNode) -> bool:
 		n.masked
 
-	pub fn has_node(id?: int) -> bool:
-		m_nodes.contains(key: id)
-
-	pub fn add_node(id: int, kind: int) -> IGNode:
-		if m_nodes.contains(key: id):
-			m_nodes.get(key: id)
-		else:
-			let n = IGNode(id, kind)
-			m_nodes.insert(key: id, value: n)
-			m_adj.insert(key: id, value: new_int_set())
-			n
-
 	pub fn get_node(id: int) -> IGNode:
-		if m_nodes.contains(key: id):
-			m_nodes.get(key: id)
-		else:
-			panic("No node with id: {id}")
+		m_nodes.get(index: id)
 
-	pub fn nodes() -> List[IGNode]:
-		let res: List[IGNode] = List()
-		for n in m_nodes:
-			res.append(m_nodes.get(key: n))
-		res
+	pub fn nodes() -> Vector[IGNode]:
+		m_nodes
 
-	pub fn adjecent(n?: IGNode) -> List[IGNode]:
+	pub fn adjecent(n?: IGNode) -> AdjecentIter:
 		""" Get a list of all non-masked neighbours """
-		let res: List[IGNode] = List()
-		for m_id in get_adj_set(n):
-			let m = m_nodes.get(key: m_id)
-			if not is_masked(m):
-				res.append(m)
-		res
+		AdjecentIter(m_nodes, m_set_iter: get_adj_set(n).iter())
 
 	pub fn add_edge(a?: IGNode, b?: IGNode):
 		# assert(condition: a != b, message: "a must not be b")
@@ -206,10 +186,7 @@ pub class InterferenceGraph:
 		get_adj_set(a).contains(b.id)
 
 	fn get_adj_set(n?: IGNode) -> Set[int]:
-		m_adj.get(key: n.id)
-
-	fn get_degree(n?: IGNode) -> int:
-		get_adj_set(n).len()
+		m_adj.get(index: n.id)
 
 pub class IGNode:
 	""" Node in the interference graph. """
@@ -238,3 +215,22 @@ pub class IGNode:
 			parts.append(mil.vr_to_str(reg))
 		let txt = str_join(parts, sep: ",")
 		"IGNode(degree={degree},regs=[{txt}]"
+
+pub class AdjecentIter:
+	""" Dedicated iterator over adjecent nodes """
+	var m_nodes: Vector[IGNode]
+	var m_set_iter: SetIter[int]  # Set iterator
+
+	pub fn iter() -> AdjecentIter:
+		this
+
+	pub fn next() -> Option[IGNode]:
+		loop:
+			case m_set_iter.next():
+				Some(m_id):
+					let m = m_nodes.get(index: m_id)
+					if not m.masked:
+						return Option.Some(m)
+				None:
+					break
+		Option.None()

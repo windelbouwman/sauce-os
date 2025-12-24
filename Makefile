@@ -280,6 +280,10 @@ ${BUILDDIR}/x86/compiler8.exe: ${BUILDDIR}/x86/compiler8.o ${BUILDDIR}/slangrt.a
 
 ${BUILDDIR}/x86/compiler9.o: ${COMPILER_SRCS} ${BASE_LIB_SRCS} ${COMPILER_LIB_SRCS} ${BUILDDIR}/x86/compiler8.exe | ${BUILDDIR}
 	./${BUILDDIR}/x86/compiler8.exe -v --backend-x86 -o $@ ${COMPILER_SRCS} ${COMPILER_LIB_SRCS} ${BASE_LIB_SRCS}
+	diff ${BUILDDIR}/x86/compiler9.o ${BUILDDIR}/x86/compiler8.o
+
+${BUILDDIR}/x86/compiler9.exe: ${BUILDDIR}/x86/compiler9.o ${BUILDDIR}/slangrt.a
+	gcc -o $@ ${BUILDDIR}/x86/compiler9.o ${BUILDDIR}/slangrt.a
 
 # Advent-of-Code compiled to X86
 .PRECIOUS: ${BUILDDIR}/x86/aoc_%.o
