@@ -27,6 +27,7 @@ pub fn cgen[V](program: sil.Program, backend: Backend[V], options: CodegenOption
 	options.profiler.enter(name: "Code-gen")
 	program.dump(report: options.report)
 	let out = BinaryOutput()
+	out.set_bitsize(bits: backend.bits)
 	let g = Codegen(backend, options)
 	g.gen_program(program, out)
 

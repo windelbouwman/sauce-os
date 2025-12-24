@@ -184,10 +184,10 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 			gen_webassembly(module_set)
 		Riscv:
 			let program = gen_bytecode(module_set, debug)
-			gen_riscv(program: to_sil(program), options: cgen_options)
+			gen_riscv(program: to_sil(program, bits: 32), options: cgen_options)
 		X86:
 			let program = gen_bytecode(module_set, debug)
-			gen_x86(program: to_sil(program), options: cgen_options)
+			gen_x86(program: to_sil(program, bits: 64), options: cgen_options)
 	report.set_enabled(false)
 	p.leave()
 

@@ -40,6 +40,7 @@ pub fn write_elf(filename: str, object: Object):
 	log_info("Writing elf file: {filename}")
 	let handle = std.file_open(filename, mode: "wb")
 	let writer = ElfWriter(handle)
+	writer.set_bitsize(bits: object.bits)
 
 	# Skip over header, will be patched later.
 	writer.seek(pos: writer.m_header.e_ehsize)
@@ -100,7 +101,7 @@ fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str, i
 		sh_rela.sh_flags = SHF_INFO_LINK
 		sh_rela.sh_link = 999 # To be filled later
 		sh_rela.sh_info = writer.get_section_index(name: section.name)
-		sh_rela.sh_entsize = 24  # In case of 64 bit
+		sh_rela.sh_entsize = 12 if writer.is_32bit else 24
 		sh_rela.sh_offset = writer.tell()
 		for reloc in section.relocations:
 			if not symbol_map.contains(key: reloc.symbol):
@@ -108,7 +109,7 @@ fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str, i
 			let sym = symbol_map.get(key: reloc.symbol)
 			let rte = RelaTableEntry:
 				r_offset: reloc.offset
-				r_info: (sym << 32) | reloc.typ
+				r_info: ((sym << 8) | reloc.typ) if writer.is_32bit else ((sym << 32) | reloc.typ)
 				r_addend: reloc.addend
 			writer.write_rela_entry(rte)
 		sh_rela.sh_size = writer.tell() - sh_rela.sh_offset
@@ -150,7 +151,7 @@ fn write_symbol_table(writer: ElfWriter, symbols: List[Symbol]):
 	sh_symtab.sh_addralign = 1
 	sh_symtab.sh_link = writer.section_headers.len()  # str tab follows directly
 	sh_symtab.sh_info = first_global_index  # Index of first global symbol
-	sh_symtab.sh_entsize = 24
+	sh_symtab.sh_entsize = 16 if writer.is_32bit else 24
 	for ste in writer.symbol_table:
 		writer.write_symtab_entry(ste)
 	sh_symtab.sh_size = writer.tell() - sh_symtab.sh_offset
@@ -330,7 +331,7 @@ class ElfReader:
 
 class ElfWriter:
 	var handle: int
-	var is_32bit: bool = false
+	pub var is_32bit: bool = false
 	var is_big_endian: bool = false
 	pub var m_header: ElfHeader = new_64bit_header()
 	pub var sh_string_table: StringTable = StringTable()
@@ -338,6 +339,18 @@ class ElfWriter:
 	var section_ids: HashMap[str, int] = new_hashmap_str()
 	pub var symbol_table: List[SymbolTableEntry] = List()
 	pub var strtab: StringTable = StringTable()
+
+	pub fn set_bitsize(bits: int):
+		if bits == 64:
+			is_32bit = false
+			m_header.e_ehsize = 0x40
+		elif bits == 32:
+			is_32bit = true
+			# TODO: move elsewhere
+			m_header.e_machine = 0xf3 # riscv
+			m_header.e_ehsize = 0x34
+		else:
+			panic("Invalid bit size: {bits}")
 
 	pub fn new_symbol(name: str) -> SymbolTableEntry:
 		let entry = SymbolTableEntry:
@@ -397,7 +410,10 @@ class ElfWriter:
 		write16(m_header.e_shstrndx)
 
 		let pos = tell()
-		assert(condition: pos == 64, message: "expected position to be 64")
+		if is_32bit:
+			assert(condition: pos == 52, message: "expected position to be 52")
+		else:
+			assert(condition: pos == 64, message: "expected position to be 64")
 		assert(condition: pos == m_header.e_ehsize, message: "expected position to be e_ehsize")
 
 	pub fn write_section_header(sh?: SectionHeader):
@@ -419,10 +435,7 @@ class ElfWriter:
 		m_header.e_shnum += 1
 		if m_header.e_shentsize == 0:
 			# Might very well be the first section header we write.
-			if is_32bit:
-				m_header.e_shentsize = 0x28
-			else:
-				m_header.e_shentsize = 0x40
+			m_header.e_shentsize = 0x28 if is_32bit else 0x40
 			let n_written = tell() - m_header.e_shoff
 			assert(condition: m_header.e_shentsize == n_written, message: "Inconsistent e_shentsize")
 
@@ -446,10 +459,7 @@ class ElfWriter:
 		m_header.e_phnum += 1
 		if m_header.e_phentsize == 0:
 			# Might very well be the first section header we write.
-			if is_32bit:
-				m_header.e_phentsize = 0x20
-			else:
-				m_header.e_phentsize = 0x38
+			m_header.e_phentsize = 0x20 if is_32bit else 0x38
 			let n_written = tell() - m_header.e_phoff
 			assert(condition: m_header.e_phentsize == n_written, message: "Inconsistent e_phentsize")
 

@@ -2085,6 +2085,7 @@ pub enum VisitPhase:
 
 pub enum VisitNode:
 	Arm(arm: CaseArm)
+	Arm2(arm: SwitchArm)
 	ScopeNode(scope: Scope)
 	ModuleNode(module: ModuleDef)
 
@@ -2214,8 +2215,11 @@ pub fn visit_statement[T](visitor: Visitor[T], statement: Statement):
 		Switch(switch_statement):
 			visit_expression(visitor, expression: switch_statement.value)
 			for arm in switch_statement.arms:
+				let arm_node = VisitNode.Arm2(arm)
 				visit_expression(visitor, expression: arm.value)
+				visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Pre())
 				visit_statement(visitor, statement: arm.block.body)
+				visitor.on_node(data: visitor.data, arm_node, phase: VisitPhase.Post())
 			visit_statement(visitor, statement: switch_statement.default_block.body)
 		For(for_statement):
 			visit_expression(visitor, expression: for_statement.iter_value)

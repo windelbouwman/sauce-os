@@ -13,6 +13,8 @@ from bytes import ByteArray, Bytes
 
 pub struct Object:
 	""" Code object """
+	bits: int
+	little_endian: bool
 	sections: Vector[Section]
 	symbols: Vector[Symbol]
 
@@ -57,11 +59,16 @@ struct Fixup:
 	addend: int
 
 pub class BinaryOutput:
+	var m_bits: int = 64
+	var little_endian: bool = true
 	var sections: HashMap[str, Section] = new_hashmap_str()
 	var current_section: Option[str] = Option.None()
 	var symbols: HashMap[str, Symbol] = new_hashmap_str()
 	var fixups: Queue[Fixup] = new_queue()
 	var tmp_labels: Queue[str] = new_queue()
+
+	pub fn set_bitsize(bits: int):
+		m_bits = bits
 
 	pub fn select_section(name: str):
 		if not sections.contains(key: name):
@@ -181,7 +188,11 @@ pub class BinaryOutput:
 		let symbols_vector: Vector[Symbol] = new_vector()
 		for name in symbols:
 			symbols_vector.append(symbols.get(key: name))
-		Object(sections: sections_vector, symbols: symbols_vector)
+		Object:
+			bits: m_bits
+			little_endian
+			sections: sections_vector
+			symbols: symbols_vector
 
 pub enum DataItem:
 	Raw(data: Bytes)

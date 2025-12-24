@@ -12,6 +12,7 @@ import mil
 
 pub struct Backend[V]:
 	""" Backend based on first instruction selection, then register allocation. """
+	bits: int
 	all_regs: List[int]  # int regs
 	all_regs2: List[int]  # Float regs
 	enter: fn(SelectionContext[V], sil.Function)

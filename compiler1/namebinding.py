@@ -122,6 +122,9 @@ class ScopeFiller(BasePass):
             has_scope = True
             for variable in node.variables:
                 self.define(variable)
+        elif isinstance(node, ast.SwitchArm):
+            self.enter_scope(node.block.scope)
+            has_scope = True
         else:
             has_scope = False
         super().visit_node(node)
@@ -249,7 +252,7 @@ class NameBinder(BasePass):
         self.leave_scope()
 
     def visit_node(self, node: ast.Node):
-        if isinstance(node, ast.CaseArm):
+        if isinstance(node, (ast.CaseArm, ast.SwitchArm)):
             scope = node.block.scope
         else:
             scope = None

@@ -296,6 +296,27 @@ all-tests-x86: ${X86_TESTS}
 run-test-x86-%: ${BUILDDIR}/x86/test_%.exe
 	$<
 
+# Risc-V
+${BUILDDIR}/riscv:
+	mkdir -p ${BUILDDIR}/riscv
+
+${BUILDDIR}/riscv/t1.o: examples/native/t1.slang ${SLANGC_DEPS} | ${BUILDDIR}/riscv
+	${SLANGC} --backend-riscv -v -v --report -o $@ $<
+
+.PRECIOUS: ${BUILDDIR}/riscv/snippet_%.o
+${BUILDDIR}/riscv/snippet_%.o: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILDDIR}/riscv
+	${SLANGC} --backend-riscv -v -v --report --debug -o $@ $< runtime/std.slang
+
+.PRECIOUS: ${BUILDDIR}/riscv/snippet_%.elf
+${BUILDDIR}/riscv/snippet_%.elf: ${BUILDDIR}/riscv/snippet_%.o ${BUILDDIR}/riscv/crt.o examples/riscv/rv.ld | ${BUILDDIR}/riscv
+	riscv32-elf-ld -T examples/riscv/rv.ld -o $@ $< ${BUILDDIR}/riscv/crt.o
+
+${BUILDDIR}/riscv/crt.o: examples/riscv/crt.s | ${BUILDDIR}/riscv
+	riscv32-elf-as -march=rv32im -o $@ $<
+
+run-riscv-%: ${BUILDDIR}/riscv/snippet_%.elf
+	qemu-system-riscv32 -machine virt -cpu rv32 -bios none -kernel $<
+
 # Wasm examples:
 .PHONY: all-examples-wasm
 all-examples-wasm: $(WASM_EXAMPLES)

@@ -212,6 +212,8 @@ fn filler_on_node(filler: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 					filler.enter_scope(scope: arm.block.scope)
 					for variable in arm.variables:
 						filler.define_variable(is_pub: true, variable)
+				Arm2(arm):
+					filler.enter_scope(scope: arm.block.scope)
 				ScopeNode(scope):
 					filler.enter_scope(scope)
 			else:
@@ -219,6 +221,8 @@ fn filler_on_node(filler: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 		Post:
 			case node:
 				Arm(arm):
+					filler.leave_scope()
+				Arm2(arm):
 					filler.leave_scope()
 				ScopeNode(scope):
 					filler.leave_scope()
@@ -396,6 +400,8 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 			case node:
 				Arm(arm):
 					binder.enter_scope(scope: arm.block.scope)
+				Arm2(arm):
+					binder.enter_scope(scope: arm.block.scope)
 				ScopeNode(scope):
 					binder.enter_scope(scope)
 			else:
@@ -403,6 +409,8 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 		Post:
 			case node:
 				Arm(arm):
+					binder.leave_scope()
+				Arm2(arm):
 					binder.leave_scope()
 				ScopeNode(scope):
 					binder.leave_scope()

@@ -86,6 +86,7 @@ pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 	# all_regs2.append(xmm15)
 
 	let backend: Backend[VirtInst] = Backend:
+		bits: 64
 		all_regs
 		all_regs2
 		enter: enter_function

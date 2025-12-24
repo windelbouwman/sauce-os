@@ -132,12 +132,9 @@ pub class Instruction:
 						txt
 			Return(value):
 				case value:
-					Some(value2):
-						"return {value_to_string(value2)}"
-					None:
-						"return"
-			Halt:
-				"hlt"
+					Some(value2): "return {value_to_string(value2)}"
+					None: "return"
+			Halt: "hlt"
 
 fn comma_sep(values: List[Value]) -> str:
 	let parts: List[str] = List()
@@ -230,9 +227,6 @@ pub fn value_to_string(value?: Value) -> str:
 
 pub fn address_to_string(address?: Address) -> str:
 	case address:
-		Global(name):
-			"${name}"
-		StackSlot(offset):
-			"[stack + {offset}]"
-		Ptr(base):
-			"[{value_to_string(base)}]"
+		Global(name): "${name}"
+		StackSlot(offset): "[stack + {offset}]"
+		Ptr(base): "[{value_to_string(base)}]"

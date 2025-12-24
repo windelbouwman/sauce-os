@@ -26,10 +26,10 @@ pub struct SilGenOptions:
 	has_fpu: bool
 	word_size: int
 
-pub fn to_sil(program: bc.Program) -> sil.Program:
+pub fn to_sil(program: bc.Program, bits: int) -> sil.Program:
 	# TODO: pass options, su
-	log_info("Creating SIL program from bytecode")
-	let g = SilGen(m_bc_program: program)
+	log_info("Creating {bits}-bits SIL program from bytecode")
+	let g = SilGen(m_bc_program: program, m_bits: bits)
 	g.gen_program()
 
 struct StructLayout:
@@ -56,6 +56,7 @@ struct ReturnSlot:
 
 class SilGen:
 	var m_bc_program: bc.Program
+	var m_bits: int
 	var m_externs: List[sil.Extern] = List()
 	var m_globals: Vector[TypedAddress] = new_vector()
 	var m_structs: Vector[StructLayout] = new_vector()
@@ -217,13 +218,13 @@ class SilGen:
 				else:
 					panic("Unsupported integer bit size: {bits} bits int type")
 			Bool:
-				8
+				get_word_size()
 			Char:
-				8
+				get_word_size()
 			Str:
-				8
+				get_word_size()
 			Ptr:
-				8
+				get_word_size()
 			Float(bits):
 				if bits == 32:
 					4
@@ -232,14 +233,30 @@ class SilGen:
 				else:
 					panic("Unsupported floating point bit size: {bits}")
 			Array(element_type):
-				8
+				get_word_size()
 			StructRef(index):
-				8
+				get_word_size()
 			Function(parameter_types, return_type):
-				8
+				get_word_size()
+
+	fn get_word_size() -> int:
+		if m_bits == 64:
+			8
+		elif m_bits == 32:
+			4
+		else:
+			panic("Unsupported word size: {m_bits}")
 
 	fn get_ptr_type() -> sil.Type:
-		sil.Type.I64()
+		get_word_type()
+
+	fn get_word_type() -> sil.Type:
+		if m_bits == 64:
+			sil.Type.I64()
+		elif m_bits == 32:
+			sil.Type.I32()
+		else:
+			panic("Unsupported word size: {m_bits}")
 
 	fn get_int_type(bits: int) -> sil.Type:
 		if bits == 8:
@@ -266,9 +283,9 @@ class SilGen:
 			Int(signed, bits):
 				get_int_type(bits)
 			Bool:
-				sil.Type.I64()
+				get_word_type()
 			Char:
-				sil.Type.I64()
+				get_word_type()
 			Str:
 				get_ptr_type()
 			Ptr:
@@ -376,7 +393,7 @@ class SilGen:
 				let count_tmp = pop()
 				let element_size = get_size_of(ty)
 				let element_size_tmp = load_int(value: element_size)
-				let byte_size_tmp = new_tmp(ty: sil.Type.I64())
+				let byte_size_tmp = new_tmp(ty: get_word_type())
 				emit(sil.OpCode.Binop(dst: byte_size_tmp, op2: sil.BinaryOp.Mul(), lhs: count_tmp.value, rhs: element_size_tmp))
 				call_rt_malloc(size: byte_size_tmp, ty: bc.Type.Array(ty))
 			ToOpaque(ty3):
@@ -577,7 +594,7 @@ class SilGen:
 				# Xor with 1, to toggle boolean value.
 				let value = pop()
 				let one = load_int(value: 1)
-				let dst = new_tmp(ty: sil.Type.I64())
+				let dst = new_tmp(ty: get_word_type())
 				emit(sil.OpCode.Bitop(dst, op: sil.BitwiseOp.Xor(), lhs: value.value, rhs: one))
 				push(dst, ty: bc.Type.Int(signed: true, bits: 64))
 			Neg:
@@ -585,16 +602,16 @@ class SilGen:
 				case value.ty:
 					Int(signed, bits):
 						let zero = load_int(value: 0)
-						let dst = new_tmp(ty: sil.Type.I64())
+						let dst = new_tmp(ty: get_int_type(bits))
 						emit(sil.OpCode.Binop(dst, op: sil.BinaryOp.Sub(), lhs: zero, rhs: value.value))
-						push(dst, ty: bc.Type.Int(signed: true, bits: 64))
+						push(dst, ty: bc.Type.Int(signed, bits))
 					Float(bits):
 						let address = add_f64_blob(value: 0.0)
 						gen_load(address)
 						let zero = pop()
-						let dst = new_tmp(ty: sil.Type.F64())
+						let dst = new_tmp(ty: get_float_type(bits))
 						emit(sil.OpCode.Binop(dst, op: sil.BinaryOp.Sub(), lhs: zero.value, rhs: value.value))
-						push(dst, ty: bc.Type.Float(bits: 64))
+						push(dst, ty: bc.Type.Float(bits))
 				else:
 					unimplemented("NEG for {bc.type_to_string(value.ty)}")
 			Bitop(op):
@@ -649,7 +666,7 @@ class SilGen:
 		else:
 			panic("Cannot get element address of non array type")
 		let element_size = get_size_of(element_ty)
-		let offset = new_tmp(ty: sil.Type.I64())
+		let offset = new_tmp(ty: get_word_type())
 		let addr = new_tmp(ty: get_ptr_type())
 		let size_of = load_int(value: element_size)
 		emit(sil.OpCode.Binop(dst: offset, op: sil.BinaryOp.Mul(), lhs: index.value, rhs: size_of))
@@ -715,7 +732,7 @@ class SilGen:
 		push(value, ty)
 
 	fn load_int(value: int) -> sil.Value:
-		let dst = new_tmp(ty: sil.Type.I64())
+		let dst = new_tmp(ty: get_word_type())
 		emit(sil.OpCode.Const(dst, value))
 		dst
 
