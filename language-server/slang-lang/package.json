@@ -54,6 +54,7 @@
     "watch": "tsc -b -w"
   },
   "dependencies": {
+    "typescript": "^5.3.3",
     "vscode-languageclient": "^8.1.0"
   },
   "devDependencies": {
