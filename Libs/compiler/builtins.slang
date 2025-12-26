@@ -78,4 +78,37 @@ pub fn get_rt_module() -> ast.ModuleDef:
 		location: location_default()
 	module.define_function(function_def: str_get)
 
+	let ctz = ast.extern_function_def:
+		is_pub
+		libname
+		name: "ctz"
+		docstring
+		type_parameters
+		parameters: list1(ast.unlabeled_parameter(name: "value", ty: ast.int_type()))
+		return_type: ast.int_type()
+		location: location_default()
+	module.define_function(function_def: ctz)
+
+	let clz = ast.extern_function_def:
+		is_pub
+		libname
+		name: "clz"
+		docstring
+		type_parameters
+		parameters: list1(ast.unlabeled_parameter(name: "value", ty: ast.int_type()))
+		return_type: ast.int_type()
+		location: location_default()
+	module.define_function(function_def: clz)
+
+	let popcnt = ast.extern_function_def:
+		is_pub
+		libname
+		name: "popcnt"
+		docstring
+		type_parameters
+		parameters: list1(ast.unlabeled_parameter(name: "value", ty: ast.int_type()))
+		return_type: ast.int_type()
+		location: location_default()
+	module.define_function(function_def: popcnt)
+
 	module

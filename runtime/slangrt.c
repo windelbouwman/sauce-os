@@ -461,3 +461,18 @@ int rt_str_compare(char* a, char* b)
     int res = (strcmp(a, b) == 0) ? 1 : 0;
     return res;
 }
+
+SLANG_API slang_int_t rt_ctz(slang_int_t value)
+{
+    return __builtin_ctz(value);
+}
+
+SLANG_API slang_int_t rt_clz(slang_int_t value)
+{
+    return __builtin_clz(value);
+}
+
+SLANG_API slang_int_t rt_popcnt(slang_int_t value)
+{
+    return __builtin_popcount(value);
+}

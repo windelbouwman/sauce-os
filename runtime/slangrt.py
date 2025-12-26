@@ -139,3 +139,15 @@ def std_pack_f32(value: float, buffer):
     data = struct.pack("<f", value)
     for index, v in enumerate(data):
         buffer[index] = v
+
+
+def rt_ctz(value: int) -> int:
+    return (value & -value).bit_length() - 1
+
+
+def rt_clz(value: int) -> int:
+    raise NotImplementedError("clz")
+
+
+def rt_popcnt(value: int) -> int:
+    return value.bit_count()

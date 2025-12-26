@@ -42,6 +42,21 @@ def create_rt_module(id_context: ast.IdContext) -> ast.Module:
             Location.default(),
         )
     )
+    mod.add_definition(
+        ast.ExternFunction(
+            modname, "ctz", [ast.int_type], ast.int_type, Location.default()
+        )
+    )
+    mod.add_definition(
+        ast.ExternFunction(
+            modname, "clz", [ast.int_type], ast.int_type, Location.default()
+        )
+    )
+    mod.add_definition(
+        ast.ExternFunction(
+            modname, "popcnt", [ast.int_type], ast.int_type, Location.default()
+        )
+    )
     return mod
 
 

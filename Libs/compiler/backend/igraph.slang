@@ -6,10 +6,11 @@ from hashmap import HashMap, new_hashmap_int, new_hashmap_str
 from vectype import Vector, new_vector, new_vector_with_capacity
 from settype import Set, SetIter, new_int_set, new_str_set
 from optiontype import Option
-from bitset import BitSet
+from bitset import BitSet, new_bitset, BitSetIter
 from listtype import List
 from strlib import str_join
 from utils import panic
+from report import Report
 import mil
 
 pub class ControlFlowGraph[V]:
@@ -35,16 +36,19 @@ pub class ControlFlowGraph[V]:
 			s.append(get_node(name))
 		s
 
+type LiveSet = BitSet
+
 pub class ControlFlowGraphNode[V]:
-	pub var m_gen: Set[int]
-	pub var m_kill: Set[int]
-	pub var m_live_in: Set[int] = new_int_set()
-	pub var m_live_out: Set[int] = new_int_set()
+	pub var m_gen: LiveSet
+	pub var m_kill: LiveSet
+	pub var m_live_in: LiveSet
+	pub var m_live_out: LiveSet
 	pub var block: mil.Block[V]
 
 fn new_ig_for_vregs(vregs: Vector[mil.Register]) -> InterferenceGraph:
 	let m_nodes: Vector[IGNode] = new_vector_with_capacity(capacity: vregs.len())
-	let m_adj: Vector[Set[int]] = new_vector_with_capacity(capacity: vregs.len())
+	let m_adj: Vector[BitSet] = new_vector_with_capacity(capacity: vregs.len())
+	let N = vregs.len()
 	for vreg in vregs:
 		# We assume that vreg id's are exactly indici.
 		# log_debug("vreg = {vreg.id}")
@@ -53,7 +57,7 @@ fn new_ig_for_vregs(vregs: Vector[mil.Register]) -> InterferenceGraph:
 		if vreg.color >= 0:
 			n.set_color(vreg.color)
 		m_nodes.append(n)
-		m_adj.append(new_int_set())
+		m_adj.append(new_bitset(n: N))
 	InterferenceGraph(m_nodes, m_adj)
 
 pub fn create_interference_graph[V](mfunc: mil.Function[V], vregs: Vector[mil.Register]) -> InterferenceGraph:
@@ -64,23 +68,29 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V], vregs: Vector[mil.Re
 	"""
 
 	let ig = new_ig_for_vregs(vregs)
+	let N = vregs.len()
 
 	let cfg: ControlFlowGraph[V] = ControlFlowGraph()
 	for mblock in mfunc.blocks:
 		# gen and kill sets for this block:
-		var full_gen: Set[int] = new_int_set()
-		var full_kill: Set[int] = new_int_set()
+		var full_gen = new_bitset(n: N)
+		var full_kill = new_bitset(n: N)
 		for mi in mblock.instructions:
 			# Register use generates a live register:
 			for reg in mi.uses:
-				if not full_kill.contains(key: reg.id):
+				if not full_kill.contains(reg.id):
 					full_gen.add(reg.id)
 
 			# Register definition kill live range:
 			for reg in mi.defs:
 				full_kill.add(reg.id)
 
-		let node: ControlFlowGraphNode[V] = ControlFlowGraphNode(m_gen: full_gen, m_kill: full_kill, block: mblock)
+		let node: ControlFlowGraphNode[V] = ControlFlowGraphNode:
+			m_gen: full_gen
+			m_kill: full_kill
+			m_live_in: new_bitset(n: N)
+			m_live_out: new_bitset(n: N)
+			block: mblock
 		cfg.add_node(node)
 
 	for mblock in mfunc.blocks:
@@ -95,12 +105,17 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V], vregs: Vector[mil.Re
 		for node in cfg.m_nodes:
 			let old_live_in = node.m_live_in
 			let old_live_out = node.m_live_out
-			node.m_live_in = node.m_gen.union(node.m_live_out.difference(node.m_kill))
-			node.m_live_out = new_int_set()
 
-			# include successors:
+			# live out is union of all successor live in:
+			node.m_live_out = new_bitset(n: N)
 			for successor in cfg.get_successors(node):
-				node.m_live_out.union_add(successor.m_live_in)
+				node.m_live_out.or_assign(successor.m_live_in)
+
+			# Live in = gen | (live out - kill)
+			node.m_live_in = node.m_live_out.clone()  # Copy
+			node.m_live_in.andnot_assign(node.m_kill)  # difference
+			node.m_live_in.or_assign(node.m_gen)  # union
+
 			if not old_live_in.equals(node.m_live_in) or not old_live_out.equals(node.m_live_out):
 				change = true
 		if not change:
@@ -109,7 +124,7 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V], vregs: Vector[mil.Re
 
 	for n in cfg.m_nodes:
 		let block = n.block
-		var live_registers: Set[int] = n.m_live_out
+		var live_registers: LiveSet = n.m_live_out
 		var index = block.instructions.len()
 		while index > 0:
 			index -= 1
@@ -129,7 +144,7 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V], vregs: Vector[mil.Re
 				live_registers.add(reg.id)
 	ig
 
-fn add_reg_interference(ig: InterferenceGraph, reg: mil.Register, live_registers: Set[int]):
+fn add_reg_interference(ig: InterferenceGraph, reg: mil.Register, live_registers: LiveSet):
 	let n1 = ig.get_node(id: reg.id)
 	for live in live_registers:
 		if reg.id != live:
@@ -138,7 +153,7 @@ fn add_reg_interference(ig: InterferenceGraph, reg: mil.Register, live_registers
 
 pub class InterferenceGraph:
 	var m_nodes: Vector[IGNode]
-	var m_adj: Vector[Set[int]]
+	var m_adj: Vector[BitSet]
 
 	pub fn mask(n?: IGNode):
 		if not n.masked:
@@ -185,7 +200,7 @@ pub class InterferenceGraph:
 		# assert(condition: a != b, message: "a must not be b")
 		get_adj_set(a).contains(b.id)
 
-	fn get_adj_set(n?: IGNode) -> Set[int]:
+	fn get_adj_set(n?: IGNode) -> BitSet:
 		m_adj.get(index: n.id)
 
 pub class IGNode:
@@ -219,7 +234,7 @@ pub class IGNode:
 pub class AdjecentIter:
 	""" Dedicated iterator over adjecent nodes """
 	var m_nodes: Vector[IGNode]
-	var m_set_iter: SetIter[int]  # Set iterator
+	var m_set_iter: BitSetIter
 
 	pub fn iter() -> AdjecentIter:
 		this
@@ -234,3 +249,15 @@ pub class AdjecentIter:
 				None:
 					break
 		Option.None()
+
+pub fn dump_ig(ig: InterferenceGraph, report: Report):
+	report.heading("Interference graph")
+	let nodes = ig.nodes()
+	var i = 0
+	while i < nodes.len():
+		var j = i + 1
+		while j < nodes.len():
+			if ig.has_edge(ig.get_node(id: i), ig.get_node(id: j)):
+				report.writeln("  {i} --- {j}")
+			j += 1
+		i += 1
