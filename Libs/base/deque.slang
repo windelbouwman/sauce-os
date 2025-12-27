@@ -39,6 +39,11 @@ pub class Queue[T]:
 		else:
 			panic("Pop from empty queue")
 
+	pub fn clear():
+		m_length = 0
+		m_head = 0
+		m_tail = 0
+
 	pub fn len() -> int:
 		m_length
 

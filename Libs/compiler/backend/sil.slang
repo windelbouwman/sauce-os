@@ -19,14 +19,15 @@ See: https://c9x.me/compile/doc/il.html
 
 from bytes import Bytes
 from listtype import List
+from vectype import Vector
 from optiontype import Option
 from strlib import str_join
 from report import Report
 
 pub class Program:
-	pub var externs: List[Extern]
-	pub var functions: List[Function]
-	pub var blobs: List[DataBlob]
+	pub var externs: Vector[Extern]
+	pub var functions: Vector[Function]
+	pub var blobs: Vector[DataBlob]
 
 	pub fn dump(report: Report):
 		if not report.is_enabled():
@@ -72,7 +73,7 @@ pub class Function:
 	pub var parameters: List[Value]
 	pub var stacksize: int
 	pub var start: Block
-	pub var blocks: List[Block]
+	pub var blocks: Vector[Block]
 
 	pub fn to_string() -> str:
 		let args = comma_sep(values: parameters)
@@ -86,7 +87,7 @@ pub class Function:
 pub class Block:
 	"""A linear flow of instructions"""
 	pub var name: str
-	pub var instructions: List[Instruction]
+	pub var instructions: Vector[Instruction]
 
 	pub fn to_string() -> str:
 		"  @{name}"
@@ -197,7 +198,7 @@ fn comparison_to_string(op?: CompOp) -> str:
 		Lte: "lte"
 
 pub struct Value:
-	name: str
+	id: int
 	ty: Type
 
 pub enum Type:
@@ -223,7 +224,7 @@ pub enum Address:
 	Ptr(base: Value)
 
 pub fn value_to_string(value?: Value) -> str:
-	"{type_to_string(value.ty)} %{value.name}"
+	"{type_to_string(value.ty)} %x{value.id}"
 
 pub fn address_to_string(address?: Address) -> str:
 	case address:

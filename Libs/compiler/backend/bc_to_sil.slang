@@ -57,20 +57,21 @@ struct ReturnSlot:
 class SilGen:
 	var m_bc_program: bc.Program
 	var m_bits: int
-	var m_externs: List[sil.Extern] = List()
+	var m_externs: Vector[sil.Extern] = new_vector()
 	var m_globals: Vector[TypedAddress] = new_vector()
 	var m_structs: Vector[StructLayout] = new_vector()
-	var m_functions: List[sil.Function] = List()
-	var m_blobs: List[sil.DataBlob] = List()
-	var m_blocks: List[sil.Block] = List()
+	var m_functions: Vector[sil.Function] = new_vector()
+	var m_blobs: Vector[sil.DataBlob] = new_vector()
+	var m_blocks: Vector[sil.Block] = new_vector()
 	var m_current_block: Option[sil.Block] = Option.None()
 	var m_block_is_terminated: bool = false
 	var m_parameters: List[TypedAddress] = List()
-	var m_locals: List[TypedAddress] = List()
+	var m_locals: Vector[TypedAddress] = new_vector()
 	var m_return_slots: List[ReturnSlot] = List()
 	var m_vm: vm.VirtualMachine = vm.VirtualMachine()
 	var m_tmp_number: int = 0
-	var m_value_stack: List[TypedValue] = List()
+	var m_lit_id_number: int = 0
+	var m_value_stack: Vector[TypedValue] = new_vector()
 	var m_stack_offset: int = 0
 
 	pub fn gen_program() -> sil.Program:
@@ -301,12 +302,13 @@ class SilGen:
 
 	fn gen_function(function: bc.Function):
 		log_debug("Gen SIL-code for function {function.name}")
-		m_blocks = List()
-		m_value_stack = List()
+		m_blocks = new_vector()
+		m_value_stack.clear()
 		m_parameters = List()
 		m_locals.clear()
 		m_return_slots.clear()
 		m_stack_offset = 0
+		m_tmp_number = 0
 		let start = new_block(name: "start")
 		set_current_block(start)
 
@@ -737,21 +739,27 @@ class SilGen:
 		dst
 
 	fn new_block(name: str) -> sil.Block:
-		let block = sil.Block(name, instructions: List())
+		let instructions: Vector[sil.Instruction] = new_vector()
+		let block = sil.Block(name, instructions)
 		m_blocks.append(block)
 		block
 
 	fn new_tmp(ty: sil.Type) -> sil.Value:
-		sil.Value(name: "x{new_id()}", ty)
+		sil.Value(id: new_tmp_id(), ty)
 
 	fn new_stack_slot(size: int) -> sil.Address:
 		let offset = m_stack_offset
 		m_stack_offset += size
 		sil.Address.StackSlot(offset)
 
-	fn new_id() -> int:
+	fn new_tmp_id() -> int:
+		let id = m_tmp_number
 		m_tmp_number += 1
-		m_tmp_number
+		id
+
+	fn new_id() -> int:
+		m_lit_id_number += 1
+		m_lit_id_number
 
 	fn new_global(name?: str) -> sil.Address:
 		sil.Address.Global(name)

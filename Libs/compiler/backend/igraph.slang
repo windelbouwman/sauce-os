@@ -149,7 +149,10 @@ fn add_reg_interference(ig: InterferenceGraph, reg: mil.Register, live_registers
 	for live in live_registers:
 		if reg.id != live:
 			let n2 = ig.get_node(id: live)
-			ig.add_edge(n1, n2)
+			# Only add edges to the same kind of register for now.
+			# TODO: when different register kinds alias, this must be changed.
+			if n1.kind == n2.kind:
+				ig.add_edge(n1, n2)
 
 pub class InterferenceGraph:
 	var m_nodes: Vector[IGNode]
@@ -189,6 +192,8 @@ pub class InterferenceGraph:
 	pub fn add_edge(a?: IGNode, b?: IGNode):
 		# assert(condition: a != b, message: "a must not be b")
 		if not has_edge(a, b):
+			if a.kind != b.kind:
+				panic("Treating different register kinds as fully separate worlds.")
 			a.degree += 1
 			b.degree += 1
 			let m1 = get_adj_set(a)

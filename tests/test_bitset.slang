@@ -14,7 +14,10 @@ pub fn main() -> int:
 
 fn test_set_and_clear():
 	let s: BitSet = new_bitset(n: 190)
+	assert_int_equals(s.len(), 0)
+
 	s.set(5)
+	assert_int_equals(s.len(), 1)
 	assert_false(s.isset(0))
 	assert_false(s.isset(4))
 	assert_true(s.isset(5))
@@ -22,6 +25,7 @@ fn test_set_and_clear():
 	assert_false(s.isset(41))
 
 	s.set(42)
+	assert_int_equals(s.len(), 2)
 	assert_false(s.isset(4))
 	assert_true(s.isset(5))
 	assert_false(s.isset(6))
@@ -96,6 +100,7 @@ fn test_andnot():
 	s3.set(173)
 
 	s1.andnot_assign(s2)
+	assert_int_equals(s1.len(), 2)
 	assert_true(s1.equals(s3))
 
 fn test_and():
@@ -134,6 +139,7 @@ fn test_or():
 	s3.set(172)
 	s3.set(173)
 	s3.set(175)
+	assert_int_equals(s3.len(), 5)
 
 	s1.or_assign(s2)
 	assert_true(s1.equals(s3))

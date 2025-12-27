@@ -4,7 +4,7 @@
 from utils import unimplemented, panic
 from vectype import Vector, new_vector
 from optiontype import Option
-from rt import ctz
+from rt import ctz, popcnt
 
 pub fn new_bitset(n: int) -> BitSet:
 	""" Create a bit set with n bits. """
@@ -103,6 +103,32 @@ pub class BitSet:
 			true
 		else:
 			false
+
+	pub fn len() -> int:
+		var index = 0
+		var s = 0
+		while index < m_num_integers:
+			s += popcnt(m_integers[index])
+			index += 1
+		s
+
+	pub fn is_empty() -> bool:
+		var index = 0
+		while index < m_num_integers:
+			if m_integers[index] != 0:
+				return false
+			index += 1
+		true
+
+	pub fn first() -> int:
+		var index = 0
+		while index < m_num_integers:
+			let word = m_integers[index]
+			if word != 0:
+				let b = ctz(word)
+				return index * n_bits_per_int + b
+			index += 1
+		panic("first: No bit set")
 
 	pub fn iter() -> BitSetIter:
 		let it = BitSetIter(m_bitset: this)

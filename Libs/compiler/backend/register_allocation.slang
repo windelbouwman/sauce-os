@@ -6,7 +6,9 @@ It assigns colors to use / def registers.
 
 from logging import log_info, log_debug, log_trace
 from settype import Set, new_int_set
-from vectype import new_vector
+from bitset import BitSet, new_bitset
+from vectype import Vector, new_vector
+from deque import Queue, new_queue
 from hashmap import HashMap, new_hashmap_int
 from report import Report
 from utils import unimplemented, panic
@@ -33,8 +35,8 @@ class RegisterAllocator[V]:
 	var m_regs_by_class: HashMap[int, List[int]] = new_hashmap_int()
 
 	var m_ig: InterferenceGraph = InterferenceGraph(m_nodes: new_vector(), m_adj: new_vector())
-	var m_select_stack: List[IGNode] = List()
-	var m_simplify_worklist: List[IGNode] = List()
+	var m_select_stack: Vector[IGNode] = new_vector()
+	var m_simplify_worklist: Queue[IGNode] = new_queue()
 	var m_spill_worklist: HashMap[int,IGNode] = new_hashmap_int()
 	var m_freeze_worklist: HashMap[int,IGNode] = new_hashmap_int()
 	var m_pre_colored: HashMap[int,IGNode] = new_hashmap_int()
@@ -84,17 +86,17 @@ class RegisterAllocator[V]:
 			elif is_move_related(n):
 				m_freeze_worklist.insert(key: n.id, value: n)
 			else:
-				m_simplify_worklist.append(n)
+				m_simplify_worklist.push(n)
 
 	fn simplify():
 		# log_debug("simplify")
-		let n = m_simplify_worklist.pop_front()
+		let n = m_simplify_worklist.pop()
 		m_select_stack.append(n)
 		m_ig.mask(n)
 		for m in m_ig.adjecent(n):
 			if is_colorable(m) and m_spill_worklist.contains(key: m.id):
 				m_spill_worklist.drop(key: m.id)
-				m_simplify_worklist.append(m)
+				m_simplify_worklist.push(m)
 
 	fn spill(mfunc: mil.Function[V]):
 		""" Spill nodes with too many edges into memory locations. """
@@ -128,9 +130,8 @@ class RegisterAllocator[V]:
 			sil.Type.F64()
 		else:
 			panic("Invalid class: {register.kind}")
-		let name = "y77"
-		let value = sil.Value(name, ty)
-		context.set_vreg_for_tmp(name, register)
+		let value = sil.Value(id: 0, ty)
+		context.set_vreg_for_value(value, register)
 
 		# Introduce load / store operations
 		for block in mfunc.blocks:
@@ -151,21 +152,21 @@ class RegisterAllocator[V]:
 
 	fn assign_colors():
 		""" Assign colors """
-		let all_regs_by_kind: HashMap[int,Set[int]] = new_hashmap_int()
+		let all_regs_by_kind: HashMap[int,BitSet] = new_hashmap_int()
 		for kind in m_regs_by_class:
-			let all_regs = new_int_set()
+			let all_regs = new_bitset(n: 50)
 			for r in m_regs_by_class.get(key: kind):
 				all_regs.add(r)
 			all_regs_by_kind.insert(key: kind, value: all_regs)
 
-		for n in m_select_stack.reversed():
+		while not m_select_stack.is_empty():
+			let n = m_select_stack.pop_last()
 			m_ig.unmask(n)
-			let taken_regs = new_int_set()
+			let ok_regs = all_regs_by_kind.get(key: n.kind).clone()
 			for m in m_ig.adjecent(n):
 				# TODO: implement register aliasing
 				if n.kind == m.kind:
-					taken_regs.add(m.color)
-			let ok_regs = all_regs_by_kind.get(key: n.kind).difference(taken_regs)
+					ok_regs.remove(m.color)
 			if ok_regs.is_empty():
 				unimplemented("Spilling")
 			else:
@@ -177,9 +178,13 @@ class RegisterAllocator[V]:
 		if m.is_colored():
 			true
 		else:
-			let num_blocked = calculate_num_blocked(m)
+			# Use node degree. This will not work when registers alias
+			# then we need to calculate num blocked.
+			#let num_blocked = calculate_num_blocked(m)
+			#if num_blocked != m.degree:
+			# panic("Invariant violated")
 			let k = m_regs_by_class.get(key: m.kind).len()
-			num_blocked < k
+			m.degree < k
 
 	fn calculate_num_blocked(m?: IGNode) -> int:
 		var x = 0

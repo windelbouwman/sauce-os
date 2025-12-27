@@ -3,7 +3,7 @@
 """
 
 from listtype import List
-from hashmap import HashMap, new_hashmap_str, new_hashmap_int
+from hashmap import HashMap, new_hashmap_int
 from vectype import Vector, new_vector
 from bytes import ByteArray
 from outstream import BinaryOutput, DataItem
@@ -32,19 +32,19 @@ pub struct Frame:
 
 pub class SelectionContext[V]:
 	var codes: Vector[mil.Instruction[V]] = new_vector()
-	var m_tmp_regs: HashMap[str,mil.Register] = new_hashmap_str()
+	var m_tmp_regs: HashMap[int,mil.Register] = new_hashmap_int()
 	var m_pre_colored_regs: HashMap[int,mil.Register] = new_hashmap_int()
 	pub var frame: Frame
 
 	pub fn get_value_vreg(value?: sil.Value) -> mil.Register:
-		get_vreg_for_tmp(name: value.name, ty: value.ty)
+		get_vreg_for_tmp(id: value.id, ty: value.ty)
 
-	pub fn set_vreg_for_tmp(name: str, register: mil.Register):
-		m_tmp_regs.insert(key: name, value: register)
+	pub fn set_vreg_for_value(value: sil.Value, register: mil.Register):
+		m_tmp_regs.insert(key: value.id, value: register)
 
-	pub fn get_vreg_for_tmp(name: str, ty: sil.Type) -> mil.Register:
-		if m_tmp_regs.contains(key: name):
-			m_tmp_regs.get(key: name)
+	fn get_vreg_for_tmp(id: int, ty: sil.Type) -> mil.Register:
+		if m_tmp_regs.contains(key: id):
+			m_tmp_regs.get(key: id)
 		else:
 			let kind: int = case ty:
 				F64: 1
@@ -54,7 +54,7 @@ pub class SelectionContext[V]:
 				I16: 0
 				I8: 0
 			let r = new_vreg(kind, color: -1)
-			m_tmp_regs.insert(key: name, value: r)
+			m_tmp_regs.insert(key: id, value: r)
 			r
 
 	pub fn get_pre_colored(color: int, kind: int) -> mil.Register:
