@@ -33,7 +33,7 @@ fn test_set_and_clear():
 	assert_true(s.isset(42))
 	assert_false(s.isset(43))
 
-	s.clear(5)
+	s.unset(5)
 	assert_false(s.isset(4))
 	assert_false(s.isset(5))
 	assert_false(s.isset(6))
@@ -41,7 +41,7 @@ fn test_set_and_clear():
 	assert_true(s.isset(42))
 	assert_false(s.isset(43))
 
-	s.clear(42)
+	s.unset(42)
 	assert_false(s.isset(4))
 	assert_false(s.isset(5))
 	assert_false(s.isset(6))
@@ -60,7 +60,7 @@ fn test_set_and_clear():
 	assert_true(s.isset(177))
 	assert_false(s.isset(178))
 
-	s.clear(177)
+	s.unset(177)
 	assert_false(s.isset(4))
 	assert_false(s.isset(5))
 	assert_false(s.isset(6))
@@ -78,9 +78,9 @@ fn test_equal():
 	s1.set(177)
 	s2.set(177)
 	assert_true(s2.equals(s1))
-	s1.clear(177)
+	s1.unset(177)
 	assert_false(s2.equals(s1))
-	s2.clear(177)
+	s2.unset(177)
 	assert_true(s2.equals(s1))
 
 fn test_andnot():

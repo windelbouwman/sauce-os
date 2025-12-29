@@ -432,7 +432,7 @@ pub class Type:
 		else:
 			panic("Type must be type variable reference")
 
-fn clone_type(ty?: Type) -> Type:
+pub fn clone_type(ty?: Type) -> Type:
 	let ty2 = new_type(kind: ty.kind)
 	ty2.was_generic = ty.was_generic
 	ty2
@@ -807,7 +807,61 @@ pub fn tycon_get_type_parameters(tycon: TyCon) -> List[TypeParameter]:
 		NameRef(key):
 			panic("name-reference has no type parameters")
 
-pub fn void_type() -> Type:
+pub fn make_typectx() -> TypeContext:
+	let ctx = TypeContext()
+	ctx.init()
+	ctx
+
+pub class TypeContext:
+	""" Global type context with all types. """
+	var table: Vector[Type] = new_vector()
+	var m_undefined: Type = new_type(kind: TypeKind.Undefined())
+	var m_void: Type = void_type2()
+	var m_bool: Type = new_base_type(base: BaseType.Bool())
+	var m_int: Type = int64_type() # TODO: or 32 bit, whatever the target is.
+	var m_str: Type = new_base_type(base: BaseType.Str())
+	var m_opaque: Type = new_type(kind: TypeKind.Opaque())
+	var m_float: Type = float64_type()
+	var m_char: Type = new_base_type(base: BaseType.Char())
+
+	pub fn init():
+		table.append(m_undefined)
+		table.append(m_void)
+		table.append(m_bool)
+		table.append(m_int)
+		table.append(m_str)
+		table.append(m_char)
+		table.append(m_float)
+
+	pub fn get_type(index: int) -> Type:
+		table.get(index)
+
+	pub fn undefined_type() -> Type:
+		m_undefined
+
+	pub fn opaque_type() -> Type:
+		""" Opaque type, void* """
+		m_opaque
+
+	pub fn void_type() -> Type:
+		m_void
+
+	pub fn bool_type() -> Type:
+		m_bool
+
+	pub fn int_type() -> Type:
+		m_int
+
+	pub fn str_type() -> Type:
+		m_str
+
+	pub fn float_type() -> Type:
+		m_float
+
+	pub fn char_type() -> Type:
+		m_char
+
+fn void_type2() -> Type:
 	new_type(kind: TypeKind.Void())
 
 pub fn unreachable_type() -> Type:
@@ -815,12 +869,6 @@ pub fn unreachable_type() -> Type:
 
 fn new_base_type(base: BaseType) -> Type:
 	new_type(kind: TypeKind.Base(base))
-
-pub fn bool_type() -> Type:
-	new_base_type(base: BaseType.Bool())
-
-pub fn int_type() -> Type:
-	int64_type()
 
 pub fn specific_int_type(signed: bool, bits: int) -> Type:
 	new_base_type(base: BaseType.Int(signed, bits))
@@ -849,9 +897,6 @@ pub fn int32_type() -> Type:
 pub fn int64_type() -> Type:
 	specific_int_type(signed: true, bits: 64)
 
-pub fn float_type() -> Type:
-	float64_type()
-
 pub fn specific_float_type(bits: int) -> Type:
 	new_base_type(base: BaseType.Float(bits))
 
@@ -860,16 +905,6 @@ pub fn float32_type() -> Type:
 
 pub fn float64_type() -> Type:
 	specific_float_type(bits: 64)
-
-pub fn str_type() -> Type:
-	new_base_type(base: BaseType.Str())
-
-pub fn char_type() -> Type:
-	new_base_type(base: BaseType.Char())
-
-# Opaque type, void*
-pub fn opaque_type() -> Type:
-	new_type(kind: TypeKind.Opaque())
 
 pub fn undefined_type() -> Type:
 	new_type(kind: TypeKind.Undefined())
@@ -963,7 +998,7 @@ pub struct NameAtLocation:
 pub fn extern_function_def(is_pub: bool, libname: str, name: str, docstring: Option[str], type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
 	let info = FunctionInfo:
 		return_type
-		except_type: void_type()
+		except_type: void_type2()
 
 	FunctionDef:
 		name
@@ -1419,7 +1454,7 @@ pub class Statement:
 			false
 
 fn statement(kind: StatementKind, location: Location) -> Statement:
-	let ty = void_type()
+	let ty = void_type2()
 	Statement(kind, location, ty)
 
 pub enum StatementKind:
@@ -1609,11 +1644,11 @@ pub class Expression:
 	pub fn add(rhs: Expression, location: Location) -> Expression:
 		binop(lhs: this, op: BinaryOperator.Add(), rhs, ty, location)
 
-	pub fn less(rhs: Expression, location: Location) -> Expression:
-		binop(lhs: this, op: BinaryOperator.Less(), rhs, ty: bool_type(), location)
+	pub fn less(typectx: TypeContext, rhs: Expression, location: Location) -> Expression:
+		binop(lhs: this, op: BinaryOperator.Less(), rhs, ty: typectx.bool_type(), location)
 
-	pub fn equals(rhs: Expression, location: Location) -> Expression:
-		binop(lhs: this, op: BinaryOperator.Equals(), rhs, ty: bool_type(), location)
+	pub fn equals(typectx: TypeContext, rhs: Expression, location: Location) -> Expression:
+		binop(lhs: this, op: BinaryOperator.Equals(), rhs, ty: typectx.bool_type(), location)
 
 	pub fn get_attr_typed(attr: str, location: Location) -> Expression:
 		let attr_ty = ty.get_field_type(attr)
@@ -1701,7 +1736,7 @@ pub fn box_expression(value: Expression, location: Location) -> Expression:
 
 pub fn unbox_expression(value: Expression, to_type: Type, location: Location) -> Expression:
 	let kind = ExpressionKind.Unbox(value, to_type)
-	Expression(kind, ty: undefined_type(), location)
+	Expression(kind, ty: to_type, location)
 
 pub struct FunctionCall:
 	callee: Expression
@@ -1730,9 +1765,9 @@ fn variable_ref(variable: Variable, location: Location) -> Expression:
 	Expression(kind, ty: variable.ty, location)
 
 # Reference a symbol:
-pub fn name_ref(name: str, location: Location) -> Expression:
+pub fn name_ref(typectx: TypeContext, name: str, location: Location) -> Expression:
 	let kind = ExpressionKind.NameRef(name)
-	let ty = undefined_type()
+	let ty = typectx.undefined_type()
 	Expression(kind, ty, location)
 
 pub struct BinopExpression:
@@ -1795,37 +1830,37 @@ pub fn unop(op: UnaryOperator, value: Expression, ty: Type, location: Location) 
 	let kind = ExpressionKind.Unop(op, value)
 	Expression(kind, ty, location)
 
-pub fn bool_literal(value: bool, location: Location) -> Expression:
+pub fn bool_literal(typectx: TypeContext, value: bool, location: Location) -> Expression:
 	let kind = ExpressionKind.BoolLiteral(value)
-	let ty = bool_type()
+	let ty = typectx.bool_type()
 	Expression(kind, ty, location)
 
-pub fn integer_literal(value: int, location: Location) -> Expression:
+pub fn integer_literal(typectx: TypeContext, value: int, location: Location) -> Expression:
 	let kind = ExpressionKind.IntLiteral(value)
-	let ty = int_type()
+	let ty = typectx.int_type()
 	Expression(kind, ty, location)
 
-pub fn float_literal(value: float, location: Location) -> Expression:
+pub fn float_literal(typectx: TypeContext, value: float, location: Location) -> Expression:
 	let kind = ExpressionKind.FloatLiteral(value)
-	let ty = float_type()
+	let ty = typectx.float_type()
 	Expression(kind, ty, location)
 
-pub fn string_literal(value: str, location: Location) -> Expression:
+pub fn string_literal(typectx: TypeContext, value: str, location: Location) -> Expression:
 	let kind = ExpressionKind.StringLiteral(value)
-	let ty = str_type()
+	let ty = typectx.str_type()
 	Expression(kind, ty, location)
 
-pub fn char_literal(value: char, location: Location) -> Expression:
+pub fn char_literal(typectx: TypeContext, value: char, location: Location) -> Expression:
 	let kind = ExpressionKind.CharLiteral(value)
-	let ty = char_type()
+	let ty = typectx.char_type()
 	Expression(kind, ty, location)
 
-pub fn to_string(value: Expression, location: Location) -> Expression:
+pub fn to_string(typectx: TypeContext, value: Expression, location: Location) -> Expression:
 	let kind = ExpressionKind.ToString(value)
-	Expression(kind, ty: str_type(), location)
+	Expression(kind, ty: typectx.str_type(), location)
 
-pub fn null_value(location: Location) -> Expression:
-	Expression(kind: ExpressionKind.Null(), ty: opaque_type(), location)
+pub fn null_value(typectx: TypeContext, location: Location) -> Expression:
+	Expression(kind: ExpressionKind.Null(), ty: typectx.opaque_type(), location)
 
 pub fn print_ast2(module_set: ModuleSet):
 	for module in module_set.modules:

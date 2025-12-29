@@ -7,7 +7,7 @@ from hashmap import HashMap, new_hashmap_str
 import ast
 from errors import CompilationError, SingleCompilationError, ErrorCollector
 
-pub fn bind_names(module: ast.ModuleDef, module_map: HashMap[str,ast.ModuleDef]) except CompilationError:
+pub fn bind_names(module: ast.ModuleDef, typectx: ast.TypeContext, module_map: HashMap[str,ast.ModuleDef]) except CompilationError:
 	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
 	log_info("Filling scopes for {module.name}")
 	let binder = NameBinder(module_map, tycon_map)
@@ -30,7 +30,7 @@ pub fn bind_names(module: ast.ModuleDef, module_map: HashMap[str,ast.ModuleDef])
 
 	log_info("Binding names for {module.name}")
 	let bind_visitor = new_bind_visitor(binder)
-	binder.enter_scope(scope: base_scope())
+	binder.enter_scope(scope: base_scope(typectx))
 	binder.enter_scope(scope: module.scope)
 	ast.visit_module(visitor: bind_visitor, module)
 	binder.leave_scope()
@@ -466,11 +466,11 @@ fn used_symbol_on_expression(binder: NameBinder, expression: ast.Expression, pha
 fn used_symbol_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase):
 	pass
 
-fn base_scope() -> ast.Scope:
+fn base_scope(typectx: ast.TypeContext) -> ast.Scope:
 	let s = ast.Scope()
 	let location = location_default()
 	let is_pub = true
-	s.define(is_pub, name: "int", kind: ast.SymbolKind.Typ(ty: ast.int_type()), location)
+	s.define(is_pub, name: "int", kind: ast.SymbolKind.Typ(ty: typectx.int_type()), location)
 	s.define(is_pub, name: "uint8", kind: ast.SymbolKind.Typ(ty: ast.uint8_type()), location)
 	s.define(is_pub, name: "uint16", kind: ast.SymbolKind.Typ(ty: ast.uint16_type()), location)
 	s.define(is_pub, name: "uint32", kind: ast.SymbolKind.Typ(ty: ast.uint32_type()), location)
@@ -479,13 +479,13 @@ fn base_scope() -> ast.Scope:
 	s.define(is_pub, name: "int16", kind: ast.SymbolKind.Typ(ty: ast.int16_type()), location)
 	s.define(is_pub, name: "int32", kind: ast.SymbolKind.Typ(ty: ast.int32_type()), location)
 	s.define(is_pub, name: "int64", kind: ast.SymbolKind.Typ(ty: ast.int64_type()), location)
-	s.define(is_pub, name: "str", kind: ast.SymbolKind.Typ(ty: ast.str_type()), location)
-	s.define(is_pub, name: "char", kind: ast.SymbolKind.Typ(ty: ast.char_type()), location)
-	s.define(is_pub, name: "bool", kind: ast.SymbolKind.Typ(ty: ast.bool_type()), location)
-	s.define(is_pub, name: "float", kind: ast.SymbolKind.Typ(ty: ast.float_type()), location)
+	s.define(is_pub, name: "str", kind: ast.SymbolKind.Typ(ty: typectx.str_type()), location)
+	s.define(is_pub, name: "char", kind: ast.SymbolKind.Typ(ty: typectx.char_type()), location)
+	s.define(is_pub, name: "bool", kind: ast.SymbolKind.Typ(ty: typectx.bool_type()), location)
+	s.define(is_pub, name: "float", kind: ast.SymbolKind.Typ(ty: typectx.float_type()), location)
 	s.define(is_pub, name: "float32", kind: ast.SymbolKind.Typ(ty: ast.float32_type()), location)
 	s.define(is_pub, name: "float64", kind: ast.SymbolKind.Typ(ty: ast.float64_type()), location)
-	s.define(is_pub, name: "ptr", kind: ast.SymbolKind.Typ(ty: ast.opaque_type()), location)
+	s.define(is_pub, name: "ptr", kind: ast.SymbolKind.Typ(ty: typectx.opaque_type()), location)
 	s
 
 class NameBinder:

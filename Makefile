@@ -77,12 +77,19 @@ profile5: ${COMPILER5} | ${BUILDDIR}
 	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-x86 -v ${BASE_LIB_SRCS} -o ${BUILDDIR}/x86/libbase_profile.o
 	kcachegrind build/callgrind.out
 
+profile6: ${COMPILER5} | ${BUILDDIR}
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-null -v ${BASE_LIB_SRCS}
+	kcachegrind build/callgrind.out
+
 leakcheck: ${COMPILER5} | ${BUILDDIR}
 	valgrind ./${COMPILER5} --backend-null ${BASE_LIB_SRCS}
 
-.PHONY: benchmark
+.PHONY: benchmark benchmark2
 benchmark: ${COMPILER5} | ${BUILDDIR}
 	hyperfine './${COMPILER5} --backend-x86 -v ${BASE_LIB_SRCS} -o ${BUILDDIR}/x86/libbase_benchmark.o'
+
+benchmark2: ${COMPILER5} | ${BUILDDIR}
+	hyperfine './${COMPILER5} --backend-null -v ${BASE_LIB_SRCS} ${COMPILER_LIB_SRCS}'
 
 pytest-compiler1:
 	pytest -v test_compiler1.py

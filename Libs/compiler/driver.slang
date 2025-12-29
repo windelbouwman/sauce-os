@@ -22,6 +22,7 @@ from builtins import get_rt_module
 from listtype import List
 from location import location_default
 from optiontype import option_unwrap, Option
+from opt import opt_sil
 from hashmap import HashMap, new_hashmap_str
 from graphlib import DiGraph, topological_sort
 from c_gen import gen_c_code
@@ -65,17 +66,18 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 	let p = Profiler()
 	p.enter(name: "compile")
 	let id_gen = IdGen()
+	let typectx = ast.make_typectx()
 	let top_module = ast.new_empty_module(name: "toplevel", location: location_default())
 	let modules: List[ast.ModuleDef] = List()
 	let module_map: HashMap[str,ast.ModuleDef] = new_hashmap_str()
 
-	let rt_module = get_rt_module()
+	let rt_module = get_rt_module(typectx)
 	modules.append(rt_module)
 	module_map.insert(key: rt_module.name, value: rt_module)
 	top_module.add_module(rt_module)
 
 	for filename in options.add_imports:
-		let imported_modules = load_symbol_table(filename)
+		let imported_modules = load_symbol_table(filename, typectx)
 		for module in imported_modules:
 			modules.append(module)
 			module_map.insert(key: module.name, value: module)
@@ -89,7 +91,7 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 		p.enter(name: "parse")
 
 		try:
-			let program = parse_source(filename, id_gen, debug)
+			let program = parse_source(filename, id_gen, typectx, debug)
 			log_trace("Parsed module: {program.name}")
 			if options.dump_ast:
 				ast.print_ast(module: program)
@@ -105,7 +107,7 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 	let module_set = ast.ModuleSet(modules)
 
 	p.enter(name: "binding")
-	bind_names(module: top_module, module_map)
+	bind_names(module: top_module, typectx, module_map)
 	resolve_newops(module: top_module, id_gen)
 	p.leave()
 
@@ -113,7 +115,7 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 		ast.print_ast2(module_set)
 
 	p.enter(name: "typecheck")
-	type_check(module: top_module, display_warnings: true)
+	type_check(module: top_module, typectx, display_warnings: true)
 	p.leave()
 
 	p.enter(name: "export")
@@ -134,14 +136,14 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 	# 	pass
 
 	p.enter(name: "transform")
-	transform(module_set, id_gen, rt_module, options: transform_options)
+	transform(module_set, typectx, id_gen, rt_module, options: transform_options)
 	p.leave()
 
 	if options.dump_ast:
 		ast.print_ast2(module_set)
 
 	p.enter(name: "typecheck")
-	type_check(module: top_module, display_warnings: false)
+	type_check(module: top_module, typectx, display_warnings: false)
 	p.leave()
 
 	if options.dump_ast:
@@ -181,13 +183,17 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 			# Generate C-code straight from AST:
 			gen_c_code_v2(module_set, output_filename: options.output_filename)
 		WebAssembly:
-			gen_webassembly(module_set)
+			gen_webassembly(module_set, typectx)
 		Riscv:
-			let program = gen_bytecode(module_set, debug)
-			gen_riscv(program: to_sil(program, bits: 32), options: cgen_options)
+			let bc_program = gen_bytecode(module_set, debug)
+			let sil_program = to_sil(program: bc_program, bits: 32)
+			opt_sil(program: sil_program)
+			gen_riscv(program: sil_program, options: cgen_options)
 		X86:
-			let program = gen_bytecode(module_set, debug)
-			gen_x86(program: to_sil(program, bits: 64), options: cgen_options)
+			let bc_program = gen_bytecode(module_set, debug)
+			let sil_program = to_sil(program: bc_program, bits: 64)
+			opt_sil(program: sil_program)
+			gen_x86(program: sil_program, options: cgen_options)
 	report.set_enabled(false)
 	p.leave()
 

@@ -41,12 +41,13 @@ pub fn main() -> int:
 
 class Repl:
 	var id_gen: IdGen = IdGen()
+	var typectx: ast.TypeContext = ast.make_typectx()
 	var m_vm: VirtualMachine = VirtualMachine()
 
 	pub fn eval(line: str):
 		try:
 			log_info("Parsing [{line}]")
-			let statement = parse_line(line, id_gen)
+			let statement = parse_line(typectx, line, id_gen)
 			case statement.kind:
 				Expr(expression):
 					let x = eval_expression(expression)
@@ -64,7 +65,7 @@ class Repl:
 		# print_expression_ast(expression)
 		bind_names_expression(expression)
 		log_debug("Type checking")
-		type_check_expression(expression)
+		type_check_expression(typectx, expression)
 		print_expression_ast(expression)
 		log_debug("Creating bytecode")
 		let code = gen_expression_bytecode(expression)
@@ -73,10 +74,10 @@ class Repl:
 		let x = eval_code(vm: m_vm, code)
 		return x
 
-fn parse_line(line: str, id_gen: IdGen) -> ast.Statement except CompilationError:
+fn parse_line(typectx: ast.TypeContext, line: str, id_gen: IdGen) -> ast.Statement except CompilationError:
 	var statement = ast.pass_statement(location: location_default())
 	try:
-		statement = parse_statement_from_text(source: line, id_gen)
+		statement = parse_statement_from_text(source: line, id_gen, typectx)
 	except (err: ParseError):
 		raise new_single_error(filename: Option.None(), location: err.location, message: err.message)
 	statement

@@ -352,9 +352,9 @@ class SymbolSaver:
 		m_ser.add_text_attribute(attr: "name", text: id.name)
 		m_ser.add_integer_attribute(attr: "id", value: id.id)
 
-pub fn load_symbol_table(filename: str) -> List[ast.ModuleDef]:
+pub fn load_symbol_table(filename: str, typectx: ast.TypeContext) -> List[ast.ModuleDef]:
 	log_info("Read type info from: {filename}")
-	let loader = SymbolLoader()
+	let loader = SymbolLoader(typectx)
 	try:
 		let obj = read_json_from_file(filename)
 		loader.push_json(value: obj)
@@ -364,6 +364,7 @@ pub fn load_symbol_table(filename: str) -> List[ast.ModuleDef]:
 	loader.load_modules()
 
 class SymbolLoader:
+	var typectx: ast.TypeContext
 	var m_des: JsonBrowser = JsonBrowser()
 	var m_type_parameter_map: HashMap[ast.NodeId,ast.TypeParameter] = ast.new_hashmap_nodeid()
 	var m_this_type: Option[ast.Type] = Option.None()
@@ -592,7 +593,7 @@ class SymbolLoader:
 		let id = load_id()
 		let type_parameters = load_type_parameters()
 		let docstring = load_docstring()
-		let this_type = ast.opaque_type()
+		let this_type = typectx.opaque_type()
 		m_this_type = Option.Some(this_type)
 		let definitions = load_definitions(attr: "definitions")
 		m_this_type = Option.None()
@@ -657,20 +658,20 @@ class SymbolLoader:
 		if m_des.has_attribute(attr):
 			load_type(attr)
 		else:
-			ast.void_type()
+			typectx.void_type()
 
 	fn load_type(attr: str) -> ast.Type:
 		m_des.enter_attribute(attr)
 		let ty = if m_des.is_string():
 			let type_name = m_des.get_text()
 			if type_name == "str":
-				ast.str_type()
+				typectx.str_type()
 			elif type_name == "bool":
-				ast.bool_type()
+				typectx.bool_type()
 			elif type_name == "void":
-				ast.void_type()
+				typectx.void_type()
 			elif type_name == "char":
-				ast.char_type()
+				typectx.char_type()
 			else:
 				panic("Unsupported: {type_name}")
 		else:
@@ -680,16 +681,16 @@ class SymbolLoader:
 				let bits = m_des.get_integer_attribute(attr: "bits")
 				ast.specific_int_type(signed, bits)
 			elif type_name == "str":
-				ast.str_type()
+				typectx.str_type()
 			elif type_name == "bool":
-				ast.bool_type()
+				typectx.bool_type()
 			elif type_name == "float":
 				let bits = m_des.get_integer_attribute(attr: "bits")
 				ast.specific_float_type(bits)
 			elif type_name == "char":
-				ast.char_type()
+				typectx.char_type()
 			elif type_name == "void":
-				ast.void_type()
+				typectx.void_type()
 			elif type_name == "unreachable":
 				ast.unreachable_type()
 			elif type_name == "app":

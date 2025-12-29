@@ -365,6 +365,8 @@ class BytecodeGenerator:
 	fn gen_raise(value: ast.Expression):
 		gen_expression(value)
 		actual_do_raise()
+		if is_reachable:
+			panic("Code is reachable after panic instruction.")
 
 	fn actual_do_raise():
 		""" Do local jump, or return special marker value, which lives on top of stack now."""
@@ -457,13 +459,16 @@ class BytecodeGenerator:
 		enter_block(block: ControlBlock.TryBlock(Try(except_label, except_var_index)))
 		gen_scoped_block(try_statement.try_block, target: Option.None())
 		leave_block()
+		let reach1 = is_reachable
 		jump(final_label)
 
 		set_label(except_label)
 		gen_scoped_block(try_statement.except_block, target: Option.None())
+		let reach2 = is_reachable
 		jump(final_label)
 
-		set_label(final_label)
+		if reach1 or reach2:
+			set_label(final_label)
 
 	fn gen_while_statement(while_statement: ast.WhileStatement):
 		log_trace("gen_while_statement")

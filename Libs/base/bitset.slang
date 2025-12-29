@@ -34,7 +34,7 @@ pub class BitSet:
 	pub fn add(bit?: int):
 		set(bit)
 
-	pub fn clear(bit?: int):
+	pub fn unset(bit?: int):
 		if bit < m_width:
 			let index = bit_slot(bit)
 			let mask = bit_mask(bit)
@@ -45,7 +45,7 @@ pub class BitSet:
 			panic("clear: bit out of range")
 
 	pub fn remove(bit?: int):
-		clear(bit)
+		unset(bit)
 
 	pub fn isset(bit?: int) -> bool:
 		if bit < m_width:
@@ -167,3 +167,35 @@ fn bit_mask(bit: int) -> int:
 
 fn bit_slot(bit: int) -> int:
 	bit / n_bits_per_int
+
+pub fn new_small_bitset() -> SmallBitSet:
+	SmallBitSet(m_word: 0)
+
+pub class SmallBitSet:
+	""" A bitset with a single integer with bits. """
+	var m_word: int
+
+	pub fn set(bit?: int):
+		m_word = m_word | (1 << bit)
+
+	pub fn add(bit?: int):
+		set(bit)
+
+	pub fn unset(bit?: int):
+		let mask = (1 << bit)
+		if m_word & mask == mask:
+			m_word = m_word ^ mask
+
+	pub fn remove(bit?: int):
+		unset(bit)
+
+	pub fn is_empty() -> bool:
+		m_word == 0
+
+	pub fn clone() -> SmallBitSet:
+		SmallBitSet(m_word)
+
+	pub fn first() -> int:
+		if m_word == 0:
+			panic("first: Not a single bit is set")
+		ctz(m_word)

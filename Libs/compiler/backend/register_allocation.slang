@@ -6,7 +6,7 @@ It assigns colors to use / def registers.
 
 from logging import log_info, log_debug, log_trace
 from settype import Set, new_int_set
-from bitset import BitSet, new_bitset
+from bitset import BitSet, new_bitset, new_small_bitset, SmallBitSet
 from vectype import Vector, new_vector
 from deque import Queue, new_queue
 from hashmap import HashMap, new_hashmap_int
@@ -152,9 +152,9 @@ class RegisterAllocator[V]:
 
 	fn assign_colors():
 		""" Assign colors """
-		let all_regs_by_kind: HashMap[int,BitSet] = new_hashmap_int()
+		let all_regs_by_kind: HashMap[int,SmallBitSet] = new_hashmap_int()
 		for kind in m_regs_by_class:
-			let all_regs = new_bitset(n: 50)
+			let all_regs = new_small_bitset()
 			for r in m_regs_by_class.get(key: kind):
 				all_regs.add(r)
 			all_regs_by_kind.insert(key: kind, value: all_regs)

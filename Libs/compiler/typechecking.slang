@@ -13,13 +13,13 @@ from utils import panic, assert
 from logging import log_info
 from errors import CompilationError, ErrorCollector
 
-pub fn type_check_modules(module_set: ast.ModuleSet, display_warnings: bool) except CompilationError:
+pub fn type_check_modules(module_set: ast.ModuleSet, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
 	for module in module_set.modules:
-		type_check(module, display_warnings)
+		type_check(module, typectx, display_warnings)
 
-pub fn type_check(module: ast.ModuleDef, display_warnings: bool) except CompilationError:
+pub fn type_check(module: ast.ModuleDef, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
 	log_info("Type-checking module {module.name}")
-	let checker = TypeChecker()
+	let checker = TypeChecker(m_typectx: typectx)
 	let visitor = new_type_check_visitor(checker)
 	ast.visit_module(visitor, module)
 	checker.errors.render_or_raise()
@@ -33,8 +33,8 @@ fn new_type_check_visitor(checker: TypeChecker) -> ast.Visitor[TypeChecker]:
 		on_expression: checker_on_expression
 		on_node: checker_on_node
 
-pub fn type_check_expression(expression: ast.Expression) except CompilationError:
-	let checker = TypeChecker()
+pub fn type_check_expression(typectx: ast.TypeContext, expression: ast.Expression) except CompilationError:
+	let checker = TypeChecker(m_typectx: typectx)
 	let visitor = new_type_check_visitor(checker)
 	ast.visit_expression(visitor, expression)
 	checker.errors.render_or_raise()
@@ -115,10 +115,7 @@ class TypeChecker:
 	pub var current_function: Option[ast.FunctionDef] = Option.None()
 	pub var loops: int = 0
 	pub var exception_handlers: List[ast.Type] = List()
-	var m_void_type: ast.Type = ast.void_type()
-	var m_bool_type: ast.Type = ast.bool_type()
-	var m_int_type: ast.Type = ast.int_type()
-	var m_str_type: ast.Type = ast.str_type()
+	var m_typectx: ast.TypeContext
 
 	pub fn check_function_def(function_def: ast.FunctionDef):
 		# Check if we return a value, if we need to return a value
@@ -184,7 +181,7 @@ class TypeChecker:
 					let val_ty: ast.Type = for_statement.iter_value.ty.get_field_type(attr: "get").get_return_type()
 					for_statement.iter_var.ty = val_ty
 				elif for_statement.iter_value.ty.is_str():
-					for_statement.iter_var.ty = ast.char_type()
+					for_statement.iter_var.ty = m_typectx.char_type()
 				else:
 					add_error(location: for_statement.iter_value.location, message: "Value cannot be iterated: {for_statement.iter_value.ty}")
 				for_statement.iter_var.writable = true
@@ -205,7 +202,7 @@ class TypeChecker:
 					None:
 						let_statement.variable.ty = let_statement.value.ty
 				coerce(ty: let_statement.variable.ty, value: let_statement.value)
-				statement.ty = m_void_type
+				statement.ty = m_typectx.void_type()
 			Case(case_statement):
 				var ty = ast.unreachable_type()
 				for arm in case_statement.arms:
@@ -217,7 +214,7 @@ class TypeChecker:
 						pass
 				statement.ty = ty
 			Switch(switch_statement):
-				coerce(ty: m_int_type, value: switch_statement.value)
+				coerce(ty: m_typectx.int_type(), value: switch_statement.value)
 				var ty = switch_statement.default_block.body.ty
 				for arm in switch_statement.arms:
 					ty = merge_paths(statement: arm.block.body, ty)
@@ -225,24 +222,24 @@ class TypeChecker:
 			Expr(expression):
 				statement.ty = expression.ty
 			If(if_statement):
-				coerce(ty: m_bool_type, value: if_statement.condition)
+				coerce(ty: m_typectx.bool_type(), value: if_statement.condition)
 				let ty = merge_paths(statement: if_statement.false_block.body, ty: if_statement.true_block.body.ty)
 				statement.ty = ty
 			For(for_statement):
 				assert_void(statement: for_statement.block.body)
-				statement.ty = m_void_type
+				statement.ty = m_typectx.void_type()
 			Loop(loop_statement):
 				assert_void(statement: loop_statement.block.body)
-				statement.ty = m_void_type
+				statement.ty = m_typectx.void_type()
 			While(while_statement):
-				coerce(ty: m_bool_type, value: while_statement.condition)
+				coerce(ty: m_typectx.bool_type(), value: while_statement.condition)
 				assert_void(statement: while_statement.block.body)
-				statement.ty = m_void_type
+				statement.ty = m_typectx.void_type()
 			Assignment(target, op, value):
 				coerce(ty: target.ty, value)
 				if not target.writable:
 					add_warning(location: target.location, message: "Cannot assign read-only expression")
-				statement.ty = m_void_type
+				statement.ty = m_typectx.void_type()
 			Return(value):
 				let func = option_unwrap(current_function)
 				case value:
@@ -274,7 +271,7 @@ class TypeChecker:
 			Try(try_statement):
 				assert_void(statement: try_statement.try_block.body)
 				assert_void(statement: try_statement.except_block.body)
-				statement.ty = m_void_type
+				statement.ty = m_typectx.void_type()
 			Break:
 				if loops == 0:
 					add_error(location: statement.location, message: "Connot use break outside of a loop")
@@ -284,7 +281,7 @@ class TypeChecker:
 					add_error(location: statement.location, message: "Connot use continue outside of a loop")
 				statement.ty = ast.unreachable_type()
 			Pass:
-				statement.ty = m_void_type
+				statement.ty = m_typectx.void_type()
 
 	pub fn check_expression(expression: ast.Expression):
 		case expression.kind:
@@ -352,7 +349,7 @@ class TypeChecker:
 			ToString(value):
 				if not (value.ty.is_int() or value.ty.is_str() or value.ty.is_char() or value.ty.has_method("to_string")):
 					add_error(location: expression.location, message: "Cannot convert {value.ty} to string automatically")
-				expression.ty = m_str_type
+				expression.ty = m_typectx.str_type()
 			Typ(t):
 				add_error(location: expression.location, message: "Cannot use a type here")
 			Binop(binop):
@@ -367,7 +364,7 @@ class TypeChecker:
 				coerce(ty, value: binop.lhs)
 				coerce(ty, value: binop.rhs)
 				if ast.is_comparison_op(op: binop.op):
-					expression.ty = m_bool_type
+					expression.ty = m_typectx.bool_type()
 				else:
 					expression.ty = ty
 			Unop(op, rhs):
@@ -411,13 +408,13 @@ class TypeChecker:
 					let val_ty: ast.Type = base.ty.get_field_type(attr: "get").get_return_type()
 					expression.ty = val_ty
 				elif base.ty.is_str():
-					expression.ty = ast.char_type()
+					expression.ty = m_typectx.char_type()
 				else:
 					add_error(location: expression.location, message: "Got {base.ty}, expected array or indexable type")
 
 				if indici.len() == 1:
 					let index: ast.Expression = indici.first()
-					coerce(ty: m_int_type, value: index)
+					coerce(ty: m_typectx.int_type(), value: index)
 				else:
 					add_error(location: expression.location, message: "Only 1 dimensional indexing supported.")
 			EnumLiteral(ty, variant, values):
@@ -436,9 +433,9 @@ class TypeChecker:
 				coerce(ty: wanted_value_type, value)
 				expression.ty = ty
 			Box(value):
-				expression.ty = ast.opaque_type()
+				expression.ty = m_typectx.opaque_type()
 			Unbox(value, to_type):
-				coerce(ty: ast.opaque_type(), value)
+				coerce(ty: m_typectx.opaque_type(), value)
 				expression.ty = to_type
 			ArrayLiteral(values):
 				let element_type: ast.Type = values.first().ty
@@ -456,11 +453,11 @@ class TypeChecker:
 			ArrayLiteral2(size, element_type):
 				expression.ty = ast.array_type(element_type, size: 0)
 			StringLiteral(s):
-				expression.ty = m_str_type
+				expression.ty = m_typectx.str_type()
 			CharLiteral(s):
-				expression.ty = ast.char_type()
+				expression.ty = m_typectx.char_type()
 			BoolLiteral(b):
-				expression.ty = m_bool_type
+				expression.ty = m_typectx.bool_type()
 			IntLiteral(i):
 				# Calculate how many bits we require to store this literal:
 				# let bits = 1
@@ -471,13 +468,13 @@ class TypeChecker:
 				# else:  # i = 0, 1 bit required.
 				#     bits = 1
 				# expression.ty = ast.some_int_type(bits)
-				expression.ty = m_int_type
+				expression.ty = m_typectx.int_type()
 			FloatLiteral(b):
-				expression.ty = ast.float_type()
+				expression.ty = m_typectx.float_type()
 			Stmt(statement):
 				expression.ty = statement.ty
 			If(if_expression):
-				coerce(ty: m_bool_type, value: if_expression.condition)
+				coerce(ty: m_typectx.bool_type(), value: if_expression.condition)
 				check_type(given_ty: if_expression.false_value.ty, expected_ty: if_expression.true_value.ty, location: if_expression.false_value.location)
 				expression.ty = if_expression.true_value.ty
 
@@ -501,7 +498,7 @@ class TypeChecker:
 
 	fn assert_void(statement: ast.Statement):
 		if not statement.ty.is_unreachable():
-			check_type(given_ty: statement.ty, expected_ty: m_void_type, location: statement.location)
+			check_type(given_ty: statement.ty, expected_ty: m_typectx.void_type(), location: statement.location)
 
 	fn assert_statement_type(statement: ast.Statement, ty: ast.Type):
 		check_type(given_ty: statement.ty, expected_ty: ty, location: statement.location)

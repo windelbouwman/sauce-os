@@ -14,10 +14,10 @@ from basepass import IdGen
 from logging import log_debug, log_trace
 
 
-pub fn parse_source(filename: str, id_gen: IdGen, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
+pub fn parse_source(filename: str, id_gen: IdGen, typectx: ast.TypeContext, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
 	let source = std.read_file(filename)
 	let modname = basename(path: filename)
-	let parser = Parser(id_gen)
+	let parser = Parser(typectx, id_gen)
 	case debug:
 		Some(info):
 			info.add_source(filename, code: source)
@@ -26,15 +26,15 @@ pub fn parse_source(filename: str, id_gen: IdGen, debug: Option[dbginfo.DbgInfo]
 	parser.feed(source)
 	parser.parse_module(filename, name: modname)
 
-pub fn parse_statement_from_text(source: str, id_gen: IdGen) -> ast.Statement except ParseError:
+pub fn parse_statement_from_text(source: str, id_gen: IdGen, typectx: ast.TypeContext) -> ast.Statement except ParseError:
 	# Invoke parsing, purely on statement.
-	let parser = Parser(id_gen)
+	let parser = Parser(typectx, id_gen)
 	parser.feed(source)
 	parser.parse_statement()
 
-pub fn parse_expr_from_text(source: str, id_gen: IdGen) -> ast.Expression except ParseError:
+pub fn parse_expr_from_text(source: str, id_gen: IdGen, typectx: ast.TypeContext) -> ast.Expression except ParseError:
 	# Invoke parsing, purely on expression.
-	let parser = Parser(id_gen)
+	let parser = Parser(typectx, id_gen)
 	parser.feed(source)
 	parser.parse_expression()
 
@@ -44,6 +44,7 @@ pub struct ParseError:
 
 class Parser:
 	# An attempt at a recursive descent parser.
+	var typectx: ast.TypeContext
 	var lex: Lexer = Lexer()
 	var m_peek: Token = default_token()
 	var m_peek2: Token = default_token()
@@ -325,7 +326,7 @@ class Parser:
 		parse_indent()
 		let docstring = parse_optional_docstring()
 
-		let this_type = ast.opaque_type()
+		let this_type = ast.clone_type(typectx.opaque_type())
 		let definitions: List[ast.Definition] = List()
 		loop:
 			let tok = get_token()
@@ -466,7 +467,7 @@ class Parser:
 				move_token()
 				parse_type()
 		else:
-			id_gen.m_void_type
+			typectx.void_type()
 
 	fn parse_optional_except_type() -> ast.Type except ParseError:
 		# Optional except type
@@ -475,7 +476,7 @@ class Parser:
 				move_token()
 				parse_type()
 		else:
-			id_gen.m_void_type
+			typectx.void_type()
 
 	fn parse_parameter_def() -> ast.ParameterDef except ParseError:
 		let name_at = parse_name()
@@ -599,7 +600,7 @@ class Parser:
 
 		# Optional return type
 		let return_type = parse_optional_return_type()
-		let except_type = id_gen.m_void_type
+		let except_type = typectx.void_type()
 
 		let info = ast.FunctionInfo:
 			return_type
@@ -717,7 +718,7 @@ class Parser:
 		let location = get_token().location
 		let name_at = parse_name()
 		let var_name = name_at.name
-		let var_type = ast.undefined_type()
+		let var_type = typectx.undefined_type()
 		let variable = ast.variable(name: var_name, id: new_id(), ty: var_type, location: name_at.location)
 		variable.writable = writable
 
@@ -763,7 +764,7 @@ class Parser:
 		while not try_parse_dedent():
 			obj_fields.append(parse_labeled_expression())
 			parse_newline()
-		ast.call(callee: obj_ty, arguments: obj_fields, ty: ast.undefined_type(), location)
+		ast.call(callee: obj_ty, arguments: obj_fields, ty: typectx.undefined_type(), location)
 
 	fn parse_labeled_expression() -> ast.LabeledExpression except ParseError:
 		# Parse ID ':' expression | expression
@@ -832,7 +833,7 @@ class Parser:
 
 		# ':' + indented block:
 		let body = parse_block()
-		let iter_var = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
+		let iter_var = ast.variable(name: name_at.name, id: new_id(), ty: typectx.undefined_type(), location: name_at.location)
 		ast.for_statement(iter_var, iter_value, body, location)
 
 	fn parse_try_statement() -> ast.Statement except ParseError:
@@ -852,7 +853,7 @@ class Parser:
 		parse_colon()
 		let except_type = parse_type()
 		parse_parenthesis_close()
-		let except_var = ast.variable(name: name_at.name, id: new_id(), ty: ast.undefined_type(), location: name_at.location)
+		let except_var = ast.variable(name: name_at.name, id: new_id(), ty: typectx.undefined_type(), location: name_at.location)
 
 		let except_body = parse_block()
 		ast.try_statement(try_body, except_var, except_type, except_body, location)
@@ -1037,7 +1038,7 @@ class Parser:
 
 			let rhs = parse_expression2(min_prec: prec + 1)
 			let location = merge_locations(begin: expr.location, end: rhs.location)
-			expr = ast.binop(lhs: expr, op, rhs, ty: ast.undefined_type(), location)
+			expr = ast.binop(lhs: expr, op, rhs, ty: typectx.undefined_type(), location)
 
 		expr
 
@@ -1048,13 +1049,13 @@ class Parser:
 				move_token()
 				let value = parse_unary()
 				let op = ast.UnaryOperator.Not()
-				ast.unop(op, value, ty: ast.undefined_type(), location)
+				ast.unop(op, value, ty: typectx.undefined_type(), location)
 			Minus:
 				let location = m_peek.location
 				move_token()
 				let value = parse_unary()
 				let op = ast.UnaryOperator.Minus()
-				ast.unop(op, value, ty: ast.undefined_type(), location)
+				ast.unop(op, value, ty: typectx.undefined_type(), location)
 		else:
 			parse_atom()
 
@@ -1062,17 +1063,17 @@ class Parser:
 		let tok = get_token()
 		var expr = case tok.kind:
 			Integer(value):
-				ast.integer_literal(value, location: tok.location)
+				ast.integer_literal(typectx, value, location: tok.location)
 			Float(value):
-				ast.float_literal(value, location: tok.location)
+				ast.float_literal(typectx, value, location: tok.location)
 			StringStart:
 				parse_string(location: tok.location)
 			Char(value):
-				ast.char_literal(value, location: tok.location)
+				ast.char_literal(typectx, value, location: tok.location)
 			Bool(value):
-				ast.bool_literal(value, location: tok.location)
+				ast.bool_literal(typectx, value, location: tok.location)
 			Identifier(name):
-				ast.name_ref(name, location: tok.location)
+				ast.name_ref(typectx, name, location: tok.location)
 			ParenthesisOpen:
 				let expr = parse_expression()
 				parse_parenthesis_close()
@@ -1080,7 +1081,7 @@ class Parser:
 			BracketOpen:
 				parse_array_literal(location: tok.location)
 			KwNull:
-				ast.null_value(location: tok.location)
+				ast.null_value(typectx, location: tok.location)
 			KwBox:
 				parse_parenthesis_open()
 				let value = parse_expression()
@@ -1104,7 +1105,7 @@ class Parser:
 					# handle '.attribute' suffix
 					let attr_at = parse_name()
 					let location = merge_locations(begin: expr.location, end: attr_at.location)
-					expr = ast.get_attr(base: expr, field: attr_at.name, ty: ast.undefined_type(), location)
+					expr = ast.get_attr(base: expr, field: attr_at.name, ty: typectx.undefined_type(), location)
 				ParenthesisOpen:
 					move_token()
 					expr = parse_call_suffix(callee: expr)
@@ -1148,12 +1149,12 @@ class Parser:
 			let tok = get_token()
 			case tok.kind:
 				StringContent(value):
-					let raw_string_expr = ast.string_literal(value, location: tok.location)
+					let raw_string_expr = ast.string_literal(typectx, value, location: tok.location)
 					parts.append(raw_string_expr)
 
 				BraceOpen:
 					let value = parse_expression()
-					let to_string_expr = ast.to_string(value, location: value.location)
+					let to_string_expr = ast.to_string(typectx, value, location: value.location)
 					parts.append(to_string_expr)
 					parse_brace_close()
 
@@ -1164,13 +1165,13 @@ class Parser:
 
 		# Concatenate parts
 		if parts.is_empty():
-			ast.string_literal(value: "", location)
+			ast.string_literal(typectx, value: "", location)
 		else:
 			var x = parts.pop_front()
 			while not parts.is_empty():
 				let rhs = parts.pop_front()
 				let location = merge_locations(begin: x.location, end: rhs.location)
-				x = ast.binop(lhs: x, op: ast.BinaryOperator.Add(), rhs, ty: ast.str_type(), location)
+				x = ast.binop(lhs: x, op: ast.BinaryOperator.Add(), rhs, ty: typectx.str_type(), location)
 			x
 
 	fn parse_index_suffix(base: ast.Expression) -> ast.Expression except ParseError:
@@ -1189,7 +1190,7 @@ class Parser:
 			else:
 				raise unexpected_token(tok: tok4, expected: "']' or ','")
 		let location = merge_locations(begin, end)
-		ast.subscript(base, indici, ty: ast.undefined_type(), location)
+		ast.subscript(base, indici, ty: typectx.undefined_type(), location)
 
 	fn parse_call_suffix(callee: ast.Expression) -> ast.Expression except ParseError:
 		# print("CALL")
@@ -1218,7 +1219,7 @@ class Parser:
 					raise unexpected_token(tok: tok4, expected: "')' or ','")
 
 		let location = merge_locations(begin, end)
-		ast.call(callee, arguments, ty: ast.undefined_type(), location)
+		ast.call(callee, arguments, ty: typectx.undefined_type(), location)
 
 	fn parse_array_literal(location: Location) -> ast.Expression except ParseError:
 		let values: List[ast.Expression] = List()

@@ -157,6 +157,15 @@ pub enum OpCode:
 	Return(value: Option[Value])
 	Halt
 
+pub fn is_terminating_op(op: OpCode) -> bool:
+	case op:
+		Jump(label): true
+		JumpIf(lhs, c, rhs, label1, label2): true
+		Return(value): true
+		Halt: true
+	else:
+		false
+
 pub enum BinaryOp:
 	Add
 	Sub

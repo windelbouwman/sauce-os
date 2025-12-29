@@ -7,7 +7,7 @@ from std import ord, chr, str_len
 from token import Token, TokenKind
 from location import Location, location_at, new_location
 from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab
-from listtype import List
+from vectype import Vector, new_vector
 from deque import Queue, new_queue
 from hashmap import HashMap, new_hashmap_str
 
@@ -21,7 +21,7 @@ enum Result[T,E]:
 
 pub class Lexer:
 	var pending: Queue[Token] = new_queue()
-	var indent_stack: List[int] = List()
+	var indent_stack: Vector[int] = new_vector()
 	var at_bol: bool = true  # at begin-of-line (bol)
 	var at_end: bool = false
 	var spaces: int = 0
@@ -63,7 +63,7 @@ pub class Lexer:
 
 				# Dedent to top level!
 				while indent_stack.len() > 1:
-					let tmp = indent_stack.pop_front()
+					let tmp = indent_stack.pop_last()
 					emit_token(kind: TokenKind.Dedent(), location: location_at(offset))
 			Space(x):
 				if at_bol:

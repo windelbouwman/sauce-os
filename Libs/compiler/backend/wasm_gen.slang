@@ -20,12 +20,13 @@ from std import str_len, ord
 from utils import panic, assert
 from logging import log_info, log_debug
 
-pub fn gen_webassembly(module_set: ast.ModuleSet):
+pub fn gen_webassembly(module_set: ast.ModuleSet, typectx: ast.TypeContext):
 	log_info("Generating WebAssembly")
-	let generator = WasmGenerator()
+	let generator = WasmGenerator(typectx)
 	generator.gen_module_set(modules: module_set.modules)
 
 class WasmGenerator:
+	var typectx: ast.TypeContext
 	var types: List[webassembly.Type] = List()
 	var imports: List[webassembly.Import] = List()
 	var functions: List[webassembly.Function] = List()
@@ -41,9 +42,9 @@ class WasmGenerator:
 
 	pub fn gen_module_set(modules: List[ast.ModuleDef]):
 		let type_parameters: List[ast.TypeParameter] = List()
-		let parameters = list1(ast.unlabeled_parameter(name: "size", ty: ast.int_type()))
+		let parameters = list1(ast.unlabeled_parameter(name: "size", ty: typectx.int_type()))
 		let docstring: Option[str] = Option.None()
-		let malloc_def = ast.extern_function_def(is_pub: true, libname: "js", name: "js_malloc", docstring, type_parameters, parameters, return_type: ast.opaque_type(), location: location_default())
+		let malloc_def = ast.extern_function_def(is_pub: true, libname: "js", name: "js_malloc", docstring, type_parameters, parameters, return_type: typectx.opaque_type(), location: location_default())
 		gen_external_function(function_def: malloc_def)
 
 		for module in modules:
@@ -293,7 +294,7 @@ class WasmGenerator:
 				let size = sizeof(ty)
 
 				let node_id = ast.NodeId(name: "$ptr$", id: 0)
-				let ptr_index = create_local(id: node_id, ty: ast.opaque_type())
+				let ptr_index = create_local(id: node_id, ty: typectx.opaque_type())
 				gen_malloc_call(size)
 				emit(Instruction.local_set(ptr_index))
 

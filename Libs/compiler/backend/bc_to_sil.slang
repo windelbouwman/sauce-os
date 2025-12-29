@@ -813,17 +813,8 @@ class SilGen:
 					# panic("Block already terminated!")
 					pass
 				else:
-					case op:
-						Jump(label):
-							m_block_is_terminated = true
-						JumpIf(lhs, c, rhs, label1, label2):
-							m_block_is_terminated = true
-						Return(value):
-							m_block_is_terminated = true
-						Halt:
-							m_block_is_terminated = true
-					else:
-						pass
+					if sil.is_terminating_op(op):
+						m_block_is_terminated = true
 				block.instructions.append(instruction)
 			None:
 				panic("Cannot emit")

@@ -25,10 +25,10 @@ pub struct TransformOptions:
 	# If the backend can generate code for switch statements, set this boolean to true
 	keep_switch: bool
 
-pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.ModuleDef, options: TransformOptions) except CompilationError:
+pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: IdGen, rt_module: ast.ModuleDef, options: TransformOptions) except CompilationError:
 	log_debug("Transforming modules")
 	let transformer = Transformer:
-		class_rewriter: ClassRewriter(id_gen, rt_module)
+		class_rewriter: ClassRewriter(typectx, id_gen, rt_module)
 		modname: "?"
 		options
 
@@ -125,7 +125,7 @@ pub fn transform(module_set: ast.ModuleSet, id_gen: IdGen, rt_module: ast.Module
 
 	# TBD:
 	# Optionally check types in between?
-	type_check_modules(module_set, display_warnings: false)
+	type_check_modules(module_set, typectx, display_warnings: false)
 
 	log_info("Type erasure")
 
@@ -240,9 +240,9 @@ fn transformer_on_type5(transformer: Transformer, ty: ast.Type, phase: ast.Visit
 								Struct(struct_def):
 									ty.kind = ast.TypeKind.App(ast.TyCon.Struct(struct_def), type_arguments)
 								Int:
-									ty.kind = ast.int_type().kind
+									ty.kind = transformer.class_rewriter.typectx.int_type().kind
 								Nullable:
-									ty.kind = ast.opaque_type().kind
+									ty.kind = transformer.class_rewriter.typectx.opaque_type().kind
 						Interface(interface_def):
 							let impl2 = transformer.class_rewriter.interface_impl2_map.get(key: interface_def.id)
 							ty.kind = ast.TypeKind.App(ast.TyCon.Struct(impl2.struct_def), type_arguments)
@@ -257,7 +257,7 @@ fn transformer_on_type7(transformer: Transformer, ty: ast.Type, phase: ast.Visit
 	case phase:
 		Post:
 			if ty.is_type_parameter():
-				ty.change_to(to_type: ast.opaque_type())
+				ty.change_to(to_type: transformer.class_rewriter.typectx.opaque_type())
 			elif ty.is_tycon_app():
 				let type_arguments = ty.get_type_arguments()
 				type_arguments.clear()
@@ -274,7 +274,7 @@ fn transformer_on_statement1(transformer: Transformer, statement: ast.Statement,
 		Post:
 			case statement.kind:
 				Loop(loop_statement):
-					let condition = ast.bool_literal(value: true, location: statement.location)
+					let condition = ast.bool_literal(typectx: transformer.class_rewriter.typectx, value: true, location: statement.location)
 					let while_statement = ast.WhileStatement(condition, block: loop_statement.block)
 					statement.kind = ast.StatementKind.While(while_statement)
 				For(for_statement):
@@ -354,10 +354,10 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
 					# log_info("Rewrite to-string")
 					case value.kind:
 						IntLiteral(value):
-							let new_literal = ast.string_literal(value: str(value), location: expression.location)
+							let new_literal = ast.string_literal(typectx: transformer.class_rewriter.typectx, value: str(value), location: expression.location)
 							expression.change_to(to: new_literal)
 						StringLiteral(value):
-							let new_literal = ast.string_literal(value, location: expression.location)
+							let new_literal = ast.string_literal(typectx: transformer.class_rewriter.typectx, value, location: expression.location)
 							expression.change_to(to: new_literal)
 					else:
 						if value.ty.is_str():
@@ -410,32 +410,32 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
 										Greater:
 											log_info("Folding integer greater")
 											let value: bool = lhs_value > rhs_value
-											let new_literal = ast.bool_literal(value, location: expression.location)
+											let new_literal = ast.bool_literal(typectx: transformer.class_rewriter.typectx, value, location: expression.location)
 											expression.change_to(to: new_literal)
 										Less:
 											log_info("Folding integer less")
 											let value: bool = lhs_value < rhs_value
-											let new_literal = ast.bool_literal(value, location: expression.location)
+											let new_literal = ast.bool_literal(typectx: transformer.class_rewriter.typectx, value, location: expression.location)
 											expression.change_to(to: new_literal)
 										Equals:
 											log_info("Folding integer equals")
 											let value: bool = lhs_value == rhs_value
-											let new_literal = ast.bool_literal(value, location: expression.location)
+											let new_literal = ast.bool_literal(typectx: transformer.class_rewriter.typectx, value, location: expression.location)
 											expression.change_to(to: new_literal)
 										Add:
 											log_info("Folding integer add")
 											let value = lhs_value + rhs_value
-											let new_literal = ast.integer_literal(value, location: expression.location)
+											let new_literal = ast.integer_literal(typectx: transformer.class_rewriter.typectx, value, location: expression.location)
 											expression.change_to(to: new_literal)
 										Sub:
 											log_info("Folding integer sub")
 											let value = lhs_value - rhs_value
-											let new_literal = ast.integer_literal(value, location: expression.location)
+											let new_literal = ast.integer_literal(typectx: transformer.class_rewriter.typectx, value, location: expression.location)
 											expression.change_to(to: new_literal)
 										Mul:
 											log_info("Folding integer mul")
 											let value = lhs_value * rhs_value
-											let new_literal = ast.integer_literal(value, location: expression.location)
+											let new_literal = ast.integer_literal(typectx: transformer.class_rewriter.typectx, value, location: expression.location)
 											expression.change_to(to: new_literal)
 									else:
 										pass
@@ -447,7 +447,7 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
 									case binop.op:
 										Add:
 											let value = lhs_value + rhs_value
-											let new_literal = ast.string_literal(value, location: expression.location)
+											let new_literal = ast.string_literal(typectx: transformer.class_rewriter.typectx, value, location: expression.location)
 											expression.change_to(to: new_literal)
 									else:
 										pass
@@ -617,7 +617,7 @@ fn transformer_on_type9(transformer: Transformer, ty: ast.Type, phase: ast.Visit
 	case phase:
 		Post:
 			if ty.is_union_struct():
-				ty.change_to(to_type: ast.opaque_type())
+				ty.change_to(to_type: transformer.class_rewriter.typectx.opaque_type())
 	else:
 		pass
 
@@ -672,6 +672,7 @@ class ClassRewriter:
 	pub var enum_impl_map: HashMap[ast.NodeId,EnumImpl] = ast.new_hashmap_nodeid()
 	pub var interface_impl2_map: HashMap[ast.NodeId,InterfaceImpl2] = ast.new_hashmap_nodeid()
 	pub var new_definitions: List[ast.Definition] = List()
+	pub var typectx: ast.TypeContext
 	var id_gen: IdGen
 	var rt_module: ast.ModuleDef
 
@@ -727,7 +728,7 @@ class ClassRewriter:
 		# Create constructor function
 		let ctor_name = "{class_def.id.name}_ctor"
 		let type_parameters: List[ast.TypeParameter] = List()
-		let except_type = ast.void_type()
+		let except_type = typectx.void_type()
 		let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: class_def.type_parameters.len())
 		for type_parameter in class_def.type_parameters:
 			type_parameter = ast.new_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
@@ -843,7 +844,7 @@ class ClassRewriter:
 		let builder2 = ast.StructBuilder()
 		builder2.set_name(name: "{interface_def.id.name}Combo")
 		builder2.set_id(id: get_unique_id())
-		builder2.add_field(name: "data", ty: ast.opaque_type(), location: interface_def.location)
+		builder2.add_field(name: "data", ty: typectx.opaque_type(), location: interface_def.location)
 		let type_arguments2: Vector[ast.Type] = new_vector()
 		let vtable_ty = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def1), type_arguments: type_arguments2)
 		builder2.add_field(name: "vtable", ty: vtable_ty, location: interface_def.location)
@@ -962,7 +963,7 @@ class ClassRewriter:
 			name: "this"
 			id: get_unique_id()
 			label_is_optional: true
-			ty: ast.opaque_type()
+			ty: typectx.opaque_type()
 			location
 
 		parameters.append(this_param)
@@ -988,7 +989,7 @@ class ClassRewriter:
 
 		let type_arguments: Vector[ast.Type] = new_vector()
 		let method_ref = ast.function_ref(function_def: method, type_arguments, location)
-		let call_impl = ast.call(callee: method_ref, arguments, ty: ast.void_type(), location)
+		let call_impl = ast.call(callee: method_ref, arguments, ty: typectx.void_type(), location)
 		let wrapper_function = ast.function_def:
 			is_pub: true
 			name: "{method.name}_wrapper"
@@ -1057,7 +1058,7 @@ class ClassRewriter:
 		let arms: List[ast.CaseArm] = list2(arm1, arm2)
 
 		let case_statement = ast.case_statement(value: opt_var.ref(location), arms, else_clause: Option.None(), location)
-		let true_value = ast.bool_literal(value: true, location)
+		let true_value = ast.bool_literal(typectx, value: true, location)
 		let loop_body = ast.compound(inner: vec2(let_opt_var, case_statement), location)
 		let loop_statement = ast.while_statement(condition: true_value, body: loop_body, location)
 
@@ -1071,13 +1072,13 @@ class ClassRewriter:
 		let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: for_statement.iter_value, location)
 
 		# let index = 0
-		let index_var = new_variable(name: "index", ty: ast.int_type(), location)
+		let index_var = new_variable(name: "index", ty: typectx.int_type(), location)
 		index_var.writable = true
-		let zero = ast.integer_literal(value: 0, location)
+		let zero = ast.integer_literal(typectx, value: 0, location)
 		let let_index = ast.let_statement(variable: index_var, type_hint: Option.None(), value: zero, location)
 
 		# let size = x.len()
-		let size_var = new_variable(name: "size", ty: ast.int_type(), location)
+		let size_var = new_variable(name: "size", ty: typectx.int_type(), location)
 		let x_ref1 = x_var.ref(location)
 		let method_arguments_for_len: List[ast.LabeledExpression] = List()
 		let call_len_method = x_ref1.call_method(method: "len", arguments: method_arguments_for_len, location)
@@ -1086,7 +1087,7 @@ class ClassRewriter:
 		# index < size
 		let index_ref1 = index_var.ref(location)
 		let size_ref1 = size_var.ref(location)
-		let condition = ast.binop(lhs: index_ref1, op: ast.BinaryOperator.Less(), rhs: size_ref1, ty: ast.bool_type(), location)
+		let condition = ast.binop(lhs: index_ref1, op: ast.BinaryOperator.Less(), rhs: size_ref1, ty: typectx.bool_type(), location)
 
 		# v = x.get(index)
 		let x_ref2 = x_var.ref(location)
@@ -1099,7 +1100,7 @@ class ClassRewriter:
 		# index = index + 1
 		let index_ref3 = index_var.ref(location)
 		let index_ref4 = index_var.ref(location)
-		let one = ast.integer_literal(value: 1, location)
+		let one = ast.integer_literal(typectx, value: 1, location)
 		let index_plus_1 = index_ref4.add(rhs: one, location)
 		let inc_index = ast.assignment_statement(target: index_ref3, op: Option.None(), value: index_plus_1, location)
 
@@ -1118,15 +1119,15 @@ class ClassRewriter:
 		let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: for_statement.iter_value, location)
 
 		# index = 0
-		let index_var = new_variable(name: "index", ty: ast.int_type(), location)
+		let index_var = new_variable(name: "index", ty: typectx.int_type(), location)
 		index_var.writable = true
-		let zero = ast.integer_literal(value: 0, location)
+		let zero = ast.integer_literal(typectx, value: 0, location)
 		let let_index = ast.let_statement(variable: index_var, type_hint: Option.None(), value: zero, location)
 
 		# index < len(array)
-		let array_size = ast.integer_literal(value: array_type.get_array_size(), location)
+		let array_size = ast.integer_literal(typectx, value: array_type.get_array_size(), location)
 		let index_ref1 = index_var.ref(location)
-		let condition = ast.binop(lhs: index_ref1, op: ast.BinaryOperator.Less(), rhs: array_size, ty: ast.bool_type(), location)
+		let condition = ast.binop(lhs: index_ref1, op: ast.BinaryOperator.Less(), rhs: array_size, ty: typectx.bool_type(), location)
 
 		# v = x[index]
 		let x_ref1 = x_var.ref(location)
@@ -1137,7 +1138,7 @@ class ClassRewriter:
 		# index = index + 1
 		let index_ref3 = index_var.ref(location)
 		let index_ref4 = index_var.ref(location)
-		let one = ast.integer_literal(value: 1, location)
+		let one = ast.integer_literal(typectx, value: 1, location)
 		let index_plus_1 = index_ref4.add(rhs: one, location)
 		let inc_index = ast.assignment_statement(target: index_ref3, op: Option.None(), value: index_plus_1, location)
 
@@ -1155,13 +1156,13 @@ class ClassRewriter:
 		let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: for_statement.iter_value, location)
 
 		# let index = 0
-		let index_var = new_variable(name: "index", ty: ast.int_type(), location)
+		let index_var = new_variable(name: "index", ty: typectx.int_type(), location)
 		index_var.writable = true
-		let zero = ast.integer_literal(value: 0, location)
+		let zero = ast.integer_literal(typectx, value: 0, location)
 		let let_index = ast.let_statement(variable: index_var, type_hint: Option.None(), value: zero, location)
 
 		# let size = str_len(text: x)
-		let size_var = new_variable(name: "size", ty: ast.int_type(), location)
+		let size_var = new_variable(name: "size", ty: typectx.int_type(), location)
 		let str_len_func = load_std_function(name: "str_len", location)
 		let x_ref1 = x_var.ref(location)
 		let arguments_for_str_len: List[ast.LabeledExpression] = List()
@@ -1172,7 +1173,7 @@ class ClassRewriter:
 		# index < size
 		let index_ref1 = index_var.ref(location)
 		let size_ref1 = size_var.ref(location)
-		let condition = ast.binop(lhs: index_ref1, op: ast.BinaryOperator.Less(), rhs: size_ref1, ty: ast.bool_type(), location)
+		let condition = ast.binop(lhs: index_ref1, op: ast.BinaryOperator.Less(), rhs: size_ref1, ty: typectx.bool_type(), location)
 
 		# v = str_get(text: x, index: index)
 		let str_get_func = load_std_function(name: "str_get", location)
@@ -1187,7 +1188,7 @@ class ClassRewriter:
 		# index = index + 1
 		let index_ref3 = index_var.ref(location)
 		let index_ref4 = index_var.ref(location)
-		let one = ast.integer_literal(value: 1, location)
+		let one = ast.integer_literal(typectx, value: 1, location)
 		let index_plus_1 = index_ref4.add(rhs: one, location)
 		let inc_index = ast.assignment_statement(target: index_ref3, op: Option.None(), value: index_plus_1, location)
 
@@ -1199,14 +1200,14 @@ class ClassRewriter:
 
 	pub fn transform_switch(switch_statement: ast.SwitchStatement, location: Location) -> ast.StatementKind:
 		# Turn switch into sequence of if-else
-		let x_var = new_variable(name: "x", ty: ast.int_type(), location)
+		let x_var = new_variable(name: "x", ty: typectx.int_type(), location)
 		let let_x = ast.let_statement(variable: x_var, type_hint: Option.None(), value: switch_statement.value, location)
 
 		var else_clause = switch_statement.default_block.body
 		for arm in switch_statement.arms:
 			let x_ref = x_var.ref(location: arm.location)
 			let eq_op = ast.BinaryOperator.Equals()
-			let eq_ty = ast.bool_type()
+			let eq_ty = typectx.bool_type()
 			let condition = ast.binop(lhs: x_ref, op: eq_op, rhs: arm.value, ty: eq_ty, location: arm.location)
 			else_clause = ast.if_statement(condition, body: arm.block.body, false_body: else_clause, location: arm.location)
 
@@ -1269,7 +1270,7 @@ class ClassRewriter:
 					builder2.add_field(name: union_field_name, ty: t3, location: variant.location)
 
 			# Add field for enum variants without data:
-			builder2.add_field(name: "nodata", ty: ast.opaque_type(), location: enum_def.location)
+			builder2.add_field(name: "nodata", ty: typectx.opaque_type(), location: enum_def.location)
 
 			let union_def = builder2.finish()
 			new_definitions.append(ast.Definition.Struct(union_def))
@@ -1283,7 +1284,7 @@ class ClassRewriter:
 				let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
 				type_arguments.append(type_parameter_ref)
 
-			builder.add_field(name: "tag", ty: ast.int_type(), location: enum_def.location)
+			builder.add_field(name: "tag", ty: typectx.int_type(), location: enum_def.location)
 			let union_type = ast.apply_tycon(tycon: ast.TyCon.Struct(union_def), type_arguments)
 			builder.add_field(name: "data", ty: union_type, location: enum_def.location)
 			let struct_def = builder.finish()
@@ -1309,7 +1310,7 @@ class ClassRewriter:
 					let variant = option_unwrap(ast.get_enum_variant(enum_def, attr: arm.name))
 					let arm_tag = variant.tag_value
 					let union_field_name = "data_{variant.name}"
-					let switch_arm_value = ast.integer_literal(value: arm_tag, location: arm.location)
+					let switch_arm_value = ast.integer_literal(typectx, value: arm_tag, location: arm.location)
 					let switch_arm_body: Vector[ast.Statement] = new_vector()
 
 					# Unpack payload:
@@ -1350,7 +1351,7 @@ class ClassRewriter:
 				ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
 			Nullable:
 				# Change case to if-null construction
-				let x_var = new_variable(name: "x", ty: ast.opaque_type(), location)
+				let x_var = new_variable(name: "x", ty: typectx.opaque_type(), location)
 				let store_nullable = ast.let_statement(variable: x_var, type_hint: Option.None(), value: case_statement.value, location)
 
 				# Determine true and false arms
@@ -1390,8 +1391,8 @@ class ClassRewriter:
 
 				# if x == null
 				let x_var_ref0 = x_var.ref(location)
-				let null_test_value = ast.null_value(location)
-				let condition = x_var_ref0.equals(rhs: null_test_value, location)
+				let null_test_value = ast.null_value(typectx, location)
+				let condition = x_var_ref0.equals(typectx, rhs: null_test_value, location)
 				let choice = ast.if_statement(condition, body: true_body, false_body, location)
 
 				ast.compound(inner: vec2(store_nullable, choice), location)
@@ -1400,7 +1401,7 @@ class ClassRewriter:
 				for arm in case_statement.arms:
 					let variant = option_unwrap(ast.get_enum_variant(enum_def, attr: arm.name))
 					let arm_tag = variant.tag_value
-					let switch_arm_value = ast.integer_literal(value: arm_tag, location: arm.location)
+					let switch_arm_value = ast.integer_literal(typectx, value: arm_tag, location: arm.location)
 					let switch_arm_body = arm.block.body
 					let switch_arm = ast.SwitchArm:
 						location: arm.location
@@ -1420,13 +1421,13 @@ class ClassRewriter:
 		# log_info("Rewrite enum literal")
 		let enum_def = enum_ty.get_enum_def()
 		let tag_value = variant.tag_value
-		let tag = ast.integer_literal(value: tag_value, location)
+		let tag = ast.integer_literal(typectx, value: tag_value, location)
 		case get_enum_impl(id: enum_def.id):
 			Int:
 				tag
 			Nullable:
 				if values.len() == 0:
-					ast.null_value(location)
+					ast.null_value(typectx, location)
 				elif values.len() == 1:
 					ast.box_expression(value: values.first(), location)
 				else:
@@ -1439,7 +1440,7 @@ class ClassRewriter:
 				var union_field_name = "data_{variant.name}"
 				let union_value = if values.len() == 0:
 					union_field_name = "nodata"
-					ast.null_value(location)
+					ast.null_value(typectx, location)
 				elif values.len() == 1:
 					values.first()
 				else:
@@ -1485,7 +1486,7 @@ class ClassRewriter:
 		let arguments: List[ast.LabeledExpression] = List()
 		var return_type2 = function_def.info.return_type
 		assert(condition: function_def.info.except_type.is_void(), message: "Bridge function only supports non-throwing functions")
-		let except_type = ast.void_type()
+		let except_type = typectx.void_type()
 		var index = 0
 		for parameter in function_def.parameters:
 			let pt = parameter_types[index]
@@ -1493,7 +1494,7 @@ class ClassRewriter:
 			let needs_cast = needs_opaque_cast(pt)
 
 			let ty = if needs_cast:
-				ast.opaque_type()
+				typectx.opaque_type()
 			else:
 				parameter.ty
 			let bridge_function_parameter = ast.parameter_def(name: parameter.id.name, id: get_unique_id(), label_is_optional: true, ty, location)
@@ -1507,14 +1508,14 @@ class ClassRewriter:
 			arguments.append(argument)
 
 		let function_ref = ast.function_ref(function_def, type_arguments: new_vector(), location)
-		let function_call = ast.call(callee: function_ref, arguments, ty: ast.void_type(), location)
+		let function_call = ast.call(callee: function_ref, arguments, ty: typectx.void_type(), location)
 		let body = if return_type2.is_void():
 			ast.expression_statement(expr: function_call)
 		else:
 			# Check if we need to introduce a cast to opaque value
 			var value = function_call
 			if needs_opaque_cast(return_type):
-				return_type2 = ast.opaque_type()
+				return_type2 = typectx.opaque_type()
 				value = ast.box_expression(value, location)
 			ast.return_statement(value: Option.Some(value), location)
 
