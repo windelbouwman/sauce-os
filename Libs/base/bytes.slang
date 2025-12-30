@@ -116,17 +116,46 @@ pub class ByteReader:
 		(b4 << 24) | (b3 << 16) | (b2 << 8) | b1
 
 pub class ByteArray:
-	# Mutable bytes
-	var m_bytes: Vector[uint8] = new_vector()
+	""" Mutable bytes """
+	var m_bytes: [uint8] = [16 : uint8]
+	var m_size: int = 0
+	var m_capacity: int = 16
 
 	pub fn append(byte?: int):
-		m_bytes.append(uint8(byte))
+		if m_size == m_capacity:
+			grow()
+		m_bytes[m_size] = uint8(byte)
+		m_size += 1
+
+	pub fn as_array() -> [uint8]:
+		m_bytes
+
+	fn grow():
+		if m_capacity > 0:
+			let old_bytes = m_bytes
+			m_capacity = m_capacity * 2
+			m_bytes = [m_capacity : uint8]
+			var i = 0
+			while i < m_size:
+				m_bytes[i] = old_bytes[i]
+				i += 1
+		else:
+			panic("Can only grow when capacity is larger than zero.")
+
+	pub fn clear():
+		m_size = 0
 
 	pub fn get(index: int) -> int:
-		int(m_bytes[index])
+		if index < m_size:
+			int(m_bytes[index])
+		else:
+			panic("ByteArray.get: index out of range")
 
 	pub fn set(index: int, value: int):
-		m_bytes.set(index, value: uint8(value))
+		if index < m_size:
+			m_bytes[index] = uint8(value)
+		else:
+			panic("ByteArray.set: index out of range")
 
 	pub fn extend(bytes?: Bytes):
 		for b in bytes:
@@ -189,15 +218,15 @@ pub class ByteArray:
 		append(value & 0xff)
 
 	pub fn is_empty() -> bool:
-		m_bytes.is_empty()
+		m_size == 0
 
 	pub fn len() -> int:
-		m_bytes.len()
+		m_size
 
 	pub fn to_bytes() -> Bytes:
-		let out = new_bytes_with_size(size: m_bytes.len())
+		let out = new_bytes_with_size(size: m_size)
 		var index = 0
-		while index < m_bytes.len():
+		while index < m_size:
 			out.set_byte(index, value: m_bytes[index])
 			index += 1
 		out

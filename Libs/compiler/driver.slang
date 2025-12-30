@@ -22,7 +22,7 @@ from builtins import get_rt_module
 from listtype import List
 from location import location_default
 from optiontype import option_unwrap, Option
-from opt import opt_sil
+from opt import optimize_sil
 from hashmap import HashMap, new_hashmap_str
 from graphlib import DiGraph, topological_sort
 from c_gen import gen_c_code
@@ -44,6 +44,7 @@ pub struct CompilationOptions:
 	output_filename: Option[str]
 	gen_export: Option[str]
 	verbosity: int
+	optimization_level: int
 	runtime: bool
 	run_code: bool
 	time_trace: bool
@@ -60,6 +61,21 @@ pub enum Backend:
 	Null
 	Riscv
 	X86
+
+pub fn default_compile_options() -> CompilationOptions:
+	CompilationOptions:
+		dump_ast: false
+		backend: Backend.Python()
+		add_imports: List()
+		output_filename: Option.None()
+		gen_export: Option.None()
+		verbosity: 0
+		optimization_level: 1
+		runtime: true
+		run_code: false
+		time_trace: false
+		report: false
+		debug: false
 
 pub fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
 	""" Batch compile """
@@ -187,12 +203,12 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 		Riscv:
 			let bc_program = gen_bytecode(module_set, debug)
 			let sil_program = to_sil(program: bc_program, bits: 32)
-			opt_sil(program: sil_program)
+			optimize_sil(program: sil_program, level: options.optimization_level)
 			gen_riscv(program: sil_program, options: cgen_options)
 		X86:
 			let bc_program = gen_bytecode(module_set, debug)
 			let sil_program = to_sil(program: bc_program, bits: 64)
-			opt_sil(program: sil_program)
+			optimize_sil(program: sil_program, level: options.optimization_level)
 			gen_x86(program: sil_program, options: cgen_options)
 	report.set_enabled(false)
 	p.leave()

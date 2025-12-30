@@ -339,14 +339,10 @@ enum X86RelocationType:
 	R_PC32(symbol: str, addend: int)
 
 fn write32(value?: int, out: BinaryOutput):
-	let x = ByteArray()
-	x.pack_u32_le(value)
-	out.write_bytes(data: x.to_bytes())
+	out.write_u32_le(value)
 
 fn write64(value?: int, out: BinaryOutput):
-	let x = ByteArray()
-	x.pack_u64_le(value)
-	out.write_bytes(data: x.to_bytes())
+	out.write_u64_le(value)
 
 fn write_rex_byte(out: BinaryOutput, reg: int):
 	# var b = 0x48

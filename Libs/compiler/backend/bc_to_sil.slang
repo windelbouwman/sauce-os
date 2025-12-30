@@ -7,7 +7,7 @@ Features of this pass:
 
 """
 
-from std import ord
+from std import ord, print
 from math import max
 from listtype import List, list1
 from vectype import Vector, new_vector
@@ -810,8 +810,7 @@ class SilGen:
 				let instruction = sil.Instruction(op)
 				# print("> {instruction}")
 				if m_block_is_terminated:
-					# panic("Block already terminated!")
-					pass
+					panic("Block already terminated!")
 				else:
 					if sil.is_terminating_op(op):
 						m_block_is_terminated = true

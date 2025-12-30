@@ -18,15 +18,15 @@ from igraph import IGNode, InterferenceGraph, create_interference_graph
 import sil
 import mil
 
-pub fn reg_alloc[V](report: Report, backend: Backend[V], mfunc: mil.Function[V], frame: Frame):
+pub fn reg_alloc[C,V](report: Report, backend: Backend[C,V], mfunc: mil.Function[V], frame: Frame):
 	""" Implement iterated register allocation """
 	log_debug("Reg-alloc {mfunc.name}")
-	let r: RegisterAllocator[V] = RegisterAllocator(m_report: report, m_backend: backend, m_frame: frame)
+	let r: RegisterAllocator[C,V] = RegisterAllocator(m_report: report, m_backend: backend, m_frame: frame)
 	r.add_register_class(kind: 0, regs: backend.all_regs)
 	r.add_register_class(kind: 1, regs: backend.all_regs2)
 	r.alloc(mfunc)
 
-class RegisterAllocator[V]:
+class RegisterAllocator[C,V]:
 	""" Perform graph coloring
 	Take out nodes that can be colored
 	When the graph is empty, place the nodes back in reverse order,
@@ -43,7 +43,7 @@ class RegisterAllocator[V]:
 
 	var m_spill_rounds: int = 0
 	var m_report: Report
-	var m_backend: Backend[V]
+	var m_backend: Backend[C,V]
 	var m_frame: Frame
 
 	pub fn add_register_class(kind: int, regs: List[int]):
@@ -139,12 +139,12 @@ class RegisterAllocator[V]:
 			for instruction in block.instructions:
 				if instruction.is_reg_used(register):
 					let load_ins = sil.Instruction(op: sil.OpCode.Load(value, address))
-					m_backend.selector(context, instruction: load_ins)
+					m_backend.selector(ctx: m_backend.ctx, context, instruction: load_ins)
 					code_change = true
 				context.emit_minst(instruction)
 				if instruction.is_reg_defined(register):
 					let store_ins = sil.Instruction(op: sil.OpCode.Store(address, value))
-					m_backend.selector(context, instruction: store_ins)
+					m_backend.selector(ctx: m_backend.ctx, context, instruction: store_ins)
 					code_change = true
 			let new_instructions = context.get_instructions()
 			if code_change:

@@ -22,7 +22,7 @@ pub struct CodegenOptions:
 	profiler: Profiler
 	debug: Option[DbgInfo]
 
-pub fn cgen[V](program: sil.Program, backend: Backend[V], options: CodegenOptions):
+pub fn cgen[C,V](program: sil.Program, backend: Backend[C,V], options: CodegenOptions):
 	options.report.writeln("# Compilation report!")
 	options.profiler.enter(name: "Code-gen")
 	program.dump(report: options.report)
@@ -40,9 +40,9 @@ pub fn cgen[V](program: sil.Program, backend: Backend[V], options: CodegenOption
 	options.profiler.leave()
 	write_elf(filename, object: out.get_object())
 
-class Codegen[V]:
+class Codegen[C,V]:
 	""" Machine independent code generator """
-	var backend: Backend[V]
+	var backend: Backend[C,V]
 	var options: CodegenOptions
 
 	pub fn gen_program(program: sil.Program, out: BinaryOutput):
@@ -103,10 +103,10 @@ class Codegen[V]:
 		"""Turn abstract instructions into abstract machine specific instructions.
 		"""
 		let mblocks: Vector[mil.Block[V]] = new_vector()
-		backend.enter(context, function)
+		backend.enter(ctx: backend.ctx, context, function)
 		for block in function.blocks:
 			for instruction in block.instructions:
-				backend.selector(context, instruction)
+				backend.selector(ctx: backend.ctx, context, instruction)
 			let jump_targets: List[str] = List()
 			case block.instructions.last().op:
 				Jump(label):

@@ -5,6 +5,7 @@ from listtype import List
 from optiontype import option_unwrap, Option
 from vectype import Vector, new_vector, new_vector_with_capacity
 from hashmap import HashMap, new_hashmap_int, new_hashmap_str
+from settype import Set, new_int_set
 from utils import panic, assert
 from logging import log_info, log_debug, log_trace
 import dbginfo
@@ -40,6 +41,7 @@ struct Try:
 class BytecodeGenerator:
 	var id_counter: int = 1
 	var is_reachable: bool = true
+	var m_referenced_labels: Set[int] = new_int_set()
 	var m_except_type: ast.Type = ast.undefined_type()
 	var m_return_type: ast.Type = ast.undefined_type()
 	var code: Vector[Instruction] = new_vector()
@@ -459,15 +461,14 @@ class BytecodeGenerator:
 		enter_block(block: ControlBlock.TryBlock(Try(except_label, except_var_index)))
 		gen_scoped_block(try_statement.try_block, target: Option.None())
 		leave_block()
-		let reach1 = is_reachable
 		jump(final_label)
 
-		set_label(except_label)
-		gen_scoped_block(try_statement.except_block, target: Option.None())
-		let reach2 = is_reachable
-		jump(final_label)
+		if m_referenced_labels.contains(key: except_label):
+			set_label(except_label)
+			gen_scoped_block(try_statement.except_block, target: Option.None())
+			jump(final_label)
 
-		if reach1 or reach2:
+		if m_referenced_labels.contains(key: final_label):
 			set_label(final_label)
 
 	fn gen_while_statement(while_statement: ast.WhileStatement):
@@ -496,15 +497,13 @@ class BytecodeGenerator:
 
 		set_label(true_label)
 		gen_scoped_block(if_statement.true_block, target)
-		let reach1 = is_reachable
 		jump(final_label)
 
 		set_label(false_label)
 		gen_scoped_block(if_statement.false_block, target)
-		let reach2 = is_reachable
 		jump(final_label)
 
-		if reach1 or reach2:
+		if m_referenced_labels.contains(key: final_label):
 			set_label(final_label)
 
 	fn gen_condition(condition: ast.Expression, true_label: int, false_label: int):
@@ -852,6 +851,7 @@ class BytecodeGenerator:
 
 	fn begin_code():
 		label_mapping = new_hashmap_int()
+		m_referenced_labels.clear()
 		code = new_vector()
 		is_reachable = true
 
@@ -872,12 +872,17 @@ class BytecodeGenerator:
 		instructions
 
 	fn jump(label?: int):
-		emit(Instruction.Jump(target: label))
-		is_reachable = false
+		if is_reachable:
+			m_referenced_labels.add(label)
+			emit(Instruction.Jump(target: label))
+			is_reachable = false
 
 	fn jump_if(op: bc.ComparisonOperator, true_label: int, false_label: int):
-		emit(Instruction.JumpIf(op, label1: true_label, label2: false_label))
-		is_reachable = false
+		if is_reachable:
+			m_referenced_labels.add(true_label)
+			m_referenced_labels.add(false_label)
+			emit(Instruction.JumpIf(op, label1: true_label, label2: false_label))
+			is_reachable = false
 
 	fn add_local(variable: ast.Variable) -> int:
 		# Add a local variable!

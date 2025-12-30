@@ -202,10 +202,7 @@ pub fn do_emit(instruction: Instruction, outstream: BinaryOutput):
 			do_emit(instruction: Instruction.JALR(rd: 0, rs: 1, imm: 0), outstream)
 
 fn emit_int_code(code: int, outstream: BinaryOutput):
-	let b = ByteArray()
-	b.pack_u32_le(code)
-	let data = b.to_bytes()
-	outstream.write_bytes(data)
+	outstream.write_u32_le(code)
 
 fn cond_code(cond: Cond) -> int:
 	case cond:

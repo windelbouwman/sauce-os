@@ -3,6 +3,7 @@
 
 from utils import unimplemented, panic
 from logging import log_info
+from vectype import Vector, vec4, vec5, vec8
 from std import print
 import sil
 import mil
@@ -85,7 +86,14 @@ pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 	# all_regs2.append(xmm14)
 	# all_regs2.append(xmm15)
 
-	let backend: Backend[VirtInst] = Backend:
+	let ctx = X86Ctx:
+		parameter_regs_i64: vec4(rdi, rsi, rdx, rcx)
+		parameter_regs_f64: vec8(xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7)
+		clobber_regs: vec5(rax, rcx, rdx, rdi, rsi) #, r8, r9, r10, r11)
+		# let clobber_regs2: List[int] = list5(rax, rcx, rdx, rdi, rsi) #, r8, r9, r10, r11)
+
+	let backend: Backend[X86Ctx,VirtInst] = Backend:
+		ctx
 		bits: 64
 		all_regs
 		all_regs2
@@ -99,6 +107,11 @@ pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 		is_pic_reloc: x86.is_pic_reloc
 		emit_data: x86.emit_data_item
 	cgen(program, backend, options)
+
+struct X86Ctx:
+	parameter_regs_i64: Vector[int]
+	parameter_regs_f64: Vector[int]
+	clobber_regs: Vector[int]
 
 pub enum VirtInst:
 	Entry
@@ -205,10 +218,8 @@ fn vrm_to_str(vrm?: VirtRm) -> str:
 			"[{name}]"
 
 
-fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
-	let parameter_regs_i64: List[int] = list4(rdi, rsi, rdx, rcx)
+fn enter_function(ctx: X86Ctx, context: SelectionContext[VirtInst], function: sil.Function):
 	var index_i64 = 0
-	let parameter_regs_f64: List[int] = list8(xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7)
 	var index_f64 = 0
 
 	let entry_ins = context.emit_and_get(VirtInst.Entry())
@@ -216,8 +227,8 @@ fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
 	for p in function.parameters:
 		let reg = context.get_value_vreg(p)
 		if reg.kind == 0:
-			if index_i64 < parameter_regs_i64.len():
-				let nr = parameter_regs_i64.get(index: index_i64)
+			if index_i64 < ctx.parameter_regs_i64.len():
+				let nr = ctx.parameter_regs_i64.get(index: index_i64)
 				index_i64 += 1
 				reg.color = nr
 				entry_ins.add_def(reg)
@@ -228,8 +239,8 @@ fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
 				load_ins.add_def(reg)
 				offset += 8 # TODO: not all values are size 8.
 		elif reg.kind == 1:
-			if index_f64 < parameter_regs_f64.len():
-				let nr = parameter_regs_f64.get(index: index_f64)
+			if index_f64 < ctx.parameter_regs_f64.len():
+				let nr = ctx.parameter_regs_f64.get(index: index_f64)
 				index_f64 += 1
 				reg.color = nr
 				entry_ins.add_def(reg)
@@ -267,7 +278,7 @@ fn stack_round_up16(value?: int, taken: int) -> int:
 	else:
 		value
 
-fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Instruction):
+fn select_instruction(ctx: X86Ctx, context: SelectionContext[VirtInst], instruction: sil.Instruction):
 	""" Select machine instruction based on sil operator """
 	case instruction.op:
 		Const(dst, value):
@@ -406,9 +417,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 				unimplemented("bit-op on non-integer register class")
 		Call(dst, callee, arguments):
 			# Move arguments in proper locations:
-			let parameter_regs_i64: List[int] = list4(rdi, rsi, rdx, rcx)
 			var p_index_i64 = 0
-			let parameter_regs_f64: List[int] = list8(xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7)
 			var p_index_f64 = 0
 			let p_regs: List[mil.Register] = List()
 
@@ -418,8 +427,8 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 				let a_reg = context.get_value_vreg(arg)
 				if a_reg.kind == 0:
 					let mode = get_int_mode(arg.ty)
-					if p_index_i64 < parameter_regs_i64.len():
-						let nr = parameter_regs_i64.get(index: p_index_i64)
+					if p_index_i64 < ctx.parameter_regs_i64.len():
+						let nr = ctx.parameter_regs_i64.get(index: p_index_i64)
 						p_index_i64 += 1
 						let p_reg = context.get_pre_colored(color: nr, kind: a_reg.kind)
 						move(context, mode, dst: p_reg, src: a_reg)
@@ -428,8 +437,8 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 						mem_args.append(a_reg)
 				elif a_reg.kind == 1:
 					let mode = get_float_mode(arg.ty)
-					if p_index_f64 < parameter_regs_f64.len():
-						let nr = parameter_regs_f64.get(index: p_index_f64)
+					if p_index_f64 < ctx.parameter_regs_f64.len():
+						let nr = ctx.parameter_regs_f64.get(index: p_index_f64)
 						p_index_f64 += 1
 						let p_reg = context.get_pre_colored(color: nr, kind: a_reg.kind)
 						sse_move(context, mode, dst: p_reg, src: a_reg)
@@ -461,9 +470,7 @@ fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Inst
 			for p_reg in p_regs:
 				call_ins.add_use(p_reg)
 			# add register clobber information:
-			let clobber_regs: List[int] = list5(rax, rcx, rdx, rdi, rsi) #, r8, r9, r10, r11)
-			# let clobber_regs2: List[int] = list5(rax, rcx, rdx, rdi, rsi) #, r8, r9, r10, r11)
-			for clobber_reg_nr in clobber_regs:
+			for clobber_reg_nr in ctx.clobber_regs:
 				call_ins.add_clobber(context.get_pre_colored(color: clobber_reg_nr, kind: 0))
 			# we also clobber xmm0 .. xmm15
 			var reg_nr = 0

@@ -10,13 +10,14 @@ from outstream import BinaryOutput, DataItem
 import sil
 import mil
 
-pub struct Backend[V]:
+pub struct Backend[C,V]:
 	""" Backend based on first instruction selection, then register allocation. """
+	ctx: C
 	bits: int
 	all_regs: List[int]  # int regs
 	all_regs2: List[int]  # Float regs
-	enter: fn(SelectionContext[V], sil.Function)
-	selector: fn(SelectionContext[V], sil.Instruction)
+	enter: fn(C, SelectionContext[V], sil.Function)
+	selector: fn(C, SelectionContext[V], sil.Instruction)
 	to_str: fn(V) -> str
 	materializer: fn(SelectionContext[V], mil.Instruction[V], BinaryOutput)
 	emit_prologue: fn(Frame, BinaryOutput)

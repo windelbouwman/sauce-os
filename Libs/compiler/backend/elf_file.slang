@@ -339,6 +339,7 @@ class ElfWriter:
 	var section_ids: HashMap[str, int] = new_hashmap_str()
 	pub var symbol_table: List[SymbolTableEntry] = List()
 	pub var strtab: StringTable = StringTable()
+	var out: ByteArray = ByteArray()
 
 	pub fn set_bitsize(bits: int):
 		if bits == 64:
@@ -487,43 +488,46 @@ class ElfWriter:
 		std.file_tell(handle)
 
 	pub fn write_bytes(data?: Bytes):
-		let x = std.file_write_n_bytes(handle, buffer: data.as_array(), bufsize: data.len())
-		assert(condition: x == data.len(), message: "file_write_n_bytes failed")
+		write_u8_array(buffer: data.as_array(), bufsize: data.len())
+
+	fn flush():
+		write_u8_array(buffer: out.as_array(), bufsize: out.len())
+		out.clear()
+
+	fn write_u8_array(buffer: [uint8], bufsize: int):
+		let x = std.file_write_n_bytes(handle, buffer, bufsize)
+		assert(condition: x == bufsize, message: "file_write_n_bytes failed")
 
 	fn write_array(value?: [int], size: int):
-		let out = ByteArray()
 		var index = 0
 		while index < size:
 			out.append(value[index])
 			index += 1
-		write_bytes(out.to_bytes())
+		flush()
 
 	fn write8(value?: int):
 		write_array([value], size: 1)
 
 	fn write32(value?: int):
-		let out = ByteArray()
 		if is_big_endian:
 			out.pack_u32_be(value)
 		else:
 			out.pack_u32_le(value)
-		write_bytes(out.to_bytes())
+		flush()
 
 	fn write16(value?: int):
-		let out = ByteArray()
 		if is_big_endian:
 			out.pack_u16_be(value)
 		else:
 			out.pack_u16_le(value)
-		write_bytes(out.to_bytes())
+		flush()
 
 	fn write64(value?: int):
-		let out = ByteArray()
 		if is_big_endian:
 			out.pack_u64_be(value)
 		else:
 			out.pack_u64_le(value)
-		write_bytes(out.to_bytes())
+		flush()
 
 	fn write_size_t(value?: int):
 		if is_32bit:

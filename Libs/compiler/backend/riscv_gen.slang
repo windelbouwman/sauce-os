@@ -36,7 +36,8 @@ pub fn gen_riscv(program: sil.Program, options: CodegenOptions):
 	log_info("Generating riscv code")
 	let all_regs: List[int] = list4(18, 19, 20, 21)
 	let all_regs2: List[int] = list4(18, 19, 20, 21)
-	let backend: Backend[VirtInst] = Backend:
+	let backend: Backend[Ctx,VirtInst] = Backend:
+		ctx: Ctx(y: 1)
 		bits: 32
 		all_regs
 		all_regs2
@@ -51,6 +52,9 @@ pub fn gen_riscv(program: sil.Program, options: CodegenOptions):
 		emit_data: gen_data_item
 
 	cgen(program, backend, options)
+
+struct Ctx:
+	y: int
 
 enum VirtInst:
 	Jal
@@ -86,10 +90,10 @@ fn vinst_to_str(vi: VirtInst) -> str:
 fn addr_to_str(addr: Address) -> str:
 	"{addr.offset}({mil.vr_to_str(reg: addr.reg)})"
 
-fn enter_function(context: SelectionContext[VirtInst], function: sil.Function):
+fn enter_function(ctx: Ctx, context: SelectionContext[VirtInst], function: sil.Function):
 	pass
 
-fn select_instruction(context: SelectionContext[VirtInst], instruction: sil.Instruction):
+fn select_instruction(ctx: Ctx, context: SelectionContext[VirtInst], instruction: sil.Instruction):
 	""" Select machine instruction based on sil operator """
 	case instruction.op:
 		Const(dst, value):

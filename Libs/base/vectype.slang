@@ -53,6 +53,27 @@ pub fn vec4[T](v1?: T, v2?: T, v3?: T, v4?: T) -> Vector[T]:
 	vec.append(v4)
 	vec
 
+pub fn vec5[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T) -> Vector[T]:
+	let vec: Vector[T] = new_vector_with_capacity(capacity: 5)
+	vec.append(v1)
+	vec.append(v2)
+	vec.append(v3)
+	vec.append(v4)
+	vec.append(v5)
+	vec
+
+pub fn vec8[T](v1?: T, v2?: T, v3?: T, v4?: T, v5?: T, v6?: T, v7?: T, v8?: T) -> Vector[T]:
+	let vec: Vector[T] = new_vector_with_capacity(capacity: 8)
+	vec.append(v1)
+	vec.append(v2)
+	vec.append(v3)
+	vec.append(v4)
+	vec.append(v5)
+	vec.append(v6)
+	vec.append(v7)
+	vec.append(v8)
+	vec
+
 pub class Vector[T]:
 	var m_size: int
 	var m_capacity: int

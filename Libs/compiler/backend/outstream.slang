@@ -62,7 +62,7 @@ pub class BinaryOutput:
 	var m_bits: int = 64
 	var little_endian: bool = true
 	var sections: HashMap[str, Section] = new_hashmap_str()
-	var current_section: Option[str] = Option.None()
+	var current_section: Option[Section] = Option.None()
 	var symbols: HashMap[str, Symbol] = new_hashmap_str()
 	var fixups: Queue[Fixup] = new_queue()
 	var tmp_labels: Queue[str] = new_queue()
@@ -71,15 +71,17 @@ pub class BinaryOutput:
 		m_bits = bits
 
 	pub fn select_section(name: str):
-		if not sections.contains(key: name):
+		if sections.contains(key: name):
+			current_section = Option.Some(sections.get(key: name))
+		else:
 			let new_section = make_section(name)
 			sections.insert(key: name, value: new_section)
-		current_section = Option.Some(name)
+			current_section = Option.Some(new_section)
 
 	fn get_current_section() -> Section:
 		case current_section:
-			Some(name):
-				sections.get(key: name)
+			Some(section):
+				section
 			None:
 				panic("No output section selected")
 
@@ -167,6 +169,24 @@ pub class BinaryOutput:
 	pub fn write_bytes(data: Bytes):
 		let section = get_current_section()
 		section.data.extend(data)
+
+	pub fn write_u32_le(value?: int):
+		let section = get_current_section()
+		section.data.append(value & 0xFF)
+		section.data.append((value >> 8) & 0xFF)
+		section.data.append((value >> 16) & 0xFF)
+		section.data.append((value >> 24) & 0xFF)
+
+	pub fn write_u64_le(value?: int):
+		let section = get_current_section()
+		section.data.append(value & 0xFF)
+		section.data.append((value >> 8) & 0xFF)
+		section.data.append((value >> 16) & 0xFF)
+		section.data.append((value >> 24) & 0xFF)
+		section.data.append((value >> 32) & 0xFF)
+		section.data.append((value >> 40) & 0xFF)
+		section.data.append((value >> 48) & 0xFF)
+		section.data.append((value >> 56) & 0xFF)
 
 	pub fn get_offset() -> int:
 		let section = get_current_section()

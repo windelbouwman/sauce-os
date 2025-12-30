@@ -8,24 +8,12 @@ from optiontype import Option
 from listtype import List
 from strlib import lexical_sort
 from errors import display_error, CompilationError
-from driver import compile, CompilationOptions, Backend
+from driver import compile, CompilationOptions, Backend, default_compile_options
 
 
 pub fn main() -> int:
 	var filenames: List[str] = List()
-
-	let options = CompilationOptions:
-		dump_ast: false
-		backend: Backend.Python()
-		add_imports: List()
-		output_filename: Option.None()
-		gen_export: Option.None()
-		verbosity: 0
-		runtime: true
-		run_code: false
-		time_trace: false
-		report: false
-		debug: false
+	let options = default_compile_options()
 
 	# Argument processing
 	let n = get_n_args()
@@ -82,6 +70,10 @@ pub fn main() -> int:
 			options.backend = Backend.Slang()
 		elif argument == "--run":
 			options.run_code = true
+		elif argument == "--optimize":
+			options.optimization_level = 2
+		elif argument == "--no-optimize":
+			options.optimization_level = 0
 		elif argument == "--debug":
 			options.debug = true
 		elif argument == "--time-trace":
