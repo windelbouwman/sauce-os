@@ -57,11 +57,12 @@ pub class HashMap[K,V]:
 		create_buckets(n: 16)
 
 	pub fn maybe_get(key: K) -> Option[V]:
-		var next_pair = m_buckets[get_index(key)]
+		let hash = get_hash(key)
+		var next_pair = m_buckets[get_index(hash)]
 		loop:
 			case next_pair:
 				Some(pair):
-					if f.f_eq(pair.key, key):
+					if (pair.hash == hash) and f.f_eq(pair.key, key):
 						return Option.Some(pair.value)
 					else:
 						next_pair = pair.next
@@ -69,13 +70,14 @@ pub class HashMap[K,V]:
 					break
 		Option.None()
 
-	fn get_index(key: K) -> int:
+	fn get_hash(key: K) -> int:
+		var value = this.f.f_hash(key)
+		-value if value < 0 else value
+
+	fn get_index(hash: int) -> int:
 		if num_buckets == 0:
 			panic("Uninitialized hashmap!")
-		var value = this.f.f_hash(key)
-		if value < 0:
-			value = -value
-		value % num_buckets
+		hash % num_buckets
 
 	pub fn contains(key: K) -> bool:
 		option_is_some(maybe_get(key))
@@ -94,8 +96,8 @@ pub class HashMap[K,V]:
 		# Re-hash if above some threshold
 		if m_size > m_threshold:
 			rehash()
-
-		let index = get_index(key)
+		let hash = get_hash(key)
+		let index = get_index(hash)
 
 		# Search for key in bucket:
 		var last_pair_ptr: Option[KeyValuePair[K,V]] = Option.None()
@@ -103,7 +105,7 @@ pub class HashMap[K,V]:
 		loop:
 			case pair_ptr:
 				Some(pair):
-					if f.f_eq(pair.key, key):
+					if (pair.hash == hash) and f.f_eq(pair.key, key):
 						pair.value = value
 						return
 					else:
@@ -113,7 +115,7 @@ pub class HashMap[K,V]:
 					break
 
 		# Append new pair:
-		let new_pair: Option[KeyValuePair[K,V]] = Option.Some(KeyValuePair(key, value, next: Option.None()))
+		let new_pair: Option[KeyValuePair[K,V]] = Option.Some(KeyValuePair(key, hash, value, next: Option.None()))
 		case last_pair_ptr:
 			Some(last_pair):
 				last_pair.next = new_pair
@@ -129,7 +131,8 @@ pub class HashMap[K,V]:
 
 	pub fn pop(key: K) -> Option[V]:
 		""" remove an item from this dictionary """
-		let index = get_index(key)
+		let hash = get_hash(key)
+		let index = get_index(hash)
 
 		# Search for key in bucket:
 		var last_pair_ptr: Option[KeyValuePair[K,V]] = Option.None()
@@ -137,7 +140,7 @@ pub class HashMap[K,V]:
 		loop:
 			case pair_ptr:
 				Some(pair):
-					if f.f_eq(pair.key, key):
+					if (pair.hash == hash) and f.f_eq(pair.key, key):
 						# patch linked list:
 						case last_pair_ptr:
 							Some(last_pair):
@@ -177,6 +180,7 @@ pub class HashMap[K,V]:
 	fn rehash():
 		let old_buckets = m_buckets
 		let old_n_buckets = num_buckets
+		let old_size = m_size
 		# Double the amount of buckets:
 		create_buckets(n: num_buckets * 2)
 
@@ -187,11 +191,14 @@ pub class HashMap[K,V]:
 			loop:
 				case pair_ptr:
 					Some(pair):
-						insert(key: pair.key, value: pair.value)
 						pair_ptr = pair.next
+						let new_i = get_index(hash: pair.hash)
+						pair.next = m_buckets[new_i]
+						m_buckets[new_i] = Option.Some(pair)
 					None:
 						break
 			i += 1
+		m_size = old_size
 
 	fn create_buckets(n: int):
 		num_buckets = n
@@ -242,7 +249,7 @@ pub class HashMapIter[K,V]:
 					else:
 						break
 
-		return Option.None()
+		Option.None()
 
 struct HashableApi[T]:
 	f_hash: fn(T) -> int
@@ -250,5 +257,6 @@ struct HashableApi[T]:
 
 struct KeyValuePair[K,V]:
 	key: K
+	hash: int
 	value: V
 	next: Option[KeyValuePair[K,V]]

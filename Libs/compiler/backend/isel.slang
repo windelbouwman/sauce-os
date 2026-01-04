@@ -14,8 +14,7 @@ pub struct Backend[C,V]:
 	""" Backend based on first instruction selection, then register allocation. """
 	ctx: C
 	bits: int
-	all_regs: List[int]  # int regs
-	all_regs2: List[int]  # Float regs
+	all_regs: Vector[Vector[int]]  # 0=int regs,1=Float regs
 	enter: fn(C, SelectionContext[V], sil.Function)
 	selector: fn(C, SelectionContext[V], sil.Instruction)
 	to_str: fn(V) -> str

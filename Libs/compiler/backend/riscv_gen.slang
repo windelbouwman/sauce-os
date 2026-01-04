@@ -25,6 +25,7 @@ import riscv
 from bytes import ByteArray
 from optiontype import Option
 from listtype import List, list4, list8
+from vectype import Vector, vec4, new_vector_with_capacity
 from codegen import cgen, CodegenOptions
 from isel import Backend, SelectionContext, Frame
 from outstream import BinaryOutput, DataItem
@@ -34,13 +35,15 @@ from logging import log_info
 
 pub fn gen_riscv(program: sil.Program, options: CodegenOptions):
 	log_info("Generating riscv code")
-	let all_regs: List[int] = list4(18, 19, 20, 21)
-	let all_regs2: List[int] = list4(18, 19, 20, 21)
+	let all_integer_regs: Vector[int] = vec4(18, 19, 20, 21)
+	let all_float_regs: Vector[int] = vec4(18, 19, 20, 21)
+	let all_regs: Vector[Vector[int]] = new_vector_with_capacity(capacity: 2)
+	all_regs.append(all_integer_regs)
+	all_regs.append(all_float_regs)
 	let backend: Backend[Ctx,VirtInst] = Backend:
 		ctx: Ctx(y: 1)
 		bits: 32
 		all_regs
-		all_regs2
 		enter: enter_function
 		selector: select_instruction
 		to_str: vinst_to_str

@@ -63,7 +63,7 @@ pub class Lexer:
 
 				# Dedent to top level!
 				while indent_stack.len() > 1:
-					let tmp = indent_stack.pop_last()
+					indent_stack.drop_last()
 					emit_token(kind: TokenKind.Dedent(), location: location_at(offset))
 			Space(x):
 				if at_bol:

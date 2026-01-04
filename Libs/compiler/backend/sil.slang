@@ -70,7 +70,7 @@ pub enum BlobContent:
 pub class Function:
 	"""A graph of control flow between blocks"""
 	pub var name: str
-	pub var parameters: List[Value]
+	pub var parameters: Vector[Value]
 	pub var stacksize: int
 	pub var start: Block
 	pub var blocks: Vector[Block]
@@ -137,7 +137,7 @@ pub class Instruction:
 					None: "return"
 			Halt: "hlt"
 
-fn comma_sep(values: List[Value]) -> str:
+fn comma_sep(values: Vector[Value]) -> str:
 	let parts: List[str] = List()
 	for value in values:
 		parts.append(value_to_string(value))
@@ -153,7 +153,7 @@ pub enum OpCode:
 	Convert(sx: bool, dst: Value, src: Value)
 	Jump(label: str)
 	JumpIf(lhs: Value, condition: CompOp, rhs: Value, label1: str, label2: str)
-	Call(dst: Option[Value], callee: Address, arguments: List[Value])
+	Call(dst: Option[Value], callee: Address, arguments: Vector[Value])
 	Return(value: Option[Value])
 	Halt
 

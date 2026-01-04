@@ -3,7 +3,7 @@
 
 from utils import unimplemented, panic
 from logging import log_info
-from vectype import Vector, vec4, vec5, vec8
+from vectype import Vector, vec4, vec5, vec8, new_vector_with_capacity, new_vector
 from std import print
 import sil
 import mil
@@ -51,13 +51,13 @@ let xmm15: int = 15
 
 pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 	log_info("Generating x86 instructions")
-	let all_regs: List[int] = List()
-	all_regs.append(rax) # Skip rax since it's special purposes
-	all_regs.append(rcx)
-	all_regs.append(rdx)
-	all_regs.append(rbx)
-	all_regs.append(rsi)
-	all_regs.append(rdi)
+	let all_integer_regs: Vector[int] = new_vector()
+	all_integer_regs.append(rax) # Skip rax since it's special purposes
+	all_integer_regs.append(rcx)
+	all_integer_regs.append(rdx)
+	all_integer_regs.append(rbx)
+	all_integer_regs.append(rsi)
+	all_integer_regs.append(rdi)
 	# Skip RBP and RSP since calling convention specific
 	# all_regs.append(r8)
 	# all_regs.append(r9)
@@ -67,15 +67,15 @@ pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 	# Skip 13, since it's RM encoding is specific for RIP displacement
 	# all_regs.append(r14)
 	# all_regs.append(r15)
-	let all_regs2: List[int] = List()
-	all_regs2.append(xmm0)
-	all_regs2.append(xmm1)
-	all_regs2.append(xmm2)
-	all_regs2.append(xmm3)
-	all_regs2.append(xmm4)
-	all_regs2.append(xmm5)
-	all_regs2.append(xmm6)
-	all_regs2.append(xmm7)
+	let all_float_regs: Vector[int] = new_vector()
+	all_float_regs.append(xmm0)
+	all_float_regs.append(xmm1)
+	all_float_regs.append(xmm2)
+	all_float_regs.append(xmm3)
+	all_float_regs.append(xmm4)
+	all_float_regs.append(xmm5)
+	all_float_regs.append(xmm6)
+	all_float_regs.append(xmm7)
 
 	# all_regs2.append(xmm8)
 	# all_regs2.append(xmm9)
@@ -85,6 +85,10 @@ pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 	# all_regs2.append(xmm13)
 	# all_regs2.append(xmm14)
 	# all_regs2.append(xmm15)
+
+	let all_regs: Vector[Vector[int]] = new_vector_with_capacity(capacity: 2)
+	all_regs.append(all_integer_regs)
+	all_regs.append(all_float_regs)
 
 	let ctx = X86Ctx:
 		parameter_regs_i64: vec4(rdi, rsi, rdx, rcx)
@@ -96,7 +100,6 @@ pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 		ctx
 		bits: 64
 		all_regs
-		all_regs2
 		enter: enter_function
 		selector: select_instruction
 		to_str: vinst_to_str

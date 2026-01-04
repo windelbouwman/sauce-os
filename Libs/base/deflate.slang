@@ -235,8 +235,8 @@ class DeflateCompressor:
 
 		# TODO: strip-off zero lengths
 		let all_lengths: Vector[int] = new_vector()
-		all_lengths.extend(other: lengths1)
-		all_lengths.extend(other: lengths2)
+		all_lengths.extend(lengths1)
+		all_lengths.extend(lengths2)
 
 		# Run length encode the code lengths
 		let rle = RunLengthEncoder()

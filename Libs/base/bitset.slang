@@ -173,7 +173,7 @@ pub fn new_small_bitset() -> SmallBitSet:
 
 pub class SmallBitSet:
 	""" A bitset with a single integer with bits. """
-	var m_word: int
+	pub var m_word: int
 
 	pub fn set(bit?: int):
 		m_word = m_word | (1 << bit)
@@ -194,6 +194,9 @@ pub class SmallBitSet:
 
 	pub fn clone() -> SmallBitSet:
 		SmallBitSet(m_word)
+
+	pub fn assign(other: SmallBitSet):
+		m_word = other.m_word
 
 	pub fn first() -> int:
 		if m_word == 0:

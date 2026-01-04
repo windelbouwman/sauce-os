@@ -10,7 +10,7 @@ Features of this pass:
 from std import ord, print
 from math import max
 from listtype import List, list1
-from vectype import Vector, new_vector
+from vectype import Vector, new_vector, new_vector_with_capacity, vec1
 from optiontype import Option
 from bytes import Bytes, bytes_from_ascii, fill_bytes, ByteArray
 from utils import panic, unimplemented
@@ -54,6 +54,11 @@ struct ReturnSlot:
 	address: TypedAddress
 	ty: bc.Type
 
+enum LocalStorage:
+	Mutable(address: TypedAddress)
+	Undefined
+	Defined(value: TypedValue)
+
 class SilGen:
 	var m_bc_program: bc.Program
 	var m_bits: int
@@ -66,7 +71,7 @@ class SilGen:
 	var m_current_block: Option[sil.Block] = Option.None()
 	var m_block_is_terminated: bool = false
 	var m_parameters: List[TypedAddress] = List()
-	var m_locals: Vector[TypedAddress] = new_vector()
+	var m_locals: Vector[LocalStorage] = new_vector()
 	var m_return_slots: List[ReturnSlot] = List()
 	var m_vm: vm.VirtualMachine = vm.VirtualMachine()
 	var m_tmp_number: int = 0
@@ -196,7 +201,7 @@ class SilGen:
 	fn calc_struct_layout(struct_def: bc.Struct):
 		var alignment = 1
 		var offset = 0
-		let fields: Vector[StructField] = new_vector()
+		let fields: Vector[StructField] = new_vector_with_capacity(capacity: struct_def.fields.len())
 		for field in struct_def.fields:
 			fields.append(StructField(offset, ty: field.ty))
 			# TODO: take alignment into account
@@ -312,7 +317,7 @@ class SilGen:
 		let start = new_block(name: "start")
 		set_current_block(start)
 
-		let parameters: List[sil.Value] = List()
+		let parameters: Vector[sil.Value] = new_vector()
 		var index = 1
 		while index < function.return_types.len():
 			let p = new_tmp(ty: get_ptr_type())
@@ -333,8 +338,12 @@ class SilGen:
 
 		# Create stack slots for mutable locals:
 		for local_var in function.locals:
-			let address = new_stack_slot(size: get_size_of(local_var.ty))
-			m_locals.append(TypedAddress(address, ty: local_var.ty))
+			# TODO: Having all variables mutable is faster, since we do not trigger register spilling later on.
+			if true or local_var.writable:
+				let address = new_stack_slot(size: get_size_of(local_var.ty))
+				m_locals.append(LocalStorage.Mutable(address: TypedAddress(address, ty: local_var.ty)))
+			else:
+				m_locals.append(LocalStorage.Undefined())
 
 		let target_indici = bc.get_target_labels(instructions: function.instructions)
 		index = 0
@@ -482,12 +491,22 @@ class SilGen:
 				let value = pop()
 				gen_store(address, value)
 			LocalGet(index):
-				let address = m_locals[index]
-				gen_load(address)
+				case m_locals[index]:
+					Mutable(address):
+						gen_load(address)
+					Undefined:
+						panic("Bad")
+					Defined(value):
+						push(value: value.value, ty: value.ty)
 			LocalSet(index):
-				let address = m_locals[index]
 				let value = pop()
-				gen_store(address, value)
+				case m_locals[index]:
+					Mutable(address):
+						gen_store(address, value)
+					Undefined:
+						m_locals.set(index, value: LocalStorage.Defined(value))
+					Defined(value):
+						panic("Double define of read-only variable")
 			ParameterGet(index):
 				let address = m_parameters[index]
 				gen_load(address)
@@ -694,10 +713,10 @@ class SilGen:
 		if return_types.is_empty():
 			emit(sil.OpCode.Call(Option.None(), callee, arguments))
 		else:
-			let new_arguments: List[sil.Value] = List()
 			let ty = return_types.get(index: 0)
 			let value = new_tmp(ty: get_sil_type(ty))
 			if return_types.len() > 1:
+				let new_arguments: Vector[sil.Value] = new_vector_with_capacity(capacity: arguments.len() + return_types.len() - 1)
 				var index = 1
 				let extra_values: List[TypedAddress] = List()
 				while index < return_types.len():
@@ -708,7 +727,7 @@ class SilGen:
 					emit(sil.OpCode.GetAddress(dst: ret_ptr, address))
 					new_arguments.append(ret_ptr)
 					index += 1
-				new_arguments.extend2(arguments)
+				new_arguments.extend(arguments)
 
 				emit(sil.OpCode.Call(Option.Some(value), callee, arguments: new_arguments))
 				push(value, ty)
@@ -722,11 +741,10 @@ class SilGen:
 		call_rt_function_1(name: "rt_malloc", ty, argument: size)
 
 	fn call_rt_function_1(name: str, ty: bc.Type, argument: sil.Value):
-		let arguments: List[sil.Value] = List()
-		arguments.append(argument)
+		let arguments: Vector[sil.Value] = vec1(argument)
 		call_rt_function(name, ty, arguments)
 
-	fn call_rt_function(name: str, ty: bc.Type, arguments: List[sil.Value]):
+	fn call_rt_function(name: str, ty: bc.Type, arguments: Vector[sil.Value]):
 		""" Invoke runtime helper function """
 		let callee = sil.Address.Global(name)
 		let value = new_tmp(ty: get_sil_type(ty))
@@ -787,11 +805,16 @@ class SilGen:
 	fn pop() -> TypedValue:
 		m_value_stack.pop_last()
 
-	fn pop_n(count: int) -> List[sil.Value]:
-		let values: List[sil.Value] = List()
+	fn pop_n(count: int) -> Vector[sil.Value]:
+		let values: Vector[sil.Value] = new_vector_with_capacity(capacity: count)
+		if count > m_value_stack.len():
+			panic("Cannot pop {count} values")
+		var index = m_value_stack.len() - count
 		while values.len() < count:
-			let val = pop()
-			values.prepend(val.value)
+			let val = m_value_stack.get(index)
+			values.append(val.value)
+			index += 1
+		m_value_stack.drop_last_n(n: count)
 		values
 
 	fn pop_n_typed(count: int) -> List[TypedValue]:

@@ -7,7 +7,7 @@ It assigns colors to use / def registers.
 from logging import log_info, log_debug, log_trace
 from settype import Set, new_int_set
 from bitset import BitSet, new_bitset, new_small_bitset, SmallBitSet
-from vectype import Vector, new_vector
+from vectype import Vector, new_vector, new_vector_with_capacity
 from deque import Queue, new_queue
 from hashmap import HashMap, new_hashmap_int
 from report import Report
@@ -21,9 +21,11 @@ import mil
 pub fn reg_alloc[C,V](report: Report, backend: Backend[C,V], mfunc: mil.Function[V], frame: Frame):
 	""" Implement iterated register allocation """
 	log_debug("Reg-alloc {mfunc.name}")
-	let r: RegisterAllocator[C,V] = RegisterAllocator(m_report: report, m_backend: backend, m_frame: frame)
-	r.add_register_class(kind: 0, regs: backend.all_regs)
-	r.add_register_class(kind: 1, regs: backend.all_regs2)
+	let r: RegisterAllocator[C,V] = RegisterAllocator:
+		m_regs_by_class: backend.all_regs
+		m_report: report
+		m_backend: backend
+		m_frame: frame
 	r.alloc(mfunc)
 
 class RegisterAllocator[C,V]:
@@ -32,7 +34,7 @@ class RegisterAllocator[C,V]:
 	When the graph is empty, place the nodes back in reverse order,
 	and assign them a color
 	"""
-	var m_regs_by_class: HashMap[int, List[int]] = new_hashmap_int()
+	var m_regs_by_class: Vector[Vector[int]]
 
 	var m_ig: InterferenceGraph = InterferenceGraph(m_nodes: new_vector(), m_adj: new_vector())
 	var m_select_stack: Vector[IGNode] = new_vector()
@@ -45,9 +47,6 @@ class RegisterAllocator[C,V]:
 	var m_report: Report
 	var m_backend: Backend[C,V]
 	var m_frame: Frame
-
-	pub fn add_register_class(kind: int, regs: List[int]):
-		m_regs_by_class.insert(key: kind, value: regs)
 
 	pub fn alloc(mfunc: mil.Function[V]):
 		loop:
@@ -109,8 +108,7 @@ class RegisterAllocator[C,V]:
 		for spill_id in m_spill_worklist:
 			let spill_node = m_spill_worklist.get(key: spill_id)
 			log_trace("> {spill_id} = {spill_node.to_string()}")
-			for register in spill_node.regs:
-				rewrite_program(mfunc, register)
+			rewrite_program(mfunc, register: spill_node.reg)
 
 		m_report.heading("After rewriting spill ")
 		mil.dump_mfunc(report: m_report, mfunc, to_str: m_backend.to_str)
@@ -152,21 +150,22 @@ class RegisterAllocator[C,V]:
 
 	fn assign_colors():
 		""" Assign colors """
-		let all_regs_by_kind: HashMap[int,SmallBitSet] = new_hashmap_int()
-		for kind in m_regs_by_class:
+		let all_regs_by_kind: Vector[SmallBitSet] = new_vector_with_capacity(capacity: m_regs_by_class.len())
+		for regs in m_regs_by_class:
 			let all_regs = new_small_bitset()
-			for r in m_regs_by_class.get(key: kind):
+			for r in regs:
 				all_regs.add(r)
-			all_regs_by_kind.insert(key: kind, value: all_regs)
+			all_regs_by_kind.append(value: all_regs)
 
+		let ok_regs = new_small_bitset()
 		while not m_select_stack.is_empty():
 			let n = m_select_stack.pop_last()
 			m_ig.unmask(n)
-			let ok_regs = all_regs_by_kind.get(key: n.kind).clone()
+			ok_regs.assign(other: all_regs_by_kind.get(index: n.reg.kind))
 			for m in m_ig.adjecent(n):
 				# TODO: implement register aliasing
-				if n.kind == m.kind:
-					ok_regs.remove(m.color)
+				if n.reg.kind == m.reg.kind:
+					ok_regs.remove(m.reg.color)
 			if ok_regs.is_empty():
 				unimplemented("Spilling")
 			else:
@@ -183,13 +182,13 @@ class RegisterAllocator[C,V]:
 			#let num_blocked = calculate_num_blocked(m)
 			#if num_blocked != m.degree:
 			# panic("Invariant violated")
-			let k = m_regs_by_class.get(key: m.kind).len()
+			let k = m_regs_by_class.get(index: m.reg.kind).len()
 			m.degree < k
 
 	fn calculate_num_blocked(m?: IGNode) -> int:
 		var x = 0
 		for j in m_ig.adjecent(m):
-			x += q(B: m.kind, C: j.kind)
+			x += q(B: m.reg.kind, C: j.reg.kind)
 		x
 
 	fn q(B: int, C: int) -> int:

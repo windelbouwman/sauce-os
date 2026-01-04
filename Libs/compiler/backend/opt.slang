@@ -147,7 +147,7 @@ fn block_fusion(function: sil.Function, m: HashMap[str,sil.Block]) -> bool:
 							# log_info("We may glue {block.name} and {target}!")
 							let succ = m.get(key: target)
 							let removed_jump = block.instructions.pop_last()
-							block.instructions.extend(other: succ.instructions)
+							block.instructions.extend(succ.instructions)
 							removed.add(target)
 							g = true
 						# else:

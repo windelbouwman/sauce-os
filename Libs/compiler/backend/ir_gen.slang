@@ -48,7 +48,7 @@ class BytecodeGenerator:
 
 	pub var global_variables: Vector[bc.Global] = new_vector()
 	var global_var_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
-	var local_variables: Vector[bc.TypedName] = new_vector()
+	var local_variables: Vector[bc.Local] = new_vector()
 	var local_var_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
 	var label_mapping: HashMap[int,int] = new_hashmap_int()
 	var struct_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
@@ -226,7 +226,7 @@ class BytecodeGenerator:
 						gen_scoped_block(scoped_block, target: Option.None())
 					else:
 						let ty = get_bc_type(scoped_block.body.ty)
-						let index = new_local(name: "__SNAG", ty)
+						let index = new_local(name: "__SNAG", ty, writable: true)
 						gen_scoped_block(scoped_block, target: Option.Some(index))
 						emit(Instruction.LocalGet(index))
 					if m_except_type.is_void():
@@ -318,11 +318,12 @@ class BytecodeGenerator:
 			Case(case_statement):
 				panic("Case-statement not supported")
 			Let(let_statement):
-				let var_index = add_local(variable: let_statement.variable)
 				case let_statement.value.kind:
 					Stmt(statement2):
+						let var_index = add_local(variable: let_statement.variable, writable: true)
 						gen_statement(statement2, target: Option.Some(var_index))
 				else:
+					let var_index = add_local(variable: let_statement.variable, writable: false)
 					gen_expression(let_statement.value)
 					emit(Instruction.LocalSet(var_index))
 			Compound(inner):
@@ -455,7 +456,7 @@ class BytecodeGenerator:
 		let except_label = new_label()
 		let final_label = new_label()
 
-		let except_var_index = add_local(variable: try_statement.except_var)
+		let except_var_index = add_local(variable: try_statement.except_var, writable: true)
 
 		set_label(try_label)
 		enter_block(block: ControlBlock.TryBlock(Try(except_label, except_var_index)))
@@ -566,7 +567,7 @@ class BytecodeGenerator:
 
 		# Create a local variable for the result:
 		let ty = bc.Type.Bool()
-		let index = new_local(name: "tmp", ty)
+		let index = new_local(name: "tmp", ty, writable: true)
 
 		# Evaluate the condition, and branch:
 		let true_label = new_label()
@@ -711,7 +712,7 @@ class BytecodeGenerator:
 			panic("gen_expression: Unsupported: {expression}")
 
 	fn gen_if_expression(if_expression: ast.IfExpression):
-		let index = new_local(name: "tmp", ty: get_bc_type(if_expression.true_value.ty))
+		let index = new_local(name: "tmp", ty: get_bc_type(if_expression.true_value.ty), writable: true)
 
 		let true_label = new_label()
 		let false_label = new_label()
@@ -745,11 +746,11 @@ class BytecodeGenerator:
 				# If function might raise exception, we handle it!
 				if not function_def.info.except_type.is_void():
 					# Exception lives on top of stack now, below it lives return value (if any)
-					let index = new_local(name: "exception_value", ty: bc.Type.Ptr())
+					let index = new_local(name: "exception_value", ty: bc.Type.Ptr(), writable: false)
 					emit(Instruction.LocalSet(index))
 
 					let optional_return_value = if not (function_def.info.return_type.is_void() or function_def.info.return_type.is_unreachable()):
-						let index2 = new_local(name: "return_value", ty: get_bc_type(function_def.info.return_type))
+						let index2 = new_local(name: "return_value", ty: get_bc_type(function_def.info.return_type), writable: true)
 						emit(Instruction.LocalSet(index2))
 						Option.Some(index2)
 					else:
@@ -884,16 +885,16 @@ class BytecodeGenerator:
 			emit(Instruction.JumpIf(op, label1: true_label, label2: false_label))
 			is_reachable = false
 
-	fn add_local(variable: ast.Variable) -> int:
+	fn add_local(variable: ast.Variable, writable: bool) -> int:
 		# Add a local variable!
 		let ty = get_bc_type(variable.ty)
-		let index = new_local(name: variable.id.name, ty)
+		let index = new_local(name: variable.id.name, ty, writable: variable.writable or writable)
 		local_var_mapping.insert(key: variable.id, value: index)
 		index
 
-	fn new_local(name: str, ty: bc.Type) -> int:
+	fn new_local(name: str, ty: bc.Type, writable: bool) -> int:
 		let index = local_variables.len()
-		let local = bc.TypedName(name, ty)
+		let local = bc.Local(name, ty, writable)
 		local_variables.append(local)
 		index
 

@@ -95,7 +95,16 @@ pub class Vector[T]:
 		else:
 			panic("Vector.pop_last: empty vector")
 
-	pub fn extend(other: Vector[T]):
+	pub fn drop_last():
+		drop_last_n(n: 1)
+
+	pub fn drop_last_n(n: int):
+		if m_size < n:
+			panic("Vector.drop_last_n: dropping results in more than empty vector")
+		else:
+			m_size -= n
+
+	pub fn extend(other?: Vector[T]):
 		""" Append all elements of other to this vector """
 		let new_size = m_size + other.len()
 		while m_capacity < new_size:

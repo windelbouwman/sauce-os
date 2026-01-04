@@ -33,6 +33,10 @@ struct Value:
 	ty: bc.Type
 	name: str
 
+struct Local:
+	value: Value
+	writable: bool
+
 fn is_heap(ty?: bc.Type) -> bool:
 	""" Test if type is heap like type """
 	case ty:
@@ -55,7 +59,7 @@ class CGenerator:
 
 	var stack: Vector[Value] = new_vector()
 	var next_id: int = 1
-	var local_variables: Vector[Value] = new_vector()
+	var local_variables: Vector[Local] = new_vector()
 	var local_parameters: Vector[Value] = new_vector()
 	var local_return_ptrs: Vector[Value] = new_vector()
 	var m_vm: vm.VirtualMachine = vm.VirtualMachine()
@@ -261,11 +265,12 @@ class CGenerator:
 		# indent()
 		for local in function.locals:
 			let varname = new_named_local_var(name: local.name)
-			gen_typed_name(ty: local.ty, name: varname)
-			if is_heap(local.ty):
-				write(" = NULL")
-			emit(";")
-			local_variables.append(Value(name: varname, ty: local.ty))
+			if local.writable:
+				gen_typed_name(ty: local.ty, name: varname)
+				if is_heap(local.ty):
+					write(" = NULL")
+				emit(";")
+			local_variables.append(Local(value: Value(name: varname, ty: local.ty), writable: local.writable))
 		# dedent()
 		# emit("\} localz;")
 		# for value in local_variables:
@@ -478,13 +483,16 @@ class CGenerator:
 				gen_call(callee: target.name, parameter_types, return_types)
 
 			LocalGet(index):
-				let varname = local_variables.get(index)
-				push(varname)
+				let local = local_variables.get(index)
+				push(local.value)
 
 			LocalSet(index):
 				let value = pop()
-				let varname = local_variables.get(index)
-				write(varname.name)
+				let local = local_variables.get(index)
+				if local.writable:
+					write(local.value.name)
+				else:
+					gen_typed_name_2(is_const: true, ty: local.value.ty, name: local.value.name)
 				write(" = ")
 				write(value.name)
 				emit(";")
@@ -761,8 +769,13 @@ class CGenerator:
 		emit(");")
 
 	fn gen_typed_name(ty: bc.Type, name: str):
+		gen_typed_name_2(is_const: false, ty, name)
+
+	fn gen_typed_name_2(is_const: bool, ty: bc.Type, name: str):
 		case ty:
 			Int(signed, bits):
+				if is_const:
+					write("const ")
 				if signed:
 					write("slang_int")
 				else:
@@ -772,22 +785,34 @@ class CGenerator:
 				write(name)
 			Str:
 				write("char* ")
+				if is_const:
+					write("const ")
 				write(name)
 			Char:
+				if is_const:
+					write("const ")
 				write("char ")
 				write(name)
 			Bool:
+				if is_const:
+					write("const ")
 				write("slang_bool_t ")
 				write(name)
 			Float(bits):
+				if is_const:
+					write("const ")
 				write("slang_float{bits}_t ")
 				write(name)
 			Ptr:
 				write("void* ")
+				if is_const:
+					write("const ")
 				write(name)
 			StructRef(index):
 				let struct_def = structs.get(index)
 				write("struct S{index}_{struct_def.name}* ")
+				if is_const:
+					write("const ")
 				write(name)
 			Function(parameter_types, return_types):
 				if return_types.is_empty():
@@ -815,6 +840,8 @@ class CGenerator:
 			Array(element_type):
 				gen_typed_name(ty: element_type, name: "")
 				write("* ")
+				if is_const:
+					write("const ")
 				write(name)
 
 	fn push(value?: Value):

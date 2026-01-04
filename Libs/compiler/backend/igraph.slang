@@ -52,10 +52,7 @@ fn new_ig_for_vregs(vregs: Vector[mil.Register]) -> InterferenceGraph:
 	for vreg in vregs:
 		# We assume that vreg id's are exactly indici.
 		# log_debug("vreg = {vreg.id}")
-		let n = IGNode(id: vreg.id, kind: vreg.kind)
-		n.add_reg(reg: vreg)
-		if vreg.color >= 0:
-			n.set_color(vreg.color)
+		let n = IGNode(id: vreg.id, reg: vreg)
 		m_nodes.append(n)
 		m_adj.append(new_bitset(n: N))
 	InterferenceGraph(m_nodes, m_adj)
@@ -151,7 +148,7 @@ fn add_reg_interference(ig: InterferenceGraph, reg: mil.Register, live_registers
 			let n2 = ig.get_node(id: live)
 			# Only add edges to the same kind of register for now.
 			# TODO: when different register kinds alias, this must be changed.
-			if n1.kind == n2.kind:
+			if n1.reg.kind == n2.reg.kind:
 				ig.add_edge(n1, n2)
 
 pub class InterferenceGraph:
@@ -192,7 +189,7 @@ pub class InterferenceGraph:
 	pub fn add_edge(a?: IGNode, b?: IGNode):
 		# assert(condition: a != b, message: "a must not be b")
 		if not has_edge(a, b):
-			if a.kind != b.kind:
+			if a.reg.kind != b.reg.kind:
 				panic("Treating different register kinds as fully separate worlds.")
 			a.degree += 1
 			b.degree += 1
@@ -211,30 +208,18 @@ pub class InterferenceGraph:
 pub class IGNode:
 	""" Node in the interference graph. """
 	pub var id: int
-	pub var color: int = -1
-	pub var kind: int
 	pub var degree: int = 0
 	pub var masked: bool = false
-
-	pub var regs: List[mil.Register] = List()
-
-	pub fn add_reg(reg: mil.Register):
-		regs.append(reg)
+	pub var reg: mil.Register
 
 	pub fn set_color(c?: int):
-		color = c
-		for reg in regs:
-			reg.color = c
+		reg.color = c
 
 	pub fn is_colored() -> bool:
-		color >= 0
+		reg.color >= 0
 
 	pub fn to_string() -> str:
-		let parts: List[str] = List()
-		for reg in regs:
-			parts.append(mil.vr_to_str(reg))
-		let txt = str_join(parts, sep: ",")
-		"IGNode(degree={degree},regs=[{txt}]"
+		"IGNode(degree={degree},reg=[{mil.vr_to_str(reg)}]"
 
 pub class AdjecentIter:
 	""" Dedicated iterator over adjecent nodes """

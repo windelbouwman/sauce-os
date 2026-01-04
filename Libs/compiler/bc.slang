@@ -26,6 +26,11 @@ pub struct TypedName:
 	ty: Type
 	name: str
 
+pub struct Local:
+	ty: Type
+	name: str
+	writable: bool
+
 pub struct ExternFunction:
 	name: str
 	parameters: Vector[TypedName]
@@ -38,7 +43,7 @@ pub struct Function:
 	parameters: Vector[TypedName]
 	return_types: Vector[Type]
 	no_return: bool
-	locals: Vector[TypedName]
+	locals: Vector[Local]
 	instructions: Vector[Instruction]
 
 pub enum Type:
@@ -271,19 +276,23 @@ class Printer:
 			emit("FUNC {func_index}: {function.name}")
 			indent()
 			func_index += 1
-			emit("PARAMETERS:")
-			indent()
-			for parameter in function.parameters:
-				emit("> {parameter.name}: {type_to_string(ty: parameter.ty)}")
-			dedent()
-			emit("RETURNS:")
-			for ty in function.return_types:
-				emit("> {type_to_string(ty)}")
-			emit("LOCALS:")
-			indent()
-			for local in function.locals:
-				emit("> {local.name}: {type_to_string(ty: local.ty)}")
-			dedent()
+			if not function.parameters.is_empty():
+				emit("PARAMETERS:")
+				indent()
+				for parameter in function.parameters:
+					emit("> {parameter.name}: {type_to_string(ty: parameter.ty)}")
+				dedent()
+			if not function.return_types.is_empty():
+				emit("RETURNS:")
+				for ty in function.return_types:
+					emit("> {type_to_string(ty)}")
+			if not function.locals.is_empty():
+				emit("LOCALS:")
+				indent()
+				for local in function.locals:
+					let rw = "RW" if local.writable else "R"
+					emit("> {local.name}: {type_to_string(ty: local.ty)} {rw}")
+				dedent()
 			emit("CODE:")
 			indent()
 			write_instructions(instructions: function.instructions)
