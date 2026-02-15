@@ -34,6 +34,7 @@ extern void* g_except_value;
 extern void* tmp_array_lit;
 
 // runtime functions:
+void rt_init(int argc, char** argv);
 void rt_gc_init(void* bos);
 void rt_gc_finalize();
 void* rt_malloc_str(size_t size);

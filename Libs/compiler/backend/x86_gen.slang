@@ -150,6 +150,7 @@ pub enum VirtRm:
 	StackSlot(offset: int)
 	RegDisp(reg: mil.Register, offset: int)
 	Global(name: str)
+	GotGlobal(name: str)  # GOT=global offset table
 
 fn vinst_to_str(vi?: VirtInst) -> str:
 	case vi:
@@ -218,6 +219,8 @@ fn vrm_to_str(vrm?: VirtRm) -> str:
 		RegDisp(reg, offset):
 			"[{mil.vr_to_str(reg)} + {offset}]"
 		Global(name):
+			"[{name}]"
+		GotGlobal(name):
 			"[{name}]"
 
 
@@ -460,8 +463,11 @@ fn select_instruction(ctx: X86Ctx, context: SelectionContext[VirtInst], instruct
 				let push_ins = context.emit_and_get(VirtInst.Push(mem_arg_reg))
 				push_ins.add_use(mem_arg_reg)
 			let call_ins = case callee:
-				Global(target):
-					context.emit_and_get(VirtInst.Actual(instruction: x86.Instruction.Call(target)))
+				Global(target, mutable):
+					if mutable:
+						unimplemented("Call mutable function address")
+					else:
+						context.emit_and_get(VirtInst.Actual(instruction: x86.Instruction.Call(target)))
 				Ptr(base):
 					let base_reg = context.get_value_vreg(base)
 					let rm = VirtRm.Reg(reg: base_reg)
@@ -752,8 +758,16 @@ fn sse_move(context: SelectionContext[VirtInst], mode: x86.SseMode, dst: mil.Reg
 
 fn load_addr(context: SelectionContext[VirtInst], address: sil.Address) -> VirtRm:
 	case address:
-		Global(name):
-			VirtRm.Global(name)
+		Global(name, mutable):
+			if mutable:
+				let mode = x86.BitMode.R64()
+				let reg = context.new_vreg(kind: 0, color: -1)
+				let rm = VirtRm.GotGlobal(name)
+				let mov_ins = context.emit_and_get(VirtInst.RegRm(mode, op: x86.Op.Mov(), reg, rm))
+				mov_ins.add_def(reg)
+				VirtRm.RegDisp(reg, offset: 0)
+			else:
+				VirtRm.Global(name)
 		StackSlot(offset):
 			VirtRm.StackSlot(offset - context.frame.stacksize)
 		Ptr(base):
@@ -905,4 +919,6 @@ fn mat_rm(rm: VirtRm) -> x86.Rm:
 		RegDisp(reg, offset):
 			x86.Rm.MemDisp8(reg: mat_reg(reg), disp: offset)
 		Global(name):
-			x86.Rm.RipDisp32(name)
+			x86.Rm.RipDisp32(name, is_got: false)
+		GotGlobal(name):
+			x86.Rm.RipDisp32(name, is_got: true)

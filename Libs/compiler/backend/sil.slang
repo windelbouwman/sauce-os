@@ -228,7 +228,7 @@ pub fn type_to_string(ty?: Type) -> str:
 		I8: "i8"
 
 pub enum Address:
-	Global(name: str)
+	Global(name: str, mutable: bool)
 	StackSlot(offset: int)
 	Ptr(base: Value)
 
@@ -237,6 +237,6 @@ pub fn value_to_string(value?: Value) -> str:
 
 pub fn address_to_string(address?: Address) -> str:
 	case address:
-		Global(name): "${name}"
+		Global(name, mutable): "${name}"
 		StackSlot(offset): "[stack + {offset}]"
 		Ptr(base): "[{value_to_string(base)}]"

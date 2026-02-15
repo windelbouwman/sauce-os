@@ -14,8 +14,6 @@
 
 #include "slangrt.h"
 
-extern slang_int_t main2();
-
 int g_argc;
 char** g_argv;
 
@@ -34,6 +32,12 @@ __declspec(noreturn) void std_panic(const char* message);
 slang_exception_handler_t* g_except_hook;
 void* g_except_value;
 void* tmp_array_lit;
+
+SLANG_API void rt_init(int argc, char** argv)
+{
+    g_argc = argc;
+    g_argv = argv;
+}
 
 SLANG_API void std_print(char* message)
 {
@@ -401,16 +405,6 @@ slang_float64_t slangrt_unbox_float64(void* p1)
 {
     slang_float64_t* p2 = p1;
     return *p2;
-}
-
-int main(int argc, char** argv)
-{
-    g_argc = argc;
-    g_argv = argv;
-    rt_gc_init(&argc);
-    int res = main2();
-    rt_gc_finalize();
-    return res;
 }
 
 SLANG_API slang_int_t std_get_n_args(void)

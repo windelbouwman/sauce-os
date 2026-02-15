@@ -24,8 +24,16 @@ let R_X86_64_64: int = 1  # S + A
 let R_X86_64_PC32: int = 2 # S + A - P
 let R_X86_64_GOT32: int = 3 # G + A
 let R_X86_64_PLT32: int = 4 # L + A - P
+let R_X86_64_GOTPCREL: int = 9  # G + GOT + A - P
 let R_X86_64_32: int = 10  # S + A
 let R_X86_64_16: int = 12  # S + A
+
+# Special versions of nr. 9:
+let R_X86_64_GOTPCRELX: int = 41  # G + GOT + A - P
+let R_X86_64_REX_GOTPCRELX: int = 42  # G + GOT + A - P
+let R_X86_64_CODE_4_GOTPCRELX: int = 43  # G + GOT + A - P
+let R_X86_64_CODE_5_GOTPCRELX: int = 46  # G + GOT + A - P
+let R_X86_64_CODE_6_GOTPCRELX: int = 49  # G + GOT + A - P
 
 pub enum Instruction:
 	OpRmReg(mode: BitMode, op: Op, rm: Rm, reg: int)
@@ -120,7 +128,7 @@ pub enum Rm:
 	Mem(reg: int)
 	MemDisp8(reg: int, disp: int)
 	MemDisp32(reg: int, disp: int)
-	RipDisp32(name: str)
+	RipDisp32(name: str, is_got: bool)
 	Reg(reg: int)
 
 pub fn instruction_to_string(instruction: Instruction) -> str:
@@ -264,7 +272,7 @@ fn rm_to_str(rm: Rm) -> str:
 			"[{reg_to_str(reg)} + {disp}]"
 		MemDisp32(reg, disp):
 			"[{reg_to_str(reg)} + {disp}]"
-		RipDisp32(name):
+		RipDisp32(name, is_got):
 			"[{name}]"
 		Reg(reg):
 			reg_to_str(reg)
@@ -412,9 +420,10 @@ fn write_rm_reg(rm: Rm, reg: int, out: BinaryOutput):
 		MemDisp32(reg2, disp):
 			write_mod_rm_byte(mod: 2, rm: reg2, reg, out)
 			write32(disp, out)
-		RipDisp32(name):
+		RipDisp32(name, is_got):
 			write_mod_rm_byte(mod: 0, rm: 5, reg, out)
-			out.add_fixup(symbol: name, typ: R_X86_64_PC32, addend: -4)
+			let typ = R_X86_64_GOTPCREL if is_got else R_X86_64_PC32
+			out.add_fixup(symbol: name, typ, addend: -4)
 			write32(0, out)
 		Reg(reg2):
 			write_mod_rm_byte(mod: 3, rm: reg2, reg, out)
@@ -456,7 +465,9 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			write_rm_reg(rm, reg, out)
 		Call(target):
 			out.write_byte(0xE8)
-			out.add_fixup(symbol: target, typ: R_X86_64_PC32, addend: -4)
+			# let typ = R_X86_64_PLT32 if out.is_extern_symbol(name: target) else R_X86_64_PC32
+			let typ = R_X86_64_PLT32
+			out.add_fixup(symbol: target, typ, addend: -4)
 			write32(0, out)
 		CallRm(rm):
 			# FF /2

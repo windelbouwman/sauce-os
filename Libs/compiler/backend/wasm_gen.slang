@@ -14,16 +14,21 @@ import ast
 from webassembly import Instruction
 from listtype import List, list1
 from optiontype import Option
+from text_gen import TextGenerator
 from hashmap import HashMap, new_hashmap_str
 from location import location_default
 from std import str_len, ord
 from utils import panic, assert
 from logging import log_info, log_debug
 
-pub fn gen_webassembly(module_set: ast.ModuleSet, typectx: ast.TypeContext):
+pub fn gen_webassembly(module_set: ast.ModuleSet, typectx: ast.TypeContext, output_filename: Option[str]):
 	log_info("Generating WebAssembly")
 	let generator = WasmGenerator(typectx)
-	generator.gen_module_set(modules: module_set.modules)
+	let wasm_module = generator.gen_module_set(modules: module_set.modules)
+	let out = TextGenerator()
+	out.begin(output_filename)
+	webassembly.to_wat(module: wasm_module, out)
+	out.end()
 
 class WasmGenerator:
 	var typectx: ast.TypeContext
@@ -40,7 +45,7 @@ class WasmGenerator:
 	var literal_offset: int = 0
 	var block_stack: List[bool] = List()
 
-	pub fn gen_module_set(modules: List[ast.ModuleDef]):
+	pub fn gen_module_set(modules: List[ast.ModuleDef]) -> webassembly.Module:
 		let type_parameters: List[ast.TypeParameter] = List()
 		let parameters = list1(ast.unlabeled_parameter(name: "size", ty: typectx.int_type()))
 		let docstring: Option[str] = Option.None()
@@ -93,7 +98,7 @@ class WasmGenerator:
 			functions
 			exports
 			datas
-		webassembly.to_wat(module: wasm_module)
+		wasm_module
 
 	fn gen_external_function(function_def: ast.FunctionDef):
 		# log_debug("extern function def: {extern_function_def.name}")

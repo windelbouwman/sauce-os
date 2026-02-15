@@ -125,6 +125,17 @@ pub class BinaryOutput:
 			let symbol = Symbol(name, kind)
 			symbols.insert(key: name, value: symbol)
 
+	pub fn is_extern_symbol(name: str) -> bool:
+		if symbols.contains(key: name):
+			let symbol = symbols.get(key: name)
+			case symbol.kind:
+				Extern:
+					true
+			else:
+				false
+		else:
+			false
+
 	pub fn add_fixup(symbol: str, typ: int, addend: int):
 		""" Add relocation information at the current position. """
 		let section = get_current_section()

@@ -7,7 +7,8 @@ WebAssembly support.
 """
 
 from listtype import List
-from std import float_to_str, print
+from std import float_to_str
+from text_gen import TextGenerator
 from strlib import str_join
 
 pub struct Module:
@@ -855,34 +856,38 @@ fn to_string(instruction: Instruction) -> str:
 		i64_extend32_s: "i64.extend32_s"
 
 
-pub fn to_wat(module: Module):
-	# Print webassembly module in text format (WAT)
+pub fn to_wat(module: Module, out: TextGenerator):
+	""" Write webassembly module in text format (WAT) """
 
-	print("(module")
+	out.emit("(module")
+	out.indent()
 	for ty in module.types:
 		let type_txt = type_to_string(ty)
-		print("  (type (func {type_txt}))")
+		out.emit("(type (func {type_txt}))")
 
 	for imp in module.imports:
-		print("  (import \"{imp.module}\" \"{imp.name}\" (func (type {imp.ty})))")
+		out.emit("(import \"{imp.module}\" \"{imp.name}\" (func (type {imp.ty})))")
 
-	print("  (import \"js\" \"mem\" (memory 25))")
+	out.emit("(import \"js\" \"mem\" (memory 25))")
 
 	for function in module.functions:
-		print("  (func (type {function.ty})")
+		out.emit("(func (type {function.ty})")
+		out.indent()
 		for local in function.locals:
-			print("    (local {value_type_to_string(ty: local)})")
+			out.emit("(local {value_type_to_string(ty: local)})")
 
 		for instruction in function.code:
-			print("    {to_string(instruction)}")
-		print("  )")
+			out.emit("{to_string(instruction)}")
+		out.dedent()
+		out.emit(")")
 
-	# print("  (memory 25)")
+	# emit("(memory 25)")
 
 	for ex in module.exports:
-		print("  (export \"{ex.name}\" (func {ex.funcidx}))")
+		out.emit("(export \"{ex.name}\" (func {ex.funcidx}))")
 
 	for data in module.datas:
-		print("  (data (i32.const {data.offset}) \"{data.text}\")")
+		out.emit("(data (i32.const {data.offset}) \"{data.text}\")")
 
-	print(")")
+	out.dedent()
+	out.emit(")")

@@ -86,7 +86,7 @@ pub class SelectionContext[V]:
 		codes = new_vector()
 		res
 
-	fn new_vreg(kind: int, color: int) -> mil.Register:
+	pub fn new_vreg(kind: int, color: int) -> mil.Register:
 		let id = frame.vregs.len()
 		let vreg = mil.Register(id, color, kind)
 		frame.vregs.append(vreg)

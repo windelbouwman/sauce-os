@@ -199,7 +199,7 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 			# Generate C-code straight from AST:
 			gen_c_code_v2(module_set, output_filename: options.output_filename)
 		WebAssembly:
-			gen_webassembly(module_set, typectx)
+			gen_webassembly(module_set, typectx, output_filename: options.output_filename)
 		Riscv:
 			let bc_program = gen_bytecode(module_set, debug)
 			let sil_program = to_sil(program: bc_program, bits: 32)

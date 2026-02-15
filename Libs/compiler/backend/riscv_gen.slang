@@ -162,9 +162,12 @@ fn select_instruction(ctx: Ctx, context: SelectionContext[VirtInst], instruction
 		GetAddress(dst, address):
 			let dst_reg = context.get_value_vreg(dst)
 			case address:
-				Global(name):
-					let load_ins = context.emit_and_get(VirtInst.LoadAddress(dst_reg, name))
-					load_ins.add_def(dst_reg)
+				Global(name, mutable):
+					if mutable:
+						unimplemented("GetAddress / mutable global")
+					else:
+						let load_ins = context.emit_and_get(VirtInst.LoadAddress(dst_reg, name))
+						load_ins.add_def(dst_reg)
 				StackSlot(offset):
 					unimplemented("GetAddress / stack slot")
 				Ptr(base):
@@ -188,8 +191,11 @@ fn select_instruction(ctx: Ctx, context: SelectionContext[VirtInst], instruction
 
 			# Invoke function
 			case callee:
-				Global(name):
-					context.emit(VirtInst.Actual(riscv.Instruction.CALL(name)))
+				Global(name, mutable):
+					if mutable:
+						unimplemented("Call mutable global")
+					else:
+						context.emit(VirtInst.Actual(riscv.Instruction.CALL(name)))
 			else:
 				unimplemented("Call: {sil.address_to_string(callee)}")
 
@@ -271,7 +277,7 @@ fn select_instruction(ctx: Ctx, context: SelectionContext[VirtInst], instruction
 
 fn load_addr(context: SelectionContext[VirtInst], addr: sil.Address) -> Address:
 	case addr:
-		Global(name):
+		Global(name, mutable):
 			unimplemented("load_addr / name")
 		StackSlot(offset):
 			let sp_reg = context.get_pre_colored(color: 2, kind: 0)

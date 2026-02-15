@@ -3,7 +3,6 @@
 import logging
 import os
 
-
 # try lark as parser
 from lark import Lark, Transformer as LarkTransformer
 from lark.lexer import Lexer as LarkLexer, Token as LarkToken

@@ -130,12 +130,12 @@ class SilGen:
 				let ty = get_sil_type(ty: global.ty)
 				let contents = gen_vm_value(ty: global.ty, value)
 				m_blobs.append(sil.DataBlob(name, is_local: false, readonly: false, contents))
-				let address = sil.Address.Global(name)
+				let address = sil.Address.Global(name, mutable: true)
 				let typed_address = TypedAddress(address, ty: global.ty)
 				m_globals.append(typed_address)
 			None:
 				m_externs.append(sil.Extern(name))
-				let address = sil.Address.Global(name)
+				let address = sil.Address.Global(name, mutable: true)
 				let typed_address = TypedAddress(address, ty: global.ty)
 				m_globals.append(typed_address)
 
@@ -656,7 +656,7 @@ class SilGen:
 				log_warning("Dec ref implemented as no-op")
 			LoadFunc(index):
 				let name = get_function_name(index)
-				let address = new_global(name)
+				let address = sil.Address.Global(name, mutable: true)
 				let dst_value = new_tmp(ty: get_ptr_type())
 				emit(sil.OpCode.GetAddress(dst_value, address))
 				push(dst_value, ty: bc.Type.Ptr())
@@ -746,7 +746,7 @@ class SilGen:
 
 	fn call_rt_function(name: str, ty: bc.Type, arguments: Vector[sil.Value]):
 		""" Invoke runtime helper function """
-		let callee = sil.Address.Global(name)
+		let callee = sil.Address.Global(name, mutable: false)
 		let value = new_tmp(ty: get_sil_type(ty))
 		emit(sil.OpCode.Call(Option.Some(value), callee, arguments))
 		push(value, ty)
@@ -780,7 +780,7 @@ class SilGen:
 		m_lit_id_number
 
 	fn new_global(name?: str) -> sil.Address:
-		sil.Address.Global(name)
+		sil.Address.Global(name, mutable: false)
 
 	fn add_f64_blob(value: float) -> TypedAddress:
 		let data = pack_f64(value)
@@ -793,7 +793,7 @@ class SilGen:
 		let name = "lit_{new_id()}"
 		let contents = list1(sil.BlobContent.Raw(data))
 		m_blobs.append(sil.DataBlob(name, is_local: true, readonly: true, contents))
-		sil.Address.Global(name)
+		sil.Address.Global(name, mutable: false)
 
 	fn push_int(value?: int):
 		let dst = load_int(value)

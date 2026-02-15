@@ -67,16 +67,8 @@ def test_examples_slang_backend(filename: Path):
 @pytest.mark.parametrize("backend", ["x86", "c", "c2", "py", "bc"])
 def test_snippet(filename: Path, backend: str):
     """Test compiled snippet executable against expected snippet output."""
-    if backend == "x86":
-        exe_path = root_path / "build" / "x86" / f"snippet_{filename.stem}.exe"
-        if not exe_path.exists():
-            pytest.skip("Example not build for x86")
-        cmd = [exe_path]
-    elif backend == "c2":
-        exe_path = root_path / "build" / "c" / "snippets2" / f"{filename.stem}.exe"
-        cmd = [exe_path]
-    elif backend == "c":
-        exe_path = root_path / "build" / "c" / "snippets" / f"{filename.stem}.exe"
+    if backend in ("x86", "c", "c2"):
+        exe_path = root_path / "build" / backend / "snippets" / f"{filename.stem}.exe"
         cmd = [exe_path]
     elif backend == "py":
         script_path = root_path / "build" / "python" / f"snippet-{filename.stem}.py"
