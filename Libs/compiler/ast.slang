@@ -1632,6 +1632,11 @@ pub class Expression:
 		else:
 			false
 
+	pub fn is_null() -> bool:
+		case kind:
+			Null: true
+		else: false
+
 	pub fn call_method(method: str, arguments: List[LabeledExpression], location: Location) -> Expression:
 		let callee = get_attr_typed(attr: method, location)
 		let result_ty: Type = callee.ty.get_return_type()

@@ -18,6 +18,13 @@
       "type": "extensionHost",
       "request": "launch",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/language-server"]
+    },
+    {
+      "name": "runtime.js",
+      "type": "node",
+      "program": "${workspaceFolder}/runtime/runtime.js",
+      "args": ["build/wasm/snippets/for_loop.wasm"],
+      "request": "launch"
     }
   ]
 }

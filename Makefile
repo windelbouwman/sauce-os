@@ -31,7 +31,7 @@ LDFLAGS=-shared -Wl,--no-undefined -Wl,--as-needed
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 SLANG2_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang/%.slang, $(SLANG_EXAMPLES))
 SLANG3_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang3/%.slang, $(SLANG_EXAMPLES))
-WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/%.wasm, $(SLANG_EXAMPLES))
+WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/snippets/%.wasm, $(SLANG_EXAMPLES))
 EXAMPLES_PY := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, $(SLANG_EXAMPLES))
 PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
 PY_AOC := $(patsubst examples/aoc/%/main.slang, build/python/aoc-%.py, $(AOC_APPS))
@@ -495,11 +495,11 @@ ${BUILDDIR}/x86/apps/%.exe: ${BUILDDIR}/x86/apps/%.o ${BUILDDIR}/x86/libimage.so
 ${BUILDDIR}/x86/tests:
 	mkdir -p $@
 
-.PRECIOUS: ${BUILDDIR}/x86/test_%.o
+.PRECIOUS: ${BUILDDIR}/x86/tests/test_%.o
 ${BUILDDIR}/x86/tests/test_%.o: tests/test_%.slang ${BUILDDIR}/x86/libbase.json ${BUILDDIR}/x86/libcompiler.json ${BUILDDIR}/x86/libimage.json ${BUILDDIR}/x86/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/x86/tests
 	${SLANGC} --backend-x86 -o $@ $< --add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libcompiler.json --add-import ${BUILDDIR}/x86/libimage.json --add-import ${BUILDDIR}/x86/libscience.json
 
-.PRECIOUS: ${BUILDDIR}/x86/test_%.exe
+.PRECIOUS: ${BUILDDIR}/x86/tests/test_%.exe
 ${BUILDDIR}/x86/tests/test_%.exe: ${BUILDDIR}/x86/tests/test_%.o ${BUILDDIR}/x86/libbase.so ${BUILDDIR}/x86/libcompiler.so ${BUILDDIR}/x86/libimage.so ${BUILDDIR}/x86/libscience.so ${BUILDDIR}/x86/libslangrt.so ${BUILDDIR}/slangrt_main.o
 	gcc -o $@ $< -L${BUILDDIR}/x86 -Wl,--as-needed -Wl,-rpath=`pwd`/${BUILDDIR}/x86 ${BUILDDIR}/slangrt_main.o -lbase -lcompiler -limage -lscience -lslangrt
 
@@ -572,13 +572,16 @@ ${BUILDDIR}/wasm:
 	mkdir -p $@
 
 %.wasm: %.wat
-	wat2wasm $< -o $@
-
-.PRECIOUS: ${BUILDDIR}/wasm/%.wat
+# wabt does not support GC yet, so use wasm-tools instead
+# wat2wasm --enable-function-references --enable-gc $< -o $@
+	wasm-tools parse $< -g -o $@
+	wasm-tools validate $@
 
 # Snippets:
 ${BUILDDIR}/wasm/snippets:
 	mkdir -p $@
+
+.PRECIOUS: ${BUILDDIR}/wasm/snippets/%.wat
 
 ${BUILDDIR}/wasm/snippets/%.wat: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/wasm/snippets
 	${SLANGC} -v -v --backend-wasm $< runtime/std.slang -o $@

@@ -64,18 +64,25 @@ def test_examples_slang_backend(filename: Path):
 
 
 @pytest.mark.parametrize("filename", example_filenames, ids=ids)
-@pytest.mark.parametrize("backend", ["x86", "c", "c2", "py", "bc"])
+@pytest.mark.parametrize("backend", ["x86", "c", "c2", "py", "bc", "wasm"])
 def test_snippet(filename: Path, backend: str):
     """Test compiled snippet executable against expected snippet output."""
+    build_path = root_path / "build"
     if backend in ("x86", "c", "c2"):
-        exe_path = root_path / "build" / backend / "snippets" / f"{filename.stem}.exe"
+        exe_path = build_path / backend / "snippets" / f"{filename.stem}.exe"
         cmd = [exe_path]
     elif backend == "py":
-        script_path = root_path / "build" / "python" / f"snippet-{filename.stem}.py"
+        script_path = build_path / "python" / f"snippet-{filename.stem}.py"
         cmd = [sys.executable, script_path]
     elif backend == "bc":
-        exe_path = root_path / "build" / "compiler5"
+        exe_path = build_path / "compiler5"
         cmd = [exe_path, "--run", "--backend-bc", std_module_path, filename]
+    elif backend == "wasm":
+        wasm_module_path = build_path / "wasm" / "snippets" / f"{filename.stem}.wasm"
+        js_runtime = root_path / "runtime" / "runtime.js"
+        if not wasm_module_path.exists():
+            pytest.skip("Wasm module not compiled")
+        cmd = ["node", js_runtime, wasm_module_path]
     else:
         raise NotImplementedError(f"Backend: {backend}")
 

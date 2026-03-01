@@ -6,63 +6,152 @@ WebAssembly support.
 
 """
 
-from listtype import List
+from listtype import List, list1
 from std import float_to_str
 from text_gen import TextGenerator
 from strlib import str_join
 
 pub struct Module:
-	types: List[Type]
+	types: List[CompType]
 	imports: List[Import]
+	tags: List[Tag]
+	globals: List[Global]
 	functions: List[Function]
 	exports: List[Export]
 	datas: List[Data]
 
-pub enum ValueType:
+pub enum NumType:
 	i32
 	i64
 	f32
 	f64
 
-#enum Type:
-#    Value(t: ValueType)
-#    Function(ref: int)
-
-pub struct Type:
+pub struct BlockType:
 	params: List[ValueType]
 	results: List[ValueType]
 
+pub fn one_result_block_type(result_type?: ValueType) -> BlockType:
+	BlockType(params: List(), results: list1(result_type))
+
+pub fn empty_block_type() -> BlockType:
+	BlockType(params: List(), results: List())
+
+pub enum ValueType:
+	Num(ty: NumType)
+	Ref(ty: RefType)
+
+pub fn nullable_ref_type(heap_type?: HeapType) -> RefType:
+	RefType(nullable: true, heap_type)
+
+pub fn ref_type(heap_type?: HeapType) -> RefType:
+	RefType(nullable: false, heap_type)
+
+pub fn ref_extern_type() -> RefType:
+	RefType(nullable: false, heap_type: HeapType.Extern())
+
+pub struct RefType:
+	nullable: bool
+	heap_type: HeapType
+
+pub enum HeapType:
+	Any
+	i31
+	Func
+	Extern
+	TypeIdx(index: int)
+
+pub enum CompType:
+	Struct(fields: List[FieldType])
+	Array(ty: FieldType)
+	Func(params: List[ValueType], results: List[ValueType])
+
+pub struct FieldType:
+	mutable: bool
+	ty: StorageType
+
+pub enum StorageType:
+	Value(ty: ValueType)
+	Packed(ty: PackType)
+
+pub enum PackType:
+	i8
+	i16
+
 fn value_type_to_string(ty?: ValueType) -> str:
+	case ty:
+		Num(ty): num_type_to_string(ty)
+		Ref(ty): ref_type_to_string(ty)
+
+fn num_type_to_string(ty?: NumType) -> str:
 	case ty:
 		i32: "i32"
 		i64: "i64"
 		f32: "f32"
 		f64: "f64"
 
-pub fn type_to_string(ty?: Type) -> str:
-	let parts2: List[str] = List()
+fn ref_type_to_string(ty?: RefType) -> str:
+	let null_text = " null" if ty.nullable else ""
+	"(ref{null_text} {heap_type_to_string(ty.heap_type)})"
+
+fn heap_type_to_string(heap_type?: HeapType) -> str:
+	case heap_type:
+		Any: "any"
+		i31: "i31"
+		Func: "func"
+		Extern: "extern"
+		TypeIdx(index): str(index)
+
+fn fuu(label: str, items: List[ValueType], parts2: List[str]):
 	let parts: List[str] = List()
-	if not ty.params.is_empty():
+	if not items.is_empty():
 		parts.clear()
-		for param in ty.params:
-			parts.append(value_type_to_string(param))
+		for item in items:
+			parts.append(value_type_to_string(item))
 		let params_txt = str_join(parts, sep: " ")
-		parts2.append("(param {params_txt})")
+		parts2.append("({label} {params_txt})")
 
-	if not ty.results.is_empty():
-		parts.clear()
-		for result in ty.results:
-			parts.append(value_type_to_string(result))
-		let results_txt = str_join(parts, sep: " ")
-		parts2.append("(result {results_txt})")
+pub fn comp_type_to_string(comp_type?: CompType) -> str:
+	case comp_type:
+		Struct(field_types):
+			let parts: List[str] = List()
+			for field_type in field_types:
+				let type_text = field_type_to_string(field_type)
+				parts.append("(field (mut {type_text}))")
+			let fields_txt = str_join(parts, sep: " ")
+			"(struct {fields_txt})"
+		Array(field_type):
+			let txt = field_type_to_string(field_type)
+			"(array (mut {txt}))"
+		Func(params, results):
+			let parts2: List[str] = List()
+			fuu(label: "param", items: params, parts2)
+			fuu(label: "result", items: results, parts2)
+			let in_out = str_join(parts: parts2, sep: " ")
+			"(func {in_out})"
 
-	str_join(parts: parts2, sep: " ")
+fn field_type_to_string(field_type: FieldType) -> str:
+	case field_type.ty:
+		Value(value_type): value_type_to_string(value_type)
+		Packed(packed_type): packed_type_to_string(packed_type)
+
+fn packed_type_to_string(ty?: PackType) -> str:
+	case ty:
+		i8: "i8"
+		i16: "i16"
+
+pub struct Tag:
+	params: List[ValueType]
 
 pub struct Import:
 	module: str
 	name: str
 	ty: int  # Type ref
 	# TODO: description
+
+pub struct Global:
+	mutable: bool
+	ty: ValueType
+	value: List[Instruction]
 
 pub struct Function:
 	ty: int  # reference to a type
@@ -77,14 +166,18 @@ pub struct Data:
 	offset: int
 	text: str
 
+pub enum CatchItem:
+	Catch(tagindex: int, label: int)
+
 pub enum Instruction:
 
 	# Control:
 	ctrl_unreachable
 	ctrl_nop
-	ctrl_block
-	ctrl_loop
-	ctrl_if
+	drop
+	ctrl_block(block_type: BlockType)
+	ctrl_loop(block_type: BlockType)
+	ctrl_if(block_type: BlockType)
 	ctrl_else
 	ctrl_end
 
@@ -93,7 +186,10 @@ pub enum Instruction:
 	ctrl_br_table
 	ctrl_return
 	ctrl_call(funcidx: int)
+	ctrl_call_ref(ty: int)
 	ctrl_call_indirect(tableidx: int)
+	ctrl_throw(index: int)
+	ctrl_try_table(block_type: BlockType, catches: List[CatchItem])
 
 	# parametric instructions
 
@@ -262,6 +358,25 @@ pub enum Instruction:
 	i64_extend16_s
 	i64_extend32_s
 
+	# Reference instructions
+	ref_func(funcidx: int)
+	ref_null(ty: HeapType)
+	ref_is_null
+	ref_as_non_null
+	ref_eq
+	ref_cast(ty: RefType)
+	struct_new(ty: int)
+	struct_get(ty: int, field: int)
+	struct_set(ty: int, field: int)
+	array_new_fixed(ty: int, size: int)
+	array_new_default(ty: int)
+	array_get(ty: int)
+	array_set(ty: int)
+	ref_i31
+	i31_get(signed: bool)
+	extern_convert_any
+	any_convert_extern
+
 fn pack_leb128(value: int):
 	pass
 
@@ -282,13 +397,15 @@ fn encode(instruction: Instruction):
 			pack_byte(0x00)
 		ctrl_nop:
 			pack_byte(0x01)
-		ctrl_block:
+		drop:
+			pass
+		ctrl_block(block_type):
 			pack_byte(0x02)
 			pack_byte(0x40)  # block type = epsilon
-		ctrl_loop:
+		ctrl_loop(block_type):
 			pack_byte(0x03)
 			pack_byte(0x40)  # block type = epsilon
-		ctrl_if:
+		ctrl_if(block_type):
 			pack_byte(0x04)
 			pack_byte(0x40)  # block type = epsilon
 		ctrl_else:
@@ -309,9 +426,15 @@ fn encode(instruction: Instruction):
 		ctrl_call(funcidx):
 			pack_byte(0x10)
 			pack_u32(funcidx)
+		ctrl_call_ref(ty):
+			pass
 		ctrl_call_indirect(tableidx):
 			pack_byte(0x11)
 			pack_u32(tableidx)
+		ctrl_throw(index):
+			pass
+		ctrl_try_table(label, catches):
+			pass
 
 		local_get(localidx):
 			pack_byte(0x20)
@@ -630,6 +753,41 @@ fn encode(instruction: Instruction):
 		i64_extend32_s:
 			pack_byte(0xC4)
 
+		ref_func(funcidx):
+			pass
+		ref_null(ty):
+			pass
+		ref_is_null:
+			pass
+		ref_as_non_null:
+			pass
+		ref_eq:
+			pass
+		ref_cast(ty):
+			pass
+		struct_new(ty):
+			pass
+		struct_get(ty, field):
+			pass
+		struct_set(ty, field):
+			pass
+		array_new_fixed(ty, size):
+			pass
+		array_new_default(ty):
+			pass
+		array_get(ty):
+			pass
+		array_set(ty):
+			pass
+		ref_i31:
+			pass
+		i31_get(signed):
+			pass
+		extern_convert_any:
+			pass
+		any_convert_extern:
+			pass
+
 pub fn to_wasm(module: Module):
 	for function in module.functions:
 		for local in function.locals:
@@ -640,18 +798,34 @@ pub fn to_wasm(module: Module):
 
 	pack_leb128(value: 1)
 
+fn block_type_to_string(block_type: BlockType) -> str:
+	var res = ""
+	# TODO: params
+	if not block_type.results.is_empty():
+		let parts2: List[str] = List()
+		fuu(label: "result", items: block_type.results, parts2)
+		res = res + " " + str_join(parts: parts2, sep: " ")
+	res
+
+fn catch_to_string(catch: CatchItem) -> str:
+	case catch:
+		Catch(tagindex, labelidx):
+			"(catch {tagindex} {labelidx})"
+
 fn to_string(instruction: Instruction) -> str:
 	case instruction:
 		ctrl_unreachable:
 			"unreachable"
 		ctrl_nop:
 			"nop"
-		ctrl_block:
-			"block"
-		ctrl_loop:
-			"loop"
-		ctrl_if:
-			"if"
+		drop:
+			"drop"
+		ctrl_block(block_type):
+			"block" + block_type_to_string(block_type)
+		ctrl_loop(block_type):
+			"loop" + block_type_to_string(block_type)
+		ctrl_if(block_type):
+			"if" + block_type_to_string(block_type)
 		ctrl_else:
 			"else"
 		ctrl_end:
@@ -667,9 +841,17 @@ fn to_string(instruction: Instruction) -> str:
 			"return"
 		ctrl_call(funcidx):
 			"call {funcidx}"
+		ctrl_call_ref(ty):
+			"call_ref {ty}"
 		ctrl_call_indirect(tableidx):
 			"call_indirect {tableidx}"
-
+		ctrl_throw(index):
+			"throw {index}"
+		ctrl_try_table(block_type, catches):
+			var res = "try_table" + block_type_to_string(block_type)
+			for catch in catches:
+				res = res + " " + catch_to_string(catch)
+			res
 		local_get(localidx):
 			"local.get {localidx}"
 		local_set(localidx):
@@ -855,23 +1037,56 @@ fn to_string(instruction: Instruction) -> str:
 		i64_extend16_s: "i64.extend16_s"
 		i64_extend32_s: "i64.extend32_s"
 
+		ref_func(funcidx): "ref.func {funcidx}"
+		ref_null(ty): "ref.null {heap_type_to_string(heap_type: ty)}"
+		ref_is_null: "ref.is_null"
+		ref_as_non_null: "ref.as_non_null"
+		ref_eq: "ref.eq"
+		ref_cast(ty): "ref.cast {ref_type_to_string(ty)}"
+		struct_new(ty): "struct.new {ty}"
+		struct_get(ty, field): "struct.get {ty} {field}"
+		struct_set(ty, field): "struct.set {ty} {field}"
+		array_new_fixed(ty, size): "array.new_fixed {ty} {size}"
+		array_new_default(ty): "array.new_default {ty}"
+		array_get(ty): "array.get {ty}"
+		array_set(ty): "array.set {ty}"
+		ref_i31: "ref.i31"
+		i31_get(signed): "i31.get_" + ("s" if signed else "u")
+		extern_convert_any: "extern.convert_any"
+		any_convert_extern: "any.convert_extern"
 
 pub fn to_wat(module: Module, out: TextGenerator):
 	""" Write webassembly module in text format (WAT) """
 
 	out.emit("(module")
 	out.indent()
+	var type_index = 0
 	for ty in module.types:
-		let type_txt = type_to_string(ty)
-		out.emit("(type (func {type_txt}))")
+		let type_txt = comp_type_to_string(ty)
+		out.emit("(type (;{type_index};) {type_txt})")
+		type_index += 1
 
+	var func_index = 0
 	for imp in module.imports:
-		out.emit("(import \"{imp.module}\" \"{imp.name}\" (func (type {imp.ty})))")
+		out.emit("(import \"{imp.module}\" \"{imp.name}\" (func (;{func_index};) (type {imp.ty})))")
+		func_index += 1
 
-	out.emit("(import \"js\" \"mem\" (memory 25))")
+	for tag in module.tags:
+		# TODO: properly use params
+		out.emit("(tag (param (ref any)))")
+
+	var global_index = 0
+	for g in module.globals:
+		out.emit("(global (;{global_index};) {value_type_to_string(g.ty)}")
+		out.indent()
+		for instruction in g.value:
+			out.emit("{to_string(instruction)}")
+		out.dedent()
+		out.emit(")")
+		global_index += 1
 
 	for function in module.functions:
-		out.emit("(func (type {function.ty})")
+		out.emit("(func (;{func_index};) (type {function.ty})")
 		out.indent()
 		for local in function.locals:
 			out.emit("(local {value_type_to_string(ty: local)})")
@@ -880,8 +1095,7 @@ pub fn to_wat(module: Module, out: TextGenerator):
 			out.emit("{to_string(instruction)}")
 		out.dedent()
 		out.emit(")")
-
-	# emit("(memory 25)")
+		func_index += 1
 
 	for ex in module.exports:
 		out.emit("(export \"{ex.name}\" (func {ex.funcidx}))")
