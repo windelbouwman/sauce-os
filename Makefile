@@ -577,6 +577,26 @@ ${BUILDDIR}/wasm:
 	wasm-tools parse $< -g -o $@
 	wasm-tools validate $@
 
+# Libs
+${BUILDDIR}/wasm/libbase.wat ${BUILDDIR}/wasm/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} -v --backend-wasm --gen-export ${BUILDDIR}/wasm/libbase.json -o ${BUILDDIR}/wasm/libbase.wat ${BASE_LIB_SRCS}
+
+${BUILDDIR}/wasm/libimage.wat ${BUILDDIR}/wasm/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} -v --backend-wasm --gen-export ${BUILDDIR}/wasm/libimage.json -o ${BUILDDIR}/wasm/libimage.wat --add-import ${BUILDDIR}/wasm/libbase.json ${IMAGE_LIB_SRCS}
+
+${BUILDDIR}/wasm/libscience.wat ${BUILDDIR}/wasm/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} -v --backend-wasm --gen-export ${BUILDDIR}/wasm/libscience.json -o ${BUILDDIR}/wasm/libscience.wat --add-import ${BUILDDIR}/wasm/libbase.json ${SCIENCE_LIB_SRCS}
+
+${BUILDDIR}/wasm/libcompiler.wat ${BUILDDIR}/wasm/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} -v --backend-wasm --gen-export ${BUILDDIR}/wasm/libcompiler.json -o ${BUILDDIR}/wasm/libcompiler.wat --add-import ${BUILDDIR}/wasm/libbase.json ${COMPILER_LIB_SRCS}
+
+# Tests
+${BUILDDIR}/wasm/tests:
+	mkdir -p $@
+
+${BUILDDIR}/wasm/tests/test_%.wat: tests/test_%.slang ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libcompiler.json ${BUILDDIR}/wasm/libimage.json ${BUILDDIR}/wasm/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm/tests
+	${SLANGC} --backend-wasm -o $@ $< --add-import ${BUILDDIR}/wasm/libbase.json --add-import ${BUILDDIR}/wasm/libcompiler.json --add-import ${BUILDDIR}/wasm/libimage.json --add-import ${BUILDDIR}/wasm/libscience.json
+
 # Snippets:
 ${BUILDDIR}/wasm/snippets:
 	mkdir -p $@

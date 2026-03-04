@@ -145,8 +145,13 @@ pub struct Tag:
 pub struct Import:
 	module: str
 	name: str
-	ty: int  # Type ref
+	kind: ExternType
+	# ty: int  # Type ref
 	# TODO: description
+
+pub enum ExternType:
+	Func(typeidx: int)
+	Global(ty: ValueType)
 
 pub struct Global:
 	mutable: bool
@@ -160,7 +165,11 @@ pub struct Function:
 
 pub struct Export:
 	name: str
-	funcidx: int
+	kind: ExportKind
+
+pub enum ExportKind:
+	Func(funcidx: int)
+	Global(globalidx: int)
 
 pub struct Data:
 	offset: int
@@ -814,88 +823,50 @@ fn catch_to_string(catch: CatchItem) -> str:
 
 fn to_string(instruction: Instruction) -> str:
 	case instruction:
-		ctrl_unreachable:
-			"unreachable"
-		ctrl_nop:
-			"nop"
-		drop:
-			"drop"
+		ctrl_unreachable: "unreachable"
+		ctrl_nop: "nop"
+		drop: "drop"
 		ctrl_block(block_type):
 			"block" + block_type_to_string(block_type)
 		ctrl_loop(block_type):
 			"loop" + block_type_to_string(block_type)
 		ctrl_if(block_type):
 			"if" + block_type_to_string(block_type)
-		ctrl_else:
-			"else"
-		ctrl_end:
-			"end"
+		ctrl_else: "else"
+		ctrl_end: "end"
 
-		ctrl_br(labelidx):
-			"br {labelidx}"
-		ctrl_br_if(labelidx):
-			"br_if {labelidx}"
-		ctrl_br_table:
-			"br_table"
-		ctrl_return:
-			"return"
-		ctrl_call(funcidx):
-			"call {funcidx}"
-		ctrl_call_ref(ty):
-			"call_ref {ty}"
-		ctrl_call_indirect(tableidx):
-			"call_indirect {tableidx}"
-		ctrl_throw(index):
-			"throw {index}"
+		ctrl_br(labelidx): "br {labelidx}"
+		ctrl_br_if(labelidx): "br_if {labelidx}"
+		ctrl_br_table: "br_table"
+		ctrl_return: "return"
+		ctrl_call(funcidx): "call {funcidx}"
+		ctrl_call_ref(ty): "call_ref {ty}"
+		ctrl_call_indirect(tableidx): "call_indirect {tableidx}"
+		ctrl_throw(index): "throw {index}"
 		ctrl_try_table(block_type, catches):
 			var res = "try_table" + block_type_to_string(block_type)
 			for catch in catches:
 				res = res + " " + catch_to_string(catch)
 			res
-		local_get(localidx):
-			"local.get {localidx}"
-		local_set(localidx):
-			"local.set {localidx}"
-		local_tee(localidx):
-			"local.tee {localidx}"
-		global_get(globalidx):
-			"global.get {globalidx}"
-		global_set(globalidx):
-			"global.set {globalidx}"
+		local_get(localidx): "local.get {localidx}"
+		local_set(localidx): "local.set {localidx}"
+		local_tee(localidx): "local.tee {localidx}"
+		global_get(globalidx): "global.get {globalidx}"
+		global_set(globalidx): "global.set {globalidx}"
 
+		i32_load(align, offset):"i32.load offset={offset} align={align}"
+		i64_load(align, offset):"i64.load offset={offset} align={align}"
+		f32_load(align, offset):"f32.load offset={offset} align={align}"
+		f64_load(align, offset):"f64.load offset={offset} align={align}"
+		i32_store(align, offset):"i32.store offset={offset} align={align}"
+		i64_store(align, offset):"i64.store offset={offset} align={align}"
+		f32_store(align, offset):"f32.store offset={offset} align={align}"
+		f64_store(align, offset):"f64.store offset={offset} align={align}"
 
-		i32_load(align, offset):
-			"i32.load offset={offset} align={align}"
-
-		i64_load(align, offset):
-			"i64.load offset={offset} align={align}"
-
-		f32_load(align, offset):
-			"f32.load offset={offset} align={align}"
-
-		f64_load(align, offset):
-			"f64.load offset={offset} align={align}"
-
-		i32_store(align, offset):
-			"i32.store offset={offset} align={align}"
-
-		i64_store(align, offset):
-			"i64.store offset={offset} align={align}"
-
-		f32_store(align, offset):
-			"f32.store offset={offset} align={align}"
-
-		f64_store(align, offset):
-			"f64.store offset={offset} align={align}"
-
-		i32_const(value):
-			"i32.const {value}"
-		i64_const(value):
-			"i64.const {value}"
-		f32_const(value):
-			"f32.const {float_to_str(value)}"
-		f64_const(value):
-			"f64.const {float_to_str(value)}"
+		i32_const(value): "i32.const {value}"
+		i64_const(value): "i64.const {value}"
+		f32_const(value): "f32.const {float_to_str(value)}"
+		f64_const(value): "f64.const {float_to_str(value)}"
 
 		i32_eqz: "i32.eqz"
 		i32_eq: "i32.eq"
@@ -908,7 +879,6 @@ fn to_string(instruction: Instruction) -> str:
 		i32_le_u: "i32.le_u"
 		i32_ge_s: "i32.ge_s"
 		i32_ge_u: "i32.ge_u"
-
 
 		i64_eqz: "i64.eqz"
 		i64_eq: "i64.eq"
@@ -954,7 +924,6 @@ fn to_string(instruction: Instruction) -> str:
 		i32_shr_u: "i32.shr_u"
 		i32_rotl: "i32.rotl"
 		i32_rotr: "i32.rotr"
-
 
 		i64_clz: "i64.clz"
 		i64_ctz: "i64.ctz"
@@ -1067,17 +1036,22 @@ pub fn to_wat(module: Module, out: TextGenerator):
 		type_index += 1
 
 	var func_index = 0
+	var global_index = 0
 	for imp in module.imports:
-		out.emit("(import \"{imp.module}\" \"{imp.name}\" (func (;{func_index};) (type {imp.ty})))")
-		func_index += 1
+		case imp.kind:
+			Func(typeidx):
+				out.emit("(import \"{imp.module}\" \"{imp.name}\" (func (;{func_index};) (type {typeidx})))")
+				func_index += 1
+			Global(ty):
+				out.emit("(import \"{imp.module}\" \"{imp.name}\" (global (;{global_index};) (mut {value_type_to_string(ty)})))")
+				global_index += 1
 
 	for tag in module.tags:
 		# TODO: properly use params
-		out.emit("(tag (param (ref any)))")
+		out.emit("(tag (param (ref null any)))")
 
-	var global_index = 0
 	for g in module.globals:
-		out.emit("(global (;{global_index};) {value_type_to_string(g.ty)}")
+		out.emit("(global (;{global_index};) (mut {value_type_to_string(g.ty)})")
 		out.indent()
 		for instruction in g.value:
 			out.emit("{to_string(instruction)}")
@@ -1098,7 +1072,11 @@ pub fn to_wat(module: Module, out: TextGenerator):
 		func_index += 1
 
 	for ex in module.exports:
-		out.emit("(export \"{ex.name}\" (func {ex.funcidx}))")
+		case ex.kind:
+			Func(funcidx):
+				out.emit("(export \"{ex.name}\" (func {funcidx}))")
+			Global(globalidx):
+				out.emit("(export \"{ex.name}\" (global {globalidx}))")
 
 	for data in module.datas:
 		out.emit("(data (i32.const {data.offset}) \"{data.text}\")")

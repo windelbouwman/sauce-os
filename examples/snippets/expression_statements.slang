@@ -8,10 +8,8 @@ pub fn main() -> int:
 	let token = Token.Id(name: "w00t")
 	std.print("Token: {test3(token)}")
 	let a = switch 3:
-		2:
-			1
-		3:
-			15
+		2: 1
+		3: 15
 	else:
 		100
 	std.print("a={a}")
@@ -33,10 +31,8 @@ fn test(x: int) -> int:
 
 fn test2(x: int) -> str:
 	switch x:
-		0:
-			"a"
-		1:
-			"B"
+		0: "a"
+		1: "B"
 	else:
 		"?"
 
@@ -63,6 +59,4 @@ struct X:
 	b: int
 
 fn get_x() -> X:
-	X:
-		a: 1
-		b: 2
+	X(a: 1, b: 2)

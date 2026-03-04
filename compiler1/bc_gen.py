@@ -269,7 +269,7 @@ class ByteCodeGenerator:
         elif isinstance(kind, ast.AssignmentStatement):
             if isinstance(kind.target.kind, ast.ObjRef):
                 obj = kind.target.kind.obj
-                if isinstance(obj, ast.Variable):
+                if isinstance(obj, (ast.Variable, ast.Parameter)):
                     local_index = self._locals.index(obj)
                     if kind.op == "=":
                         self.gen_expression(kind.value)
@@ -286,7 +286,8 @@ class ByteCodeGenerator:
                     else:
                         self.emit(OpCode.GLOBAL_GET, global_index)
                         self.gen_expression(kind.value)
-                        raise NotImplementedError("global +=")
+                        ty = self.get_bc_ty(kind.value.ty)
+                        self.emit(self._binop_map[kind.op[:-1]], ty)
                     self.emit(OpCode.GLOBAL_SET, global_index)
                 else:
                     raise ValueError(f"Cannot assign obj: {obj}")
