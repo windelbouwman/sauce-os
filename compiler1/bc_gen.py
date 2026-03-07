@@ -227,8 +227,7 @@ class ByteCodeGenerator:
             self.enter_block(LoopBlock(start_label, final_label))
 
             self.set_label(start_label)
-            self.gen_expression(kind.condition)
-            self.emit(OpCode.JUMP_IF, body_label, final_label)
+            self.gen_condition(kind.condition, body_label, final_label)
 
             self.set_label(body_label)
             self.gen_statement(kind.block.body, None)
@@ -241,8 +240,7 @@ class ByteCodeGenerator:
             true_label = self.new_label()
             false_label = self.new_label()
             final_label = self.new_label()
-            self.gen_expression(kind.condition)
-            self.emit(OpCode.JUMP_IF, true_label, false_label)
+            self.gen_condition(kind.condition, true_label, false_label)
 
             self.set_label(true_label)
             self.gen_statement(kind.true_block.body, target)
@@ -346,6 +344,21 @@ class ByteCodeGenerator:
             self.set_label(final_label)
         else:
             raise NotImplementedError(str(kind))
+
+    def gen_condition(self, expression: ast.Expression, true_label, false_label):
+        if isinstance(expression.kind, ast.Binop) and expression.kind.op == "and":
+            middle_label = self.new_label()
+            self.gen_condition(expression.kind.lhs, middle_label, false_label)
+            self.set_label(middle_label)
+            self.gen_condition(expression.kind.rhs, true_label, false_label)
+        elif isinstance(expression.kind, ast.Binop) and expression.kind.op == "or":
+            middle_label = self.new_label()
+            self.gen_condition(expression.kind.lhs, true_label, middle_label)
+            self.set_label(middle_label)
+            self.gen_condition(expression.kind.rhs, true_label, false_label)
+        else:
+            self.gen_expression(expression)
+            self.emit(OpCode.JUMP_IF, true_label, false_label)
 
     def gen_expression(self, expression: ast.Expression):
         kind = expression.kind

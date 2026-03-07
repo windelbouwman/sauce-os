@@ -49,6 +49,7 @@ ALL_TEST_RUNS_C2 := $(patsubst tests/test_%.slang, run-test-c2-%, $(TESTS))
 ALL_TEST_RUNS_PY := $(patsubst tests/test_%.slang, run-test-py-%, $(TESTS))
 ALL_TEST_RUNS_X86 := $(patsubst tests/test_%.slang, run-test-x86-%, $(TESTS))
 X86_TESTS := $(patsubst tests/test_%.slang, build/x86/test_%.exe, $(TESTS))
+WASM_TESTS := $(patsubst tests/test_%.slang, build/wasm/tests/test_%.wasm, $(TESTS))
 
 .PHONY: all check-c check-c2 check-x86 check-py all-examples test pytest-exes quick
 all: ${APPS_C} ${PY_APPS} ${APPS_C2} ${APP_X86} all-examples aoc
@@ -579,16 +580,16 @@ ${BUILDDIR}/wasm:
 
 # Libs
 ${BUILDDIR}/wasm/libbase.wat ${BUILDDIR}/wasm/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/wasm
-	${SLANGC} -v --backend-wasm --gen-export ${BUILDDIR}/wasm/libbase.json -o ${BUILDDIR}/wasm/libbase.wat ${BASE_LIB_SRCS}
+	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libbase.json -o ${BUILDDIR}/wasm/libbase.wat ${BASE_LIB_SRCS}
 
 ${BUILDDIR}/wasm/libimage.wat ${BUILDDIR}/wasm/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
-	${SLANGC} -v --backend-wasm --gen-export ${BUILDDIR}/wasm/libimage.json -o ${BUILDDIR}/wasm/libimage.wat --add-import ${BUILDDIR}/wasm/libbase.json ${IMAGE_LIB_SRCS}
+	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libimage.json -o ${BUILDDIR}/wasm/libimage.wat --add-import ${BUILDDIR}/wasm/libbase.json ${IMAGE_LIB_SRCS}
 
 ${BUILDDIR}/wasm/libscience.wat ${BUILDDIR}/wasm/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
-	${SLANGC} -v --backend-wasm --gen-export ${BUILDDIR}/wasm/libscience.json -o ${BUILDDIR}/wasm/libscience.wat --add-import ${BUILDDIR}/wasm/libbase.json ${SCIENCE_LIB_SRCS}
+	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libscience.json -o ${BUILDDIR}/wasm/libscience.wat --add-import ${BUILDDIR}/wasm/libbase.json ${SCIENCE_LIB_SRCS}
 
 ${BUILDDIR}/wasm/libcompiler.wat ${BUILDDIR}/wasm/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
-	${SLANGC} -v --backend-wasm --gen-export ${BUILDDIR}/wasm/libcompiler.json -o ${BUILDDIR}/wasm/libcompiler.wat --add-import ${BUILDDIR}/wasm/libbase.json ${COMPILER_LIB_SRCS}
+	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libcompiler.json -o ${BUILDDIR}/wasm/libcompiler.wat --add-import ${BUILDDIR}/wasm/libbase.json ${COMPILER_LIB_SRCS}
 
 # Tests
 ${BUILDDIR}/wasm/tests:
@@ -597,6 +598,9 @@ ${BUILDDIR}/wasm/tests:
 ${BUILDDIR}/wasm/tests/test_%.wat: tests/test_%.slang ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libcompiler.json ${BUILDDIR}/wasm/libimage.json ${BUILDDIR}/wasm/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm/tests
 	${SLANGC} --backend-wasm -o $@ $< --add-import ${BUILDDIR}/wasm/libbase.json --add-import ${BUILDDIR}/wasm/libcompiler.json --add-import ${BUILDDIR}/wasm/libimage.json --add-import ${BUILDDIR}/wasm/libscience.json
 
+check-wasm: ${WASM_TESTS} ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libimage.wasm ${BUILDDIR}/wasm/libscience.wasm ${BUILDDIR}/wasm/libcompiler.wasm
+	node runtime/runtime.js
+
 # Snippets:
 ${BUILDDIR}/wasm/snippets:
 	mkdir -p $@
@@ -604,7 +608,7 @@ ${BUILDDIR}/wasm/snippets:
 .PRECIOUS: ${BUILDDIR}/wasm/snippets/%.wat
 
 ${BUILDDIR}/wasm/snippets/%.wat: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/wasm/snippets
-	${SLANGC} -v -v --backend-wasm $< runtime/std.slang -o $@
+	${SLANGC} --backend-wasm $< runtime/std.slang -o $@
 
 ############################################################################
 # Bootstrapping

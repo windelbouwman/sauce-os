@@ -7,7 +7,7 @@ WebAssembly support.
 """
 
 from listtype import List, list1
-from std import float_to_str
+from std import float_to_str2
 from text_gen import TextGenerator
 from strlib import str_join
 
@@ -865,8 +865,8 @@ fn to_string(instruction: Instruction) -> str:
 
 		i32_const(value): "i32.const {value}"
 		i64_const(value): "i64.const {value}"
-		f32_const(value): "f32.const {float_to_str(value)}"
-		f64_const(value): "f64.const {float_to_str(value)}"
+		f32_const(value): "f32.const {float_to_str2(value, digits: 20)}"
+		f64_const(value): "f64.const {float_to_str2(value, digits: 20)}"
 
 		i32_eqz: "i32.eqz"
 		i32_eq: "i32.eq"

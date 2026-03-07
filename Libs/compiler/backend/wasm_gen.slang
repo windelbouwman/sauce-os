@@ -134,6 +134,8 @@ class WasmGenerator:
 								let key = function_def.name
 								index_mapping.insert(key, value: func_counter)
 								let name = function_def.name
+								# if function_def.is_pub:
+								# To use function pointers, functions must be exported, regardless of pub flag.
 								exports.append(webassembly.Export(name, kind: webassembly.ExportKind.Func(funcidx: func_counter)))
 								func_counter += 1
 							Extern(libname):
@@ -145,6 +147,7 @@ class WasmGenerator:
 							Intern(value):
 								global_mapping.insert(key: var_def.variable.id, value: global_counter)
 								let name = var_def.variable.id.name
+								# if var_def.is_pub:
 								exports.append(webassembly.Export(name, kind: webassembly.ExportKind.Global(globalidx: global_counter)))
 								global_counter += 1
 							Extern(libname, initialized):
@@ -172,6 +175,13 @@ class WasmGenerator:
 
 	fn gen_external_function(function_def: ast.FunctionDef):
 		# log_debug("extern function def: {extern_function_def.name}")
+
+		# Kludge to use native popcnt instructions
+		if function_def.name == "rt_popcnt" or function_def.name == "rt_ctz" or function_def.name == "rt_clz":
+			return
+
+		# Re-export imported function to be able to use it as function pointer
+		exports.append(webassembly.Export(name: function_def.name, kind: webassembly.ExportKind.Func(funcidx: func_counter)))
 		index_mapping.insert(key: function_def.name, value: func_counter)
 		func_counter += 1
 
@@ -313,11 +323,15 @@ class WasmGenerator:
 		case function_def.body:
 			Intern(scoped_block):
 				let body = scoped_block.body
-				gen_statement(body)
 
-				# Introduce an unreachable instruction, when we cannot reach this point.
-				if body.ty.is_unreachable():
+				if function_def.info.return_type.is_void():
+					gen_statement(body, target: Option.None())
+				elif function_def.info.return_type.is_unreachable():
+					gen_statement(body, target: Option.None())
+					# Introduce an unreachable instruction, when we cannot reach this point.
 					emit(Instruction.ctrl_unreachable())
+				else:
+					gen_statement(body, target: Option.Some(function_def.info.return_type))
 		else:
 			panic("Function without body")
 
@@ -327,7 +341,7 @@ class WasmGenerator:
 			code
 		functions.append(f)
 
-	fn gen_statement(statement?: ast.Statement):
+	fn gen_statement(statement?: ast.Statement, target: Option[ast.Type]):
 		case statement.kind:
 			Break:
 				let distance = get_loop()
@@ -336,8 +350,14 @@ class WasmGenerator:
 				let distance = get_loop()
 				emit(Instruction.ctrl_br(distance))
 			Compound(inner):
+				let n = inner.len()
+				var i = 0
 				for sub_statement in inner:
-					gen_statement(sub_statement)
+					i += 1
+					if i == n:
+						gen_statement(sub_statement, target)
+					else:
+						gen_statement(sub_statement, target: Option.None())
 			Expr(expression):
 				gen_expression(expression)
 				if statement.ty.is_unreachable():
@@ -349,26 +369,25 @@ class WasmGenerator:
 				let localidx = create_local(id: let_statement.variable.id, ty: let_statement.variable.ty)
 				emit(Instruction.local_set(localidx))
 			If(if_statement):
-				gen_expression(if_statement.condition)
+				gen_condition(if_statement.condition)
 				enter_block(is_loop: false)
-				let block_type: webassembly.BlockType = if statement.ty.is_void() or statement.ty.is_unreachable():
-					webassembly.empty_block_type()
-				else:
-					webassembly.one_result_block_type(get_wasm_type(statement.ty))
+				let block_type: webassembly.BlockType = case target:
+					None: webassembly.empty_block_type()
+					Some(ty): webassembly.one_result_block_type(get_wasm_type(ty))
 				emit(Instruction.ctrl_if(block_type))
-				gen_statement(if_statement.true_block.body)
+				gen_statement(if_statement.true_block.body, target)
 				emit(Instruction.ctrl_else())
-				gen_statement(if_statement.false_block.body)
+				gen_statement(if_statement.false_block.body, target)
 				emit(Instruction.ctrl_end())
 				leave_block()
 			While(while_statement):
 				enter_block(is_loop: true)
 				emit(Instruction.ctrl_block(block_type: webassembly.empty_block_type()))
 				emit(Instruction.ctrl_loop(block_type: webassembly.empty_block_type()))
-				gen_expression(while_statement.condition)
+				gen_condition(while_statement.condition)
 				emit(Instruction.i32_eqz())
 				emit(Instruction.ctrl_br_if(1))
-				gen_statement(while_statement.block.body)
+				gen_statement(while_statement.block.body, target: Option.None())
 				emit(Instruction.ctrl_br(0))
 				emit(Instruction.ctrl_end())
 				emit(Instruction.ctrl_end())
@@ -404,7 +423,7 @@ class WasmGenerator:
 		enter_block(is_loop: false)
 		emit(Instruction.ctrl_try_table(block_type: webassembly.empty_block_type(), catchers))
 
-		gen_statement(try_statement.try_block.body)
+		gen_statement(try_statement.try_block.body, target: Option.None())
 		emit(Instruction.ctrl_end())  # end of try-table
 		leave_block()
 		emit(Instruction.ctrl_br(1)) # Jump to end of outer, in case of no exception
@@ -417,7 +436,7 @@ class WasmGenerator:
 		unbox_value(to_type: try_statement.except_var.ty)
 		emit(Instruction.local_set(localidx))
 
-		gen_statement(try_statement.except_block.body)
+		gen_statement(try_statement.except_block.body, target: Option.None())
 
 		emit(Instruction.ctrl_end()) # outer-end
 		leave_block()
@@ -493,12 +512,13 @@ class WasmGenerator:
 	fn gen_op_for_type(op: ast.BinaryOperator, ty: ast.Type):
 		if ty.is_int():
 			let bits = ty.get_bits()
+			let signed = ty.is_signed_int()
 			if bits == 64:
 				case op:
 					Add: emit(Instruction.i64_add())
 					Sub: emit(Instruction.i64_sub())
 					Mul: emit(Instruction.i64_mul())
-					Div: emit(Instruction.i64_div_s())
+					Div: emit(Instruction.i64_div_s() if signed else Instruction.i64_div_u())
 				else:
 					panic("Invalid 64 bits int binop: {ast.binary_op_to_str(op)}")
 			else:
@@ -506,7 +526,7 @@ class WasmGenerator:
 					Add: emit(Instruction.i32_add())
 					Sub: emit(Instruction.i32_sub())
 					Mul: emit(Instruction.i32_mul())
-					Div: emit(Instruction.i32_div_s())
+					Div: emit(Instruction.i32_div_s() if signed else Instruction.i32_div_u())
 				else:
 					panic("Invalid 32 bits int binop: {ast.binary_op_to_str(op)}")
 		elif ty.is_float():
@@ -529,6 +549,32 @@ class WasmGenerator:
 					panic("Invalid 32 bits float binop: {ast.binary_op_to_str(op)}")
 		else:
 			panic("Unsupported += type: {ty}")
+
+	fn gen_condition(expression?: ast.Expression):
+		""" Generate condition, keeping track of short circuit logic. """
+		case expression.kind:
+			Binop(binop):
+				case binop.op:
+					And:
+						gen_condition(binop.lhs)
+						let block_type = webassembly.one_result_block_type(result_type: webassembly.ValueType.Num(num_type: webassembly.NumType.i32()))
+						emit(Instruction.ctrl_if(block_type))
+						gen_condition(binop.rhs)
+						emit(Instruction.ctrl_else())
+						emit(Instruction.i32_const(0))
+						emit(Instruction.ctrl_end())
+					Or:
+						gen_condition(binop.lhs)
+						let block_type = webassembly.one_result_block_type(result_type: webassembly.ValueType.Num(num_type: webassembly.NumType.i32()))
+						emit(Instruction.ctrl_if(block_type))
+						emit(Instruction.i32_const(1))
+						emit(Instruction.ctrl_else())
+						gen_condition(binop.rhs)
+						emit(Instruction.ctrl_end())
+				else:
+					gen_expression(expression)
+		else:
+			gen_expression(expression)
 
 	fn gen_expression(expression?: ast.Expression):
 		case expression.kind:
@@ -573,7 +619,11 @@ class WasmGenerator:
 			Null:
 				emit(Instruction.ref_null(ty: webassembly.HeapType.Any()))
 			Binop(binop):
-				gen_binop(binop)
+				case binop.op:
+					And: gen_condition(expression)
+					Or: gen_condition(expression)
+				else:
+					gen_binop(binop)
 			Unop(op, value):
 				gen_unop(op, value)
 			Call(call):
@@ -622,7 +672,7 @@ class WasmGenerator:
 				gen_expression(if_expression.false_value)
 				emit(Instruction.ctrl_end())
 			Stmt(statement):
-				gen_statement(statement)
+				gen_statement(statement, target: Option.Some(expression.ty))
 		else:
 			panic("Not implemented expression: {expression}")
 
@@ -631,12 +681,9 @@ class WasmGenerator:
 		if value.ty.is_int():
 			let bits = value.ty.get_bits()
 			if bits == 64:
-				# TODO: use boxed i64?
-				emit(Instruction.i32_wrap_i64())
-				emit(Instruction.ref_i31())
+				emit(Instruction.struct_new(ty: i64_box_type))
 			else:
-				# TODO: use boxed i32?
-				emit(Instruction.ref_i31())
+				emit(Instruction.struct_new(ty: i32_box_type))
 		elif value.ty.is_char() or value.ty.is_bool():
 			emit(Instruction.ref_i31())
 		elif value.ty.is_float():
@@ -647,7 +694,7 @@ class WasmGenerator:
 				emit(Instruction.struct_new(ty: f32_box_type))
 		elif value.ty.is_str():
 			emit(Instruction.any_convert_extern())
-		elif value.ty.is_opaque() or value.ty.is_tycon_app():
+		elif value.ty.is_opaque() or value.ty.is_tycon_app() or value.ty.is_array():
 			pass
 		else:
 			panic("TODO: box of {value.ty}")
@@ -662,11 +709,14 @@ class WasmGenerator:
 			emit(Instruction.ref_cast(webassembly.nullable_ref_type(webassembly.HeapType.i31())))
 			emit(Instruction.i31_get(signed: true))
 		elif to_type.is_int():
-			emit(Instruction.ref_cast(webassembly.nullable_ref_type(webassembly.HeapType.i31())))
-			emit(Instruction.i31_get(signed: true))
+			emit(Instruction.ref_as_non_null())
 			let bits = to_type.get_bits()
 			if bits == 64:
-				emit(Instruction.i64_extend_i32_s())
+				emit(Instruction.ref_cast(webassembly.ref_type(webassembly.HeapType.TypeIdx(i64_box_type))))
+				emit(Instruction.struct_get(ty: i64_box_type, index: 0))
+			else:
+				emit(Instruction.ref_cast(webassembly.ref_type(webassembly.HeapType.TypeIdx(i32_box_type))))
+				emit(Instruction.struct_get(ty: i32_box_type, index: 0))
 		elif to_type.is_float():
 			emit(Instruction.ref_as_non_null())
 			let bits = to_type.get_bits()
@@ -684,6 +734,9 @@ class WasmGenerator:
 					emit(Instruction.ref_cast(webassembly.nullable_ref_type(webassembly.HeapType.TypeIdx(index))))
 			else:
 				panic("TODO: unbox tycon")
+		elif to_type.is_array():
+			let index = get_array_type_index(element_type: to_type.get_element_type())
+			emit(Instruction.ref_cast(webassembly.nullable_ref_type(webassembly.HeapType.TypeIdx(index))))
 		else:
 			panic("TODO: unbox to {to_type}")
 
@@ -692,8 +745,28 @@ class WasmGenerator:
 			FunctionRef(function_def, type_arguments):
 				for argument in call.arguments:
 					gen_expression(argument.value)
-				let funcidx = get_func_index(function_def)
-				emit(Instruction.ctrl_call(funcidx))
+				# Kludge for builtin popcnt and clz instructions:
+				if function_def.name == "rt_popcnt":
+					let bits = call.arguments.first().value.ty.get_bits()
+					if bits == 64:
+						emit(Instruction.i64_popcnt())
+					else:
+						emit(Instruction.i32_popcnt())
+				elif function_def.name == "rt_ctz":
+					let bits = call.arguments.first().value.ty.get_bits()
+					if bits == 64:
+						emit(Instruction.i64_ctz())
+					else:
+						emit(Instruction.i32_ctz())
+				elif function_def.name == "rt_clz":
+					let bits = call.arguments.first().value.ty.get_bits()
+					if bits == 64:
+						emit(Instruction.i64_clz())
+					else:
+						emit(Instruction.i32_clz())
+				else:
+					let funcidx = get_func_index(function_def)
+					emit(Instruction.ctrl_call(funcidx))
 		else:
 			# First generate callee expression:
 			for argument in call.arguments:
@@ -713,28 +786,26 @@ class WasmGenerator:
 		gen_expression(binop.lhs)
 		gen_expression(binop.rhs)
 		if binop.lhs.ty.is_int():
-			# let signed = binop.lhs.ty.is_signed_int()
 			let bits = binop.lhs.ty.get_bits()
+			let signed = binop.lhs.ty.is_signed_int()
 			if bits == 64:
 				case binop.op:
 					Add: emit(Instruction.i64_add())
 					Sub: emit(Instruction.i64_sub())
 					Mul: emit(Instruction.i64_mul())
-					Div: emit(Instruction.i64_div_s())
-					Mod: emit(Instruction.i64_rem_s())
-					Less: emit(Instruction.i64_lt_s())
-					LessEquals: emit(Instruction.i64_le_s())
-					Greater: emit(Instruction.i64_gt_s())
-					GreaterEquals: emit(Instruction.i64_ge_s())
+					Div: emit(Instruction.i64_div_s() if signed else Instruction.i64_div_u())
+					Mod: emit(Instruction.i64_rem_s() if signed else Instruction.i64_rem_u())
+					Less: emit(Instruction.i64_lt_s() if signed else Instruction.i64_lt_u())
+					LessEquals: emit(Instruction.i64_le_s() if signed else Instruction.i64_le_u())
+					Greater: emit(Instruction.i64_gt_s() if signed else Instruction.i64_gt_u())
+					GreaterEquals: emit(Instruction.i64_ge_s() if signed else Instruction.i64_ge_u())
 					Equals: emit(Instruction.i64_eq())
 					NotEquals: emit(Instruction.i64_ne())
 					BitAnd: emit(Instruction.i64_and())
 					BitXor: emit(Instruction.i64_xor())
 					BitOr: emit(Instruction.i64_or())
 					ShiftLeft: emit(Instruction.i64_shl())
-					ShiftRight:
-						# TBD: unsigned or signed shift right?
-						emit(Instruction.i64_shr_u())
+					ShiftRight: emit(Instruction.i64_shr_s() if signed else Instruction.i64_shr_u())
 				else:
 					panic("Invalid int binop: {ast.binary_op_to_str(binop.op)}")
 			else:
@@ -742,27 +813,23 @@ class WasmGenerator:
 					Add: emit(Instruction.i32_add())
 					Sub: emit(Instruction.i32_sub())
 					Mul: emit(Instruction.i32_mul())
-					Div: emit(Instruction.i32_div_s())
-					Mod: emit(Instruction.i32_rem_s())
-					Less: emit(Instruction.i32_lt_s())
-					LessEquals: emit(Instruction.i32_le_s())
-					Greater: emit(Instruction.i32_gt_s())
-					GreaterEquals: emit(Instruction.i32_ge_s())
+					Div: emit(Instruction.i32_div_s() if signed else Instruction.i32_div_u())
+					Mod: emit(Instruction.i32_rem_s() if signed else Instruction.i32_rem_u())
+					Less: emit(Instruction.i32_lt_s() if signed else Instruction.i32_lt_u())
+					LessEquals: emit(Instruction.i32_le_s() if signed else Instruction.i32_le_u())
+					Greater: emit(Instruction.i32_gt_s() if signed else Instruction.i32_gt_u())
+					GreaterEquals: emit(Instruction.i32_ge_s() if signed else Instruction.i32_ge_u())
 					Equals: emit(Instruction.i32_eq())
 					NotEquals: emit(Instruction.i32_ne())
 					BitAnd: emit(Instruction.i32_and())
 					BitXor: emit(Instruction.i32_xor())
 					BitOr: emit(Instruction.i32_or())
 					ShiftLeft: emit(Instruction.i32_shl())
-					ShiftRight:
-						# TBD: unsigned or signed shift right?
-						emit(Instruction.i32_shr_u())
+					ShiftRight: emit(Instruction.i32_shr_s() if signed else Instruction.i32_shr_u())
 				else:
 					panic("Invalid int binop: {ast.binary_op_to_str(binop.op)}")
 		elif binop.lhs.ty.is_bool():
 			case binop.op:
-				And: emit(Instruction.i32_and())
-				Or: emit(Instruction.i32_or())
 				Equals: emit(Instruction.i32_eq())
 				NotEquals: emit(Instruction.i32_ne())
 			else:
@@ -820,7 +887,7 @@ class WasmGenerator:
 		case op:
 			Not:
 				assert(condition: value.ty.is_bool(), message: "'not' operator only supports booleans")
-				gen_expression(value)
+				gen_condition(value)
 				emit(Instruction.i32_eqz())
 			Minus:
 				if value.ty.is_int():

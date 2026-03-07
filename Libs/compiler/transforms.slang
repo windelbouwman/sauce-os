@@ -948,7 +948,8 @@ class ClassRewriter:
 
 		let vtable_ty = iface_type.get_field_type(attr: "vtable")
 		let vtable_value = ast.struct_literal(ty: vtable_ty, values, location: impl_def.location)
-		let variable = ast.variable(name: "vtable", id: get_unique_id(), ty: vtable_ty, location: impl_def.location)
+		let vtable_name = "{impl_def.id.name}_vtable"
+		let variable = ast.variable(name: vtable_name, id: get_unique_id(), ty: vtable_ty, location: impl_def.location)
 		impl2.set_impl_vtable(ty: impl_def.target_type, vtable: variable)
 		let vtable_global = ast.VariableDef(is_pub: true, variable, value: ast.VariableDefValue.Intern(value: Option.Some(vtable_value)))
 		new_definitions.append(ast.Definition.Var(vtable_global))
