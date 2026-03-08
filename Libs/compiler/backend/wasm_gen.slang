@@ -82,7 +82,7 @@ class WasmGenerator:
 	fn add_builtin():
 		let params: List[webassembly.ValueType] = List()
 		let results: List[webassembly.ValueType] = List()
-		params.append(webassembly.ValueType.Ref(webassembly.ref_type(webassembly.HeapType.TypeIdx(array_i16_type)))) # array
+		params.append(webassembly.ValueType.Ref(webassembly.nullable_ref_type(webassembly.HeapType.TypeIdx(array_i16_type)))) # array
 		params.append(webassembly.ValueType.Num(webassembly.NumType.i32())) # start
 		params.append(webassembly.ValueType.Num(webassembly.NumType.i32())) # end
 		results.append(webassembly.ValueType.Ref(ty: webassembly.ref_extern_type()))

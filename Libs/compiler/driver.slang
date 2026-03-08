@@ -6,14 +6,14 @@ Main compilation driver.
 import ast
 import bc
 from errors import CompilationError, new_error_with_filename
-from parsing import parse_source, ParseError
+from parsing import parse_source, ParseError, parse_module_from_text
 from namebinding import bind_names
 from pass3 import resolve_newops
 from codegen import CodegenOptions
 from typechecking import type_check
 from typedb import store_symbol_table, load_symbol_table
 from utils import panic, assert
-from logging import log_info, log_trace, log_debug
+from logging import log_error, log_info, log_trace, log_debug
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
 from basepass import IdGen
@@ -245,3 +245,47 @@ fn topo_sort(modules: List[ast.ModuleDef]):
 			assert(condition: mapping.is_empty(), message: "Mapping must be empty")
 		None:
 			panic("dependency cycle!")
+
+pub fn slang_to_python(code: str):
+	""" Compile given code to python string """
+
+	let p = Profiler()
+	p.enter(name: "compile")
+	let id_gen = IdGen()
+	let typectx = ast.make_typectx()
+	let top_module = ast.new_empty_module(name: "toplevel", location: location_default())
+	let modules: List[ast.ModuleDef] = List()
+	let module_map: HashMap[str,ast.ModuleDef] = new_hashmap_str()
+
+	let rt_module = get_rt_module(typectx)
+	modules.append(rt_module)
+	module_map.insert(key: rt_module.name, value: rt_module)
+	top_module.add_module(rt_module)
+
+	let filename = "noname.slang"
+	try:
+		let program = parse_module_from_text(source: code, filename, id_gen, typectx, debug: Option.None())
+		log_trace("Parsed module: {program.name}")
+		modules.append(program)
+		module_map.insert(key: program.name, value: program)
+		top_module.add_module(program)
+	except (e: ParseError):
+		log_error("Parse error")
+		return
+
+	topo_sort(modules)
+	let module_set = ast.ModuleSet(modules)
+
+	try:
+		bind_names(module: top_module, typectx, module_map)
+		resolve_newops(module: top_module, id_gen)
+		type_check(module: top_module, typectx, display_warnings: true)
+		let transform_options = TransformOptions:
+			keep_switch: false
+		transform(module_set, typectx, id_gen, rt_module, options: transform_options)
+		type_check(module: top_module, typectx, display_warnings: true)
+	except (compile_error: CompilationError):
+		log_error("Compile error")
+		return
+
+	gen_python(module_set, generate_runtime: false, output_filename: Option.None())

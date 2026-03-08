@@ -16,6 +16,9 @@ from logging import log_debug, log_trace
 
 pub fn parse_source(filename: str, id_gen: IdGen, typectx: ast.TypeContext, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
 	let source = std.read_file(filename)
+	parse_module_from_text(source, filename, id_gen, typectx, debug)
+
+pub fn parse_module_from_text(source: str, filename: str, id_gen: IdGen, typectx: ast.TypeContext, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
 	let modname = basename(path: filename)
 	let parser = Parser(typectx, id_gen)
 	case debug:

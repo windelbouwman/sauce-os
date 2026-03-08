@@ -1,13 +1,3 @@
-/*
-Loader for generated webassembly files
-
-Run with:
-
-$ node runtime.js program.wasm
-
-*/
-
-import fs from "fs";
 import {
   rt_int_to_str,
   rt_char_to_str,
@@ -22,7 +12,7 @@ import {
   rt_str_get,
 } from "./slangrt.js";
 
-// console.log("Load webassembly script");
+let output_parts = [];
 
 function die(message) {
   console.log(message);
@@ -57,13 +47,11 @@ function std_file_exists() {
 }
 
 function std_file_get_stdin() {
-  die("TODO: std_file_get_stdin");
-  return 0;
+  return BigInt(0);
 }
 
 function std_file_get_stdout() {
-  die("TODO: std_file_get_stdout");
-  return 1;
+  return BigInt(1);
 }
 
 function std_file_open() {
@@ -80,12 +68,15 @@ function std_file_readln(handle) {
   return "";
 }
 
-function std_file_writeln(handle) {
-  die("TODO: std_file_writeln");
+function std_file_writeln(handle, text) {
+  // console.log(text);
+  output_parts.push(text);
+  output_parts.push("\n");
 }
 
-function std_file_write(handle) {
-  die("TODO: std_file_write");
+function std_file_write(handle, text) {
+  // console.log(text);
+  output_parts.push(text);
 }
 
 function std_file_read_n_bytes(handle) {
@@ -173,67 +164,72 @@ const slangrt = {
   std_pack_f32,
 };
 
-async function loadModule(path, importObject) {
-  const wasmBuffer = await fs.promises.readFile(path);
-  const module = await WebAssembly.instantiate(wasmBuffer, importObject, {
+async function loadModule(url, importObject) {
+  let response = await fetch(url);
+  let bytes = await response.arrayBuffer();
+  let wasmModule = WebAssembly.instantiate(bytes, importObject, {
     builtins: ["js-string"],
   });
-  return module;
+  return wasmModule;
 }
 
-if (process.argv.length < 3) {
-  const libbase = await loadModule("build/wasm/libbase.wasm", {
-    slangrt,
-  });
-  const libscience = await loadModule("build/wasm/libscience.wasm", {
-    slangrt,
-    libbase: libbase.instance.exports,
-  });
-  const libimage = await loadModule("build/wasm/libimage.wasm", {
-    slangrt,
-    libbase: libbase.instance.exports,
-  });
-  const libcompiler = await loadModule("build/wasm/libcompiler.wasm", {
-    slangrt,
-    libbase: libbase.instance.exports,
-  });
+const exampleCodes = {
+  bare: `
+pub fn main() -> int:
+	2 + 3
+`,
+  hello: `
+import std
 
-  // Exported function live under instance.exports
-  const { math_abs } = libbase.instance.exports;
-  console.log("Result of math_abs:", math_abs(BigInt(-9)));
-  console.log(
-    "Result of math_radians:",
-    libbase.instance.exports.math_radians(181),
-  );
-  console.log("Result of math_pi:", libbase.instance.exports.math_pi.value);
-  console.log(
-    "Result of strlib_str_repeat:",
-    libbase.instance.exports.strlib_str_repeat("poah", BigInt(7)),
-  );
+pub fn main() -> int:
+	let msg = "Hello cool world!!"
+	std.print(msg)
+	# std.print(msg)
+	foo()
+	std.print("Cool escaping: hex-41:\x41 backslash:\\ double-quote:\"")
+	std.print("Yes" if 1 > 1 else "No" if false else "maybe")
+	0
 
-  // Unit test
-  for await (const testModulePath of fs.promises.glob(
-    "build/wasm/tests/test*.wasm",
-  )) {
-    console.log("Running unit test:", testModulePath);
-    const test_module = await loadModule(testModulePath, {
-      slangrt,
-      libbase: libbase.instance.exports,
-      libcompiler: libcompiler.instance.exports,
-      libimage: libimage.instance.exports,
-      libscience: libscience.instance.exports,
-    });
-    const res = test_module.instance.exports.main2();
-    console.assert(res == 0, "Result must be 0");
-  }
-  console.log("GREAT SUCCES");
-} else {
-  let wasm_file = process.argv.at(2);
-  const wasmModule = await loadModule(wasm_file, {
-    slangrt,
-  });
-  // Exported function live under instance.exports
-  const { main2 } = wasmModule.instance.exports;
-  const res = main2();
-  process.exit(Number(res));
+fn foo():
+	if 2 < 7 - 1:
+		std.print("Hello world2")
+`,
+};
+
+console.log("Load webassembly script");
+
+let libbase = await loadModule("libbase.wasm", { slangrt });
+let libcompiler = await loadModule("libcompiler.wasm", {
+  slangrt,
+  libbase: libbase.instance.exports,
+});
+let hello_world = await loadModule("snippets/hello_world.wasm", {
+  slangrt,
+});
+
+// Do something with the results!
+const res = hello_world.instance.exports.main2();
+console.log("Result of main:", res);
+
+const menu = document.getElementById("example-menu");
+const editor = document.getElementById("input-code");
+const output = document.getElementById("output-code");
+
+menu.addEventListener("change", (event) => {
+  editor.value = exampleCodes[menu.value];
+  doCompile();
+});
+
+function doCompile() {
+  output_parts.length = 0; // clear array
+  libcompiler.instance.exports.driver_slang_to_python(editor.value);
+  let res2 = output_parts.join("");
+  output.value = res2;
 }
+
+editor.addEventListener("input", () => {
+  doCompile();
+});
+
+editor.value = exampleCodes[menu.value];
+doCompile();

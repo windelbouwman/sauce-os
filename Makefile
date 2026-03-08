@@ -31,7 +31,7 @@ LDFLAGS=-shared -Wl,--no-undefined -Wl,--as-needed
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 SLANG2_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang/%.slang, $(SLANG_EXAMPLES))
 SLANG3_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang3/%.slang, $(SLANG_EXAMPLES))
-WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/snippets/%.wasm, $(SLANG_EXAMPLES))
+WASM_EXAMPLES := $(filter-out build/wasm/snippets/global_variables.wasm, $(patsubst examples/snippets/%.slang, build/wasm/snippets/%.wasm, $(SLANG_EXAMPLES)))
 EXAMPLES_PY := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, $(SLANG_EXAMPLES))
 PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
 PY_AOC := $(patsubst examples/aoc/%/main.slang, build/python/aoc-%.py, $(AOC_APPS))
@@ -102,7 +102,7 @@ benchmark2: ${COMPILER5} | ${BUILDDIR}
 pytest-compiler1:
 	pytest -v test_compiler1.py
 
-pytest-compiler: all-examples-c all-examples-python all-examples-x86 aoc
+pytest-compiler: all-examples-c all-examples-python all-examples-x86 aoc all-examples-wasm
 	pytest -vv test_compiler.py
 
 ############################################################################
@@ -609,6 +609,17 @@ ${BUILDDIR}/wasm/snippets:
 
 ${BUILDDIR}/wasm/snippets/%.wat: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/wasm/snippets
 	${SLANGC} --backend-wasm $< runtime/std.slang -o $@
+
+# Web app
+.PHONY: webapp
+webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm all-examples-wasm
+	mkdir -p ${BUILDDIR}/webapp
+	mkdir -p ${BUILDDIR}/webapp/snippets
+	cp ${BUILDDIR}/wasm/lib*.wasm ${BUILDDIR}/webapp
+	cp ${BUILDDIR}/wasm/snippets/*.wasm ${BUILDDIR}/webapp/snippets
+	cp webapp/index.html webapp/style.css ${BUILDDIR}/webapp
+	cp webapp/webrt.js ${BUILDDIR}/webapp
+	cp runtime/slangrt.js ${BUILDDIR}/webapp
 
 ############################################################################
 # Bootstrapping

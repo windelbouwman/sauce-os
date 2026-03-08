@@ -11,12 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Install python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
-          cache: 'pip'
+          python-version: "3.12"
+          cache: "pip"
       - name: Install dependencies
         run: pip install 'black>=20'
       - name: Run black formatting checker
@@ -31,12 +31,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Install python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
+          cache: "pip"
       - name: Install dependencies
         run: pip install -r compiler1/requirements.txt
       - name: Test with pytest
@@ -47,30 +47,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Install python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
-          cache: 'pip'
+          python-version: "3.13"
+          cache: "pip"
       - name: Install dependencies
         run: pip install -r compiler1/requirements.txt
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 25
+      - name: Setup wasm-tools
+        uses: bytecodealliance/actions/wasm-tools/setup@v1
       - name: Bootstrap
         run: bash bootstrap2.sh
       - name: Build all
         run: make
       - name: Run tests
         run: make test
+      - name: Make web app
+        run: make webapp
+      - name: Upload static files as artifact
+        id: deployment
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/webapp/
 
   windows-build:
     needs: test-compiler1
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
-          cache: 'pip'
+          python-version: "3.12"
+          cache: "pip"
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
       - name: Install dependencies
@@ -79,6 +91,20 @@ jobs:
         run: pytest test_compiler1.py -v
       # TODO:
       # - name: Build
-      #   run: | 
+      #   run: |
       #     mkdir build
       #     nmake /f Makefile.win32 build\compiler5.exe
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: linux-build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
