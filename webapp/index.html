@@ -5,20 +5,44 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <h2>Input</h2>
-    <p>
-      Choose example:
-      <select id="example-menu">
-        <option value="bare">Minimal</option>
-        <option value="hello">Hello world</option>
-      </select>
-    </p>
+    <div class="columns">
+      <!-- Column 1 -->
+      <div>
+        <div>
+          <h2>Input</h2>
+          <p>
+            Choose example:
+            <select id="example-menu">
+              <option value="hello_world">Hello world</option>
+              <option value="arrays">Arrays</option>
+              <option value="booleans">Booleans</option>
+              <option value="loops">Loops</option>
+            </select>
+          </p>
+          <textarea id="input-code" class="code"></textarea>
+        </div>
 
-    <textarea id="input-code" class="code"></textarea>
+        <div>
+          <h2>Console</h2>
+          <textarea id="console-output" class="code small"></textarea>
+          <p>
+            <input id="clear-console" type="button" value="Clear console" />
+          </p>
+        </div>
+      </div>
 
-    <hr />
-    <h2>Output</h2>
-    <textarea id="output-code" class="code"></textarea>
+      <!-- Column 2 -->
+      <div>
+        <div>
+          <h2>Output</h2>
+          <p>
+            Additional compiler arguments:
+            <input id="extra-args" type="text" value="--backend-py" />
+          </p>
+          <textarea id="output-code" class="code big"></textarea>
+        </div>
+      </div>
+    </div>
 
     <script lang="javascript" src="webrt.js" type="module"></script>
   </body>

@@ -12,7 +12,89 @@ import {
   rt_str_get,
 } from "./slangrt.js";
 
-let output_parts = [];
+const example_menu = document.getElementById("example-menu");
+const editor = document.getElementById("input-code");
+const output = document.getElementById("output-code");
+const console_output = document.getElementById("console-output");
+const clear_console_button = document.getElementById("clear-console");
+const extra_args_input = document.getElementById("extra-args");
+
+class TextFileWriter {
+  constructor(fs, path) {
+    this.fs = fs;
+    this.path = path;
+    this.parts = [];
+  }
+
+  writeText(text) {
+    this.parts.push(text);
+  }
+
+  close() {
+    let contents = this.parts.join("");
+    this.fs.setFileContents(this.path, contents);
+  }
+}
+
+class MemoryFS {
+  constructor() {
+    this.files = new Map();
+    this.file_handles = new Map();
+    this.handle_counter = 0;
+  }
+
+  fileExists(path) {
+    return this.files.has(path);
+  }
+
+  setFileContents(path, contents) {
+    this.files.set(path, contents);
+  }
+
+  getFileContents(path) {
+    if (this.files.has(path)) {
+      return this.files.get(path);
+    } else {
+      throw new Error("File not found: " + path);
+    }
+  }
+
+  openFile(path, mode) {
+    let handle = this.handle_counter;
+    this.handle_counter += 1;
+    if (mode == "w") {
+      this.file_handles.set(handle, new TextFileWriter(this, path));
+      // } else if (mode == "wb") {
+    } else {
+      throw new Error("Unknown mode: " + mode);
+    }
+    return handle;
+  }
+
+  writeText(handle, text) {
+    if (this.file_handles.has(handle)) {
+      let f = this.file_handles.get(handle);
+      f.writeText(text);
+    } else {
+      throw new Error("Invalid file handle:" + handle);
+    }
+  }
+
+  closeFile(handle) {
+    if (this.file_handles.has(handle)) {
+      let f = this.file_handles.get(handle);
+      f.close();
+      this.file_handles.delete(handle);
+    } else {
+      throw new Error("Invalid file handle:" + handle);
+    }
+  }
+}
+
+let fs = new MemoryFS();
+let env = {
+  args: [],
+};
 
 function die(message) {
   console.log(message);
@@ -20,7 +102,7 @@ function die(message) {
 }
 
 function std_print(text) {
-  console.log(text);
+  console_output.value += text + "\n";
 }
 
 function std_exit(value) {
@@ -54,13 +136,12 @@ function std_file_get_stdout() {
   return BigInt(1);
 }
 
-function std_file_open() {
-  die("TODO: std_file_open");
-  return -1;
+function std_file_open(filename, mode) {
+  return BigInt(fs.openFile(filename, mode));
 }
 
 function std_file_close(handle) {
-  die("TODO: std_file_close");
+  fs.closeFile(Number(handle));
 }
 
 function std_file_readln(handle) {
@@ -69,14 +150,12 @@ function std_file_readln(handle) {
 }
 
 function std_file_writeln(handle, text) {
-  // console.log(text);
-  output_parts.push(text);
-  output_parts.push("\n");
+  fs.writeText(Number(handle), text);
+  fs.writeText(Number(handle), "\n");
 }
 
 function std_file_write(handle, text) {
-  // console.log(text);
-  output_parts.push(text);
+  fs.writeText(Number(handle), text);
 }
 
 function std_file_read_n_bytes(handle) {
@@ -97,20 +176,15 @@ function std_file_tell(handle) {
 }
 
 function std_read_file(filename) {
-  const dataBuffer = fs.readFileSync(filename);
-  return dataBuffer;
+  return fs.getFileContents(filename);
 }
 
 function std_get_n_args() {
-  console.log("In std_get_n_args");
-  die("TODO: std_get_n_args");
-  return 0;
+  return BigInt(env.args.length);
 }
 
 function std_get_arg(index) {
-  console.log("In std_get_arg");
-  die("TODO: std_get_arg");
-  return 13;
+  return env.args[index];
 }
 
 function std_get_time() {
@@ -173,63 +247,127 @@ async function loadModule(url, importObject) {
   return wasmModule;
 }
 
-const exampleCodes = {
-  bare: `
-pub fn main() -> int:
-	2 + 3
-`,
-  hello: `
-import std
-
-pub fn main() -> int:
-	let msg = "Hello cool world!!"
-	std.print(msg)
-	# std.print(msg)
-	foo()
-	std.print("Cool escaping: hex-41:\x41 backslash:\\ double-quote:\"")
-	std.print("Yes" if 1 > 1 else "No" if false else "maybe")
-	0
-
-fn foo():
-	if 2 < 7 - 1:
-		std.print("Hello world2")
-`,
-};
-
-console.log("Load webassembly script");
+async function loadSource(url) {
+  let response = await fetch(url);
+  let code = await response.text();
+  return code;
+}
 
 let libbase = await loadModule("libbase.wasm", { slangrt });
 let libcompiler = await loadModule("libcompiler.wasm", {
   slangrt,
   libbase: libbase.instance.exports,
 });
-let hello_world = await loadModule("snippets/hello_world.wasm", {
+let libimage = await loadModule("libimage.wasm", {
   slangrt,
+  libbase: libbase.instance.exports,
+});
+let libscience = await loadModule("libscience.wasm", {
+  slangrt,
+  libbase: libbase.instance.exports,
+});
+let compiler = await loadModule("compiler.wasm", {
+  slangrt,
+  libbase: libbase.instance.exports,
+  libcompiler: libcompiler.instance.exports,
 });
 
-// Do something with the results!
-const res = hello_world.instance.exports.main2();
-console.log("Result of main:", res);
+async function runUnitTest(name) {
+  std_print("Running test: " + name);
+  let url = "tests/" + name + ".wasm";
+  let testModule = await loadModule(url, {
+    slangrt,
+    libbase: libbase.instance.exports,
+    libcompiler: libcompiler.instance.exports,
+    libimage: libimage.instance.exports,
+    libscience: libscience.instance.exports,
+  });
+  let res = testModule.instance.exports.main2();
+  console.assert(Number(res) === 0, "Test failed");
+}
 
-const menu = document.getElementById("example-menu");
-const editor = document.getElementById("input-code");
-const output = document.getElementById("output-code");
+async function runUnitTests() {
+  // TODO: would be nice to somehow get this from file?
+  let test_names = [
+    "test_base64",
+    "test_bitset",
+    "test_bytes",
+    "test_compiler",
+    "test_crypto",
+    "test_datetime",
+    "test_deflate",
+    "test_diff",
+    "test_functools",
+    "test_geometries",
+    "test_gif",
+    "test_hashmap",
+    "test_hash",
+    "test_heapq",
+    "test_igraph",
+    "test_integer_set",
+    "test_json",
+    "test_list",
+    "test_math",
+    "test_opt",
+    "test_queue",
+    "test_regex",
+    "test_riscv",
+    "test_rope",
+    "test_rt",
+    "test_set",
+    "test_signal",
+    "test_sorting",
+    "test_strlib",
+    "test_vector",
+    "test_x86",
+  ];
+  for (let name of test_names) {
+    await runUnitTest(name);
+  }
+}
 
-menu.addEventListener("change", (event) => {
-  editor.value = exampleCodes[menu.value];
+runUnitTests();
+
+let std_code = await loadSource("std.slang");
+fs.setFileContents("std.slang", std_code);
+
+async function selectSnippet(name) {
+  let url = "snippets/" + name + ".slang";
+  editor.value = await loadSource(url);
   doCompile();
+}
+
+example_menu.addEventListener("change", (event) => {
+  selectSnippet(example_menu.value);
 });
+
+function invokeCompiler(args) {
+  env.args = args;
+  let res = compiler.instance.exports.main2();
+  console.assert(Number(res) === 0, "Compiler failed");
+}
 
 function doCompile() {
-  output_parts.length = 0; // clear array
-  libcompiler.instance.exports.driver_slang_to_python(editor.value);
-  let res2 = output_parts.join("");
-  output.value = res2;
+  let srcFilename = "example.slang";
+  let outFilename = "foo.py";
+  fs.setFileContents(srcFilename, editor.value);
+  let extra_args = extra_args_input.value.split(" ");
+  invokeCompiler(
+    [srcFilename, "std.slang", "-o", outFilename].concat(extra_args),
+  );
+  output.value = fs.getFileContents(outFilename);
 }
 
 editor.addEventListener("input", () => {
   doCompile();
 });
 
-editor.value = exampleCodes[menu.value];
-doCompile();
+extra_args_input.addEventListener("blur", () => {
+  doCompile();
+});
+
+clear_console_button.addEventListener("click", () => {
+  console_output.value = "";
+});
+
+selectSnippet(example_menu.value);

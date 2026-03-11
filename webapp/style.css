@@ -1,7 +1,31 @@
+body {
+  font-family: "Inter", "Roboto", "Helvetica Neue", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #222;
+}
 
 textarea.code {
-    height: 400px;
-    width: 700px;
-    background-color: black;
-    color: yellow;
+  height: 480px;
+  width: 640px;
+  font-family: ui-monospace, Consolas, monospace;
+  background: #fafafa;
+
+  font-size: smaller;
+  tab-size: 4;
+}
+
+textarea.big {
+  height: 800px;
+}
+
+textarea.small {
+  height: 300px;
+}
+
+div.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100vh;
+  gap: 10px;
 }

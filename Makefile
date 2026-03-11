@@ -51,10 +51,10 @@ ALL_TEST_RUNS_X86 := $(patsubst tests/test_%.slang, run-test-x86-%, $(TESTS))
 X86_TESTS := $(patsubst tests/test_%.slang, build/x86/test_%.exe, $(TESTS))
 WASM_TESTS := $(patsubst tests/test_%.slang, build/wasm/tests/test_%.wasm, $(TESTS))
 
-.PHONY: all check-c check-c2 check-x86 check-py all-examples test pytest-exes quick
+.PHONY: all check-c check-c2 check-x86 check-py check-wasm all-examples test pytest-exes quick
 all: ${APPS_C} ${PY_APPS} ${APPS_C2} ${APP_X86} all-examples aoc
 all-examples: all-examples-bc all-examples-c all-examples-python all-examples-slang all-examples-x86
-test: pytest-compiler pytest-compiler1 check-c check-c2 check-py check-x86
+test: pytest-compiler pytest-compiler1 check-c check-c2 check-py check-x86 check-wasm
 
 quick: ${COMPILER5}
 
@@ -591,6 +591,10 @@ ${BUILDDIR}/wasm/libscience.wat ${BUILDDIR}/wasm/libscience.json: ${SCIENCE_LIB_
 ${BUILDDIR}/wasm/libcompiler.wat ${BUILDDIR}/wasm/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
 	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libcompiler.json -o ${BUILDDIR}/wasm/libcompiler.wat --add-import ${BUILDDIR}/wasm/libbase.json ${COMPILER_LIB_SRCS}
 
+# Compiler itself:
+${BUILDDIR}/wasm/compiler.wat: ${COMPILER_SRCS} ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libcompiler.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} --backend-wasm -o $@ ${COMPILER_SRCS} --add-import ${BUILDDIR}/wasm/libbase.json --add-import ${BUILDDIR}/wasm/libcompiler.json
+
 # Tests
 ${BUILDDIR}/wasm/tests:
 	mkdir -p $@
@@ -612,11 +616,16 @@ ${BUILDDIR}/wasm/snippets/%.wat: examples/snippets/%.slang runtime/std.slang ${S
 
 # Web app
 .PHONY: webapp
-webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm all-examples-wasm
+webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_TESTS} ${BUILDDIR}/wasm/compiler.wasm all-examples-wasm
 	mkdir -p ${BUILDDIR}/webapp
 	mkdir -p ${BUILDDIR}/webapp/snippets
+	mkdir -p ${BUILDDIR}/webapp/tests
 	cp ${BUILDDIR}/wasm/lib*.wasm ${BUILDDIR}/webapp
+	cp ${BUILDDIR}/wasm/compiler.wasm ${BUILDDIR}/webapp
 	cp ${BUILDDIR}/wasm/snippets/*.wasm ${BUILDDIR}/webapp/snippets
+	cp ${BUILDDIR}/wasm/tests/*.wasm ${BUILDDIR}/webapp/tests
+	cp examples/snippets/*.slang ${BUILDDIR}/webapp/snippets
+	cp runtime/std.slang ${BUILDDIR}/webapp
 	cp webapp/index.html webapp/style.css ${BUILDDIR}/webapp
 	cp webapp/webrt.js ${BUILDDIR}/webapp
 	cp runtime/slangrt.js ${BUILDDIR}/webapp
