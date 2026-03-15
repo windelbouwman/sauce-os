@@ -7,8 +7,11 @@ WebAssembly support.
 """
 
 from listtype import List, list1
-from std import float_to_str2
+from std import float_to_str2, str_len
+from bytes import Bytes, ByteArray, bytes_from_ascii
+from leb128 import pack_unsigned_leb128, pack_signed_leb128
 from text_gen import TextGenerator
+from utils import panic
 from strlib import str_join
 
 pub struct Module:
@@ -140,7 +143,7 @@ fn packed_type_to_string(ty?: PackType) -> str:
 		i16: "i16"
 
 pub struct Tag:
-	params: List[ValueType]
+	typeidx: int
 
 pub struct Import:
 	module: str
@@ -151,7 +154,7 @@ pub struct Import:
 
 pub enum ExternType:
 	Func(typeidx: int)
-	Global(ty: ValueType)
+	Global(ty: ValueType, mutable: bool)
 
 pub struct Global:
 	mutable: bool
@@ -159,7 +162,7 @@ pub struct Global:
 	value: List[Instruction]
 
 pub struct Function:
-	ty: int  # reference to a type
+	typeidx: int  # reference to a type
 	locals: List[ValueType]
 	code: List[Instruction]
 
@@ -225,8 +228,8 @@ pub enum Instruction:
 	# Numeric constants
 	i32_const(value: int)
 	i64_const(value: int)
-	f32_const(value: float)
-	f64_const(value: float)
+	f32_const(value: float32)
+	f64_const(value: float64)
 
 	# numeric operations
 	i32_eqz
@@ -386,426 +389,664 @@ pub enum Instruction:
 	extern_convert_any
 	any_convert_extern
 
-fn pack_leb128(value: int):
-	pass
+class Writer:
+	var m_buffer: ByteArray = ByteArray()
 
-fn pack_u32(value?: int):
-	pass
+	pub fn write_u32(value?: int):
+		pack_unsigned_leb128(out: m_buffer, value)
 
-fn pack_byte(opcode?: int):
-	pass
+	pub fn write_s32(value?: int):
+		pack_signed_leb128(out: m_buffer, value)
 
-fn pack_memarg(align: int, offset: int):
-	pack_u32(align)
-	pack_u32(offset)
+	pub fn write_f32(value?: float32):
+		m_buffer.pack_f32_le(value)
 
-fn encode(instruction: Instruction):
+	pub fn write_f64(value?: float64):
+		m_buffer.pack_f64_le(value)
+
+	pub fn write_byte(b?: int):
+		m_buffer.append(b)
+
+	pub fn write_data(data?: Bytes):
+		m_buffer.extend(data)
+
+	pub fn pack_memarg(align: int, offset: int):
+		write_u32(align)
+		write_u32(offset)
+
+	pub fn get_bytes() -> Bytes:
+		m_buffer.to_bytes()
+
+pub fn pack_block_type(writer: Writer, block_type: BlockType):
+	if block_type.results.is_empty():
+		writer.write_byte(0x40)  # block type = epsilon
+	elif block_type.results.len() == 1:
+		pack_value_type(writer, block_type.results.get(index: 0))
+	else:
+		panic("Unsupported")
+
+pub fn encode(writer: Writer, instruction: Instruction):
 	case instruction:
-
 		ctrl_unreachable:
-			pack_byte(0x00)
+			writer.write_byte(0x00)
 		ctrl_nop:
-			pack_byte(0x01)
+			writer.write_byte(0x01)
 		drop:
-			pass
+			writer.write_byte(0x1A)
 		ctrl_block(block_type):
-			pack_byte(0x02)
-			pack_byte(0x40)  # block type = epsilon
+			writer.write_byte(0x02)
+			pack_block_type(writer, block_type)
 		ctrl_loop(block_type):
-			pack_byte(0x03)
-			pack_byte(0x40)  # block type = epsilon
+			writer.write_byte(0x03)
+			pack_block_type(writer, block_type)
 		ctrl_if(block_type):
-			pack_byte(0x04)
-			pack_byte(0x40)  # block type = epsilon
+			writer.write_byte(0x04)
+			pack_block_type(writer, block_type)
 		ctrl_else:
-			pack_byte(0x05)
+			writer.write_byte(0x05)
 		ctrl_end:
-			pack_byte(0x0B)
+			writer.write_byte(0x0B)
 
 		ctrl_br(labelidx):
-			pack_byte(0x0C)
-			pack_u32(labelidx)
+			writer.write_byte(0x0C)
+			writer.write_u32(labelidx)
 		ctrl_br_if(labelidx):
-			pack_byte(0x0D)
-			pack_u32(labelidx)
+			writer.write_byte(0x0D)
+			writer.write_u32(labelidx)
 		ctrl_br_table:
-			pack_byte(0x0E)
+			writer.write_byte(0x0E)
 		ctrl_return:
-			pack_byte(0x0F)
+			writer.write_byte(0x0F)
 		ctrl_call(funcidx):
-			pack_byte(0x10)
-			pack_u32(funcidx)
+			writer.write_byte(0x10)
+			writer.write_u32(funcidx)
 		ctrl_call_ref(ty):
-			pass
+			writer.write_byte(0x14)
+			writer.write_u32(ty)
 		ctrl_call_indirect(tableidx):
-			pack_byte(0x11)
-			pack_u32(tableidx)
+			writer.write_byte(0x11)
+			writer.write_u32(tableidx)
 		ctrl_throw(index):
-			pass
-		ctrl_try_table(label, catches):
-			pass
+			writer.write_byte(0x08)
+			writer.write_u32(index)
+		ctrl_try_table(block_type, catches):
+			writer.write_byte(0x1F)
+			pack_block_type(writer, block_type)
+			writer.write_u32(catches.len())
+			for catch in catches:
+				case catch:
+					Catch(tagindex, label):
+						writer.write_byte(0x0)
+						writer.write_u32(tagindex)
+						writer.write_u32(label)
 
 		local_get(localidx):
-			pack_byte(0x20)
-			pack_u32(localidx)
+			writer.write_byte(0x20)
+			writer.write_u32(localidx)
 		local_set(localidx):
-			pack_byte(0x21)
-			pack_u32(localidx)
+			writer.write_byte(0x21)
+			writer.write_u32(localidx)
 		local_tee(localidx):
-			pack_byte(0x22)
-			pack_u32(localidx)
+			writer.write_byte(0x22)
+			writer.write_u32(localidx)
 		global_get(globalidx):
-			pack_byte(0x23)
-			pack_u32(globalidx)
+			writer.write_byte(0x23)
+			writer.write_u32(globalidx)
 		global_set(globalidx):
-			pack_byte(0x24)
-			pack_u32(globalidx)
+			writer.write_byte(0x24)
+			writer.write_u32(globalidx)
 
 		i32_load(align, offset):
-			pack_byte(0x28)
-			pack_memarg(align, offset)
+			writer.write_byte(0x28)
+			writer.pack_memarg(align, offset)
 		i64_load(align, offset):
-			pack_byte(0x29)
-			pack_memarg(align, offset)
+			writer.write_byte(0x29)
+			writer.pack_memarg(align, offset)
 		f32_load(align, offset):
-			pack_byte(0x2A)
-			pack_memarg(align, offset)
+			writer.write_byte(0x2A)
+			writer.pack_memarg(align, offset)
 		f64_load(align, offset):
-			pack_byte(0x2B)
-			pack_memarg(align, offset)
+			writer.write_byte(0x2B)
+			writer.pack_memarg(align, offset)
 
 		i32_store(align, offset):
-			pack_byte(0x36)
-			pack_memarg(align, offset)
+			writer.write_byte(0x36)
+			writer.pack_memarg(align, offset)
 		i64_store(align, offset):
-			pack_byte(0x37)
-			pack_memarg(align, offset)
+			writer.write_byte(0x37)
+			writer.pack_memarg(align, offset)
 		f32_store(align, offset):
-			pack_byte(0x38)
-			pack_memarg(align, offset)
+			writer.write_byte(0x38)
+			writer.pack_memarg(align, offset)
 		f64_store(align, offset):
-			pack_byte(0x39)
-			pack_memarg(align, offset)
+			writer.write_byte(0x39)
+			writer.pack_memarg(align, offset)
 
 		i32_const(value):
-			pack_byte(0x41)
+			writer.write_byte(0x41)
+			writer.write_s32(value)
 		i64_const(value):
-			pack_byte(0x42)
+			writer.write_byte(0x42)
+			writer.write_s32(value)
 		f32_const(value):
-			pack_byte(0x43)
+			writer.write_byte(0x43)
+			writer.write_f32(value)
 		f64_const(value):
-			pack_byte(0x44)
+			writer.write_byte(0x44)
+			writer.write_f64(value)
 
 		i32_eqz:
-			pack_byte(0x45)
+			writer.write_byte(0x45)
 		i32_eq:
-			pack_byte(0x46)
+			writer.write_byte(0x46)
 		i32_ne:
-			pack_byte(0x47)
+			writer.write_byte(0x47)
 		i32_lt_s:
-			pack_byte(0x48)
+			writer.write_byte(0x48)
 		i32_lt_u:
-			pack_byte(0x49)
+			writer.write_byte(0x49)
 		i32_gt_s:
-			pack_byte(0x4A)
+			writer.write_byte(0x4A)
 		i32_gt_u:
-			pack_byte(0x4B)
+			writer.write_byte(0x4B)
 		i32_le_s:
-			pack_byte(0x4C)
+			writer.write_byte(0x4C)
 		i32_le_u:
-			pack_byte(0x4D)
+			writer.write_byte(0x4D)
 		i32_ge_s:
-			pack_byte(0x4E)
+			writer.write_byte(0x4E)
 		i32_ge_u:
-			pack_byte(0x4F)
+			writer.write_byte(0x4F)
 
 		i64_eqz:
-			pack_byte(0x50)
+			writer.write_byte(0x50)
 		i64_eq:
-			pack_byte(0x51)
+			writer.write_byte(0x51)
 		i64_ne:
-			pack_byte(0x52)
+			writer.write_byte(0x52)
 		i64_lt_s:
-			pack_byte(0x53)
+			writer.write_byte(0x53)
 		i64_lt_u:
-			pack_byte(0x54)
+			writer.write_byte(0x54)
 		i64_gt_s:
-			pack_byte(0x55)
+			writer.write_byte(0x55)
 		i64_gt_u:
-			pack_byte(0x56)
+			writer.write_byte(0x56)
 		i64_le_s:
-			pack_byte(0x57)
+			writer.write_byte(0x57)
 		i64_le_u:
-			pack_byte(0x58)
+			writer.write_byte(0x58)
 		i64_ge_s:
-			pack_byte(0x59)
+			writer.write_byte(0x59)
 		i64_ge_u:
-			pack_byte(0x5A)
+			writer.write_byte(0x5A)
 
 		f32_eq:
-			pack_byte(0x5B)
+			writer.write_byte(0x5B)
 		f32_ne:
-			pack_byte(0x5C)
+			writer.write_byte(0x5C)
 		f32_lt:
-			pack_byte(0x5D)
+			writer.write_byte(0x5D)
 		f32_gt:
-			pack_byte(0x5E)
+			writer.write_byte(0x5E)
 		f32_le:
-			pack_byte(0x5F)
+			writer.write_byte(0x5F)
 		f32_ge:
-			pack_byte(0x60)
+			writer.write_byte(0x60)
 
 		f64_eq:
-			pack_byte(0x61)
+			writer.write_byte(0x61)
 		f64_ne:
-			pack_byte(0x62)
+			writer.write_byte(0x62)
 		f64_lt:
-			pack_byte(0x63)
+			writer.write_byte(0x63)
 		f64_gt:
-			pack_byte(0x64)
+			writer.write_byte(0x64)
 		f64_le:
-			pack_byte(0x65)
+			writer.write_byte(0x65)
 		f64_ge:
-			pack_byte(0x66)
+			writer.write_byte(0x66)
 
 		i32_clz:
-			pack_byte(0x67)
+			writer.write_byte(0x67)
 		i32_ctz:
-			pack_byte(0x68)
+			writer.write_byte(0x68)
 		i32_popcnt:
-			pack_byte(0x69)
+			writer.write_byte(0x69)
 		i32_add:
-			pack_byte(0x6A)
+			writer.write_byte(0x6A)
 		i32_sub:
-			pack_byte(0x6B)
+			writer.write_byte(0x6B)
 		i32_mul:
-			pack_byte(0x6C)
+			writer.write_byte(0x6C)
 		i32_div_s:
-			pack_byte(0x6D)
+			writer.write_byte(0x6D)
 		i32_div_u:
-			pack_byte(0x6E)
+			writer.write_byte(0x6E)
 		i32_rem_s:
-			pack_byte(0x6F)
+			writer.write_byte(0x6F)
 		i32_rem_u:
-			pack_byte(0x70)
+			writer.write_byte(0x70)
 		i32_and:
-			pack_byte(0x71)
+			writer.write_byte(0x71)
 		i32_or:
-			pack_byte(0x72)
+			writer.write_byte(0x72)
 		i32_xor:
-			pack_byte(0x73)
+			writer.write_byte(0x73)
 		i32_shl:
-			pack_byte(0x74)
+			writer.write_byte(0x74)
 		i32_shr_s:
-			pack_byte(0x75)
+			writer.write_byte(0x75)
 		i32_shr_u:
-			pack_byte(0x76)
+			writer.write_byte(0x76)
 		i32_rotl:
-			pack_byte(0x77)
+			writer.write_byte(0x77)
 		i32_rotr:
-			pack_byte(0x78)
+			writer.write_byte(0x78)
 
 		i64_clz:
-			pack_byte(0x79)
+			writer.write_byte(0x79)
 		i64_ctz:
-			pack_byte(0x7A)
+			writer.write_byte(0x7A)
 		i64_popcnt:
-			pack_byte(0x7B)
+			writer.write_byte(0x7B)
 		i64_add:
-			pack_byte(0x7C)
+			writer.write_byte(0x7C)
 		i64_sub:
-			pack_byte(0x7D)
+			writer.write_byte(0x7D)
 		i64_mul:
-			pack_byte(0x7E)
+			writer.write_byte(0x7E)
 		i64_div_s:
-			pack_byte(0x7F)
+			writer.write_byte(0x7F)
 		i64_div_u:
-			pack_byte(0x80)
+			writer.write_byte(0x80)
 		i64_rem_s:
-			pack_byte(0x81)
+			writer.write_byte(0x81)
 		i64_rem_u:
-			pack_byte(0x82)
+			writer.write_byte(0x82)
 		i64_and:
-			pack_byte(0x83)
+			writer.write_byte(0x83)
 		i64_or:
-			pack_byte(0x84)
+			writer.write_byte(0x84)
 		i64_xor:
-			pack_byte(0x85)
+			writer.write_byte(0x85)
 		i64_shl:
-			pack_byte(0x86)
+			writer.write_byte(0x86)
 		i64_shr_s:
-			pack_byte(0x87)
+			writer.write_byte(0x87)
 		i64_shr_u:
-			pack_byte(0x88)
+			writer.write_byte(0x88)
 		i64_rotl:
-			pack_byte(0x89)
+			writer.write_byte(0x89)
 		i64_rotr:
-			pack_byte(0x8A)
+			writer.write_byte(0x8A)
 
 		f32_abs:
-			pack_byte(0x8B)
+			writer.write_byte(0x8B)
 		f32_neg:
-			pack_byte(0x8C)
+			writer.write_byte(0x8C)
 		f32_ceil:
-			pack_byte(0x8D)
+			writer.write_byte(0x8D)
 		f32_floor:
-			pack_byte(0x8E)
+			writer.write_byte(0x8E)
 		f32_trunc:
-			pack_byte(0x8F)
+			writer.write_byte(0x8F)
 		f32_nearest:
-			pack_byte(0x90)
+			writer.write_byte(0x90)
 		f32_sqrt:
-			pack_byte(0x91)
+			writer.write_byte(0x91)
 		f32_add:
-			pack_byte(0x92)
+			writer.write_byte(0x92)
 		f32_sub:
-			pack_byte(0x93)
+			writer.write_byte(0x93)
 		f32_mul:
-			pack_byte(0x94)
+			writer.write_byte(0x94)
 		f32_div:
-			pack_byte(0x95)
+			writer.write_byte(0x95)
 		f32_min:
-			pack_byte(0x96)
+			writer.write_byte(0x96)
 		f32_max:
-			pack_byte(0x97)
+			writer.write_byte(0x97)
 		f32_copysign:
-			pack_byte(0x98)
+			writer.write_byte(0x98)
 
 		f64_abs:
-			pack_byte(0x99)
+			writer.write_byte(0x99)
 		f64_neg:
-			pack_byte(0x9A)
+			writer.write_byte(0x9A)
 		f64_ceil:
-			pack_byte(0x9B)
+			writer.write_byte(0x9B)
 		f64_floor:
-			pack_byte(0x9C)
+			writer.write_byte(0x9C)
 		f64_trunc:
-			pack_byte(0x9D)
+			writer.write_byte(0x9D)
 		f64_nearest:
-			pack_byte(0x9E)
+			writer.write_byte(0x9E)
 		f64_sqrt:
-			pack_byte(0x9F)
+			writer.write_byte(0x9F)
 		f64_add:
-			pack_byte(0xA0)
+			writer.write_byte(0xA0)
 		f64_sub:
-			pack_byte(0xA1)
+			writer.write_byte(0xA1)
 		f64_mul:
-			pack_byte(0xA2)
+			writer.write_byte(0xA2)
 		f64_div:
-			pack_byte(0xA3)
+			writer.write_byte(0xA3)
 		f64_min:
-			pack_byte(0xA4)
+			writer.write_byte(0xA4)
 		f64_max:
-			pack_byte(0xA5)
+			writer.write_byte(0xA5)
 		f64_copysign:
-			pack_byte(0xA6)
+			writer.write_byte(0xA6)
 
 		i32_wrap_i64:
-			pack_byte(0xA7)
+			writer.write_byte(0xA7)
 		i32_trunc_f32_s:
-			pack_byte(0xA8)
+			writer.write_byte(0xA8)
 		i32_trunc_f32_u:
-			pack_byte(0xA9)
+			writer.write_byte(0xA9)
 		i32_trunc_f64_s:
-			pack_byte(0xAA)
+			writer.write_byte(0xAA)
 		i32_trunc_f64_u:
-			pack_byte(0xAB)
+			writer.write_byte(0xAB)
 		i64_extend_i32_s:
-			pack_byte(0xAC)
+			writer.write_byte(0xAC)
 		i64_extend_i32_u:
-			pack_byte(0xAD)
+			writer.write_byte(0xAD)
 		i64_trunc_f32_s:
-			pack_byte(0xAE)
+			writer.write_byte(0xAE)
 		i64_trunc_f32_u:
-			pack_byte(0xAF)
+			writer.write_byte(0xAF)
 		i64_trunc_f64_s:
-			pack_byte(0xB0)
+			writer.write_byte(0xB0)
 		i64_trunc_f64_u:
-			pack_byte(0xB1)
+			writer.write_byte(0xB1)
 		f32_convert_i32_s:
-			pack_byte(0xB2)
+			writer.write_byte(0xB2)
 		f32_convert_i32_u:
-			pack_byte(0xB3)
+			writer.write_byte(0xB3)
 		f32_convert_i64_s:
-			pack_byte(0xB4)
+			writer.write_byte(0xB4)
 		f32_convert_i64_u:
-			pack_byte(0xB5)
+			writer.write_byte(0xB5)
 		f32_demote_f64:
-			pack_byte(0xB6)
+			writer.write_byte(0xB6)
 		f64_convert_i32_s:
-			pack_byte(0xB7)
+			writer.write_byte(0xB7)
 		f64_convert_i32_u:
-			pack_byte(0xB8)
+			writer.write_byte(0xB8)
 		f64_convert_i64_s:
-			pack_byte(0xB9)
+			writer.write_byte(0xB9)
 		f64_convert_i64_u:
-			pack_byte(0xBA)
+			writer.write_byte(0xBA)
 		f64_promote_f32:
-			pack_byte(0xBB)
+			writer.write_byte(0xBB)
 		i32_reinterpret_f32:
-			pack_byte(0xBC)
+			writer.write_byte(0xBC)
 		i64_reinterpret_f64:
-			pack_byte(0xBD)
+			writer.write_byte(0xBD)
 		f32_reinterpret_i32:
-			pack_byte(0xBE)
+			writer.write_byte(0xBE)
 		f64_reinterpret_i64:
-			pack_byte(0xBF)
+			writer.write_byte(0xBF)
 
 		i32_extend8_s:
-			pack_byte(0xC0)
+			writer.write_byte(0xC0)
 		i32_extend16_s:
-			pack_byte(0xC1)
+			writer.write_byte(0xC1)
 		i64_extend8_s:
-			pack_byte(0xC2)
+			writer.write_byte(0xC2)
 		i64_extend16_s:
-			pack_byte(0xC3)
+			writer.write_byte(0xC3)
 		i64_extend32_s:
-			pack_byte(0xC4)
+			writer.write_byte(0xC4)
 
 		ref_func(funcidx):
-			pass
+			writer.write_byte(0xD2)
+			writer.write_u32(funcidx)
 		ref_null(ty):
-			pass
+			writer.write_byte(0xD0)
+			pack_heap_type(writer, ty)
 		ref_is_null:
-			pass
+			writer.write_byte(0xD1)
 		ref_as_non_null:
-			pass
+			writer.write_byte(0xD4)
 		ref_eq:
-			pass
+			writer.write_byte(0xD3)
 		ref_cast(ty):
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(23 if ty.nullable else 22)
+			pack_heap_type(writer, ty.heap_type)
 		struct_new(ty):
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(0)
+			writer.write_u32(ty)
 		struct_get(ty, field):
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(2)
+			writer.write_u32(ty)
+			writer.write_u32(field)
 		struct_set(ty, field):
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(5)
+			writer.write_u32(ty)
+			writer.write_u32(field)
 		array_new_fixed(ty, size):
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(8)
+			writer.write_u32(ty)
+			writer.write_u32(size)
 		array_new_default(ty):
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(7)
+			writer.write_u32(ty)
 		array_get(ty):
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(11)
+			writer.write_u32(ty)
 		array_set(ty):
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(14)
+			writer.write_u32(ty)
 		ref_i31:
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(28)
 		i31_get(signed):
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(29 if signed else 30)
 		extern_convert_any:
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(27)
 		any_convert_extern:
-			pass
+			writer.write_byte(0xFB)
+			writer.write_u32(26)
 
-pub fn to_wasm(module: Module):
+fn pack_value_type(writer: Writer, ty?: ValueType):
+	case ty:
+		Num(t):
+			case t:
+				f64: writer.write_byte(0x7C)
+				f32: writer.write_byte(0x7D)
+				i64: writer.write_byte(0x7E)
+				i32: writer.write_byte(0x7F)
+		Ref(t):
+			case t.heap_type:
+				TypeIdx(index):
+					writer.write_byte(0x63 if t.nullable else 0x64)
+					writer.write_s32(index)
+			else:
+				if not t.nullable:
+					writer.write_byte(0x64)
+				pack_heap_type(writer, t.heap_type)
+
+fn pack_heap_type(writer: Writer, ty?: HeapType):
+	case ty:
+		Any:
+			writer.write_byte(0x6E)
+		Func:
+			writer.write_byte(0x70)
+		i31:
+			writer.write_byte(0x6C)
+		Extern:
+			writer.write_byte(0x6F)
+		TypeIdx(index):
+			writer.write_s32(index)
+
+fn pack_field_type(writer: Writer, field?: FieldType):
+	case field.ty:
+		Value(t):
+			pack_value_type(writer, t)
+		Packed(t):
+			case t:
+				i16: writer.write_byte(0x77)
+				i8: writer.write_byte(0x78)
+	writer.write_byte(0x1 if field.mutable else 0x0)
+
+fn pack_str(writer: Writer, text?: str):
+	writer.write_u32(str_len(text))
+	writer.write_data(bytes_from_ascii(text))
+
+fn write_header(writer: Writer):
+	# Magic:
+	writer.write_byte(0x00)
+	writer.write_byte(0x61)
+	writer.write_byte(0x73)
+	writer.write_byte(0x6D)
+
+	# Version:
+	writer.write_byte(0x01)
+	writer.write_byte(0x00)
+	writer.write_byte(0x00)
+	writer.write_byte(0x00)
+
+fn write_section(writer: Writer, id: int, data: Bytes):
+	""" Write a section with given ID and data. """
+	writer.write_byte(id)
+	writer.write_u32(data.len())
+	writer.write_data(data)
+
+fn create_type_section(module: Module) -> Bytes:
+	""" Create data for the type section """
+	let writer = Writer()
+	writer.write_u32(module.types.len())
+	for ty in module.types:
+		case ty:
+			Struct(fields):
+				writer.write_byte(0x5F)
+				writer.write_u32(fields.len())
+				for field in fields:
+					pack_field_type(writer, field)
+			Array(ty):
+				writer.write_byte(0x5E)
+				pack_field_type(writer, ty)
+			Func(params, results):
+				writer.write_byte(0x60)
+				writer.write_u32(params.len())
+				for param in params:
+					pack_value_type(writer, param)
+				writer.write_u32(results.len())
+				for result in results:
+					pack_value_type(writer, result)
+
+	writer.get_bytes()
+
+fn create_import_section(module: Module) -> Bytes:
+	let writer = Writer()
+	writer.write_u32(module.imports.len())
+	for imp in module.imports:
+		pack_str(writer, imp.module)
+		pack_str(writer, imp.name)
+		case imp.kind:
+			Func(index):
+				writer.write_byte(0x00)
+				writer.write_u32(index)
+			Global(ty, mutable):
+				writer.write_byte(0x03)
+				pack_value_type(writer, ty)
+				writer.write_byte(0x1 if mutable else 0x0)
+	writer.get_bytes()
+
+fn create_func_section(module: Module) -> Bytes:
+	let writer = Writer()
+	writer.write_u32(module.functions.len())
 	for function in module.functions:
-		for local in function.locals:
-			pass
+		writer.write_u32(function.typeidx)
+	writer.get_bytes()
 
-		for instruction in function.code:
-			encode(instruction)
+fn create_global_section(module: Module) -> Bytes:
+	let writer = Writer()
+	writer.write_u32(module.globals.len())
+	for g in module.globals:
+		pack_value_type(writer, g.ty)
+		writer.write_byte(0x1 if g.mutable else 0x0)
+		for instruction in g.value:
+			encode(writer, instruction)
+		writer.write_byte(0xB) # End opcode
+	writer.get_bytes()
 
-	pack_leb128(value: 1)
+fn write_export_section(module: Module) -> Bytes:
+	let writer = Writer()
+	writer.write_u32(module.exports.len())
+	for e in module.exports:
+		pack_str(writer, e.name)
+		case e.kind:
+			Func(index):
+				writer.write_byte(0x00)
+				writer.write_u32(index)
+			Global(index):
+				writer.write_byte(0x03)
+				writer.write_u32(index)
+	writer.get_bytes()
+
+fn write_code_section(module: Module) -> Bytes:
+	let writer = Writer()
+	writer.write_u32(module.functions.len())
+	for function in module.functions:
+		let code = write_code(function)
+		writer.write_u32(code.len())
+		writer.write_data(code)
+	writer.get_bytes()
+
+fn write_code(function: Function) -> Bytes:
+	let writer = Writer()
+	writer.write_u32(function.locals.len())
+	for local in function.locals:
+		writer.write_u32(1)  # could be more than 1
+		pack_value_type(writer, local)
+
+	for instruction in function.code:
+		encode(writer, instruction)
+	writer.write_byte(0xB) # Some extra end opcode, just for good measure.
+	writer.get_bytes()
+
+fn write_tag_section(module: Module) -> Bytes:
+	let writer = Writer()
+	writer.write_u32(module.tags.len())
+	for tag in module.tags:
+		writer.write_byte(0x00)
+		writer.write_u32(tag.typeidx)
+	writer.get_bytes()
+
+pub fn to_wasm(module: Module) -> Bytes:
+	""" Create binary representation of wasm module. """
+	let writer = Writer()
+	write_header(writer)
+	write_section(writer, id: 1, data: create_type_section(module))
+	write_section(writer, id: 2, data: create_import_section(module))
+	write_section(writer, id: 3, data: create_func_section(module))
+	# 4 table section
+	# 5 memory section
+	if not module.tags.is_empty():
+		write_section(writer, id: 13, data: write_tag_section(module))
+	if not module.globals.is_empty():
+		write_section(writer, id: 6, data: create_global_section(module))
+	write_section(writer, id: 7, data: write_export_section(module))
+	# 8 start section
+	# 9 element section
+	write_section(writer, id: 10, data: write_code_section(module))
+	# 11 data section
+	# 12 data count section
+	writer.get_bytes()
 
 fn block_type_to_string(block_type: BlockType) -> str:
 	var res = ""
@@ -865,7 +1106,7 @@ fn to_string(instruction: Instruction) -> str:
 
 		i32_const(value): "i32.const {value}"
 		i64_const(value): "i64.const {value}"
-		f32_const(value): "f32.const {float_to_str2(value, digits: 20)}"
+		f32_const(value): "f32.const {float_to_str2(value: float(value), digits: 20)}"
 		f64_const(value): "f64.const {float_to_str2(value, digits: 20)}"
 
 		i32_eqz: "i32.eqz"
@@ -1042,16 +1283,19 @@ pub fn to_wat(module: Module, out: TextGenerator):
 			Func(typeidx):
 				out.emit("(import \"{imp.module}\" \"{imp.name}\" (func (;{func_index};) (type {typeidx})))")
 				func_index += 1
-			Global(ty):
-				out.emit("(import \"{imp.module}\" \"{imp.name}\" (global (;{global_index};) (mut {value_type_to_string(ty)})))")
+			Global(ty, mutable):
+				let ty_text = value_type_to_string(ty)
+				let mutable_ty_text = "(mut {ty_text})" if mutable else ty_text
+				out.emit("(import \"{imp.module}\" \"{imp.name}\" (global (;{global_index};) {mutable_ty_text}))")
 				global_index += 1
 
 	for tag in module.tags:
-		# TODO: properly use params
-		out.emit("(tag (param (ref null any)))")
+		out.emit("(tag (type {tag.typeidx}))")
 
 	for g in module.globals:
-		out.emit("(global (;{global_index};) (mut {value_type_to_string(g.ty)})")
+		let ty_text = value_type_to_string(g.ty)
+		let mutable_ty_text = "(mut {ty_text})" if g.mutable else ty_text
+		out.emit("(global (;{global_index};) {mutable_ty_text}")
 		out.indent()
 		for instruction in g.value:
 			out.emit("{to_string(instruction)}")
@@ -1059,8 +1303,15 @@ pub fn to_wat(module: Module, out: TextGenerator):
 		out.emit(")")
 		global_index += 1
 
+	for ex in module.exports:
+		case ex.kind:
+			Func(funcidx):
+				out.emit("(export \"{ex.name}\" (func {funcidx}))")
+			Global(globalidx):
+				out.emit("(export \"{ex.name}\" (global {globalidx}))")
+
 	for function in module.functions:
-		out.emit("(func (;{func_index};) (type {function.ty})")
+		out.emit("(func (;{func_index};) (type {function.typeidx})")
 		out.indent()
 		for local in function.locals:
 			out.emit("(local {value_type_to_string(ty: local)})")
@@ -1070,13 +1321,6 @@ pub fn to_wat(module: Module, out: TextGenerator):
 		out.dedent()
 		out.emit(")")
 		func_index += 1
-
-	for ex in module.exports:
-		case ex.kind:
-			Func(funcidx):
-				out.emit("(export \"{ex.name}\" (func {funcidx}))")
-			Global(globalidx):
-				out.emit("(export \"{ex.name}\" (global {globalidx}))")
 
 	for data in module.datas:
 		out.emit("(data (i32.const {data.offset}) \"{data.text}\")")

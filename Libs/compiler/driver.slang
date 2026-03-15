@@ -21,13 +21,13 @@ from transforms import transform, TransformOptions
 from builtins import get_rt_module
 from listtype import List
 from location import location_default
-from optiontype import option_unwrap, Option
+from optiontype import option_unwrap, Option, option_unwrap_or
 from opt import optimize_sil
 from hashmap import HashMap, new_hashmap_str
 from graphlib import DiGraph, topological_sort
 from c_gen import gen_c_code
 from c_gen_v2 import gen_c_code_v2
-from wasm_gen import gen_webassembly
+from wasm_gen import gen_webassembly_text, gen_webassembly_binary
 from riscv_gen import gen_riscv
 from bc_to_sil import to_sil
 from dbginfo import DbgInfo
@@ -57,7 +57,7 @@ pub enum Backend:
 	C2
 	Python
 	Slang
-	WebAssembly
+	WebAssembly(binary: bool)
 	Null
 	Riscv
 	X86
@@ -133,8 +133,12 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 		C2:
 			# Generate C-code straight from AST:
 			gen_c_code_v2(module_set, output_filename: options.output_filename)
-		WebAssembly:
-			gen_webassembly(module_set, typectx: builder.m_typectx, output_filename: options.output_filename)
+		WebAssembly(binary):
+			if binary:
+				let filename = option_unwrap_or(option: options.output_filename, default: "out.wasm")
+				gen_webassembly_binary(module_set, typectx: builder.m_typectx, filename)
+			else:
+				gen_webassembly_text(module_set, typectx: builder.m_typectx, output_filename: options.output_filename)
 		Riscv:
 			let bc_program = gen_bytecode(module_set, debug: builder.m_debug)
 			let sil_program = to_sil(program: bc_program, bits: 32)
@@ -278,7 +282,7 @@ pub fn slang_to_python(code: str, output_filename: str):
 	try:
 		let module_set = builder.do_transform()
 		# gen_python(module_set, generate_runtime: false, output_filename: Option.Some(output_filename))
-		gen_webassembly(module_set, typectx: builder.m_typectx, output_filename: Option.Some(output_filename))
+		gen_webassembly_text(module_set, typectx: builder.m_typectx, output_filename: Option.Some(output_filename))
 	except (compile_error: CompilationError):
 		log_error("Compile error")
 		return

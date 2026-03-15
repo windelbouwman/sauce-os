@@ -407,6 +407,20 @@ slang_float64_t slangrt_unbox_float64(void* p1)
     return *p2;
 }
 
+void* slangrt_box_float32(slang_float32_t value)
+{
+    void* p1 = rt_malloc(sizeof(slang_float32_t));
+    slang_float32_t* p2 = p1;
+    *p2 = value;
+    return p1;
+}
+
+slang_float32_t slangrt_unbox_float32(void* p1)
+{
+    slang_float32_t* p2 = p1;
+    return *p2;
+}
+
 SLANG_API slang_int_t std_get_n_args(void)
 {
     return g_argc - 1;

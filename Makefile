@@ -32,6 +32,7 @@ SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 SLANG2_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang/%.slang, $(SLANG_EXAMPLES))
 SLANG3_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang3/%.slang, $(SLANG_EXAMPLES))
 WASM_EXAMPLES := $(filter-out build/wasm/snippets/global_variables.wasm, $(patsubst examples/snippets/%.slang, build/wasm/snippets/%.wasm, $(SLANG_EXAMPLES)))
+WAT_EXAMPLES := $(filter-out build/wat/snippets/global_variables.wasm, $(patsubst examples/snippets/%.slang, build/wat/snippets/%.wasm, $(SLANG_EXAMPLES)))
 EXAMPLES_PY := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, $(SLANG_EXAMPLES))
 PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
 PY_AOC := $(patsubst examples/aoc/%/main.slang, build/python/aoc-%.py, $(AOC_APPS))
@@ -562,14 +563,14 @@ run-riscv-%: ${BUILDDIR}/riscv/snippet_%.elf
 	qemu-system-riscv32 -machine virt -cpu rv32 -bios none -kernel $<
 
 ############################################################################
-# WebAssembly backend
+# WebAssembly backend (text)
 ############################################################################
 
 # Wasm examples:
-.PHONY: all-examples-wasm
-all-examples-wasm: $(WASM_EXAMPLES)
+.PHONY: all-examples-wat
+all-examples-wat: $(WAT_EXAMPLES)
 
-${BUILDDIR}/wasm:
+${BUILDDIR}/wat:
 	mkdir -p $@
 
 %.wasm: %.wat
@@ -579,40 +580,89 @@ ${BUILDDIR}/wasm:
 	wasm-tools validate $@
 
 # Libs
-${BUILDDIR}/wasm/libbase.wat ${BUILDDIR}/wasm/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/wasm
-	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libbase.json -o ${BUILDDIR}/wasm/libbase.wat ${BASE_LIB_SRCS}
+${BUILDDIR}/wat/libbase.wat ${BUILDDIR}/wat/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/wat
+	${SLANGC} --backend-wat --gen-export ${BUILDDIR}/wat/libbase.json -o ${BUILDDIR}/wat/libbase.wat ${BASE_LIB_SRCS}
 
-${BUILDDIR}/wasm/libimage.wat ${BUILDDIR}/wasm/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
-	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libimage.json -o ${BUILDDIR}/wasm/libimage.wat --add-import ${BUILDDIR}/wasm/libbase.json ${IMAGE_LIB_SRCS}
+${BUILDDIR}/wat/libimage.wat ${BUILDDIR}/wat/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/wat/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wat
+	${SLANGC} --backend-wat --gen-export ${BUILDDIR}/wat/libimage.json -o ${BUILDDIR}/wat/libimage.wat --add-import ${BUILDDIR}/wat/libbase.json ${IMAGE_LIB_SRCS}
 
-${BUILDDIR}/wasm/libscience.wat ${BUILDDIR}/wasm/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
-	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libscience.json -o ${BUILDDIR}/wasm/libscience.wat --add-import ${BUILDDIR}/wasm/libbase.json ${SCIENCE_LIB_SRCS}
+${BUILDDIR}/wat/libscience.wat ${BUILDDIR}/wat/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/wat/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wat
+	${SLANGC} --backend-wat --gen-export ${BUILDDIR}/wat/libscience.json -o ${BUILDDIR}/wat/libscience.wat --add-import ${BUILDDIR}/wat/libbase.json ${SCIENCE_LIB_SRCS}
 
-${BUILDDIR}/wasm/libcompiler.wat ${BUILDDIR}/wasm/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
-	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libcompiler.json -o ${BUILDDIR}/wasm/libcompiler.wat --add-import ${BUILDDIR}/wasm/libbase.json ${COMPILER_LIB_SRCS}
+${BUILDDIR}/wat/libcompiler.wat ${BUILDDIR}/wat/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/wat/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wat
+	${SLANGC} --backend-wat --gen-export ${BUILDDIR}/wat/libcompiler.json -o ${BUILDDIR}/wat/libcompiler.wat --add-import ${BUILDDIR}/wat/libbase.json ${COMPILER_LIB_SRCS}
 
 # Compiler itself:
-${BUILDDIR}/wasm/compiler.wat: ${COMPILER_SRCS} ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libcompiler.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+${BUILDDIR}/wat/compiler.wat: ${COMPILER_SRCS} ${BUILDDIR}/wat/libbase.json ${BUILDDIR}/wat/libcompiler.json ${SLANGC_DEPS} | ${BUILDDIR}/wat
+	${SLANGC} --backend-wat -o $@ ${COMPILER_SRCS} --add-import ${BUILDDIR}/wat/libbase.json --add-import ${BUILDDIR}/wat/libcompiler.json
+
+# Tests
+${BUILDDIR}/wat/tests:
+	mkdir -p $@
+
+${BUILDDIR}/wat/tests/test_%.wat: tests/test_%.slang ${BUILDDIR}/wat/libbase.json ${BUILDDIR}/wat/libcompiler.json ${BUILDDIR}/wat/libimage.json ${BUILDDIR}/wat/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/wat/tests
+	${SLANGC} --backend-wat -o $@ $< --add-import ${BUILDDIR}/wat/libbase.json --add-import ${BUILDDIR}/wat/libcompiler.json --add-import ${BUILDDIR}/wat/libimage.json --add-import ${BUILDDIR}/wat/libscience.json
+
+# Snippets:
+${BUILDDIR}/wat/snippets:
+	mkdir -p $@
+
+.PRECIOUS: ${BUILDDIR}/wat/snippets/%.wat
+
+${BUILDDIR}/wat/snippets/%.wat: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/wat/snippets
+	${SLANGC} --backend-wat $< runtime/std.slang -o $@
+
+############################################################################
+# WebAssembly backend (binary)
+############################################################################
+
+# Wasm examples:
+.PHONY: all-examples-wasm
+all-examples-wasm: $(WASM_EXAMPLES)
+
+${BUILDDIR}/wasm:
+	mkdir -p $@
+
+# Libs
+${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libbase.json -o ${BUILDDIR}/wasm/libbase.wasm ${BASE_LIB_SRCS}
+	wasm-tools validate ${BUILDDIR}/wasm/libbase.wasm
+
+${BUILDDIR}/wasm/libimage.wasm ${BUILDDIR}/wasm/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libimage.json -o ${BUILDDIR}/wasm/libimage.wasm --add-import ${BUILDDIR}/wasm/libbase.json ${IMAGE_LIB_SRCS}
+	wasm-tools validate ${BUILDDIR}/wasm/libimage.wasm
+
+${BUILDDIR}/wasm/libscience.wasm ${BUILDDIR}/wasm/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libscience.json -o ${BUILDDIR}/wasm/libscience.wasm --add-import ${BUILDDIR}/wasm/libbase.json ${SCIENCE_LIB_SRCS}
+	wasm-tools validate ${BUILDDIR}/wasm/libscience.wasm
+
+${BUILDDIR}/wasm/libcompiler.wasm ${BUILDDIR}/wasm/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libcompiler.json -o ${BUILDDIR}/wasm/libcompiler.wasm --add-import ${BUILDDIR}/wasm/libbase.json ${COMPILER_LIB_SRCS}
+	wasm-tools validate ${BUILDDIR}/wasm/libcompiler.wasm
+
+# Compiler itself:
+${BUILDDIR}/wasm/compiler.wasm: ${COMPILER_SRCS} ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libcompiler.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
 	${SLANGC} --backend-wasm -o $@ ${COMPILER_SRCS} --add-import ${BUILDDIR}/wasm/libbase.json --add-import ${BUILDDIR}/wasm/libcompiler.json
+	wasm-tools validate $@
 
 # Tests
 ${BUILDDIR}/wasm/tests:
 	mkdir -p $@
 
-${BUILDDIR}/wasm/tests/test_%.wat: tests/test_%.slang ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libcompiler.json ${BUILDDIR}/wasm/libimage.json ${BUILDDIR}/wasm/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm/tests
+${BUILDDIR}/wasm/tests/test_%.wasm: tests/test_%.slang ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libcompiler.json ${BUILDDIR}/wasm/libimage.json ${BUILDDIR}/wasm/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm/tests
 	${SLANGC} --backend-wasm -o $@ $< --add-import ${BUILDDIR}/wasm/libbase.json --add-import ${BUILDDIR}/wasm/libcompiler.json --add-import ${BUILDDIR}/wasm/libimage.json --add-import ${BUILDDIR}/wasm/libscience.json
+	wasm-tools validate $@
 
-check-wasm: ${WASM_TESTS} ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libimage.wasm ${BUILDDIR}/wasm/libscience.wasm ${BUILDDIR}/wasm/libcompiler.wasm
+check-wasm: ${WASM_TESTS} ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libimage.wasm ${BUILDDIR}/wasm/libscience.wasm ${BUILDDIR}/wasm/libcompiler.wasm runtime/runtime.js
 	node runtime/runtime.js
 
 # Snippets:
 ${BUILDDIR}/wasm/snippets:
 	mkdir -p $@
 
-.PRECIOUS: ${BUILDDIR}/wasm/snippets/%.wat
-
-${BUILDDIR}/wasm/snippets/%.wat: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/wasm/snippets
+${BUILDDIR}/wasm/snippets/%.wasm: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/wasm/snippets
 	${SLANGC} --backend-wasm $< runtime/std.slang -o $@
+	wasm-tools validate $@
 
 # Web app
 .PHONY: webapp

@@ -64,7 +64,7 @@ def test_examples_slang_backend(filename: Path):
 
 
 @pytest.mark.parametrize("filename", example_filenames, ids=ids)
-@pytest.mark.parametrize("backend", ["x86", "c", "c2", "py", "bc", "wasm"])
+@pytest.mark.parametrize("backend", ["x86", "c", "c2", "py", "bc", "wasm", "wat"])
 def test_snippet(filename: Path, backend: str):
     """Test compiled snippet executable against expected snippet output."""
     build_path = root_path / "build"
@@ -77,8 +77,8 @@ def test_snippet(filename: Path, backend: str):
     elif backend == "bc":
         exe_path = build_path / "compiler5"
         cmd = [exe_path, "--run", "--backend-bc", std_module_path, filename]
-    elif backend == "wasm":
-        wasm_module_path = build_path / "wasm" / "snippets" / f"{filename.stem}.wasm"
+    elif backend in ("wasm", "wat"):
+        wasm_module_path = build_path / backend / "snippets" / f"{filename.stem}.wasm"
         js_runtime = root_path / "runtime" / "runtime.js"
         if not wasm_module_path.exists():
             pytest.skip("Wasm module not compiled")

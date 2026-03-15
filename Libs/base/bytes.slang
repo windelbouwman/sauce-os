@@ -287,3 +287,6 @@ pub fn bytes_to_ascii(data: Bytes) -> str:
 	for b in data:
 		result = result + "{chr(b)}"
 	result
+
+pub fn get_byte_from_array(buffer: [uint8], index: int) -> int:
+	int(buffer[index])

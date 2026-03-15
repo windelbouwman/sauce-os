@@ -19,6 +19,7 @@ WASM 1.0:
 
 import webassembly
 import ast
+import std
 from webassembly import Instruction
 from listtype import List, list1
 from vectype import Vector, new_vector
@@ -30,14 +31,27 @@ from std import str_len, ord, str_get
 from utils import panic, assert
 from logging import log_info, log_debug
 
-pub fn gen_webassembly(module_set: ast.ModuleSet, typectx: ast.TypeContext, output_filename: Option[str]):
-	log_info("Generating WebAssembly")
-	let generator = WasmGenerator(typectx)
-	let wasm_module = generator.gen_module_set(modules: module_set.modules)
+pub fn gen_webassembly_text(module_set: ast.ModuleSet, typectx: ast.TypeContext, output_filename: Option[str]):
+	let wasm_module = gen_webassembly_module(module_set, typectx)
 	let out = TextGenerator()
+	out.m_one_tab = "  "
 	out.begin(output_filename)
 	webassembly.to_wat(module: wasm_module, out)
 	out.end()
+
+pub fn gen_webassembly_binary(module_set: ast.ModuleSet, typectx: ast.TypeContext, filename: str):
+	let wasm_module = gen_webassembly_module(module_set, typectx)
+	let data = webassembly.to_wasm(module: wasm_module)
+	let handle = std.file_open(filename, mode: "wb")
+	let written = std.file_write_n_bytes(handle, buffer: data.as_array(), bufsize: data.len())
+	assert(condition: written == data.len(), message: "file_write_n_bytes failed")
+	std.file_close(handle)
+
+pub fn gen_webassembly_module(module_set: ast.ModuleSet, typectx: ast.TypeContext) -> webassembly.Module:
+	log_info("Generating WebAssembly")
+	let generator = WasmGenerator(typectx)
+	let wasm_module = generator.gen_module_set(modules: module_set.modules)
+	wasm_module
 
 class WasmGenerator:
 	var typectx: ast.TypeContext
@@ -121,7 +135,8 @@ class WasmGenerator:
 								global_mapping.insert(key: var_def.variable.id, value: global_counter)
 								global_counter += 1
 								let global_ty = get_wasm_type(ty: var_def.variable.ty)
-								imports.append(webassembly.Import(module: libname, name: var_def.variable.id.name, kind: webassembly.ExternType.Global(ty: global_ty)))
+								let kind = webassembly.ExternType.Global(ty: global_ty, mutable: true)
+								imports.append(webassembly.Import(module: libname, name: var_def.variable.id.name, kind))
 				else:
 					pass
 
@@ -159,8 +174,9 @@ class WasmGenerator:
 			gen_module(module)
 
 		# Tag used for exceptions:
+		let typeidx = inject_type(webassembly.CompType.Func(params: list1(webassembly.ValueType.Ref(webassembly.nullable_ref_type(heap_type: webassembly.HeapType.Any()))), results: List()))
 		let tags: List[webassembly.Tag] = List()
-		tags.append(webassembly.Tag(params: list1(webassembly.ValueType.Ref(webassembly.nullable_ref_type(heap_type: webassembly.HeapType.Any())))))
+		tags.append(webassembly.Tag(typeidx))
 
 		# Create module:
 		let wasm_module = webassembly.Module:
@@ -217,7 +233,7 @@ class WasmGenerator:
 									code = List()
 									gen_expression(e)
 									let g = webassembly.Global:
-										mutable: var_def.variable.writable
+										mutable: true  # var_def.variable.writable
 										ty: get_wasm_type(var_def.variable.ty)
 										value: code
 									globals.append(g)
@@ -336,7 +352,7 @@ class WasmGenerator:
 			panic("Function without body")
 
 		let f = webassembly.Function:
-			ty: func_ty
+			typeidx: func_ty
 			locals: local_variables
 			code
 		functions.append(f)

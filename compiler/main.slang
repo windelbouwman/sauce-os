@@ -65,7 +65,9 @@ pub fn main() -> int:
 		elif argument == "-rt":
 			options.runtime = false
 		elif argument == "--backend-wasm":
-			options.backend = Backend.WebAssembly()
+			options.backend = Backend.WebAssembly(binary: true)
+		elif argument == "--backend-wat":
+			options.backend = Backend.WebAssembly(binary: false)
 		elif argument == "--backend-slang":
 			options.backend = Backend.Slang()
 		elif argument == "--run":

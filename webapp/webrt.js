@@ -17,6 +17,7 @@ const editor = document.getElementById("input-code");
 const output = document.getElementById("output-code");
 const console_output = document.getElementById("console-output");
 const clear_console_button = document.getElementById("clear-console");
+const run_button = document.getElementById("run-button");
 const extra_args_input = document.getElementById("extra-args");
 
 class TextFileWriter {
@@ -32,6 +33,34 @@ class TextFileWriter {
 
   close() {
     let contents = this.parts.join("");
+    this.fs.setFileContents(this.path, contents);
+  }
+}
+
+class BinaryFileWriter {
+  constructor(fs, path) {
+    this.fs = fs;
+    this.path = path;
+    this.buffer = new Uint8Array(16);
+    this.pointer = 0;
+    this.length = 0;
+  }
+
+  writeData(data) {
+    while (this.pointer + data.length > this.buffer.length) {
+      let newBuf = new Uint8Array(this.buffer.length * 2);
+      newBuf.set(this.buffer);
+      this.buffer = newBuf;
+    }
+    this.buffer.set(data, this.pointer);
+    this.pointer += data.length;
+    if (this.pointer > this.length) {
+      this.length = this.pointer;
+    }
+  }
+
+  close() {
+    let contents = this.buffer.slice(0, this.length);
     this.fs.setFileContents(this.path, contents);
   }
 }
@@ -62,12 +91,15 @@ class MemoryFS {
   openFile(path, mode) {
     let handle = this.handle_counter;
     this.handle_counter += 1;
+    let writer;
     if (mode == "w") {
-      this.file_handles.set(handle, new TextFileWriter(this, path));
-      // } else if (mode == "wb") {
+      writer = new TextFileWriter(this, path);
+    } else if (mode == "wb") {
+      writer = new BinaryFileWriter(this, path);
     } else {
       throw new Error("Unknown mode: " + mode);
     }
+    this.file_handles.set(handle, writer);
     return handle;
   }
 
@@ -75,6 +107,15 @@ class MemoryFS {
     if (this.file_handles.has(handle)) {
       let f = this.file_handles.get(handle);
       f.writeText(text);
+    } else {
+      throw new Error("Invalid file handle:" + handle);
+    }
+  }
+
+  writeData(handle, data) {
+    if (this.file_handles.has(handle)) {
+      let f = this.file_handles.get(handle);
+      f.writeData(data);
     } else {
       throw new Error("Invalid file handle:" + handle);
     }
@@ -163,7 +204,9 @@ function std_file_read_n_bytes(handle) {
 }
 
 function std_file_write_n_bytes(handle, buffer, size) {
-  die("TODO: std_file_write_n_bytes");
+  let data = extract_array_from_wasm(buffer, Number(size));
+  fs.writeData(Number(handle), data);
+  return size;
 }
 
 function std_file_seek(handle, position) {
@@ -241,7 +284,7 @@ const slangrt = {
 async function loadModule(url, importObject) {
   let response = await fetch(url);
   let bytes = await response.arrayBuffer();
-  let wasmModule = WebAssembly.instantiate(bytes, importObject, {
+  let wasmModule = await WebAssembly.instantiate(bytes, importObject, {
     builtins: ["js-string"],
   });
   return wasmModule;
@@ -271,6 +314,18 @@ let compiler = await loadModule("compiler.wasm", {
   libbase: libbase.instance.exports,
   libcompiler: libcompiler.instance.exports,
 });
+
+function extract_array_from_wasm(buffer, bufsize) {
+  let data = new Uint8Array(bufsize);
+  for (let i = 0; i < bufsize; i++) {
+    let b = libbase.instance.exports.bytes_get_byte_from_array(
+      buffer,
+      BigInt(i),
+    );
+    data[i] = Number(b);
+  }
+  return data;
+}
 
 async function runUnitTest(name) {
   std_print("Running test: " + name);
@@ -334,7 +389,7 @@ fs.setFileContents("std.slang", std_code);
 async function selectSnippet(name) {
   let url = "snippets/" + name + ".slang";
   editor.value = await loadSource(url);
-  doCompile();
+  await doCompile();
 }
 
 example_menu.addEventListener("change", (event) => {
@@ -347,15 +402,36 @@ function invokeCompiler(args) {
   console.assert(Number(res) === 0, "Compiler failed");
 }
 
-function doCompile() {
-  let srcFilename = "example.slang";
-  let outFilename = "foo.py";
+let srcFilename = "example.slang";
+let outFilename = "foo.py";
+
+async function doCompile() {
   fs.setFileContents(srcFilename, editor.value);
   let extra_args = extra_args_input.value.split(" ");
   invokeCompiler(
     [srcFilename, "std.slang", "-o", outFilename].concat(extra_args),
   );
-  output.value = fs.getFileContents(outFilename);
+  let outputData = fs.getFileContents(outFilename);
+  if (outputData instanceof Uint8Array) {
+    output.value = "binary";
+  } else {
+    output.value = outputData;
+  }
+}
+
+async function doRun() {
+  let outputData = fs.getFileContents(outFilename);
+  if (outputData instanceof Uint8Array) {
+    let wasmModule = await WebAssembly.instantiate(
+      outputData,
+      { slangrt },
+      {
+        builtins: ["js-string"],
+      },
+    );
+    let res = wasmModule.instance.exports.main2();
+    console.log("Exit code: " + res);
+  }
 }
 
 editor.addEventListener("input", () => {
@@ -368,6 +444,10 @@ extra_args_input.addEventListener("blur", () => {
 
 clear_console_button.addEventListener("click", () => {
   console_output.value = "";
+});
+
+run_button.addEventListener("click", () => {
+  doRun();
 });
 
 selectSnippet(example_menu.value);

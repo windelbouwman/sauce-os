@@ -646,7 +646,14 @@ class SilGen:
 					Xor:
 						sil.BitwiseOp.Xor()
 					Shr:
-						sil.BitwiseOp.Shr()
+						case lhs.ty:
+							Int(signed, bits):
+								if signed:
+									sil.BitwiseOp.Sar()
+								else:
+									sil.BitwiseOp.Shr()
+						else:
+							unimplemented("Shift right for non-integer types")
 					Shl:
 						sil.BitwiseOp.Shl()
 				let dst = new_tmp(ty: lhs.value.ty)
