@@ -181,7 +181,7 @@ async function loadModule(path, importObject) {
   return module;
 }
 
-if (process.argv.length < 3) {
+async function runUnitTests() {
   const libbase = await loadModule("build/wasm/libbase.wasm", {
     slangrt,
   });
@@ -212,28 +212,36 @@ if (process.argv.length < 3) {
   );
 
   // Unit test
-  for await (const testModulePath of fs.promises.glob(
-    "build/wasm/tests/test*.wasm",
-  )) {
-    console.log("Running unit test:", testModulePath);
-    const test_module = await loadModule(testModulePath, {
-      slangrt,
-      libbase: libbase.instance.exports,
-      libcompiler: libcompiler.instance.exports,
-      libimage: libimage.instance.exports,
-      libscience: libscience.instance.exports,
-    });
-    const res = test_module.instance.exports.main2();
-    console.assert(res == 0, "Result must be 0");
+  for (const dir of ["build/wasm/tests", "build/wat/tests"]) {
+    for await (const testModulePath of fs.promises.glob(dir + "/test*.wasm")) {
+      console.log("Running unit test:", testModulePath);
+      const test_module = await loadModule(testModulePath, {
+        slangrt,
+        libbase: libbase.instance.exports,
+        libcompiler: libcompiler.instance.exports,
+        libimage: libimage.instance.exports,
+        libscience: libscience.instance.exports,
+      });
+      const res = test_module.instance.exports.main2();
+      console.assert(res == 0, "Result must be 0");
+    }
   }
   console.log("GREAT SUCCES");
-} else {
-  let wasm_file = process.argv.at(2);
-  const wasmModule = await loadModule(wasm_file, {
+}
+
+async function runSnippet(filename) {
+  const wasmModule = await loadModule(filename, {
     slangrt,
   });
   // Exported function live under instance.exports
   const { main2 } = wasmModule.instance.exports;
   const res = main2();
   process.exit(Number(res));
+}
+
+if (process.argv.length < 3) {
+  await runUnitTests();
+} else {
+  let wasm_file = process.argv.at(2);
+  await runSnippet(wasm_file);
 }

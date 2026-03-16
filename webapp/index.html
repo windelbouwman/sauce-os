@@ -5,49 +5,42 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="columns">
-      <!-- Column 1 -->
-      <div>
-        <div>
-          <h2>Input</h2>
-          <p>
-            Choose example:
-            <select id="example-menu">
-              <option value="hello_world">Hello world</option>
-              <option value="arrays">Arrays</option>
-              <option value="booleans">Booleans</option>
-              <option value="loops">Loops</option>
-              <option value="increment">Increment</option>
-              <option value="list_generic_oo">Generics</option>
-            </select>
-          </p>
-          <textarea id="input-code" class="code"></textarea>
-        </div>
+    <section class="panel">
+      <h2>Input</h2>
+      <p>
+        Choose example:
+        <select id="example-menu">
+          <option value="hello_world">Hello world</option>
+          <option value="arrays">Arrays</option>
+          <option value="booleans">Booleans</option>
+          <option value="loops">Loops</option>
+          <option value="increment">Increment</option>
+          <option value="list_generic_oo">Generics</option>
+        </select>
+      </p>
+      <textarea id="input-code" class="code"></textarea>
+    </section>
 
-        <div>
-          <h2>Console</h2>
-          <textarea id="console-output" class="code small"></textarea>
-          <p>
-            <input id="clear-console" type="button" value="Clear console" />
-          </p>
-        </div>
-      </div>
+    <section class="panel">
+      <h2>Output</h2>
+      <p>
+        Compiler arguments:
+        <input id="extra-args" type="text" value="--backend-wasm" />
+      </p>
+      <p>
+        <input id="run-button" type="button" value="Run code" />
+      </p>
+      <textarea id="output-code" class="code"></textarea>
+    </section>
 
-      <!-- Column 2 -->
-      <div>
-        <div>
-          <h2>Output</h2>
-          <p>
-            Additional compiler arguments:
-            <input id="extra-args" type="text" value="--backend-py" />
-          </p>
-          <p>
-            <input id="run-button" type="button" value="Run code" />
-          </p>
-          <textarea id="output-code" class="code big"></textarea>
-        </div>
-      </div>
-    </div>
+    <section class="panel">
+      <h2>Console</h2>
+      <textarea id="console-output" class="code"></textarea>
+      <p>
+        <input id="clear-console-button" type="button" value="Clear console" />
+        <input id="run-tests-button" type="button" value="Run tests" />
+      </p>
+    </section>
 
     <script lang="javascript" src="webrt.js" type="module"></script>
   </body>

@@ -1,6 +1,6 @@
 # SAUCE-OS / Slang-lang
 
-:construction: *Experimental language hacking!*
+:construction: _Experimental language hacking!_
 
 This is the home of the [slang-lang programming language](docs/slang-lang.md). Slang-lang
 is a new general purpose programming language with the following features:
@@ -37,15 +37,19 @@ The compiler has several backends:
 
 - :white_check_mark: C code. Compiles slang code into C code. This C code can then be compiled with a C compiler like GCC.
 - :white_check_mark: python. Compiles slang code into python code. This backend is also implemented in the bootstrap compiler.
-- :construction: x86. Compiles to native x86 code, usable on linux. Very limited at the moment.
+- :white_check_mark: x86. Compiles to native x86 code, usable on linux.
+- :white_check_mark: WebAssembly. Compiles to WebAssembly code, usable on the web.
 - :construction: riscv. Compiles to native riscv code. Under construction, longer term goal.
 - :construction: slang. Compiles slang code into .. slang. Useful for debugging the compiler.
+
+Try slang-lang in [the online playground](https://windelbouwman.github.io/sauce-os/).
 
 Longer term goal is to develop an OS using the slang-lang language.
 
 # Usage
 
 Make sure you have the following installed:
+
 - `make` to build using the Makefile
 - `python3` for bootstrapping and testing, with these additional python packages:
   - `lark` for parsing
@@ -53,6 +57,8 @@ Make sure you have the following installed:
   - `pytest` for running the tests
   - `rich` for colorful console output
 - `gcc` to compile C code
+- `node` for the WebAssembly backend
+- `wasm-tools` for the WebAssembly backend
 
 To build the slang-lang compiler and example programs, use make:
 
@@ -84,6 +90,7 @@ the actual compiler written in slang lang itself.
 ## Bootstrapping sequence
 
 To bootstrap the compiler, the following sequence is used:
+
 - Compile `compiler-src` to `compiler-py1` using `compiler1`. This is the bootstrapping.
 - Compile `compiler-src` to `compiler-py2` using `compiler-py1` with the backend python. Note that `compiler-py1` != `compiler-py2`, due to implementation differences between `compiler` and `compiler1`.
 - Compile `compiler-src` to `compiler-py3` using `compiler-py2` with the backend python. Now we can check that `compiler-py2` == `compiler-py3`.

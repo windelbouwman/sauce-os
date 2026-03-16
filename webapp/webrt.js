@@ -11,126 +11,16 @@ import {
   std_str_slice,
   rt_str_get,
 } from "./slangrt.js";
+import { MemoryFS } from "./memfs.js";
 
 const example_menu = document.getElementById("example-menu");
 const editor = document.getElementById("input-code");
 const output = document.getElementById("output-code");
 const console_output = document.getElementById("console-output");
-const clear_console_button = document.getElementById("clear-console");
+const clear_console_button = document.getElementById("clear-console-button");
+const run_tests_button = document.getElementById("run-tests-button");
 const run_button = document.getElementById("run-button");
 const extra_args_input = document.getElementById("extra-args");
-
-class TextFileWriter {
-  constructor(fs, path) {
-    this.fs = fs;
-    this.path = path;
-    this.parts = [];
-  }
-
-  writeText(text) {
-    this.parts.push(text);
-  }
-
-  close() {
-    let contents = this.parts.join("");
-    this.fs.setFileContents(this.path, contents);
-  }
-}
-
-class BinaryFileWriter {
-  constructor(fs, path) {
-    this.fs = fs;
-    this.path = path;
-    this.buffer = new Uint8Array(16);
-    this.pointer = 0;
-    this.length = 0;
-  }
-
-  writeData(data) {
-    while (this.pointer + data.length > this.buffer.length) {
-      let newBuf = new Uint8Array(this.buffer.length * 2);
-      newBuf.set(this.buffer);
-      this.buffer = newBuf;
-    }
-    this.buffer.set(data, this.pointer);
-    this.pointer += data.length;
-    if (this.pointer > this.length) {
-      this.length = this.pointer;
-    }
-  }
-
-  close() {
-    let contents = this.buffer.slice(0, this.length);
-    this.fs.setFileContents(this.path, contents);
-  }
-}
-
-class MemoryFS {
-  constructor() {
-    this.files = new Map();
-    this.file_handles = new Map();
-    this.handle_counter = 0;
-  }
-
-  fileExists(path) {
-    return this.files.has(path);
-  }
-
-  setFileContents(path, contents) {
-    this.files.set(path, contents);
-  }
-
-  getFileContents(path) {
-    if (this.files.has(path)) {
-      return this.files.get(path);
-    } else {
-      throw new Error("File not found: " + path);
-    }
-  }
-
-  openFile(path, mode) {
-    let handle = this.handle_counter;
-    this.handle_counter += 1;
-    let writer;
-    if (mode == "w") {
-      writer = new TextFileWriter(this, path);
-    } else if (mode == "wb") {
-      writer = new BinaryFileWriter(this, path);
-    } else {
-      throw new Error("Unknown mode: " + mode);
-    }
-    this.file_handles.set(handle, writer);
-    return handle;
-  }
-
-  writeText(handle, text) {
-    if (this.file_handles.has(handle)) {
-      let f = this.file_handles.get(handle);
-      f.writeText(text);
-    } else {
-      throw new Error("Invalid file handle:" + handle);
-    }
-  }
-
-  writeData(handle, data) {
-    if (this.file_handles.has(handle)) {
-      let f = this.file_handles.get(handle);
-      f.writeData(data);
-    } else {
-      throw new Error("Invalid file handle:" + handle);
-    }
-  }
-
-  closeFile(handle) {
-    if (this.file_handles.has(handle)) {
-      let f = this.file_handles.get(handle);
-      f.close();
-      this.file_handles.delete(handle);
-    } else {
-      throw new Error("Invalid file handle:" + handle);
-    }
-  }
-}
 
 let fs = new MemoryFS();
 let env = {
@@ -144,6 +34,7 @@ function die(message) {
 
 function std_print(text) {
   console_output.value += text + "\n";
+  console_output.scrollTop = console_output.scrollHeight;
 }
 
 function std_exit(value) {
@@ -210,12 +101,11 @@ function std_file_write_n_bytes(handle, buffer, size) {
 }
 
 function std_file_seek(handle, position) {
-  die("TODO: std_file_seek");
+  fs.seek(Number(handle), Number(position));
 }
 
 function std_file_tell(handle) {
-  die("TODO: std_file_tell");
-  return 0;
+  return BigInt(fs.tell(Number(handle)));
 }
 
 function std_read_file(filename) {
@@ -379,9 +269,8 @@ async function runUnitTests() {
   for (let name of test_names) {
     await runUnitTest(name);
   }
+  std_print("All tests ran!");
 }
-
-runUnitTests();
 
 let std_code = await loadSource("std.slang");
 fs.setFileContents("std.slang", std_code);
@@ -405,18 +294,32 @@ function invokeCompiler(args) {
 let srcFilename = "example.slang";
 let outFilename = "foo.py";
 
+function setVisible(control, value) {
+  if (value) {
+    control.classList.remove("hidden");
+  } else {
+    control.classList.add("hidden");
+  }
+}
+
 async function doCompile() {
   fs.setFileContents(srcFilename, editor.value);
-  let extra_args = extra_args_input.value.split(" ");
+  let extra_args = extra_args_input.value
+    .split(" ")
+    .map((i) => i.trim())
+    .filter((i) => i.length > 0);
   invokeCompiler(
     [srcFilename, "std.slang", "-o", outFilename].concat(extra_args),
   );
   let outputData = fs.getFileContents(outFilename);
   if (outputData instanceof Uint8Array) {
     output.value = "binary";
+    setVisible(output, false);
   } else {
     output.value = outputData;
+    setVisible(output, true);
   }
+  setVisible(run_button, extra_args.includes("--backend-wasm"));
 }
 
 async function doRun() {
@@ -444,6 +347,10 @@ extra_args_input.addEventListener("blur", () => {
 
 clear_console_button.addEventListener("click", () => {
   console_output.value = "";
+});
+
+run_tests_button.addEventListener("click", () => {
+  runUnitTests();
 });
 
 run_button.addEventListener("click", () => {

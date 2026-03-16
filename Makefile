@@ -51,6 +51,7 @@ ALL_TEST_RUNS_PY := $(patsubst tests/test_%.slang, run-test-py-%, $(TESTS))
 ALL_TEST_RUNS_X86 := $(patsubst tests/test_%.slang, run-test-x86-%, $(TESTS))
 X86_TESTS := $(patsubst tests/test_%.slang, build/x86/test_%.exe, $(TESTS))
 WASM_TESTS := $(patsubst tests/test_%.slang, build/wasm/tests/test_%.wasm, $(TESTS))
+WAT_TESTS := $(patsubst tests/test_%.slang, build/wat/tests/test_%.wasm, $(TESTS))
 
 .PHONY: all check-c check-c2 check-x86 check-py check-wasm all-examples test pytest-exes quick
 all: ${APPS_C} ${PY_APPS} ${APPS_C2} ${APP_X86} all-examples aoc
@@ -103,7 +104,7 @@ benchmark2: ${COMPILER5} | ${BUILDDIR}
 pytest-compiler1:
 	pytest -v test_compiler1.py
 
-pytest-compiler: all-examples-c all-examples-python all-examples-x86 aoc all-examples-wasm
+pytest-compiler: all-examples-c all-examples-python all-examples-x86 aoc all-examples-wasm all-examples-wat
 	pytest -vv test_compiler.py
 
 ############################################################################
@@ -653,7 +654,7 @@ ${BUILDDIR}/wasm/tests/test_%.wasm: tests/test_%.slang ${BUILDDIR}/wasm/libbase.
 	${SLANGC} --backend-wasm -o $@ $< --add-import ${BUILDDIR}/wasm/libbase.json --add-import ${BUILDDIR}/wasm/libcompiler.json --add-import ${BUILDDIR}/wasm/libimage.json --add-import ${BUILDDIR}/wasm/libscience.json
 	wasm-tools validate $@
 
-check-wasm: ${WASM_TESTS} ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libimage.wasm ${BUILDDIR}/wasm/libscience.wasm ${BUILDDIR}/wasm/libcompiler.wasm runtime/runtime.js
+check-wasm: ${WASM_TESTS} ${WAT_TESTS} ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libimage.wasm ${BUILDDIR}/wasm/libscience.wasm ${BUILDDIR}/wasm/libcompiler.wasm runtime/runtime.js
 	node runtime/runtime.js
 
 # Snippets:
@@ -677,7 +678,7 @@ webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_T
 	cp examples/snippets/*.slang ${BUILDDIR}/webapp/snippets
 	cp runtime/std.slang ${BUILDDIR}/webapp
 	cp webapp/index.html webapp/style.css ${BUILDDIR}/webapp
-	cp webapp/webrt.js ${BUILDDIR}/webapp
+	cp webapp/*.js ${BUILDDIR}/webapp
 	cp runtime/slangrt.js ${BUILDDIR}/webapp
 
 ############################################################################
