@@ -16,9 +16,11 @@
           <option value="loops">Loops</option>
           <option value="increment">Increment</option>
           <option value="list_generic_oo">Generics</option>
+          <option value="switching">Switch</option>
+          <option value="except2">Exceptions</option>
         </select>
       </p>
-      <textarea id="input-code" class="code"></textarea>
+      <textarea id="input-code" class="code" spellcheck="false"></textarea>
     </section>
 
     <section class="panel">
@@ -26,19 +28,41 @@
       <p>
         Compiler arguments:
         <input id="extra-args" type="text" value="--backend-wasm" />
+        Choose backend:
+        <select id="backend-menu">
+          <option value="--backend-wasm">WebAssembly</option>
+          <option value="--backend-wat">WebAssembly (text)</option>
+          <option value="--backend-py">Python</option>
+          <option value="--backend-c">C</option>
+          <option value="--backend-c-v2">C (v2)</option>
+          <option value="--backend-x86">x86</option>
+          <option value="--backend-bc">Bytecode</option>
+          <option value="--backend-slang">Slang</option>
+        </select>
       </p>
       <p>
         <input id="run-button" type="button" value="Run code" />
       </p>
-      <textarea id="output-code" class="code"></textarea>
+      <textarea
+        id="output-code"
+        class="code"
+        spellcheck="false"
+        readonly
+      ></textarea>
     </section>
 
     <section class="panel">
       <h2>Console</h2>
-      <textarea id="console-output" class="code"></textarea>
+      <textarea
+        id="console-output"
+        class="code"
+        spellcheck="false"
+        readonly
+      ></textarea>
       <p>
         <input id="clear-console-button" type="button" value="Clear console" />
         <input id="run-tests-button" type="button" value="Run tests" />
+        <input id="run-mandel-button" type="button" value="Run mandel.wasm" />
       </p>
     </section>
 

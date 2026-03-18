@@ -69,6 +69,9 @@ pub class ByteReader:
 	pub fn at_end() -> bool:
 		m_index >= m_bytes.len()
 
+	pub fn tell() -> int:
+		m_index
+
 	pub fn read_bytes(size: int) -> Bytes:
 		var i = 0
 		let ba = ByteArray()

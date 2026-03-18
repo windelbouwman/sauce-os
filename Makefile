@@ -646,6 +646,18 @@ ${BUILDDIR}/wasm/compiler.wasm: ${COMPILER_SRCS} ${BUILDDIR}/wasm/libbase.json $
 	${SLANGC} --backend-wasm -o $@ ${COMPILER_SRCS} --add-import ${BUILDDIR}/wasm/libbase.json --add-import ${BUILDDIR}/wasm/libcompiler.json
 	wasm-tools validate $@
 
+# Apps:
+${BUILDDIR}/wasm/apps:
+	mkdir -p $@
+
+${BUILDDIR}/wasm/apps/%.wasm: Apps/%.slang ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libcompiler.json ${BUILDDIR}/wasm/libimage.json ${BUILDDIR}/wasm/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm/apps
+	${SLANGC} --backend-wasm -o $@ $< \
+		--add-import ${BUILDDIR}/wasm/libbase.json \
+		--add-import ${BUILDDIR}/wasm/libimage.json \
+		--add-import ${BUILDDIR}/wasm/libcompiler.json \
+		--add-import ${BUILDDIR}/wasm/libscience.json
+	wasm-tools validate $@
+
 # Tests
 ${BUILDDIR}/wasm/tests:
 	mkdir -p $@
@@ -667,19 +679,21 @@ ${BUILDDIR}/wasm/snippets/%.wasm: examples/snippets/%.slang runtime/std.slang ${
 
 # Web app
 .PHONY: webapp
-webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_TESTS} ${BUILDDIR}/wasm/compiler.wasm all-examples-wasm
+webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_TESTS} ${BUILDDIR}/wasm/compiler.wasm ${BUILDDIR}/wasm/apps/mandel.wasm all-examples-wasm
 	mkdir -p ${BUILDDIR}/webapp
 	mkdir -p ${BUILDDIR}/webapp/snippets
 	mkdir -p ${BUILDDIR}/webapp/tests
-	cp ${BUILDDIR}/wasm/lib*.wasm ${BUILDDIR}/webapp
-	cp ${BUILDDIR}/wasm/compiler.wasm ${BUILDDIR}/webapp
-	cp ${BUILDDIR}/wasm/snippets/*.wasm ${BUILDDIR}/webapp/snippets
-	cp ${BUILDDIR}/wasm/tests/*.wasm ${BUILDDIR}/webapp/tests
-	cp examples/snippets/*.slang ${BUILDDIR}/webapp/snippets
-	cp runtime/std.slang ${BUILDDIR}/webapp
-	cp webapp/index.html webapp/style.css ${BUILDDIR}/webapp
-	cp webapp/*.js ${BUILDDIR}/webapp
-	cp runtime/slangrt.js ${BUILDDIR}/webapp
+	mkdir -p ${BUILDDIR}/webapp/apps
+	cp ${BUILDDIR}/wasm/lib*.wasm ${BUILDDIR}/webapp/
+	cp ${BUILDDIR}/wasm/compiler.wasm ${BUILDDIR}/webapp/
+	cp ${BUILDDIR}/wasm/snippets/*.wasm ${BUILDDIR}/webapp/snippets/
+	cp ${BUILDDIR}/wasm/tests/*.wasm ${BUILDDIR}/webapp/tests/
+	cp ${BUILDDIR}/wasm/apps/*.wasm ${BUILDDIR}/webapp/apps/
+	cp examples/snippets/*.slang ${BUILDDIR}/webapp/snippets/
+	cp runtime/std.slang ${BUILDDIR}/webapp/
+	cp webapp/index.html webapp/style.css ${BUILDDIR}/webapp/
+	cp webapp/webrt.js webapp/memfs.js ${BUILDDIR}/webapp/
+	cp runtime/slangrt.js ${BUILDDIR}/webapp/
 
 ############################################################################
 # Bootstrapping

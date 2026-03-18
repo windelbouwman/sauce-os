@@ -17,9 +17,8 @@ const example_menu = document.getElementById("example-menu");
 const editor = document.getElementById("input-code");
 const output = document.getElementById("output-code");
 const console_output = document.getElementById("console-output");
-const clear_console_button = document.getElementById("clear-console-button");
-const run_tests_button = document.getElementById("run-tests-button");
 const run_button = document.getElementById("run-button");
+const backend_menu = document.getElementById("backend-menu");
 const extra_args_input = document.getElementById("extra-args");
 
 let fs = new MemoryFS();
@@ -35,6 +34,10 @@ function die(message) {
 function std_print(text) {
   console_output.value += text + "\n";
   console_output.scrollTop = console_output.scrollHeight;
+}
+
+function cls() {
+  console_output.value = "";
 }
 
 function std_exit(value) {
@@ -172,11 +175,13 @@ const slangrt = {
 };
 
 async function loadModule(url, importObject) {
-  let response = await fetch(url);
-  let bytes = await response.arrayBuffer();
-  let wasmModule = await WebAssembly.instantiate(bytes, importObject, {
-    builtins: ["js-string"],
-  });
+  let wasmModule = await WebAssembly.instantiateStreaming(
+    fetch(url),
+    importObject,
+    {
+      builtins: ["js-string"],
+    },
+  );
   return wasmModule;
 }
 
@@ -217,17 +222,21 @@ function extract_array_from_wasm(buffer, bufsize) {
   return data;
 }
 
-async function runUnitTest(name) {
-  std_print("Running test: " + name);
-  let url = "tests/" + name + ".wasm";
-  let testModule = await loadModule(url, {
+async function runApp(url) {
+  let appModule = await loadModule(url, {
     slangrt,
     libbase: libbase.instance.exports,
     libcompiler: libcompiler.instance.exports,
     libimage: libimage.instance.exports,
     libscience: libscience.instance.exports,
   });
-  let res = testModule.instance.exports.main2();
+  return appModule.instance.exports.main2();
+}
+
+async function runUnitTest(name) {
+  std_print("Running test: " + name);
+  let url = "tests/" + name + ".wasm";
+  let res = await runApp(url);
   console.assert(Number(res) === 0, "Test failed");
 }
 
@@ -322,6 +331,11 @@ async function doCompile() {
   setVisible(run_button, extra_args.includes("--backend-wasm"));
 }
 
+backend_menu.addEventListener("change", (event) => {
+  extra_args_input.value = backend_menu.value;
+  doCompile();
+});
+
 async function doRun() {
   let outputData = fs.getFileContents(outFilename);
   if (outputData instanceof Uint8Array) {
@@ -332,10 +346,22 @@ async function doRun() {
         builtins: ["js-string"],
       },
     );
+    cls();
     let res = wasmModule.instance.exports.main2();
     console.log("Exit code: " + res);
   }
 }
+
+editor.addEventListener("keydown", (e) => {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    editor.value =
+      editor.value.substring(0, start) + "\t" + editor.value.substring(end);
+    editor.selectionStart = editor.selectionEnd = start + 1;
+  }
+});
 
 editor.addEventListener("input", () => {
   doCompile();
@@ -345,12 +371,18 @@ extra_args_input.addEventListener("blur", () => {
   doCompile();
 });
 
-clear_console_button.addEventListener("click", () => {
-  console_output.value = "";
+document
+  .getElementById("clear-console-button")
+  .addEventListener("click", () => {
+    cls();
+  });
+
+document.getElementById("run-tests-button").addEventListener("click", () => {
+  runUnitTests();
 });
 
-run_tests_button.addEventListener("click", () => {
-  runUnitTests();
+document.getElementById("run-mandel-button").addEventListener("click", () => {
+  runApp("apps/mandel.wasm");
 });
 
 run_button.addEventListener("click", () => {

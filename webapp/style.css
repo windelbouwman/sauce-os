@@ -15,19 +15,15 @@ textarea.code {
 }
 
 .panel {
-  background: linear-gradient(180deg, #ffb347, #ff8c00);
   position: relative;
   margin: 6px;
   padding: 10px;
-
   border-radius: 10px;
-
   border: 1px solid #b35a00;
-
+  background: linear-gradient(#ffb347, #ff8c00);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    inset 0 -2px 3px rgba(0, 0, 0, 0.2),
-    0 3px 8px rgba(0, 0, 0, 0.25);
+    inset 0 1px 0 #fff8,
+    0 3px 8px #0004;
 }
 
 .panel h2 {
@@ -40,6 +36,39 @@ textarea.code {
 
 .panel p {
   margin: 1px;
+}
+
+.panel input[type="button"],
+.panel button,
+.panel select {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid #b35a00;
+  cursor: pointer;
+  background: linear-gradient(145deg, #ffd700, #ff8c00);
+  font-weight: bold;
+  box-shadow:
+    inset 0 2px 0 #fff7,
+    0 2px 6px #0003;
+  transition: 0.15s;
+}
+
+.panel input[type="button"]:hover,
+.panel button:hover,
+.panel select:hover {
+  background: linear-gradient(145deg, #fff176, #ffa000);
+
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.25),
+    0 4px 12px rgba(255, 165, 0, 0.6);
+
+  transform: translateY(-1px);
+}
+
+.panel input[type="button"]:active,
+.panel button:active {
+  transform: translateY(1px);
 }
 
 .hidden {
