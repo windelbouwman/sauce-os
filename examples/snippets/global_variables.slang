@@ -17,9 +17,9 @@ struct W:
 	val: int
 	f: fn()
 
-var x : int = 3
-var y : str = "bla bla"
-var z : Z = Z:
+var x: int = 3
+var y: str = "bla bla"
+var z: Z = Z:
 	a: 1.1
 	b: "Moi"
 	c: 5

@@ -28,7 +28,7 @@ pub fn main() -> int:
 					break
 				Identifier(name):
 					"ID"
-				Integer(value):
+				Integer(value, raw_text):
 					"INT"
 				Char(value):
 					"CHAR"

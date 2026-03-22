@@ -1,11 +1,10 @@
-"""
-Demo of saving images
-"""
+"""Demo of saving images"""
 
 from std import get_n_args, get_arg, print
 from logging import set_log_level
 from utils import panic
-from strlib import split_string
+from optiontype import Option, option_unwrap
+from fs import Path, new_path
 from image import Image
 from pbm import write_pbm
 from png import read_png_from_file, write_png_to_file
@@ -13,33 +12,30 @@ from qoi import read_qoi_from_file, write_qoi_to_file
 from gif import read_gif_from_file
 from jpeg import read_jpg_from_file
 
-fn load_image(filename: str) -> Image:
+fn load_image(path: Path) -> Image:
 	# Load image from file
-	let extension = get_extension(filename)
+	let extension = path.get_extension()
 	if extension == "png":
-		read_png_from_file(filename)
+		read_png_from_file(path)
 	elif extension == "qoi":
-		read_qoi_from_file(filename)
+		read_qoi_from_file(path)
 	elif extension == "gif":
-		read_gif_from_file(filename).first()
+		read_gif_from_file(path).first()
 	elif extension == "jpg":
-		read_jpg_from_file(filename)
+		read_jpg_from_file(path)
 	else:
 		panic("Unsupported image extension for load_image: {extension}")
 
-fn save_image(image: Image, filename: str):
-	let extension = get_extension(filename)
+fn save_image(image: Image, path: Path):
+	let extension = path.get_extension()
 	if extension == "ppm":
-		write_pbm(image, filename)
+		write_pbm(image, path)
 	elif extension == "qoi":
-		write_qoi_to_file(image, filename)
+		write_qoi_to_file(image, path)
 	elif extension == "png":
-		write_png_to_file(image, filename)
+		write_png_to_file(image, path)
 	else:
 		panic("Unsupported image extension for save_image: {extension}")
-
-fn get_extension(filename: str) -> str:
-	split_string(text: filename, sep: '.').last()
 
 fn print_usage():
 	print("Usage:")
@@ -51,8 +47,8 @@ pub fn main() -> int:
 	var i = 0
 	var log_level = 0
 	var parse_state = 0
-	var input_image: str = ""
-	var output_image: str = ""
+	var input_image: Option[Path] = Option.None()
+	var output_image: Option[Path] = Option.None()
 	while i < n:
 		let argument = get_arg(arg: i)
 		if argument == "-h":
@@ -62,10 +58,10 @@ pub fn main() -> int:
 			log_level += 1
 		else:
 			if parse_state == 0:
-				input_image = argument
+				input_image = Option.Some(new_path(filename: argument))
 				parse_state = 1
 			elif parse_state == 1:
-				output_image = argument
+				output_image = Option.Some(new_path(filename: argument))
 				parse_state = 2
 			else:
 				print("Too many arguments")
@@ -77,8 +73,11 @@ pub fn main() -> int:
 		return 1
 
 	set_log_level(level: log_level)
-	let image = load_image(filename: input_image)
-	if parse_state > 1:
-		save_image(image, filename: output_image)
+	let image = load_image(path: option_unwrap(input_image))
+	case output_image:
+		Some(output_path):
+			save_image(image, path: output_path)
+		None:
+			pass
 
 	return 0

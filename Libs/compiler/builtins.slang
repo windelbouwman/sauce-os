@@ -7,7 +7,7 @@ from location import location_default
 pub fn get_rt_module(typectx: ast.TypeContext) -> ast.ModuleDef:
 	let is_pub = true
 	let libname = "slangrt"
-	let docstring: Option[str] = Option.None()
+	let docstring: Option[ast.DocString] = Option.None()
 	let modname = "rt"
 	let module = ast.new_empty_module(name: modname, location: location_default())
 	let type_parameters: List[ast.TypeParameter] = List()

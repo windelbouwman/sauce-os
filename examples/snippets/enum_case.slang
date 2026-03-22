@@ -24,5 +24,5 @@ fn foo(val: Option):
 			print("And the message is: " + x)
 		None:
 			print("Nothing here")
-		Money(x,y):
+		Money(x, y):
 			print("Money!! x={x} y=" + std.float_to_str(y))

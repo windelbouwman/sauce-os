@@ -10,60 +10,23 @@ from utils import panic, assert
 from logging import log_info
 from bytes import Bytes, ByteReader, ByteArray, bytes_to_ascii, bytes_from_ascii
 from vectype import Vector, new_vector
+from fs import read_whole_file_as_bytes, write_bytes_to_file, Path
 from image import Image, new_image, new_empty_image, Pixel, new_pixel, ColorMode, copy_pixel
-
-pub fn read_whole_file_as_bytes(filename: str) -> Bytes:
-	# Helper to read in a whole file into a bytes object in memory
-	let handle = std.file_open(filename, mode: "rb")
-	let ba = ByteArray()
-	let buffer: [uint8] = [200 : uint8]
-	loop:
-		let res = std.file_read_n_bytes(handle, buffer, bufsize: 200)
-		if res > 0:
-			var i = 0
-			while i < res:
-				ba.append(int(buffer[i]))
-				i += 1
-		else:
-			break
-	std.file_close(handle)
-
-	ba.to_bytes()
-
-pub fn write_bytes_to_file(filename: str, data: Bytes):
-	let handle = std.file_open(filename, mode: "wb")
-	var buffer: [uint8] = [200 : uint8]
-	var i = 0
-	var j = 0
-	while i < data.len():
-		buffer[j] = uint8(data[i])
-		j += 1
-		if j == 200:
-			let x = std.file_write_n_bytes(handle, buffer, bufsize: j)
-			assert(condition: x == j, message: "file_write_n_bytes failed")
-			j = 0
-		i += 1
-
-	if j > 0:
-		let x = std.file_write_n_bytes(handle, buffer, bufsize: j)
-		assert(condition: x == j, message: "file_write_n_bytes failed")
-
-	std.file_close(handle)
 
 # TODO: support constants:
 # QOI_OP_RGB = 0b1111_1110
 # QOI_OP_RGBA = 0b1111_1111
 
-pub fn read_qoi_from_file(filename: str) -> Image:
-	let data = read_whole_file_as_bytes(filename)
+pub fn read_qoi_from_file(path: Path) -> Image:
+	let data = read_whole_file_as_bytes(path)
 	let reader = QoiReader(m_reader: data.into_reader())
 	reader.read_image()
 
-pub fn write_qoi_to_file(image: Image, filename: str):
+pub fn write_qoi_to_file(image: Image, path: Path):
 	# Write image as QOI file.
 	let writer = QoiWriter()
 	let data = writer.write(image)
-	write_bytes_to_file(filename, data)
+	write_bytes_to_file(path, data)
 
 class QoiReader:
 	var m_reader: ByteReader

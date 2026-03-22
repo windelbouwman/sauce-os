@@ -17,7 +17,7 @@ struct Holder:
 pub fn main() -> int:
 	# let x: list<float> = [1,7,11,2]
 	# let x: float = [1,7,11,2]
-	let x = [1,7,11,2,550,232,12,2]
+	let x = [1, 7, 11, 2, 550, 232, 12, 2]
 	# let x = [1, 7]
 
 	std.print("x[2] = {x[2]}")
@@ -25,7 +25,7 @@ pub fn main() -> int:
 
 	# For loop with array:
 	for a in x:
-		std.print("BOOM a={a} a*a={a*a}")
+		std.print("BOOM a={a} a*a={a * a}")
 
 	# While loop with array:
 	var i = 2

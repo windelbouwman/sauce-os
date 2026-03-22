@@ -14,7 +14,7 @@ class List[T]:
 				this.header = new_item
 			Some(item):
 				# while item.next
-				
+
 				loop:
 					case item.next:
 						None:

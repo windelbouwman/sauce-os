@@ -3,7 +3,7 @@ from std import print
 
 pub fn main() -> int:
 	var x = [1, 2, 3, 4]  # Array with 4 items
-	var y = [100 : int]   # Array with 100 integers
+	var y = [100 : int]  # Array with 100 integers
 	y[0] = 1
 	y[1] = 1
 	y[2] = 1

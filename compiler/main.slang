@@ -5,6 +5,7 @@ SlangC compiler
 from std import print, get_n_args, get_arg
 from logging import log_info, log_error, set_log_level
 from optiontype import Option
+from fs import lexical_sort_paths, new_path, Path
 from listtype import List
 from strlib import lexical_sort
 from errors import display_error, CompilationError
@@ -12,7 +13,7 @@ from driver import compile, CompilationOptions, Backend, default_compile_options
 
 
 pub fn main() -> int:
-	var filenames: List[str] = List()
+	var sources: List[Path] = List()
 	let options = default_compile_options()
 
 	# Argument processing
@@ -84,19 +85,19 @@ pub fn main() -> int:
 			options.report = true
 		else:
 			# Assume source file
-			filenames.append(argument)
+			sources.append(new_path(filename: argument))
 		i += 1
 
 	set_log_level(level: options.verbosity)
 
-	if filenames.is_empty():
+	if sources.is_empty():
 		log_error("No input")
 		return 2
 
-	filenames = lexical_sort(filenames)
+	sources = lexical_sort_paths(sources)
 
 	try:
-		compile(filenames, options)
+		compile(sources, options)
 		log_info("OK")
 		return 0
 	except (error: CompilationError):
@@ -122,6 +123,7 @@ fn print_usage():
 	print("    --backend-c     : Spit out C code")
 	print("    --backend-c-v2  : Spit out C code (version 2)")
 	print("    --backend-wasm  : Spit out WebAssembly")
+	print("    --backend-wat   : Spit out WebAssembly - text format")
 	print("    --backend-riscv : Spit out RiscV code")
 	print("    --backend-null  : Skip code generation")
 	print("    --backend-slang : Spit out slang")

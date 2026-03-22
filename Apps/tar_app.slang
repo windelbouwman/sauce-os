@@ -1,7 +1,6 @@
-""" Handling of tar.gz files
-"""
+""" Handling of tar.gz files"""
 import std
-from qoi import read_whole_file_as_bytes
+from fs import read_whole_file_as_bytes, new_path
 from gzip import gzip_decompress
 from datetime import unix_to_str
 from bytes import ByteReader, bytes_to_ascii
@@ -13,10 +12,10 @@ pub fn main() -> int:
 		std.print("Usage:")
 		std.print("UNTAR <archive.tar>")
 		return 1
-	let tar_filename = std.get_arg(arg: 0)
-	std.print("UNTAR {tar_filename} ...")
+	let tar_filepath = new_path(filename: std.get_arg(arg: n - 1))
+	std.print("UNTAR {tar_filepath} ...")
 
-	let data = read_whole_file_as_bytes(filename: tar_filename)
+	let data = read_whole_file_as_bytes(path: tar_filepath)
 	std.print("Read {data.len()} bytes..")
 
 	let decompressed = gzip_decompress(data)

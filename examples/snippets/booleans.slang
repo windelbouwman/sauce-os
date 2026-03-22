@@ -1,6 +1,4 @@
-"""
-Test various boolean operations
-"""
+"""Test various boolean operations"""
 from std import print
 
 pub fn main() -> int:

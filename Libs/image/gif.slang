@@ -8,12 +8,12 @@ from bytes import Bytes, new_bytes, ByteReader, ByteArray
 from bytes import bytes_to_ascii, fill_bytes
 from vectype import Vector, new_vector
 from image import Image, new_image, ColorMode, new_pixel
-from qoi import read_whole_file_as_bytes
+from fs import read_whole_file_as_bytes, Path
 
 
-pub fn read_gif_from_file(filename: str) -> List[Image]:
-	log_debug("Loading GIF from {filename}")
-	let data = read_whole_file_as_bytes(filename)
+pub fn read_gif_from_file(path: Path) -> List[Image]:
+	log_debug("Loading GIF from {path}")
+	let data = read_whole_file_as_bytes(path)
 	read_gif_from_bytes(data)
 
 fn read_gif_from_bytes(data: Bytes) -> List[Image]:

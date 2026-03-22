@@ -443,22 +443,22 @@ ${BUILDDIR}/x86/snippets/%.exe: ${BUILDDIR}/x86/snippets/%.o ${BUILDDIR}/slangrt
 
 # Libs - Objects
 ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libbase.json -o ${BUILDDIR}/x86/libbase.o ${BASE_LIB_SRCS}
+	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libbase.json -o ${BUILDDIR}/x86/libbase.o ${BASE_LIB_SRCS}
 
 ${BUILDDIR}/x86/libcompiler.o ${BUILDDIR}/x86/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libcompiler.json -o ${BUILDDIR}/x86/libcompiler.o --add-import ${BUILDDIR}/x86/libbase.json ${COMPILER_LIB_SRCS}
+	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libcompiler.json -o ${BUILDDIR}/x86/libcompiler.o --add-import ${BUILDDIR}/x86/libbase.json ${COMPILER_LIB_SRCS}
 
 ${BUILDDIR}/x86/libimage.o ${BUILDDIR}/x86/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libimage.json -o ${BUILDDIR}/x86/libimage.o --add-import ${BUILDDIR}/x86/libbase.json ${IMAGE_LIB_SRCS}
+	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libimage.json -o ${BUILDDIR}/x86/libimage.o --add-import ${BUILDDIR}/x86/libbase.json ${IMAGE_LIB_SRCS}
 
 ${BUILDDIR}/x86/libgfx.o ${BUILDDIR}/x86/libgfx.json: ${GFX_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${BUILDDIR}/x86/libimage.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libgfx.json -o ${BUILDDIR}/x86/libgfx.o --add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libimage.json ${GFX_LIB_SRCS}
+	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libgfx.json -o ${BUILDDIR}/x86/libgfx.o --add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libimage.json ${GFX_LIB_SRCS}
 
 ${BUILDDIR}/x86/libscience.o ${BUILDDIR}/x86/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libscience.json -o ${BUILDDIR}/x86/libscience.o --add-import ${BUILDDIR}/x86/libbase.json ${SCIENCE_LIB_SRCS}
+	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libscience.json -o ${BUILDDIR}/x86/libscience.o --add-import ${BUILDDIR}/x86/libbase.json ${SCIENCE_LIB_SRCS}
 
 ${BUILDDIR}/x86/libweb.o ${BUILDDIR}/x86/libweb.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
-	${SLANGC} -v --backend-x86 --gen-export ${BUILDDIR}/x86/libweb.json -o ${BUILDDIR}/x86/libweb.o --add-import ${BUILDDIR}/x86/libbase.json ${WEB_LIB_SRCS}
+	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libweb.json -o ${BUILDDIR}/x86/libweb.o --add-import ${BUILDDIR}/x86/libbase.json ${WEB_LIB_SRCS}
 
 # Libs - DLLs
 ${BUILDDIR}/x86/libslangrt.so: ${BUILDDIR}/slangrt.o ${BUILDDIR}/slangrt_mm.o | ${BUILDDIR}/x86
@@ -487,7 +487,7 @@ ${BUILDDIR}/x86/apps:
 	mkdir -p $@
 
 ${BUILDDIR}/x86/apps/%.o: Apps/%.slang ${BUILDDIR}/x86/libbase.json ${BUILDDIR}/x86/libcompiler.json ${BUILDDIR}/x86/libgfx.json ${BUILDDIR}/x86/libimage.json ${BUILDDIR}/x86/libscience.json ${BUILDDIR}/x86/libweb.json ${SLANGC_DEPS} | ${BUILDDIR}/x86/apps
-	${SLANGC} -v --backend-x86 -o $@ $< \
+	${SLANGC} --backend-x86 -o $@ $< \
 		--add-import ${BUILDDIR}/x86/libbase.json --add-import ${BUILDDIR}/x86/libgfx.json --add-import ${BUILDDIR}/x86/libimage.json \
 		--add-import ${BUILDDIR}/x86/libcompiler.json --add-import ${BUILDDIR}/x86/libscience.json --add-import ${BUILDDIR}/x86/libweb.json
 

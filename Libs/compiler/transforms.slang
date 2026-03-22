@@ -764,7 +764,7 @@ class ClassRewriter:
 				pass
 
 		let libname = "?"
-		let docstring: Option[str] = Option.None()
+		let docstring: Option[ast.DocString] = Option.None()
 		var ctor_func = ast.extern_function_def(is_pub: true, libname, name: ctor_name, docstring, type_parameters, parameters, return_type: struct_type, location: class_def.location)
 		case class_def.is_extern:
 			Some(libname):

@@ -22,11 +22,12 @@
 from std import file_writeln, file_open, file_close
 from logging import log_info
 from utils import unimplemented
+from fs import Path
 from image import Image, new_pixel
 
-pub fn write_pbm(image: Image, filename: str):
-	log_info("Writing image to {filename} in PPM format")
-	let handle = file_open(filename, mode: "w")
+pub fn write_pbm(image: Image, path: Path):
+	log_info("Writing image to {path} in PPM format")
+	let handle = file_open(filename: path.filename, mode: "w")
 	case image.mode:
 		GrayScale:
 			file_writeln(handle, line: "P2")

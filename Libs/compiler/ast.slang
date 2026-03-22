@@ -29,6 +29,10 @@ pub fn new_hashmap_nodeid[T]() -> HashMap[NodeId,T]:
 fn node_id_hash(a?: NodeId) -> int:
 	str_hash(a.name) * 7919 + a.id
 
+pub struct DocString:
+	""" A docstring (like this one 8-)) """
+	lines: List[str]
+
 # TODO: implement type-defs!
 pub class Type:
 	pub var kind: TypeKind
@@ -995,7 +999,7 @@ pub struct NameAtLocation:
 	name: str
 	location: Location
 
-pub fn extern_function_def(is_pub: bool, libname: str, name: str, docstring: Option[str], type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
+pub fn extern_function_def(is_pub: bool, libname: str, name: str, docstring: Option[DocString], type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
 	let info = FunctionInfo:
 		return_type
 		except_type: void_type2()
@@ -1144,7 +1148,7 @@ pub struct TypeParameter:
 	id: NodeId
 	location: Location
 
-pub fn struct_def(is_pub: bool, name: str, id: int, docstring: Option[str], type_parameters: List[TypeParameter], fields: List[StructField], location: Location) -> StructDef:
+pub fn struct_def(is_pub: bool, name: str, id: int, docstring: Option[DocString], type_parameters: List[TypeParameter], fields: List[StructField], location: Location) -> StructDef:
 	StructDef:
 		is_pub
 		id: NodeId(name, id)
@@ -1158,7 +1162,7 @@ pub fn struct_def(is_pub: bool, name: str, id: int, docstring: Option[str], type
 pub struct StructDef:
 	is_pub: bool
 	id: NodeId
-	docstring: Option[str]
+	docstring: Option[DocString]
 	is_union: bool
 	type_parameters: List[TypeParameter]
 	fields: List[StructField]
@@ -1216,7 +1220,7 @@ pub struct StructField:
 	ty: Type
 	location: Location
 
-pub fn enum_def(is_pub: bool, name: str, id: int, docstring: Option[str], location: Location, type_parameters: List[TypeParameter], variants: List[EnumVariant]) -> EnumDef:
+pub fn enum_def(is_pub: bool, name: str, id: int, docstring: Option[DocString], location: Location, type_parameters: List[TypeParameter], variants: List[EnumVariant]) -> EnumDef:
 	EnumDef:
 		is_pub
 		id: NodeId(name, id)
@@ -1229,7 +1233,7 @@ pub fn enum_def(is_pub: bool, name: str, id: int, docstring: Option[str], locati
 pub struct EnumDef:
 	is_pub: bool
 	id: NodeId
-	docstring: Option[str]
+	docstring: Option[DocString]
 	location: Location
 	type_parameters: List[TypeParameter]
 	variants: List[EnumVariant]
@@ -1247,7 +1251,7 @@ pub struct EnumVariant:
 pub struct ClassDef:
 	is_pub: bool
 	id: NodeId
-	docstring: Option[str]
+	docstring: Option[DocString]
 	location: Location
 	is_extern: Option[str]
 	type_parameters: List[TypeParameter]
@@ -1261,7 +1265,7 @@ pub struct InterfaceDef:
 	is_pub: bool
 	id: NodeId
 	type_parameters: List[TypeParameter]
-	docstring: Option[str]
+	docstring: Option[DocString]
 	location: Location
 	is_extern: Option[str]
 	definitions: List[Definition]
@@ -1271,7 +1275,7 @@ pub struct ImplDef:
 	id: NodeId
 	interface_type: Type
 	target_type: Type
-	docstring: Option[str]
+	docstring: Option[DocString]
 	location: Location
 	definitions: List[Definition]
 	scope: Scope
@@ -1285,7 +1289,7 @@ pub struct TypeDef:
 fn type_def_to_str(type_def: TypeDef) -> str:
 	"typedef-{node_id_to_string(type_def.id)}:{type_def.ty}"
 
-pub fn function_def(is_pub: bool, name: str, docstring: Option[str], type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
+pub fn function_def(is_pub: bool, name: str, docstring: Option[DocString], type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
 	let info = FunctionInfo:
 		return_type
 		except_type
@@ -1308,7 +1312,7 @@ pub struct FunctionInfo:
 pub struct FunctionDef:
 	# modname: str
 	name: str
-	docstring: Option[str]
+	docstring: Option[DocString]
 	# id: NodeId
 	is_pub: bool
 	info: FunctionInfo
@@ -1329,7 +1333,7 @@ pub fn function_decl_def(name: str, type_parameters: List[TypeParameter], this_p
 		return_type
 		except_type
 	let is_pub = true
-	let docstring: Option[str] = Option.None()
+	let docstring: Option[DocString] = Option.None()
 
 	FunctionDef:
 		name

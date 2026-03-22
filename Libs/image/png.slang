@@ -9,13 +9,13 @@ from logging import log_warning, log_debug
 from math import abs
 from bytes import Bytes, ByteReader, bytes_from_ascii, bytes_from_hex_text, ByteArray, bytes_to_ascii, new_bytes
 from gzip import calc_crc32, zlib_decompress, zlib_compress
-from qoi import read_whole_file_as_bytes, write_bytes_to_file
+from fs import read_whole_file_as_bytes, write_bytes_to_file, Path
 from image import Image, new_image, Pixel, new_pixel, ColorMode
 from vectype import Vector, new_vector
 
-pub fn read_png_from_file(filename: str) -> Image:
-	log_debug("Loading PNG from {filename}")
-	let data = read_whole_file_as_bytes(filename)
+pub fn read_png_from_file(path: Path) -> Image:
+	log_debug("Loading PNG from {path}")
+	let data = read_whole_file_as_bytes(path)
 	read_png_from_bytes(data)
 
 fn read_png_from_bytes(data: Bytes) -> Image:
@@ -26,11 +26,11 @@ fn read_png_from_stream(reader: ByteReader) -> Image:
 	let decoder = PngDecoder(m_byte_reader: reader)
 	decoder.read_image()
 
-pub fn write_png_to_file(image: Image, filename: str):
-	log_debug("Writing PNG image to {filename}")
+pub fn write_png_to_file(image: Image, path: Path):
+	log_debug("Writing PNG image to {path}")
 	let encoder = PngEncoder()
 	let data = encoder.write(image)
-	write_bytes_to_file(filename, data)
+	write_bytes_to_file(path, data)
 
 # fn write_png_to_stream(image: Image, writer: ByteArray):
 #     #PngEncoder

@@ -3,6 +3,7 @@
 import ast
 import std
 from lexer import Lexer
+from fs import Path
 from token import token_to_string, Token, default_token
 from location import Location, location_default, merge_locations
 from listtype import List
@@ -14,9 +15,9 @@ from basepass import IdGen
 from logging import log_debug, log_trace
 
 
-pub fn parse_source(filename: str, id_gen: IdGen, typectx: ast.TypeContext, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
-	let source = std.read_file(filename)
-	parse_module_from_text(source, filename, id_gen, typectx, debug)
+pub fn parse_source(path: Path, id_gen: IdGen, typectx: ast.TypeContext, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
+	let source = path.read_text()
+	parse_module_from_text(source, filename: path.filename, id_gen, typectx, debug)
 
 pub fn parse_module_from_text(source: str, filename: str, id_gen: IdGen, typectx: ast.TypeContext, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
 	let modname = basename(path: filename)
@@ -426,7 +427,7 @@ class Parser:
 		let type_parameters = parse_type_parameters()
 		let parameters = parse_parameters()
 		let info = parse_function_info()
-		let docstring: Option[str] = Option.None()
+		let docstring: Option[ast.DocString] = Option.None()
 		parse_newline()
 		ast.extern_function_def(is_pub, libname, name, docstring, type_parameters, parameters, return_type: info.return_type, location: name_at.location)
 
@@ -489,12 +490,12 @@ class Parser:
 		let ty = parse_type()
 		ast.parameter_def(name: name_at.name, id: new_id(), label_is_optional, ty, location: name_at.location)
 
-	fn parse_optional_docstring() -> Option[str] except ParseError:
+	fn parse_optional_docstring() -> Option[ast.DocString] except ParseError:
 		case m_peek.kind:
-			DocString(value):
+			DocString(lines):
 				move_token()
 				parse_newline()
-				Option.Some(value)
+				Option.Some(ast.DocString(lines))
 		else:
 			Option.None()
 
@@ -1065,13 +1066,15 @@ class Parser:
 	fn parse_atom() -> ast.Expression except ParseError:
 		let tok = get_token()
 		var expr = case tok.kind:
-			Integer(value):
+			Integer(value, raw_text):
 				ast.integer_literal(typectx, value, location: tok.location)
-			Float(value):
+			Float(value, raw_text):
 				ast.float_literal(typectx, value, location: tok.location)
 			StringStart:
 				parse_string(location: tok.location)
 			Char(value):
+				ast.char_literal(typectx, value, location: tok.location)
+			EscapedChar(value, mode, raw_text):
 				ast.char_literal(typectx, value, location: tok.location)
 			Bool(value):
 				ast.bool_literal(typectx, value, location: tok.location)
@@ -1154,7 +1157,9 @@ class Parser:
 				StringContent(value):
 					let raw_string_expr = ast.string_literal(typectx, value, location: tok.location)
 					parts.append(raw_string_expr)
-
+				EscapedChar(value, mode, raw_text):
+					let string_lit = ast.string_literal(typectx, value: str(value), location: tok.location)
+					parts.append(string_lit)
 				BraceOpen:
 					let value = parse_expression()
 					let to_string_expr = ast.to_string(typectx, value, location: value.location)

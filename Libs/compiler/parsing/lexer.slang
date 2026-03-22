@@ -4,9 +4,9 @@
 import std
 from utils import panic
 from std import ord, chr, str_len
-from token import Token, TokenKind
+from token import Token, TokenKind, CharEscapeMode
 from location import Location, location_at, new_location
-from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab
+from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab, split_lines
 from vectype import Vector, new_vector
 from deque import Queue, new_queue
 from hashmap import HashMap, new_hashmap_str
@@ -14,10 +14,6 @@ from hashmap import HashMap, new_hashmap_str
 enum LexerMode:
 	Normal
 	String
-
-enum Result[T,E]:
-	Ok(value: T)
-	Error(value: E)
 
 pub class Lexer:
 	var pending: Queue[Token] = new_queue()
@@ -30,6 +26,7 @@ pub class Lexer:
 	var m_keywords: HashMap[str,TokenKind] = new_hashmap_str()
 
 	var m_mode: LexerMode = LexerMode.Normal()
+	var m_keep_comments: bool = false
 	var tok_begin: int = 0
 	var offset: int = 0
 
@@ -41,6 +38,9 @@ pub class Lexer:
 		at_end = false
 		at_bol = true
 		indent_stack.append(0)
+
+	pub fn keep_comments():
+		m_keep_comments = true
 
 	pub fn next_token() -> Token:
 		while pending.is_empty() and not at_end:
@@ -75,8 +75,12 @@ pub class Lexer:
 					emit_token(kind: TokenKind.Error("Spurious tab"), location: tok.location)
 			NewLine:
 				on_newline(tok)
-			Comment(x):
-				tok.kind = TokenKind.NewLine()
+			Comment(comment):
+				if m_keep_comments:
+					if at_bol:
+						tok.kind = TokenKind.TabbedComment(tabs: spaces, comment)
+				else:
+					tok.kind = TokenKind.NewLine()
 				on_newline(tok)
 		else:
 			if at_bol:
@@ -100,7 +104,7 @@ pub class Lexer:
 			emit(tok)
 
 	fn on_newline(tok: Token):
-		if not at_bol:
+		if not at_bol or m_keep_comments:
 			emit(tok)
 		at_bol = true
 		spaces = 0
@@ -243,11 +247,7 @@ pub class Lexer:
 			m_mode = LexerMode.Normal()
 			TokenKind.BraceOpen()
 		elif c == '\\':
-			case parse_escape_sequence():
-				Ok(ch):
-					TokenKind.StringContent(text: str(ch))
-				Error(message):
-					TokenKind.Error("Invalid escape sequence: {message}")
+			parse_escape_sequence()
 		else:
 			while offset < source_length:
 				let c = peek()
@@ -256,16 +256,16 @@ pub class Lexer:
 				offset += 1
 			TokenKind.StringContent(get_lexeme())
 
-	fn parse_escape_sequence() -> Result[char,str]:
+	fn parse_escape_sequence() -> TokenKind:
 		let c = next_char()
-		let c2 = if c == '\\' or c == '"' or c == '\'' or c == '{' or c == '}':
-			c
+		if c == '\\' or c == '"' or c == '\'' or c == '{' or c == '}':
+			TokenKind.EscapedChar(value: c, mode: CharEscapeMode.Simple(), raw_text: get_lexeme())
 		elif c == 'n':
-			'\n'
+			TokenKind.EscapedChar(value: '\n', mode: CharEscapeMode.Simple(), raw_text: get_lexeme())
 		elif c == 'r':
-			'\r'
+			TokenKind.EscapedChar(value: '\r', mode: CharEscapeMode.Simple(), raw_text: get_lexeme())
 		elif c == 't':
-			'\t'
+			TokenKind.EscapedChar(value: '\t', mode: CharEscapeMode.Simple(), raw_text: get_lexeme())
 		elif is_digit(c):
 			# Octal mode escape
 			if offset + 2 < source_length:
@@ -274,9 +274,9 @@ pub class Lexer:
 				var value = digit_to_int(c)
 				value = value * 8 + digit_to_int(c: c2)
 				value = value * 8 + digit_to_int(c: c3)
-				chr(value)
+				TokenKind.EscapedChar(value: chr(value), mode: CharEscapeMode.Octal(), raw_text: get_lexeme())
 			else:
-				return Result.Error("Too short octal escape sequence")
+				TokenKind.Error(message: "Too short octal escape sequence")
 		elif c == 'x':
 			# Hex sequence
 			if offset + 2 < source_length:
@@ -284,21 +284,21 @@ pub class Lexer:
 				let c3 = next_char()
 				if is_hex_digit(c: c2) and is_hex_digit(c: c3):
 					let value = hex_digit_to_int(c: c2) * 16 + hex_digit_to_int(c: c3)
-					chr(value)
+					TokenKind.EscapedChar(value: chr(value), mode: CharEscapeMode.Hex(), raw_text: get_lexeme())
 				else:
-					return Result.Error("Bad hex escape code")
+					TokenKind.Error(message: "Bad hex escape code")
 			else:
-				return Result.Error("Too short hex escape sequence")
+				TokenKind.Error(message: "Too short hex escape sequence")
 		else:
-			return Result.Error("Invalid escape sequence")
-		Result.Ok(c2)
+			TokenKind.Error(message: "Invalid escape sequence")
 
 	fn parse_line_comment() -> TokenKind:
 		let n = source_length
 		while offset < n and not is_lf(c: peek()):
 			offset += 1
+		let kind = TokenKind.Comment(comment: get_lexeme())
 		offset += 1
-		TokenKind.Comment(comment: get_lexeme())
+		kind
 
 	fn parse_identifier() -> TokenKind:
 		while is_id_or_digit(c: peek()):
@@ -315,17 +315,10 @@ pub class Lexer:
 	fn parse_char() -> TokenKind:
 		""" Char literal """
 		let c = next_char()
-		let char_value = if c == '\\':
-			case parse_escape_sequence():
-				Ok(ch):
-					ch
-				Error(message):
-					return TokenKind.Error("Invalid escape sequence: {message}")
-		else:
-			c
+		let char_token = parse_escape_sequence() if c == '\\' else TokenKind.Char(c)
 		let close_quote = next_char()
 		if close_quote == '\'':
-			TokenKind.Char(char_value)
+			char_token
 		else:
 			TokenKind.Error("Invalid char closing")
 
@@ -352,7 +345,8 @@ pub class Lexer:
 
 		if z == 3:
 			let text = std.str_slice(text: source, begin: tok_begin + 3, end: offset - 3)
-			TokenKind.DocString(text)
+			let lines = split_lines(text)
+			TokenKind.DocString(lines)
 		else:
 			TokenKind.Error("Invalid doc string")
 
@@ -377,7 +371,7 @@ pub class Lexer:
 					offset += 1
 				else:
 					break
-			TokenKind.Integer(value)
+			TokenKind.Integer(value, raw_text: get_lexeme())
 		elif is_bin:
 			var value = 0
 			loop:
@@ -387,7 +381,7 @@ pub class Lexer:
 					offset += 1
 				else:
 					break
-			TokenKind.Integer(value)
+			TokenKind.Integer(value, raw_text: get_lexeme())
 		else:
 			# Calculate value as we go through the digits:
 			var value = digit_to_int(c)
@@ -405,7 +399,7 @@ pub class Lexer:
 				parse_exponent(base: value, exponent: 0)
 			else:
 				# Normal decimal number
-				TokenKind.Integer(value)
+				TokenKind.Integer(value, raw_text: get_lexeme())
 
 	fn parse_float(base: int) -> TokenKind:
 		var exponent = 0
@@ -467,7 +461,7 @@ pub class Lexer:
 		else:
 			return TokenKind.Error("Exponent above 22: {exponent}")
 
-		TokenKind.Float(float_value)
+		TokenKind.Float(float_value, raw_text: get_lexeme())
 
 	fn peek() -> char:
 		peek_n(n: 0)

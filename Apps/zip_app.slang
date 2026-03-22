@@ -1,38 +1,37 @@
 
 import std
 from logging import set_log_level, log_error, log_info
+from optiontype import Option, option_unwrap, option_is_none
 from gzip import gzip_compress
-from qoi import write_bytes_to_file, read_whole_file_as_bytes
+from fs import write_bytes_to_file, read_whole_file_as_bytes, Path, new_path
 
 pub fn main() -> int:
 
 	let n = std.get_n_args()
 	var i = 0
-	var input_filename: str = ""
-	var output_filename: str = ""
+	var input_path: Option[Path] = Option.None()
+	var output_path: Option[Path] = Option.None()
 	while i < n:
 		let argument = std.get_arg(arg: i)
 		if i == 0:
-			input_filename = argument
+			input_path = Option.Some(new_path(filename: argument))
 		elif i == 1:
-			output_filename = argument
+			output_path = Option.Some(new_path(filename: argument))
 		i += 1
 
 	set_log_level(level: 5)
 
-	if std.str_len(text: input_filename) == 0:
+	if option_is_none(input_path):
 		log_error("Needs input filename")
 		return 1
-	else:
-		log_info("Input file: {input_filename}")
 
-	if std.str_len(text: output_filename) == 0:
+	if option_is_none(output_path):
 		log_error("Needs output filename")
 		return 1
 
-	log_info("Reading {input_filename}")
-	let data = read_whole_file_as_bytes(filename: input_filename)
+	log_info("Reading {option_unwrap(input_path)}")
+	let data = read_whole_file_as_bytes(path: option_unwrap(input_path))
 	let data2 = gzip_compress(data)
-	log_info("Writing {output_filename}")
-	write_bytes_to_file(filename: output_filename, data: data2)
+	log_info("Writing {option_unwrap(output_path)}")
+	write_bytes_to_file(path: option_unwrap(output_path), data: data2)
 	return 0

@@ -237,10 +237,13 @@ class SymbolSaver:
 			save_definition(definition)
 		m_ser.end_array_as_attribute(attr: "definitions")
 
-	fn save_doc_string(docstring: Option[str]):
+	fn save_doc_string(docstring: Option[ast.DocString]):
 		case docstring:
-			Some(text):
-				m_ser.add_text_attribute(attr: "docstring", text)
+			Some(docstring):
+				m_ser.begin_array()
+				for line in docstring.lines:
+					m_ser.add_text_as_element(text: line)
+				m_ser.end_array_as_attribute(attr: "docstring")
 			None:
 				pass
 
@@ -622,11 +625,16 @@ class SymbolLoader:
 			definitions
 			scope: ast.Scope()
 
-	fn load_docstring() -> Option[str]:
+	fn load_docstring() -> Option[ast.DocString]:
 		"""Load optional docstring"""
 		if m_des.has_attribute(attr: "docstring"):
-			let text = m_des.get_text_attribute(attr: "docstring")
-			Option.Some(text)
+			let lines: List[str] = List()
+			for line_obj in m_des.get_array_attribute(attr: "docstring"):
+				m_des.push_value(value: line_obj)
+				let text = m_des.get_text()
+				m_des.pop_value()
+				lines.append(text)
+			Option.Some(ast.DocString(lines))
 		else:
 			Option.None()
 

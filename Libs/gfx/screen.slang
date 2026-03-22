@@ -2,6 +2,7 @@
 from utils import assert
 from math import abs
 from image import Image, new_image, Pixel, ColorMode
+from fs import Path
 from png import write_png_to_file
 
 pub fn new_screen(width: int, height: int) -> Screen:
@@ -129,5 +130,5 @@ pub class Screen:
 	pub fn put_pixel(x: int, y: int):
 		m_image.set_pixel(x, y, pixel: m_color)
 
-	pub fn save_png(filename: str):
-		write_png_to_file(image: m_image, filename)
+	pub fn save_png(path: Path):
+		write_png_to_file(image: m_image, path)

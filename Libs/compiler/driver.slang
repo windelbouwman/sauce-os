@@ -5,6 +5,7 @@ Main compilation driver.
 
 import ast
 import bc
+from fs import Path
 from errors import CompilationError, new_error_with_filename
 from parsing import parse_source, ParseError, parse_module_from_text
 from namebinding import bind_names
@@ -77,7 +78,7 @@ pub fn default_compile_options() -> CompilationOptions:
 		report: false
 		debug: false
 
-pub fn compile(filenames: List[str], options: CompilationOptions) except CompilationError:
+pub fn compile(sources: List[Path], options: CompilationOptions) except CompilationError:
 	""" Batch compile """
 	let builder = new_builder(options)
 	builder.m_profiler.enter(name: "compile")
@@ -88,13 +89,13 @@ pub fn compile(filenames: List[str], options: CompilationOptions) except Compila
 			builder.add_module(module)
 
 	builder.m_profiler.enter(name: "parsing")
-	for filename in filenames:
-		log_info("Parsing: {filename}")
+	for path in sources:
+		log_info("Parsing: {path}")
 		builder.m_profiler.enter(name: "parse")
 		try:
-			builder.parse_module(filename)
+			builder.parse_module(path)
 		except (e: ParseError):
-			raise new_error_with_filename(filename, location: e.location, message: e.message)
+			raise new_error_with_filename(filename: path.filename, location: e.location, message: e.message)
 		builder.m_profiler.leave()
 	builder.m_profiler.leave()
 
@@ -180,8 +181,8 @@ class Builder:
 		m_module_map.insert(key: module.name, value: module)
 		m_top_module.add_module(module)
 
-	pub fn parse_module(filename: str) except ParseError:
-		let program = parse_source(filename, id_gen: m_id_gen, typectx: m_typectx, debug: m_debug)
+	pub fn parse_module(path: Path) except ParseError:
+		let program = parse_source(path, id_gen: m_id_gen, typectx: m_typectx, debug: m_debug)
 		log_trace("Parsed module: {program.name}")
 		if options.dump_ast:
 			ast.print_ast(module: program)

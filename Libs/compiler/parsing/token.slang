@@ -1,5 +1,6 @@
 
 from location import Location, location_default
+from listtype import List
 
 pub fn default_token() -> Token:
 	Token:
@@ -53,15 +54,16 @@ pub enum TokenKind:
 	KwNull
 
 	# Literals:
-	Float(value: float)
-	Integer(value: int)
+	Float(value: float, raw_text: str)
+	Integer(value: int, raw_text: str)
 	Char(value: char)
+	EscapedChar(value: char, mode: CharEscapeMode, raw_text: str)
 	Bool(value: bool)
 
 	StringStart
 	StringContent(value: str)
 	StringEnd
-	DocString(value: str)
+	DocString(lines: List[str])
 
 	# Punctuation:
 	Colon
@@ -103,12 +105,18 @@ pub enum TokenKind:
 	Tab(amount: int)
 	NewLine
 	Comment(comment: str)
+	TabbedComment(tabs: int, comment: str)
 	Indent
 	Dedent
 
 	Eof
 	None
 	Error(message: str)
+
+pub enum CharEscapeMode:
+	Simple
+	Octal
+	Hex
 
 pub fn token_to_string(tok: Token) -> str:
 	""" Convert token to txt """
@@ -154,14 +162,16 @@ pub fn token_to_string(tok: Token) -> str:
 		StringStart: "STRING_START"
 		StringContent(content): "STRING_CONTENT({content})"
 		StringEnd: "STRING_END"
-		DocString(value): "DOC_STRING({value})"
+		DocString(lines): "DOC_STRING(n_lines={lines.len()})"
 		Char(value): "CHAR({value})"
-		Integer(value): "INT({value})"
-		Float(v): "FLOAT(...)"
+		EscapedChar(value, mode, raw_text): "ESCAPED_CHAR({value},{raw_text})"
+		Integer(value, raw_text): "INT({value}/{raw_text})"
+		Float(v, raw_text): "FLOAT({raw_text})"
 		Bool(value): "BOOL(yes)" if value else "BOOL(no)"
 		Space(amount): "SPACE({amount})"
 		Tab(amount): "TAB({amount})"
 		Comment(comment): "COMMENT({comment})"
+		TabbedComment(tabs, comment): "TABBED_COMMENT({tabs}, {comment})"
 		NewLine: "NEWLINE"
 		Indent: "INDENT"
 		Dedent: "DEDENT"

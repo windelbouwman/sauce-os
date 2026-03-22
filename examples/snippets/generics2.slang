@@ -11,10 +11,10 @@ struct S:
 	s: str
 
 pub fn main() -> int:
-	
+
 	let i = I:
 		i: 12
-	
+
 	let s = S:
 		s: "w00t"
 
@@ -27,7 +27,7 @@ pub fn main() -> int:
 	#let bla_s = Bla[S]:
 	#    value: s
 	#    x: 3
-	
+
 	let bla_s: Bla[S] = new_bla(v2: s, x2: 3)
 
 	print("{bla_i.value.i}")

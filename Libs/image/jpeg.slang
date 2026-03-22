@@ -13,11 +13,11 @@ from bytes import ByteReader, Bytes, ByteArray
 from huffman import BitReader, Tree, decode_symbol, zero_int_array
 from hashmap import HashMap, new_hashmap_int
 from image import Image, new_black_image, Pixel, new_empty_image, new_pixel
-from qoi import read_whole_file_as_bytes
+from fs import read_whole_file_as_bytes, Path
 
-pub fn read_jpg_from_file(filename: str) -> Image:
-	log_info("Reading JPG from {filename}")
-	let data = read_whole_file_as_bytes(filename)
+pub fn read_jpg_from_file(path: Path) -> Image:
+	log_info("Reading JPG from {path}")
+	let data = read_whole_file_as_bytes(path)
 	read_jpeg_from_data(data)
 
 fn read_jpeg_from_data(data: Bytes) -> Image:
