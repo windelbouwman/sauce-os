@@ -1,4 +1,4 @@
-""" Test various x86 encodings. """
+"""Test various x86 encodings."""
 
 from std import print
 from outstream import BinaryOutput

@@ -1,5 +1,5 @@
 
-""" Signal processing routines"""
+"""Signal processing routines"""
 
 from listtype import List
 from std import print, float_to_str
@@ -12,7 +12,7 @@ from math import sin, cos
 var pi: float = 3.141592653589793
 
 pub fn butter(n: int) -> DigitalFilter:
-	""" Create a butter worth filter """
+	"""Create a butter worth filter"""
 	log_debug("Creating butterworth filter of order {n}")
 	let b: List[float] = List()
 	let a: List[float] = List()

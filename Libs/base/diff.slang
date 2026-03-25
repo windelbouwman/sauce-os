@@ -13,6 +13,7 @@ from logging import log_debug
 from utils import panic
 from std import str_len, str_get
 from listtype import List
+from vectype import Vector, new_vector_with_capacity
 from hashmap import HashMap, new_hashmap_int, str_eq, int_eq, char_eq
 from math import max
 
@@ -34,32 +35,32 @@ pub fn ratio(a: str, b: str) -> float:
 			d += 1
 	1.0 - float(d) / max(n, m)
 
-pub fn diff_lines(a: List[str], b: List[str]) -> List[Edit[str]]:
+pub fn diff_lines(a: Vector[str], b: Vector[str]) -> List[Edit[str]]:
 	"""Compare two lists of strings"""
 	diff_items(a, b, eq: str_eq)
 
-pub fn diff_numbers(a: List[int], b: List[int]) -> List[Edit[int]]:
+pub fn diff_numbers(a: Vector[int], b: Vector[int]) -> List[Edit[int]]:
 	"""Compare two lists of integers"""
 	diff_items(a, b, eq: int_eq)
 
 pub fn diff_strings(a: str, b: str) -> List[Edit[char]]:
 	"""Compare two strings"""
-	diff_chars(a: str_to_char_list(a), b: str_to_char_list(b))
+	diff_chars(a: str_to_char_vector(a), b: str_to_char_vector(b))
 
-fn str_to_char_list(s?: str) -> List[char]:
-	let r: List[char] = List()
+fn str_to_char_vector(s?: str) -> Vector[char]:
 	let n = str_len(text: s)
+	let r: Vector[char] = new_vector_with_capacity(capacity: n)
 	var i = 0
 	while i < n:
 		r.append(str_get(text: s, index: i))
 		i += 1
 	r
 
-pub fn diff_chars(a: List[char], b: List[char]) -> List[Edit[char]]:
+pub fn diff_chars(a: Vector[char], b: Vector[char]) -> List[Edit[char]]:
 	"""Compare two lists of chars"""
 	diff_items(a, b, eq: char_eq)
 
-pub fn diff_items[T](a: List[T], b: List[T], eq: fn(T, T) -> bool) -> List[Edit[T]]:
+pub fn diff_items[T](a: Vector[T], b: Vector[T], eq: fn(T, T) -> bool) -> List[Edit[T]]:
 	let ctx: Context[T] = Context(a, b, eq)
 	let area = Area(left: 0, top: 0, right: a.len(), bottom: b.len())
 	let edits: List[Edit[T]] = List()
@@ -74,8 +75,8 @@ pub enum Edit[T]:
 
 struct Context[T]:
 	"""Diff problem context"""
-	a: List[T]
-	b: List[T]
+	a: Vector[T]
+	b: Vector[T]
 	eq: fn(T, T) -> bool
 
 struct Point:

@@ -1,5 +1,5 @@
 
-""" Test interference graph. """
+"""Test interference graph."""
 
 from std import print
 from unittest import assert_true

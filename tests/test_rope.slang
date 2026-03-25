@@ -1,4 +1,4 @@
-""" Test rope data structure. """
+"""Test rope data structure."""
 
 from std import print
 from rope import new_rope

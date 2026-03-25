@@ -8,17 +8,17 @@ from urlparse import parse_url
 
 
 pub fn get(url: str) -> str:
-	""" Get data from an url """
+	"""Get data from an url"""
 	let client = HttpClient()
 	client.get(url)
 
 pub fn post(url: str):
-	""" Post to an url """
+	"""Post to an url"""
 	let client = HttpClient()
 	client.post(url)
 
 class HttpClient:
-	""" HTTP client """
+	"""HTTP client"""
 	var s: int = 0  # socket handle
 
 	fn connect():

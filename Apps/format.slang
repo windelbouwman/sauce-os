@@ -6,8 +6,9 @@ Strategy: use the lexer to create tokens, and edit this token stream.
 import std
 from std import print
 from listtype import List
+from vectype import Vector, new_vector
 from utils import panic
-from logging import log_info, log_debug, set_log_level
+from logging import log_info, log_debug, log_error, set_log_level
 from fs import Path, new_path
 from lexer import Lexer
 from strlib import str_repeat, split_lines
@@ -18,26 +19,27 @@ pub fn main() -> int:
 	let arguments = parse_arguments()
 	set_log_level(level: 1)
 
-	if arguments.show_help:
+	if arguments.show_help or arguments.sources.is_empty():
 		print_help()
 		return 0
 
-	if arguments.sources.is_empty():
-		print_help()
-		return 0
-	let status = Status(untouched_files: 0, formatted_files: 0)
+	let status = Status(untouched_files: 0, formatted_files: 0, invalid_files: 0)
 	for source_path in arguments.sources:
 		format_source(source_path, arguments, status)
 
+	if status.invalid_files > 0:
+		print("{status.invalid_files} invalid files")
+		return 1
+
 	if arguments.check:
 		if status.formatted_files > 0:
-			print("Would need to format {status.formatted_files} files")
+			print("Would need to format {status.formatted_files}/{arguments.sources.len()} files.")
 			1
 		else:
-			print("All {status.untouched_files} files are well formatted!")
+			print("All {status.untouched_files} of the {arguments.sources.len()} files are well formatted!")
 			0
 	else:
-		print("Did not touch {status.untouched_files} files")
+		print("Formatted: {status.formatted_files} of the {arguments.sources.len()} files. Untouched: {status.untouched_files} of the {arguments.sources.len()} files.")
 		0
 
 struct Arguments:
@@ -49,6 +51,7 @@ struct Arguments:
 struct Status:
 	untouched_files: int
 	formatted_files: int
+	invalid_files: int
 
 fn parse_arguments() -> Arguments:
 	"""Process command line arguments"""
@@ -70,11 +73,7 @@ fn parse_arguments() -> Arguments:
 			let path = new_path(filename: arg)
 			sources.append(path)
 		i += 1
-	Arguments:
-		show_help
-		check
-		inplace
-		sources
+	Arguments(show_help, check, inplace, sources)
 
 fn format_source(source_path: Path, arguments: Arguments, status: Status):
 	"""Format a single source file"""
@@ -83,14 +82,12 @@ fn format_source(source_path: Path, arguments: Arguments, status: Status):
 	try:
 		read_tokens(path: source_path, tokens)
 	except (message: str):
-		print(message)
-		print("ERR")
+		log_error("Cannot read {source_path}: {message}")
+		status.invalid_files += 1
 		return
-	let out = Gen()
-	spitout(tokens, out)
+	let formatted_lines = format_tokens(tokens)
 	let original_lines = source_path.read_lines()
-	let formatted_lines = out.get_lines()
-	if xdiff(a: original_lines, b: formatted_lines) == 0:
+	if run_line_diff(original_lines, formatted_lines) == 0:
 		log_info("No formatting required for {source_path}")
 		status.untouched_files += 1
 	else:
@@ -101,7 +98,7 @@ fn format_source(source_path: Path, arguments: Arguments, status: Status):
 			log_info("Would re-format {source_path}")
 		status.formatted_files += 1
 
-fn xdiff(a: List[str], b: List[str]) -> int:
+fn run_line_diff(a?: Vector[str], b?: Vector[str]) -> int:
 	var n_diffs = 0
 	for edit in diff_lines(a, b):
 		case edit:
@@ -131,12 +128,15 @@ fn read_tokens(path: Path, tokens: List[Token]) except str:
 		else:
 			tokens.append(token)
 
-fn spitout(tokens: List[Token], out: Gen):
+fn format_tokens(tokens: List[Token]) -> Vector[str]:
+	"""Format a list of tokens into text lines."""
+	let out = Gen()
 	var in_string = false
 	var bracket_depth = 0
 	var parenthesis_depth = 0
 	var was_end_expr = false
 	var in_type = false
+	var in_if = false
 	for token in tokens:
 		case token.kind:
 			Identifier(id): out.separated(id)
@@ -146,7 +146,11 @@ fn spitout(tokens: List[Token], out: Gen):
 			KwCase: out.spaced("case")
 			KwClass: out.separated("class")
 			KwContinue: out.text("continue")
-			KwElse: out.separated("else")
+			KwElse:
+				if in_if:
+					out.spaced("else")
+				else:
+					out.separated("else")
 			KwElif: out.spaced("elif")
 			KwEnum: out.spaced("enum")
 			KwExcept: out.spaced("except")
@@ -260,12 +264,9 @@ fn spitout(tokens: List[Token], out: Gen):
 				out.raw_line(tab_text + comment)
 			Indent: out.indent()
 			Dedent: out.dedent()
-			Eof:
-				pass
-			None:
-				pass
-			Error(message):
-				panic("Error: {message}")
+			Eof: panic("EOF-token not supported")
+			None: panic("None-token not supported")
+			Error(message): panic("Error: {message}")
 
 		# Determine if the token could be left hand side of binary expression
 		case token.kind:
@@ -290,6 +291,8 @@ fn spitout(tokens: List[Token], out: Gen):
 				in_type = true
 			KwClass:
 				in_type = true
+			KwIf:
+				in_if = true
 			ParenthesisOpen:
 				parenthesis_depth += 1
 			ParenthesisClose:
@@ -309,12 +312,14 @@ fn spitout(tokens: List[Token], out: Gen):
 				in_type = true
 			NewLine:
 				in_type = false
+				in_if = false
 				bracket_depth = 0
 				parenthesis_depth = 0
 		else:
 			pass
 
 	out.flush()
+	out.get_lines()
 
 fn format_docstring(out: Gen, lines: List[str]):
 	let triple = "\"\"\""
@@ -336,7 +341,7 @@ fn format_docstring(out: Gen, lines: List[str]):
 		out.text(triple + " " + triple)
 
 class Gen:
-	var m_lines: List[str] = List()
+	var m_lines: Vector[str] = new_vector()
 	var m_line: str = ""
 	var m_indentation: int = 0
 	var m_need_space: bool = false
@@ -351,9 +356,6 @@ class Gen:
 		space()
 		text(txt)
 		space()
-
-	pub fn text(txt?: str):
-		append(txt)
 
 	pub fn separator():
 		if m_needs_separator:
@@ -378,14 +380,14 @@ class Gen:
 		if std.str_len(text: m_line) > 0:
 			newline()
 
-	fn append(text?: str):
+	pub fn text(value?: str):
 		let at_bol = (std.str_len(text: m_line) == 0)
 		if at_bol and (m_indentation > 0):
 			emit(str_repeat(text: "\t", count: m_indentation))
 		elif not at_bol and m_need_space:
 			m_need_space = false
 			emit(" ")
-		emit(text)
+		emit(value)
 		m_needs_separator = false
 
 	pub fn emit(text?: str):
@@ -397,7 +399,7 @@ class Gen:
 		m_need_space = false
 		m_needs_separator = false
 
-	pub fn get_lines() -> List[str]:
+	pub fn get_lines() -> Vector[str]:
 		"""Retrieve formatted lines"""
 		m_lines
 

@@ -32,6 +32,6 @@ fn check_ascii_example(text: str, encoded_check: str):
 	let data = bytes_from_ascii(text)
 	let encoded = base64_encode(data)
 	assert_str_equals(encoded, encoded_check)
-	
+
 	let decoded = bytes_to_ascii(data: base64_decode(text: encoded))
 	assert_str_equals(text, decoded)

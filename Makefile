@@ -88,8 +88,8 @@ profile5: ${COMPILER5} | ${BUILDDIR}
 	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-x86 -v ${BASE_LIB_SRCS} -o ${BUILDDIR}/x86/libbase_profile.o
 	kcachegrind build/callgrind.out
 
-profile6: ${COMPILER5} | ${BUILDDIR}
-	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./${COMPILER5} --backend-null -v ${BASE_LIB_SRCS}
+profile6: ${BUILDDIR}/c/apps/format.exe
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ${BUILDDIR}/c/apps/format.exe --check ${BASE_LIB_SRCS} ${IMAGE_LIB_SRCS} ${SCIENCE_LIB_SRCS} ${WEB_LIB_SRCS} ${COMPILER_LIB_SRCS} ${GFX_LIB_SRCS} ${SLANG_APPS} ${SLANG_EXAMPLES}
 	kcachegrind build/callgrind.out
 
 leakcheck: ${COMPILER5} | ${BUILDDIR}
@@ -104,10 +104,10 @@ benchmark2: ${COMPILER5} | ${BUILDDIR}
 
 .PHONY: format-check format
 format-check: ${SLANG_FORMAT}
-	${SLANG_FORMAT} --check ${BASE_LIB_SRCS} ${IMAGE_LIB_SRCS} ${COMPILER_LIB_SRCS} ${GFX_LIB_SRCS} ${SLANG_APPS} ${SLANG_EXAMPLES}
+	${SLANG_FORMAT} --check ${BASE_LIB_SRCS} ${IMAGE_LIB_SRCS} ${SCIENCE_LIB_SRCS} ${WEB_LIB_SRCS} ${COMPILER_LIB_SRCS} ${GFX_LIB_SRCS} ${SLANG_APPS} ${SLANG_EXAMPLES} ${TESTS}
 
 format: ${SLANG_FORMAT}
-	${SLANG_FORMAT} --in-place ${BASE_LIB_SRCS} ${IMAGE_LIB_SRCS} ${COMPILER_LIB_SRCS} ${GFX_LIB_SRCS} ${SLANG_APPS} ${SLANG_EXAMPLES}
+	${SLANG_FORMAT} --in-place ${BASE_LIB_SRCS} ${IMAGE_LIB_SRCS} ${SCIENCE_LIB_SRCS} ${WEB_LIB_SRCS} ${COMPILER_LIB_SRCS} ${GFX_LIB_SRCS} ${SLANG_APPS} ${SLANG_EXAMPLES} ${TESTS}
 
 pytest-compiler1:
 	pytest -v test_compiler1.py

@@ -1,4 +1,4 @@
-""" Test LEB128 encoding """
+"""Test LEB128 encoding"""
 
 from leb128 import pack_unsigned_leb128, pack_signed_leb128
 from unittest import assert_bytes_equals

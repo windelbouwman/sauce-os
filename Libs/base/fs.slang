@@ -7,6 +7,7 @@ from bytes import Bytes, ByteArray
 import std
 from strlib import string_compare, split_string, split_lines
 from listtype import List
+from vectype import Vector, new_vector_with_capacity
 from sorting import sort_list
 from utils import panic, assert
 
@@ -19,16 +20,29 @@ pub fn path_compare(a: Path, b: Path) -> bool:
 pub fn new_path(filename: str) -> Path:
 	Path(filename)
 
+
+pub fn list_to_vector[T](items?: List[T]) -> Vector[T]:
+	let v: Vector[T] = new_vector_with_capacity(capacity: items.len())
+	for item in items:
+		v.append(item)
+	v
+
+pub fn vector_to_list[T](items?: Vector[T]) -> List[T]:
+	let v: List[T] = List()
+	for item in items:
+		v.append(item)
+	v
+
 pub class Path:
 	pub var filename: str
 
 	pub fn read_text() -> str:
 		std.read_file(filename: this.filename)
 
-	pub fn read_lines() -> List[str]:
-		split_lines(text: read_text())
+	pub fn read_lines() -> Vector[str]:
+		list_to_vector(split_lines(text: read_text()))
 
-	pub fn write_lines(lines?: List[str]):
+	pub fn write_lines(lines?: Vector[str]):
 		"""Write text lines to this path"""
 		let handle = std.file_open(filename, mode: "w")
 		for line in lines:

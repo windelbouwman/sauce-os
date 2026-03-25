@@ -44,5 +44,5 @@ fn assert_are_close(a?: float, b?: float):
 	let rtol = 0.001
 	let atol = 0.0001  # A small margin
 	let average = fabs(a + b) / 2.0
-	let tol = average * rtol + atol # relative tolerance
+	let tol = average * rtol + atol  # relative tolerance
 	assert(condition: diff < tol, message: "{float_to_str2(value: a, digits: 20)} is not close to {float_to_str2(value: b, digits: 20)} diff={float_to_str2(value: diff, digits: 20)} tol={float_to_str2(value: tol, digits: 20)}")

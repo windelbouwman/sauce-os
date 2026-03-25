@@ -1,5 +1,4 @@
-""" Test compiler optimization pass.
-"""
+"""Test compiler optimization pass."""
 
 from std import print
 from unittest import assert_true

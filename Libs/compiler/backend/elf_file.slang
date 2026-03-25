@@ -107,7 +107,7 @@ fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str,in
 			let sym = symbol_map.get(key: reloc.symbol)
 			let rte = RelaTableEntry:
 				r_offset: reloc.offset
-				r_info: ((sym << 8) | reloc.typ) if writer.is_32bit else((sym << 32) | reloc.typ)
+				r_info: ((sym << 8) | reloc.typ) if writer.is_32bit else ((sym << 32) | reloc.typ)
 				r_addend: reloc.addend
 			writer.write_rela_entry(rte)
 		sh_rela.sh_size = writer.tell() - sh_rela.sh_offset

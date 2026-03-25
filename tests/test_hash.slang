@@ -9,7 +9,7 @@ pub fn main() -> int:
 	0
 
 fn test_hash_examples():
-	check_hash("jdfgsdhfsdfsd 6445dsfsd7fg/*/+bfjsdgf%$^",  248446350)
+	check_hash("jdfgsdhfsdfsd 6445dsfsd7fg/*/+bfjsdgf%$^", 248446350)
 	check_hash("", 0)
 	check_hash("printf", 0x077905a6)
 	check_hash("exit", 0x0006cf04)

@@ -18,7 +18,7 @@ pub fn main() -> int:
 	0
 
 fn test_float_literals():
-	""" Test various notations of floating point numbers. """
+	"""Test various notations of floating point numbers."""
 	assert_are_close(1e3, 1000)
 	assert_are_close(1e1, 10)
 	assert_are_close(1e-3, 0.001)
@@ -52,7 +52,7 @@ fn test_sqrt():
 fn test_sin():
 	let pi = 3.141592653589793
 	check_sin(angle: 0, 0)
-	check_sin(angle:0.5 * pi, 1)
+	check_sin(angle: 0.5 * pi, 1)
 	check_sin(angle: pi, 0)
 	check_sin(angle: 1.5 * pi, -1)
 	check_sin(angle: 2 * pi, 0)
@@ -117,5 +117,5 @@ fn assert_are_close(a?: float, b?: float):
 	let rtol = 0.000000001
 	let atol = 0.00000000000000001  # A small margin
 	let average = fabs(a + b) / 2.0
-	let tol = average * rtol + atol # relative tolerance
+	let tol = average * rtol + atol  # relative tolerance
 	assert(condition: diff < tol, message: "{float_to_str2(value: a, digits: 20)} is not close to {float_to_str2(value: b, digits: 20)} diff={float_to_str2(value: diff, digits: 20)} tol={float_to_str2(value: tol, digits: 20)}")

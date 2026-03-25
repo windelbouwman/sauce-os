@@ -12,7 +12,7 @@ pub fn main() -> int:
 	0
 
 fn test_lzw_decode():
-	""" Test example from https://en.wikipedia.org/wiki/GIF
+	"""Test example from https://en.wikipedia.org/wiki/GIF
 	00 51 FC 1B 28 70 A0 C1 83 01 01
 	"""
 	let compressed = bytes_from_hex_text(text: "00 51 FC 1B 28 70 A0 C1 83 01 01")
