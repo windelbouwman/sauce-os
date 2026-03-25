@@ -1,6 +1,7 @@
-""" A slang port of doom.
+"""A slang port of doom.
 
-This is a long shot: try a software renderer."""
+This is a long shot: try a software renderer.
+"""
 
 from logging import set_log_level
 from std import print

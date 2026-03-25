@@ -1,5 +1,4 @@
-"""
-Implement diff using Myers linear space algorithm
+"""Implement diff using Myers linear space algorithm
 
 left variables: a, n, x, left, right
 right variables: b, m, y, top, bottom
@@ -8,7 +7,6 @@ Use the relation k = x - y
 
 Implemented while reading this blog:
 https://blog.jcoglan.com/2017/04/25/myers-diff-in-linear-space-implementation/
-
 """
 
 from logging import log_debug
@@ -19,7 +17,7 @@ from hashmap import HashMap, new_hashmap_int, str_eq, int_eq, char_eq
 from math import max
 
 pub fn ratio(a: str, b: str) -> float:
-	""" Calculate similarity ratio between two strings.
+	"""Calculate similarity ratio between two strings.
 
 	This has remotely to do with Levenshtein distance.
 
@@ -37,15 +35,15 @@ pub fn ratio(a: str, b: str) -> float:
 	1.0 - float(d) / max(n, m)
 
 pub fn diff_lines(a: List[str], b: List[str]) -> List[Edit[str]]:
-	""" Compare two lists of strings """
+	"""Compare two lists of strings"""
 	diff_items(a, b, eq: str_eq)
 
 pub fn diff_numbers(a: List[int], b: List[int]) -> List[Edit[int]]:
-	""" Compare two lists of integers """
+	"""Compare two lists of integers"""
 	diff_items(a, b, eq: int_eq)
 
 pub fn diff_strings(a: str, b: str) -> List[Edit[char]]:
-	""" Compare two strings """
+	"""Compare two strings"""
 	diff_chars(a: str_to_char_list(a), b: str_to_char_list(b))
 
 fn str_to_char_list(s?: str) -> List[char]:
@@ -58,10 +56,10 @@ fn str_to_char_list(s?: str) -> List[char]:
 	r
 
 pub fn diff_chars(a: List[char], b: List[char]) -> List[Edit[char]]:
-	""" Compare two lists of chars """
+	"""Compare two lists of chars"""
 	diff_items(a, b, eq: char_eq)
 
-pub fn diff_items[T](a: List[T], b: List[T], eq: fn(T,T) -> bool) -> List[Edit[T]]:
+pub fn diff_items[T](a: List[T], b: List[T], eq: fn(T, T) -> bool) -> List[Edit[T]]:
 	let ctx: Context[T] = Context(a, b, eq)
 	let area = Area(left: 0, top: 0, right: a.len(), bottom: b.len())
 	let edits: List[Edit[T]] = List()
@@ -75,7 +73,7 @@ pub enum Edit[T]:
 	Delete(pos: int, value: T)
 
 struct Context[T]:
-	""" Diff problem context """
+	"""Diff problem context"""
 	a: List[T]
 	b: List[T]
 	eq: fn(T, T) -> bool
@@ -100,7 +98,7 @@ class Area:
 		"({left},{top})-({right},{bottom})"
 
 fn diff_linear_space[T](ctx: Context[T], area: Area, edits: List[Edit[T]]):
-	""" Recursively divide and conquer the graph in subgraphs """
+	"""Recursively divide and conquer the graph in subgraphs"""
 	log_debug("Diffing {area}")
 	# Shrink search area from top-left:
 	while area.left < area.right and area.top < area.bottom and ctx.eq(ctx.a[area.left], ctx.b[area.top]):
@@ -110,7 +108,7 @@ fn diff_linear_space[T](ctx: Context[T], area: Area, edits: List[Edit[T]]):
 
 	# Shrink search area from right-bottom:
 	var n_equal_after = 0
-	while area.left < area.right and area.top < area.bottom and ctx.eq(ctx.a[area.right-1], ctx.b[area.bottom-1]):
+	while area.left < area.right and area.top < area.bottom and ctx.eq(ctx.a[area.right - 1], ctx.b[area.bottom - 1]):
 		area.right -= 1
 		area.bottom -= 1
 		n_equal_after += 1
@@ -141,20 +139,20 @@ fn diff_linear_space[T](ctx: Context[T], area: Area, edits: List[Edit[T]]):
 		i += 1
 
 fn find_middle_snake[T](ctx: Context[T], area: Area) -> Point:
-	""" Simultaniously search paths from start and from end. """
+	"""Simultaniously search paths from start and from end."""
 	let n = area.width()
 	let m = area.height()
 	let delta = n - m
 	let odd = is_odd(delta)
-	let dmin = area.left - area.bottom # Minimum diagonal
-	let dmax = area.right - area.top # Maximum diagonal
-	let fmid = area.left - area.top # forward middle diagonal
-	let bmid = area.right - area.bottom # backward middle diagonal
+	let dmin = area.left - area.bottom  # Minimum diagonal
+	let dmax = area.right - area.top  # Maximum diagonal
+	let fmid = area.left - area.top  # forward middle diagonal
+	let bmid = area.right - area.bottom  # backward middle diagonal
 	log_debug("dmin={dmin}, dmax={dmax}, fmid={fmid}, bmid={bmid}")
-	var fmin = fmid # forward min
-	var fmax = fmid # forward max
-	var bmin = bmid # backward min
-	var bmax = bmid # backward max
+	var fmin = fmid  # forward min
+	var fmax = fmid  # forward max
+	var bmin = bmid  # backward min
+	var bmax = bmid  # backward max
 	var vf: HashMap[int,int] = new_hashmap_int()  # v forward search
 	vf.insert(key: fmid, value: area.left)
 	var vb: HashMap[int,int] = new_hashmap_int()  # v backward search
@@ -206,9 +204,9 @@ fn find_middle_snake[T](ctx: Context[T], area: Area) -> Point:
 	panic("Should not get here.")
 
 fn is_odd(x?: int) -> bool:
-	""" Test if the given number is odd """
+	"""Test if the given number is odd"""
 	(x & 1) == 1
 
 pub fn is_even(x?: int) -> bool:
-	""" Test if the given number is even """
+	"""Test if the given number is even"""
 	(x & 1) == 0

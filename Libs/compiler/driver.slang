@@ -1,7 +1,4 @@
-"""
-Main compilation driver.
-
-"""
+"""Main compilation driver."""
 
 import ast
 import bc
@@ -79,7 +76,7 @@ pub fn default_compile_options() -> CompilationOptions:
 		debug: false
 
 pub fn compile(sources: List[Path], options: CompilationOptions) except CompilationError:
-	""" Batch compile """
+	"""Batch compile"""
 	let builder = new_builder(options)
 	builder.m_profiler.enter(name: "compile")
 
@@ -189,7 +186,7 @@ class Builder:
 		add_module(module: program)
 
 	pub fn do_transform() -> ast.ModuleSet except CompilationError:
-		""" Perform type checking and transformation on the added modules """
+		"""Perform type checking and transformation on the added modules"""
 		topo_sort(modules: m_modules)
 		let module_set = ast.ModuleSet(modules: m_modules)
 
@@ -267,7 +264,7 @@ fn topo_sort(modules: List[ast.ModuleDef]):
 			panic("dependency cycle!")
 
 pub fn slang_to_python(code: str, output_filename: str):
-	""" Compile given code to python string """
+	"""Compile given code to python string"""
 	let options = default_compile_options()
 	let builder = new_builder(options)
 

@@ -103,7 +103,7 @@ fn print_error(label: str, filename: str, message: SingleCompilationError):
 	let code = read_file(filename)
 	let begin = offset_to_position(offset: get_begin(message.location), code)
 	let end = offset_to_position(offset: get_end(message.location), code)
-	print("{filename}:{begin.row}.{begin.column}-{end.row}.{end.column+1}: {label} {message.message}")
+	print("{filename}:{begin.row}.{begin.column}-{end.row}.{end.column + 1}: {label} {message.message}")
 	print("     +---------------[ {filename} ]-----------------")
 	let target_row = begin.row
 	let nr_context_rows = 4

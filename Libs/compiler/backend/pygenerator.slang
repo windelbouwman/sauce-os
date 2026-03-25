@@ -1,5 +1,4 @@
-""" Generate python code from AST.
-"""
+"""Generate python code from AST."""
 
 import ast
 from utils import panic, unimplemented
@@ -362,7 +361,7 @@ fn binary_operator_to_str(op: ast.BinaryOperator, float_division: bool) -> str:
 		ShiftRight: ">>"
 
 pub fn escape_string(text?: str) -> str:
-	""" Prefix double quotes and backslashes with an extra backslash """
+	"""Prefix double quotes and backslashes with an extra backslash"""
 	var res = ""
 	var index = 0
 	var begin = 0

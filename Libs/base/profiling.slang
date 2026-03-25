@@ -1,6 +1,4 @@
-"""
-Application profiling
-"""
+"""Application profiling"""
 
 import std
 from listtype import List
@@ -18,7 +16,7 @@ pub class Profiler:
 	var m_events: List[TimedEvent] = List()
 
 	pub fn enter(name: str):
-		""" Enter a measured zone """
+		"""Enter a measured zone"""
 		add_event(Event.Enter(name))
 
 	pub fn leave():
@@ -30,7 +28,7 @@ pub class Profiler:
 		m_events.append(TimedEvent(time, event))
 
 	pub fn write_json(filename: str):
-		""" Generate speedscope compatible json file """
+		"""Generate speedscope compatible json file"""
 		# Translate to speedscope frames:
 		let events: List[SpeedscopeEvent] = List()
 		let frames: List[SpeedscopeFrame] = List()

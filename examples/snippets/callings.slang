@@ -24,7 +24,7 @@ fn foo(a: int, b: int, message: str) -> Option[Symbol]:
 	Option.Some(Symbol.B())
 
 fn many_args(a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int, i: int, j: int):
-	""" Test a function with many arguments """
+	"""Test a function with many arguments"""
 	print("a = {a}")
 	print("b = {b}")
 	print("c = {c}")

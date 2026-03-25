@@ -1,4 +1,4 @@
-""" Generate C code directly from AST.
+"""Generate C code directly from AST.
 
 This is similar to the way python code is generated.
 

@@ -1,5 +1,4 @@
-""" Optimize SIL program.
-"""
+"""Optimize SIL program."""
 
 from logging import log_info
 from utils import panic
@@ -34,7 +33,7 @@ fn optimize_function(function: sil.Function):
 			changes = true
 
 pub fn skip_jump_blocks(function: sil.Function) -> bool:
-	""" If a block contains a single jump, we can bypass that block.
+	"""If a block contains a single jump, we can bypass that block.
 
 	We can rewrite this:
 	  jmp foo
@@ -110,7 +109,7 @@ pub fn skip_jump_blocks(function: sil.Function) -> bool:
 		true
 
 fn block_fusion(function: sil.Function, m: HashMap[str,sil.Block]) -> bool:
-	""" Combine blocks, if possible.
+	"""Combine blocks, if possible.
 
 	Criteria:
 	- block B must have only a single predecessor: block A
@@ -175,7 +174,7 @@ fn inc_pred(pred_count: HashMap[str,int], target: str):
 	pred_count.insert(key: target, value)
 
 fn opt_clean(function: sil.Function, m: HashMap[str,sil.Block]) -> bool:
-	""" Remove unreachable blocks. """
+	"""Remove unreachable blocks."""
 	let reachable: Set[str] = new_str_set()
 
 	# Visit all blocks

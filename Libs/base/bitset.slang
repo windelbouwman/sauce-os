@@ -1,5 +1,4 @@
-""" Bit set data type.
-"""
+"""Bit set data type."""
 
 from utils import unimplemented, panic
 from vectype import Vector, new_vector
@@ -7,7 +6,7 @@ from optiontype import Option
 from rt import ctz, popcnt
 
 pub fn new_bitset(n: int) -> BitSet:
-	""" Create a bit set with n bits. """
+	"""Create a bit set with n bits."""
 	let n_integers = (n + n_bits_per_int - 1) / n_bits_per_int
 	var data = [n_integers : int]
 	var i = 0
@@ -17,8 +16,7 @@ pub fn new_bitset(n: int) -> BitSet:
 	BitSet(m_integers: data, m_num_integers: n_integers, m_width: n)
 
 pub class BitSet:
-	""" Compactly store an vector of booleans
-	"""
+	"""Compactly store an vector of booleans"""
 	pub var m_integers: [int]
 	pub var m_num_integers: int
 	pub var m_width: int
@@ -172,7 +170,7 @@ pub fn new_small_bitset() -> SmallBitSet:
 	SmallBitSet(m_word: 0)
 
 pub class SmallBitSet:
-	""" A bitset with a single integer with bits. """
+	"""A bitset with a single integer with bits."""
 	pub var m_word: int
 
 	pub fn set(bit?: int):

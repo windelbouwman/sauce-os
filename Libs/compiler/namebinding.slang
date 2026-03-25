@@ -314,12 +314,12 @@ fn binder_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
 								let tycon = binder.tycon_map.get(key)
 								ty.kind = ast.TypeKind.App(tycon, type_arguments)
 							NameRef(name):
-									let tycon = binder.resolve_tycon(name)
-									let type_parameters = ast.tycon_get_type_parameters(tycon)
-									if type_parameters.len() == type_arguments.len():
-										ty.kind = ast.TypeKind.App(tycon, type_arguments)
-									else:
-										binder.add_error(location: name.location, message: "Got {type_arguments.len()} type arguments, expected {type_parameters.len()}")
+								let tycon = binder.resolve_tycon(name)
+								let type_parameters = ast.tycon_get_type_parameters(tycon)
+								if type_parameters.len() == type_arguments.len():
+									ty.kind = ast.TypeKind.App(tycon, type_arguments)
+								else:
+									binder.add_error(location: name.location, message: "Got {type_arguments.len()} type arguments, expected {type_parameters.len()}")
 						else:
 							pass
 					NameRef(name):
@@ -489,11 +489,11 @@ fn base_scope(typectx: ast.TypeContext) -> ast.Scope:
 	s
 
 class NameBinder:
-	""" Helper class to fill scopes, and resolve names from scopes. """
+	"""Helper class to fill scopes, and resolve names from scopes."""
 	var scopes: List[ast.Scope] = List()
 	var module_map: HashMap[str,ast.ModuleDef]
 	pub var tycon_map: HashMap[ast.NodeId,ast.TyCon]
-	var was_class_scope: bool = false # HACK for multiple return values?
+	var was_class_scope: bool = false  # HACK for multiple return values?
 	pub var errors: ErrorCollector = ErrorCollector()
 
 	pub fn import_mod(imp: ast.Import):
@@ -560,7 +560,7 @@ class NameBinder:
 		ast.Expression(kind, ty: ast.undefined_type(), location)
 
 	pub fn resolve_type_kind(name: ast.QualName) -> ast.TypeKind except SingleCompilationError:
-		""" Resolve qualified name to a type """
+		"""Resolve qualified name to a type"""
 		let symbol = resolve_qual_name(name)
 		case symbol.kind:
 			Typ(ty):
@@ -571,7 +571,7 @@ class NameBinder:
 			raise make_error(location: name.location, message: "Not a type: {symbol}")
 
 	pub fn resolve_tycon(name: ast.QualName) -> ast.TyCon except SingleCompilationError:
-		""" Resolve qualified name to a type constructor """
+		"""Resolve qualified name to a type constructor"""
 		let symbol = resolve_qual_name(name)
 		case symbol.kind:
 			TypeConstructor(tycon):
@@ -580,7 +580,7 @@ class NameBinder:
 			raise make_error(location: name.location, message: "Not a tycon: {symbol}")
 
 	fn resolve_qual_name(name: ast.QualName) -> ast.Symbol except SingleCompilationError:
-		""" Resolve a qualified name to a symbol """
+		"""Resolve a qualified name to a symbol"""
 		let base_name = name.parts[0]
 		var symbol = lookup_base_name(name: base_name, location: name.location)
 		symbol.add_reference(location: name.location)
@@ -599,7 +599,7 @@ class NameBinder:
 		symbol
 
 	pub fn resolve_attribute(module: ast.ModuleDef, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
-		""" Try to load an attribute from a module. """
+		"""Try to load an attribute from a module."""
 		case module.scope.lookup(name: attr):
 			Some(symbol):
 				if symbol.is_pub:

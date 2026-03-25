@@ -1,5 +1,4 @@
-"""
-RISCV encoding.
+"""RISCV encoding.
 
 There are a couple of formats:
 R/I/S/U
@@ -55,7 +54,7 @@ fn encode_U_type(imm: int, rd: int, opcode: int) -> int:
 
 fn encode_J_type(imm: int, rd: int, opcode: int) -> int:
 	# special case of U type encoding
-	imm =  ((imm & 0x100000) << 11) | ((imm & 0x7FE) << 20) | ((imm & 0x800) << 9) | (imm & 0xFF000)
+	imm = ((imm & 0x100000) << 11) | ((imm & 0x7FE) << 20) | ((imm & 0x800) << 9) | (imm & 0xFF000)
 	encode_U_type(imm, rd, opcode)
 
 fn encode_B_type(imm: int, rs2: int, rs1: int, funct3: int, opcode: int) -> int:
@@ -82,9 +81,9 @@ pub enum Instruction:
 	EBREAK
 
 	# Pseudo instructions
-	LA(rd: int, symbol: str) # load address
+	LA(rd: int, symbol: str)  # load address
 	LI(rd: int, imm: int)  # Load immediate
-	MOV(dst: int, src: int) # Move
+	MOV(dst: int, src: int)  # Move
 	J(label: str)
 	CALL(name: str)
 	RET
@@ -366,7 +365,7 @@ pub enum Relocation:
 	Abs64(name: str)
 
 pub fn is_pic_reloc(typ: int) -> bool:
-	""" Check if the relocation type is position independant """
+	"""Check if the relocation type is position independant"""
 	if typ == R_BRANCH or typ == R_JAL:
 		true
 	else:

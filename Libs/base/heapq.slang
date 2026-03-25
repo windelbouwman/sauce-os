@@ -1,7 +1,6 @@
-""" Binary heap implementation.
+"""Binary heap implementation.
 
 A binary heap is an implementation for a priority queue.
-
 """
 
 from utils import panic
@@ -32,7 +31,7 @@ fn cmp_int_item(a?: int, b?: int) -> bool:
 #     cost: int
 #     item: T
 
-pub fn new_priority_queue_with_capacity[T](capacity: int, f: fn (T, T) -> bool) -> PriorityQueue[T]:
+pub fn new_priority_queue_with_capacity[T](capacity: int, f: fn(T, T) -> bool) -> PriorityQueue[T]:
 	let m_size = 0
 	let m_items = [capacity : T]
 	let hack = Hack(f: f)

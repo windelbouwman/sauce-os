@@ -39,7 +39,7 @@ pub class Image:
 	pub var data: Vector[int]
 
 	pub fn get_pixel(x: int, y: int, pixel: Pixel):
-		""" Get color and store in given pixel """
+		"""Get color and store in given pixel"""
 		let index = (y * width + x) * bytes_per_pixel
 		case mode:
 			GrayScale:
@@ -58,7 +58,7 @@ pub class Image:
 				pixel.alpha = data.get(index: index + 3)
 
 	pub fn set_pixel(x: int, y: int, pixel: Pixel):
-		""" Set given pixel to a certain color """
+		"""Set given pixel to a certain color"""
 		let index = (y * width + x) * bytes_per_pixel
 		case mode:
 			GrayScale:

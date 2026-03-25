@@ -1,5 +1,4 @@
-""" This pass runs after names have been resolved, and before types can be checked.
-"""
+"""This pass runs after names have been resolved, and before types can be checked."""
 
 import ast
 from location import Location

@@ -43,7 +43,7 @@ pub fn fabs(a?: float) -> float:
 		a
 
 pub fn sqrt(x?: float) -> float:
-	""" Take the square root """
+	"""Take the square root"""
 	if x < 0:
 		panic("Square root undefined for negative numbers like {float_to_str(x)}")
 
@@ -51,7 +51,7 @@ pub fn sqrt(x?: float) -> float:
 	var i = 0
 	let N = 20
 	var r = x / 2.0
-	while fabs(x - r*r) > eps and i < N:
+	while fabs(x - r * r) > eps and i < N:
 		r = (r + x / r) / 2.0
 		i += 1
 	r
@@ -82,7 +82,7 @@ pub fn sin(x?: float) -> float:
 		x = fmod(value: x, divisor: two_pi)
 
 		# Select the right quarter
-		if x < 0.5* pi:
+		if x < 0.5 * pi:
 			sin_kernel(x)
 		elif x < pi:
 			sin_kernel(pi - x)
@@ -96,8 +96,7 @@ pub fn cos(value?: float) -> float:
 	sin(value + (0.5 * pi))
 
 fn sin_kernel(x?: float) -> float:
-	"""
-	Implement sin on range -pi/4 .. pi/4 by using a taylor series
+	"""Implement sin on range -pi/4 .. pi/4 by using a taylor series
 
 				 x^3   x^5   x^7
 	sin(x) ~ x - --- + --- - --- + --- ....
@@ -110,7 +109,7 @@ fn sin_kernel(x?: float) -> float:
 	while i < 30:
 		result = result + factor
 		# Calculate the next factor, based on the previous factor:
-		factor = factor * (-(x*x) / (i*(i+1)))
+		factor = factor * (-(x * x) / (i * (i + 1)))
 		i += 2
 	result
 
@@ -119,11 +118,11 @@ pub fn tan(value?: float) -> float:
 	sin(value) / cos(value)
 
 pub fn degrees(radians: float) -> float:
-	""" Convert radians to degrees """
+	"""Convert radians to degrees"""
 	radians * (180.0 / pi)
 
 pub fn radians(degrees: float) -> float:
-	""" Convert degrees to radians """
+	"""Convert degrees to radians"""
 	degrees * (pi / 180.0)
 
 fn fmod(x?: float, divisor: float) -> float:
@@ -134,13 +133,13 @@ fn fmod(x?: float, divisor: float) -> float:
 		x
 
 pub fn hypot(x?: float, y: float) -> float:
-	sqrt(x*x + y*y)
+	sqrt(x * x + y * y)
 
 pub fn modulo(value: int, divisor: int) -> int:
 	value % divisor
 
 pub fn powf(x?: float, y?: float) -> float:
-	""" Raise x to the power of y.
+	"""Raise x to the power of y.
 
 	Implemented as:
 	x^y = e^(y*log(x))
@@ -156,7 +155,7 @@ pub fn log2(x?: float) -> float:
 	log(x) / log(2)
 
 pub fn log(x?: float) -> float:
-	""" Natural logarithm
+	"""Natural logarithm
 
 	See: https://en.wikipedia.org/wiki/Natural_logarithm
 	For implementation algorithm: https://ben.land/post/2021/02/24/power-without-math-lib/
@@ -195,17 +194,16 @@ pub fn log(x?: float) -> float:
 		panic("log({float_to_str(x)}) is undefined")
 
 pub fn exp(x?: float) -> float:
-	""" Use Taylor series:
+	"""Use Taylor series:
 
 			  x^1   x^2   x^3
 	e^x = 1 + --- + --- + --- + ...
 			   1!    2!    3!
-
 	"""
 
 	if x < 0:
 		# exp(-z) = 1/exp(z)
-		1/exp(-x)
+		1 / exp(-x)
 	elif x > 1:
 		# Use the fact that:
 		# e^x = (e^(x/3))^3

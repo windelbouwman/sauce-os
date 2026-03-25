@@ -12,7 +12,7 @@ pub fn new_queue_with_capacity[T](capacity: int) -> Queue[T]:
 	Queue(m_items: [capacity : T], m_capacity: capacity)
 
 pub class Queue[T]:
-	""" Implement a FIFO queue data type """
+	"""Implement a FIFO queue data type"""
 	var m_items: [T]
 	var m_capacity: int
 	var m_length: int = 0
@@ -20,7 +20,7 @@ pub class Queue[T]:
 	var m_tail: int = 0
 
 	pub fn push(value?: T):
-		""" Append a value to the queue """
+		"""Append a value to the queue"""
 		if m_length < m_capacity:
 			m_items[m_tail] = value
 			m_tail = inc(m_tail)
@@ -30,7 +30,7 @@ pub class Queue[T]:
 			push(value)
 
 	pub fn pop() -> T:
-		""" Pop first value from the queue """
+		"""Pop first value from the queue"""
 		if m_length > 0:
 			let value = m_items[m_head]
 			m_head = inc(m_head)

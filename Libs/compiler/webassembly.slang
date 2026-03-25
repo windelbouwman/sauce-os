@@ -1,9 +1,7 @@
-"""
-WebAssembly
+"""WebAssembly
 ===========
 
 WebAssembly support.
-
 """
 
 from listtype import List, list1
@@ -920,13 +918,13 @@ fn write_header(writer: Writer):
 	writer.write_byte(0x00)
 
 fn write_section(writer: Writer, id: int, data: Bytes):
-	""" Write a section with given ID and data. """
+	"""Write a section with given ID and data."""
 	writer.write_byte(id)
 	writer.write_u32(data.len())
 	writer.write_data(data)
 
 fn create_type_section(module: Module) -> Bytes:
-	""" Create data for the type section """
+	"""Create data for the type section"""
 	let writer = Writer()
 	writer.write_u32(module.types.len())
 	for ty in module.types:
@@ -981,7 +979,7 @@ fn create_global_section(module: Module) -> Bytes:
 		writer.write_byte(0x1 if g.mutable else 0x0)
 		for instruction in g.value:
 			encode(writer, instruction)
-		writer.write_byte(0xB) # End opcode
+		writer.write_byte(0xB)  # End opcode
 	writer.get_bytes()
 
 fn write_export_section(module: Module) -> Bytes:
@@ -1016,7 +1014,7 @@ fn write_code(function: Function) -> Bytes:
 
 	for instruction in function.code:
 		encode(writer, instruction)
-	writer.write_byte(0xB) # Some extra end opcode, just for good measure.
+	writer.write_byte(0xB)  # Some extra end opcode, just for good measure.
 	writer.get_bytes()
 
 fn write_tag_section(module: Module) -> Bytes:
@@ -1028,7 +1026,7 @@ fn write_tag_section(module: Module) -> Bytes:
 	writer.get_bytes()
 
 pub fn to_wasm(module: Module) -> Bytes:
-	""" Create binary representation of wasm module. """
+	"""Create binary representation of wasm module."""
 	let writer = Writer()
 	write_header(writer)
 	write_section(writer, id: 1, data: create_type_section(module))
@@ -1095,14 +1093,14 @@ fn to_string(instruction: Instruction) -> str:
 		global_get(globalidx): "global.get {globalidx}"
 		global_set(globalidx): "global.set {globalidx}"
 
-		i32_load(align, offset):"i32.load offset={offset} align={align}"
-		i64_load(align, offset):"i64.load offset={offset} align={align}"
-		f32_load(align, offset):"f32.load offset={offset} align={align}"
-		f64_load(align, offset):"f64.load offset={offset} align={align}"
-		i32_store(align, offset):"i32.store offset={offset} align={align}"
-		i64_store(align, offset):"i64.store offset={offset} align={align}"
-		f32_store(align, offset):"f32.store offset={offset} align={align}"
-		f64_store(align, offset):"f64.store offset={offset} align={align}"
+		i32_load(align, offset): "i32.load offset={offset} align={align}"
+		i64_load(align, offset): "i64.load offset={offset} align={align}"
+		f32_load(align, offset): "f32.load offset={offset} align={align}"
+		f64_load(align, offset): "f64.load offset={offset} align={align}"
+		i32_store(align, offset): "i32.store offset={offset} align={align}"
+		i64_store(align, offset): "i64.store offset={offset} align={align}"
+		f32_store(align, offset): "f32.store offset={offset} align={align}"
+		f64_store(align, offset): "f64.store offset={offset} align={align}"
 
 		i32_const(value): "i32.const {value}"
 		i64_const(value): "i64.const {value}"
@@ -1266,7 +1264,7 @@ fn to_string(instruction: Instruction) -> str:
 		any_convert_extern: "any.convert_extern"
 
 pub fn to_wat(module: Module, out: TextGenerator):
-	""" Write webassembly module in text format (WAT) """
+	"""Write webassembly module in text format (WAT)"""
 
 	out.emit("(module")
 	out.indent()

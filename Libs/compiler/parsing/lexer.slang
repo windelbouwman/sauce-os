@@ -1,12 +1,11 @@
-""" Turn source text into a sequence of tokens
-"""
+"""Turn source text into a sequence of tokens"""
 
 import std
 from utils import panic
 from std import ord, chr, str_len
 from token import Token, TokenKind, CharEscapeMode
 from location import Location, location_at, new_location
-from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab, split_lines
+from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab, split_lines, trim
 from vectype import Vector, new_vector
 from deque import Queue, new_queue
 from hashmap import HashMap, new_hashmap_str
@@ -313,7 +312,8 @@ pub class Lexer:
 				TokenKind.Identifier(txt)
 
 	fn parse_char() -> TokenKind:
-		""" Char literal """
+		"""Char literal"""
+		tok_begin = offset
 		let c = next_char()
 		let char_token = parse_escape_sequence() if c == '\\' else TokenKind.Char(c)
 		let close_quote = next_char()
@@ -331,7 +331,7 @@ pub class Lexer:
 			TokenKind.StringStart()
 
 	fn parse_doc_string() -> TokenKind:
-		""" Parse a doc string, like this one :) """
+		"""Parse a doc string, like this one :)"""
 		let n = source_length
 		var z = 0
 		while offset < n:
@@ -345,7 +345,7 @@ pub class Lexer:
 
 		if z == 3:
 			let text = std.str_slice(text: source, begin: tok_begin + 3, end: offset - 3)
-			let lines = split_lines(text)
+			let lines = split_lines(text: trim(text))
 			TokenKind.DocString(lines)
 		else:
 			TokenKind.Error("Invalid doc string")
@@ -419,7 +419,7 @@ pub class Lexer:
 			create_float(base, exponent)
 
 	fn parse_exponent(base: int, exponent: int) -> TokenKind:
-		""" Parse the exponent notation after the 'e'"""
+		"""Parse the exponent notation after the 'e'"""
 		offset += 1
 		var negative_exponent = false
 		if peek() == '+':

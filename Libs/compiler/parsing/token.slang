@@ -119,7 +119,7 @@ pub enum CharEscapeMode:
 	Hex
 
 pub fn token_to_string(tok: Token) -> str:
-	""" Convert token to txt """
+	"""Convert token to txt"""
 	case tok.kind:
 		KwAnd: "AND"
 		KwBreak: "BREAK"

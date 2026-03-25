@@ -1,4 +1,4 @@
-""" Handling of tar.gz files"""
+"""Handling of tar.gz files"""
 import std
 from fs import read_whole_file_as_bytes, new_path
 from gzip import gzip_decompress
@@ -52,7 +52,7 @@ struct Entry:
 	group_name: str
 
 fn read_entry(reader: ByteReader) -> Entry:
-	""" Read header """
+	"""Read header"""
 	let path = read_string(reader, size: 100)
 	let mode = read_octal(reader, size: 8)
 	let user_id = read_octal(reader, size: 8)

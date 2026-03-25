@@ -1,8 +1,7 @@
-""" Slang backend
+"""Slang backend
 Idea: This backend emits slang code, sort of a no-op operation?
 
 Also useful for debugging transformed code
-
 """
 
 from utils import panic
@@ -12,10 +11,10 @@ from strlib import str_join
 import ast
 from text_gen import TextGenerator
 from optiontype import Option, option_unwrap
-from listtype import  List
+from listtype import List
 
 pub fn gen_slang(module_set: ast.ModuleSet, output_filename: Option[str]):
-	""" Create slang-lang source code."""
+	"""Create slang-lang source code."""
 	log_info("Generating slang code")
 	let g = SlangGenerator()
 	g.out.begin(output_filename)

@@ -1,6 +1,4 @@
-""" Slang language server
-
-"""
+"""Slang language server"""
 
 import std
 from std import print, str_len
@@ -15,7 +13,7 @@ from strlib import trim, str_to_int
 pub fn main() -> int:
 	loop:
 		let request = recv_request()
-		let response = JsonValue.Null() #"> "# {request.a}""
+		let response = JsonValue.Null()  #"> "# {request.a}""
 		send_response(response)
 	0
 

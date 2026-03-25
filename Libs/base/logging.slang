@@ -1,6 +1,4 @@
-""" Logger.
-
-"""
+"""Logger."""
 
 from std import print, get_time
 

@@ -111,7 +111,7 @@ pub enum Instruction:
 	ArrayLiteral(ty: Type)
 
 pub fn get_target_labels(instructions: Vector[Instruction]) -> Set[int]:
-	""" Get a set of labels to which is being jumped """
+	"""Get a set of labels to which is being jumped"""
 	let target_labels = new_int_set()
 	for instruction in instructions:
 		case instruction:

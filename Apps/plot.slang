@@ -32,7 +32,7 @@ fn f_parabola(x: float) -> float:
 fn f_cubic(x: float) -> float:
 	(x - 4) * x * (x + 4) / 5.0
 
-fn plot_function(chart: Chart, name: str, x_min: float, x_max: float, dx: float, f: fn (float) -> float):
+fn plot_function(chart: Chart, name: str, x_min: float, x_max: float, dx: float, f: fn(float) -> float):
 	# Plot a function in the given chart.
 	let line = chart.new_curve(name)
 	var x = x_min

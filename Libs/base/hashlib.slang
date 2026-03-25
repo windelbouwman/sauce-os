@@ -7,7 +7,7 @@ pub fn elf_hash(text: str) -> int:
 		h = (h << 4) + ord(c)
 		let g = h & 0xF0000000
 		if g != 0:
-			h = h ^  (g >> 24)
+			h = h ^ (g >> 24)
 		h = h & (0xFFFFFFFF ^ g)
 		# assert h >= 0
 	h

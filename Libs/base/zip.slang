@@ -1,5 +1,4 @@
-""" ZIP file format.
-"""
+"""ZIP file format."""
 
 from logging import log_info
 

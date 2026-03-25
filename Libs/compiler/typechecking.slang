@@ -1,6 +1,4 @@
-"""
-Type checking logic.
-"""
+"""Type checking logic."""
 
 import ast
 from optiontype import Option, option_unwrap, option_is_none
@@ -342,7 +340,7 @@ class TypeChecker:
 					if not (value.ty.is_int() or value.ty.is_float()):
 						add_error(location: expression.location, message: "Cannot cast to float from {value.ty}")
 				elif ty.is_interface():
-					pass # We can cast anything to an interface.
+					pass  # We can cast anything to an interface.
 				else:
 					add_error(location: expression.location, message: "Cannot cast '{value.ty}' to '{ty}'")
 				expression.ty = ty
@@ -513,7 +511,7 @@ class TypeChecker:
 			ty
 
 	fn coerce(ty: ast.Type, value: ast.Expression):
-		""" Fit an expression to a type. """
+		"""Fit an expression to a type."""
 		# Try to auto-convert before check:
 		if value.ty.is_int() and ty.is_float():
 			# Auto-conv int to floats

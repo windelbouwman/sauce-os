@@ -1,7 +1,6 @@
-""" Machine intermediate language.
+"""Machine intermediate language.
 
 Machine instructions are selected in this representation.
-
 """
 
 from vectype import Vector, new_vector
@@ -14,7 +13,7 @@ pub struct Function[X]:
 	blocks: Vector[Block[X]]
 
 pub struct Block[X]:
-	""" Basic block """
+	"""Basic block"""
 	name: str
 	instructions: Vector[Instruction[X]]
 	jump_targets: List[str]

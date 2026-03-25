@@ -1,4 +1,4 @@
-""" Generate riscv code
+"""Generate riscv code
 
  Register usage convention:    (saver)
  x0 -> zero -> hardwired 0
@@ -97,7 +97,7 @@ fn enter_function(ctx: Ctx, context: SelectionContext[VirtInst], function: sil.F
 	pass
 
 fn select_instruction(ctx: Ctx, context: SelectionContext[VirtInst], instruction: sil.Instruction):
-	""" Select machine instruction based on sil operator """
+	"""Select machine instruction based on sil operator"""
 	case instruction.op:
 		Const(dst, value):
 			let dst_reg = context.get_value_vreg(dst)
@@ -177,7 +177,7 @@ fn select_instruction(ctx: Ctx, context: SelectionContext[VirtInst], instruction
 			unimplemented("Convert")
 		Call(dst, callee, arguments):
 			# Setup arguments
-			let parameter_regs_i: List[int] = list8(10, 11, 12, 13, 14, 15, 16, 17) # a0 .. a7
+			let parameter_regs_i: List[int] = list8(10, 11, 12, 13, 14, 15, 16, 17)  # a0 .. a7
 			var index_i = 0
 			for argument in arguments:
 				let a_reg = context.get_value_vreg(argument)
@@ -304,7 +304,7 @@ fn emit_move(context: SelectionContext[VirtInst], dst: mil.Register, src: mil.Re
 	mov_ins.add_use(src)
 
 fn materialize(context: SelectionContext[VirtInst], v: mil.Instruction[VirtInst], outstream: BinaryOutput):
-	""" Apply actual registers to instruction now. """
+	"""Apply actual registers to instruction now."""
 	case v.instruction:
 		Jal:
 			# rd = v.defs[0]

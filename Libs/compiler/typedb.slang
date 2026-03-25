@@ -1,7 +1,5 @@
 
-"""
-Functions to serialize type definitions to JSON.
-"""
+"""Functions to serialize type definitions to JSON."""
 
 from utils import unimplemented, panic
 from logging import log_info, log_debug, log_trace
@@ -329,7 +327,7 @@ class SymbolSaver:
 					save_type(attr: "type", ty: parameter_type.ty)
 					m_ser.end_object_as_element()
 				m_ser.end_array_as_attribute(attr: "parameter-types")
-				m_ser.add_boolean_attribute(attr: "no-return", value: false) # TODO
+				m_ser.add_boolean_attribute(attr: "no-return", value: false)  # TODO
 				save_type_if_non_void(attr: "return-type", ty: return_type)
 				save_type_if_non_void(attr: "except-type", ty: except_type)
 			else:
@@ -361,7 +359,7 @@ pub fn load_symbol_table(filename: str, typectx: ast.TypeContext) -> List[ast.Mo
 	try:
 		let obj = read_json_from_file(filename)
 		loader.push_json(value: obj)
-	except (oei : JsonException):
+	except (oei: JsonException):
 		panic("Invalid json at {oei.pos}: {oei.message}")
 
 	loader.load_modules()

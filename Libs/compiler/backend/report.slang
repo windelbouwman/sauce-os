@@ -1,4 +1,4 @@
-""" Internal reporting.
+"""Internal reporting.
 
 Useful for debugging the compilation stages.
 """

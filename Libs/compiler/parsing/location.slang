@@ -40,7 +40,7 @@ pub struct Position:
 	column: int
 
 pub fn offset_to_position(offset: int, code: str) -> Position:
-	""" Calculate row and column from offset in string."""
+	"""Calculate row and column from offset in string."""
 	var index = 0
 	var row = 1
 	var column = 1

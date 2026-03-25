@@ -1,8 +1,6 @@
-"""
-JPEG handling.
+"""JPEG handling.
 
 See also: https://www.w3.org/Graphics/JPEG/itu-t81.pdf
-
 """
 
 import math
@@ -27,8 +25,8 @@ fn read_jpeg_from_data(data: Bytes) -> Image:
 
 class JpegDecoder:
 	var m_reader: ByteReader
-	var m_huffman_tables: HashMap[int, Tree] = new_hashmap_int()
-	var m_quant: HashMap[int, Bytes] = new_hashmap_int()
+	var m_huffman_tables: HashMap[int,Tree] = new_hashmap_int()
+	var m_quant: HashMap[int,Bytes] = new_hashmap_int()
 	var m_width: int = 0
 	var m_height: int = 0
 	var m_components: Vector[Component] = new_vector()
@@ -43,33 +41,33 @@ class JpegDecoder:
 		m_image
 
 	fn read_segment():
-		""" Read a single JPEG segment """
+		"""Read a single JPEG segment"""
 		let x = read_byte()
 		if x != 0xff:
 			panic("Expected 0xff")
 
 		let kind = read_byte()
-		if kind == 0xD8: # Start of image
+		if kind == 0xD8:  # Start of image
 			log_debug("SOI")
-		elif kind == 0xE0: # JFIF APP0 marker
+		elif kind == 0xE0:  # JFIF APP0 marker
 			let size = read_u16() - 2
 			log_debug("APP0 marker of size {size}")
 			let payload = read_data(size)
-		elif kind >= 0xE1 and kind <= 0xEF: # APPn marker
+		elif kind >= 0xE1 and kind <= 0xEF:  # APPn marker
 			let size = read_u16() - 2
 			log_debug("APPn marker of size {size}")
 			let payload = read_data(size)
-		elif kind == 0xC0: # SOF0 Start of frame, baseline DCT
+		elif kind == 0xC0:  # SOF0 Start of frame, baseline DCT
 			start_of_frame(n: 0)
-		elif kind == 0xC2: # SOF2 Start of frame, progressive DCT
+		elif kind == 0xC2:  # SOF2 Start of frame, progressive DCT
 			start_of_frame(n: 2)
-		elif kind == 0xC4: # DHT Define huffman table
+		elif kind == 0xC4:  # DHT Define huffman table
 			huffman_table()
-		elif kind == 0xDA: # SOS start of scan
+		elif kind == 0xDA:  # SOS start of scan
 			start_of_scan()
-		elif kind == 0xDB: # DQT define quantization table
+		elif kind == 0xDB:  # DQT define quantization table
 			define_quantization_table()
-		elif kind == 0xD9: # End of image
+		elif kind == 0xD9:  # End of image
 			log_debug("EOI")
 		else:
 			unimplemented("Marker type: {kind}")
@@ -111,7 +109,7 @@ class JpegDecoder:
 		m_quant.insert(key: header, value: payload)
 
 	fn start_of_frame(n: int):
-		""" Baseline DCT """
+		"""Baseline DCT"""
 		var size = read_u16() - 2
 		log_debug("SOF{n} of size {size}")
 		let P = read_byte()
@@ -146,7 +144,7 @@ class JpegDecoder:
 		var i = 0
 		while i < Ns:
 			let Cs = read_byte()
-			let Tda = read_byte() # DC and AC Huffman table selectors
+			let Tda = read_byte()  # DC and AC Huffman table selectors
 			log_debug("Scan component: Cs={Cs} Tda={Tda}")
 			let component = m_components.get(index: i)
 			assert(condition: Cs == component.C, message: "Component ID mismatch")
@@ -219,9 +217,9 @@ class JpegDecoder:
 		data2.to_bytes()
 
 	fn read_component_mcu(bit_reader: BitReader, component: Component, mcu_width: int, mcu_height: int) -> [int]:
-		""" Read a single MCU data array """
+		"""Read a single MCU data array"""
 		var block = zero_int_array(size: mcu_width * mcu_height)
-		let upx = mcu_width / (component.H * 8) # Upsample factor x
+		let upx = mcu_width / (component.H * 8)  # Upsample factor x
 		let upy = mcu_height / (component.V * 8)
 
 		var sby = 0  # sub block y
@@ -256,7 +254,7 @@ class JpegDecoder:
 		block
 
 	fn build_matrix(bit_reader: BitReader, component: Component) -> [int]:
-		""" Extract an 8x8 matrix from bits """
+		"""Extract an 8x8 matrix from bits"""
 		let dc_table = m_huffman_tables.get(key: component.T_dc)
 		let ac_table = m_huffman_tables.get(key: 16 + component.T_ac)
 		let quant = m_quant.get(key: component.qid)
@@ -288,7 +286,7 @@ class JpegDecoder:
 		perform_idct(data: res, idct: m_idct)
 
 	fn draw_block(x: int, y: int, mcu_width: int, mcu_height: int, mcu: Vector[[int]]):
-		""" Put 8x8 block into the pixels of the image """
+		"""Put 8x8 block into the pixels of the image"""
 		assert(condition: mcu.len() == 3, message: "Expect 3 components")
 		# assert(condition: datas.len() == 3, message: "Expect 3 components")
 		let lum_data = mcu[0]
@@ -322,8 +320,7 @@ class JpegDecoder:
 		m_reader.read_bytes(size)
 
 fn zigzag(data: [int]) -> [int]:
-	"""
-	Zig zag pattern:
+	"""Zig zag pattern:
 	0,  1,  5,  6,  14, 15, 27, 28
 	2,  4,  7,  13, 16, 26, 29, 42
 	3,  8,  12, 17, 25, 30, 41, 43
@@ -332,9 +329,8 @@ fn zigzag(data: [int]) -> [int]:
 	20, 22, 33, 38, 46, 51, 55, 60
 	21, 34, 37, 47, 50, 56, 59, 61
 	35, 36, 48, 49, 57, 58, 62, 63
-
 	"""
-	let pattern = [0,  1,  5,  6,  14, 15, 27, 28, 2,  4,  7,  13, 16, 26, 29, 42, 3,  8,  12, 17, 25, 30, 41, 43, 9,  11, 18, 24, 31, 40, 44, 53, 10, 19, 23, 32, 39, 45, 52, 54, 20, 22, 33, 38, 46, 51, 55, 60, 21, 34, 37, 47, 50, 56, 59, 61, 35, 36, 48, 49, 57, 58, 62, 63]
+	let pattern = [0, 1, 5, 6, 14, 15, 27, 28, 2, 4, 7, 13, 16, 26, 29, 42, 3, 8, 12, 17, 25, 30, 41, 43, 9, 11, 18, 24, 31, 40, 44, 53, 10, 19, 23, 32, 39, 45, 52, 54, 20, 22, 33, 38, 46, 51, 55, 60, 21, 34, 37, 47, 50, 56, 59, 61, 35, 36, 48, 49, 57, 58, 62, 63]
 	var res = zero_int_array(size: 64)
 	# log_debug("zigzag")
 	var i = 0
@@ -366,7 +362,7 @@ fn new_idct_table() -> IDCT:
 	IDCT(precision, table)
 
 fn perform_idct(data: [int], idct: IDCT) -> [int]:
-	""" inverse discrete cosine transformation """
+	"""inverse discrete cosine transformation"""
 	# log_debug("idct")
 	var res = zero_int_array(size: 64)
 	var x = 0
@@ -392,8 +388,8 @@ struct Component:
 	V: int  # Vertical sampling
 	qid: int  # Quantization table to use for this component
 	dc_coeff: int
-	T_dc: int # DC Huffman table id
-	T_ac: int # AC Huffman table id
+	T_dc: int  # DC Huffman table id
+	T_ac: int  # AC Huffman table id
 
 fn clamp(value?: float) -> int:
 	if value < 0.0:
@@ -404,7 +400,7 @@ fn clamp(value?: float) -> int:
 		255
 
 fn color_conversion(lum: int, cb: int, cr: int, pixel: Pixel):
-	""" Convert YCbCr to RGB """
+	"""Convert YCbCr to RGB"""
 	let red = cr * (2 - 2 * 0.299) + lum
 	let blue = cb * (2 - 2 * 0.114) + lum
 	let green = (lum - 0.114 * blue - 0.299 * red) / 0.587
@@ -413,8 +409,7 @@ fn color_conversion(lum: int, cb: int, cr: int, pixel: Pixel):
 	pixel.blue = clamp(blue + 128)
 
 fn decode_number(code: int, bits: int) -> int:
-	"""
-	code = amount of bits
+	"""code = amount of bits
 	bits = the bit value
 	Mapping:
 	bits | values

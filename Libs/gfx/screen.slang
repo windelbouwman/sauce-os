@@ -12,8 +12,7 @@ pub fn new_screen(width: int, height: int) -> Screen:
 	Screen(m_width: width, m_height: height, m_image: image)
 
 pub class Screen:
-	""" A bitmap painter.
-	"""
+	"""A bitmap painter."""
 	var m_width: int
 	var m_height: int
 	var m_image: Image
@@ -25,7 +24,7 @@ pub class Screen:
 		m_color.blue = blue
 
 	pub fn clear():
-		""" Set entire screen to color. """
+		"""Set entire screen to color."""
 		var y = 0
 		while y < m_height:
 			var x = 0
@@ -35,7 +34,7 @@ pub class Screen:
 			y += 1
 
 	pub fn draw_line(x1: int, y1: int, x2: int, y2: int):
-		""" Draw a line from x1,y1 to x2,y2 in the current color.
+		"""Draw a line from x1,y1 to x2,y2 in the current color.
 
 		Use Bresenham's algorithm
 
@@ -108,7 +107,7 @@ pub class Screen:
 					y += 1
 
 	fn draw_vertical_line(x: int, y1: int, y2: int):
-		""" Vertical line """
+		"""Vertical line"""
 		var y = y1
 		if y2 < y:
 			y = y2
@@ -118,7 +117,7 @@ pub class Screen:
 			y += 1
 
 	fn draw_horizontal_line(y: int, x1: int, x2: int):
-		""" Horizontal line """
+		"""Horizontal line"""
 		var x = x1
 		if x2 < x1:
 			x = x2

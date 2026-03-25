@@ -1,6 +1,4 @@
-""" Instruction selection related code.
-
-"""
+"""Instruction selection related code."""
 
 from listtype import List
 from hashmap import HashMap, new_hashmap_int
@@ -11,7 +9,7 @@ import sil
 import mil
 
 pub struct Backend[C,V]:
-	""" Backend based on first instruction selection, then register allocation. """
+	"""Backend based on first instruction selection, then register allocation."""
 	ctx: C
 	bits: int
 	all_regs: Vector[Vector[int]]  # 0=int regs,1=Float regs

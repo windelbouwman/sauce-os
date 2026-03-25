@@ -1,4 +1,4 @@
-""" Logic for binary object code.
+"""Logic for binary object code.
 
 Use the Outstream to contrapt an Object struct, with code and data section.
 """
@@ -12,7 +12,7 @@ from deque import Queue, new_queue
 from bytes import ByteArray, Bytes
 
 pub struct Object:
-	""" Code object """
+	"""Code object"""
 	bits: int
 	little_endian: bool
 	sections: Vector[Section]
@@ -61,9 +61,9 @@ struct Fixup:
 pub class BinaryOutput:
 	var m_bits: int = 64
 	var little_endian: bool = true
-	var sections: HashMap[str, Section] = new_hashmap_str()
+	var sections: HashMap[str,Section] = new_hashmap_str()
 	var current_section: Option[Section] = Option.None()
-	var symbols: HashMap[str, Symbol] = new_hashmap_str()
+	var symbols: HashMap[str,Symbol] = new_hashmap_str()
 	var fixups: Queue[Fixup] = new_queue()
 	var tmp_labels: Queue[str] = new_queue()
 
@@ -86,11 +86,11 @@ pub class BinaryOutput:
 				panic("No output section selected")
 
 	pub fn import_symbol(name?: str):
-		""" Define symbol which lives externally """
+		"""Define symbol which lives externally"""
 		define_symbol(name, kind: SymbolKind.Extern())
 
 	pub fn export_symbol(name?: str):
-		""" Define symbol, which can be used elsewhere """
+		"""Define symbol, which can be used elsewhere"""
 		define(name, global: true)
 
 	pub fn local_symbol(name?: str):
@@ -113,7 +113,7 @@ pub class BinaryOutput:
 		section.executable = true
 
 	fn define(name: str, global: bool):
-		""" Define a symbol at the current cursor """
+		"""Define a symbol at the current cursor"""
 		let section = get_current_section()
 		let offset = section.data.len()
 		define_symbol(name, kind: SymbolKind.Intern(section, offset, global))
@@ -137,7 +137,7 @@ pub class BinaryOutput:
 			false
 
 	pub fn add_fixup(symbol: str, typ: int, addend: int):
-		""" Add relocation information at the current position. """
+		"""Add relocation information at the current position."""
 		let section = get_current_section()
 		let offset = section.data.len()
 		fixups.push(Fixup(symbol, section, offset, typ, addend))

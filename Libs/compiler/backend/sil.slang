@@ -1,5 +1,4 @@
-"""
-SIL (slang intermediate language)
+"""SIL (slang intermediate language)
 
 An intermediate language for an abstract register based machine.
 
@@ -46,7 +45,7 @@ pub class Extern:
 	# TODO: parameters?
 
 pub class DataBlob:
-	""" Data block """
+	"""Data block"""
 	pub var name: str
 	pub var is_local: bool  # Symbol visibility
 	pub var readonly: bool

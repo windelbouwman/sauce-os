@@ -1,4 +1,4 @@
-""" List data type """
+"""List data type"""
 
 from utils import panic
 from optiontype import Option

@@ -22,7 +22,7 @@ pub fn md5(data: Bytes) -> Bytes:
 	var c0 = 0x98badcfe
 	var d0 = 0x10325476
 
-	let s: [int] = [7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22, 5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20, 4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23, 6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21]
+	let s: [int] = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21]
 	var M: [int] = [16 : int]
 	let K: [int] = [64 : int]
 	fill_md5_K(K)
@@ -91,8 +91,7 @@ pub fn compute_md5_K(K: [int]):
 		i += 1
 
 pub fn fill_md5_K(K: [int]):
-	"""
-	Pre computed table of
+	"""Pre computed table of
 	floor(2^32 * abs(sin(i + 1)))
 	"""
 	K[0] = 0xd76aa478
@@ -164,7 +163,7 @@ fn wrap_u32(value?: int) -> int:
 	value & 0xFFffFFff
 
 fn sha_pre_process(data: Bytes) -> Bytes:
-	""" Append a 1 bit, and align to 512 bits. """
+	"""Append a 1 bit, and align to 512 bits."""
 	# Step 1: pad until almost modulo 512:
 	let data2 = ByteArray()
 	data2.extend(data)
@@ -195,7 +194,7 @@ pub fn sha1(data: Bytes) -> Bytes:
 			w[i] = reader.read_u32_be()
 			i += 1
 		while i < 80:
-			w[i] = wrap_u32(leftrotate(value: w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16], amount: 1))
+			w[i] = wrap_u32(leftrotate(value: w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], amount: 1))
 			i += 1
 
 		var a = h0
@@ -246,7 +245,7 @@ pub fn sha1(data: Bytes) -> Bytes:
 	digest.to_bytes()
 
 pub fn sha256(data: Bytes) -> Bytes:
-	""" SHA256 hash.
+	"""SHA256 hash.
 
 	See also: https://en.wikipedia.org/wiki/SHA-2
 	"""
@@ -272,9 +271,9 @@ pub fn sha256(data: Bytes) -> Bytes:
 			w[i] = reader.read_u32_be()
 			i += 1
 		while i < 64:
-			let s0 = right_rotate(value: w[i-15], amount: 7) ^ right_rotate(value: w[i-15], amount: 18) ^ right_shift(value: w[i-15], amount: 3)
-			let s1 = right_rotate(value: w[i-2], amount: 17) ^ right_rotate(value: w[i-2], amount: 19) ^ right_shift(value: w[i-2], amount: 10)
-			w[i] = wrap_u32(w[i-16] + s0 + w[i-7] + s1)
+			let s0 = right_rotate(value: w[i - 15], amount: 7) ^ right_rotate(value: w[i - 15], amount: 18) ^ right_shift(value: w[i - 15], amount: 3)
+			let s1 = right_rotate(value: w[i - 2], amount: 17) ^ right_rotate(value: w[i - 2], amount: 19) ^ right_shift(value: w[i - 2], amount: 10)
+			w[i] = wrap_u32(w[i - 16] + s0 + w[i - 7] + s1)
 			i += 1
 
 		var a = h0

@@ -29,7 +29,7 @@ pub fn main() -> int:
 	let b: Bla[Bool] = Bla:
 		message: "W00t"
 		value: b_boxed
-	
+
 	std.print(a.message)
 	std.print(b.message)
 
@@ -42,13 +42,13 @@ pub fn main() -> int:
 	let fu_b: Fuu[Bool] = Fuu:
 		x: b_false_boxed
 		bla: double_bla
-	
+
 	display_fuu(fu_b)
-	
+
 	let triple_b: Bla[Bla[Bla[Bool]]] = Bla:
 		message: "triple-bla"
 		value: double_bla
-	
+
 	std.print(triple_b.message)
 	std.print(triple_b.value.message)
 	std.print(triple_b.value.value.message)

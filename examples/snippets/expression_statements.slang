@@ -1,4 +1,4 @@
-""" Try statements as expressions """
+"""Try statements as expressions"""
 
 import std
 

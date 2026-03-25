@@ -1,6 +1,4 @@
-"""
-GIF fileformat
-"""
+"""GIF fileformat"""
 from utils import unimplemented, panic, assert
 from logging import log_debug, log_trace
 from listtype import List
@@ -62,7 +60,7 @@ class GifReader:
 
 	fn read_extension():
 		let label = read_u8()
-		if label == 0xF9: # Graphic control
+		if label == 0xF9:  # Graphic control
 			log_trace("Graphic control extension")
 			let size = read_u8()
 			assert(condition: size == 4, message: "Graphic control extension must be 4 bytes")
@@ -72,7 +70,7 @@ class GifReader:
 			let terminator = read_u8()
 			assert(condition: terminator == 0, message: "Must be terminator")
 			log_trace("delay time: {delay_time}")
-		elif label == 0xFF: # Application extension
+		elif label == 0xFF:  # Application extension
 			log_trace("Application extension")
 			loop:
 				let block = read_block()
@@ -176,7 +174,7 @@ class GifReader:
 		m_byte_reader.read_byte()
 
 pub fn lzw_decode(data: Bytes) -> Bytes:
-	""" Decompress LZW encodeded data. """
+	"""Decompress LZW encodeded data."""
 	let compressed_size = data.len()
 	log_debug("LZW decoding {compressed_size} bytes")
 	let decoder = LzwDecoder(m_reader: data.into_reader())
@@ -196,7 +194,7 @@ class LzwDecoder:
 	var m_output: ByteArray = ByteArray()
 
 	pub fn decode() -> Bytes:
-		var oldcode = 256 # Clear code
+		var oldcode = 256  # Clear code
 		m_code_bit_size = 9
 		loop:
 			var code = get_next_code()

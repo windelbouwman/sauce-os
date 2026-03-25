@@ -1,6 +1,4 @@
-"""
-JSON data serialization library
-"""
+"""JSON data serialization library"""
 
 from utils import panic
 from logging import log_info
@@ -152,7 +150,7 @@ pub class JsonBrowser:
 			false
 
 	pub fn get_text() -> str:
-		""" Get text from current node """
+		"""Get text from current node"""
 		case m_value:
 			String(text):
 				text
@@ -160,7 +158,7 @@ pub class JsonBrowser:
 			panic("Not a JSON text")
 
 	pub fn get_integer() -> int:
-		""" Get integer from current node """
+		"""Get integer from current node"""
 		case m_value:
 			Integer(value):
 				value
@@ -168,7 +166,7 @@ pub class JsonBrowser:
 			panic("Not a JSON integer")
 
 	pub fn get_boolean() -> bool:
-		""" Get boolean from current node """
+		"""Get boolean from current node"""
 		case m_value:
 			Bool(value):
 				value
@@ -250,7 +248,7 @@ class JsonArrayBuilder:
 
 class Parser:
 	var m_buffer: List[JsonToken] = List()
-	var lexer : Lexer
+	var lexer: Lexer
 
 	pub fn parse_value() -> JsonValue except JsonException:
 		let token = get_token()

@@ -1,5 +1,4 @@
-""" Machine code generation.
-"""
+"""Machine code generation."""
 
 import sil
 import mil
@@ -41,7 +40,7 @@ pub fn cgen[C,V](program: sil.Program, backend: Backend[C,V], options: CodegenOp
 	write_elf(filename, object: out.get_object())
 
 class Codegen[C,V]:
-	""" Machine independent code generator """
+	"""Machine independent code generator"""
 	var backend: Backend[C,V]
 	var options: CodegenOptions
 
@@ -100,8 +99,7 @@ class Codegen[C,V]:
 		options.profiler.leave()
 
 	fn select_function(function: sil.Function, context: SelectionContext[V]) -> mil.Function[V]:
-		"""Turn abstract instructions into abstract machine specific instructions.
-		"""
+		"""Turn abstract instructions into abstract machine specific instructions."""
 		let mblocks: Vector[mil.Block[V]] = new_vector()
 		backend.enter(ctx: backend.ctx, context, function)
 		for block in function.blocks:

@@ -1,5 +1,4 @@
-"""
-C code backend
+"""C code backend
 
 Translate bytecode into C code.
 """
@@ -38,7 +37,7 @@ struct Local:
 	writable: bool
 
 fn is_heap(ty?: bc.Type) -> bool:
-	""" Test if type is heap like type """
+	"""Test if type is heap like type"""
 	case ty:
 		StructRef(index):
 			true
@@ -177,7 +176,7 @@ class CGenerator:
 				"\"{v}\""
 			Char(v):
 				"'{v}'"
-			List(v): # Struct
+			List(v):  # Struct
 				let name = new_local_var()
 				let index = case ty:
 					StructRef(index):

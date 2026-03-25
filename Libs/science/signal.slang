@@ -1,6 +1,5 @@
 
-""" Signal processing routines
-"""
+""" Signal processing routines"""
 
 from listtype import List
 from std import print, float_to_str
@@ -23,7 +22,7 @@ pub fn butter(n: int) -> DigitalFilter:
 	a.append(ak)
 	var k = 0
 	while k < n:
-		ak = (cos(k * gamma) / sin((k+1) * gamma)) * ak
+		ak = (cos(k * gamma) / sin((k + 1) * gamma)) * ak
 		a.append(ak)
 		k += 1
 	DigitalFilter(b, a)
@@ -33,8 +32,8 @@ pub fn cheby(n: int) -> DigitalFilter:
 	unimplemented("cheby")
 
 pub class DigitalFilter:
-	pub var b: List[float] # Numerator
-	pub var a: List[float] # Denominator
+	pub var b: List[float]  # Numerator
+	pub var a: List[float]  # Denominator
 
 	pub fn dump():
 		print(s_poly_to_str(coefficients: b))

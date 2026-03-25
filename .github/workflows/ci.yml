@@ -63,6 +63,8 @@ jobs:
         uses: bytecodealliance/actions/wasm-tools/setup@v1
       - name: Bootstrap
         run: bash bootstrap2.sh
+      - name: Check formatting
+        run: make format-check
       - name: Build all
         run: make
       - name: Run tests

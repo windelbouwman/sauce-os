@@ -1,5 +1,4 @@
-"""
-Hash map data type.
+"""Hash map data type.
 
 Idea: have an array with buckets.
 """
@@ -12,15 +11,15 @@ from rt import str_compare
 from hashlib import djb2
 
 pub fn new_hashmap_int[V]() -> HashMap[int,V]:
-	""" Create a new hashmap with integer keys """
+	"""Create a new hashmap with integer keys"""
 	new_hashmap(f_hash: int_hash, f_eq: int_eq)
 
 pub fn new_hashmap_str[V]() -> HashMap[str,V]:
-	""" Create a new hashmap with string keys """
+	"""Create a new hashmap with string keys"""
 	new_hashmap(f_hash: str_hash, f_eq: str_eq)
 
 pub fn new_hashmap_char[V]() -> HashMap[char,V]:
-	""" Create a new hashmap with char keys """
+	"""Create a new hashmap with char keys"""
 	new_hashmap(f_hash: char_hash, f_eq: char_eq)
 
 pub fn new_hashmap[K,V](f_hash: fn(K) -> int, f_eq: fn(K, K) -> bool) -> HashMap[K,V]:
@@ -130,7 +129,7 @@ pub class HashMap[K,V]:
 		let x = pop(key)
 
 	pub fn pop(key: K) -> Option[V]:
-		""" remove an item from this dictionary """
+		"""remove an item from this dictionary"""
 		let hash = get_hash(key)
 		let index = get_index(hash)
 
@@ -253,7 +252,7 @@ pub class HashMapIter[K,V]:
 
 struct HashableApi[T]:
 	f_hash: fn(T) -> int
-	f_eq: fn(T,T) -> bool
+	f_eq: fn(T, T) -> bool
 
 struct KeyValuePair[K,V]:
 	key: K

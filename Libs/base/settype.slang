@@ -1,10 +1,9 @@
-""" Set datatype, build upon the HashMap datatype.
-"""
+"""Set datatype, build upon the HashMap datatype."""
 
 from optiontype import Option, option_unwrap
 from hashmap import HashMap, HashMapIter, new_hashmap, int_hash, int_eq, str_hash, str_eq
 
-pub fn new_set[T](f_hash: fn(T) -> int, f_eq: fn(T,T) -> bool) -> Set[T]:
+pub fn new_set[T](f_hash: fn(T) -> int, f_eq: fn(T, T) -> bool) -> Set[T]:
 	let m_items = new_hashmap(f_hash, f_eq)
 	Set(m_items)
 
@@ -17,7 +16,7 @@ pub fn new_int_set() -> Set[int]:
 	new_set(f_hash: int_hash, f_eq: int_eq)
 
 pub class Set[T]:
-	var m_items: HashMap[T, bool]
+	var m_items: HashMap[T,bool]
 
 	pub fn add(value?: T):
 		m_items.insert(key: value, value: true)
@@ -47,7 +46,7 @@ pub class Set[T]:
 		new_set(f_hash: m_items.f.f_hash, f_eq: m_items.f.f_eq)
 
 	pub fn union(other?: Set[T]) -> Set[T]:
-		""" New set with items from both sets """
+		"""New set with items from both sets"""
 		let result = new_empty_set()
 		for n in this:
 			result.add(n)
@@ -56,12 +55,12 @@ pub class Set[T]:
 		result
 
 	pub fn union_add(other?: Set[T]):
-		""" Add all items from the other set """
+		"""Add all items from the other set"""
 		for n in other:
 			add(n)
 
 	pub fn intersection(other?: Set[T]) -> Set[T]:
-		""" New set with only items that are in both sets """
+		"""New set with only items that are in both sets"""
 		let result = new_empty_set()
 		for n in this:
 			if other.contains(n):
@@ -69,7 +68,7 @@ pub class Set[T]:
 		result
 
 	pub fn difference(other?: Set[T]) -> Set[T]:
-		""" New set with only items from other removed """
+		"""New set with only items from other removed"""
 		let result = new_empty_set()
 		for n in this:
 			if not other.contains(n):
@@ -85,7 +84,7 @@ pub class Set[T]:
 		true
 
 pub class SetIter[T]:
-	var m_it: HashMapIter[T, bool]
+	var m_it: HashMapIter[T,bool]
 
 	pub fn next() -> Option[T]:
 		m_it.next()

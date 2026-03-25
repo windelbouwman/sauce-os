@@ -1,5 +1,4 @@
-"""
-A graph consists of nodes and edges between them.
+"""A graph consists of nodes and edges between them.
 There are directed and undirected graph types.
 """
 
@@ -10,7 +9,7 @@ from deque import Queue, new_queue
 from hashmap import HashMap, new_hashmap_str
 
 pub class DiGraph:
-	""" A directed graph """
+	"""A directed graph"""
 	pub var nodes: Set[str] = new_str_set()
 	var pred: HashMap[str,Set[str]] = new_hashmap_str()
 	var succ: HashMap[str,Set[str]] = new_hashmap_str()
@@ -87,7 +86,7 @@ pub fn topological_sort(g?: DiGraph) -> Option[List[str]]:
 		Option.Some(result)
 
 pub class Graph:
-	""" Undirected graph """
+	"""Undirected graph"""
 	pub var m_nodes: Set[str] = new_str_set()
 	var m_neighbours: HashMap[str,Set[str]] = new_hashmap_str()
 
@@ -112,13 +111,13 @@ pub class Graph:
 		m_neighbours.get(key: n)
 
 pub fn find_max_cliques(g: Graph) -> List[Set[str]]:
-	""" Find maximum cliques with the Bron Kerbosch algorithm """
+	"""Find maximum cliques with the Bron Kerbosch algorithm"""
 	let output: List[Set[str]] = List()
 	bron_kerbosch(r: new_str_set(), p: g.m_nodes, x: new_str_set(), g, output)
 	output
 
 fn bron_kerbosch(r: Set[str], p: Set[str], x: Set[str], g: Graph, output: List[Set[str]]):
-	""" An algorithm for solving the clique problem:
+	"""An algorithm for solving the clique problem:
 	https://en.wikipedia.org/wiki/Bron%E2%80%93Kerbosch_algorithm
 	"""
 	if p.is_empty() and x.is_empty():
@@ -138,8 +137,7 @@ pub fn find_all_cliques_of_size(g: Graph, k: int) -> List[Set[str]]:
 	output
 
 fn bron_kerbosch_k(r: Set[str], p: Set[str], x: Set[str], g: Graph, k: int, output: List[Set[str]]):
-	""" A mutated Bron Kerbosch algorithm
-	"""
+	"""A mutated Bron Kerbosch algorithm"""
 	if r.len() == k:
 		output.append(r)
 		return
@@ -153,7 +151,7 @@ fn bron_kerbosch_k(r: Set[str], p: Set[str], x: Set[str], g: Graph, k: int, outp
 		x = x.union(v_set)
 
 pub fn dfs(g: DiGraph, start: str) -> List[str]:
-	""" Depth first search """
+	"""Depth first search"""
 	let visited: Set[str] = new_str_set()
 	let res: List[str] = List()
 	let worklist: Queue[str] = new_queue()
@@ -170,7 +168,7 @@ pub fn dfs(g: DiGraph, start: str) -> List[str]:
 # str DomTree
 
 pub class LengauerTarjanAlgorithm:
-	""" Lengauer Tarjan algorithm """
+	"""Lengauer Tarjan algorithm"""
 	var a: int = 0
 
 	fn do():

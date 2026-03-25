@@ -22,6 +22,7 @@ COMPILER7=${BUILDDIR}/tmp-compiler7.py
 #SLANGC=python ${COMPILER3}
 #SLANGC_DEPS=${COMPILER3}
 SLANGC=./${COMPILER5}
+SLANG_FORMAT=./${BUILDDIR}/x86/apps/format.exe
 SLANGC_DEPS=${COMPILER5}
 SLANG_APPS := $(wildcard Apps/*.slang)
 AOC_APPS := $(wildcard examples/aoc/*/main.slang)
@@ -100,6 +101,13 @@ benchmark: ${COMPILER5} | ${BUILDDIR}
 
 benchmark2: ${COMPILER5} | ${BUILDDIR}
 	hyperfine './${COMPILER5} --backend-null -v ${BASE_LIB_SRCS} ${COMPILER_LIB_SRCS}'
+
+.PHONY: format-check format
+format-check: ${SLANG_FORMAT}
+	${SLANG_FORMAT} --check ${BASE_LIB_SRCS} ${IMAGE_LIB_SRCS} ${COMPILER_LIB_SRCS} ${GFX_LIB_SRCS} ${SLANG_APPS} ${SLANG_EXAMPLES}
+
+format: ${SLANG_FORMAT}
+	${SLANG_FORMAT} --in-place ${BASE_LIB_SRCS} ${IMAGE_LIB_SRCS} ${COMPILER_LIB_SRCS} ${GFX_LIB_SRCS} ${SLANG_APPS} ${SLANG_EXAMPLES}
 
 pytest-compiler1:
 	pytest -v test_compiler1.py

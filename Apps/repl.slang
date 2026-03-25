@@ -1,4 +1,4 @@
-""" A slang-lang REPL!"""
+"""A slang-lang REPL!"""
 
 from std import print, read_line, get_n_args, get_arg
 from logging import log_info, log_debug, set_log_level

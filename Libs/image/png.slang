@@ -1,5 +1,4 @@
-"""
-PNG read / write routines
+"""PNG read / write routines
 
 See RFC 2083
 """
@@ -135,15 +134,15 @@ class PngDecoder:
 		# 3 = indexed
 		# 4 = grayscal and alpha
 		# 6 = rgb + alpha
-		if colortype == 0: # grayscale
+		if colortype == 0:  # grayscale
 			samples = 1
-		elif colortype == 2: # rgb
+		elif colortype == 2:  # rgb
 			samples = 3
-		elif colortype == 3: # pallete based image
+		elif colortype == 3:  # pallete based image
 			samples = 1
-		elif colortype == 4: # grayscale+alpha
+		elif colortype == 4:  # grayscale+alpha
 			samples = 2
-		elif colortype == 6: # rgb+alpha
+		elif colortype == 6:  # rgb+alpha
 			samples = 4
 		else:
 			panic("Unsupported color type: {colortype}")
@@ -194,11 +193,11 @@ class PngEncoder:
 		let out = ByteArray()
 		out.pack_u32_be(width)
 		out.pack_u32_be(height)
-		out.append(8) # bit depth
-		out.append(2) # color type (2 = rgb)
-		out.append(0) # compression type
-		out.append(0) # filter method
-		out.append(0) # interlace method
+		out.append(8)  # bit depth
+		out.append(2)  # color type (2 = rgb)
+		out.append(0)  # compression type
+		out.append(0)  # filter method
+		out.append(0)  # interlace method
 		let ihdr_chunk = Chunk(chunk_type: chunk_type_code(name: "IHDR"), data: out.to_bytes())
 		write_chunk(chunk: ihdr_chunk)
 
@@ -244,7 +243,7 @@ fn pixels_to_buffer(image: Image) -> Bytes:
 	out.to_bytes()
 
 class Sampler:
-	""" Extract samples with a certain bit depth from a byte array """
+	"""Extract samples with a certain bit depth from a byte array"""
 	var m_data: Bytes
 	var m_depth: int  # depth in bits
 	var m_index: int = 0
@@ -332,14 +331,14 @@ fn to_pixels(data: Bytes, image: Image, colortype: int, depth: int, pallete: Vec
 	sampler.complete()
 
 fn encode_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
-	""" Apply filtering as encoding step """
+	"""Apply filtering as encoding step"""
 	let out = ByteArray()
 	let bytes_per_line = bpp * width
 	var scanline = 0
 	var index = 0
 	while scanline < height:
 		# Idea: try all filter types, and select filtered line with the lowest entropy
-		out.append(0) # no-op filter type
+		out.append(0)  # no-op filter type
 		var x = 0
 		while x < bytes_per_line:
 			let value = data.get(index)
@@ -354,7 +353,7 @@ fn encode_filter(data: Bytes, width: int, height: int, bpp: int) -> Bytes:
 	filtered
 
 fn post_filter(data: Bytes, width: int, height: int, bytes_per_line: int, bpp: int) -> Bytes:
-	""" Perform post filtering on a byte basis.
+	"""Perform post filtering on a byte basis.
 	Note that we have no notion of bit depth or color space at this point.
 	"""
 
@@ -380,13 +379,13 @@ fn post_filter(data: Bytes, width: int, height: int, bytes_per_line: int, bpp: i
 			# 2 = Up -> diff to pixel up
 			# 3 = Average
 			# 4 = Paeth
-			if filter_type == 0: # No-op
+			if filter_type == 0:  # No-op
 				pass
-			elif filter_type == 1: # Diff to left pixel
+			elif filter_type == 1:  # Diff to left pixel
 				if x >= bpp:
 					let left_value = out.get(index: scanline * bytes_per_line + x - bpp)
 					value = (value + left_value) % 256
-			elif filter_type == 2: # Diff to above pixel
+			elif filter_type == 2:  # Diff to above pixel
 				if scanline > 0:
 					let above_value = out.get(index: (scanline - 1) * bytes_per_line + x)
 					value = (value + above_value) % 256

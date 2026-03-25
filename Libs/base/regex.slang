@@ -1,10 +1,8 @@
-"""
-Regex library
+"""Regex library
 
 Based on [Brzozowski derivatives](https://en.wikipedia.org/wiki/Brzozowski_derivative).
 
 Ported from code: [MichaelPaddon/epsilon](https://github.com/MichaelPaddon/epsilon)
-
 """
 
 from std import str_get, str_len, ord, print, chr, str_slice
@@ -24,7 +22,7 @@ pub fn find(pattern: str, text: str) -> Option[Match]:
 		Option.None()
 
 pub fn find_all(pattern: str, text: str) -> List[Match]:
-	""" Find all regular expression in the given text. """
+	"""Find all regular expression in the given text."""
 	let machine = compile(pattern)
 	machine_find_all(machine, text)
 
@@ -36,7 +34,7 @@ fn get_text(m: Match) -> str:
 	m.text
 
 pub fn split_at_pattern(text: str, pattern: str) -> List[str]:
-	""" Split a string at the given regex """
+	"""Split a string at the given regex"""
 	let parts: List[str] = List()
 	var begin = 0
 	for m in find_all(pattern, text):
@@ -238,7 +236,7 @@ class Parser:
 	var text: str
 
 	pub fn parse() -> Regex except ParseError:
-		""" Parse a regular expression. """
+		"""Parse a regular expression."""
 		n_size = str_len(text)
 		if peek() != chr(0):
 			var item = parse_term()
@@ -286,7 +284,7 @@ class Parser:
 			res
 
 	fn parse_range() -> Regex except ParseError:
-		""" Parse [0-9:a-z] or [^abc] """
+		"""Parse [0-9:a-z] or [^abc]"""
 		let invert = if peek() == '^':
 			index += 1
 			true
@@ -339,17 +337,17 @@ struct ParseError:
 	message: str
 
 fn new_char_set(c: char) -> IntegerSet:
-	""" Single character set """
+	"""Single character set"""
 	let begin = ord(c)
 	let end = begin + 1
 	new_int_set(begin, end)
 
 fn sigma() -> IntegerSet:
-	""" Return full ascii set """
+	"""Return full ascii set"""
 	new_int_set(begin: 0, end: 256)
 
 fn symbol_regex(c: char) -> Regex:
-	""" Regex for single character """
+	"""Regex for single character"""
 	let s = new_char_set(c)
 	symbol_set_regex(s)
 
@@ -363,7 +361,7 @@ fn null_regex() -> Regex:
 	Regex(kind: PartKind.Null())
 
 pub fn sigma_regex() -> Regex:
-	""" Regex with all symbols! """
+	"""Regex with all symbols!"""
 	symbol_set_regex(s: sigma())
 
 enum PartKind:

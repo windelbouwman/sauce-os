@@ -137,7 +137,7 @@ class BytecodeGenerator:
 				pass
 
 	fn gen_global_variable(variable_def: ast.VariableDef):
-		""" Create global variable """
+		"""Create global variable"""
 		let global_index = global_variables.len()
 		let name = get_name(variable_def.variable.id)
 		let value: Option[Vector[bc.Instruction]] = Option.None()
@@ -146,7 +146,7 @@ class BytecodeGenerator:
 		global_var_mapping.insert(key: variable_def.variable.id, value: global_index)
 
 	fn gen_global_init(variable_def: ast.VariableDef):
-		""" Initialize global variable """
+		"""Initialize global variable"""
 		let global_index = global_var_mapping.get(key: variable_def.variable.id)
 		let global_variable = global_variables[global_index]
 		case variable_def.value:
@@ -372,7 +372,7 @@ class BytecodeGenerator:
 			panic("Code is reachable after panic instruction.")
 
 	fn actual_do_raise():
-		""" Do local jump, or return special marker value, which lives on top of stack now."""
+		"""Do local jump, or return special marker value, which lives on top of stack now."""
 		case goto_inner_try():
 			Some(try_):
 				emit(Instruction.LocalSet(try_.except_var_index))

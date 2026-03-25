@@ -1,5 +1,4 @@
-"""
-Implement RFC 1951: deflate format.
+"""Implement RFC 1951: deflate format.
 
 DEFLATE uses huffman trees and LZ77 compression.
 """
@@ -15,7 +14,7 @@ from huffman import BitWriter, create_table, encode_symbol, CodeEntry
 from hashmap import HashMap, new_hashmap_int
 
 pub fn deflate_decompress(data?: Bytes) -> Bytes:
-	""" Decompress the given data using deflate
+	"""Decompress the given data using deflate
 	See: RFC 1951
 	"""
 	let reader = data.into_reader()
@@ -30,7 +29,7 @@ pub fn new_deflate_decoder(reader: ByteReader) -> DeflateDecoder:
 	DeflateDecoder(m_bit_reader: bit_reader)
 
 pub fn deflate_compress(data: Bytes) -> Bytes:
-	""" Compress data in DEFLATE format """
+	"""Compress data in DEFLATE format"""
 	let encoder = DeflateCompressor(m_data: data)
 	encoder.compress()
 
@@ -60,7 +59,7 @@ fn cmp_TreeNode(a: TreeNode, b: TreeNode) -> bool:
 	a.freq < b.freq
 
 fn get_widths(frequencies: [int], size: int) -> Vector[int]:
-	""" Given a set of frequencies, determine the width in bits of each symbol. """
+	"""Given a set of frequencies, determine the width in bits of each symbol."""
 	# Create priority queue:
 	let q: PriorityQueue[TreeNode] = new_priority_queue_with_capacity(capacity: size, f: cmp_TreeNode)
 	var i = 0
@@ -92,16 +91,16 @@ fn assign_bit_width(widths: Vector[int], node: TreeNode, level: int):
 			assign_bit_width(widths, node: right, level: level + 1)
 
 enum RunLengthOpcode:
-	Literal(value: int) # 0 .. 15
-	Repeat(n: int) # 16 -> repeat previous symbol
-	FewZeroes(n: int) # 17 -> repeat zeroes
-	ManyZeroes(n: int) # 18 -> repeat zeroes
+	Literal(value: int)  # 0 .. 15
+	Repeat(n: int)  # 16 -> repeat previous symbol
+	FewZeroes(n: int)  # 17 -> repeat zeroes
+	ManyZeroes(n: int)  # 18 -> repeat zeroes
 
 class RunLengthEncoder:
 	var m_opcodes: List[RunLengthOpcode] = List()
 
 	pub fn encode(values: Vector[int]) -> List[RunLengthOpcode]:
-		""" Run length encoding """
+		"""Run length encoding"""
 		var count = 1
 		var value = values.get(index: 0)
 
@@ -182,14 +181,14 @@ class DeflateCompressor:
 	fn determine_trees(actions: List[Action]) -> TreePair:
 		log_trace("determine tree")
 
-		let length_bits = [0, 0, 0, 0, 0, 0, 0, 0,  1,  1,  1,  1,  2,  2,  2,  2,  3,  3,  3,  3,  4,  4,  4,  4,   5,   5,   5,   5,   0]
+		let length_bits = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0]
 		let length_base = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258]
 
 		# 30 extra distance bits:
-		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,   6,   7,   7,   8,   8,   9,    9,    10,   10,   11,   11,   12,   12,    13,    13]
+		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13]
 		let dist_base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
 
-		var freqencies_1 = zero_int_array(size: 288) # 0 .. 287
+		var freqencies_1 = zero_int_array(size: 288)  # 0 .. 287
 		var freqencies_2 = zero_int_array(size: 32)  # 0 .. 31
 		freqencies_2[0] = 1
 		freqencies_2[1] = 1
@@ -264,7 +263,7 @@ class DeflateCompressor:
 			dynamic_bit_size += code_freqencies[i] * code_lengths.get(index: i)
 			i += 1
 
-		dynamic_bit_size += 5 + 5 + 4 # Header of dynamic trees
+		dynamic_bit_size += 5 + 5 + 4  # Header of dynamic trees
 		dynamic_bit_size += 19 * 3  # tree encoding bit sizes, 3 bits per bit size
 
 		log_trace("dynamic_bit_size={dynamic_bit_size}, static_bit_size={static_bit_size}")
@@ -304,21 +303,21 @@ class DeflateCompressor:
 		run_length_encode(table: x_table, opcodes)
 
 	fn run_length_encode(table: HashMap[int,CodeEntry], opcodes: List[RunLengthOpcode]):
-		""" Run length encoding """
+		"""Run length encoding"""
 		for opcode in opcodes:
 			case opcode:
 				Literal(value):
 					# log_trace("opcode: Literal {value}")
 					write_symbol(table, symbol: value)
-				Repeat(rep):    # Repeat previous symbol 3-6 times
+				Repeat(rep):  # Repeat previous symbol 3-6 times
 					# log_trace("opcode: Repeat {rep}")
 					write_symbol(table, symbol: 16)
 					write_bits(n: 2, value: rep - 3)
-				FewZeroes(rep):    # Repeat 3-10 zeroes
+				FewZeroes(rep):  # Repeat 3-10 zeroes
 					# log_trace("opcode: FewZeroes {rep}")
 					write_symbol(table, symbol: 17)
 					write_bits(n: 3, value: rep - 3)
-				ManyZeroes(rep):   # Repeat 11-138 zeroes
+				ManyZeroes(rep):  # Repeat 11-138 zeroes
 					# log_trace("opcode: ManyZeroes {rep}")
 					write_symbol(table, symbol: 18)
 					write_bits(n: 7, value: rep - 11)
@@ -329,11 +328,11 @@ class DeflateCompressor:
 
 		# 29 extra length bits:
 		# TODO: support this as an immutable global variable
-		let length_bits = [0, 0, 0, 0, 0, 0, 0, 0,  1,  1,  1,  1,  2,  2,  2,  2,  3,  3,  3,  3,  4,  4,  4,  4,   5,   5,   5,   5,   0]
+		let length_bits = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0]
 		let length_base = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258]
 
 		# 30 extra distance bits:
-		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,   6,   7,   7,   8,   8,   9,    9,    10,   10,   11,   11,   12,   12,    13,    13]
+		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13]
 		let dist_base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
 
 		for action in actions:
@@ -522,10 +521,10 @@ pub class DeflateDecoder:
 		# By using either custom or fixed huffman tree.
 
 		# 29 extra length bits:
-		let length_bits = [0, 0, 0, 0, 0, 0, 0, 0,  1,  1,  1,  1,  2,  2,  2,  2,  3,  3,  3,  3,  4,  4,  4,  4,   5,   5,   5,   5,   0]
+		let length_bits = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0]
 		let length_base = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258]
 		# 30 extra distance bits:
-		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,   6,   7,   7,   8,   8,   9,    9,    10,   10,   11,   11,   12,   12,    13,    13]
+		let dist_bits = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13]
 		let dist_base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
 		loop:
 			var symbol = decode_symbol(tree: pair.first, bit_reader: m_bit_reader)

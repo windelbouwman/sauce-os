@@ -1,5 +1,4 @@
-"""
-X86 instruction set
+"""X86 instruction set
 
 Calling conventions 64 bit / system V ABI
 
@@ -21,9 +20,9 @@ from outstream import BinaryOutput, DataItem
 
 let R_X86_64_NONE: int = 0
 let R_X86_64_64: int = 1  # S + A
-let R_X86_64_PC32: int = 2 # S + A - P
-let R_X86_64_GOT32: int = 3 # G + A
-let R_X86_64_PLT32: int = 4 # L + A - P
+let R_X86_64_PC32: int = 2  # S + A - P
+let R_X86_64_GOT32: int = 3  # G + A
+let R_X86_64_PLT32: int = 4  # L + A - P
 let R_X86_64_GOTPCREL: int = 9  # G + GOT + A - P
 let R_X86_64_32: int = 10  # S + A
 let R_X86_64_16: int = 12  # S + A
@@ -363,7 +362,7 @@ fn write_rex_byte(out: BinaryOutput, reg: int):
 	if reg < 0:
 		panic("reg < 0")
 	# let r = (reg >> 3) << 2
-	out.write_byte(0x48) # rex prefix
+	out.write_byte(0x48)  # rex prefix
 
 fn write_sse_mode_prefix(mode: SseMode, out: BinaryOutput):
 	let prefix = case mode:

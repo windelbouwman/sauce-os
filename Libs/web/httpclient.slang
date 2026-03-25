@@ -19,7 +19,7 @@ pub fn post(url: str):
 
 class HttpClient:
 	""" HTTP client """
-	var s: int = 0 # socket handle
+	var s: int = 0  # socket handle
 
 	fn connect():
 		unimplemented("connect")

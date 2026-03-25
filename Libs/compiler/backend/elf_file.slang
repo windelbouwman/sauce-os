@@ -1,6 +1,4 @@
-"""
-ELF file format
-"""
+"""ELF file format"""
 
 import std
 from listtype import List
@@ -36,7 +34,7 @@ let STT_COMMON: int = 5
 let STT_TLS: int = 6
 
 pub fn write_elf(filename: str, object: Object):
-	""" Write ELF file."""
+	"""Write ELF file."""
 	log_info("Writing elf file: {filename}")
 	let handle = std.file_open(filename, mode: "wb")
 	let writer = ElfWriter(handle)
@@ -48,7 +46,7 @@ pub fn write_elf(filename: str, object: Object):
 	let sh_null = writer.new_section(name: "")
 	# TODO: write eventual program headers here
 
-	let symbol_map: HashMap[str, int] = new_hashmap_str()  # Map name -> symbol table index
+	let symbol_map: HashMap[str,int] = new_hashmap_str()  # Map name -> symbol table index
 	let symbols: List[Symbol] = List()  # Sorted, first come the local symbols
 	fill_symbols(writer, object, symbols, symbol_map)
 	for section in object.sections:
@@ -60,8 +58,8 @@ pub fn write_elf(filename: str, object: Object):
 	writer.write_header()
 	std.file_close(handle)
 
-fn fill_symbols(writer: ElfWriter, object: Object, symbols: List[Symbol], symbol_map: HashMap[str, int]):
-	""" Fill symbol index map """
+fn fill_symbols(writer: ElfWriter, object: Object, symbols: List[Symbol], symbol_map: HashMap[str,int]):
+	"""Fill symbol index map"""
 	for symbol in object.symbols:
 		if not is_global_symbol(symbol):
 			symbols.append(symbol)
@@ -79,7 +77,7 @@ fn fill_symbols(writer: ElfWriter, object: Object, symbols: List[Symbol], symbol
 			symbol_map.insert(key: symbol.name, value: index)
 		index += 1
 
-fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str, int]):
+fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str,int]):
 	"""Write a single section"""
 	log_info("Writing section {section.name} of {section.data.len()} bytes")
 	let sh_text = writer.new_section(name: section.name)
@@ -99,7 +97,7 @@ fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str, i
 		let sh_rela = writer.new_section(name: ".rela.{section.name}")
 		sh_rela.sh_type = SHT_RELA
 		sh_rela.sh_flags = SHF_INFO_LINK
-		sh_rela.sh_link = 999 # To be filled later
+		sh_rela.sh_link = 999  # To be filled later
 		sh_rela.sh_info = writer.get_section_index(name: section.name)
 		sh_rela.sh_entsize = 12 if writer.is_32bit else 24
 		sh_rela.sh_offset = writer.tell()
@@ -109,7 +107,7 @@ fn write_section(writer: ElfWriter, section: Section, symbol_map: HashMap[str, i
 			let sym = symbol_map.get(key: reloc.symbol)
 			let rte = RelaTableEntry:
 				r_offset: reloc.offset
-				r_info: ((sym << 8) | reloc.typ) if writer.is_32bit else ((sym << 32) | reloc.typ)
+				r_info: ((sym << 8) | reloc.typ) if writer.is_32bit else((sym << 32) | reloc.typ)
 				r_addend: reloc.addend
 			writer.write_rela_entry(rte)
 		sh_rela.sh_size = writer.tell() - sh_rela.sh_offset
@@ -183,7 +181,7 @@ pub fn read_elf(filename: str):
 	let reader = ElfReader(handle)
 	try:
 		let header = reader.read_header()
-	except (err : str):
+	except (err: str):
 		log_error("Error reading ELF file: {err}")
 	std.file_close(handle)
 
@@ -290,19 +288,19 @@ class ElfReader:
 			is_big_endian = true
 		else:
 			raise "Invalid EI_DATA"
-		let e_type = read16() # 0-2
-		let e_machine = read16() # 2-4
-		let e_version = read32() # 4-8
-		let e_entry = read64() # 8-16
-		let e_phoff = read64() # 16-24
-		let e_shoff = read64() # 24-32
-		let e_flags = read32() # 32-36
-		let e_ehsize = read16() # 36-38
-		let e_phentsize = read16() # 38-40
-		let e_phnum = read16() # 40-42
-		let e_shentsize = read16() # 42-44
-		let e_shnum = read16() # 44-46
-		let e_shstrndx = read16() # 46-48
+		let e_type = read16()  # 0-2
+		let e_machine = read16()  # 2-4
+		let e_version = read32()  # 4-8
+		let e_entry = read64()  # 8-16
+		let e_phoff = read64()  # 16-24
+		let e_shoff = read64()  # 24-32
+		let e_flags = read32()  # 32-36
+		let e_ehsize = read16()  # 36-38
+		let e_phentsize = read16()  # 38-40
+		let e_phnum = read16()  # 40-42
+		let e_shentsize = read16()  # 42-44
+		let e_shnum = read16()  # 44-46
+		let e_shstrndx = read16()  # 46-48
 		ElfHeader:
 			e_type
 			e_machine
@@ -336,7 +334,7 @@ class ElfWriter:
 	pub var m_header: ElfHeader = new_64bit_header()
 	pub var sh_string_table: StringTable = StringTable()
 	pub var section_headers: List[SectionHeader] = List()
-	var section_ids: HashMap[str, int] = new_hashmap_str()
+	var section_ids: HashMap[str,int] = new_hashmap_str()
 	pub var symbol_table: List[SymbolTableEntry] = List()
 	pub var strtab: StringTable = StringTable()
 	var out: ByteArray = ByteArray()
@@ -348,7 +346,7 @@ class ElfWriter:
 		elif bits == 32:
 			is_32bit = true
 			# TODO: move elsewhere
-			m_header.e_machine = 0xf3 # riscv
+			m_header.e_machine = 0xf3  # riscv
 			m_header.e_ehsize = 0x34
 		else:
 			panic("Invalid bit size: {bits}")
@@ -378,7 +376,7 @@ class ElfWriter:
 		section_ids.get(key: name)
 
 	pub fn write_section_data(sh: SectionHeader, data: Bytes):
-		""" Write data, recording offset and size """
+		"""Write data, recording offset and size"""
 		sh.sh_offset = tell()
 		write_bytes(data)
 		sh.sh_size = tell() - sh.sh_offset
@@ -390,9 +388,9 @@ class ElfWriter:
 		# EI_DATA 1 = little endian, 2 = big endian
 		let ei_data = 2 if is_big_endian else 1
 		write8(ei_class)  # EI_CLASS 1 = 32 bit, 2 = 64 bit
-		write8(ei_data) # EI_DATA 1 = little endian, 2 = big endian
-		write8(1) # EI_VERSION 1 = ELF version
-		write8(0) # EI_OSABI, 0=system-V, 3 = linux
+		write8(ei_data)  # EI_DATA 1 = little endian, 2 = big endian
+		write8(1)  # EI_VERSION 1 = ELF version
+		write8(0)  # EI_OSABI, 0=system-V, 3 = linux
 		write_array([0, 0, 0, 0, 0, 0, 0, 0], size: 8)  # EI_PAD
 
 		let e_version = 1

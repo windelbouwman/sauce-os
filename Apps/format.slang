@@ -1,5 +1,4 @@
-"""
-Code formatter.
+"""Code formatter.
 
 Strategy: use the lexer to create tokens, and edit this token stream.
 """
@@ -19,41 +18,66 @@ pub fn main() -> int:
 	let arguments = parse_arguments()
 	set_log_level(level: 1)
 
-	if arguments.sources.is_empty():
+	if arguments.show_help:
 		print_help()
 		return 0
 
+	if arguments.sources.is_empty():
+		print_help()
+		return 0
+	let status = Status(untouched_files: 0, formatted_files: 0)
 	for source_path in arguments.sources:
-		format_source(source_path, arguments)
-	0
+		format_source(source_path, arguments, status)
+
+	if arguments.check:
+		if status.formatted_files > 0:
+			print("Would need to format {status.formatted_files} files")
+			1
+		else:
+			print("All {status.untouched_files} files are well formatted!")
+			0
+	else:
+		print("Did not touch {status.untouched_files} files")
+		0
 
 struct Arguments:
+	show_help: bool
 	check: bool
 	inplace: bool
 	sources: List[Path]
 
+struct Status:
+	untouched_files: int
+	formatted_files: int
+
 fn parse_arguments() -> Arguments:
-	""" Process command line arguments """
+	"""Process command line arguments"""
 	let n = std.get_n_args()
 	let sources: List[Path] = List()
-	var check = true
+	var show_help = false
+	var check = false
 	var inplace = false
 	var i = 0
 	while i < n:
 		let arg = std.get_arg(arg: i)
 		if arg == "-i" or arg == "--in-place":
 			inplace = true
+		elif arg == "--check":
+			check = true
+		elif arg == "-h" or arg == "--help":
+			show_help = true
 		else:
 			let path = new_path(filename: arg)
 			sources.append(path)
 		i += 1
 	Arguments:
+		show_help
 		check
 		inplace
 		sources
 
-fn format_source(source_path: Path, arguments: Arguments):
-	""" Format a single source file """
+fn format_source(source_path: Path, arguments: Arguments, status: Status):
+	"""Format a single source file"""
 	log_debug("formatting {source_path} ...")
 	let tokens: List[Token] = List()
 	try:
@@ -68,12 +92,14 @@ fn format_source(source_path: Path, arguments: Arguments):
 	let formatted_lines = out.get_lines()
 	if xdiff(a: original_lines, b: formatted_lines) == 0:
 		log_info("No formatting required for {source_path}")
+		status.untouched_files += 1
 	else:
 		if arguments.inplace:
 			log_info("Writing formatted lines to {source_path}")
 			source_path.write_lines(formatted_lines)
 		else:
 			log_info("Would re-format {source_path}")
+		status.formatted_files += 1
 
 fn xdiff(a: List[str], b: List[str]) -> int:
 	var n_diffs = 0
@@ -108,15 +134,18 @@ fn read_tokens(path: Path, tokens: List[Token]) except str:
 fn spitout(tokens: List[Token], out: Gen):
 	var in_string = false
 	var bracket_depth = 0
+	var parenthesis_depth = 0
+	var was_end_expr = false
+	var in_type = false
 	for token in tokens:
 		case token.kind:
 			Identifier(id): out.separated(id)
 
 			KwAnd: out.spaced("and")
-			KwBreak: out.tight("break")
+			KwBreak: out.text("break")
 			KwCase: out.spaced("case")
 			KwClass: out.separated("class")
-			KwContinue: out.tight("continue")
+			KwContinue: out.text("continue")
 			KwElse: out.separated("else")
 			KwElif: out.spaced("elif")
 			KwEnum: out.spaced("enum")
@@ -133,7 +162,10 @@ fn spitout(tokens: List[Token], out: Gen):
 			KwLet: out.spaced("let")
 			KwLoop: out.separated("loop")
 			KwMacro: out.separated("macro")
-			KwNot: out.spaced("not")
+			KwNot:
+				out.separator()
+				out.text("not")
+				out.space()
 			KwOr: out.spaced("or")
 			KwPass: out.separated("pass")
 			KwPub: out.separated("pub")
@@ -154,40 +186,48 @@ fn spitout(tokens: List[Token], out: Gen):
 			Integer(value, raw_text): out.separated(raw_text)
 			Char(value): out.separated("'{value}'")
 			EscapedChar(value, mode, raw_text):
-				out.separated(raw_text if in_string else "'{raw_text}'")
+				if in_string:
+					out.text(raw_text)
+				else:
+					out.separated("'{raw_text}'")
 			Bool(value): out.separated("true" if value else "false")
 
 			StringStart:
-				out.pre_separated("\"")
+				out.separator()
+				out.text("\"")
 				in_string = true
-			StringContent(value): out.tight(value)
+			StringContent(value): out.text(value)
 			StringEnd:
 				in_string = false
-				out.post_separated("\"")
+				out.text("\"")
+				out.separator()
 			DocString(lines): format_docstring(out, lines)
 
 			Colon:
-				if bracket_depth == 0:
-					out.post_spaced(":")
-				else:
-					out.spaced(":")
-			Comma: out.post_spaced(",")
-			Dot: out.tight(".")
+				if bracket_depth > 0:
+					out.space()
+				out.text(":")
+				out.space()
+			Comma:
+				out.text(",")
+				if not (in_type and bracket_depth > 0):
+					out.space()
+			Dot: out.text(".")
 			Arrow: out.spaced("->")
-			Question: out.tight("?")
-			ParenthesisOpen: out.tight("(")
-			ParenthesisClose: out.tight(")")
-			BracketOpen:
-				out.tight("[")
-				bracket_depth += 1
-			BracketClose:
-				out.tight("]")
-				bracket_depth -= 1
-			BraceOpen: out.tight("\{")
-			BraceClose: out.tight("}")
+			Question: out.text("?")
+			ParenthesisOpen: out.text("(")
+			ParenthesisClose: out.text(")")
+			BracketOpen: out.text("[")
+			BracketClose: out.text("]")
+			BraceOpen: out.text("\{")
+			BraceClose: out.text("}")
 
 			Plus: out.spaced("+")
-			Minus: out.spaced("-")
+			Minus:
+				if was_end_expr:
+					out.spaced("-")
+				else:
+					out.text("-")
 			Slash: out.spaced("/")
 			Percent: out.spaced("%")
 			Asterix: out.spaced("*")
@@ -226,23 +266,74 @@ fn spitout(tokens: List[Token], out: Gen):
 				pass
 			Error(message):
 				panic("Error: {message}")
+
+		# Determine if the token could be left hand side of binary expression
+		case token.kind:
+			Identifier(x):
+				was_end_expr = true
+			ParenthesisClose:
+				was_end_expr = true
+			Float(value, raw_text):
+				was_end_expr = true
+			Integer(value, raw_text):
+				was_end_expr = true
+		else:
+			was_end_expr = false
+
+		# Determine bracket depths
+		case token.kind:
+			KwFn:
+				in_type = true
+			KwStruct:
+				in_type = true
+			KwEnum:
+				in_type = true
+			KwClass:
+				in_type = true
+			ParenthesisOpen:
+				parenthesis_depth += 1
+			ParenthesisClose:
+				parenthesis_depth -= 1
+			BracketOpen:
+				bracket_depth += 1
+			BracketClose:
+				bracket_depth -= 1
+			Colon:
+				in_type = true
+			Comma:
+				if bracket_depth == 0:
+					in_type = false
+			Equals:
+				in_type = false
+			Arrow:
+				in_type = true
+			NewLine:
+				in_type = false
+				bracket_depth = 0
+				parenthesis_depth = 0
+		else:
+			pass
+
 	out.flush()
 
 fn format_docstring(out: Gen, lines: List[str]):
 	let triple = "\"\"\""
 	let n = lines.len()
 	if n == 1:
-		out.tight(triple + lines.get(index: 0) + triple)
+		out.text(triple + lines.get(index: 0) + triple)
 	elif n > 1:
 		var i = 0
 		for line in lines:
 			if i == 0:
-				out.append(triple + line)
+				out.text(triple + line)
 			elif i == n - 1:
-				out.emit(line + triple)
+				out.raw_line(line)
+				out.text(triple)
 			else:
 				out.raw_line(line)
 			i += 1
+	else:
+		out.text(triple + " " + triple)
 
 class Gen:
 	var m_lines: List[str] = List()
@@ -251,36 +342,26 @@ class Gen:
 	var m_need_space: bool = false
 	var m_needs_separator: bool = false
 
-	pub fn separated(text?: str):
+	pub fn separated(txt?: str):
+		separator()
+		text(txt)
+		separator()
+
+	pub fn spaced(txt?: str):
+		space()
+		text(txt)
+		space()
+
+	pub fn text(txt?: str):
+		append(txt)
+
+	pub fn separator():
 		if m_needs_separator:
 			m_need_space = true
-		append(text)
 		m_needs_separator = true
 
-	pub fn pre_separated(text?: str):
-		if m_needs_separator:
-			m_need_space = true
-		append(text)
-		m_needs_separator = false
-
-	pub fn post_separated(text?: str):
-		append(text)
-		m_needs_separator = true
-
-	pub fn spaced(text?: str):
+	pub fn space():
 		m_need_space = true
-		append(text)
-		m_need_space = true
-		m_needs_separator = false
-
-	pub fn post_spaced(text?: str):
-		append(text)
-		m_need_space = true
-		m_needs_separator = false
-
-	pub fn tight(text?: str):
-		append(text)
-		m_needs_separator = false
 
 	pub fn indent():
 		m_indentation += 1
@@ -297,7 +378,7 @@ class Gen:
 		if std.str_len(text: m_line) > 0:
 			newline()
 
-	pub fn append(text?: str):
+	fn append(text?: str):
 		let at_bol = (std.str_len(text: m_line) == 0)
 		if at_bol and (m_indentation > 0):
 			emit(str_repeat(text: "\t", count: m_indentation))
@@ -305,6 +386,7 @@ class Gen:
 			m_need_space = false
 			emit(" ")
 		emit(text)
+		m_needs_separator = false
 
 	pub fn emit(text?: str):
 		m_line = m_line + text
@@ -316,11 +398,14 @@ class Gen:
 		m_needs_separator = false
 
 	pub fn get_lines() -> List[str]:
-		""" Retrieve formatted lines """
+		"""Retrieve formatted lines"""
 		m_lines
 
 fn print_help():
 	print("Code formatter")
 	print("")
 	print("Usage:")
-	print("format source-code-file")
+	print("$ format.exe [--check] [--in-place] file1.slang file2.slang ..")
+	print("    -h --help       : Show this message")
+	print("    --check         : check the formatting, to not apply")
+	print("    -i --in-place   : Write formatted file")

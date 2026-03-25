@@ -1,4 +1,4 @@
-""" Register allocation
+"""Register allocation
 
 This function is machine independant.
 It assigns colors to use / def registers.
@@ -19,7 +19,7 @@ import sil
 import mil
 
 pub fn reg_alloc[C,V](report: Report, backend: Backend[C,V], mfunc: mil.Function[V], frame: Frame):
-	""" Implement iterated register allocation """
+	"""Implement iterated register allocation"""
 	log_debug("Reg-alloc {mfunc.name}")
 	let r: RegisterAllocator[C,V] = RegisterAllocator:
 		m_regs_by_class: backend.all_regs
@@ -29,7 +29,7 @@ pub fn reg_alloc[C,V](report: Report, backend: Backend[C,V], mfunc: mil.Function
 	r.alloc(mfunc)
 
 class RegisterAllocator[C,V]:
-	""" Perform graph coloring
+	"""Perform graph coloring
 	Take out nodes that can be colored
 	When the graph is empty, place the nodes back in reverse order,
 	and assign them a color
@@ -98,7 +98,7 @@ class RegisterAllocator[C,V]:
 				m_simplify_worklist.push(m)
 
 	fn spill(mfunc: mil.Function[V]):
-		""" Spill nodes with too many edges into memory locations. """
+		"""Spill nodes with too many edges into memory locations."""
 		m_spill_rounds += 1
 		let max_spill_rounds = 2
 		if m_spill_rounds > max_spill_rounds:
@@ -114,11 +114,10 @@ class RegisterAllocator[C,V]:
 		mil.dump_mfunc(report: m_report, mfunc, to_str: m_backend.to_str)
 
 	fn rewrite_program(mfunc: mil.Function[V], register: mil.Register):
-		""" Introduce load before each use and store each definition
-		"""
+		"""Introduce load before each use and store each definition"""
 		m_report.writeln("Spilling {mil.vr_to_str(register)} to stack slot")
 		# Create stack slot:
-		let address = sil.Address.StackSlot(0) # TODO: determine proper address
+		let address = sil.Address.StackSlot(0)  # TODO: determine proper address
 		m_frame.stacksize += 8  # Grow a bit of stack size
 		let context: SelectionContext[V] = SelectionContext(frame: m_frame)
 		# TODO: not only spill i64 / f64
@@ -149,7 +148,7 @@ class RegisterAllocator[C,V]:
 				block.instructions = new_instructions
 
 	fn assign_colors():
-		""" Assign colors """
+		"""Assign colors"""
 		let all_regs_by_kind: Vector[SmallBitSet] = new_vector_with_capacity(capacity: m_regs_by_class.len())
 		for regs in m_regs_by_class:
 			let all_regs = new_small_bitset()
@@ -192,10 +191,10 @@ class RegisterAllocator[C,V]:
 		x
 
 	fn q(B: int, C: int) -> int:
-		""" Number of registers from class B that can be block by a register in class C. """
+		"""Number of registers from class B that can be block by a register in class C."""
 		# TODO: here we can support register aliasing
 		if B == C:
-			1 # register in same class, so we block 1 other register.
+			1  # register in same class, so we block 1 other register.
 		else:
 			0
 

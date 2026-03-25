@@ -1,12 +1,11 @@
-""" Game engine functions.
-"""
+"""Game engine functions."""
 from utils import unimplemented, assert
 from math import sin, cos, tan, radians
 from vectype import Vector, new_vector
 from screen import Screen
 
 pub class Engine:
-	""" 3D engine! """
+	"""3D engine!"""
 	var m_screen: Screen
 	var m_projection: Mat = new_mat4()
 
@@ -40,7 +39,7 @@ pub fn new_mat(rows: int, cols: int) -> Mat:
 	var m = [rows : [float]]
 	var row = 0
 	while row < rows:
-		m[row] = [cols: float]
+		m[row] = [cols : float]
 		var col = 0
 		while col < cols:
 			m[row][col] = 0.0
@@ -49,7 +48,7 @@ pub fn new_mat(rows: int, cols: int) -> Mat:
 	Mat(rows, cols, m)
 
 pub fn matrix_multiply(a: Mat, b: Mat, out: Mat):
-	""" Matrix multiplication A*B """
+	"""Matrix multiplication A*B"""
 	assert(condition: a.rows == out.rows, message: "Shape mismatch 1")
 	assert(condition: a.cols == b.rows, message: "Shape mismatch 2")
 	assert(condition: b.cols == out.cols, message: "Shape mismatch 3")
@@ -78,7 +77,7 @@ pub fn matrix_vec_multiply(mat: Mat, vec: Vertex) -> Vertex:
 	out
 
 pub fn rotx(theta: float) -> Mat:
-	""" Rotation matrix around the x axis. """
+	"""Rotation matrix around the x axis."""
 	let out = new_mat4()
 	let c = cos(theta)
 	let s = sin(theta)
@@ -90,7 +89,7 @@ pub fn rotx(theta: float) -> Mat:
 	out
 
 pub fn roty(theta: float) -> Mat:
-	""" Rotation matrix around the y axis. """
+	"""Rotation matrix around the y axis."""
 	let out = new_mat4()
 	let c = cos(theta)
 	let s = sin(theta)
@@ -102,7 +101,7 @@ pub fn roty(theta: float) -> Mat:
 	out
 
 pub fn rotz(theta: float) -> Mat:
-	""" Rotation matrix around the z axis. """
+	"""Rotation matrix around the z axis."""
 	let out = new_mat4()
 	let c = cos(theta)
 	let s = sin(theta)

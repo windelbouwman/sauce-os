@@ -1,5 +1,4 @@
-"""X86 backend
-"""
+"""X86 backend"""
 
 from utils import unimplemented, panic
 from logging import log_info
@@ -52,7 +51,7 @@ let xmm15: int = 15
 pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 	log_info("Generating x86 instructions")
 	let all_integer_regs: Vector[int] = new_vector()
-	all_integer_regs.append(rax) # Skip rax since it's special purposes
+	all_integer_regs.append(rax)  # Skip rax since it's special purposes
 	all_integer_regs.append(rcx)
 	all_integer_regs.append(rdx)
 	all_integer_regs.append(rbx)
@@ -93,7 +92,7 @@ pub fn gen_x86(program: sil.Program, options: CodegenOptions):
 	let ctx = X86Ctx:
 		parameter_regs_i64: vec4(rdi, rsi, rdx, rcx)
 		parameter_regs_f64: vec8(xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7)
-		clobber_regs: vec5(rax, rcx, rdx, rdi, rsi) #, r8, r9, r10, r11)
+		clobber_regs: vec5(rax, rcx, rdx, rdi, rsi)  #, r8, r9, r10, r11)
 		# let clobber_regs2: List[int] = list5(rax, rcx, rdx, rdi, rsi) #, r8, r9, r10, r11)
 
 	let backend: Backend[X86Ctx,VirtInst] = Backend:
@@ -243,7 +242,7 @@ fn enter_function(ctx: X86Ctx, context: SelectionContext[VirtInst], function: si
 				let rm = VirtRm.StackSlot(offset)
 				let load_ins = context.emit_and_get(VirtInst.RegRm(mode: x86.BitMode.R64(), op: x86.Op.Mov(), reg, rm))
 				load_ins.add_def(reg)
-				offset += 8 # TODO: not all values are size 8.
+				offset += 8  # TODO: not all values are size 8.
 		elif reg.kind == 1:
 			if index_f64 < ctx.parameter_regs_f64.len():
 				let nr = ctx.parameter_regs_f64.get(index: index_f64)
@@ -277,7 +276,7 @@ fn gen_epilogue(frame: Frame, out: BinaryOutput):
 	emit(x86.Instruction.Ret(), out)
 
 fn stack_round_up16(value?: int, taken: int) -> int:
-	""" Given the fact that we already took 'taken' bytes, round value to a multiple of 16 bytes. """
+	"""Given the fact that we already took 'taken' bytes, round value to a multiple of 16 bytes."""
 	let remainder = (value + taken) % 16
 	if remainder > 0:
 		value + 16 - remainder
@@ -285,7 +284,7 @@ fn stack_round_up16(value?: int, taken: int) -> int:
 		value
 
 fn select_instruction(ctx: X86Ctx, context: SelectionContext[VirtInst], instruction: sil.Instruction):
-	""" Select machine instruction based on sil operator """
+	"""Select machine instruction based on sil operator"""
 	case instruction.op:
 		Const(dst, value):
 			let dst_reg = context.get_value_vreg(dst)
@@ -494,7 +493,7 @@ fn select_instruction(ctx: X86Ctx, context: SelectionContext[VirtInst], instruct
 						let convention_reg = context.get_pre_colored(color: rax, kind: 0)
 						call_ins.add_def(convention_reg)
 						move(context, mode, dst: ret_reg, src: convention_reg)
-					elif ret_reg.kind == 1: # f64
+					elif ret_reg.kind == 1:  # f64
 						let mode = get_float_mode(dst_value.ty)
 						let convention_reg = context.get_pre_colored(color: xmm0, kind: 1)
 						call_ins.add_def(convention_reg)
@@ -737,7 +736,7 @@ fn get_float_mode(ty?: sil.Type) -> x86.SseMode:
 		I8: panic("Invalid float type i8")
 
 fn add_rm_uses(minst?: mil.Instruction[VirtInst], rm: VirtRm):
-	""" Add use information for RM mode """
+	"""Add use information for RM mode"""
 	case rm:
 		RegDisp(reg, offset):
 			minst.add_use(reg)
@@ -775,7 +774,7 @@ fn load_addr(context: SelectionContext[VirtInst], address: sil.Address) -> VirtR
 			VirtRm.RegDisp(reg: base_reg, offset: 0)
 
 fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtInst], out: BinaryOutput):
-	""" Apply selected registers, and emit selected instruction to output stream. """
+	"""Apply selected registers, and emit selected instruction to output stream."""
 	case minst.instruction:
 		Entry:
 			pass
@@ -907,7 +906,7 @@ fn mat_reg(reg: mil.Register) -> int:
 	reg.color
 
 fn mat_rm(rm: VirtRm) -> x86.Rm:
-	""" Materialize a Rm """
+	"""Materialize a Rm"""
 	case rm:
 		Reg(reg):
 			x86.Rm.Reg(reg: mat_reg(reg))

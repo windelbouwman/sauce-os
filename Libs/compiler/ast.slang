@@ -30,7 +30,7 @@ fn node_id_hash(a?: NodeId) -> int:
 	str_hash(a.name) * 7919 + a.id
 
 pub struct DocString:
-	""" A docstring (like this one 8-)) """
+	"""A docstring (like this one 8-))"""
 	lines: List[str]
 
 # TODO: implement type-defs!
@@ -817,12 +817,12 @@ pub fn make_typectx() -> TypeContext:
 	ctx
 
 pub class TypeContext:
-	""" Global type context with all types. """
+	"""Global type context with all types."""
 	var table: Vector[Type] = new_vector()
 	var m_undefined: Type = new_type(kind: TypeKind.Undefined())
 	var m_void: Type = void_type2()
 	var m_bool: Type = new_base_type(base: BaseType.Bool())
-	var m_int: Type = int64_type() # TODO: or 32 bit, whatever the target is.
+	var m_int: Type = int64_type()  # TODO: or 32 bit, whatever the target is.
 	var m_str: Type = new_base_type(base: BaseType.Str())
 	var m_opaque: Type = new_type(kind: TypeKind.Opaque())
 	var m_float: Type = float64_type()
@@ -844,7 +844,7 @@ pub class TypeContext:
 		m_undefined
 
 	pub fn opaque_type() -> Type:
-		""" Opaque type, void* """
+		"""Opaque type, void*"""
 		m_opaque
 
 	pub fn void_type() -> Type:
@@ -1057,7 +1057,7 @@ pub class Symbol:
 	var references: List[Location] = List()
 
 	pub fn add_reference(location: Location):
-		""" Register a reference this symbol """
+		"""Register a reference this symbol"""
 		references.append(location)
 
 	pub fn get_references() -> int:
@@ -1436,7 +1436,7 @@ pub class Statement:
 		statement_to_string(statement: this)
 
 	pub fn is_breakable() -> bool:
-		""" Can we use break / continue within this statement? """
+		"""Can we use break / continue within this statement?"""
 		case kind:
 			While(x):
 				true
@@ -1448,7 +1448,7 @@ pub class Statement:
 			false
 
 	pub fn last_is_expr() -> bool:
-		""" Determine if the last statement is an expression """
+		"""Determine if the last statement is an expression"""
 		case kind:
 			Expr(e):
 				true
@@ -1629,7 +1629,7 @@ pub class Expression:
 		expression_to_string(this)
 
 	pub fn is_this() -> bool:
-		""" Check if the expression is a reference to the 'this' parameter """
+		"""Check if the expression is a reference to the 'this' parameter"""
 		case kind:
 			ParameterRef(parameter):
 				parameter.id.name == "this"
@@ -1730,7 +1730,7 @@ pub fn parameter_ref(parameter_def: ParameterDef, location: Location) -> Express
 	Expression(kind: ExpressionKind.ParameterRef(parameter_def), ty, location)
 
 pub fn call(callee: Expression, arguments: List[LabeledExpression], ty: Type, location: Location) -> Expression:
-	""" Function call expression """
+	"""Function call expression"""
 	let c = FunctionCall(callee, arguments)
 	let kind = ExpressionKind.Call(c)
 	Expression(kind, ty, location)
@@ -2324,7 +2324,7 @@ pub fn visit_expression[T](visitor: Visitor[T], expression: Expression):
 		Binop(v):
 			visit_expression(visitor, expression: v.lhs)
 			visit_expression(visitor, expression: v.rhs)
-		Unop(op,value):
+		Unop(op, value):
 			visit_expression(visitor, expression: value)
 		FunctionRef(function_def, type_arguments):
 			for type_argument in type_arguments:

@@ -1,5 +1,4 @@
-"""
-Available transformations:
+"""Available transformations:
  - Turn for-loops into while-loops
  - Turn classes into structs with functions
  - Turn enums into tagged unions
@@ -646,13 +645,13 @@ enum EnumImpl:
 	Struct(struct_def: ast.StructDef)
 
 class InterfaceImpl2:
-	""" Interface implementation details """
+	"""Interface implementation details"""
 	pub var struct_def: ast.StructDef
 	var vtable_map: HashMap[str,ast.Variable] = new_hashmap_str()
 	var invoker_map: HashMap[str,ast.FunctionDef] = new_hashmap_str()
 
 	pub fn get_impl_vtable(ty: ast.Type) -> ast.Variable:
-		""" Get vtable for given type. """
+		"""Get vtable for given type."""
 		let key = ty.to_string()
 		vtable_map.get(key)
 
@@ -867,9 +866,9 @@ class ClassRewriter:
 				panic("only functions expected, not {ast.definition_to_str(definition)}")
 
 	fn create_invoker_helper(this_ty: ast.Type, function_def: ast.FunctionDef) -> ast.FunctionDef:
-		""" Create a function that takes a vtable/data pair, which calls the proper function. """
+		"""Create a function that takes a vtable/data pair, which calls the proper function."""
 		let location = function_def.location
-		let type_parameters: List[ast.TypeParameter] = List() # TODO
+		let type_parameters: List[ast.TypeParameter] = List()  # TODO
 		let parameters: List[ast.ParameterDef] = List()
 		# let this_param = ast.parameter_def:
 		# 	name: "this"
@@ -917,7 +916,7 @@ class ClassRewriter:
 		invoker_function_def
 
 	pub fn rewrite_impl_def(impl_def: ast.ImplDef):
-		""" Create a global variable initialized with a vtable.
+		"""Create a global variable initialized with a vtable.
 
 		Move implementing function to toplevel
 		"""
@@ -957,7 +956,7 @@ class ClassRewriter:
 	fn create_impl_wrapper_func(method: ast.FunctionDef) -> ast.FunctionDef:
 		# Introduce a wrapper function to unbox the this parameter into the right type.
 		let location = method.location
-		let type_parameters: List[ast.TypeParameter] = List() # TODO
+		let type_parameters: List[ast.TypeParameter] = List()  # TODO
 		let parameters: List[ast.ParameterDef] = List()
 		let arguments: List[ast.LabeledExpression] = List()
 		let this_param: ast.ParameterDef = ast.parameter_def:
@@ -1006,7 +1005,7 @@ class ClassRewriter:
 		wrapper_function
 
 	pub fn rewrite_cast_to_interface(value: ast.Expression, ty: ast.Type) -> ast.Expression:
-		""" Turn cast to interface into struct literal with data + vtable """
+		"""Turn cast to interface into struct literal with data + vtable"""
 		let interface_def = ty.get_interface_def()
 		let impl2 = interface_impl2_map.get(key: interface_def.id)
 		let type_arguments2: Vector[ast.Type] = new_vector()
@@ -1018,7 +1017,7 @@ class ClassRewriter:
 		ast.struct_literal(ty: iface_type, values, location: value.location)
 
 	pub fn transform_for_loop(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
-		""" Turn for loop into iterator and while loop """
+		"""Turn for loop into iterator and while loop"""
 		log_debug("Rewrite for loop")
 
 		if for_statement.iter_value.ty.is_array():
@@ -1295,7 +1294,7 @@ class ClassRewriter:
 			enum_impl_map.insert(key: enum_def.id, value: EnumImpl.Struct(struct_def))
 
 	pub fn transform_case(case_statement: ast.CaseStatement) -> ast.Statement:
-		""" Transform case statement into switch case over tag values. """
+		"""Transform case statement into switch case over tag values."""
 		let location = case_statement.value.location
 		let enum_def = case_statement.value.ty.get_enum_def()
 		case get_enum_impl(id: enum_def.id):

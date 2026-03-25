@@ -1,5 +1,4 @@
-""" Recursive descent slang-lang parser.
-"""
+"""Recursive descent slang-lang parser."""
 import ast
 import std
 from lexer import Lexer
@@ -265,7 +264,7 @@ class Parser:
 		ast.struct_def(is_pub, name: name_at.name, id: new_id(), docstring, type_parameters, fields, location: name_at.location)
 
 	fn parse_class_def(is_pub: bool) -> ast.ClassDef except ParseError:
-		""" Parse a class definition. """
+		"""Parse a class definition."""
 		let name_at = parse_name()
 		log_debug("Parsing class: {name_at.name}")
 		let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
@@ -321,7 +320,7 @@ class Parser:
 		class_def
 
 	fn parse_interface_def(is_pub: bool) -> ast.InterfaceDef except ParseError:
-		""" Parse an interface definition. """
+		"""Parse an interface definition."""
 		let name_at = parse_name()
 		log_debug("Parsing interface: {name_at.name}")
 		let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
@@ -560,7 +559,7 @@ class Parser:
 		ast.QualName(location, parts)
 
 	fn parse_type_application(name: ast.QualName) -> ast.Type except ParseError:
-		""" Parse type application """
+		"""Parse type application"""
 		let tycon = ast.TyCon.NameRef(name)
 		let type_arguments: Vector[ast.Type] = new_vector()
 		loop:
@@ -578,7 +577,7 @@ class Parser:
 		ast.new_type(kind: ast.TypeKind.App(tycon, type_arguments))
 
 	fn parse_function_type() -> ast.Type except ParseError:
-		""" Parse function signature. """
+		"""Parse function signature."""
 		# '('
 		parse_parenthesis_open()
 
@@ -613,7 +612,7 @@ class Parser:
 		ast.function_type(parameter_types, info)
 
 	fn parse_array_type() -> ast.Type except ParseError:
-		""" Parse array type """
+		"""Parse array type"""
 		let element_type = parse_type()
 		let tok = get_token()
 		case tok.kind:
@@ -624,7 +623,7 @@ class Parser:
 		ast.array_type(element_type, size: 0)
 
 	fn parse_block() -> ast.Statement except ParseError:
-		""" parse block of statements. """
+		"""parse block of statements."""
 		log_trace("parsing block")
 
 		parse_colon()
@@ -739,7 +738,7 @@ class Parser:
 		ast.let_statement(variable, type_hint, value, location)
 
 	fn parse_big_expression() -> ast.Expression except ParseError:
-		""" A potentially big multi-line expression occurring at the end of the line. """
+		"""A potentially big multi-line expression occurring at the end of the line."""
 		case m_peek.kind:
 			KwIf:
 				ast.statement_expression(statement: parse_if_statement())
@@ -1123,7 +1122,7 @@ class Parser:
 		expr
 
 	fn parse_raw_string() -> str except ParseError:
-		""" Parse string without interpolation """
+		"""Parse string without interpolation"""
 		var tok = get_token()
 		case tok.kind:
 			StringStart:
@@ -1148,7 +1147,7 @@ class Parser:
 		text
 
 	fn parse_string(location: Location) -> ast.Expression except ParseError:
-		""" Parse possibly interpolated string. """
+		"""Parse possibly interpolated string."""
 		# Gather parts
 		let parts: List[ast.Expression] = List()
 		loop:

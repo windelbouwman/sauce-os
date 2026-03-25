@@ -87,7 +87,7 @@ fn days_from_civil(ymd: Civil) -> int:
 	let doy = (153 * x + 2) / 5 + d - 1
 
 	# Day of era [0, 146096]:
-	let doe = yoe * 365 + yoe / 4 - yoe/100 + doy
+	let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
 	era * 146097 + doe - 719468
 
 fn civil_from_days(z: int) -> Civil:
@@ -98,7 +98,7 @@ fn civil_from_days(z: int) -> Civil:
 	let doe = z - era * 146097
 
 	# Year of era [0, 399]
-	let yoe = (doe - doe/1460 + doe /36524 - doe/146096) / 365
+	let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
 	var year = yoe + era * 400
 
 	# Day of year [0, 365]:

@@ -1,5 +1,5 @@
 
-""" Calculate md5sum from given file."""
+"""Calculate md5sum from given file."""
 
 import std
 from crypto import md5, sha256

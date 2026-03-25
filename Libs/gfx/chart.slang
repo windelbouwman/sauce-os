@@ -57,7 +57,7 @@ pub class Chart:
 			Option.Some(rect)
 
 	pub fn autoscale():
-		""" adjust axis to view all data! """
+		"""adjust axis to view all data!"""
 		log_info("Autoscale")
 		case get_data_bounds():
 			None:
@@ -69,7 +69,7 @@ pub class Chart:
 				m_y_axis.upper = span.y_max
 
 	pub fn autoscale_x():
-		""" Adjust x-axis to fit all data """
+		"""Adjust x-axis to fit all data"""
 		log_info("Autoscale-x")
 		case get_data_bounds():
 			None:
@@ -79,7 +79,7 @@ pub class Chart:
 				m_x_axis.upper = span.x_max
 
 	pub fn autoscale_y():
-		""" Adjust y-axis to fit all data """
+		"""Adjust y-axis to fit all data"""
 		log_info("Autoscale-y")
 		case get_data_bounds():
 			None:

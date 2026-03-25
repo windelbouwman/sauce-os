@@ -15,14 +15,14 @@ pub fn main() -> int:
 			print("Inner raise 2 = {ex3}!")
 		y = foo(x: true)
 		print("y2 = {y}")
-	except(err_val: str):
+	except (err_val: str):
 		print("ERROR: {err_val}")
 
 	# Demo a return from within a try statement:
 	try:
 		return_in_try()
 		raise "fooo"
-	except(err: str):
+	except (err: str):
 		print("main handler: {err}")
 
 	# Demo a break inside a loop:
@@ -30,20 +30,20 @@ pub fn main() -> int:
 		loop:
 			try:
 				break
-			except(err: str):
+			except (err: str):
 				print("loop handler: {err}")
 		raise "Moi"
-	except(err2: str):
+	except (err2: str):
 		print("non-loop handler: {err2}")
 
 	# Demo exception in an exception handler
 	try:
 		try:
 			raise 1337
-		except(err4: int):
+		except (err4: int):
 			raise "Oh my: {err4}"
 
-	except(err3: str):
+	except (err3: str):
 		print("outer handler: {err3}")
 
 	0
@@ -64,5 +64,5 @@ fn may_bork(do_bork: bool) -> int except str:
 fn return_in_try():
 	try:
 		return
-	except(err: str):
+	except (err: str):
 		print("return_in_try handler: {err}")

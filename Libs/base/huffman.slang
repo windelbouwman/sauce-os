@@ -1,13 +1,11 @@
-"""
-Procedures related to Huffman coding.
-"""
+"""Procedures related to Huffman coding."""
 
 from utils import panic
 from hashmap import HashMap, new_hashmap_int
 from bytes import ByteReader, ByteArray, Bytes
 
 pub fn decode_symbol(tree: Tree, bit_reader: BitReader) -> int:
-	""" Decode a value with the given Huffman tree """
+	"""Decode a value with the given Huffman tree"""
 	var len = 1
 	var code = 0
 	var index = 0

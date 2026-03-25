@@ -1,5 +1,4 @@
-""" Interference graph.
-"""
+"""Interference graph."""
 
 from logging import log_debug
 from hashmap import HashMap, new_hashmap_int, new_hashmap_str
@@ -58,7 +57,7 @@ fn new_ig_for_vregs(vregs: Vector[mil.Register]) -> InterferenceGraph:
 	InterferenceGraph(m_nodes, m_adj)
 
 pub fn create_interference_graph[V](mfunc: mil.Function[V], vregs: Vector[mil.Register]) -> InterferenceGraph:
-	""" Create interference graph
+	"""Create interference graph
 
 	See also:
 	https://en.wikipedia.org/wiki/Live-variable_analysis
@@ -183,7 +182,7 @@ pub class InterferenceGraph:
 		m_nodes
 
 	pub fn adjecent(n?: IGNode) -> AdjecentIter:
-		""" Get a list of all non-masked neighbours """
+		"""Get a list of all non-masked neighbours"""
 		AdjecentIter(m_nodes, m_set_iter: get_adj_set(n).iter())
 
 	pub fn add_edge(a?: IGNode, b?: IGNode):
@@ -206,7 +205,7 @@ pub class InterferenceGraph:
 		m_adj.get(index: n.id)
 
 pub class IGNode:
-	""" Node in the interference graph. """
+	"""Node in the interference graph."""
 	pub var id: int
 	pub var degree: int = 0
 	pub var masked: bool = false
@@ -222,7 +221,7 @@ pub class IGNode:
 		"IGNode(degree={degree},reg=[{mil.vr_to_str(reg)}]"
 
 pub class AdjecentIter:
-	""" Dedicated iterator over adjecent nodes """
+	"""Dedicated iterator over adjecent nodes"""
 	var m_nodes: Vector[IGNode]
 	var m_set_iter: BitSetIter
 

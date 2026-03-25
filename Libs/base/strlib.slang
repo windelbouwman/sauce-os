@@ -7,7 +7,7 @@ from std import str_slice, str_len, ord, chr
 from utils import assert, panic, unimplemented
 
 pub fn split_string2(text: str, sep: str) -> List[str]:
-	""" Split string by other string """
+	"""Split string by other string"""
 	unimplemented("split_string2")
 
 pub fn split_string(text: str, sep: char) -> List[str]:
@@ -72,8 +72,11 @@ pub fn is_tab(c: char) -> bool:
 pub fn is_lf(c: char) -> bool:
 	ord(c) == 10
 
+fn is_cr(c: char) -> bool:
+	ord(c) == 13
+
 fn is_whitespace(c?: char) -> bool:
-	is_space(c) or is_lf(c) or ord(c) == 13
+	is_space(c) or is_tab(c) or is_lf(c) or is_cr(c)
 
 pub fn str_to_int(text?: str) -> int:
 	let n = str_len(text)
@@ -93,7 +96,7 @@ pub fn str_to_int(text?: str) -> int:
 		value
 
 pub fn hex_to_int(hextext: str) -> int:
-	""" Convert hex text """
+	"""Convert hex text"""
 	let n = str_len(text: hextext)
 	assert(condition: n > 0, message: "Hex string must be at least a single digit.")
 	var value = 0
@@ -102,7 +105,7 @@ pub fn hex_to_int(hextext: str) -> int:
 	value
 
 pub fn bin_to_int(bintext: str) -> int:
-	""" Convert bin text to integer value
+	"""Convert bin text to integer value
 	For example, convert 101 to 5
 	"""
 	let n = str_len(text: bintext)
@@ -113,13 +116,13 @@ pub fn bin_to_int(bintext: str) -> int:
 	value
 
 pub fn is_digit(c: char) -> bool:
-	"""  Check if a character is a digit. """
+	"""Check if a character is a digit."""
 	let o = ord(value: c)
 	(o >= 48) and (o <= 57)
 
 pub fn digit_to_int(c: char) -> int:
 	let cval = ord(c)
-	if (cval >= 48) and (cval <= 57):     # 0..9
+	if (cval >= 48) and (cval <= 57):  # 0..9
 		cval - 48
 	else:
 		panic("Invalid integer char: {c}")
@@ -127,9 +130,9 @@ pub fn digit_to_int(c: char) -> int:
 pub fn hex_digit_to_int(c: char) -> int:
 	let o = ord(c)
 
-	if (o >= 48) and (o <= 57):     # 0..9
+	if (o >= 48) and (o <= 57):  # 0..9
 		o - 48
-	elif (o >= 65) and (o <= 70):   # A..F
+	elif (o >= 65) and (o <= 70):  # A..F
 		o - 55
 	elif (o >= 97) and (o <= 102):  # a..f
 		o - 87
@@ -137,11 +140,11 @@ pub fn hex_digit_to_int(c: char) -> int:
 		panic("Invalid hex char: {c}")
 
 pub fn is_hex_digit(c: char) -> bool:
-	""" Check if a character is a hex digit. """
+	"""Check if a character is a hex digit."""
 	let o = ord(value: c)
-	if (o >= 48) and (o <= 57):     # 0..9
+	if (o >= 48) and (o <= 57):  # 0..9
 		true
-	elif (o >= 65) and (o <= 70):   # A..F
+	elif (o >= 65) and (o <= 70):  # A..F
 		true
 	elif (o >= 97) and (o <= 102):  # a..f
 		true
@@ -169,14 +172,14 @@ pub fn hex_char(value?: int) -> char:
 pub fn is_bin_digit(c: char) -> bool:
 	# Check if a character is a binary digit.
 	let o = ord(value: c)
-	if (o >= 48) and (o <= 49):     # 0..1
+	if (o >= 48) and (o <= 49):  # 0..1
 		true
 	else:
 		false
 
 pub fn bin_digit_to_int(c: char) -> int:
 	let cval = ord(c)
-	if (cval >= 48) and (cval <= 49):     # 0..1
+	if (cval >= 48) and (cval <= 49):  # 0..1
 		cval - 48
 	else:
 		panic("Invalid binary char: {c}")

@@ -1,10 +1,9 @@
-""" Transform BC into SIL
+"""Transform BC into SIL
 
 Features of this pass:
 
 - Compile structured types into pointers with load/store operations
 - Implement multiply and divide by either physical instructions or a function call to a library
-
 """
 
 from std import ord, print
@@ -20,7 +19,7 @@ import vm
 import sil
 
 pub struct SilGenOptions:
-	""" Target specific options """
+	"""Target specific options"""
 	has_div: bool
 	has_mul: bool
 	has_fpu: bool
@@ -33,7 +32,7 @@ pub fn to_sil(program: bc.Program, bits: int) -> sil.Program:
 	g.gen_program()
 
 struct StructLayout:
-	""" Information how a structure is mapped into memory """
+	"""Information how a structure is mapped into memory"""
 	size: int  # Size of entire struct
 	alignment: int
 	fields: Vector[StructField]
@@ -678,7 +677,7 @@ class SilGen:
 			function.name
 
 	fn gen_load(address: TypedAddress):
-		""" Load value from address """
+		"""Load value from address"""
 		let value = new_tmp(ty: get_sil_type(ty: address.ty))
 		emit(sil.OpCode.Load(dst: value, address: address.address))
 		push(value, ty: address.ty)
@@ -687,7 +686,7 @@ class SilGen:
 		emit(sil.OpCode.Store(address: address.address, value: value.value))
 
 	fn gen_element_address(base: TypedValue, index: TypedValue) -> TypedAddress:
-		""" base + index * sizeof """
+		"""base + index * sizeof"""
 		let element_ty = case base.ty:
 			Array(element_ty):
 				element_ty
@@ -752,7 +751,7 @@ class SilGen:
 		call_rt_function(name, ty, arguments)
 
 	fn call_rt_function(name: str, ty: bc.Type, arguments: Vector[sil.Value]):
-		""" Invoke runtime helper function """
+		"""Invoke runtime helper function"""
 		let callee = sil.Address.Global(name, mutable: false)
 		let value = new_tmp(ty: get_sil_type(ty))
 		emit(sil.OpCode.Call(Option.Some(value), callee, arguments))
@@ -849,19 +848,19 @@ class SilGen:
 				panic("Cannot emit")
 
 fn pack_f64(value: float64) -> Bytes:
-	""" Place 64 bits float into 8 bytes """
+	"""Place 64 bits float into 8 bytes"""
 	let ba = ByteArray()
 	ba.pack_f64_le(value)
 	ba.to_bytes()
 
 fn pack_f32(value: float32) -> Bytes:
-	""" Place 32 bits float into 4 bytes """
+	"""Place 32 bits float into 4 bytes"""
 	let ba = ByteArray()
 	ba.pack_f32_le(value)
 	ba.to_bytes()
 
 fn pack_i64(value: int) -> Bytes:
-	""" Place 64 bits integer into 8 bytes """
+	"""Place 64 bits integer into 8 bytes"""
 	let ba = ByteArray()
 	ba.pack_u64_le(value)
 	ba.to_bytes()

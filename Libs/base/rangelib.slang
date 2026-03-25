@@ -4,7 +4,7 @@
 pub struct Range:
 	# Range [begin, end)
 	begin: int  # inclusive
-	end: int    # exclusive
+	end: int  # exclusive
 
 pub fn ranges_overlap(self: Range, other: Range) -> bool:
 	return (self.begin <= other.end) and (other.begin <= self.end)

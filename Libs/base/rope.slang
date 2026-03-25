@@ -1,5 +1,4 @@
-"""
-Rope data type for modifiable text.
+"""Rope data type for modifiable text.
 
 Idea is to store text in a binary tree. Each node has
 extra meta-data. Leaf nodes contain the actual characters of
@@ -21,7 +20,7 @@ pub class RopeText:
 		to_text(node: m_root)
 
 	pub fn insert(pos: int, text: str):
-		""" Insert text at the given position """
+		"""Insert text at the given position"""
 		let new_rope = new_leaf_node(text)
 		if pos < m_root.size:
 			let pair = split_node(node: m_root, pos)
@@ -31,7 +30,7 @@ pub class RopeText:
 			m_root = merge_nodes(left: m_root, right: new_rope)
 
 	pub fn delete(pos: int, size: int):
-		""" Delete some text """
+		"""Delete some text"""
 		if pos < m_root.size:
 			if size > 0:
 				let pair1 = split_node(node: m_root, pos)

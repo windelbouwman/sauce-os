@@ -1,8 +1,6 @@
-"""
-DWARF debug info.
+"""DWARF debug info.
 
 See also: www.dwarfstd.org
-
 """
 
 from logging import log_info
@@ -41,7 +39,7 @@ let DW_CHILDREN_no: int = 0x0
 let DW_CHILDREN_yes: int = 0x1
 
 pub fn gen_debug_info(info: DbgInfo, out: BinaryOutput, emit_data: fn(DataItem, BinaryOutput)):
-	""" Generate DWARF debug info into binary output. """
+	"""Generate DWARF debug info into binary output."""
 	log_info("Creating debug info")
 
 	let writer = DwarfWriter(m_out: out)
@@ -100,14 +98,14 @@ class DwarfWriter:
 			emit_data(DataItem.AbsPointer64(sub_program.begin), m_out)
 			emit_data(DataItem.AbsPointer64(sub_program.end), m_out)
 			# TODO: local variables
-		write_byte(0) # End children
+		write_byte(0)  # End children
 
 		let tmp2 = ByteArray()
 		tmp2.pack_u32_le(m_out.get_offset() - 4)
 		m_out.write_bytes_at(data: tmp2.to_bytes(), offset: 0)
 
 	pub fn write_abbrevs(abbrevs: List[Abbrev]):
-		""" Write abbreviations to .debug_abbrev section """
+		"""Write abbreviations to .debug_abbrev section"""
 		m_out.select_section(name: ".debug_abbrev")
 		for abbrev in abbrevs:
 			write_abbrev(abbrev)
@@ -142,7 +140,7 @@ class DwarfWriter:
 		m_out.write_bytes(data: tmp.to_bytes())
 
 	fn uleb128(value?: int):
-		""" Encode as unsigend LEB128 in output """
+		"""Encode as unsigend LEB128 in output"""
 		loop:
 			var b = value & 0x7F
 			value = value >> 7

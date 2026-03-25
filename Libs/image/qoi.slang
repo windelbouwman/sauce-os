@@ -68,7 +68,7 @@ class QoiReader:
 		while (m_y * m_width + m_x) < m_width * m_height:
 			let tag8 = read_byte()
 			switch tag8:
-				0b11111110:   # QOI_OP_RGB
+				0b11111110:  # QOI_OP_RGB
 					# TODO: support many unpack: r, g, b = read(3)
 					pixel.red = read_byte()
 					pixel.green = read_byte()
@@ -88,7 +88,7 @@ class QoiReader:
 						let index = tag8 & 0x3F
 						let pixel2: Pixel = m_array[index]
 						put_pixel(pixel: pixel2)
-					0b01: # QOI_OP_DIFF
+					0b01:  # QOI_OP_DIFF
 						dr = ((tag8 >> 4) & 3) - 2
 						dg = ((tag8 >> 2) & 3) - 2
 						db = (tag8 & 3) - 2
@@ -160,7 +160,7 @@ class QoiWriter:
 			var x = 0
 			while x < image.width:
 				image.get_pixel(x, y, pixel)
-				write_byte(0b11111110) # QOI_OP_RGB
+				write_byte(0b11111110)  # QOI_OP_RGB
 				write_byte(pixel.red)
 				write_byte(pixel.green)
 				write_byte(pixel.blue)

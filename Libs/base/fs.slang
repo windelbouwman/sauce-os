@@ -1,5 +1,4 @@
-"""
-Functionality to operate on files and folders.
+"""Functionality to operate on files and folders.
 
 TODO: merge with pathlib?
 """
@@ -30,7 +29,7 @@ pub class Path:
 		split_lines(text: read_text())
 
 	pub fn write_lines(lines?: List[str]):
-		""" Write text lines to this path """
+		"""Write text lines to this path"""
 		let handle = std.file_open(filename, mode: "w")
 		for line in lines:
 			std.file_writeln(handle, line)

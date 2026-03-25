@@ -252,7 +252,7 @@ pub fn run_bytecode(program: Program, entry_function: str):
 		vm.step()
 
 pub fn eval_code(vm: VirtualMachine, code: Vector[Instruction]) -> Value:
-	""" Evaluate a bytecode expression """
+	"""Evaluate a bytecode expression"""
 	let top_frame = Frame(code: new_vector())
 	vm.push_frame(frame: top_frame)
 
@@ -414,9 +414,9 @@ pub class VirtualMachine:
 				let f = int(value)
 				push(Value.Int(f))
 			IntCast(signed, bits):
-				pass # No-op?
+				pass  # No-op?
 			FloatCast(bits):
-				pass # No-op?
+				pass  # No-op?
 			FromOpaque(ty):
 				pass  # VM values are all opaque
 			ToOpaque(ty):

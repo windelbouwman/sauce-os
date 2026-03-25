@@ -7,7 +7,7 @@ from vectype import Vector, new_vector
 from strlib import hex_char, hex_digit_to_int, is_hex_digit, is_space
 
 pub class Bytes:
-	""" Immutable bytes """
+	"""Immutable bytes"""
 	var m_bytes: [uint8]
 	var m_size: int
 
@@ -119,7 +119,7 @@ pub class ByteReader:
 		(b4 << 24) | (b3 << 16) | (b2 << 8) | b1
 
 pub class ByteArray:
-	""" Mutable bytes """
+	"""Mutable bytes"""
 	var m_bytes: [uint8] = [16 : uint8]
 	var m_size: int = 0
 	var m_capacity: int = 16

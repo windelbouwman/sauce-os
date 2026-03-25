@@ -1,6 +1,4 @@
-"""
-
-WebAssembly backend
+"""WebAssembly backend
 ===================
 
 Generate WebAssembly from AST.
@@ -96,9 +94,9 @@ class WasmGenerator:
 	fn add_builtin():
 		let params: List[webassembly.ValueType] = List()
 		let results: List[webassembly.ValueType] = List()
-		params.append(webassembly.ValueType.Ref(webassembly.nullable_ref_type(webassembly.HeapType.TypeIdx(array_i16_type)))) # array
-		params.append(webassembly.ValueType.Num(webassembly.NumType.i32())) # start
-		params.append(webassembly.ValueType.Num(webassembly.NumType.i32())) # end
+		params.append(webassembly.ValueType.Ref(webassembly.nullable_ref_type(webassembly.HeapType.TypeIdx(array_i16_type))))  # array
+		params.append(webassembly.ValueType.Num(webassembly.NumType.i32()))  # start
+		params.append(webassembly.ValueType.Num(webassembly.NumType.i32()))  # end
 		results.append(webassembly.ValueType.Ref(ty: webassembly.ref_extern_type()))
 
 		let type_id = inject_type(webassembly.CompType.Func(params, results))
@@ -442,9 +440,9 @@ class WasmGenerator:
 		gen_statement(try_statement.try_block.body, target: Option.None())
 		emit(Instruction.ctrl_end())  # end of try-table
 		leave_block()
-		emit(Instruction.ctrl_br(1)) # Jump to end of outer, in case of no exception
+		emit(Instruction.ctrl_br(1))  # Jump to end of outer, in case of no exception
 
-		emit(Instruction.ctrl_end()) # handler-end
+		emit(Instruction.ctrl_end())  # handler-end
 		leave_block()
 
 		# Store exception in variable
@@ -454,7 +452,7 @@ class WasmGenerator:
 
 		gen_statement(try_statement.except_block.body, target: Option.None())
 
-		emit(Instruction.ctrl_end()) # outer-end
+		emit(Instruction.ctrl_end())  # outer-end
 		leave_block()
 
 	fn gen_assignment(target: ast.Expression, op: Option[ast.BinaryOperator], value: ast.Expression):
@@ -567,7 +565,7 @@ class WasmGenerator:
 			panic("Unsupported += type: {ty}")
 
 	fn gen_condition(expression?: ast.Expression):
-		""" Generate condition, keeping track of short circuit logic. """
+		"""Generate condition, keeping track of short circuit logic."""
 		case expression.kind:
 			Binop(binop):
 				case binop.op:
@@ -952,7 +950,7 @@ class WasmGenerator:
 					if from_bits == 64:
 						emit(Instruction.f32_demote_f64())
 					else:
-						pass # 32 to 32
+						pass  # 32 to 32
 			else:
 				panic("TODO: cast {from_type} to float")
 		elif to_type.is_int():
@@ -961,14 +959,14 @@ class WasmGenerator:
 				let from_bits = from_type.get_bits()
 				if to_bits == 64:
 					if from_bits == 64:
-						pass # 64 to 64
+						pass  # 64 to 64
 					else:
 						emit(Instruction.i64_extend_i32_s())
 				else:
 					if from_bits == 64:
 						emit(Instruction.i32_wrap_i64())
 					else:
-						pass # 32 to 32
+						pass  # 32 to 32
 			elif from_type.is_float():
 				let from_bits = from_type.get_bits()
 				if to_bits == 64:
