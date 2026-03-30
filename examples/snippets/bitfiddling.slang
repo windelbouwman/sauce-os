@@ -1,4 +1,6 @@
+module main
 """Try various bit fiddle operations."""
+
 from std import print
 
 pub fn main() -> int:

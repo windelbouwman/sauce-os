@@ -1,4 +1,4 @@
-
+module std
 # Header file for std runtime module
 
 extern "slangrt" fn ord(value?: char) -> int

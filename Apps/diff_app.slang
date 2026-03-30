@@ -1,3 +1,4 @@
+module main
 """Print differences between text files."""
 
 from std import print, read_file, get_n_args, get_arg

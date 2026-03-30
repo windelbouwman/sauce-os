@@ -1,5 +1,6 @@
+module base.integersetlib
+"""Implementation of range-set"""
 
-# Implementation of range-set
 from listtype import List
 from optiontype import option_is_some, option_unwrap, Option
 from rangelib import Range, range_contains, range_to_string

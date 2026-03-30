@@ -1,7 +1,8 @@
+module main
 
 from std import print
-from unittest import assert_int_equals, assert_true, assert_false
-from heapq import PriorityQueue, new_priority_queue_with_capacity
+from base.unittest import assert_int_equals, assert_true, assert_false
+from base.heapq import PriorityQueue, new_priority_queue_with_capacity
 
 fn cmp(a: int, b: int) -> bool:
 	a < b

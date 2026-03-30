@@ -1,3 +1,4 @@
+module main
 """Snake implemented in slang"""
 
 from std import print

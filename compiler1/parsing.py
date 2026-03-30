@@ -1,7 +1,6 @@
 """Parser code."""
 
 import logging
-import os
 
 # try lark as parser
 from lark import Lark, Transformer as LarkTransformer
@@ -23,19 +22,14 @@ def parse_file(id_context: ast.IdContext, filename: str) -> ast.Module:
         with open(filename, "r") as f:
             code = f.read()
     logger.info(f"Parsing {filename}")
-    modname = os.path.splitext(os.path.basename(filename))[0]
-    # TODO: clean modname of more special characters
-    modname = modname.replace("-", "_")
-    return parse_source(id_context, code, modname, filename)
+    return parse_source(id_context, code, filename)
 
 
-def parse_source(
-    id_context: ast.IdContext, code: str, modname: str, filename: str
-) -> ast.Module:
+def parse_source(id_context: ast.IdContext, code: str, filename: str) -> ast.Module:
     """Parse the given code."""
     logger.debug("Starting parse")
     try:
-        module: ast.Module = lark_it(id_context, modname, code, "module")
+        module: ast.Module = lark_it(id_context, code, "module")
     except ParseError as ex:
         raise CompilationError([(filename, ex.location, ex.message)])
 
@@ -46,7 +40,7 @@ def parse_source(
     return module
 
 
-def lark_it(id_context: ast.IdContext, modname: str, code, start):
+def lark_it(id_context: ast.IdContext, code, start):
     """Invoke the lark parsing."""
     try:
         tree = lark_parser.parse(code, start=start)
@@ -56,7 +50,7 @@ def lark_it(id_context: ast.IdContext, modname: str, code, start):
         )
 
     try:
-        return CustomTransformer(id_context, modname).transform(tree)
+        return CustomTransformer(id_context).transform(tree)
     except VisitError as ex:
         if isinstance(ex.orig_exc, ParseError):
             raise ex.orig_exc
@@ -143,19 +137,23 @@ def binop(lhs: ast.Expression, op: str, rhs: ast.Expression) -> ast.Expression:
 
 
 class CustomTransformer(LarkTransformer):
-    def __init__(self, id_context, modname):
+    def __init__(self, id_context):
         super().__init__()
         self.id_context = id_context
-        self._modname = modname
 
     def new_id(self, name: str) -> ast.Id:
         return self.id_context.new_id(name)
 
     def module(self, x):
-        id = self.id_context.new_id(self._modname)
-        docstring, imports, definitions, eof = x
+        modname, docstring, imports, definitions, eof = x
+        id = self.id_context.new_id(modname)
         span = get_span(Location.default(), get_loc(eof))
         return ast.Module(id, docstring, imports, definitions, span)
+
+    def module_decl(self, x):
+        _location, modname = x[1].names[-1]
+        self._modname = modname
+        return modname
 
     def eval_expr(self, x):
         return x[0]
@@ -168,9 +166,9 @@ class CustomTransformer(LarkTransformer):
         return ast.Import(modname, get_loc(x[1]))
 
     def import2(self, x):
-        modname = x[1].value
+        location, modname = x[1].names[-1]  # take last item from qual name for now.
         names = x[3]
-        return ast.ImportFrom(modname, names, get_loc(x[1]))
+        return ast.ImportFrom(modname, names, location)
 
     def definitions(self, x):
         return x
@@ -887,12 +885,13 @@ def is_terminal(x, term_type: str) -> bool:
 
 
 grammar = r"""
-module: docstring imports definitions EOF
+module: module_decl docstring imports definitions EOF
+module_decl: KW_MODULE qual_name NEWLINE
 eval_expr: expression NEWLINE EOF
 
 imports: (import1|import2)*
 import1: KW_IMPORT ID NEWLINE
-import2: KW_FROM ID KW_IMPORT ids NEWLINE
+import2: KW_FROM qual_name KW_IMPORT ids NEWLINE
 
 definitions: definition*
 definition: func_def
@@ -1053,7 +1052,7 @@ labeled_expression: test
 
 %declare KW_AND KW_BREAK KW_CASE KW_CLASS KW_CONTINUE
 %declare KW_ELIF KW_ELSE KW_ENUM KW_PUB
-%declare KW_FN KW_FOR KW_FROM KW_IF KW_IMPORT KW_IN
+%declare KW_FN KW_FOR KW_FROM KW_IF KW_IMPORT KW_IN KW_MODULE
 %declare KW_LET KW_LOOP KW_NOT KW_OR KW_PASS
 %declare KW_RETURN KW_STRUCT KW_UNION KW_SWITCH KW_TYPE KW_VAR KW_WHILE
 %declare KW_RAISE KW_TRY KW_EXCEPT KW_EXTERN

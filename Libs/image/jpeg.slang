@@ -1,3 +1,4 @@
+module image.jpeg
 """JPEG handling.
 
 See also: https://www.w3.org/Graphics/JPEG/itu-t81.pdf

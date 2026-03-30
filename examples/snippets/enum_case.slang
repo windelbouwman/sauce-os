@@ -1,3 +1,4 @@
+module main
 
 from std import print
 import std

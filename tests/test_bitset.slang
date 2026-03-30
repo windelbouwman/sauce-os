@@ -1,7 +1,8 @@
+module main
 
 from std import print
-from bitset import BitSet, new_bitset
-from unittest import assert_int_equals, assert_true, assert_false
+from base.bitset import BitSet, new_bitset
+from base.unittest import assert_int_equals, assert_true, assert_false
 
 pub fn main() -> int:
 	test_set_and_clear()

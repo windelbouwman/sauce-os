@@ -1,5 +1,5 @@
-
-# Unit tests for strlib
+module main
+"""Unit tests for strlib"""
 
 from std import print, float_to_str2
 from strlib import trim, str_to_int, hex_to_int, bin_to_int, find_char, is_digit

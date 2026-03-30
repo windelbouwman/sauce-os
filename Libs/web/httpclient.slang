@@ -1,3 +1,4 @@
+module web.httpclient
 
 from utils import unimplemented, assert
 from logging import log_info, log_debug

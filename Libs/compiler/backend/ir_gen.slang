@@ -1,4 +1,5 @@
-# generate bytecode
+module compiler.ir_gen
+"""generate bytecode"""
 
 import ast
 from listtype import List
@@ -15,8 +16,8 @@ import bc
 pub fn gen_bytecode(module_set: ast.ModuleSet, debug: Option[dbginfo.DbgInfo]) -> bc.Program:
 	let g = BytecodeGenerator(m_debug: debug)
 	g.forward_declarations(module_set)
-	for module in module_set.modules:
-		g.gen_prog(module)
+	for module_def in module_set.modules:
+		g.gen_prog(module_def)
 	bc.Program(functions: g.functions, structs: g.structs, globals: g.global_variables, extern_functions: g.extern_functions)
 
 pub fn gen_expression_bytecode(expression: ast.Expression) -> Vector[Instruction]:
@@ -64,8 +65,8 @@ class BytecodeGenerator:
 	pub fn forward_declarations(module_set: ast.ModuleSet):
 		# struct forward declarations:
 		var index = 0
-		for module in module_set.modules:
-			for definition in module.definitions:
+		for module_def in module_set.modules:
+			for definition in module_def.definitions:
 				case definition:
 					Struct(struct_def):
 						struct_mapping.insert(key: struct_def.id, value: index)
@@ -74,8 +75,8 @@ class BytecodeGenerator:
 					pass
 
 		# Extern function forward delcarations:
-		for module in module_set.modules:
-			for definition in module.definitions:
+		for module_def in module_set.modules:
+			for definition in module_def.definitions:
 				case definition:
 					Struct(struct_def):
 						assert(condition: not struct_def.is_union, message: "Unions not supported in bytecode.")
@@ -97,8 +98,8 @@ class BytecodeGenerator:
 					pass
 
 		var func_index = extern_functions.len()
-		for module in module_set.modules:
-			for definition in module.definitions:
+		for module_def in module_set.modules:
+			for definition in module_def.definitions:
 				case definition:
 					Function(function_def):
 						case function_def.body:
@@ -107,7 +108,7 @@ class BytecodeGenerator:
 								func_index += 1
 								case m_debug:
 									Some(info):
-										case module.filename:
+										case module_def.filename:
 											Some(filename2):
 												info.add_function(name: function_def.name, filename: filename2, location: function_def.location)
 											None:
@@ -121,9 +122,9 @@ class BytecodeGenerator:
 				else:
 					pass
 
-	pub fn gen_prog(module: ast.ModuleDef):
-		log_info("Generating bytecode for {module.name}")
-		for definition in module.definitions:
+	pub fn gen_prog(module_def: ast.ModuleDef):
+		log_info("Generating bytecode for {module_def.name}")
+		for definition in module_def.definitions:
 			case definition:
 				Function(function_def):
 					gen_func(function_def)

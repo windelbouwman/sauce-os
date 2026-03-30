@@ -1,5 +1,5 @@
-
-# Data types for bytes
+module base.bytes
+"""Data types for bytes"""
 
 from std import ord, chr, pack_f64, pack_f32
 from utils import assert, panic

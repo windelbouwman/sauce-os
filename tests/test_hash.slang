@@ -1,7 +1,8 @@
+module main
 
 from std import print
-from unittest import assert_int_equals
-from hashlib import elf_hash
+from base.unittest import assert_int_equals
+from base.hashlib import elf_hash
 
 pub fn main() -> int:
 	test_hash_examples()

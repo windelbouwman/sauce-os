@@ -1,4 +1,4 @@
-
+module main
 """Test interference graph."""
 
 from std import print

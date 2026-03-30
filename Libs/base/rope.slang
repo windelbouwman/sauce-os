@@ -1,3 +1,4 @@
+module base.rope
 """Rope data type for modifiable text.
 
 Idea is to store text in a binary tree. Each node has

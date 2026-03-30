@@ -1,15 +1,15 @@
-
+module compiler.typedb
 """Functions to serialize type definitions to JSON."""
 
-from utils import unimplemented, panic
-from logging import log_info, log_debug, log_trace
-from listtype import List
-from optiontype import Option, option_is_some
-from vectype import Vector, new_vector, new_vector_with_capacity
-from hashmap import HashMap
-from pathlib import basename
-from json import JsonBuilder, JsonException, write_json_to_file, read_json_from_file
-from json import JsonValue, JsonBrowser
+from base.utils import unimplemented, panic
+from base.logging import log_info, log_debug, log_trace
+from base.listtype import List
+from base.optiontype import Option, option_is_some
+from base.vectype import Vector, new_vector, new_vector_with_capacity
+from base.hashmap import HashMap
+from base.pathlib import basename
+from base.json import JsonBuilder, JsonException, write_json_to_file, read_json_from_file
+from base.json import JsonValue, JsonBrowser
 from location import location_default
 import ast
 
@@ -37,24 +37,24 @@ class SymbolSaver:
 		m_ser.add_text_attribute(attr: "compiler-version", text: "2024")
 		m_ser.add_text_attribute(attr: "libname", text: m_libname)
 		m_ser.begin_array()
-		for module in module_set.modules:
-			if option_is_some(module.filename):
-				log_info("Saving meta-info for module: {module.name}")
-				save_module(module)
+		for module_def in module_set.modules:
+			if option_is_some(module_def.filename):
+				log_info("Saving meta-info for module: {module_def.name}")
+				save_module(module_def)
 			else:
-				log_debug("Skip saving meta-info for module: {module.name}")
+				log_debug("Skip saving meta-info for module: {module_def.name}")
 		m_ser.end_array_as_attribute(attr: "modules")
 		m_ser.end_object()
 
-	fn save_module(module: ast.ModuleDef):
+	fn save_module(module_def: ast.ModuleDef):
 		m_ser.begin_object()
-		m_ser.add_text_attribute(attr: "name", text: module.name)
+		m_ser.add_text_attribute(attr: "name", text: module_def.name)
 		m_ser.begin_array()
-		for imp in module.imports:
+		for imp in module_def.imports:
 			save_import(imp)
 		m_ser.end_array_as_attribute(attr: "imports")
 		m_ser.begin_array()
-		for definition in module.definitions:
+		for definition in module_def.definitions:
 			save_definition(definition)
 		m_ser.end_array_as_attribute(attr: "definitions")
 		m_ser.end_object_as_element()
@@ -93,8 +93,8 @@ class SymbolSaver:
 		log_debug("Saving {ast.definition_to_str(definition)}")
 		m_ser.begin_object()
 		case definition:
-			Module(module):
-				save_module(module)
+			Module(module_def):
+				save_module(module_def)
 			Macro(macro_def):
 				save_macro_def(macro_def)
 			Function(function_def):
@@ -382,9 +382,9 @@ class SymbolLoader:
 		let modules: List[ast.ModuleDef] = List()
 		for module_obj in m_des.get_array_attribute(attr: "modules"):
 			m_des.push_value(value: module_obj)
-			let module = load_module()
+			let module_def = load_module()
 			m_des.pop_value()
-			modules.append(module)
+			modules.append(module_def)
 
 		modules
 

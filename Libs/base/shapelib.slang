@@ -1,5 +1,5 @@
-
-# Geometry function library.
+module base.shapelib
+"""Geometry function library."""
 
 from listtype import List
 from math import abs

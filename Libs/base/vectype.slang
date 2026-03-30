@@ -1,3 +1,4 @@
+module base.vectype
 """Vector datatype.
 As opposed to the Linked List, we use an array here.
 The allocated array will be larger than the actual amount of values,

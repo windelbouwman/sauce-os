@@ -1,3 +1,4 @@
+module base.optiontype
 
 from utils import panic
 

@@ -1,25 +1,26 @@
+module compiler.typechecking
 """Type checking logic."""
 
 import ast
-from optiontype import Option, option_unwrap, option_is_none
-from listtype import List
-from vectype import Vector
-from strlib import str_join
-from settype import new_str_set
+from base.optiontype import Option, option_unwrap, option_is_none
+from base.listtype import List
+from base.vectype import Vector
+from base.strlib import str_join
+from base.settype import new_str_set
 from location import Location
 from utils import panic, assert
 from logging import log_info
 from errors import CompilationError, ErrorCollector
 
 pub fn type_check_modules(module_set: ast.ModuleSet, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
-	for module in module_set.modules:
-		type_check(module, typectx, display_warnings)
+	for module_def in module_set.modules:
+		type_check(module_def, typectx, display_warnings)
 
-pub fn type_check(module: ast.ModuleDef, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
-	log_info("Type-checking module {module.name}")
+pub fn type_check(module_def: ast.ModuleDef, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
+	log_info("Type-checking module {module_def.name}")
 	let checker = TypeChecker(m_typectx: typectx)
 	let visitor = new_type_check_visitor(checker)
-	ast.visit_module(visitor, module)
+	ast.visit_module(visitor, module_def)
 	checker.errors.render_or_raise()
 
 fn new_type_check_visitor(checker: TypeChecker) -> ast.Visitor[TypeChecker]:

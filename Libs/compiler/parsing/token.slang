@@ -1,3 +1,4 @@
+module compiler.parsing.token
 
 from location import Location, location_default
 from listtype import List
@@ -36,6 +37,7 @@ pub enum TokenKind:
 	KwLet
 	KwLoop
 	KwMacro
+	KwModule
 	KwNot
 	KwOr
 	KwPass
@@ -142,6 +144,7 @@ pub fn token_to_string(tok: Token) -> str:
 		KwLet: "LET"
 		KwLoop: "LOOP"
 		KwMacro: "MACRO"
+		KwModule: "MODULE"
 		KwNot: "NOT"
 		KwOr: "OR"
 		KwPass: "PASS"

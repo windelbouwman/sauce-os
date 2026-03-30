@@ -1,5 +1,5 @@
-
-# A plotting example program.
+module main
+"""A plotting example program."""
 
 from logging import log_info, set_log_level
 from chart import Chart

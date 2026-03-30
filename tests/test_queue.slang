@@ -1,4 +1,4 @@
-
+module main
 
 from std import print
 from deque import Queue, new_queue_with_capacity

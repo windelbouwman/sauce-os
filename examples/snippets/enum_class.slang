@@ -1,3 +1,4 @@
+module main
 # Neat combination of classes, generics and enums
 
 from std import print

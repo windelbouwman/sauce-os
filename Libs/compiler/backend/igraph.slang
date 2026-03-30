@@ -1,3 +1,4 @@
+module compiler.igraph
 """Interference graph."""
 
 from logging import log_debug

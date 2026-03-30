@@ -1,3 +1,4 @@
+module compiler.pygenerator
 """Generate python code from AST."""
 
 import ast
@@ -24,8 +25,8 @@ class PyGenerator:
 
 	pub fn generate(module_set: ast.ModuleSet, generate_runtime: bool):
 		emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
-		for module in module_set.modules:
-			gen_module(module)
+		for module_def in module_set.modules:
+			gen_module(module_def)
 		if generate_runtime:
 			emit("if __name__ == '__main__':")
 			indent()
@@ -33,10 +34,10 @@ class PyGenerator:
 			emit("sys.exit(main2())")
 			dedent()
 
-	pub fn gen_module(module: ast.ModuleDef):
+	pub fn gen_module(module_def: ast.ModuleDef):
 		let global_names: List[str] = List()
 
-		for definition in module.definitions:
+		for definition in module_def.definitions:
 			case definition:
 				Function(function_def):
 					case function_def.body:
@@ -60,15 +61,15 @@ class PyGenerator:
 		else:
 			global_header = ""
 
-		for definition in module.definitions:
+		for definition in module_def.definitions:
 			gen_definition(definition)
 
-		for definition in module.definitions:
+		for definition in module_def.definitions:
 			gen_definition_variables(definition)
 
 	fn gen_definition(definition: ast.Definition):
 		case definition:
-			Module(module):
+			Module(module_def):
 				panic("pygen module")
 			Macro(macro_def):
 				pass

@@ -1,7 +1,8 @@
+module main
 
-from bytes import ByteArray, bytes_from_hex_text
+from base.bytes import ByteArray, bytes_from_hex_text
 from std import print
-from unittest import assert_str_equals, assert_int_equals
+from base.unittest import assert_str_equals, assert_int_equals
 
 pub fn main() -> int:
 	test_hex_text_conversion()

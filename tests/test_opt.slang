@@ -1,3 +1,4 @@
+module main
 """Test compiler optimization pass."""
 
 from std import print

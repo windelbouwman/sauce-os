@@ -1,3 +1,4 @@
+module compiler.sil
 """SIL (slang intermediate language)
 
 An intermediate language for an abstract register based machine.

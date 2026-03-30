@@ -1,5 +1,5 @@
-
-# XML parsing routines.
+module base.xml
+"""XML parsing routines."""
 
 from std import str_len
 from text_out import TextOut, new_text_out

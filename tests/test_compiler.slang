@@ -1,8 +1,9 @@
+module main
 
 from std import print
-from utils import panic
-from unittest import assert_int_equals
-from parsing import parse_expr_from_text, ParseError
+from base.utils import panic
+from base.unittest import assert_int_equals
+from compiler.parsing import parse_expr_from_text, ParseError
 from basepass import IdGen
 import ast
 from location import get_begin, get_end

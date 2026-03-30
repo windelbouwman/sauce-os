@@ -1,6 +1,7 @@
-
-# Implement INTEL HEX format.
-# See also: https://en.wikipedia.org/wiki/Intel_HEX
+module compiler.hexfile
+"""Implement INTEL HEX format.
+See also: https://en.wikipedia.org/wiki/Intel_HEX
+"""
 
 from std import print
 from listtype import List

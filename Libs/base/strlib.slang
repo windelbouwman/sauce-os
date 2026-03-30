@@ -1,3 +1,4 @@
+module base.strlib
 
 from listtype import List
 from optiontype import Option
@@ -260,3 +261,20 @@ pub fn split_lines(text: str) -> List[str]:
 	if index > line_start:
 		lines.append(str_slice(text, begin: line_start, end: index))
 	lines
+
+pub class StringBuilder:
+	var m_parts: List[str] = List()
+	var m_size: int = 0
+
+	pub fn len() -> int:
+		m_size
+
+	pub fn push(v?: str):
+		m_parts.append(v)
+		m_size += str_len(text: v)
+
+	pub fn get() -> str:
+		let value = str_join(parts: m_parts, sep: "")
+		m_parts = List()
+		m_size = 0
+		value

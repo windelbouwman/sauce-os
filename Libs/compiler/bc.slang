@@ -1,10 +1,11 @@
+module compiler.bc
 
 from std import float_to_str
-from listtype import List
-from optiontype import Option
-from settype import Set, new_int_set
-from vectype import Vector
-from utils import panic
+from base.listtype import List
+from base.optiontype import Option
+from base.settype import Set, new_int_set
+from base.vectype import Vector
+from base.utils import panic
 from text_gen import TextGenerator
 
 pub struct Program:

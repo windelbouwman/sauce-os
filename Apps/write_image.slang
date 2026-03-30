@@ -1,3 +1,4 @@
+module main
 """Demo of saving images"""
 
 from std import get_n_args, get_arg, print

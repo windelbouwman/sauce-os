@@ -1,3 +1,4 @@
+module compiler.transforms
 """Available transformations:
  - Turn for-loops into while-loops
  - Turn classes into structs with functions
@@ -63,12 +64,12 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 	visitor.on_expression = transformer_on_expression0
 	visitor.on_node = transformer_on_node0
 
-	for module in module_set.modules:
-		ast.visit_module(visitor, module)
+	for module_def in module_set.modules:
+		ast.visit_module(visitor, module_def)
 
 		# Filter class-defs / enum-defs / interface-defs:
 		let new_defs2: List[ast.Definition] = List()
-		for def2 in module.definitions:
+		for def2 in module_def.definitions:
 			case def2:
 				Class(c):
 					pass
@@ -84,7 +85,7 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 				new_defs2.append(def2)
 
 		new_defs2.take_extend(transformer.class_rewriter.new_definitions)
-		module.definitions = new_defs2
+		module_def.definitions = new_defs2
 
 	# ast.print_ast(module)
 
@@ -159,10 +160,10 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 
 
 fn remove_union_defs(module_set: ast.ModuleSet):
-	for module in module_set.modules:
+	for module_def in module_set.modules:
 		# Filter union-defs:
 		let new_defs2: List[ast.Definition] = List()
-		for def2 in module.definitions:
+		for def2 in module_def.definitions:
 			case def2:
 				Struct(struct_def):
 					if struct_def.is_union:
@@ -172,7 +173,7 @@ fn remove_union_defs(module_set: ast.ModuleSet):
 			else:
 				new_defs2.append(def2)
 
-		module.definitions = new_defs2
+		module_def.definitions = new_defs2
 
 struct Transformer:
 	class_rewriter: ClassRewriter
@@ -593,8 +594,8 @@ fn transformer_on_node7(transformer: Transformer, node: ast.VisitNode, phase: as
 	case phase:
 		Post:
 			case node:
-				ModuleNode(module):
-					module.definitions.take_extend(transformer.class_rewriter.new_definitions)
+				ModuleNode(module_def):
+					module_def.definitions.take_extend(transformer.class_rewriter.new_definitions)
 			else:
 				pass
 	else:
@@ -604,8 +605,8 @@ fn transformer_on_node7b(transformer: Transformer, node: ast.VisitNode, phase: a
 	case phase:
 		Pre:
 			case node:
-				ModuleNode(module):
-					transformer.modname = module.name
+				ModuleNode(module_def):
+					transformer.modname = module_def.name
 			else:
 				pass
 	else:

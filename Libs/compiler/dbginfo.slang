@@ -1,3 +1,4 @@
+module compiler.dbginfo
 
 from listtype import List
 from vectype import Vector, new_vector

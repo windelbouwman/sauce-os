@@ -1,5 +1,5 @@
-
-# Idea for an assembler
+module compiler.assembler
+"""Idea for an assembler"""
 
 from std import str_len
 from utils import unimplemented

@@ -8,6 +8,8 @@ language.
 The obligatory hello world program.
 
 ```
+module main
+
 import std
 
 pub fn main() -> int:

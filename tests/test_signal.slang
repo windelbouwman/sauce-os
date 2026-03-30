@@ -1,4 +1,4 @@
-
+module main
 
 from std import print, float_to_str2
 from signal import butter

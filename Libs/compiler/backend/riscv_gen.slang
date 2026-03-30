@@ -1,3 +1,4 @@
+module compiler.riscv_gen
 """Generate riscv code
 
  Register usage convention:    (saver)

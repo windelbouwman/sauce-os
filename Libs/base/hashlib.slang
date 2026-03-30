@@ -1,3 +1,4 @@
+module base.hashlib
 
 from std import ord
 

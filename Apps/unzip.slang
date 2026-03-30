@@ -1,3 +1,4 @@
+module main
 """Unzip app"""
 
 import std

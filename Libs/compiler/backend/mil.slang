@@ -1,3 +1,4 @@
+module compiler.mil
 """Machine intermediate language.
 
 Machine instructions are selected in this representation.

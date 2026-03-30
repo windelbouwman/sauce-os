@@ -1,5 +1,5 @@
-
-# Functionality to charts and plotting.
+module gfx.chart
+"""Functionality to charts and plotting."""
 
 from std import float_to_str, float_to_str2
 from math import floor, log10, powf, fabs, fmin, fmax

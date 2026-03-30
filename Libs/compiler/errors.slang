@@ -1,3 +1,4 @@
+module compiler.errors
 
 from std import print, read_file, str_get, str_len
 from listtype import List, list1

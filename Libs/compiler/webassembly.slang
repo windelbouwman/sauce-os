@@ -1,3 +1,4 @@
+module compiler.webassembly
 """WebAssembly
 ===========
 
@@ -10,7 +11,7 @@ from bytes import Bytes, ByteArray, bytes_from_ascii
 from leb128 import pack_unsigned_leb128, pack_signed_leb128
 from text_gen import TextGenerator
 from utils import panic
-from strlib import str_join
+from strlib import str_join, hex_char
 
 pub struct Module:
 	types: List[CompType]
@@ -144,7 +145,7 @@ pub struct Tag:
 	typeidx: int
 
 pub struct Import:
-	module: str
+	modname: str
 	name: str
 	kind: ExternType
 	# ty: int  # Type ref
@@ -173,8 +174,7 @@ pub enum ExportKind:
 	Global(globalidx: int)
 
 pub struct Data:
-	offset: int
-	text: str
+	data: Bytes
 
 pub enum CatchItem:
 	Catch(tagindex: int, label: int)
@@ -379,6 +379,8 @@ pub enum Instruction:
 	struct_get(ty: int, field: int)
 	struct_set(ty: int, field: int)
 	array_new_fixed(ty: int, size: int)
+	array_new_data(ty: int, dataidx: int)
+	array_new_elem(ty: int, elemidx: int)
 	array_new_default(ty: int)
 	array_get(ty: int)
 	array_set(ty: int)
@@ -834,6 +836,16 @@ pub fn encode(writer: Writer, instruction: Instruction):
 			writer.write_u32(8)
 			writer.write_u32(ty)
 			writer.write_u32(size)
+		array_new_data(ty, dataidx):
+			writer.write_byte(0xFB)
+			writer.write_u32(9)
+			writer.write_u32(ty)
+			writer.write_u32(dataidx)
+		array_new_elem(ty, elemidx):
+			writer.write_byte(0xFB)
+			writer.write_u32(10)
+			writer.write_u32(ty)
+			writer.write_u32(elemidx)
 		array_new_default(ty):
 			writer.write_byte(0xFB)
 			writer.write_u32(7)
@@ -923,11 +935,11 @@ fn write_section(writer: Writer, id: int, data: Bytes):
 	writer.write_u32(data.len())
 	writer.write_data(data)
 
-fn create_type_section(module: Module) -> Bytes:
+fn create_type_section(wasm_module: Module) -> Bytes:
 	"""Create data for the type section"""
 	let writer = Writer()
-	writer.write_u32(module.types.len())
-	for ty in module.types:
+	writer.write_u32(wasm_module.types.len())
+	for ty in wasm_module.types:
 		case ty:
 			Struct(fields):
 				writer.write_byte(0x5F)
@@ -948,11 +960,11 @@ fn create_type_section(module: Module) -> Bytes:
 
 	writer.get_bytes()
 
-fn create_import_section(module: Module) -> Bytes:
+fn create_import_section(wasm_module: Module) -> Bytes:
 	let writer = Writer()
-	writer.write_u32(module.imports.len())
-	for imp in module.imports:
-		pack_str(writer, imp.module)
+	writer.write_u32(wasm_module.imports.len())
+	for imp in wasm_module.imports:
+		pack_str(writer, imp.modname)
 		pack_str(writer, imp.name)
 		case imp.kind:
 			Func(index):
@@ -964,17 +976,17 @@ fn create_import_section(module: Module) -> Bytes:
 				writer.write_byte(0x1 if mutable else 0x0)
 	writer.get_bytes()
 
-fn create_func_section(module: Module) -> Bytes:
+fn create_func_section(wasm_module: Module) -> Bytes:
 	let writer = Writer()
-	writer.write_u32(module.functions.len())
-	for function in module.functions:
+	writer.write_u32(wasm_module.functions.len())
+	for function in wasm_module.functions:
 		writer.write_u32(function.typeidx)
 	writer.get_bytes()
 
-fn create_global_section(module: Module) -> Bytes:
+fn create_global_section(wasm_module: Module) -> Bytes:
 	let writer = Writer()
-	writer.write_u32(module.globals.len())
-	for g in module.globals:
+	writer.write_u32(wasm_module.globals.len())
+	for g in wasm_module.globals:
 		pack_value_type(writer, g.ty)
 		writer.write_byte(0x1 if g.mutable else 0x0)
 		for instruction in g.value:
@@ -982,10 +994,10 @@ fn create_global_section(module: Module) -> Bytes:
 		writer.write_byte(0xB)  # End opcode
 	writer.get_bytes()
 
-fn write_export_section(module: Module) -> Bytes:
+fn write_export_section(wasm_module: Module) -> Bytes:
 	let writer = Writer()
-	writer.write_u32(module.exports.len())
-	for e in module.exports:
+	writer.write_u32(wasm_module.exports.len())
+	for e in wasm_module.exports:
 		pack_str(writer, e.name)
 		case e.kind:
 			Func(index):
@@ -996,10 +1008,10 @@ fn write_export_section(module: Module) -> Bytes:
 				writer.write_u32(index)
 	writer.get_bytes()
 
-fn write_code_section(module: Module) -> Bytes:
+fn write_code_section(wasm_module: Module) -> Bytes:
 	let writer = Writer()
-	writer.write_u32(module.functions.len())
-	for function in module.functions:
+	writer.write_u32(wasm_module.functions.len())
+	for function in wasm_module.functions:
 		let code = write_code(function)
 		writer.write_u32(code.len())
 		writer.write_data(code)
@@ -1017,33 +1029,50 @@ fn write_code(function: Function) -> Bytes:
 	writer.write_byte(0xB)  # Some extra end opcode, just for good measure.
 	writer.get_bytes()
 
-fn write_tag_section(module: Module) -> Bytes:
+fn write_data_section(wasm_module: Module) -> Bytes:
 	let writer = Writer()
-	writer.write_u32(module.tags.len())
-	for tag in module.tags:
+	writer.write_u32(wasm_module.datas.len())
+	for data in wasm_module.datas:
+		# Passive data:
+		writer.write_u32(1)
+		writer.write_u32(data.data.len())
+		writer.write_data(data.data)
+	writer.get_bytes()
+
+fn write_data_count_section(wasm_module: Module) -> Bytes:
+	let writer = Writer()
+	writer.write_u32(wasm_module.datas.len())
+	writer.get_bytes()
+
+fn write_tag_section(wasm_module: Module) -> Bytes:
+	let writer = Writer()
+	writer.write_u32(wasm_module.tags.len())
+	for tag in wasm_module.tags:
 		writer.write_byte(0x00)
 		writer.write_u32(tag.typeidx)
 	writer.get_bytes()
 
-pub fn to_wasm(module: Module) -> Bytes:
+pub fn to_wasm(wasm_module: Module) -> Bytes:
 	"""Create binary representation of wasm module."""
 	let writer = Writer()
 	write_header(writer)
-	write_section(writer, id: 1, data: create_type_section(module))
-	write_section(writer, id: 2, data: create_import_section(module))
-	write_section(writer, id: 3, data: create_func_section(module))
+	write_section(writer, id: 1, data: create_type_section(wasm_module))
+	write_section(writer, id: 2, data: create_import_section(wasm_module))
+	write_section(writer, id: 3, data: create_func_section(wasm_module))
 	# 4 table section
 	# 5 memory section
-	if not module.tags.is_empty():
-		write_section(writer, id: 13, data: write_tag_section(module))
-	if not module.globals.is_empty():
-		write_section(writer, id: 6, data: create_global_section(module))
-	write_section(writer, id: 7, data: write_export_section(module))
+	if not wasm_module.tags.is_empty():
+		write_section(writer, id: 13, data: write_tag_section(wasm_module))
+	if not wasm_module.globals.is_empty():
+		write_section(writer, id: 6, data: create_global_section(wasm_module))
+	write_section(writer, id: 7, data: write_export_section(wasm_module))
 	# 8 start section
 	# 9 element section
-	write_section(writer, id: 10, data: write_code_section(module))
-	# 11 data section
-	# 12 data count section
+	if not wasm_module.datas.is_empty():
+		write_section(writer, id: 12, data: write_data_count_section(wasm_module))
+	write_section(writer, id: 10, data: write_code_section(wasm_module))
+	if not wasm_module.datas.is_empty():
+		write_section(writer, id: 11, data: write_data_section(wasm_module))
 	writer.get_bytes()
 
 fn block_type_to_string(block_type: BlockType) -> str:
@@ -1255,6 +1284,8 @@ fn to_string(instruction: Instruction) -> str:
 		struct_get(ty, field): "struct.get {ty} {field}"
 		struct_set(ty, field): "struct.set {ty} {field}"
 		array_new_fixed(ty, size): "array.new_fixed {ty} {size}"
+		array_new_data(ty, dataidx): "array.new_data {ty} {dataidx}"
+		array_new_elem(ty, elemidx): "array.new_elem {ty} {elemidx}"
 		array_new_default(ty): "array.new_default {ty}"
 		array_get(ty): "array.get {ty}"
 		array_set(ty): "array.set {ty}"
@@ -1263,34 +1294,34 @@ fn to_string(instruction: Instruction) -> str:
 		extern_convert_any: "extern.convert_any"
 		any_convert_extern: "any.convert_extern"
 
-pub fn to_wat(module: Module, out: TextGenerator):
+pub fn to_wat(wasm_module: Module, out: TextGenerator):
 	"""Write webassembly module in text format (WAT)"""
 
 	out.emit("(module")
 	out.indent()
 	var type_index = 0
-	for ty in module.types:
+	for ty in wasm_module.types:
 		let type_txt = comp_type_to_string(ty)
 		out.emit("(type (;{type_index};) {type_txt})")
 		type_index += 1
 
 	var func_index = 0
 	var global_index = 0
-	for imp in module.imports:
+	for imp in wasm_module.imports:
 		case imp.kind:
 			Func(typeidx):
-				out.emit("(import \"{imp.module}\" \"{imp.name}\" (func (;{func_index};) (type {typeidx})))")
+				out.emit("(import \"{imp.modname}\" \"{imp.name}\" (func (;{func_index};) (type {typeidx})))")
 				func_index += 1
 			Global(ty, mutable):
 				let ty_text = value_type_to_string(ty)
 				let mutable_ty_text = "(mut {ty_text})" if mutable else ty_text
-				out.emit("(import \"{imp.module}\" \"{imp.name}\" (global (;{global_index};) {mutable_ty_text}))")
+				out.emit("(import \"{imp.modname}\" \"{imp.name}\" (global (;{global_index};) {mutable_ty_text}))")
 				global_index += 1
 
-	for tag in module.tags:
+	for tag in wasm_module.tags:
 		out.emit("(tag (type {tag.typeidx}))")
 
-	for g in module.globals:
+	for g in wasm_module.globals:
 		let ty_text = value_type_to_string(g.ty)
 		let mutable_ty_text = "(mut {ty_text})" if g.mutable else ty_text
 		out.emit("(global (;{global_index};) {mutable_ty_text}")
@@ -1301,14 +1332,14 @@ pub fn to_wat(module: Module, out: TextGenerator):
 		out.emit(")")
 		global_index += 1
 
-	for ex in module.exports:
+	for ex in wasm_module.exports:
 		case ex.kind:
 			Func(funcidx):
 				out.emit("(export \"{ex.name}\" (func {funcidx}))")
 			Global(globalidx):
 				out.emit("(export \"{ex.name}\" (global {globalidx}))")
 
-	for function in module.functions:
+	for function in wasm_module.functions:
 		out.emit("(func (;{func_index};) (type {function.typeidx})")
 		out.indent()
 		for local in function.locals:
@@ -1320,8 +1351,17 @@ pub fn to_wat(module: Module, out: TextGenerator):
 		out.emit(")")
 		func_index += 1
 
-	for data in module.datas:
-		out.emit("(data (i32.const {data.offset}) \"{data.text}\")")
+	for data in wasm_module.datas:
+		# Go for passive strings now:
+		out.emit("(data \"{escape_binary(data.data)}\")")
 
 	out.dedent()
 	out.emit(")")
+
+fn escape_binary(data?: Bytes) -> str:
+	var res = ""
+	for b in data:
+		let h1 = (b >> 4) & 0xF
+		let h2 = b & 0xF
+		res = res + "\\{hex_char(h1)}{hex_char(h2)}"
+	res

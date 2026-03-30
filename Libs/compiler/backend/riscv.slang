@@ -1,3 +1,4 @@
+module compiler.riscv
 """RISCV encoding.
 
 There are a couple of formats:

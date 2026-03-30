@@ -1,11 +1,11 @@
+module compiler.vm
+"""Virtual machine for bytecode."""
 
-# Virtual machine for bytecode.
-
-from listtype import List
-from optiontype import Option
-from hashmap import HashMap, new_hashmap_str
-from vectype import Vector, new_vector
-from utils import panic, assert, unimplemented
+from base.listtype import List
+from base.optiontype import Option
+from base.hashmap import HashMap, new_hashmap_str
+from base.vectype import Vector, new_vector
+from base.utils import panic, assert, unimplemented
 from logging import log_debug
 from bc import Instruction, Program, Function, instruction_to_string
 from std import print, float_to_str

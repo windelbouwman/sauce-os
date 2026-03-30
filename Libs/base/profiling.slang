@@ -1,3 +1,4 @@
+module base.profiling
 """Application profiling"""
 
 import std

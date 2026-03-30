@@ -1,8 +1,9 @@
+module main
 
 from std import print
-from bytes import bytes_from_ascii, bytes_from_hex_text
-from unittest import assert_int_equals, assert_bytes_equals
-from crypto import md5, leftrotate, compute_md5_K, fill_md5_K, sha1, sha256
+from base.bytes import bytes_from_ascii, bytes_from_hex_text
+from base.unittest import assert_int_equals, assert_bytes_equals
+from base.crypto import md5, leftrotate, compute_md5_K, fill_md5_K, sha1, sha256
 
 
 pub fn main() -> int:

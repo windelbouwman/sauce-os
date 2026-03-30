@@ -1,19 +1,20 @@
+module compiler.pass3
 """This pass runs after names have been resolved, and before types can be checked."""
 
 import ast
 from location import Location
 from basepass import IdGen
-from utils import panic
-from logging import log_info
+from base.utils import panic
+from base.logging import log_info
 from errors import CompilationError, ErrorCollector
-from listtype import List
-from optiontype import Option
-from hashmap import HashMap, new_hashmap_str
-from vectype import Vector, new_vector, new_vector_with_capacity
-from strlib import str_join
+from base.listtype import List
+from base.optiontype import Option
+from base.hashmap import HashMap, new_hashmap_str
+from base.vectype import Vector, new_vector, new_vector_with_capacity
+from base.strlib import str_join
 
-pub fn resolve_newops(module: ast.ModuleDef, id_gen: IdGen) except CompilationError:
-	log_info("resolve new-ops for {module.name}")
+pub fn resolve_newops(module_def: ast.ModuleDef, id_gen: IdGen) except CompilationError:
+	log_info("resolve new-ops for {module_def.name}")
 	let newop = NewOp(id_gen)
 	let visitor: ast.Visitor[NewOp] = ast.Visitor:
 		data: newop
@@ -22,7 +23,7 @@ pub fn resolve_newops(module: ast.ModuleDef, id_gen: IdGen) except CompilationEr
 		on_statement: newop_on_statement
 		on_expression: newop_on_expression
 		on_node: newop_on_node
-	ast.visit_module(visitor, module)
+	ast.visit_module(visitor, module_def)
 	newop.errors.render_or_raise()
 
 fn newop_on_definition(newop: NewOp, definition: ast.Definition, phase: ast.VisitPhase):

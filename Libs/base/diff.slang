@@ -1,3 +1,4 @@
+module base.diff
 """Implement diff using Myers linear space algorithm
 
 left variables: a, n, x, left, right

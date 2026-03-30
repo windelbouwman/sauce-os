@@ -1,3 +1,4 @@
+module compiler.elf_file
 """ELF file format"""
 
 import std

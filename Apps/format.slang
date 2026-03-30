@@ -1,3 +1,4 @@
+module main
 """Code formatter.
 
 Strategy: use the lexer to create tokens, and edit this token stream.
@@ -5,15 +6,15 @@ Strategy: use the lexer to create tokens, and edit this token stream.
 
 import std
 from std import print
-from listtype import List
-from vectype import Vector, new_vector
-from utils import panic
-from logging import log_info, log_debug, log_error, set_log_level
-from fs import Path, new_path
-from lexer import Lexer
-from strlib import str_repeat, split_lines
-from diff import diff_lines
-from token import token_to_string, Token
+from base.listtype import List
+from base.vectype import Vector, new_vector
+from base.utils import panic
+from base.logging import log_info, log_debug, log_error, set_log_level
+from base.fs import Path, new_path
+from compiler.lexer import Lexer
+from base.strlib import str_repeat, split_lines, StringBuilder
+from base.diff import diff_lines
+from compiler.token import token_to_string, Token
 
 pub fn main() -> int:
 	let arguments = parse_arguments()
@@ -166,6 +167,7 @@ fn format_tokens(tokens: List[Token]) -> Vector[str]:
 			KwLet: out.spaced("let")
 			KwLoop: out.separated("loop")
 			KwMacro: out.separated("macro")
+			KwModule: out.separated("module")
 			KwNot:
 				out.separator()
 				out.text("not")
@@ -342,7 +344,7 @@ fn format_docstring(out: Gen, lines: List[str]):
 
 class Gen:
 	var m_lines: Vector[str] = new_vector()
-	var m_line: str = ""
+	var m_builder: StringBuilder = StringBuilder()
 	var m_indentation: int = 0
 	var m_need_space: bool = false
 	var m_needs_separator: bool = false
@@ -377,11 +379,11 @@ class Gen:
 		newline()
 
 	pub fn flush():
-		if std.str_len(text: m_line) > 0:
+		if m_builder.len() > 0:
 			newline()
 
 	pub fn text(value?: str):
-		let at_bol = (std.str_len(text: m_line) == 0)
+		let at_bol = (m_builder.len() == 0)
 		if at_bol and (m_indentation > 0):
 			emit(str_repeat(text: "\t", count: m_indentation))
 		elif not at_bol and m_need_space:
@@ -391,11 +393,10 @@ class Gen:
 		m_needs_separator = false
 
 	pub fn emit(text?: str):
-		m_line = m_line + text
+		m_builder.push(text)
 
 	pub fn newline():
-		m_lines.append(m_line)
-		m_line = ""
+		m_lines.append(m_builder.get())
 		m_need_space = false
 		m_needs_separator = false
 

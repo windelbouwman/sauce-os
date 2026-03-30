@@ -1,3 +1,5 @@
+module main
+
 import std
 
 pub fn main() -> int:

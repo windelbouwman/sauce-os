@@ -1,3 +1,4 @@
+module compiler.x86_gen
 """X86 backend"""
 
 from utils import unimplemented, panic

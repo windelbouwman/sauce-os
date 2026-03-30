@@ -1,3 +1,4 @@
+module compiler.bc_to_sil
 """Transform BC into SIL
 
 Features of this pass:

@@ -1,7 +1,8 @@
+module main
 
-from listtype import list4
-from functools import sum_integers
-from unittest import assert_int_equals
+from base.listtype import list4
+from base.functools import sum_integers
+from base.unittest import assert_int_equals
 
 pub fn main() -> int:
 	test_sum()

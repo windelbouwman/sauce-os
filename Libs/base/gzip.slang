@@ -1,5 +1,5 @@
-
-# See RFC-1952: GZIP file format.
+module base.gzip
+"""See RFC-1952: GZIP file format."""
 
 from datetime import unix_to_str
 from utils import unimplemented, assert

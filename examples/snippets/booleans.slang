@@ -1,4 +1,6 @@
+module main
 """Test various boolean operations"""
+
 from std import print
 
 pub fn main() -> int:

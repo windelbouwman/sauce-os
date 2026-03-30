@@ -1,3 +1,4 @@
+module main
 """Test RISCV encoding"""
 
 from std import print

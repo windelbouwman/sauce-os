@@ -1,3 +1,4 @@
+module image.gif
 """GIF fileformat"""
 from utils import unimplemented, panic, assert
 from logging import log_debug, log_trace

@@ -1,4 +1,4 @@
-
+module main
 # Example with some basic types
 from std import print, float_to_str2
 

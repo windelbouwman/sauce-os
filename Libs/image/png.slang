@@ -1,3 +1,4 @@
+module image.png
 """PNG read / write routines
 
 See RFC 2083

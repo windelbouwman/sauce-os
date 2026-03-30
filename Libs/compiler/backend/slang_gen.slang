@@ -1,3 +1,4 @@
+module compiler.slang_gen
 """Slang backend
 Idea: This backend emits slang code, sort of a no-op operation?
 
@@ -19,15 +20,15 @@ pub fn gen_slang(module_set: ast.ModuleSet, output_filename: Option[str]):
 	let g = SlangGenerator()
 	g.out.begin(output_filename)
 	g.out.m_one_tab = "\t"
-	for module in module_set.modules:
-		g.gen_module(module)
+	for module_def in module_set.modules:
+		g.gen_module(module_def)
 	g.out.end()
 
 class SlangGenerator:
 	pub var out: TextGenerator = TextGenerator()
 
-	pub fn gen_module(module: ast.ModuleDef):
-		for definition in module.definitions:
+	pub fn gen_module(module_def: ast.ModuleDef):
+		for definition in module_def.definitions:
 			gen_definition(definition)
 
 	fn gen_definition(definition: ast.Definition):

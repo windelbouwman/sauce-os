@@ -1,5 +1,5 @@
-
-# Date time function
+module base.datetime
+"""Date time function"""
 
 from utils import assert
 from strlib import str_pad_left

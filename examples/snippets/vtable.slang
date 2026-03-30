@@ -1,3 +1,4 @@
+module main
 # Spiffy example case where we need a so called bridge function to be introduced during type erasure.
 
 from std import print

@@ -1,5 +1,5 @@
-
-# Helper class to emit text code
+module compiler.text_gen
+"""Helper class to emit text code"""
 
 from std import file_writeln, file_write, file_open, file_close, file_get_stdout
 from optiontype import Option, option_is_some, option_unwrap

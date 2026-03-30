@@ -1,3 +1,4 @@
+module main
 
 from listtype import List
 from lexer import Lexer

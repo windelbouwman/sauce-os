@@ -1,3 +1,4 @@
+module web.urlparse
 
 from utils import assert
 from strlib import split_string2, split_string

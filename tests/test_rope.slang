@@ -1,3 +1,4 @@
+module main
 """Test rope data structure."""
 
 from std import print

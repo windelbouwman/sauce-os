@@ -1,4 +1,6 @@
+module main
 """Handling of tar.gz files"""
+
 import std
 from fs import read_whole_file_as_bytes, new_path
 from gzip import gzip_decompress

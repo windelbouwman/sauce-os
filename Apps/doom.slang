@@ -1,3 +1,4 @@
+module main
 """A slang port of doom.
 
 This is a long shot: try a software renderer.

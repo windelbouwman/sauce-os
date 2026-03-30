@@ -1,3 +1,4 @@
+module main
 
 pub fn main() -> int:
 	let dummy = List()

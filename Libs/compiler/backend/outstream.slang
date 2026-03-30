@@ -1,3 +1,4 @@
+module compiler.outstream
 """Logic for binary object code.
 
 Use the Outstream to contrapt an Object struct, with code and data section.

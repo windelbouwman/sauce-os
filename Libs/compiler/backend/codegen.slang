@@ -1,10 +1,11 @@
+module compiler.backend.codegen
 """Machine code generation."""
 
 import sil
 import mil
 from register_allocation import reg_alloc
-from vectype import Vector, new_vector
-from listtype import List
+from base.vectype import Vector, new_vector
+from base.listtype import List
 from logging import log_debug, log_info
 from profiling import Profiler
 from report import Report

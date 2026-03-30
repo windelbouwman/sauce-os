@@ -1,3 +1,4 @@
+module main
 """Test LEB128 encoding"""
 
 from leb128 import pack_unsigned_leb128, pack_signed_leb128

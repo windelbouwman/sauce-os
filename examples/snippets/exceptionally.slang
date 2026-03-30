@@ -1,3 +1,4 @@
+module main
 
 # Ideas about exceptions
 from std import print

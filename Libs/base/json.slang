@@ -1,3 +1,4 @@
+module base.json
 """JSON data serialization library"""
 
 from utils import panic

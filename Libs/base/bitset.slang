@@ -1,3 +1,4 @@
+module base.bitset
 """Bit set data type."""
 
 from utils import unimplemented, panic

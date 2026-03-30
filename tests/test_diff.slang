@@ -1,9 +1,10 @@
+module main
 
 from std import print, float_to_str2
-from utils import assert
-from vectype import vec5
-from math import fabs
-from diff import diff_numbers, ratio
+from base.utils import assert
+from base.vectype import vec5
+from base.math import fabs
+from base.diff import diff_numbers, ratio
 
 pub fn main() -> int:
 	test_diff()

@@ -1,5 +1,5 @@
-
-# Largest Triangle Three Bucket (LTTB) algorithm
+module gfx.lttb
+"""Largest Triangle Three Bucket (LTTB) algorithm"""
 
 from listtype import List
 from math import floor, fabs

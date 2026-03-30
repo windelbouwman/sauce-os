@@ -1,4 +1,4 @@
-
+module science.signal
 """Signal processing routines"""
 
 from listtype import List

@@ -1,3 +1,4 @@
+module base.crypto
 
 from math import sin, floor, fabs
 from bytes import Bytes, ByteArray, ByteReader

@@ -1,3 +1,4 @@
+module compiler.report
 """Internal reporting.
 
 Useful for debugging the compilation stages.

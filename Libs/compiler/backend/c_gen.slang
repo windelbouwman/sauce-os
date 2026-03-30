@@ -1,3 +1,4 @@
+module compiler.c_gen
 """C code backend
 
 Translate bytecode into C code.

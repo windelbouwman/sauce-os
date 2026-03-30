@@ -1,3 +1,4 @@
+module main
 """A slang-lang REPL!"""
 
 from std import print, read_line, get_n_args, get_arg

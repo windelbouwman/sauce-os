@@ -1,3 +1,4 @@
+module gfx.screen
 
 from utils import assert
 from math import abs

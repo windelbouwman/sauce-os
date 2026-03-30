@@ -1,4 +1,4 @@
-
+module main
 # Idea: provide interfaces, which will be implemented as vtables
 
 from std import print

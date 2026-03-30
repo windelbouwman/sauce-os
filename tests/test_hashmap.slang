@@ -1,7 +1,8 @@
+module main
 
 from std import print
-from unittest import assert_int_equals
-from hashmap import HashMap, new_hashmap_str
+from base.unittest import assert_int_equals
+from base.hashmap import HashMap, new_hashmap_str
 
 pub fn main() -> int:
 	test_hash_examples()

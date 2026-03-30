@@ -1,3 +1,4 @@
+module base.zip
 """ZIP file format."""
 
 from logging import log_info

@@ -1,3 +1,4 @@
+module base.logging
 """Logger."""
 
 from std import print, get_time

@@ -1,3 +1,4 @@
+module compiler.c_gen_v2
 """Generate C code directly from AST.
 
 This is similar to the way python code is generated.
@@ -46,8 +47,8 @@ class CGenerator2:
 		emit("#include \"slangrt.h\"")
 
 	fn gen_forward_declarations1(module_set: ast.ModuleSet):
-		for module in module_set.modules:
-			for definition in module.definitions:
+		for module_def in module_set.modules:
+			for definition in module_def.definitions:
 				case definition:
 					Struct(struct_def):
 						let decl = gen_struct_decl(struct_def)
@@ -56,8 +57,8 @@ class CGenerator2:
 					pass
 
 	fn gen_forward_declarations2(module_set: ast.ModuleSet):
-		for module in module_set.modules:
-			for definition in module.definitions:
+		for module_def in module_set.modules:
+			for definition in module_def.definitions:
 				case definition:
 					Function(function_def):
 						gen_function_decl(function_def)
@@ -72,8 +73,8 @@ class CGenerator2:
 					pass
 
 	fn gen_struct_defs(module_set: ast.ModuleSet):
-		for module in module_set.modules:
-			for definition in module.definitions:
+		for module_def in module_set.modules:
+			for definition in module_def.definitions:
 				case definition:
 					Struct(struct_def):
 						gen_struct(struct_def)
@@ -122,8 +123,8 @@ class CGenerator2:
 			panic("gen_global_expression: {expression} not supported")
 
 	fn gen_function_defs(module_set: ast.ModuleSet):
-		for module in module_set.modules:
-			for definition in module.definitions:
+		for module_def in module_set.modules:
+			for definition in module_def.definitions:
 				case definition:
 					Function(function_def):
 						gen_function(function_def)

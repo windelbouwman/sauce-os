@@ -1,4 +1,6 @@
+module base.leb128
 """LEB128 encoding."""
+
 from utils import panic
 from bytes import ByteArray
 

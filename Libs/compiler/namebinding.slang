@@ -1,15 +1,16 @@
+module compiler.namebinding
 
-from logging import log_info, log_trace
+from base.logging import log_info, log_trace
 from location import Location, location_default
-from listtype import List
-from optiontype import Option, option_is_some
-from hashmap import HashMap, new_hashmap_str
+from base.listtype import List
+from base.optiontype import Option, option_is_some
+from base.hashmap import HashMap, new_hashmap_str
 import ast
 from errors import CompilationError, SingleCompilationError, ErrorCollector
 
-pub fn bind_names(module: ast.ModuleDef, typectx: ast.TypeContext, module_map: HashMap[str,ast.ModuleDef]) except CompilationError:
+pub fn bind_names(module_def: ast.ModuleDef, typectx: ast.TypeContext, module_map: HashMap[str,ast.ModuleDef]) except CompilationError:
 	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
-	log_info("Filling scopes for {module.name}")
+	log_info("Filling scopes for {module_def.name}")
 	let binder = NameBinder(module_map, tycon_map)
 	let fill_visitor: ast.Visitor[NameBinder] = ast.Visitor:
 		data: binder
@@ -18,26 +19,26 @@ pub fn bind_names(module: ast.ModuleDef, typectx: ast.TypeContext, module_map: H
 		on_statement: filler_on_statement
 		on_expression: filler_on_expression
 		on_node: filler_on_node
-	binder.enter_scope(scope: module.scope)
-	ast.visit_module(visitor: fill_visitor, module)
+	binder.enter_scope(scope: module_def.scope)
+	ast.visit_module(visitor: fill_visitor, module_def)
 	binder.leave_scope()
 	binder.render_or_raise()
 
 	# Now import symbols
 	log_info("Resolving imported symbols")
 	let import_visitor = new_import_visitor(binder)
-	ast.visit_module(visitor: import_visitor, module)
+	ast.visit_module(visitor: import_visitor, module_def)
 
-	log_info("Binding names for {module.name}")
+	log_info("Binding names for {module_def.name}")
 	let bind_visitor = new_bind_visitor(binder)
 	binder.enter_scope(scope: base_scope(typectx))
-	binder.enter_scope(scope: module.scope)
-	ast.visit_module(visitor: bind_visitor, module)
+	binder.enter_scope(scope: module_def.scope)
+	ast.visit_module(visitor: bind_visitor, module_def)
 	binder.leave_scope()
 	binder.leave_scope()
 
 	let used_symbol_visitor = new_used_symbol_visitor(binder)
-	ast.visit_module(visitor: used_symbol_visitor, module)
+	ast.visit_module(visitor: used_symbol_visitor, module_def)
 	binder.render_or_raise()
 
 fn new_bind_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
@@ -60,8 +61,8 @@ pub fn bind_names_expression(expression: ast.Expression) except CompilationError
 fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
 	# try to retrieve a scope, if we have one
 	case definition:
-		Module(module):
-			Option.Some(module.scope)
+		Module(module_def):
+			Option.Some(module_def.scope)
 		Macro(macro_def):
 			Option.None()
 		Function(function_def):
@@ -380,8 +381,8 @@ fn binder_on_expression(binder: NameBinder, expression: ast.Expression, phase: a
 						case base.kind:
 							LoadSymbol(sym):
 								case sym.kind:
-									Module(module):
-										let symbol = binder.resolve_attribute(module, attr, location: expression.location)
+									Module(module_def):
+										let symbol = binder.resolve_attribute(module_def, attr, location: expression.location)
 										expression.kind = symbol_to_kind(symbol)
 								else:
 									pass
@@ -499,15 +500,15 @@ class NameBinder:
 	pub fn import_mod(imp: ast.Import):
 		log_trace("Import {imp.modname}")
 		case module_map.maybe_get(key: imp.modname):
-			Some(module):
+			Some(module_def):
 				case imp.kind:
 					Self:
-						define(is_pub: false, name: module.name, kind: ast.SymbolKind.Module(module), location: imp.location)
+						define(is_pub: false, name: module_def.name, kind: ast.SymbolKind.Module(module_def), location: imp.location)
 					Names(names):
 						for name in names:
-							log_trace("Importing {name.name} from {module.name}")
+							log_trace("Importing {name.name} from {module_def.name}")
 							try:
-								let symbol = resolve_attribute(module, attr: name.name, location: name.location)
+								let symbol = resolve_attribute(module_def, attr: name.name, location: name.location)
 								define(is_pub: false, name: name.name, kind: symbol.kind, location: name.location)
 							except (error: SingleCompilationError):
 								errors.append(error)
@@ -591,23 +592,23 @@ class NameBinder:
 					first = false
 					continue
 				case symbol.kind:
-					Module(module):
-						symbol = resolve_attribute(module, attr: part, location: name.location)
+					Module(module_def):
+						symbol = resolve_attribute(module_def, attr: part, location: name.location)
 				else:
 					raise make_error(location: name.location, message: "Not a module we want to get {part} from")
 
 		symbol
 
-	pub fn resolve_attribute(module: ast.ModuleDef, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
+	pub fn resolve_attribute(module_def: ast.ModuleDef, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
 		"""Try to load an attribute from a module."""
-		case module.scope.lookup(name: attr):
+		case module_def.scope.lookup(name: attr):
 			Some(symbol):
 				if symbol.is_pub:
 					symbol
 				else:
 					raise make_error(location, message: "Symbol '{attr}' is private")
 			None:
-				raise make_error(location, message: "module '{module.name}' has no symbol: '{attr}'")
+				raise make_error(location, message: "module '{module_def.name}' has no symbol: '{attr}'")
 
 	fn lookup_base_name(name: str, location: Location) -> ast.Symbol except SingleCompilationError:
 		for scope in scopes:

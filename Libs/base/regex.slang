@@ -1,3 +1,4 @@
+module base.regex
 """Regex library
 
 Based on [Brzozowski derivatives](https://en.wikipedia.org/wiki/Brzozowski_derivative).

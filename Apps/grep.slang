@@ -1,4 +1,4 @@
-
+module main
 # Grep
 # 'grep' program, using regular expressions.
 

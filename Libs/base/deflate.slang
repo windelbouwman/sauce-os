@@ -1,3 +1,4 @@
+module base.deflate
 """Implement RFC 1951: deflate format.
 
 DEFLATE uses huffman trees and LZ77 compression.

@@ -1,8 +1,9 @@
+module main
 
-from listtype import list4, list5
+from base.listtype import list4, list5
 from std import print
-from shapelib import shoelace, Point
-from unittest import assert_almost_equals
+from base.shapelib import shoelace, Point
+from base.unittest import assert_almost_equals
 
 pub fn main() -> int:
 	test_shoelace_square()

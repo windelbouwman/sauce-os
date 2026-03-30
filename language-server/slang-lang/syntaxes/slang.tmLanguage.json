@@ -1,66 +1,66 @@
 {
-	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-	"name": "Slang-Lang",
-	"patterns": [
-		{
-			"name": "keyword.control",
-			"match": "\\b(if|while|for|in|return|raise|loop|else|elif|case|switch|break|continue|pass|try|except)\\b"
-		},
-		{
-			"name": "keyword.other",
-			"match": "\\b(var|type|let|fn|struct|class|enum|interface|impl|from|and|or|not|import|extern|pub)\\b"
-		},
-		{
-			"name": "keyword.operator",
-			"match": "\\b(and|or|not)\\b"
-		},
-		{
-			"name": "constant.numeric.slang",
-			"match": "\\b(\\d+)\\b"
-		},
-		{
-			"name": "constant.other",
-			"match": "\\b(true|false)\\b"
-		},
-		{
-			"name": "comment",
-			"match": "#.*"
-		},
-		{
-			"name": "entity.name",
-			"match": "\\b(\\w+)\\b"
-		},
-		{
-			"include": "#strings"
-		}
-	],
-	"repository": {
-		"strings": {
-			"patterns": [
-				{
-					"name": "string.quoted.double.slang",
-					"begin": "\"",
-					"end": "\"",
-					"patterns": [
-						{
-							"name": "constant.character.escape.slang",
-							"match": "\\\\."
-						}
-					]
-				},
-				{
-					"name": "string.quoted.single.slang",
-					"begin": "'",
-					"end": "'",
-					"patterns": [
-						{
-							"name": "constant.character.escape.slang",
-							"match": "\\\\."
-						}
-					]
-				}
-			]
-		}
-	},
-	"scopeName": "source.slang"
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Slang-Lang",
+  "patterns": [
+    {
+      "name": "keyword.control",
+      "match": "\\b(if|while|for|in|return|raise|loop|else|elif|case|switch|break|continue|pass|try|except)\\b"
+    },
+    {
+      "name": "keyword.other",
+      "match": "\\b(var|type|let|fn|struct|class|enum|interface|impl|module|from|and|or|not|import|extern|pub)\\b"
+    },
+    {
+      "name": "keyword.operator",
+      "match": "\\b(and|or|not)\\b"
+    },
+    {
+      "name": "constant.numeric.slang",
+      "match": "\\b(\\d+)\\b"
+    },
+    {
+      "name": "constant.other",
+      "match": "\\b(true|false)\\b"
+    },
+    {
+      "name": "comment",
+      "match": "#.*"
+    },
+    {
+      "name": "entity.name",
+      "match": "\\b(\\w+)\\b"
+    },
+    {
+      "include": "#strings"
+    }
+  ],
+  "repository": {
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.slang",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.slang",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.slang",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.slang",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "scopeName": "source.slang"
 }

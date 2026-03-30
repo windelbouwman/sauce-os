@@ -1,3 +1,4 @@
+module compiler.opt
 """Optimize SIL program."""
 
 from logging import log_info

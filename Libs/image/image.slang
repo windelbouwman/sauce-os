@@ -1,3 +1,4 @@
+module image.image
 
 from vectype import Vector, new_vector_of_size
 

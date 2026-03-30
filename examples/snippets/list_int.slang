@@ -1,3 +1,4 @@
+module main
 
 # Idea: implement a list type as a linked list.
 import std

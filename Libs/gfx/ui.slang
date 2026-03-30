@@ -1,4 +1,4 @@
-
+module gfx.ui
 # GUI library
 
 pub class Button:

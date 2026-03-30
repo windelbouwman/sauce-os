@@ -1,3 +1,4 @@
+module main
 """
 Advent of code 2025 day 3.
 

@@ -1,12 +1,13 @@
+module main
 
 from std import print
-from logging import set_log_level, log_info
-from unittest import assert_bytes_equals, assert_int_equals
-from bytes import bytes_from_hex_text, fill_bytes, bytes_from_ascii, Bytes
-from gzip import gzip_decompress, gzip_compress, calc_crc32
-from gzip import zlib_decompress, zlib_compress, calc_adler32
-from huffman import BitWriter
-from bytes import ByteArray
+from base.logging import set_log_level, log_info
+from base.unittest import assert_bytes_equals, assert_int_equals
+from base.bytes import bytes_from_hex_text, fill_bytes, bytes_from_ascii, Bytes
+from base.gzip import gzip_decompress, gzip_compress, calc_crc32
+from base.gzip import zlib_decompress, zlib_compress, calc_adler32
+from base.huffman import BitWriter
+from base.bytes import ByteArray
 
 pub fn main() -> int:
 	set_log_level(level: 4)

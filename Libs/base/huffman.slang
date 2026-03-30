@@ -1,3 +1,4 @@
+module base.huffman
 """Procedures related to Huffman coding."""
 
 from utils import panic

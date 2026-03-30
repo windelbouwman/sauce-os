@@ -1,3 +1,4 @@
+module base.heapq
 """Binary heap implementation.
 
 A binary heap is an implementation for a priority queue.

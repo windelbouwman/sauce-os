@@ -1,3 +1,4 @@
+module main
 # Example of classes with generic types.
 
 import std

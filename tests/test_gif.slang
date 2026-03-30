@@ -1,8 +1,9 @@
+module main
 
 from std import print
-from bytes import bytes_from_hex_text
-from utils import assert
-from unittest import assert_str_equals
+from base.bytes import bytes_from_hex_text
+from base.utils import assert
+from base.unittest import assert_str_equals
 from gif import lzw_decode
 
 pub fn main() -> int:

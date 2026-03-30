@@ -1,3 +1,4 @@
+module base.functools
 
 from listtype import List
 from optiontype import option_unwrap

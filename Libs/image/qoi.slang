@@ -1,9 +1,9 @@
+module image.qoi
+"""encoder / decoder for the QOI (quite ok image) format.
 
-#
-# encoder / decoder for the QOI (quite ok image) format.
-#
-# See also: https://qoiformat.org/
-# https://qoiformat.org/qoi-specification.pdf
+See also: https://qoiformat.org/
+https://qoiformat.org/qoi-specification.pdf
+"""
 
 import std
 from utils import panic, assert

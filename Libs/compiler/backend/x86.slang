@@ -1,3 +1,4 @@
+module compiler.x86
 """X86 instruction set
 
 Calling conventions 64 bit / system V ABI

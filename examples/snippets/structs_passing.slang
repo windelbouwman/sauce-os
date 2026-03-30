@@ -1,3 +1,5 @@
+module main
+
 from std import print
 
 struct Holder:

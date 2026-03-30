@@ -1,6 +1,5 @@
-#################
-# Demo of a generic enum type.
-######
+module main
+"""Demo of a generic enum type."""
 
 from std import print
 

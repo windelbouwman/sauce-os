@@ -1,3 +1,4 @@
+module main
 
 from std import print
 from regex import find_all_text, split_at_pattern

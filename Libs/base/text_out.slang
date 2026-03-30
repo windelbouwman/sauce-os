@@ -1,3 +1,4 @@
+module base.text_out
 
 from std import print
 from std import file_writeln, file_open, file_close

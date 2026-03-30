@@ -1,4 +1,4 @@
-
+module compiler.basepass
 # Unique number generator
 
 pub class IdGen:

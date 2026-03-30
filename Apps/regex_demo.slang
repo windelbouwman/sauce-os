@@ -1,3 +1,4 @@
+module main
 
 from std import print
 from regex import compile, find_all

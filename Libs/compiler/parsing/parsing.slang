@@ -1,17 +1,18 @@
+module compiler.parsing.parsing
 """Recursive descent slang-lang parser."""
+
 import ast
 import std
 from lexer import Lexer
 from fs import Path
 from token import token_to_string, Token, default_token
 from location import Location, location_default, merge_locations
-from listtype import List
-from optiontype import Option
+from base.listtype import List
+from base.optiontype import Option
 import dbginfo
-from vectype import Vector, new_vector
-from pathlib import basename
+from base.vectype import Vector, new_vector
 from basepass import IdGen
-from logging import log_debug, log_trace
+from base.logging import log_debug, log_trace
 
 
 pub fn parse_source(path: Path, id_gen: IdGen, typectx: ast.TypeContext, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
@@ -19,7 +20,6 @@ pub fn parse_source(path: Path, id_gen: IdGen, typectx: ast.TypeContext, debug: 
 	parse_module_from_text(source, filename: path.filename, id_gen, typectx, debug)
 
 pub fn parse_module_from_text(source: str, filename: str, id_gen: IdGen, typectx: ast.TypeContext, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
-	let modname = basename(path: filename)
 	let parser = Parser(typectx, id_gen)
 	case debug:
 		Some(info):
@@ -27,16 +27,16 @@ pub fn parse_module_from_text(source: str, filename: str, id_gen: IdGen, typectx
 		None:
 			pass
 	parser.feed(source)
-	parser.parse_module(filename, name: modname)
+	parser.parse_module(filename)
 
 pub fn parse_statement_from_text(source: str, id_gen: IdGen, typectx: ast.TypeContext) -> ast.Statement except ParseError:
-	# Invoke parsing, purely on statement.
+	"""Invoke parsing, purely on statement."""
 	let parser = Parser(typectx, id_gen)
 	parser.feed(source)
 	parser.parse_statement()
 
 pub fn parse_expr_from_text(source: str, id_gen: IdGen, typectx: ast.TypeContext) -> ast.Expression except ParseError:
-	# Invoke parsing, purely on expression.
+	"""Invoke parsing, purely on expression."""
 	let parser = Parser(typectx, id_gen)
 	parser.feed(source)
 	parser.parse_expression()
@@ -46,22 +46,31 @@ pub struct ParseError:
 	message: str
 
 class Parser:
-	# An attempt at a recursive descent parser.
+	"""An attempt at a recursive descent parser."""
 	var typectx: ast.TypeContext
 	var lex: Lexer = Lexer()
 	var m_peek: Token = default_token()
 	var m_peek2: Token = default_token()
 	var id_gen: IdGen
-	var modname: Option[str] = Option.None()
 
 	pub fn feed(source: str):
 		lex.init(source)
 		m_peek = lex.next_token()
 		m_peek2 = lex.next_token()
 
-	pub fn parse_module(filename: str, name: str) -> ast.ModuleDef except ParseError:
+	pub fn parse_module(filename: str) -> ast.ModuleDef except ParseError:
 		let filename2: Option[str] = Option.Some(filename)
-		let modname: Option[str] = Option.Some(name)
+
+		let tok = get_token()
+		case tok.kind:
+			KwModule:
+				pass
+		else:
+			raise unexpected_token(tok, expected: "module")
+		let qname = parse_qual_name()
+		parse_newline()
+		let name = qname.parts.last()  # Hack for now.
+
 		let docstring = parse_optional_docstring()
 
 		let imports: Vector[ast.Import] = new_vector()
@@ -142,7 +151,9 @@ class Parser:
 		ast.import_self(modname: modname.name, location: modname.location)
 
 	fn parse_from_import() -> ast.Import except ParseError:
-		let modname = parse_name()
+		let qname = parse_qual_name()
+		let modname = qname.parts.last()  # Hack for now.
+		let location = qname.location
 
 		# 'import'
 		let tok = get_token()
@@ -166,7 +177,7 @@ class Parser:
 			else:
 				raise unexpected_token(tok: tok2, expected: "',' or newline")
 
-		ast.import_names(modname: modname.name, location: modname.location, names)
+		ast.import_names(modname, location: qname.location, names)
 
 	fn parse_macro_def() -> ast.MacroDef except ParseError:
 		# unimplemented("macro-def")
@@ -535,7 +546,7 @@ class Parser:
 			KwUnreachable:
 				ast.unreachable_type()
 			Identifier(name):
-				let qname = parse_qual_name(name, location: tok.location)
+				let qname = parse_qual_name_suffix(name, location: tok.location)
 				case m_peek.kind:
 					BracketOpen:
 						move_token()
@@ -545,7 +556,15 @@ class Parser:
 		else:
 			raise unexpected_token(tok, expected: "identifier, 'fn' or '['")
 
-	fn parse_qual_name(name: str, location: Location) -> ast.QualName except ParseError:
+	fn parse_qual_name() -> ast.QualName except ParseError:
+		let tok = get_token()
+		case tok.kind:
+			Identifier(name):
+				parse_qual_name_suffix(name, location: tok.location)
+		else:
+			raise unexpected_token(tok, expected: "identifier")
+
+	fn parse_qual_name_suffix(name: str, location: Location) -> ast.QualName except ParseError:
 		let parts: List[str] = List()
 		parts.append(name)
 		loop:

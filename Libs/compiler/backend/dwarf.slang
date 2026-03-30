@@ -1,3 +1,4 @@
+module compiler.dwarf
 """DWARF debug info.
 
 See also: www.dwarfstd.org

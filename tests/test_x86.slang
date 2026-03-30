@@ -1,3 +1,4 @@
+module main
 """Test various x86 encodings."""
 
 from std import print

@@ -1,3 +1,4 @@
+module compiler.isel
 """Instruction selection related code."""
 
 from listtype import List

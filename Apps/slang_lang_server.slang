@@ -1,3 +1,4 @@
+module main
 """Slang language server"""
 
 import std

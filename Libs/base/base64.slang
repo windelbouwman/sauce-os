@@ -1,5 +1,5 @@
-
-# Implement base64 encoding scheme
+module base.base64
+"""Implement base64 encoding scheme"""
 
 from utils import panic
 from bytes import Bytes, ByteArray

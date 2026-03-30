@@ -1,3 +1,4 @@
+module base.settype
 """Set datatype, build upon the HashMap datatype."""
 
 from optiontype import Option, option_unwrap

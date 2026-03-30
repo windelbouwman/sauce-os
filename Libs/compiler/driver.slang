@@ -1,3 +1,4 @@
+module compiler.driver
 """Main compilation driver."""
 
 import ast
@@ -82,8 +83,8 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 
 	for filename in options.add_imports:
 		let imported_modules = load_symbol_table(filename, typectx: builder.m_typectx)
-		for module in imported_modules:
-			builder.add_module(module)
+		for module_def in imported_modules:
+			builder.add_module(module_def)
 
 	builder.m_profiler.enter(name: "parsing")
 	for path in sources:
@@ -159,7 +160,7 @@ fn new_builder(options: CompilationOptions) -> Builder:
 	let rt_module = get_rt_module(typectx)
 	let debug = Option.Some(DbgInfo()) if options.debug else Option.None()
 	let builder = Builder(options, m_typectx: typectx, m_rt_module: rt_module, m_debug: debug)
-	builder.add_module(module: rt_module)
+	builder.add_module(module_def: rt_module)
 	builder
 
 class Builder:
@@ -173,17 +174,17 @@ class Builder:
 	var m_rt_module: ast.ModuleDef
 	pub var m_debug: Option[DbgInfo]
 
-	pub fn add_module(module: ast.ModuleDef):
-		m_modules.append(module)
-		m_module_map.insert(key: module.name, value: module)
-		m_top_module.add_module(module)
+	pub fn add_module(module_def: ast.ModuleDef):
+		m_modules.append(module_def)
+		m_module_map.insert(key: module_def.name, value: module_def)
+		m_top_module.add_module(module_def)
 
 	pub fn parse_module(path: Path) except ParseError:
 		let program = parse_source(path, id_gen: m_id_gen, typectx: m_typectx, debug: m_debug)
 		log_trace("Parsed module: {program.name}")
 		if options.dump_ast:
-			ast.print_ast(module: program)
-		add_module(module: program)
+			ast.print_ast(module_def: program)
+		add_module(module_def: program)
 
 	pub fn do_transform() -> ast.ModuleSet except CompilationError:
 		"""Perform type checking and transformation on the added modules"""
@@ -191,15 +192,15 @@ class Builder:
 		let module_set = ast.ModuleSet(modules: m_modules)
 
 		m_profiler.enter(name: "binding")
-		bind_names(module: m_top_module, typectx: m_typectx, module_map: m_module_map)
-		resolve_newops(module: m_top_module, id_gen: m_id_gen)
+		bind_names(module_def: m_top_module, typectx: m_typectx, module_map: m_module_map)
+		resolve_newops(module_def: m_top_module, id_gen: m_id_gen)
 		m_profiler.leave()
 
 		if options.dump_ast:
 			ast.print_ast2(module_set)
 
 		m_profiler.enter(name: "typecheck")
-		type_check(module: m_top_module, typectx: m_typectx, display_warnings: true)
+		type_check(module_def: m_top_module, typectx: m_typectx, display_warnings: true)
 		m_profiler.leave()
 
 		m_profiler.enter(name: "export")
@@ -227,7 +228,7 @@ class Builder:
 			ast.print_ast2(module_set)
 
 		m_profiler.enter(name: "typecheck")
-		type_check(module: m_top_module, typectx: m_typectx, display_warnings: false)
+		type_check(module_def: m_top_module, typectx: m_typectx, display_warnings: false)
 		m_profiler.leave()
 
 		if options.dump_ast:
@@ -272,7 +273,7 @@ pub fn slang_to_python(code: str, output_filename: str):
 	try:
 		let program = parse_module_from_text(source: code, filename, id_gen: builder.m_id_gen, typectx: builder.m_typectx, debug: builder.m_debug)
 		log_trace("Parsed module: {program.name}")
-		builder.add_module(module: program)
+		builder.add_module(module_def: program)
 	except (e: ParseError):
 		log_error("Parse error")
 		return

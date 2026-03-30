@@ -1,8 +1,9 @@
+module main
 
-from bytes import bytes_from_ascii, bytes_to_ascii
-from base64 import base64_encode, base64_decode
+from base.bytes import bytes_from_ascii, bytes_to_ascii
+from base.base64 import base64_encode, base64_decode
 from std import print
-from unittest import assert_str_equals
+from base.unittest import assert_str_equals
 
 
 pub fn main() -> int:

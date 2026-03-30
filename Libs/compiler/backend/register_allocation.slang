@@ -1,11 +1,12 @@
+module compiler.register_allocation
 """Register allocation
 
 This function is machine independant.
 It assigns colors to use / def registers.
 """
 
-from logging import log_info, log_debug, log_trace
-from settype import Set, new_int_set
+from base.logging import log_info, log_debug, log_trace
+from base.settype import Set, new_int_set
 from bitset import BitSet, new_bitset, new_small_bitset, SmallBitSet
 from vectype import Vector, new_vector, new_vector_with_capacity
 from deque import Queue, new_queue

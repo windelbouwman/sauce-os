@@ -1,5 +1,4 @@
-
-
+module base.rangelib
 
 pub struct Range:
 	# Range [begin, end)

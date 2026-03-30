@@ -1,4 +1,4 @@
-
+module main
 """Calculate md5sum from given file."""
 
 import std

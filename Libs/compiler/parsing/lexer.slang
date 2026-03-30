@@ -1,8 +1,9 @@
+module compiler.parsing.lexer
 """Turn source text into a sequence of tokens"""
 
 import std
-from utils import panic
-from std import ord, chr, str_len
+from base.utils import panic
+from base.std import ord, chr, str_len
 from token import Token, TokenKind, CharEscapeMode
 from location import Location, location_at, new_location
 from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab, split_lines, trim
@@ -531,6 +532,7 @@ fn fill_keyword_dictionary(keywords: HashMap[str,TokenKind]):
 	keywords.insert(key: "interface", value: TokenKind.KwInterface())
 	keywords.insert(key: "let", value: TokenKind.KwLet())
 	keywords.insert(key: "loop", value: TokenKind.KwLoop())
+	keywords.insert(key: "module", value: TokenKind.KwModule())
 	keywords.insert(key: "macro", value: TokenKind.KwMacro())
 	keywords.insert(key: "not", value: TokenKind.KwNot())
 	keywords.insert(key: "or", value: TokenKind.KwOr())

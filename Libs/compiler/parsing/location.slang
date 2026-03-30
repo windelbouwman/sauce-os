@@ -1,3 +1,4 @@
+module compiler.location
 
 from std import str_get
 from strlib import is_lf

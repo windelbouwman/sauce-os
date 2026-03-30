@@ -1,3 +1,4 @@
+module compiler.wasm_gen
 """WebAssembly backend
 ===================
 
@@ -19,8 +20,9 @@ import webassembly
 import ast
 import std
 from webassembly import Instruction
-from listtype import List, list1
+from base.listtype import List, list1
 from vectype import Vector, new_vector
+from bytes import ByteArray
 from optiontype import Option
 from text_gen import TextGenerator
 from hashmap import HashMap, new_hashmap_str
@@ -34,12 +36,12 @@ pub fn gen_webassembly_text(module_set: ast.ModuleSet, typectx: ast.TypeContext,
 	let out = TextGenerator()
 	out.m_one_tab = "  "
 	out.begin(output_filename)
-	webassembly.to_wat(module: wasm_module, out)
+	webassembly.to_wat(wasm_module, out)
 	out.end()
 
 pub fn gen_webassembly_binary(module_set: ast.ModuleSet, typectx: ast.TypeContext, filename: str):
 	let wasm_module = gen_webassembly_module(module_set, typectx)
-	let data = webassembly.to_wasm(module: wasm_module)
+	let data = webassembly.to_wasm(wasm_module)
 	let handle = std.file_open(filename, mode: "wb")
 	let written = std.file_write_n_bytes(handle, buffer: data.as_array(), bufsize: data.len())
 	assert(condition: written == data.len(), message: "file_write_n_bytes failed")
@@ -68,6 +70,7 @@ class WasmGenerator:
 	var index_mapping: HashMap[str,int] = new_hashmap_str()
 	var literal_offset: int = 0
 	var block_stack: List[bool] = List()
+	var m_string_data: ByteArray = ByteArray()
 
 	# Internally used types / functions
 	var array_i16_type: int = -1
@@ -102,7 +105,7 @@ class WasmGenerator:
 		let type_id = inject_type(webassembly.CompType.Func(params, results))
 
 		mk_string_fn_index = func_counter
-		imports.append(webassembly.Import(module: "wasm:js-string", name: "fromCharCodeArray", kind: webassembly.ExternType.Func(typeidx: type_id)))
+		imports.append(webassembly.Import(modname: "wasm:js-string", name: "fromCharCodeArray", kind: webassembly.ExternType.Func(typeidx: type_id)))
 		func_counter += 1
 
 	pub fn gen_module_set(modules: List[ast.ModuleDef]) -> webassembly.Module:
@@ -113,9 +116,9 @@ class WasmGenerator:
 		i32_box_type = add_num_box_type(webassembly.NumType.i32())
 		add_builtin()
 
-		for module in modules:
-			log_info("Generating external functions {module.name}")
-			for definition in module.definitions:
+		for module_def in modules:
+			log_info("Generating external functions {module_def.name}")
+			for definition in module_def.definitions:
 				case definition:
 					Function(function_def):
 						case function_def.body:
@@ -134,12 +137,12 @@ class WasmGenerator:
 								global_counter += 1
 								let global_ty = get_wasm_type(ty: var_def.variable.ty)
 								let kind = webassembly.ExternType.Global(ty: global_ty, mutable: true)
-								imports.append(webassembly.Import(module: libname, name: var_def.variable.id.name, kind))
+								imports.append(webassembly.Import(modname: libname, name: var_def.variable.id.name, kind))
 				else:
 					pass
 
-		for module in modules:
-			for definition in module.definitions:
+		for module_def in modules:
+			for definition in module_def.definitions:
 				case definition:
 					Function(function_def):
 						case function_def.body:
@@ -168,13 +171,15 @@ class WasmGenerator:
 				else:
 					pass
 
-		for module in modules:
-			gen_module(module)
+		for module_def in modules:
+			gen_module(module_def)
 
 		# Tag used for exceptions:
 		let typeidx = inject_type(webassembly.CompType.Func(params: list1(webassembly.ValueType.Ref(webassembly.nullable_ref_type(heap_type: webassembly.HeapType.Any()))), results: List()))
 		let tags: List[webassembly.Tag] = List()
 		tags.append(webassembly.Tag(typeidx))
+
+		datas.append(webassembly.Data(data: m_string_data.to_bytes()))
 
 		# Create module:
 		let wasm_module = webassembly.Module:
@@ -206,12 +211,12 @@ class WasmGenerator:
 		let func_ty = reg_signature(parameter_types, return_type: function_def.info.return_type)
 		case function_def.body:
 			Extern(libname):
-				imports.append(webassembly.Import(module: libname, name: function_def.name, kind: webassembly.ExternType.Func(typeidx: func_ty)))
+				imports.append(webassembly.Import(modname: libname, name: function_def.name, kind: webassembly.ExternType.Func(typeidx: func_ty)))
 		else:
 			panic("Invalid extern function")
 
-	fn gen_module(module: ast.ModuleDef):
-		for definition in module.definitions:
+	fn gen_module(module_def: ast.ModuleDef):
+		for definition in module_def.definitions:
 			case definition:
 				Function(function_def):
 					case function_def.body:
@@ -601,13 +606,25 @@ class WasmGenerator:
 			BoolLiteral(value):
 				emit(Instruction.i32_const(value: 1 if value else 0))
 			StringLiteral(value):
-				var index = 0
 				let n = str_len(text: value)
-				while index < n:
-					let c = str_get(text: value, index)
-					emit(Instruction.i32_const(ord(c)))
-					index += 1
-				emit(Instruction.array_new_fixed(ty: array_i16_type, size: n))
+				if n < 4:
+					var index = 0
+					while index < n:
+						let c = str_get(text: value, index)
+						emit(Instruction.i32_const(ord(c)))
+						index += 1
+					emit(Instruction.array_new_fixed(ty: array_i16_type, size: n))
+				else:
+					let offset = m_string_data.len()
+					var index = 0
+					while index < n:
+						let c = str_get(text: value, index)
+						m_string_data.pack_u16_le(ord(c))
+						index += 1
+					emit(Instruction.i32_const(offset))
+					emit(Instruction.i32_const(n))
+					emit(Instruction.array_new_data(ty: array_i16_type, dataidx: 0))
+
 				emit(Instruction.i32_const(0))
 				emit(Instruction.i32_const(n))
 				emit(Instruction.ctrl_call(mk_string_fn_index))

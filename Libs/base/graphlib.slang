@@ -1,3 +1,4 @@
+module base.graphlib
 """A graph consists of nodes and edges between them.
 There are directed and undirected graph types.
 """

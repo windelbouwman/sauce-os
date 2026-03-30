@@ -1,7 +1,8 @@
+module main
 
 from std import print
-from unittest import assert_int_equals, assert_str_equals
-from datetime import unix_to_datetime, unix_to_str, datetime_to_unix, DateTime
+from base.unittest import assert_int_equals, assert_str_equals
+from base.datetime import unix_to_datetime, unix_to_str, datetime_to_unix, DateTime
 
 pub fn main() -> int:
 	test_example1()

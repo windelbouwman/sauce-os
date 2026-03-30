@@ -1,3 +1,4 @@
+module base.math
 
 from std import float_to_str
 from utils import panic

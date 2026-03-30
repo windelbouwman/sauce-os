@@ -1,11 +1,12 @@
+module compiler.ast
 
 from std import print, float_to_str
-from strlib import str_repeat, str_join
-from utils import panic, assert
-from logging import log_info, log_error
-from location import Location, location_default
-from listtype import List
-from optiontype import Option, option_unwrap, option_is_some
+from base.strlib import str_repeat, str_join
+from base.utils import panic, assert
+from base.logging import log_info, log_error
+from parsing.location import Location, location_default
+from base.listtype import List
+from base.optiontype import Option, option_unwrap, option_is_some
 from vectype import Vector, new_vector_with_capacity, new_vector
 from hashmap import HashMap, new_hashmap_str, new_hashmap, str_hash
 
@@ -1039,7 +1040,7 @@ pub class Scope:
 		symbols.values()
 
 pub enum SymbolKind:
-	Module(module: ModuleDef)
+	Module(module_def: ModuleDef)
 	Macro(macro_def: MacroDef)
 	Function(function_def: FunctionDef)
 	Parameter(parameter_def: ParameterDef)
@@ -1065,8 +1066,8 @@ pub class Symbol:
 
 	pub fn to_string() -> str:
 		case kind:
-			Module(module):
-				"mod:{module.name}"
+			Module(module_def):
+				"mod:{module_def.name}"
 			Macro(macro_def):
 				macro_def_to_str(macro_def)
 			Function(function_def):
@@ -1085,7 +1086,7 @@ pub class Symbol:
 				"Field({field.name})"
 
 pub enum Definition:
-	Module(module: ModuleDef)
+	Module(module_def: ModuleDef)
 	Macro(macro_def: MacroDef)
 	Function(function_def: FunctionDef)
 	Enum(enum_def: EnumDef)
@@ -1098,8 +1099,8 @@ pub enum Definition:
 
 pub fn definition_to_str(definition: Definition) -> str:
 	case definition:
-		Module(module):
-			"mod:{module.name}"
+		Module(module_def):
+			"mod:{module_def.name}"
 		Macro(macro_def):
 			macro_def_to_str(macro_def)
 		Function(function_def):
@@ -1872,21 +1873,21 @@ pub fn null_value(typectx: TypeContext, location: Location) -> Expression:
 	Expression(kind: ExpressionKind.Null(), ty: typectx.opaque_type(), location)
 
 pub fn print_ast2(module_set: ModuleSet):
-	for module in module_set.modules:
-		print_ast(module)
+	for module_def in module_set.modules:
+		print_ast(module_def)
 
-pub fn print_ast(module: ModuleDef):
-	print("Module: " + module.name)
+pub fn print_ast(module_def: ModuleDef):
+	print("Module: " + module_def.name)
 	let printer = AstPrinter()
 	printer.indent()
-	for imp in module.imports:
+	for imp in module_def.imports:
 		case imp.kind:
 			Self:
 				printer.print2(txt: "import {imp.modname}")
 			Names(names):
 				printer.print2(txt: "from {imp.modname} import ..")
 	let visitor = new_print_visitor(printer)
-	visit_module(visitor, module)
+	visit_module(visitor, module_def)
 	printer.dedent()
 
 pub fn new_print_visitor(printer: AstPrinter) -> Visitor[AstPrinter]:
@@ -2131,25 +2132,25 @@ pub enum VisitNode:
 	Arm(arm: CaseArm)
 	Arm2(arm: SwitchArm)
 	ScopeNode(scope: Scope)
-	ModuleNode(module: ModuleDef)
+	ModuleNode(module_def: ModuleDef)
 
 pub fn visit_module_set[T](visitor: Visitor[T], module_set: ModuleSet):
-	for module in module_set.modules:
-		let module_node = VisitNode.ModuleNode(module)
+	for module_def in module_set.modules:
+		let module_node = VisitNode.ModuleNode(module_def)
 		visitor.on_node(data: visitor.data, module_node, phase: VisitPhase.Pre())
-		visit_module(visitor, module)
+		visit_module(visitor, module_def)
 		visitor.on_node(data: visitor.data, module_node, phase: VisitPhase.Post())
 
-pub fn visit_module[T](visitor: Visitor[T], module: ModuleDef):
-	for definition in module.definitions:
+pub fn visit_module[T](visitor: Visitor[T], module_def: ModuleDef):
+	for definition in module_def.definitions:
 		visit_definition(visitor, definition)
 
 
 fn visit_definition[T](visitor: Visitor[T], definition: Definition):
 	visitor.on_definition(a: visitor.data, definition, phase: VisitPhase.Pre())
 	case definition:
-		Module(module):
-			visit_module(visitor, module)
+		Module(module_def):
+			visit_module(visitor, module_def)
 		Macro(macro_def):
 			pass
 		Function(function_def):

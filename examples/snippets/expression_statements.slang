@@ -1,3 +1,4 @@
+module main
 """Try statements as expressions"""
 
 import std

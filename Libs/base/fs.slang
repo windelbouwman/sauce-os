@@ -1,3 +1,4 @@
+module base.fs
 """Functionality to operate on files and folders.
 
 TODO: merge with pathlib?

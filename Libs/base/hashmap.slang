@@ -1,3 +1,4 @@
+module base.hashmap
 """Hash map data type.
 
 Idea: have an array with buckets.

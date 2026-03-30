@@ -1,3 +1,4 @@
+module base.pathlib
 
 from strlib import split_string
 from std import get_path_separator

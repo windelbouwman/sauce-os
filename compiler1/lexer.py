@@ -82,6 +82,7 @@ KEYWORDS = {
     "interface",
     "let",
     "loop",
+    "module",
     "mut",
     "not",
     "or",

@@ -1,8 +1,9 @@
+module main
 
 from std import print
-from utils import panic
-from json import parse_json, json_to_string, JsonException
-from unittest import assert_str_equals
+from base.utils import panic
+from base.json import parse_json, json_to_string, JsonException
+from base.unittest import assert_str_equals
 
 
 pub fn main() -> int:

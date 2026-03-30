@@ -1,4 +1,4 @@
-
+module main
 # Implement list with object oriented classes
 # Idea: implement a list type as a linked list.
 

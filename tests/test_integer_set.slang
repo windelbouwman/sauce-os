@@ -1,3 +1,4 @@
+module main
 
 from std import print
 from integersetlib import new_int_set, integer_set_equals

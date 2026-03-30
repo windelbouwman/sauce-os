@@ -1,4 +1,4 @@
-
+module image.bmp
 # TODO
 from logging import log_debug
 from image import Image

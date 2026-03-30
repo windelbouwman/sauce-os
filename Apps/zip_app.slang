@@ -1,3 +1,4 @@
+module main
 
 import std
 from logging import set_log_level, log_error, log_info

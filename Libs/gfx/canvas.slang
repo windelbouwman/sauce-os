@@ -1,3 +1,4 @@
+module gfx.canvas
 
 # Idea: a canvas like API!
 from utils import panic

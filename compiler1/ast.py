@@ -455,6 +455,9 @@ class QualName:
     def __init__(self, names: list[str]):
         self.names = names
 
+    def __repr__(self):
+        return f"QualName({str(self)})"
+
     def __str__(self):
         return ".".join(name for _, name in self.names)
 

@@ -1,4 +1,4 @@
-
+module main
 
 from std import print
 from settype import new_str_set

@@ -1,4 +1,4 @@
-
+module main
 
 from std import print
 from vectype import Vector, new_vector
