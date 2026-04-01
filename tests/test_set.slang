@@ -1,8 +1,8 @@
 module main
 
 from std import print
-from settype import new_str_set
-from unittest import assert_true, assert_false
+from base.settype import new_str_set
+from base.unittest import assert_true, assert_false
 
 
 pub fn main() -> int:

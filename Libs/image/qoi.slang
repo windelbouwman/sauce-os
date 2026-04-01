@@ -6,11 +6,11 @@ https://qoiformat.org/qoi-specification.pdf
 """
 
 import std
-from utils import panic, assert
-from logging import log_info
-from bytes import Bytes, ByteReader, ByteArray, bytes_to_ascii, bytes_from_ascii
-from vectype import Vector, new_vector
-from fs import read_whole_file_as_bytes, write_bytes_to_file, Path
+from base.utils import panic, assert
+from base.logging import log_info
+from base.bytes import Bytes, ByteReader, ByteArray, bytes_to_ascii, bytes_from_ascii
+from base.vectype import Vector, new_vector
+from base.fs import read_whole_file_as_bytes, write_bytes_to_file, Path
 from image import Image, new_image, new_empty_image, Pixel, new_pixel, ColorMode, copy_pixel
 
 # TODO: support constants:

@@ -18,9 +18,9 @@ PPM:
 """
 
 from std import file_writeln, file_open, file_close
-from logging import log_info
-from utils import unimplemented
-from fs import Path
+from base.logging import log_info
+from base.utils import unimplemented
+from base.fs import Path
 from image import Image, new_pixel
 
 pub fn write_pbm(image: Image, path: Path):

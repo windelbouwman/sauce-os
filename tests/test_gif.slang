@@ -4,7 +4,7 @@ from std import print
 from base.bytes import bytes_from_hex_text
 from base.utils import assert
 from base.unittest import assert_str_equals
-from gif import lzw_decode
+from image.gif import lzw_decode
 
 pub fn main() -> int:
 	# set_log_level(level: 5)

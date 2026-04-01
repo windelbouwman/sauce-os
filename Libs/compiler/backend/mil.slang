@@ -4,9 +4,9 @@ module compiler.mil
 Machine instructions are selected in this representation.
 """
 
-from vectype import Vector, new_vector
-from listtype import List
-from strlib import str_join
+from base.vectype import Vector, new_vector
+from base.listtype import List
+from base.strlib import str_join
 from report import Report
 
 pub struct Function[X]:

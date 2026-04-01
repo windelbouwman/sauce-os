@@ -8,19 +8,21 @@ from base.vectype import Vector
 from base.strlib import str_join
 from base.settype import new_str_set
 from location import Location
-from utils import panic, assert
-from logging import log_info
+from base.utils import panic, assert
+from base.logging import log_info
 from errors import CompilationError, ErrorCollector
 
-pub fn type_check_modules(module_set: ast.ModuleSet, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
-	for module_def in module_set.modules:
-		type_check(module_def, typectx, display_warnings)
+pub fn type_check(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
+	for module_def in module_defs:
+		type_check_module(module_def, typectx, display_warnings)
 
-pub fn type_check(module_def: ast.ModuleDef, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
-	log_info("Type-checking module {module_def.name}")
+fn type_check_module(module_def: ast.ModuleDef, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
+	log_info("Type-checking module {module_def.get_name()}")
 	let checker = TypeChecker(m_typectx: typectx)
 	let visitor = new_type_check_visitor(checker)
+	checker.errors.enter_file(filename: module_def.filename)
 	ast.visit_module(visitor, module_def)
+	checker.errors.leave_file()
 	checker.errors.render_or_raise()
 
 fn new_type_check_visitor(checker: TypeChecker) -> ast.Visitor[TypeChecker]:
@@ -47,8 +49,6 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
 					checker.was_errors = false
 					if not function_def.info.except_type.is_void():
 						checker.exception_handlers.append(function_def.info.except_type)
-				Module(module_def):
-					checker.errors.enter_file(filename: module_def.filename)
 			else:
 				pass
 		Post:
@@ -58,8 +58,6 @@ fn checker_on_definition(checker: TypeChecker, definition: ast.Definition, phase
 					checker.current_function = Option.None()
 					if not function_def.info.except_type.is_void():
 						checker.exception_handlers.drop_last()
-				Module(module_def):
-					checker.errors.leave_file()
 			else:
 				pass
 	else:

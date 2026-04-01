@@ -1,10 +1,10 @@
 module main
 """Test LEB128 encoding"""
 
-from leb128 import pack_unsigned_leb128, pack_signed_leb128
-from unittest import assert_bytes_equals
+from base.leb128 import pack_unsigned_leb128, pack_signed_leb128
+from base.unittest import assert_bytes_equals
 from std import print
-from bytes import ByteArray, bytes_from_hex_text
+from base.bytes import ByteArray, bytes_from_hex_text
 
 pub fn main() -> int:
 	test_unsigned_leb128(value: 0, expected: "00")

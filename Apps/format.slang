@@ -11,10 +11,10 @@ from base.vectype import Vector, new_vector
 from base.utils import panic
 from base.logging import log_info, log_debug, log_error, set_log_level
 from base.fs import Path, new_path
-from compiler.lexer import Lexer
+from compiler.parsing.lexer import Lexer
 from base.strlib import str_repeat, split_lines, StringBuilder
 from base.diff import diff_lines
-from compiler.token import token_to_string, Token
+from compiler.parsing.token import token_to_string, Token
 
 pub fn main() -> int:
 	let arguments = parse_arguments()

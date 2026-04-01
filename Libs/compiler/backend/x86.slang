@@ -15,8 +15,8 @@ callee save: -
 caller save: xmm0 .. xmm15
 """
 
-from utils import unimplemented, panic
-from bytes import ByteArray
+from base.utils import unimplemented, panic
+from base.bytes import ByteArray
 from outstream import BinaryOutput, DataItem
 
 let R_X86_64_NONE: int = 0

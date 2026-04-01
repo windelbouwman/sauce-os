@@ -2,8 +2,8 @@ module main
 """Calculate md5sum from given file."""
 
 import std
-from crypto import md5, sha256
-from fs import read_whole_file_as_bytes, new_path
+from base.crypto import md5, sha256
+from base.fs import read_whole_file_as_bytes, new_path
 
 pub fn main() -> int:
 	let n = std.get_n_args()

@@ -1,8 +1,8 @@
 module main
 
 from std import print
-from vectype import Vector, new_vector
-from unittest import assert_int_equals
+from base.vectype import Vector, new_vector
+from base.unittest import assert_int_equals
 
 
 pub fn main() -> int:

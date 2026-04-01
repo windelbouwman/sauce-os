@@ -4,13 +4,13 @@ SlangC compiler
 """
 
 from std import print, get_n_args, get_arg
-from logging import log_info, log_error, set_log_level
-from optiontype import Option
-from fs import lexical_sort_paths, new_path, Path
-from listtype import List
-from strlib import lexical_sort
-from errors import display_error, CompilationError
-from driver import compile, CompilationOptions, Backend, default_compile_options
+from base.logging import log_info, log_error, set_log_level
+from base.optiontype import Option
+from base.fs import lexical_sort_paths, new_path, Path
+from base.listtype import List
+from base.strlib import lexical_sort
+from compiler.errors import display_error, CompilationError
+from compiler.driver import compile, CompilationOptions, Backend, default_compile_options
 
 
 pub fn main() -> int:
@@ -64,8 +64,6 @@ pub fn main() -> int:
 			options.backend = Backend.Riscv()
 		elif argument == "--backend-x86":
 			options.backend = Backend.X86()
-		elif argument == "-rt":
-			options.runtime = false
 		elif argument == "--backend-wasm":
 			options.backend = Backend.WebAssembly(binary: true)
 		elif argument == "--backend-wat":
@@ -131,7 +129,6 @@ fn print_usage():
 	print("    --backend-x86   : Spit out x86 code")
 	print("    --report        : Create compilation report")
 	print("    --time-trace    : Create compilation time-trace report")
-	print("    -rt : Skip runtime?")
 	print("    --run : Run code!")
 	print("")
 	print("Multiple source files can be passed")

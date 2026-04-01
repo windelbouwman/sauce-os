@@ -1,19 +1,19 @@
 module compiler.x86_gen
 """X86 backend"""
 
-from utils import unimplemented, panic
-from logging import log_info
-from vectype import Vector, vec4, vec5, vec8, new_vector_with_capacity, new_vector
+from base.utils import unimplemented, panic
+from base.logging import log_info
+from base.vectype import Vector, vec4, vec5, vec8, new_vector_with_capacity, new_vector
 from std import print
 import sil
 import mil
 import x86
 from report import Report
-from listtype import List, list4, list5, list8
-from codegen import cgen, CodegenOptions
+from base.listtype import List, list4, list5, list8
+from backend.codegen import cgen, CodegenOptions
 from isel import SelectionContext, Backend, Frame
 from outstream import BinaryOutput
-from optiontype import Option
+from base.optiontype import Option
 
 let rax: int = 0
 let rcx: int = 1

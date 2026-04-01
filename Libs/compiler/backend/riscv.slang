@@ -20,8 +20,8 @@ register | name  | saver  | description
  x28-x31 | t3-t6 | caller | temporaries
 """
 
-from utils import panic, unimplemented
-from bytes import ByteArray
+from base.utils import panic, unimplemented
+from base.bytes import ByteArray
 from outstream import BinaryOutput
 
 let R_BRANCH: int = 16

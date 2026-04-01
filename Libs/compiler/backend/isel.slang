@@ -1,10 +1,10 @@
 module compiler.isel
 """Instruction selection related code."""
 
-from listtype import List
-from hashmap import HashMap, new_hashmap_int
-from vectype import Vector, new_vector
-from bytes import ByteArray
+from base.listtype import List
+from base.hashmap import HashMap, new_hashmap_int
+from base.vectype import Vector, new_vector
+from base.bytes import ByteArray
 from outstream import BinaryOutput, DataItem
 import sil
 import mil

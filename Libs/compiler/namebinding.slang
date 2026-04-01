@@ -5,13 +5,19 @@ from location import Location, location_default
 from base.listtype import List
 from base.optiontype import Option, option_is_some
 from base.hashmap import HashMap, new_hashmap_str
+from base.utils import panic
 import ast
 from errors import CompilationError, SingleCompilationError, ErrorCollector
 
-pub fn bind_names(module_def: ast.ModuleDef, typectx: ast.TypeContext, module_map: HashMap[str,ast.ModuleDef]) except CompilationError:
+pub fn bind_names(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext) except CompilationError:
 	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
-	log_info("Filling scopes for {module_def.name}")
-	let binder = NameBinder(module_map, tycon_map)
+	let binder = NameBinder(tycon_map)
+	fill_scopes(binder, module_defs)
+	import_symbols(binder, module_defs)
+	resolve_symbols(binder, typectx, module_defs)
+	check_unused_symbols(binder, module_defs)
+
+fn fill_scopes(binder: NameBinder, module_defs: List[ast.ModuleDef]) except CompilationError:
 	let fill_visitor: ast.Visitor[NameBinder] = ast.Visitor:
 		data: binder
 		on_definition: filler_on_definition
@@ -19,26 +25,52 @@ pub fn bind_names(module_def: ast.ModuleDef, typectx: ast.TypeContext, module_ma
 		on_statement: filler_on_statement
 		on_expression: filler_on_expression
 		on_node: filler_on_node
-	binder.enter_scope(scope: module_def.scope)
-	ast.visit_module(visitor: fill_visitor, module_def)
+	for module_def in module_defs:
+		log_info("Filling scopes for {module_def.get_name()}")
+		binder.errors.enter_file(filename: module_def.filename)
+		binder.register_module_into_namespace(module_def)
+		binder.enter_scope(scope: module_def.scope)
+		ast.visit_module(visitor: fill_visitor, module_def)
+		binder.errors.leave_file()
+		binder.leave_scope()
+	binder.render_or_raise()
+
+fn import_symbols(binder: NameBinder, module_defs: List[ast.ModuleDef]) except CompilationError:
+	log_info("Resolving imported symbols")
+	for module_def in module_defs:
+		log_info("Importing symbols into {module_def.get_name()}")
+		binder.errors.enter_file(filename: module_def.filename)
+		binder.enter_scope(scope: module_def.scope)
+		for imp in module_def.imports:
+			binder.import_mod(start: module_def.namespace, imp)
+		binder.leave_scope()
+		binder.errors.leave_file()
+		binder.render_or_raise()
+
+fn resolve_symbols(binder: NameBinder, typectx: ast.TypeContext, module_defs: List[ast.ModuleDef]) except CompilationError:
+	let bind_visitor = new_bind_visitor(binder)
+	binder.enter_scope(scope: base_scope(typectx))
+	for module_def in module_defs:
+		log_info("Binding names for {module_def.get_name()}")
+		binder.errors.enter_file(filename: module_def.filename)
+		binder.enter_scope(scope: module_def.scope)
+		ast.visit_module(visitor: bind_visitor, module_def)
+		binder.leave_scope()
+		binder.errors.leave_file()
 	binder.leave_scope()
 	binder.render_or_raise()
 
-	# Now import symbols
-	log_info("Resolving imported symbols")
-	let import_visitor = new_import_visitor(binder)
-	ast.visit_module(visitor: import_visitor, module_def)
-
-	log_info("Binding names for {module_def.name}")
-	let bind_visitor = new_bind_visitor(binder)
-	binder.enter_scope(scope: base_scope(typectx))
-	binder.enter_scope(scope: module_def.scope)
-	ast.visit_module(visitor: bind_visitor, module_def)
-	binder.leave_scope()
-	binder.leave_scope()
-
-	let used_symbol_visitor = new_used_symbol_visitor(binder)
-	ast.visit_module(visitor: used_symbol_visitor, module_def)
+fn check_unused_symbols(binder: NameBinder, module_defs: List[ast.ModuleDef]) except CompilationError:
+	for module_def in module_defs:
+		binder.errors.enter_file(filename: module_def.filename)
+		for symbol in module_def.scope.get_symbols():
+			if not symbol.is_pub and symbol.get_references() == 0:
+				# TODO: use filename as a hack to reduce amount of warnings:
+				if option_is_some(module_def.filename):
+					# TODO: re-enable / put behind option flag?
+					if false:
+						binder.add_warning(location: symbol.location, message: "Symbol '{symbol.name}' defined but unused.")
+		binder.errors.leave_file()
 	binder.render_or_raise()
 
 fn new_bind_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
@@ -51,9 +83,8 @@ fn new_bind_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
 		on_node: binder_on_node
 
 pub fn bind_names_expression(expression: ast.Expression) except CompilationError:
-	let module_map: HashMap[str,ast.ModuleDef] = new_hashmap_str()
 	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
-	let binder = NameBinder(module_map, tycon_map)
+	let binder = NameBinder(tycon_map)
 	let bind_visitor = new_bind_visitor(binder)
 	ast.visit_expression(visitor: bind_visitor, expression)
 	binder.render_or_raise()
@@ -61,8 +92,6 @@ pub fn bind_names_expression(expression: ast.Expression) except CompilationError
 fn get_scope(definition: ast.Definition) -> Option[ast.Scope]:
 	# try to retrieve a scope, if we have one
 	case definition:
-		Module(module_def):
-			Option.Some(module_def.scope)
 		Macro(macro_def):
 			Option.None()
 		Function(function_def):
@@ -92,11 +121,6 @@ fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: a
 	case phase:
 		Pre:
 			case definition:
-				Module(module_def):
-					log_info("Entering module {module_def.name}")
-					#filler.define(is_pub: true, name: module_def.name, kind: ast.SymbolKind.Module(module_def), location: module_def.location)
-					filler.enter_scope(scope: module_def.scope)
-					filler.errors.enter_file(filename: module_def.filename)
 				Macro(macro_def):
 					filler.define(is_pub: false, name: macro_def.name, kind: ast.SymbolKind.Macro(macro_def), location: macro_def.location)
 				Function(function_def):
@@ -160,11 +184,6 @@ fn filler_on_definition(filler: NameBinder, definition: ast.Definition, phase: a
 					pass
 			else:
 				filler.leave_scope()
-			case definition:
-				Module(module_def):
-					filler.errors.leave_file()
-			else:
-				pass
 	else:
 		pass
 
@@ -232,49 +251,6 @@ fn filler_on_node(filler: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 	else:
 		pass
 
-fn new_import_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
-	ast.Visitor:
-		data: binder
-		on_definition: importer_on_definition
-		on_type: importer_on_type
-		on_statement: importer_on_statement
-		on_expression: importer_on_expression
-		on_node: importer_on_node
-
-fn importer_on_definition(binder: NameBinder, definition: ast.Definition, phase: ast.VisitPhase):
-	case phase:
-		Pre:
-			case definition:
-				Module(module_def):
-					log_info("Importing symbols into module {module_def.name}")
-					binder.enter_scope(scope: module_def.scope)
-					binder.errors.enter_file(filename: module_def.filename)
-					for imp in module_def.imports:
-						binder.import_mod(imp)
-			else:
-				pass
-		Post:
-			case definition:
-				Module(module_def):
-					binder.leave_scope()
-					binder.errors.leave_file()
-			else:
-				pass
-	else:
-		pass
-
-fn importer_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
-	pass
-
-fn importer_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.VisitPhase):
-	pass
-
-fn importer_on_expression(binder: NameBinder, expression: ast.Expression, phase: ast.VisitPhase):
-	pass
-
-fn importer_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase):
-	pass
-
 fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: ast.VisitPhase):
 	case phase:
 		Pre:
@@ -283,22 +259,12 @@ fn binder_on_definition(binder: NameBinder, definition: ast.Definition, phase: a
 					pass
 				Some(scope):
 					binder.enter_scope(scope)
-			case definition:
-				Module(module_def):
-					binder.errors.enter_file(filename: module_def.filename)
-			else:
-				pass
 		Post:
 			case get_scope(definition):
 				None:
 					pass
 			else:
 				binder.leave_scope()
-			case definition:
-				Module(module_def):
-					binder.errors.leave_file()
-			else:
-				pass
 	else:
 		pass
 
@@ -381,8 +347,8 @@ fn binder_on_expression(binder: NameBinder, expression: ast.Expression, phase: a
 						case base.kind:
 							LoadSymbol(sym):
 								case sym.kind:
-									Module(module_def):
-										let symbol = binder.resolve_attribute(module_def, attr, location: expression.location)
+									Namespace(namespace):
+										let symbol = binder.resolve_attribute(namespace, attr, location: expression.location)
 										expression.kind = symbol_to_kind(symbol)
 								else:
 									pass
@@ -420,53 +386,6 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 	else:
 		pass
 
-
-fn new_used_symbol_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
-	ast.Visitor:
-		data: binder
-		on_definition: used_symbol_on_definition
-		on_type: used_symbol_on_type
-		on_statement: used_symbol_on_statement
-		on_expression: used_symbol_on_expression
-		on_node: used_symbol_on_node
-
-fn used_symbol_on_definition(binder: NameBinder, definition: ast.Definition, phase: ast.VisitPhase):
-	case phase:
-		Pre:
-			case definition:
-				Module(module_def):
-					binder.errors.enter_file(filename: module_def.filename)
-
-					for symbol in module_def.scope.get_symbols():
-						if not symbol.is_pub and symbol.get_references() == 0:
-							# TODO: use filename as a hack to reduce amount of warnings:
-							if option_is_some(module_def.filename):
-								# TODO: re-enable / put behind option flag?
-								if false:
-									binder.add_warning(location: symbol.location, message: "Symbol '{symbol.name}' defined but unused.")
-			else:
-				pass
-		Post:
-			case definition:
-				Module(module_def):
-					binder.errors.leave_file()
-			else:
-				pass
-	else:
-		pass
-
-fn used_symbol_on_type(binder: NameBinder, ty: ast.Type, phase: ast.VisitPhase):
-	pass
-
-fn used_symbol_on_statement(binder: NameBinder, statement: ast.Statement, phase: ast.VisitPhase):
-	pass
-
-fn used_symbol_on_expression(binder: NameBinder, expression: ast.Expression, phase: ast.VisitPhase):
-	pass
-
-fn used_symbol_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase):
-	pass
-
 fn base_scope(typectx: ast.TypeContext) -> ast.Scope:
 	let s = ast.Scope()
 	let location = location_default()
@@ -489,31 +408,59 @@ fn base_scope(typectx: ast.TypeContext) -> ast.Scope:
 	s.define(is_pub, name: "ptr", kind: ast.SymbolKind.Typ(ty: typectx.opaque_type()), location)
 	s
 
+fn enter_namespace(namespace: ast.NamespaceDef, path: List[str]) -> Option[ast.NamespaceDef]:
+	"""Follow a path to a namespace"""
+	for name in path:
+		case namespace.scope.lookup(name):
+			Some(symbol):
+				case symbol.kind:
+					Namespace(ns):
+						namespace = ns
+				else:
+					return Option.None()
+			None:
+				return Option.None()
+	Option.Some(namespace)
+
+fn find_module(root_namespace: ast.NamespaceDef, start: List[str], path: List[str]) -> Option[ast.NamespaceDef]:
+	"""Try to look up a module in the namespace"""
+	var depth = start.len()
+	while depth > 0:
+		case enter_namespace(namespace: root_namespace, path: start.take(n: depth - 1)):
+			Some(search_namespace):
+				case enter_namespace(namespace: search_namespace, path):
+					Some(namespace):
+						return Option.Some(namespace)
+					None:
+						depth -= 1
+			None:
+				panic("search namespace must be present")
+	Option.None()
+
 class NameBinder:
 	"""Helper class to fill scopes, and resolve names from scopes."""
 	var scopes: List[ast.Scope] = List()
-	var module_map: HashMap[str,ast.ModuleDef]
+	var root_namespace: ast.NamespaceDef = ast.NamespaceDef(name: "root", scope: ast.Scope())
 	pub var tycon_map: HashMap[ast.NodeId,ast.TyCon]
 	var was_class_scope: bool = false  # HACK for multiple return values?
 	pub var errors: ErrorCollector = ErrorCollector()
 
-	pub fn import_mod(imp: ast.Import):
-		log_trace("Import {imp.modname}")
-		case module_map.maybe_get(key: imp.modname):
-			Some(module_def):
+	pub fn import_mod(start: List[str], imp: ast.Import):
+		case find_module(root_namespace, start, path: imp.namespace):
+			Some(namespace):
 				case imp.kind:
 					Self:
-						define(is_pub: false, name: module_def.name, kind: ast.SymbolKind.Module(module_def), location: imp.location)
+						define(is_pub: false, name: namespace.name, kind: ast.SymbolKind.Namespace(namespace), location: imp.location)
 					Names(names):
 						for name in names:
-							log_trace("Importing {name.name} from {module_def.name}")
+							log_trace("Importing {name.name} from {namespace.name}")
 							try:
-								let symbol = resolve_attribute(module_def, attr: name.name, location: name.location)
+								let symbol = resolve_attribute(namespace, attr: name.name, location: name.location)
 								define(is_pub: false, name: name.name, kind: symbol.kind, location: name.location)
 							except (error: SingleCompilationError):
 								errors.append(error)
 			None:
-				add_error(location: imp.location, message: "Error, no module named: {imp.modname}")
+				add_error(location: imp.location, message: "Error, no module named: {ast.dotted(imp.namespace)}")
 
 	pub fn add_tycon(id: ast.NodeId, tycon: ast.TyCon):
 		tycon_map.insert(key: id, value: tycon)
@@ -526,6 +473,36 @@ class NameBinder:
 
 	pub fn define_parameter(parameter_def: ast.ParameterDef):
 		define(is_pub: false, name: parameter_def.id.name, kind: ast.SymbolKind.Parameter(parameter_def), location: parameter_def.location)
+
+	pub fn register_module_into_namespace(module_def: ast.ModuleDef):
+		"""Register module into the namespace hierarchy"""
+		let n = module_def.namespace.len()
+		var i = 0
+		var ns: ast.NamespaceDef = root_namespace
+		let location = module_def.location
+		for name in module_def.namespace:
+			i += 1
+			if n == i:
+				if ns.scope.is_defined(name):
+					add_error(location, message: "Symbol '{name}' already defined")
+					break
+				else:
+					let kind = ast.SymbolKind.Namespace(ast.NamespaceDef(name, scope: module_def.scope))
+					ns.scope.define(is_pub: true, name, kind, location)
+			else:
+				case ns.scope.lookup(name):
+					Some(symbol):
+						case symbol.kind:
+							Namespace(ns2):
+								ns = ns2
+						else:
+							add_error(location, message: "'{name}' is not a namespace")
+							break
+					None:
+						let sub_ns = ast.NamespaceDef(name, scope: ast.Scope())
+						let kind = ast.SymbolKind.Namespace(sub_ns)
+						ns.scope.define(is_pub: true, name, kind, location)
+						ns = sub_ns
 
 	pub fn define(is_pub: bool, name: str, kind: ast.SymbolKind, location: Location):
 		# log_trace("DEFINE {name}")
@@ -592,23 +569,23 @@ class NameBinder:
 					first = false
 					continue
 				case symbol.kind:
-					Module(module_def):
-						symbol = resolve_attribute(module_def, attr: part, location: name.location)
+					Namespace(namespace):
+						symbol = resolve_attribute(namespace, attr: part, location: name.location)
 				else:
 					raise make_error(location: name.location, message: "Not a module we want to get {part} from")
 
 		symbol
 
-	pub fn resolve_attribute(module_def: ast.ModuleDef, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
+	pub fn resolve_attribute(namespace: ast.NamespaceDef, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
 		"""Try to load an attribute from a module."""
-		case module_def.scope.lookup(name: attr):
+		case namespace.scope.lookup(name: attr):
 			Some(symbol):
 				if symbol.is_pub:
 					symbol
 				else:
 					raise make_error(location, message: "Symbol '{attr}' is private")
 			None:
-				raise make_error(location, message: "module '{module_def.name}' has no symbol: '{attr}'")
+				raise make_error(location, message: "module '{namespace.name}' has no symbol: '{attr}'")
 
 	fn lookup_base_name(name: str, location: Location) -> ast.Symbol except SingleCompilationError:
 		for scope in scopes:

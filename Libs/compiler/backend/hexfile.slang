@@ -4,9 +4,9 @@ See also: https://en.wikipedia.org/wiki/Intel_HEX
 """
 
 from std import print
-from listtype import List
-from bytes import ByteArray, Bytes
-from utils import assert
+from base.listtype import List
+from base.bytes import ByteArray, Bytes
+from base.utils import assert
 
 pub class HexFile:
 	var m_lines: List[HexLine] = List()

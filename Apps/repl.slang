@@ -2,19 +2,17 @@ module main
 """A slang-lang REPL!"""
 
 from std import print, read_line, get_n_args, get_arg
-from logging import log_info, log_debug, set_log_level
-from basepass import IdGen
-from location import location_default
-from parsing import parse_statement_from_text, ParseError
-from namebinding import bind_names_expression
-from typechecking import type_check_expression
-from ir_gen import gen_expression_bytecode
-from optiontype import Option
-import bc
-from errors import CompilationError, display_error, new_single_error
-import ast
-import vm
-from vm import VirtualMachine, eval_code, value_to_string
+from base.logging import log_info, log_debug, set_log_level
+from compiler.basepass import IdGen
+from compiler.location import location_default
+from compiler.parsing.parsing import parse_statement_from_text, ParseError
+from compiler.namebinding import bind_names_expression
+from compiler.typechecking import type_check_expression
+from compiler.ir_gen import gen_expression_bytecode
+from base.optiontype import Option
+from compiler import bc, ast, vm
+from compiler.errors import CompilationError, display_error, new_single_error
+from compiler.vm import VirtualMachine, eval_code, value_to_string
 
 
 pub fn main() -> int:

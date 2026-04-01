@@ -1,9 +1,9 @@
 module gfx.game
 """Game engine functions."""
 
-from utils import unimplemented, assert
-from math import sin, cos, tan, radians
-from vectype import Vector, new_vector
+from base.utils import unimplemented, assert
+from base.math import sin, cos, tan, radians
+from base.vectype import Vector, new_vector
 from screen import Screen
 
 pub class Engine:

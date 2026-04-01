@@ -1,6 +1,6 @@
 module main
 
-from signal import butter
+from science.signal import butter
 
 pub fn main() -> int:
 	let f2 = butter(n: 2)

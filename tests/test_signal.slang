@@ -1,11 +1,11 @@
 module main
 
 from std import print, float_to_str2
-from signal import butter
-from unittest import assert_int_equals
-from listtype import list1, list3, list4, list5, List
-from utils import assert
-from math import fabs
+from science.signal import butter
+from base.unittest import assert_int_equals
+from base.listtype import list1, list3, list4, list5, List
+from base.utils import assert
+from base.math import fabs
 # from strlib import
 
 pub fn main() -> int:

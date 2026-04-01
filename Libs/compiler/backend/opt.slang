@@ -1,12 +1,12 @@
 module compiler.opt
 """Optimize SIL program."""
 
-from logging import log_info
-from utils import panic
-from hashmap import HashMap, new_hashmap_str
-from settype import Set, new_str_set
-from vectype import Vector, new_vector_with_capacity
-from deque import Queue, new_queue
+from base.logging import log_info
+from base.utils import panic
+from base.hashmap import HashMap, new_hashmap_str
+from base.settype import Set, new_str_set
+from base.vectype import Vector, new_vector_with_capacity
+from base.deque import Queue, new_queue
 import sil
 
 pub fn optimize_sil(program: sil.Program, level: int):

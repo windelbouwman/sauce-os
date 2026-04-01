@@ -23,16 +23,16 @@ module compiler.riscv_gen
 import sil
 import mil
 import riscv
-from bytes import ByteArray
-from optiontype import Option
-from listtype import List, list4, list8
-from vectype import Vector, vec4, new_vector_with_capacity
-from codegen import cgen, CodegenOptions
+from base.bytes import ByteArray
+from base.optiontype import Option
+from base.listtype import List, list4, list8
+from base.vectype import Vector, vec4, new_vector_with_capacity
+from backend.codegen import cgen, CodegenOptions
 from isel import Backend, SelectionContext, Frame
 from outstream import BinaryOutput, DataItem
 from report import Report
-from utils import unimplemented, panic
-from logging import log_info
+from base.utils import unimplemented, panic
+from base.logging import log_info
 
 pub fn gen_riscv(program: sil.Program, options: CodegenOptions):
 	log_info("Generating riscv code")

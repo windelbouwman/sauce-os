@@ -1,7 +1,7 @@
 module web.urlparse
 
-from utils import assert
-from strlib import split_string2, split_string
+from base.utils import assert
+from base.strlib import split_string2, split_string
 
 pub fn parse_url(url: str) -> ParsedUrl:
 	"""Parse url into separate components."""

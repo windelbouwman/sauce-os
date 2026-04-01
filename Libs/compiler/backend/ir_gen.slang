@@ -2,21 +2,21 @@ module compiler.ir_gen
 """generate bytecode"""
 
 import ast
-from listtype import List
-from optiontype import option_unwrap, Option
-from vectype import Vector, new_vector, new_vector_with_capacity
-from hashmap import HashMap, new_hashmap_int, new_hashmap_str
-from settype import Set, new_int_set
-from utils import panic, assert
-from logging import log_info, log_debug, log_trace
+from base.listtype import List
+from base.optiontype import option_unwrap, Option
+from base.vectype import Vector, new_vector, new_vector_with_capacity
+from base.hashmap import HashMap, new_hashmap_int, new_hashmap_str
+from base.settype import Set, new_int_set
+from base.utils import panic, assert
+from base.logging import log_info, log_debug, log_trace
 import dbginfo
 from bc import Instruction
 import bc
 
-pub fn gen_bytecode(module_set: ast.ModuleSet, debug: Option[dbginfo.DbgInfo]) -> bc.Program:
+pub fn gen_bytecode(module_defs: List[ast.ModuleDef], debug: Option[dbginfo.DbgInfo]) -> bc.Program:
 	let g = BytecodeGenerator(m_debug: debug)
-	g.forward_declarations(module_set)
-	for module_def in module_set.modules:
+	g.forward_declarations(module_defs)
+	for module_def in module_defs:
 		g.gen_prog(module_def)
 	bc.Program(functions: g.functions, structs: g.structs, globals: g.global_variables, extern_functions: g.extern_functions)
 
@@ -62,10 +62,10 @@ class BytecodeGenerator:
 
 	var m_debug: Option[dbginfo.DbgInfo]
 
-	pub fn forward_declarations(module_set: ast.ModuleSet):
+	pub fn forward_declarations(module_defs: List[ast.ModuleDef]):
 		# struct forward declarations:
 		var index = 0
-		for module_def in module_set.modules:
+		for module_def in module_defs:
 			for definition in module_def.definitions:
 				case definition:
 					Struct(struct_def):
@@ -75,7 +75,7 @@ class BytecodeGenerator:
 					pass
 
 		# Extern function forward delcarations:
-		for module_def in module_set.modules:
+		for module_def in module_defs:
 			for definition in module_def.definitions:
 				case definition:
 					Struct(struct_def):
@@ -98,7 +98,7 @@ class BytecodeGenerator:
 					pass
 
 		var func_index = extern_functions.len()
-		for module_def in module_set.modules:
+		for module_def in module_defs:
 			for definition in module_def.definitions:
 				case definition:
 					Function(function_def):
@@ -123,7 +123,7 @@ class BytecodeGenerator:
 					pass
 
 	pub fn gen_prog(module_def: ast.ModuleDef):
-		log_info("Generating bytecode for {module_def.name}")
+		log_info("Generating bytecode for {module_def.get_name()}")
 		for definition in module_def.definitions:
 			case definition:
 				Function(function_def):

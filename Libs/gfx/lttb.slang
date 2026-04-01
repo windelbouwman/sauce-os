@@ -1,8 +1,8 @@
 module gfx.lttb
 """Largest Triangle Three Bucket (LTTB) algorithm"""
 
-from listtype import List
-from math import floor, fabs
+from base.listtype import List
+from base.math import floor, fabs
 from chart import DataPoint
 
 pub fn lttb(values: List[DataPoint], threshold: int) -> List[DataPoint]:

@@ -17,11 +17,11 @@ Similar to QBE IL
 See: https://c9x.me/compile/doc/il.html
 """
 
-from bytes import Bytes
-from listtype import List
-from vectype import Vector
-from optiontype import Option
-from strlib import str_join
+from base.bytes import Bytes
+from base.listtype import List
+from base.vectype import Vector
+from base.optiontype import Option
+from base.strlib import str_join
 from report import Report
 
 pub class Program:

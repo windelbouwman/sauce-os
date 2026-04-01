@@ -213,7 +213,7 @@ let compiler = await loadModule("compiler.wasm", {
 function extract_array_from_wasm(buffer, bufsize) {
   let data = new Uint8Array(bufsize);
   for (let i = 0; i < bufsize; i++) {
-    let b = libbase.instance.exports.bytes_get_byte_from_array(
+    let b = libbase.instance.exports.base_bytes_get_byte_from_array(
       buffer,
       BigInt(i),
     );
@@ -230,7 +230,7 @@ async function runApp(url) {
     libimage: libimage.instance.exports,
     libscience: libscience.instance.exports,
   });
-  return appModule.instance.exports.main2();
+  return appModule.instance.exports.main_main();
 }
 
 async function runUnitTest(name) {
@@ -296,7 +296,7 @@ example_menu.addEventListener("change", (event) => {
 
 function invokeCompiler(args) {
   env.args = args;
-  let res = compiler.instance.exports.main2();
+  let res = compiler.instance.exports.main_main();
   console.assert(Number(res) === 0, "Compiler failed");
 }
 
@@ -347,7 +347,7 @@ async function doRun() {
       },
     );
     cls();
-    let res = wasmModule.instance.exports.main2();
+    let res = wasmModule.instance.exports.main_main();
     console.log("Exit code: " + res);
   }
 }

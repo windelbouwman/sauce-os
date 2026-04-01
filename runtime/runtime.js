@@ -199,16 +199,21 @@ async function runUnitTests() {
   });
 
   // Exported function live under instance.exports
-  const { math_abs } = libbase.instance.exports;
-  console.log("Result of math_abs:", math_abs(BigInt(-9)));
+  console.log(
+    "Result of math_abs:",
+    libbase.instance.exports.base_math_abs(BigInt(-9)),
+  );
   console.log(
     "Result of math_radians:",
-    libbase.instance.exports.math_radians(181),
+    libbase.instance.exports.base_math_radians(181),
   );
-  console.log("Result of math_pi:", libbase.instance.exports.math_pi.value);
+  console.log(
+    "Result of math_pi:",
+    libbase.instance.exports.base_math_pi.value,
+  );
   console.log(
     "Result of strlib_str_repeat:",
-    libbase.instance.exports.strlib_str_repeat("poah", BigInt(7)),
+    libbase.instance.exports.base_strlib_str_repeat("poah", BigInt(7)),
   );
 
   // Unit test
@@ -222,7 +227,7 @@ async function runUnitTests() {
         libimage: libimage.instance.exports,
         libscience: libscience.instance.exports,
       });
-      const res = test_module.instance.exports.main2();
+      const res = test_module.instance.exports.main_main();
       console.assert(res == 0, "Result must be 0");
     }
   }
@@ -234,8 +239,7 @@ async function runSnippet(filename) {
     slangrt,
   });
   // Exported function live under instance.exports
-  const { main2 } = wasmModule.instance.exports;
-  const res = main2();
+  const res = wasmModule.instance.exports.main_main();
   process.exit(Number(res));
 }
 

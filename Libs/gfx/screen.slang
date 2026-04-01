@@ -1,10 +1,10 @@
 module gfx.screen
 
-from utils import assert
-from math import abs
-from image import Image, new_image, Pixel, ColorMode
-from fs import Path
-from png import write_png_to_file
+from base.utils import assert
+from base.math import abs
+from image.image import Image, new_image, Pixel, ColorMode
+from base.fs import Path
+from image.png import write_png_to_file
 
 pub fn new_screen(width: int, height: int) -> Screen:
 	assert(condition: width > 0, message: "Width must be larger than 0")

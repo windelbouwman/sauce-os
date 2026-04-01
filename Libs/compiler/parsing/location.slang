@@ -1,7 +1,7 @@
 module compiler.location
 
 from std import str_get
-from strlib import is_lf
+from base.strlib import is_lf
 
 pub struct Location2:
 	begin: int

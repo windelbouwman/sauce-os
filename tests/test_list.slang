@@ -1,8 +1,8 @@
 module main
 
 from std import print
-from listtype import List
-from unittest import assert_int_equals, assert_true
+from base.listtype import List
+from base.unittest import assert_int_equals, assert_true
 
 
 pub fn main() -> int:

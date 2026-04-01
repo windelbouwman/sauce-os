@@ -3,10 +3,10 @@ module main
 
 import std
 from std import print
-from logging import set_log_level, log_error, log_info
+from base.logging import set_log_level, log_error, log_info
 # from zip import open_archive
-from fs import read_whole_file_as_bytes, new_path
-from gzip import gzip_decompress
+from base.fs import read_whole_file_as_bytes, new_path
+from base.gzip import gzip_decompress
 
 pub fn main() -> int:
 	log_info("Unzip!")

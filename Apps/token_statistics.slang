@@ -1,11 +1,11 @@
 module main
 
-from listtype import List
-from lexer import Lexer
-from token import token_to_string
+from base.listtype import List
+from compiler.parsing.lexer import Lexer
+from compiler.parsing.token import token_to_string
 from std import read_file, print, get_n_args, get_arg
-from hashmap import HashMap, new_hashmap_str
-from sorting import sort_list
+from base.hashmap import HashMap, new_hashmap_str
+from base.sorting import sort_list
 
 pub fn main() -> int:
 	let filenames: List[str] = List()

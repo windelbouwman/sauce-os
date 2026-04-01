@@ -2,8 +2,8 @@ module main
 """Test rope data structure."""
 
 from std import print
-from rope import new_rope
-from unittest import assert_str_equals
+from base.rope import new_rope
+from base.unittest import assert_str_equals
 
 
 pub fn main() -> int:

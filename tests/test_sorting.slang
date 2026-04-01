@@ -1,9 +1,9 @@
 module main
 
 from std import print
-from listtype import List
-from unittest import assert_int_equals, assert_str_equals
-from strlib import lexical_sort
+from base.listtype import List
+from base.unittest import assert_int_equals, assert_str_equals
+from base.strlib import lexical_sort
 
 pub fn main() -> int:
 	test_sort_string_list()

@@ -1,12 +1,12 @@
 module science.signal
 """Signal processing routines"""
 
-from listtype import List
+from base.listtype import List
 from std import print, float_to_str
-from strlib import str_join
-from utils import unimplemented
-from logging import log_debug
-from math import sin, cos
+from base.strlib import str_join
+from base.utils import unimplemented
+from base.logging import log_debug
+from base.math import sin, cos
 
 # TODO: import pi from math:
 var pi: float = 3.141592653589793

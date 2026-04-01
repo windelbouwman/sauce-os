@@ -2,11 +2,11 @@ module main
 """Test compiler optimization pass."""
 
 from std import print
-from unittest import assert_true
-from vectype import vec1, vec3, new_vector, Vector
-from listtype import List
-import sil
-from opt import skip_jump_blocks
+from base.unittest import assert_true
+from base.vectype import vec1, vec3, new_vector, Vector
+from base.listtype import List
+from compiler import sil
+from compiler.opt import skip_jump_blocks
 
 pub fn main() -> int:
 	let parameters: Vector[sil.Value] = new_vector()

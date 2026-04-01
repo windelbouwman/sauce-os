@@ -2,11 +2,11 @@ module main
 """Handling of tar.gz files"""
 
 import std
-from fs import read_whole_file_as_bytes, new_path
-from gzip import gzip_decompress
-from datetime import unix_to_str
-from bytes import ByteReader, bytes_to_ascii
-from strlib import str_pad_left
+from base.fs import read_whole_file_as_bytes, new_path
+from base.gzip import gzip_decompress
+from base.datetime import unix_to_str
+from base.bytes import ByteReader, bytes_to_ascii
+from base.strlib import str_pad_left
 
 pub fn main() -> int:
 	let n = std.get_n_args()

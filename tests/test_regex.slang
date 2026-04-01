@@ -1,9 +1,9 @@
 module main
 
 from std import print
-from regex import find_all_text, split_at_pattern
-from unittest import assert_list_equals
-from listtype import list3, list4
+from base.regex import find_all_text, split_at_pattern
+from base.unittest import assert_list_equals
+from base.listtype import list3, list4
 
 pub fn main() -> int:
 	test_numbers()

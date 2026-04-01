@@ -1,15 +1,15 @@
 module compiler.igraph
 """Interference graph."""
 
-from logging import log_debug
-from hashmap import HashMap, new_hashmap_int, new_hashmap_str
-from vectype import Vector, new_vector, new_vector_with_capacity
-from settype import Set, SetIter, new_int_set, new_str_set
-from optiontype import Option
-from bitset import BitSet, new_bitset, BitSetIter
-from listtype import List
-from strlib import str_join
-from utils import panic
+from base.logging import log_debug
+from base.hashmap import HashMap, new_hashmap_int, new_hashmap_str
+from base.vectype import Vector, new_vector, new_vector_with_capacity
+from base.settype import Set, SetIter, new_int_set, new_str_set
+from base.optiontype import Option
+from base.bitset import BitSet, new_bitset, BitSetIter
+from base.listtype import List
+from base.strlib import str_join
+from base.utils import panic
 from report import Report
 import mil
 

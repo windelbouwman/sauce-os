@@ -13,8 +13,7 @@ from base.hashmap import HashMap, new_hashmap_str
 from base.vectype import Vector, new_vector, new_vector_with_capacity
 from base.strlib import str_join
 
-pub fn resolve_newops(module_def: ast.ModuleDef, id_gen: IdGen) except CompilationError:
-	log_info("resolve new-ops for {module_def.name}")
+pub fn resolve_newops(module_defs: List[ast.ModuleDef], id_gen: IdGen) except CompilationError:
 	let newop = NewOp(id_gen)
 	let visitor: ast.Visitor[NewOp] = ast.Visitor:
 		data: newop
@@ -23,25 +22,15 @@ pub fn resolve_newops(module_def: ast.ModuleDef, id_gen: IdGen) except Compilati
 		on_statement: newop_on_statement
 		on_expression: newop_on_expression
 		on_node: newop_on_node
-	ast.visit_module(visitor, module_def)
+	for module_def in module_defs:
+		log_info("resolve new-ops for {module_def.get_name()}")
+		newop.errors.enter_file(filename: module_def.filename)
+		ast.visit_module(visitor, module_def)
+		newop.errors.leave_file()
 	newop.errors.render_or_raise()
 
 fn newop_on_definition(newop: NewOp, definition: ast.Definition, phase: ast.VisitPhase):
-	case phase:
-		Pre:
-			case definition:
-				Module(module_def):
-					newop.errors.enter_file(filename: module_def.filename)
-			else:
-				pass
-		Post:
-			case definition:
-				Module(module_def):
-					newop.errors.leave_file()
-			else:
-				pass
-	else:
-		pass
+	pass
 
 fn newop_on_type(newop: NewOp, ty: ast.Type, phase: ast.VisitPhase):
 	case phase:

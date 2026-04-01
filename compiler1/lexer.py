@@ -111,6 +111,9 @@ def tokenize(code: str | tuple[Location, str]):
     escape_regex = r"(\\[ntr'\"\{\}\\])|(\\[0-8][0-8][0-8])|(\\x[0-9a-fA-F][0-9a-fA-F])"
     main_pattern = spec_to_pattern(
         [
+            ("FHNUMBER1", r"0x[0-9a-fA-F]+p[\-+]?[0-9]+"),  # 0x1p9
+            ("FHNUMBER2", r"0x[0-9a-fA-F]+\.[0-9a-fA-F]+p[\-+]?[0-9]+"),  # 0x1.0p9
+            ("FHNUMBER3", r"0x[0-9a-fA-F]+\.[0-9a-fA-F]+"),  # 0x1.0
             ("HEXNUMBER", r"0x[0-9a-fA-F]+"),
             ("BINNUMBER", r"0b[0-1]+"),
             ("FNUMBER1", r"[0-9]+[eE][\-+]?[0-9]+"),  # 1e9
@@ -202,6 +205,9 @@ def tokenize(code: str | tuple[Location, str]):
             elif kind == "HEXNUMBER":
                 kind = "NUMBER"
                 value = int(value, 16)
+            elif kind == "FHNUMBER1" or kind == "FHNUMBER2" or kind == "FHNUMBER3":
+                kind = "FNUMBER"
+                value = float.fromhex(value)
             elif kind == "BINNUMBER":
                 kind = "NUMBER"
                 value = int(value, 2)

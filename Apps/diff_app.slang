@@ -2,12 +2,12 @@ module main
 """Print differences between text files."""
 
 from std import print, read_file, get_n_args, get_arg
-from strlib import split_lines
-from logging import set_log_level, log_info
-from listtype import List
-from fs import Path, new_path
-from optiontype import Option, option_unwrap
-from diff import diff_lines
+from base.strlib import split_lines
+from base.logging import set_log_level, log_info
+from base.listtype import List
+from base.fs import Path, new_path
+from base.optiontype import Option, option_unwrap
+from base.diff import diff_lines
 
 pub fn main() -> int:
 	let n = get_n_args()

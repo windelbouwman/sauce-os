@@ -1,6 +1,6 @@
 module image.image
 
-from vectype import Vector, new_vector_of_size
+from base.vectype import Vector, new_vector_of_size
 
 pub fn new_image(width: int, height: int, mode: ColorMode) -> Image:
 	let bytes_per_pixel = case mode:

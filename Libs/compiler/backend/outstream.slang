@@ -4,13 +4,13 @@ module compiler.outstream
 Use the Outstream to contrapt an Object struct, with code and data section.
 """
 
-from optiontype import Option
-from utils import panic
-from logging import log_debug
-from hashmap import HashMap, new_hashmap_str
-from vectype import Vector, new_vector
-from deque import Queue, new_queue
-from bytes import ByteArray, Bytes
+from base.optiontype import Option
+from base.utils import panic
+from base.logging import log_debug
+from base.hashmap import HashMap, new_hashmap_str
+from base.vectype import Vector, new_vector
+from base.deque import Queue, new_queue
+from base.bytes import ByteArray, Bytes
 
 pub struct Object:
 	"""Code object"""

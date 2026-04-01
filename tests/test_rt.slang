@@ -1,7 +1,7 @@
 module main
 
 from std import print
-from unittest import assert_int_equals
+from base.unittest import assert_int_equals
 from rt import ctz, popcnt
 
 pub fn main() -> int:

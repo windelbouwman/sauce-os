@@ -2,9 +2,9 @@ module compiler.assembler
 """Idea for an assembler"""
 
 from std import str_len
-from utils import unimplemented
-from strlib import split_lines
-from listtype import List
+from base.utils import unimplemented
+from base.strlib import split_lines
+from base.listtype import List
 
 pub class Assembler:
 	var m_line_parser: LineParser = LineParser()

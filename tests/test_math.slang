@@ -1,9 +1,9 @@
 module main
 
 from std import print, float_to_str2
-from utils import assert
-from math import modulo, fabs, floor, ceil, factorial, sin, cos, log10, exp, sqrt
-from unittest import assert_int_equals
+from base.utils import assert
+from base.math import modulo, fabs, floor, ceil, factorial, sin, cos, log10, exp, sqrt
+from base.unittest import assert_int_equals
 
 pub fn main() -> int:
 	test_float_literals()
@@ -27,6 +27,12 @@ fn test_float_literals():
 	assert_are_close(1.000e+1, 10)
 	assert_are_close(1.0000e-3, 0.001)
 	assert_are_close(0.1e-4, 0.00001)
+
+	assert_are_close(0x1p8, 256.0)
+	assert_are_close(0x1.00p4, 16.0)
+	assert_are_close(0x10.0p-4, 1.0)
+	# TODO: 0x1.921fb54442d18p1 is the one
+	assert_are_close(0x1.921fb54p1, 3.141592653589)
 
 fn test_modulo():
 	assert_int_equals(modulo(value: 9, divisor: 5), 4)

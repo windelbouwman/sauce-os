@@ -4,14 +4,14 @@ module image.png
 See RFC 2083
 """
 
-from utils import unimplemented, panic, assert
-from logging import log_warning, log_debug
-from math import abs
-from bytes import Bytes, ByteReader, bytes_from_ascii, bytes_from_hex_text, ByteArray, bytes_to_ascii, new_bytes
-from gzip import calc_crc32, zlib_decompress, zlib_compress
-from fs import read_whole_file_as_bytes, write_bytes_to_file, Path
+from base.utils import unimplemented, panic, assert
+from base.logging import log_warning, log_debug
+from base.math import abs
+from base.bytes import Bytes, ByteReader, bytes_from_ascii, bytes_from_hex_text, ByteArray, bytes_to_ascii, new_bytes
+from base.gzip import calc_crc32, zlib_decompress, zlib_compress
+from base.fs import read_whole_file_as_bytes, write_bytes_to_file, Path
 from image import Image, new_image, Pixel, new_pixel, ColorMode
-from vectype import Vector, new_vector
+from base.vectype import Vector, new_vector
 
 pub fn read_png_from_file(path: Path) -> Image:
 	log_debug("Loading PNG from {path}")

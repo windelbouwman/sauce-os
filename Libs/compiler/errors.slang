@@ -1,9 +1,9 @@
 module compiler.errors
 
 from std import print, read_file, str_get, str_len
-from listtype import List, list1
-from optiontype import Option
-from strlib import split_lines, str_repeat, str_pad_left
+from base.listtype import List, list1
+from base.optiontype import Option
+from base.strlib import split_lines, str_repeat, str_pad_left
 from location import Location, Position, get_begin, get_end, offset_to_position
 
 pub struct CompilationError:

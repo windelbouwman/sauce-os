@@ -2,20 +2,20 @@ module compiler.pygenerator
 """Generate python code from AST."""
 
 import ast
-from utils import panic, unimplemented
-from logging import log_info
-from listtype import List
-from optiontype import option_unwrap, Option
-from settype import Set, new_str_set
+from base.utils import panic, unimplemented
+from base.logging import log_info
+from base.listtype import List
+from base.optiontype import option_unwrap, Option
+from base.settype import Set, new_str_set
 from std import float_to_str2, str_len, str_slice
-from strlib import str_join
+from base.strlib import str_join
 from text_gen import TextGenerator
 
-pub fn gen_python(module_set: ast.ModuleSet, generate_runtime: bool, output_filename: Option[str]):
+pub fn gen_python(module_defs: List[ast.ModuleDef], output_filename: Option[str]):
 	log_info("Generating python code")
 	let g = PyGenerator()
 	g.out.begin(output_filename)
-	g.generate(module_set, generate_runtime)
+	g.generate(module_defs)
 	g.out.end()
 
 class PyGenerator:
@@ -23,15 +23,18 @@ class PyGenerator:
 	var global_header: str = ""
 	var importe_modules: Set[str] = new_str_set()
 
-	pub fn generate(module_set: ast.ModuleSet, generate_runtime: bool):
+	pub fn generate(module_defs: List[ast.ModuleDef]):
 		emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
-		for module_def in module_set.modules:
+		var has_main = false
+		for module_def in module_defs:
 			gen_module(module_def)
-		if generate_runtime:
+			if module_def.scope.is_defined(name: "main"):
+				has_main = true
+		if has_main:
 			emit("if __name__ == '__main__':")
 			indent()
 			emit("import sys")
-			emit("sys.exit(main2())")
+			emit("sys.exit(main_main())")
 			dedent()
 
 	pub fn gen_module(module_def: ast.ModuleDef):
@@ -69,8 +72,6 @@ class PyGenerator:
 
 	fn gen_definition(definition: ast.Definition):
 		case definition:
-			Module(module_def):
-				panic("pygen module")
 			Macro(macro_def):
 				pass
 			Function(function_def):
@@ -104,7 +105,7 @@ class PyGenerator:
 			Struct(struct_def):
 				if struct_def.is_union:
 					panic("Unions not supported")
-				emit("class {get_id(id: struct_def.id)}:")
+				emit("class {struct_def.id.name}:")
 				indent()
 				let parameter_names: List[str] = List()
 				for field in struct_def.fields:
@@ -247,9 +248,8 @@ class PyGenerator:
 				float_to_str2(value, digits: 20)
 			StructLiteral(ty, values):
 				let struct_def = ty.get_struct_def()
-				let name = get_id(id: struct_def.id)
 				let args = gen_expression_list(expressions: values)
-				"{name}({args})"
+				"{struct_def.id.name}({args})"
 			ArrayLiteral(values):
 				let args = gen_expression_list(expressions: values)
 				"[{args}]"

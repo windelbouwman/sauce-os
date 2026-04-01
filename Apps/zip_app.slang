@@ -1,10 +1,10 @@
 module main
 
 import std
-from logging import set_log_level, log_error, log_info
-from optiontype import Option, option_unwrap, option_is_none
-from gzip import gzip_compress
-from fs import write_bytes_to_file, read_whole_file_as_bytes, Path, new_path
+from base.logging import set_log_level, log_error, log_info
+from base.optiontype import Option, option_unwrap, option_is_none
+from base.gzip import gzip_compress
+from base.fs import write_bytes_to_file, read_whole_file_as_bytes, Path, new_path
 
 pub fn main() -> int:
 

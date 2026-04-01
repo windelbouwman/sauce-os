@@ -21,36 +21,36 @@ import ast
 import std
 from webassembly import Instruction
 from base.listtype import List, list1
-from vectype import Vector, new_vector
-from bytes import ByteArray
-from optiontype import Option
+from base.vectype import Vector, new_vector
+from base.bytes import ByteArray
+from base.optiontype import Option
 from text_gen import TextGenerator
-from hashmap import HashMap, new_hashmap_str
+from base.hashmap import HashMap, new_hashmap_str
 from location import location_default
 from std import str_len, ord, str_get
-from utils import panic, assert
-from logging import log_info, log_debug
+from base.utils import panic, assert
+from base.logging import log_info, log_debug
 
-pub fn gen_webassembly_text(module_set: ast.ModuleSet, typectx: ast.TypeContext, output_filename: Option[str]):
-	let wasm_module = gen_webassembly_module(module_set, typectx)
+pub fn gen_webassembly_text(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext, output_filename: Option[str]):
+	let wasm_module = gen_webassembly_module(module_defs, typectx)
 	let out = TextGenerator()
 	out.m_one_tab = "  "
 	out.begin(output_filename)
 	webassembly.to_wat(wasm_module, out)
 	out.end()
 
-pub fn gen_webassembly_binary(module_set: ast.ModuleSet, typectx: ast.TypeContext, filename: str):
-	let wasm_module = gen_webassembly_module(module_set, typectx)
+pub fn gen_webassembly_binary(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext, filename: str):
+	let wasm_module = gen_webassembly_module(module_defs, typectx)
 	let data = webassembly.to_wasm(wasm_module)
 	let handle = std.file_open(filename, mode: "wb")
 	let written = std.file_write_n_bytes(handle, buffer: data.as_array(), bufsize: data.len())
 	assert(condition: written == data.len(), message: "file_write_n_bytes failed")
 	std.file_close(handle)
 
-pub fn gen_webassembly_module(module_set: ast.ModuleSet, typectx: ast.TypeContext) -> webassembly.Module:
+pub fn gen_webassembly_module(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext) -> webassembly.Module:
 	log_info("Generating WebAssembly")
 	let generator = WasmGenerator(typectx)
-	let wasm_module = generator.gen_module_set(modules: module_set.modules)
+	let wasm_module = generator.gen_module_defs(modules: module_defs)
 	wasm_module
 
 class WasmGenerator:
@@ -108,7 +108,7 @@ class WasmGenerator:
 		imports.append(webassembly.Import(modname: "wasm:js-string", name: "fromCharCodeArray", kind: webassembly.ExternType.Func(typeidx: type_id)))
 		func_counter += 1
 
-	pub fn gen_module_set(modules: List[ast.ModuleDef]) -> webassembly.Module:
+	pub fn gen_module_defs(modules: List[ast.ModuleDef]) -> webassembly.Module:
 		add_i16_array()
 		f64_box_type = add_num_box_type(webassembly.NumType.f64())
 		f32_box_type = add_num_box_type(webassembly.NumType.f32())
@@ -117,7 +117,7 @@ class WasmGenerator:
 		add_builtin()
 
 		for module_def in modules:
-			log_info("Generating external functions {module_def.name}")
+			log_info("Generating external functions {module_def.get_name()}")
 			for definition in module_def.definitions:
 				case definition:
 					Function(function_def):
@@ -179,7 +179,8 @@ class WasmGenerator:
 		let tags: List[webassembly.Tag] = List()
 		tags.append(webassembly.Tag(typeidx))
 
-		datas.append(webassembly.Data(data: m_string_data.to_bytes()))
+		if not m_string_data.is_empty():
+			datas.append(webassembly.Data(data: m_string_data.to_bytes()))
 
 		# Create module:
 		let wasm_module = webassembly.Module:

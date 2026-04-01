@@ -2,7 +2,7 @@ module main
 """Snake implemented in slang"""
 
 from std import print
-from screen import Screen, new_screen
+from gfx.screen import Screen, new_screen
 
 pub fn main() -> int:
 	let game = Game()

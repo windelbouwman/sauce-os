@@ -3,13 +3,13 @@ module main
 
 import std
 from std import print, str_len
-from httpclient import parse_header, Header
-from utils import panic
-from logging import log_debug
-from listtype import List
-from bytes import ByteArray, bytes_to_ascii
-from json import parse_json, JsonException, JsonValue, json_to_string
-from strlib import trim, str_to_int
+from web.httpclient import parse_header, Header
+from base.utils import panic
+from base.logging import log_debug
+from base.listtype import List
+from base.bytes import ByteArray, bytes_to_ascii
+from base.json import parse_json, JsonException, JsonValue, json_to_string
+from base.strlib import trim, str_to_int
 
 pub fn main() -> int:
 	loop:

@@ -4,11 +4,11 @@ from std import print, float_to_str
 from base.strlib import str_repeat, str_join
 from base.utils import panic, assert
 from base.logging import log_info, log_error
-from parsing.location import Location, location_default
+from location import Location, location_default
 from base.listtype import List
 from base.optiontype import Option, option_unwrap, option_is_some
-from vectype import Vector, new_vector_with_capacity, new_vector
-from hashmap import HashMap, new_hashmap_str, new_hashmap, str_hash
+from base.vectype import Vector, new_vector_with_capacity, new_vector
+from base.hashmap import HashMap, new_hashmap_str, new_hashmap, str_hash
 
 # Name coupled with global unique ID:
 pub struct NodeId:
@@ -615,7 +615,10 @@ pub struct QualName:
 #     Based(base: QualName, attr: str)
 
 pub fn qual_name_to_string(name: QualName) -> str:
-	str_join(parts: name.parts, sep: "::")
+	dotted(name.parts)
+
+pub fn dotted(parts?: List[str]) -> str:
+	str_join(parts: parts, sep: ".")
 
 pub enum TypeKind:
 	Base(base: BaseType)
@@ -935,16 +938,21 @@ pub fn new_type_var(unique: int) -> TypeVariable:
 pub fn type_var_equals(type_var1: TypeVariable, type_var2: TypeVariable) -> bool:
 	type_var1.unique == type_var2.unique
 
-pub struct ModuleSet:
-	modules: List[ModuleDef]
+pub struct NamespaceDef:
+	"""Module namespace"""
+	name: str
+	scope: Scope
 
 pub class ModuleDef:
-	pub var name: str
+	pub var namespace: List[str]
 	pub var location: Location
 	pub var filename: Option[str]
 	pub var imports: Vector[Import]
 	pub var definitions: List[Definition]
 	pub var scope: Scope
+
+	pub fn get_name() -> str:
+		dotted(namespace)
 
 	fn define_symbol(name: str, definition: Definition):
 		definitions.append(definition)
@@ -955,40 +963,37 @@ pub class ModuleDef:
 	pub fn define_enum(enum_def: EnumDef):
 		define_symbol(name: enum_def.id.name, definition: Definition.Enum(enum_def))
 
-	pub fn add_module(m?: ModuleDef):
-		definitions.append(Definition.Module(m))
-
-pub fn new_module(name: str, location: Location, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> ModuleDef:
+pub fn new_module(namespace: List[str], location: Location, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> ModuleDef:
 	ModuleDef:
-		name
+		namespace
 		location
 		filename
 		imports
 		definitions
 		scope: Scope()
 
-pub fn new_empty_module(name: str, location: Location) -> ModuleDef:
+pub fn new_empty_module(namespace: List[str], location: Location) -> ModuleDef:
 	new_module:
-		name
+		namespace
 		location
 		filename: Option.None()
 		imports: new_vector()
 		definitions: List()
 
-pub fn import_self(modname: str, location: Location) -> Import:
+pub fn import_self(namespace: List[str], location: Location) -> Import:
 	Import:
-		modname: modname
-		location: location
+		namespace
+		location
 		kind: ImportKind.Self()
 
-pub fn import_names(modname: str, location: Location, names: List[NameAtLocation]) -> Import:
+pub fn import_names(namespace: List[str], location: Location, names: List[NameAtLocation]) -> Import:
 	Import:
-		modname: modname
-		location: location
+		namespace
+		location
 		kind: ImportKind.Names(names)
 
 pub struct Import:
-	modname: str
+	namespace: List[str]
 	location: Location
 	kind: ImportKind
 
@@ -1040,7 +1045,7 @@ pub class Scope:
 		symbols.values()
 
 pub enum SymbolKind:
-	Module(module_def: ModuleDef)
+	Namespace(namespace: NamespaceDef)
 	Macro(macro_def: MacroDef)
 	Function(function_def: FunctionDef)
 	Parameter(parameter_def: ParameterDef)
@@ -1066,8 +1071,8 @@ pub class Symbol:
 
 	pub fn to_string() -> str:
 		case kind:
-			Module(module_def):
-				"mod:{module_def.name}"
+			Namespace(namespace):
+				"namespace:{namespace.name}"
 			Macro(macro_def):
 				macro_def_to_str(macro_def)
 			Function(function_def):
@@ -1086,7 +1091,6 @@ pub class Symbol:
 				"Field({field.name})"
 
 pub enum Definition:
-	Module(module_def: ModuleDef)
 	Macro(macro_def: MacroDef)
 	Function(function_def: FunctionDef)
 	Enum(enum_def: EnumDef)
@@ -1099,8 +1103,6 @@ pub enum Definition:
 
 pub fn definition_to_str(definition: Definition) -> str:
 	case definition:
-		Module(module_def):
-			"mod:{module_def.name}"
 		Macro(macro_def):
 			macro_def_to_str(macro_def)
 		Function(function_def):
@@ -1872,20 +1874,20 @@ pub fn to_string(typectx: TypeContext, value: Expression, location: Location) ->
 pub fn null_value(typectx: TypeContext, location: Location) -> Expression:
 	Expression(kind: ExpressionKind.Null(), ty: typectx.opaque_type(), location)
 
-pub fn print_ast2(module_set: ModuleSet):
-	for module_def in module_set.modules:
+pub fn print_ast2(module_defs: List[ModuleDef]):
+	for module_def in module_defs:
 		print_ast(module_def)
 
 pub fn print_ast(module_def: ModuleDef):
-	print("Module: " + module_def.name)
+	print("Module: {module_def.get_name()}")
 	let printer = AstPrinter()
 	printer.indent()
 	for imp in module_def.imports:
 		case imp.kind:
 			Self:
-				printer.print2(txt: "import {imp.modname}")
+				printer.print2(txt: "import {dotted(imp.namespace)}")
 			Names(names):
-				printer.print2(txt: "from {imp.modname} import ..")
+				printer.print2(txt: "from {dotted(imp.namespace)} import ..")
 	let visitor = new_print_visitor(printer)
 	visit_module(visitor, module_def)
 	printer.dedent()
@@ -2134,8 +2136,8 @@ pub enum VisitNode:
 	ScopeNode(scope: Scope)
 	ModuleNode(module_def: ModuleDef)
 
-pub fn visit_module_set[T](visitor: Visitor[T], module_set: ModuleSet):
-	for module_def in module_set.modules:
+pub fn visit_module_defs[T](visitor: Visitor[T], module_defs: List[ModuleDef]):
+	for module_def in module_defs:
 		let module_node = VisitNode.ModuleNode(module_def)
 		visitor.on_node(data: visitor.data, module_node, phase: VisitPhase.Pre())
 		visit_module(visitor, module_def)
@@ -2149,8 +2151,6 @@ pub fn visit_module[T](visitor: Visitor[T], module_def: ModuleDef):
 fn visit_definition[T](visitor: Visitor[T], definition: Definition):
 	visitor.on_definition(a: visitor.data, definition, phase: VisitPhase.Pre())
 	case definition:
-		Module(module_def):
-			visit_module(visitor, module_def)
 		Macro(macro_def):
 			pass
 		Function(function_def):

@@ -7,21 +7,21 @@ Alternative to c_gen module
 """
 
 from std import float_to_str2
-from strlib import str_join
+from base.strlib import str_join
 import ast
-from listtype import List
-from optiontype import option_unwrap, Option
-from utils import panic
-from logging import log_info
+from base.listtype import List
+from base.optiontype import option_unwrap, Option
+from base.utils import panic
+from base.logging import log_info
 from text_gen import TextGenerator
 from pygenerator import escape_string, needs_escaping, escape_char
 
 
-pub fn gen_c_code_v2(module_set: ast.ModuleSet, output_filename: Option[str]):
+pub fn gen_c_code_v2(module_defs: List[ast.ModuleDef], output_filename: Option[str]):
 	log_info("Generating C-code")
 	let g = CGenerator2()
 	g.out.begin(output_filename)
-	g.gen_module_set(module_set)
+	g.gen_module_defs(module_defs)
 	g.out.end()
 
 enum BlockType:
@@ -33,12 +33,12 @@ class CGenerator2:
 	var next_id: int = 1
 	var m_blocks: List[BlockType] = List()
 
-	pub fn gen_module_set(module_set: ast.ModuleSet):
+	pub fn gen_module_defs(module_defs: List[ast.ModuleDef]):
 		gen_header()
-		gen_forward_declarations1(module_set)
-		gen_forward_declarations2(module_set)
-		gen_struct_defs(module_set)
-		gen_function_defs(module_set)
+		gen_forward_declarations1(module_defs)
+		gen_forward_declarations2(module_defs)
+		gen_struct_defs(module_defs)
+		gen_function_defs(module_defs)
 
 	fn gen_header():
 		emit("#include <setjmp.h>")
@@ -46,8 +46,8 @@ class CGenerator2:
 		emit("#include <stdint.h>")
 		emit("#include \"slangrt.h\"")
 
-	fn gen_forward_declarations1(module_set: ast.ModuleSet):
-		for module_def in module_set.modules:
+	fn gen_forward_declarations1(module_defs: List[ast.ModuleDef]):
+		for module_def in module_defs:
 			for definition in module_def.definitions:
 				case definition:
 					Struct(struct_def):
@@ -56,8 +56,8 @@ class CGenerator2:
 				else:
 					pass
 
-	fn gen_forward_declarations2(module_set: ast.ModuleSet):
-		for module_def in module_set.modules:
+	fn gen_forward_declarations2(module_defs: List[ast.ModuleDef]):
+		for module_def in module_defs:
 			for definition in module_def.definitions:
 				case definition:
 					Function(function_def):
@@ -72,8 +72,8 @@ class CGenerator2:
 				else:
 					pass
 
-	fn gen_struct_defs(module_set: ast.ModuleSet):
-		for module_def in module_set.modules:
+	fn gen_struct_defs(module_defs: List[ast.ModuleDef]):
+		for module_def in module_defs:
 			for definition in module_def.definitions:
 				case definition:
 					Struct(struct_def):
@@ -112,8 +112,7 @@ class CGenerator2:
 				let parts: List[str] = List()
 				for value in values:
 					parts.append(gen_global_expression(value))
-				let struct_name = gen_id(id: struct_def.id)
-				write("struct {struct_name} {name} = \{")
+				write("struct {struct_def.id.name} {name} = \{")
 				write(str_join(parts, sep: ", "))
 				emit("\};")
 				"&{name}"
@@ -122,8 +121,8 @@ class CGenerator2:
 		else:
 			panic("gen_global_expression: {expression} not supported")
 
-	fn gen_function_defs(module_set: ast.ModuleSet):
-		for module_def in module_set.modules:
+	fn gen_function_defs(module_defs: List[ast.ModuleDef]):
+		for module_def in module_defs:
 			for definition in module_def.definitions:
 				case definition:
 					Function(function_def):
@@ -134,8 +133,7 @@ class CGenerator2:
 					pass
 
 	fn gen_struct_decl(struct_def: ast.StructDef) -> str:
-		let name = gen_id(id: struct_def.id)
-		"struct {name}"
+		"struct {struct_def.id.name}"
 
 	fn gen_struct(struct_def: ast.StructDef):
 		let decl = gen_struct_decl(struct_def)
@@ -152,7 +150,7 @@ class CGenerator2:
 		# Create struct constructor function
 		if struct_def.is_union:
 			panic("Unions not supported")
-		let name = gen_id(id: struct_def.id)
+		let name = struct_def.id.name
 		write("struct {name}* {name}_new(")
 		let n = struct_def.fields.len()
 		var i = 0
@@ -171,7 +169,7 @@ class CGenerator2:
 		gen_struct_ctor_decl(struct_def)
 		emit(" \{")
 		indent()
-		let struct_name = gen_id(id: struct_def.id)
+		let struct_name = struct_def.id.name
 		emit("struct {struct_name}* X = malloc(sizeof(struct {struct_name}));")
 		for field in struct_def.fields:
 			emit("X->{field.name} = {field.name};")
@@ -242,8 +240,7 @@ class CGenerator2:
 			"void* {name}"
 		elif ty.is_struct():
 			let struct_def = ty.get_struct_def()
-			let struct_name = gen_id(id: struct_def.id)
-			"struct {struct_name}* {name}"
+			"struct {struct_def.id.name}* {name}"
 		elif ty.is_function_type():
 			let ret_ty = ty.get_return_type()
 			let parts: List[str] = List()
@@ -539,8 +536,7 @@ class CGenerator2:
 					write("'{value}'")
 			StructLiteral(ty, values):
 				let struct_def = ty.get_struct_def()
-				let name = gen_id(id: struct_def.id)
-				write("{name}_new(")
+				write("{struct_def.id.name}_new(")
 				gen_expression_list(values)
 				write(")")
 			ArrayLiteral(values):

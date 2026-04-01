@@ -2,11 +2,11 @@ module main
 """Test interference graph."""
 
 from std import print
-from unittest import assert_true
-from vectype import Vector, new_vector, new_vector_with_capacity
-from listtype import List
-from igraph import create_interference_graph
-import mil
+from base.unittest import assert_true
+from base.vectype import Vector, new_vector, new_vector_with_capacity
+from base.listtype import List
+from compiler.igraph import create_interference_graph
+from compiler import mil
 
 pub fn main() -> int:
 	let r0 = mil.Register(id: 0, kind: 0, color: -1)

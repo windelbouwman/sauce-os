@@ -1,10 +1,10 @@
 module web.httpclient
 
-from utils import unimplemented, assert
-from logging import log_info, log_debug
+from base.utils import unimplemented, assert
+from base.logging import log_info, log_debug
 from std import str_len
-from listtype import List
-from strlib import split_string, str_to_int, trim
+from base.listtype import List
+from base.strlib import split_string, str_to_int, trim
 from urlparse import parse_url
 
 

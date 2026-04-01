@@ -13,7 +13,7 @@ from base.json import JsonValue, JsonBrowser
 from location import location_default
 import ast
 
-pub fn store_symbol_table(module_set: ast.ModuleSet, filename: str):
+pub fn store_symbol_table(module_defs: List[ast.ModuleDef], filename: str):
 	# Save symbol table for later use.
 	# This is useful when saving a symbol table
 	# to file.
@@ -25,30 +25,30 @@ pub fn store_symbol_table(module_set: ast.ModuleSet, filename: str):
 	let libname = basename(path: filename)
 	let saver = SymbolSaver(m_libname: libname)
 
-	let obj = saver.save_modules(module_set)
+	let obj = saver.save_modules(module_defs)
 	write_json_to_file(filename, obj)
 
 class SymbolSaver:
 	var m_ser: JsonBuilder = JsonBuilder()
 	var m_libname: str
 
-	pub fn save_modules(module_set: ast.ModuleSet) -> JsonValue:
+	pub fn save_modules(module_defs: List[ast.ModuleDef]) -> JsonValue:
 		m_ser.begin_object()
 		m_ser.add_text_attribute(attr: "compiler-version", text: "2024")
 		m_ser.add_text_attribute(attr: "libname", text: m_libname)
 		m_ser.begin_array()
-		for module_def in module_set.modules:
+		for module_def in module_defs:
 			if option_is_some(module_def.filename):
-				log_info("Saving meta-info for module: {module_def.name}")
+				log_info("Saving meta-info for module: {module_def.get_name()}")
 				save_module(module_def)
 			else:
-				log_debug("Skip saving meta-info for module: {module_def.name}")
+				log_debug("Skip saving meta-info for module: {module_def.get_name()}")
 		m_ser.end_array_as_attribute(attr: "modules")
 		m_ser.end_object()
 
 	fn save_module(module_def: ast.ModuleDef):
 		m_ser.begin_object()
-		m_ser.add_text_attribute(attr: "name", text: module_def.name)
+		save_string_list(attr: "namespace", module_def.namespace)
 		m_ser.begin_array()
 		for imp in module_def.imports:
 			save_import(imp)
@@ -61,7 +61,7 @@ class SymbolSaver:
 
 	fn save_import(imp: ast.Import):
 		m_ser.begin_object()
-		m_ser.add_text_attribute(attr: "modname", text: imp.modname)
+		save_string_list(attr: "namespace", text: imp.namespace)
 		case imp.kind:
 			Self:
 				pass
@@ -93,8 +93,6 @@ class SymbolSaver:
 		log_debug("Saving {ast.definition_to_str(definition)}")
 		m_ser.begin_object()
 		case definition:
-			Module(module_def):
-				save_module(module_def)
 			Macro(macro_def):
 				save_macro_def(macro_def)
 			Function(function_def):
@@ -238,10 +236,7 @@ class SymbolSaver:
 	fn save_doc_string(docstring: Option[ast.DocString]):
 		case docstring:
 			Some(docstring):
-				m_ser.begin_array()
-				for line in docstring.lines:
-					m_ser.add_text_as_element(text: line)
-				m_ser.end_array_as_attribute(attr: "docstring")
+				save_string_list(attr: "docstring", docstring.lines)
 			None:
 				pass
 
@@ -353,6 +348,12 @@ class SymbolSaver:
 		m_ser.add_text_attribute(attr: "name", text: id.name)
 		m_ser.add_integer_attribute(attr: "id", value: id.id)
 
+	fn save_string_list(attr: str, values?: List[str]):
+		m_ser.begin_array()
+		for name in values:
+			m_ser.add_text_as_element(text: name)
+		m_ser.end_array_as_attribute(attr)
+
 pub fn load_symbol_table(filename: str, typectx: ast.TypeContext) -> List[ast.ModuleDef]:
 	log_info("Read type info from: {filename}")
 	let loader = SymbolLoader(typectx)
@@ -389,8 +390,9 @@ class SymbolLoader:
 		modules
 
 	fn load_module() -> ast.ModuleDef:
-		let mod_name = m_des.get_text_attribute(attr: "name")
-		log_info("Load info for module: {mod_name}")
+		let namespace = load_string_list(attr: "namespace")
+
+		# log_info("Load info for module: {mod_name}")
 
 		let imports: Vector[ast.Import] = new_vector()
 		for import_obj in m_des.get_array_attribute(attr: "imports"):
@@ -403,22 +405,21 @@ class SymbolLoader:
 			m_des.push_value(value: definition_obj)
 			definitions.append(load_definition())
 			m_des.pop_value()
-		ast.new_module(name: mod_name, location: location_default(), filename: Option.None(), imports, definitions)
+		ast.new_module(namespace, location: location_default(), filename: Option.None(), imports, definitions)
 
 	fn load_import() -> ast.Import:
-		let modname = m_des.get_text_attribute(attr: "modname")
+		let namespace = load_string_list(attr: "namespace")
 		let location = location_default()
-		if m_des.has_attribute(attr: "names"):
+		let kind = if m_des.has_attribute(attr: "names"):
 			let names: List[ast.NameAtLocation] = List()
 			for name_obj in m_des.get_array_attribute(attr: "names"):
 				m_des.push_value(value: name_obj)
 				names.append(ast.NameAtLocation(name: m_des.get_text(), location))
 				m_des.pop_value()
-			let kind = ast.ImportKind.Names(names)
-			ast.Import(modname, kind, location)
+			ast.ImportKind.Names(names)
 		else:
-			let kind = ast.ImportKind.Self()
-			ast.Import(modname, kind, location)
+			ast.ImportKind.Self()
+		ast.Import(namespace, kind, location)
 
 	fn load_definition() -> ast.Definition:
 		let def_kind = m_des.get_text_attribute(attr: "kind")
@@ -626,12 +627,7 @@ class SymbolLoader:
 	fn load_docstring() -> Option[ast.DocString]:
 		"""Load optional docstring"""
 		if m_des.has_attribute(attr: "docstring"):
-			let lines: List[str] = List()
-			for line_obj in m_des.get_array_attribute(attr: "docstring"):
-				m_des.push_value(value: line_obj)
-				let text = m_des.get_text()
-				m_des.pop_value()
-				lines.append(text)
+			let lines = load_string_list(attr: "docstring")
 			Option.Some(ast.DocString(lines))
 		else:
 			Option.None()
@@ -731,3 +727,12 @@ class SymbolLoader:
 		let id = m_des.get_integer_attribute(attr: "id")
 		let name = m_des.get_text_attribute(attr: "name")
 		ast.NodeId(id, name)
+
+	fn load_string_list(attr: str) -> List[str]:
+		let values: List[str] = List()
+		for value in m_des.get_array_attribute(attr):
+			m_des.push_value(value)
+			let text = m_des.get_text()
+			m_des.pop_value()
+			values.append(text)
+		values

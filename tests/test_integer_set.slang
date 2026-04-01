@@ -1,8 +1,8 @@
 module main
 
 from std import print
-from integersetlib import new_int_set, integer_set_equals
-from unittest import assert_true
+from base.integersetlib import new_int_set, integer_set_equals
+from base.unittest import assert_true
 
 pub fn main() -> int:
 	print("OK")

@@ -2,11 +2,11 @@ module compiler.elf_file
 """ELF file format"""
 
 import std
-from listtype import List
-from bytes import Bytes, ByteArray, new_bytes, bytes_from_ascii
-from utils import assert, panic
-from logging import log_error, log_info
-from hashmap import HashMap, new_hashmap_str
+from base.listtype import List
+from base.bytes import Bytes, ByteArray, new_bytes, bytes_from_ascii
+from base.utils import assert, panic
+from base.logging import log_error, log_info
+from base.hashmap import HashMap, new_hashmap_str
 from outstream import Object, Section, Symbol
 
 let SHN_UNDEF: int = 0

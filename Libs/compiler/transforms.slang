@@ -10,14 +10,15 @@ Ideas for transformations:
 """
 
 from location import Location
-from utils import panic, assert
-from logging import log_info, log_debug
+from base.utils import panic, assert
+from base.logging import log_info, log_debug
 from basepass import IdGen
-from typechecking import type_check_modules
-from listtype import List, list1, list2
-from optiontype import Option, option_unwrap, option_is_none, option_is_some
-from vectype import vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
-from hashmap import HashMap, new_hashmap_str
+from typechecking import type_check
+from base.listtype import List, list1, list2
+from base.optiontype import Option, option_unwrap, option_is_none, option_is_some
+from base.vectype import vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
+from base.strlib import str_join
+from base.hashmap import HashMap, new_hashmap_str
 from errors import CompilationError
 import ast
 
@@ -25,7 +26,7 @@ pub struct TransformOptions:
 	# If the backend can generate code for switch statements, set this boolean to true
 	keep_switch: bool
 
-pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: IdGen, rt_module: ast.ModuleDef, options: TransformOptions) except CompilationError:
+pub fn transform(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext, id_gen: IdGen, rt_module: ast.ModuleDef, options: TransformOptions) except CompilationError:
 	log_debug("Transforming modules")
 	let transformer = Transformer:
 		class_rewriter: ClassRewriter(typectx, id_gen, rt_module)
@@ -51,7 +52,7 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 	visitor.on_statement = transformer_on_statement1
 	visitor.on_expression = transformer_on_expression1
 	visitor.on_node = transformer_on_node0
-	ast.visit_module_set(visitor, module_set)
+	ast.visit_module_defs(visitor, module_defs)
 
 	log_debug("Transforming modules 1-b")
 	# Phase 1-b:
@@ -64,7 +65,7 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 	visitor.on_expression = transformer_on_expression0
 	visitor.on_node = transformer_on_node0
 
-	for module_def in module_set.modules:
+	for module_def in module_defs:
 		ast.visit_module(visitor, module_def)
 
 		# Filter class-defs / enum-defs / interface-defs:
@@ -97,7 +98,7 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 	visitor.on_statement = transformer_on_statement0
 	visitor.on_expression = transformer_on_expression2
 	visitor.on_node = transformer_on_node0
-	ast.visit_module_set(visitor, module_set)
+	ast.visit_module_defs(visitor, module_defs)
 
 	log_debug("Transforming modules 3")
 	# Phase 3:
@@ -109,7 +110,7 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 	visitor.on_statement = transformer_on_statement3
 	visitor.on_expression = transformer_on_expression3
 	visitor.on_node = transformer_on_node0
-	ast.visit_module_set(visitor, module_set)
+	ast.visit_module_defs(visitor, module_defs)
 
 	log_debug("Transforming modules 5")
 	# Phase 5:
@@ -121,11 +122,11 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 	visitor.on_statement = transformer_on_statement5
 	visitor.on_expression = transformer_on_expression0
 	visitor.on_node = transformer_on_node0
-	ast.visit_module_set(visitor, module_set)
+	ast.visit_module_defs(visitor, module_defs)
 
 	# TBD:
 	# Optionally check types in between?
-	type_check_modules(module_set, typectx, display_warnings: false)
+	type_check(module_defs, typectx, display_warnings: false)
 
 	log_info("Type erasure")
 
@@ -135,8 +136,8 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 	visitor.on_statement = transformer_on_statement0
 	visitor.on_expression = transformer_on_expression9
 	visitor.on_node = transformer_on_node0
-	ast.visit_module_set(visitor, module_set)
-	remove_union_defs(module_set)
+	ast.visit_module_defs(visitor, module_defs)
+	remove_union_defs(module_defs)
 
 	# Phase 7a: apply type erasure (part 1), this involves:
 	# - Apply cast to opaque pointer for generic parameters when calling a function
@@ -145,7 +146,7 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 	visitor.on_statement = transformer_on_statement7
 	visitor.on_expression = transformer_on_expression7
 	visitor.on_node = transformer_on_node7
-	ast.visit_module_set(visitor, module_set)
+	ast.visit_module_defs(visitor, module_defs)
 
 	# Phase 7b: apply type erasure (part 2), this involves:
 	# - Remove type parameters from structs and functions
@@ -156,11 +157,11 @@ pub fn transform(module_set: ast.ModuleSet, typectx: ast.TypeContext, id_gen: Id
 	visitor.on_statement = transformer_on_statement0
 	visitor.on_expression = transformer_on_expression0
 	visitor.on_node = transformer_on_node7b
-	ast.visit_module_set(visitor, module_set)
+	ast.visit_module_defs(visitor, module_defs)
 
 
-fn remove_union_defs(module_set: ast.ModuleSet):
-	for module_def in module_set.modules:
+fn remove_union_defs(module_defs: List[ast.ModuleDef]):
+	for module_def in module_defs:
 		# Filter union-defs:
 		let new_defs2: List[ast.Definition] = List()
 		for def2 in module_def.definitions:
@@ -211,11 +212,7 @@ fn transformer_on_definition7b(transformer: Transformer, definition: ast.Definit
 					struct_def.id.name = transformer.modname + "_" + struct_def.id.name
 				Function(function_def):
 					function_def.type_parameters.clear()
-					# Special case for main, to be able to call entry point!
-					if function_def.name == "main":
-						function_def.name = "main2"
-					else:
-						function_def.name = transformer.modname + "_" + function_def.name
+					function_def.name = transformer.modname + "_" + function_def.name
 				Var(var_def):
 					var_def.variable.id.name = transformer.modname + "_" + var_def.variable.id.name
 			else:
@@ -606,7 +603,7 @@ fn transformer_on_node7b(transformer: Transformer, node: ast.VisitNode, phase: a
 		Pre:
 			case node:
 				ModuleNode(module_def):
-					transformer.modname = module_def.name
+					transformer.modname = str_join(parts: module_def.namespace, sep: "_")
 			else:
 				pass
 	else:

@@ -1,9 +1,9 @@
 module main
 """A plotting example program."""
 
-from logging import log_info, set_log_level
-from chart import Chart
-from lttb import lttb
+from base.logging import log_info, set_log_level
+from gfx.chart import Chart
+from gfx.lttb import lttb
 
 pub fn main() -> int:
 	set_log_level(level: 2)

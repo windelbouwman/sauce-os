@@ -4,10 +4,10 @@ module compiler.dwarf
 See also: www.dwarfstd.org
 """
 
-from logging import log_info
-from bytes import ByteArray
+from base.logging import log_info
+from base.bytes import ByteArray
 from elf_file import StringTable
-from listtype import List
+from base.listtype import List
 from outstream import BinaryOutput, DataItem
 from location import get_begin, offset_to_position
 from dbginfo import DbgInfo

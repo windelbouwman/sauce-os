@@ -1,10 +1,10 @@
 module gfx.canvas
 
 # Idea: a canvas like API!
-from utils import panic
-from logging import log_info
-from optiontype import Option
-from xml import Node, emit_xml
+from base.utils import panic
+from base.logging import log_info
+from base.optiontype import Option
+from base.xml import Node, emit_xml
 
 pub class Canvas:
 	# Canvas drawing API

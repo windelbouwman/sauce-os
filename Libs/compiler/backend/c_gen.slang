@@ -5,11 +5,11 @@ Translate bytecode into C code.
 """
 
 from std import float_to_str2
-from utils import panic
-from logging import log_info, log_trace
-from listtype import List
-from optiontype import Option
-from vectype import Vector, new_vector
+from base.utils import panic
+from base.logging import log_info, log_trace
+from base.listtype import List
+from base.optiontype import Option
+from base.vectype import Vector, new_vector
 import vm
 import bc
 from text_gen import TextGenerator
@@ -78,16 +78,12 @@ class CGenerator:
 		vm.prepare_vm(vm: m_vm, program)
 
 		# Struct forward declarations:
-		var index = 0
 		for struct_def in program.structs:
-			emit("struct S{index}_{struct_def.name};")
-			index += 1
+			emit("struct {struct_def.name};")
 
-		index = 0
+		# Struct definitions:
 		for struct_def in program.structs:
-			# Struct definitions:
-			gen_struct_def(index, struct_def)
-			index += 1
+			gen_struct_def(struct_def)
 
 		for extern_function in program.extern_functions:
 			gen_extern_function_decl(extern_function)
@@ -104,8 +100,8 @@ class CGenerator:
 		for function in program.functions:
 			gen_function(function)
 
-	fn gen_struct_def(index: int, struct_def: bc.Struct):
-		let name = "S{index}_{struct_def.name}"
+	fn gen_struct_def(struct_def: bc.Struct):
+		let name = struct_def.name
 		emit("struct {name} \{")
 		indent()
 
@@ -192,7 +188,7 @@ class CGenerator:
 					parts.append(gen_vm_value(ty: struct_def.fields[i].ty, value: v2))
 					i += 1
 
-				write("struct S{index}_{struct_def.name} {name} = \{")
+				write("struct {struct_def.name} {name} = \{")
 				for part in parts:
 					write(part)
 					write(", ")
@@ -588,7 +584,7 @@ class CGenerator:
 				let varname = new_local_var()
 				let ty = bc.Type.StructRef(index)
 				gen_typed_name(ty, name: varname)
-				let name = "S{index}_{struct_def.name}"
+				let name = struct_def.name
 				emit(" = rt_malloc_with_destroyer(sizeof(struct {name}), {name}_type_info);")
 				push(Value(name: varname, ty))
 
@@ -810,7 +806,7 @@ class CGenerator:
 				write(name)
 			StructRef(index):
 				let struct_def = structs.get(index)
-				write("struct S{index}_{struct_def.name}* ")
+				write("struct {struct_def.name}* ")
 				if is_const:
 					write("const ")
 				write(name)

@@ -5,13 +5,13 @@ module compiler.webassembly
 WebAssembly support.
 """
 
-from listtype import List, list1
+from base.listtype import List, list1
 from std import float_to_str2, str_len
-from bytes import Bytes, ByteArray, bytes_from_ascii
-from leb128 import pack_unsigned_leb128, pack_signed_leb128
+from base.bytes import Bytes, ByteArray, bytes_from_ascii
+from base.leb128 import pack_unsigned_leb128, pack_signed_leb128
 from text_gen import TextGenerator
-from utils import panic
-from strlib import str_join, hex_char
+from base.utils import panic
+from base.strlib import str_join, hex_char
 
 pub struct Module:
 	types: List[CompType]

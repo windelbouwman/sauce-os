@@ -3,8 +3,8 @@ module main
 # 'grep' program, using regular expressions.
 
 import std
-from strlib import split_lines
-from regex import find
+from base.strlib import split_lines
+from base.regex import find
 
 pub fn main() -> int:
 	let filename = "input.txt"

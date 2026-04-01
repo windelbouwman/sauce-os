@@ -15,8 +15,9 @@ textarea.code {
 }
 
 .panel {
-  position: relative;
-  margin: 6px;
+  margin: 2px;
+  display: inline-block;
+  vertical-align: top;
   padding: 10px;
   border-radius: 10px;
   border: 1px solid #b35a00;
@@ -24,14 +25,6 @@ textarea.code {
   box-shadow:
     inset 0 1px 0 #fff8,
     0 3px 8px #0004;
-}
-
-.panel h2 {
-  position: absolute;
-  top: 4px;
-  right: 8px;
-  margin: 0;
-  font-style: italic;
 }
 
 .panel p {

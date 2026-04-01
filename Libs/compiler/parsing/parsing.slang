@@ -4,10 +4,10 @@ module compiler.parsing.parsing
 import ast
 import std
 from lexer import Lexer
-from fs import Path
+from base.fs import Path
 from token import token_to_string, Token, default_token
 from location import Location, location_default, merge_locations
-from base.listtype import List
+from base.listtype import List, list1
 from base.optiontype import Option
 import dbginfo
 from base.vectype import Vector, new_vector
@@ -69,7 +69,6 @@ class Parser:
 			raise unexpected_token(tok, expected: "module")
 		let qname = parse_qual_name()
 		parse_newline()
-		let name = qname.parts.last()  # Hack for now.
 
 		let docstring = parse_optional_docstring()
 
@@ -143,16 +142,15 @@ class Parser:
 			else:
 				raise unexpected_token(tok, expected: "import, fn, enum, struct, class, extern")
 
-		ast.new_module(name, location: location_default(), filename: filename2, imports, definitions)
+		ast.new_module(namespace: qname.parts, location: location_default(), filename: filename2, imports, definitions)
 
 	fn parse_import() -> ast.Import except ParseError:
 		let modname = parse_name()
 		parse_newline()
-		ast.import_self(modname: modname.name, location: modname.location)
+		ast.import_self(namespace: list1(modname.name), location: modname.location)
 
 	fn parse_from_import() -> ast.Import except ParseError:
 		let qname = parse_qual_name()
-		let modname = qname.parts.last()  # Hack for now.
 		let location = qname.location
 
 		# 'import'
@@ -177,7 +175,7 @@ class Parser:
 			else:
 				raise unexpected_token(tok: tok2, expected: "',' or newline")
 
-		ast.import_names(modname, location: qname.location, names)
+		ast.import_names(namespace: qname.parts, location: qname.location, names)
 
 	fn parse_macro_def() -> ast.MacroDef except ParseError:
 		# unimplemented("macro-def")

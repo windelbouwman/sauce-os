@@ -6,11 +6,11 @@ https://adventofcode.com/2024/day/1
 """
 
 from std import print, read_file, get_arg
-from math import abs
-from strlib import str_to_int, split_string, split_lines
-from listtype import List
-from hashmap import HashMap, new_hashmap_int
-from sorting import sort_list
+from base.math import abs
+from base.strlib import str_to_int, split_string, split_lines
+from base.listtype import List
+from base.hashmap import HashMap, new_hashmap_int
+from base.sorting import sort_list
 
 pub fn main() -> int:
 	let puzzle = load_file(filename: get_arg(arg: 0))

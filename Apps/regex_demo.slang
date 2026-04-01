@@ -1,7 +1,7 @@
 module main
 
 from std import print
-from regex import compile, find_all
+from base.regex import compile, find_all
 
 pub fn main() -> int:
 	print("lexer generator")

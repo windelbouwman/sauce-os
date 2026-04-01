@@ -6,10 +6,10 @@ import mil
 from register_allocation import reg_alloc
 from base.vectype import Vector, new_vector
 from base.listtype import List
-from logging import log_debug, log_info
-from profiling import Profiler
+from base.logging import log_debug, log_info
+from base.profiling import Profiler
 from report import Report
-from optiontype import Option
+from base.optiontype import Option
 from elf_file import write_elf
 from dbginfo import DbgInfo
 from dwarf import gen_debug_info

@@ -1,13 +1,13 @@
 module image.gif
 """GIF fileformat"""
-from utils import unimplemented, panic, assert
-from logging import log_debug, log_trace
-from listtype import List
-from bytes import Bytes, new_bytes, ByteReader, ByteArray
-from bytes import bytes_to_ascii, fill_bytes
-from vectype import Vector, new_vector
+from base.utils import unimplemented, panic, assert
+from base.logging import log_debug, log_trace
+from base.listtype import List
+from base.bytes import Bytes, new_bytes, ByteReader, ByteArray
+from base.bytes import bytes_to_ascii, fill_bytes
+from base.vectype import Vector, new_vector
 from image import Image, new_image, ColorMode, new_pixel
-from fs import read_whole_file_as_bytes, Path
+from base.fs import read_whole_file_as_bytes, Path
 
 
 pub fn read_gif_from_file(path: Path) -> List[Image]:

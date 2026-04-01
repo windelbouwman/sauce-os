@@ -2,16 +2,16 @@ module main
 """Demo of saving images"""
 
 from std import get_n_args, get_arg, print
-from logging import set_log_level
-from utils import panic
-from optiontype import Option, option_unwrap
-from fs import Path, new_path
-from image import Image
-from pbm import write_pbm
-from png import read_png_from_file, write_png_to_file
-from qoi import read_qoi_from_file, write_qoi_to_file
-from gif import read_gif_from_file
-from jpeg import read_jpg_from_file
+from base.logging import set_log_level
+from base.utils import panic
+from base.optiontype import Option, option_unwrap
+from base.fs import Path, new_path
+from image.image import Image
+from image.pbm import write_pbm
+from image.png import read_png_from_file, write_png_to_file
+from image.qoi import read_qoi_from_file, write_qoi_to_file
+from image.gif import read_gif_from_file
+from image.jpeg import read_jpg_from_file
 
 fn load_image(path: Path) -> Image:
 	# Load image from file

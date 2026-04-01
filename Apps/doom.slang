@@ -4,12 +4,12 @@ module main
 This is a long shot: try a software renderer.
 """
 
-from logging import set_log_level
+from base.logging import set_log_level
 from std import print
-from fs import new_path
-from math import sin, cos, radians
-from screen import new_screen
-from game import Engine, new_cube_mesh
+from base.fs import new_path
+from base.math import sin, cos, radians
+from gfx.screen import new_screen
+from gfx.game import Engine, new_cube_mesh
 
 pub fn main() -> int:
 	print("Hello world")

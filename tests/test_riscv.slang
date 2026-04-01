@@ -2,10 +2,10 @@ module main
 """Test RISCV encoding"""
 
 from std import print
-import riscv
-from outstream import BinaryOutput
-from bytes import bytes_from_hex_text
-from unittest import assert_bytes_equals, assert_str_equals
+from compiler import riscv
+from compiler.outstream import BinaryOutput
+from base.bytes import bytes_from_hex_text
+from base.unittest import assert_bytes_equals, assert_str_equals
 
 pub fn main() -> int:
 	assert_encodes(instruction: riscv.Instruction.EBREAK(), text: "ebreak", bin: "73 00 10 00")

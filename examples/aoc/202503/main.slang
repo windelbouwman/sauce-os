@@ -5,10 +5,10 @@ Advent of code 2025 day 3.
 https://adventofcode.com/2025/day/3
 """
 from std import print, read_file, str_slice, str_len, ord, get_arg
-from strlib import trim, split_string, str_to_int, split_lines
-from listtype import List
-from vectype import Vector, new_vector
-from utils import panic
+from base.strlib import trim, split_string, str_to_int, split_lines
+from base.listtype import List
+from base.vectype import Vector, new_vector
+from base.utils import panic
 
 type Bank = Vector[int]
 

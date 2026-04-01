@@ -4,15 +4,15 @@ module image.jpeg
 See also: https://www.w3.org/Graphics/JPEG/itu-t81.pdf
 """
 
-import math
-from utils import panic, unimplemented, assert
-from logging import log_info, log_debug
-from vectype import Vector, new_vector
-from bytes import ByteReader, Bytes, ByteArray
-from huffman import BitReader, Tree, decode_symbol, zero_int_array
-from hashmap import HashMap, new_hashmap_int
+from base import math
+from base.utils import panic, unimplemented, assert
+from base.logging import log_info, log_debug
+from base.vectype import Vector, new_vector
+from base.bytes import ByteReader, Bytes, ByteArray
+from base.huffman import BitReader, Tree, decode_symbol, zero_int_array
+from base.hashmap import HashMap, new_hashmap_int
 from image import Image, new_black_image, Pixel, new_empty_image, new_pixel
-from fs import read_whole_file_as_bytes, Path
+from base.fs import read_whole_file_as_bytes, Path
 
 pub fn read_jpg_from_file(path: Path) -> Image:
 	log_info("Reading JPG from {path}")

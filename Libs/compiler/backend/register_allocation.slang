@@ -7,13 +7,13 @@ It assigns colors to use / def registers.
 
 from base.logging import log_info, log_debug, log_trace
 from base.settype import Set, new_int_set
-from bitset import BitSet, new_bitset, new_small_bitset, SmallBitSet
-from vectype import Vector, new_vector, new_vector_with_capacity
-from deque import Queue, new_queue
-from hashmap import HashMap, new_hashmap_int
+from base.bitset import BitSet, new_bitset, new_small_bitset, SmallBitSet
+from base.vectype import Vector, new_vector, new_vector_with_capacity
+from base.deque import Queue, new_queue
+from base.hashmap import HashMap, new_hashmap_int
 from report import Report
-from utils import unimplemented, panic
-from listtype import List
+from base.utils import unimplemented, panic
+from base.listtype import List
 from isel import SelectionContext, Backend, Frame
 from igraph import IGNode, InterferenceGraph, create_interference_graph
 import sil

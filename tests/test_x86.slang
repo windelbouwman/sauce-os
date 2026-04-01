@@ -2,10 +2,10 @@ module main
 """Test various x86 encodings."""
 
 from std import print
-from outstream import BinaryOutput
-from bytes import bytes_from_hex_text
-from unittest import assert_bytes_equals, assert_str_equals
-import x86
+from compiler.outstream import BinaryOutput
+from base.bytes import bytes_from_hex_text
+from base.unittest import assert_bytes_equals, assert_str_equals
+from compiler import x86
 
 pub fn main() -> int:
 	assert_encodes(instruction: x86.Instruction.Ret(), text: "ret", bin: "c3")

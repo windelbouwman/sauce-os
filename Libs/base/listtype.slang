@@ -279,6 +279,18 @@ pub class List[T]:
 			result.prepend(value)
 		result
 
+	pub fn take(n: int) -> List[T]:
+		"""Create a new list with the first n items"""
+		let result: List[T] = List()
+		for value in this:
+			if result.len() == n:
+				break
+			else:
+				result.append(value)
+		if result.len() != n:
+			panic("Too few items for take")
+		result
+
 	pub fn take_extend(other?: List[T]):
 		while not other.is_empty():
 			append(other.pop_front())

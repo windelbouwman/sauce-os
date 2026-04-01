@@ -3,10 +3,10 @@ module main
 from std import print
 from base.utils import panic
 from base.unittest import assert_int_equals
-from compiler.parsing import parse_expr_from_text, ParseError
-from basepass import IdGen
-import ast
-from location import get_begin, get_end
+from compiler.parsing.parsing import parse_expr_from_text, ParseError
+from compiler.basepass import IdGen
+from compiler import ast
+from compiler.location import get_begin, get_end
 
 pub fn main() -> int:
 	test_parse_13()

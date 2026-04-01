@@ -8,13 +8,13 @@ Features of this pass:
 """
 
 from std import ord, print
-from math import max
-from listtype import List, list1
-from vectype import Vector, new_vector, new_vector_with_capacity, vec1
-from optiontype import Option
-from bytes import Bytes, bytes_from_ascii, fill_bytes, ByteArray
-from utils import panic, unimplemented
-from logging import log_info, log_warning, log_debug
+from base.math import max
+from base.listtype import List, list1
+from base.vectype import Vector, new_vector, new_vector_with_capacity, vec1
+from base.optiontype import Option
+from base.bytes import Bytes, bytes_from_ascii, fill_bytes, ByteArray
+from base.utils import panic, unimplemented
+from base.logging import log_info, log_warning, log_debug
 import bc
 import vm
 import sil

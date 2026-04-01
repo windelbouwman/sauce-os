@@ -1,8 +1,8 @@
 module main
 
 from std import print
-from deque import Queue, new_queue_with_capacity
-from unittest import assert_int_equals
+from base.deque import Queue, new_queue_with_capacity
+from base.unittest import assert_int_equals
 
 
 pub fn main() -> int:

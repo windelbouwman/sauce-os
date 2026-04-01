@@ -1,7 +1,7 @@
 module compiler.parsing.token
 
 from location import Location, location_default
-from listtype import List
+from base.listtype import List
 
 pub fn default_token() -> Token:
 	Token:

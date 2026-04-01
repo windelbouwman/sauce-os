@@ -3,13 +3,13 @@ module compiler.parsing.lexer
 
 import std
 from base.utils import panic
-from base.std import ord, chr, str_len
+from std import ord, chr, str_len
 from token import Token, TokenKind, CharEscapeMode
 from location import Location, location_at, new_location
-from strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab, split_lines, trim
-from vectype import Vector, new_vector
-from deque import Queue, new_queue
-from hashmap import HashMap, new_hashmap_str
+from base.strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab, split_lines, trim
+from base.vectype import Vector, new_vector
+from base.deque import Queue, new_queue
+from base.hashmap import HashMap, new_hashmap_str
 
 enum LexerMode:
 	Normal
@@ -353,54 +353,59 @@ pub class Lexer:
 
 	fn parse_number(c: char) -> TokenKind:
 		let n = source_length
-		var is_hex = false
-		var is_bin = false
 		if c == '0':
 			if peek() == 'x':
-				is_hex = true
 				offset += 1
+				return parse_hex_number()
 			elif peek() == 'b':
-				is_bin = true
 				offset += 1
+				return parse_binary_number()
 
-		if is_hex:
-			var value = 0
-			loop:
-				c = peek()
-				if is_hex_digit(c):
-					value = value * 16 + hex_digit_to_int(c)
-					offset += 1
-				else:
-					break
-			TokenKind.Integer(value, raw_text: get_lexeme())
-		elif is_bin:
-			var value = 0
-			loop:
-				c = peek()
-				if is_bin_digit(c):
-					value = value * 2 + bin_digit_to_int(c)
-					offset += 1
-				else:
-					break
-			TokenKind.Integer(value, raw_text: get_lexeme())
-		else:
-			# Calculate value as we go through the digits:
-			var value = digit_to_int(c)
-			loop:
-				c = peek()
-				if is_digit(c):
-					value = value * 10 + digit_to_int(c)
-					offset += 1
-				else:
-					break
-			if peek() == '.':
+		# Calculate value as we go through the digits:
+		var value = digit_to_int(c)
+		loop:
+			c = peek()
+			if is_digit(c):
+				value = value * 10 + digit_to_int(c)
 				offset += 1
-				parse_float(base: value)
-			elif peek() == 'e':
-				parse_exponent(base: value, exponent: 0)
 			else:
-				# Normal decimal number
-				TokenKind.Integer(value, raw_text: get_lexeme())
+				break
+		if peek() == '.':
+			offset += 1
+			parse_float(base: value)
+		elif peek() == 'e':
+			parse_exponent(base: value, exponent: 0, is_hex: false)
+		else:
+			# Normal decimal number
+			TokenKind.Integer(value, raw_text: get_lexeme())
+
+	fn parse_binary_number() -> TokenKind:
+		var value = 0
+		loop:
+			let c = peek()
+			if is_bin_digit(c):
+				value = value * 2 + bin_digit_to_int(c)
+				offset += 1
+			else:
+				break
+		TokenKind.Integer(value, raw_text: get_lexeme())
+
+	fn parse_hex_number() -> TokenKind:
+		var value = 0
+		loop:
+			let c = peek()
+			if is_hex_digit(c):
+				value = value * 16 + hex_digit_to_int(c)
+				offset += 1
+			else:
+				break
+		if peek() == '.':
+			offset += 1
+			parse_hex_float(base: value)
+		elif peek() == 'p':
+			parse_exponent(base: value, exponent: 0, is_hex: true)
+		else:
+			TokenKind.Integer(value, raw_text: get_lexeme())
 
 	fn parse_float(base: int) -> TokenKind:
 		var exponent = 0
@@ -415,11 +420,28 @@ pub class Lexer:
 			else:
 				break
 		if peek() == 'e':
-			parse_exponent(base, exponent)
+			parse_exponent(base, exponent, is_hex: false)
 		else:
 			create_float(base, exponent)
 
-	fn parse_exponent(base: int, exponent: int) -> TokenKind:
+	fn parse_hex_float(base: int) -> TokenKind:
+		var exponent = 0
+		loop:
+			let c = peek()
+			if is_hex_digit(c):
+				exponent -= 4
+				base = base * 16 + hex_digit_to_int(c)
+				if base > 9007199254740992:
+					return TokenKind.Error("Number too large for precision")
+				offset += 1
+			else:
+				break
+		if peek() == 'p':
+			parse_exponent(base, exponent, is_hex: true)
+		else:
+			create_hex_float(base, exponent)
+
+	fn parse_exponent(base: int, exponent: int, is_hex: bool) -> TokenKind:
 		"""Parse the exponent notation after the 'e'"""
 		offset += 1
 		var negative_exponent = false
@@ -442,12 +464,14 @@ pub class Lexer:
 				exponent -= add_exponent
 			else:
 				exponent += add_exponent
-			create_float(base, exponent)
+			if is_hex:
+				create_hex_float(base, exponent)
+			else:
+				create_float(base, exponent)
 		else:
 			TokenKind.Error("Invalid exponent notation")
 
 	fn create_float(base: int, exponent: int) -> TokenKind:
-
 		# Check for 53 bits base:
 		if base > 9007199254740992:
 			return TokenKind.Error("Number too large")
@@ -461,6 +485,20 @@ pub class Lexer:
 			float(base) * pow10s[exponent]
 		else:
 			return TokenKind.Error("Exponent above 22: {exponent}")
+
+		TokenKind.Float(float_value, raw_text: get_lexeme())
+
+	fn create_hex_float(base: int, exponent: int) -> TokenKind:
+		let float_value = if exponent < -100:
+			return TokenKind.Error("Exponent below -100: {exponent}")
+		elif exponent < 0:
+			let factor = 1 << (-exponent)
+			float(base) / float(factor)
+		elif exponent < 100:
+			let factor = 1 << exponent
+			float(base) * float(factor)
+		else:
+			return TokenKind.Error("Exponent above 100: {exponent}")
 
 		TokenKind.Float(float_value, raw_text: get_lexeme())
 

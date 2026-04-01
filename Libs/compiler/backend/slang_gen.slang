@@ -5,22 +5,22 @@ Idea: This backend emits slang code, sort of a no-op operation?
 Also useful for debugging transformed code
 """
 
-from utils import panic
-from logging import log_info
+from base.utils import panic
+from base.logging import log_info
 from std import float_to_str
-from strlib import str_join
+from base.strlib import str_join
 import ast
 from text_gen import TextGenerator
-from optiontype import Option, option_unwrap
-from listtype import List
+from base.optiontype import Option, option_unwrap
+from base.listtype import List
 
-pub fn gen_slang(module_set: ast.ModuleSet, output_filename: Option[str]):
+pub fn gen_slang(module_defs: List[ast.ModuleDef], output_filename: Option[str]):
 	"""Create slang-lang source code."""
 	log_info("Generating slang code")
 	let g = SlangGenerator()
 	g.out.begin(output_filename)
 	g.out.m_one_tab = "\t"
-	for module_def in module_set.modules:
+	for module_def in module_defs:
 		g.gen_module(module_def)
 	g.out.end()
 

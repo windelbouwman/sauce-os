@@ -1,8 +1,8 @@
 module compiler.dbginfo
 
-from listtype import List
-from vectype import Vector, new_vector
-from hashmap import HashMap, new_hashmap_str
+from base.listtype import List
+from base.vectype import Vector, new_vector
+from base.hashmap import HashMap, new_hashmap_str
 from location import Location
 
 pub class DbgInfo:
