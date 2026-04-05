@@ -23,6 +23,7 @@ from base.vectype import Vector
 from base.optiontype import Option
 from base.strlib import str_join
 from report import Report
+from text_gen import TextGenerator
 
 pub class Program:
 	pub var externs: Vector[Extern]
@@ -240,3 +241,36 @@ pub fn address_to_string(address?: Address) -> str:
 		Global(name, mutable): "${name}"
 		StackSlot(offset): "[stack + {offset}]"
 		Ptr(base): "[{value_to_string(base)}]"
+
+pub fn print_sil_program_to_file(program: Program, filename: Option[str]):
+	let out = TextGenerator()
+	out.begin(output_filename: filename)
+	out.m_one_tab = "  "
+
+	for ext in program.externs:
+		out.writeln(" > Import {ext.name}")
+
+	for function in program.functions:
+		out.writeln(str(function))
+		out.indent()
+		for block in function.blocks:
+			out.writeln(str(block))
+			out.indent()
+			for instruction in block.instructions:
+				out.writeln(str(instruction))
+			out.dedent()
+		out.dedent()
+
+	for blob in program.blobs:
+		out.writeln("blob {blob.name}")
+		if blob.readonly:
+			out.writeln("   [read-only]")
+		out.indent()
+		for content in blob.contents:
+			case content:
+				Raw(data):
+					out.writeln("   ==> [{data.as_hex()}]")
+				Ptr(name):
+					out.writeln("   ==> [{name}]")
+		out.dedent()
+	out.end()

@@ -154,6 +154,7 @@ pub struct Import:
 pub enum ExternType:
 	Func(typeidx: int)
 	Global(ty: ValueType, mutable: bool)
+	Tag(typeidx: int)
 
 pub struct Global:
 	mutable: bool
@@ -172,6 +173,9 @@ pub struct Export:
 pub enum ExportKind:
 	Func(funcidx: int)
 	Global(globalidx: int)
+	Tag(tagidx: int)
+	Memory(memidx: int)
+	Table(tableidx: int)
 
 pub struct Data:
 	data: Bytes
@@ -974,6 +978,10 @@ fn create_import_section(wasm_module: Module) -> Bytes:
 				writer.write_byte(0x03)
 				pack_value_type(writer, ty)
 				writer.write_byte(0x1 if mutable else 0x0)
+			Tag(typeidx):
+				writer.write_byte(0x04)
+				writer.write_byte(0x00)
+				writer.write_u32(typeidx)
 	writer.get_bytes()
 
 fn create_func_section(wasm_module: Module) -> Bytes:
@@ -1006,6 +1014,15 @@ fn write_export_section(wasm_module: Module) -> Bytes:
 			Global(index):
 				writer.write_byte(0x03)
 				writer.write_u32(index)
+			Memory(memidx):
+				writer.write_byte(0x02)
+				writer.write_u32(memidx)
+			Tag(tagidx):
+				writer.write_byte(0x04)
+				writer.write_u32(tagidx)
+			Table(tableidx):
+				writer.write_byte(0x01)
+				writer.write_u32(tableidx)
 	writer.get_bytes()
 
 fn write_code_section(wasm_module: Module) -> Bytes:
@@ -1308,15 +1325,19 @@ pub fn to_wat(wasm_module: Module, out: TextGenerator):
 	var func_index = 0
 	var global_index = 0
 	for imp in wasm_module.imports:
+		out.write("(import \"{imp.modname}\" \"{imp.name}\" ")
 		case imp.kind:
 			Func(typeidx):
-				out.emit("(import \"{imp.modname}\" \"{imp.name}\" (func (;{func_index};) (type {typeidx})))")
+				out.write("(func (;{func_index};) (type {typeidx}))")
 				func_index += 1
 			Global(ty, mutable):
 				let ty_text = value_type_to_string(ty)
 				let mutable_ty_text = "(mut {ty_text})" if mutable else ty_text
-				out.emit("(import \"{imp.modname}\" \"{imp.name}\" (global (;{global_index};) {mutable_ty_text}))")
+				out.write("(global (;{global_index};) {mutable_ty_text})")
 				global_index += 1
+			Tag(typeidx):
+				out.write("(tag (type {typeidx}))")
+		out.emit(")")
 
 	for tag in wasm_module.tags:
 		out.emit("(tag (type {tag.typeidx}))")
@@ -1333,11 +1354,19 @@ pub fn to_wat(wasm_module: Module, out: TextGenerator):
 		global_index += 1
 
 	for ex in wasm_module.exports:
+		out.write("(export \"{ex.name}\" ")
 		case ex.kind:
 			Func(funcidx):
-				out.emit("(export \"{ex.name}\" (func {funcidx}))")
+				out.write("(func {funcidx})")
 			Global(globalidx):
-				out.emit("(export \"{ex.name}\" (global {globalidx}))")
+				out.write("(global {globalidx})")
+			Tag(tagidx):
+				out.write("(tag {tagidx})")
+			Memory(memidx):
+				out.write("(memory {memidx})")
+			Table(tableidx):
+				out.write("(table {tableidx})")
+		out.emit(")")
 
 	for function in wasm_module.functions:
 		out.emit("(func (;{func_index};) (type {function.typeidx})")

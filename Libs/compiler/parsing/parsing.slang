@@ -7,7 +7,7 @@ from lexer import Lexer
 from base.fs import Path
 from token import token_to_string, Token, default_token
 from location import Location, location_default, merge_locations
-from base.listtype import List, list1
+from base.listtype import List
 from base.optiontype import Option
 import dbginfo
 from base.vectype import Vector, new_vector
@@ -76,8 +76,9 @@ class Parser:
 		loop:
 			case m_peek.kind:
 				KwImport:
+					let location = m_peek.location
 					move_token()
-					imports.append(parse_import())
+					imports.append(parse_import(location))
 				KwFrom:
 					move_token()
 					imports.append(parse_from_import())
@@ -144,14 +145,12 @@ class Parser:
 
 		ast.new_module(namespace: qname.parts, location: location_default(), filename: filename2, imports, definitions)
 
-	fn parse_import() -> ast.Import except ParseError:
-		let modname = parse_name()
-		parse_newline()
-		ast.import_self(namespace: list1(modname.name), location: modname.location)
+	fn parse_import(location: Location) -> ast.Import except ParseError:
+		let names = parse_names()
+		ast.import_names(names, location)
 
 	fn parse_from_import() -> ast.Import except ParseError:
 		let qname = parse_qual_name()
-		let location = qname.location
 
 		# 'import'
 		let tok = get_token()
@@ -160,10 +159,13 @@ class Parser:
 				pass
 		else:
 			raise unexpected_token(tok, expected: "'import'")
+		let names = parse_names()
+		ast.import_names_from(namespace: qname.parts, names, location: tok.location)
 
+	fn parse_names() -> List[ast.NameAtLocation] except ParseError:
+		"""list of names until newline:"""
 		let names: List[ast.NameAtLocation] = List()
 
-		# list of names until newline:
 		loop:
 			names.append(parse_name())
 			let tok2 = get_token()
@@ -174,8 +176,7 @@ class Parser:
 					break
 			else:
 				raise unexpected_token(tok: tok2, expected: "',' or newline")
-
-		ast.import_names(namespace: qname.parts, location: qname.location, names)
+		names
 
 	fn parse_macro_def() -> ast.MacroDef except ParseError:
 		# unimplemented("macro-def")

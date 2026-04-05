@@ -127,12 +127,31 @@ function std_get_time() {
 }
 
 function std_pack_f64(value, buffer) {
-  die("TODO: std_pack_f64");
+  const js_buffer = new ArrayBuffer(8);
+  const view = new DataView(js_buffer);
+  view.setFloat64(0, value, true);
+  js_array_into_wasm(js_buffer, buffer);
 }
 
 function std_pack_f32(value, buffer) {
-  die("TODO: std_pack_f32");
+  const js_buffer = new ArrayBuffer(4);
+  const view = new DataView(js_buffer);
+  view.setFloat32(0, value, true);
+  js_array_into_wasm(js_buffer, buffer);
 }
+
+function js_array_into_wasm(js_buffer, buffer) {
+  const view = new Uint8Array(js_buffer);
+  for (let i = 0; i < view.length; i++) {
+    libbase.exports.base_bytes_set_byte_into_array(
+      buffer,
+      BigInt(i),
+      BigInt(view[i]),
+    );
+  }
+}
+
+const exception_tag = new WebAssembly.Tag({ parameters: ["anyref"] });
 
 const slangrt = {
   rt_int_to_str,
@@ -171,6 +190,7 @@ const slangrt = {
   std_get_time,
   std_pack_f64,
   std_pack_f32,
+  exception_tag,
 };
 
 async function loadModule(path, importObject) {
@@ -178,42 +198,38 @@ async function loadModule(path, importObject) {
   const module = await WebAssembly.instantiate(wasmBuffer, importObject, {
     builtins: ["js-string"],
   });
-  return module;
+  return module.instance;
 }
 
+let libbase;
+
 async function runUnitTests() {
-  const libbase = await loadModule("build/wasm/libbase.wasm", {
+  libbase = await loadModule("build/wasm/libbase.wasm", {
     slangrt,
   });
   const libscience = await loadModule("build/wasm/libscience.wasm", {
     slangrt,
-    libbase: libbase.instance.exports,
+    libbase: libbase.exports,
   });
   const libimage = await loadModule("build/wasm/libimage.wasm", {
     slangrt,
-    libbase: libbase.instance.exports,
+    libbase: libbase.exports,
   });
   const libcompiler = await loadModule("build/wasm/libcompiler.wasm", {
     slangrt,
-    libbase: libbase.instance.exports,
+    libbase: libbase.exports,
   });
 
   // Exported function live under instance.exports
-  console.log(
-    "Result of math_abs:",
-    libbase.instance.exports.base_math_abs(BigInt(-9)),
-  );
+  console.log("Result of math_abs:", libbase.exports.base_math_abs(BigInt(-9)));
   console.log(
     "Result of math_radians:",
-    libbase.instance.exports.base_math_radians(181),
+    libbase.exports.base_math_radians(181),
   );
-  console.log(
-    "Result of math_pi:",
-    libbase.instance.exports.base_math_pi.value,
-  );
+  console.log("Result of math_pi:", libbase.exports.base_math_pi.value);
   console.log(
     "Result of strlib_str_repeat:",
-    libbase.instance.exports.base_strlib_str_repeat("poah", BigInt(7)),
+    libbase.exports.base_strlib_str_repeat("poah", BigInt(7)),
   );
 
   // Unit test
@@ -222,12 +238,12 @@ async function runUnitTests() {
       console.log("Running unit test:", testModulePath);
       const test_module = await loadModule(testModulePath, {
         slangrt,
-        libbase: libbase.instance.exports,
-        libcompiler: libcompiler.instance.exports,
-        libimage: libimage.instance.exports,
-        libscience: libscience.instance.exports,
+        libbase: libbase.exports,
+        libcompiler: libcompiler.exports,
+        libimage: libimage.exports,
+        libscience: libscience.exports,
       });
-      const res = test_module.instance.exports.main_main();
+      const res = test_module.exports.main_main();
       console.assert(res == 0, "Result must be 0");
     }
   }
@@ -239,7 +255,7 @@ async function runSnippet(filename) {
     slangrt,
   });
   // Exported function live under instance.exports
-  const res = wasmModule.instance.exports.main_main();
+  const res = wasmModule.exports.main_main();
   process.exit(Number(res));
 }
 

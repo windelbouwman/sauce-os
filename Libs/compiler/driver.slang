@@ -1,8 +1,7 @@
 module compiler.driver
 """Main compilation driver."""
 
-import ast
-import bc
+import ast, bc, sil
 from base.fs import Path
 from errors import CompilationError, new_error_with_filename
 from parsing.parsing import parse_source, ParseError, parse_module_from_text
@@ -57,6 +56,7 @@ pub enum Backend:
 	Slang
 	WebAssembly(binary: bool)
 	Null
+	Sil
 	Riscv
 	X86
 
@@ -136,6 +136,10 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 				gen_webassembly_binary(module_defs: builder.m_modules, typectx: builder.m_typectx, filename)
 			else:
 				gen_webassembly_text(module_defs: builder.m_modules, typectx: builder.m_typectx, output_filename: options.output_filename)
+		Sil:
+			let bc_program = gen_bytecode(module_defs: builder.m_modules, debug: builder.m_debug)
+			let sil_program = to_sil(program: bc_program, bits: 64)
+			sil.print_sil_program_to_file(program: sil_program, filename: options.output_filename)
 		Riscv:
 			let bc_program = gen_bytecode(module_defs: builder.m_modules, debug: builder.m_debug)
 			let sil_program = to_sil(program: bc_program, bits: 32)

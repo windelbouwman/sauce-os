@@ -164,7 +164,7 @@ pub class ByteArray:
 		for b in bytes:
 			append(b)
 
-	pub fn pack_f64_le(value: float64):
+	pub fn pack_f64_le(value?: float64):
 		let buffer: [uint8] = [8 : uint8]
 		pack_f64(value, buffer)
 		var index = 0
@@ -172,13 +172,29 @@ pub class ByteArray:
 			append(int(buffer[index]))
 			index += 1
 
-	pub fn pack_f32_le(value: float32):
+	pub fn pack_f64_be(value?: float64):
+		let buffer: [uint8] = [8 : uint8]
+		pack_f64(value, buffer)
+		var index = 8
+		while index > 0:
+			index -= 1
+			append(int(buffer[index]))
+
+	pub fn pack_f32_le(value?: float32):
 		let buffer: [uint8] = [4 : uint8]
 		pack_f32(value, buffer)
 		var index = 0
 		while index < 4:
 			append(int(buffer[index]))
 			index += 1
+
+	pub fn pack_f32_be(value?: float32):
+		let buffer: [uint8] = [4 : uint8]
+		pack_f32(value, buffer)
+		var index = 4
+		while index > 0:
+			index -= 1
+			append(int(buffer[index]))
 
 	pub fn pack_u64_le(value?: int):
 		append(value & 0xFF)
@@ -293,3 +309,6 @@ pub fn bytes_to_ascii(data: Bytes) -> str:
 
 pub fn get_byte_from_array(buffer: [uint8], index: int) -> int:
 	int(buffer[index])
+
+pub fn set_byte_into_array(buffer: [uint8], index: int, value: int):
+	buffer[index] = uint8(value)

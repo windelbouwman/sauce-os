@@ -21,7 +21,9 @@ fn test_pack():
 	b.pack_u16_be(0x4302)
 	b.append(5)
 	b.pack_u32_le(0x1337)
-	assert_str_equals(b.as_hex(), "43020537130000")
+	b.pack_f64_le(-4.1)
+	b.pack_f64_be(-4.1)
+	assert_str_equals(b.as_hex(), "4302053713000066666666666610C0C010666666666666")
 
 fn test_concatenation():
 	let data1 = bytes_from_hex_text(text: "ABCD")

@@ -128,12 +128,20 @@ function std_get_time() {
 }
 
 function std_pack_f64(value, buffer) {
-  die("TODO: std_pack_f64");
+  const js_buffer = new ArrayBuffer(8);
+  const view = new DataView(js_buffer);
+  view.setFloat64(0, value, true);
+  js_array_into_wasm(js_buffer, buffer);
 }
 
 function std_pack_f32(value, buffer) {
-  die("TODO: std_pack_f32");
+  const js_buffer = new ArrayBuffer(4);
+  const view = new DataView(js_buffer);
+  view.setFloat32(0, value, true);
+  js_array_into_wasm(js_buffer, buffer);
 }
+
+const exception_tag = new WebAssembly.Tag({ parameters: ["anyref"] });
 
 const slangrt = {
   rt_int_to_str,
@@ -172,6 +180,7 @@ const slangrt = {
   std_get_time,
   std_pack_f64,
   std_pack_f32,
+  exception_tag,
 };
 
 async function loadModule(url, importObject) {
@@ -182,7 +191,7 @@ async function loadModule(url, importObject) {
       builtins: ["js-string"],
     },
   );
-  return wasmModule;
+  return wasmModule.instance;
 }
 
 async function loadSource(url) {
@@ -194,43 +203,51 @@ async function loadSource(url) {
 let libbase = await loadModule("libbase.wasm", { slangrt });
 let libcompiler = await loadModule("libcompiler.wasm", {
   slangrt,
-  libbase: libbase.instance.exports,
+  libbase: libbase.exports,
 });
 let libimage = await loadModule("libimage.wasm", {
   slangrt,
-  libbase: libbase.instance.exports,
+  libbase: libbase.exports,
 });
 let libscience = await loadModule("libscience.wasm", {
   slangrt,
-  libbase: libbase.instance.exports,
+  libbase: libbase.exports,
 });
 let compiler = await loadModule("compiler.wasm", {
   slangrt,
-  libbase: libbase.instance.exports,
-  libcompiler: libcompiler.instance.exports,
+  libbase: libbase.exports,
+  libcompiler: libcompiler.exports,
 });
 
 function extract_array_from_wasm(buffer, bufsize) {
   let data = new Uint8Array(bufsize);
   for (let i = 0; i < bufsize; i++) {
-    let b = libbase.instance.exports.base_bytes_get_byte_from_array(
-      buffer,
-      BigInt(i),
-    );
+    let b = libbase.exports.base_bytes_get_byte_from_array(buffer, BigInt(i));
     data[i] = Number(b);
   }
   return data;
 }
 
+function js_array_into_wasm(js_buffer, buffer) {
+  const view = new Uint8Array(js_buffer);
+  for (let i = 0; i < view.length; i++) {
+    libbase.exports.base_bytes_set_byte_into_array(
+      buffer,
+      BigInt(i),
+      BigInt(view[i]),
+    );
+  }
+}
+
 async function runApp(url) {
   let appModule = await loadModule(url, {
     slangrt,
-    libbase: libbase.instance.exports,
-    libcompiler: libcompiler.instance.exports,
-    libimage: libimage.instance.exports,
-    libscience: libscience.instance.exports,
+    libbase: libbase.exports,
+    libcompiler: libcompiler.exports,
+    libimage: libimage.exports,
+    libscience: libscience.exports,
   });
-  return appModule.instance.exports.main_main();
+  return appModule.exports.main_main();
 }
 
 async function runUnitTest(name) {
@@ -296,7 +313,7 @@ example_menu.addEventListener("change", (event) => {
 
 function invokeCompiler(args) {
   env.args = args;
-  let res = compiler.instance.exports.main_main();
+  let res = compiler.exports.main_main();
   console.assert(Number(res) === 0, "Compiler failed");
 }
 

@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-COMPILER_SRCS="compiler/main.slang Libs/compiler/*.slang Libs/compiler/**/*.slang Libs/base/*.slang runtime/std.slang"
+COMPILER_SRCS="Apps/compiler.slang Libs/compiler/*.slang Libs/compiler/**/*.slang Libs/base/*.slang runtime/std.slang"
 COMPILER1="build/tmp-compiler.py"
 COMPILER2="build/tmp-compiler2.py"
 COMPILER3="build/tmp-compiler3.py"

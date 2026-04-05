@@ -689,7 +689,7 @@ class Module(ScopedDefinition):
         self,
         id: Id,
         docstring: str,
-        imports: list["BaseImport"],
+        imports: list["Import"],
         definitions: list["Definition"],
         span: Span,
     ):
@@ -703,7 +703,9 @@ class Module(ScopedDefinition):
         return f"Module({self.id.name})"
 
     def get_deps(self) -> list[str]:
-        deps = [imp.modname for imp in self.imports]
+        deps = []
+        for imp in self.imports:
+            deps.extend(imp.get_deps())
         if self.id.name != "rt":
             deps.append("rt")
         return deps
@@ -718,29 +720,26 @@ class Module(ScopedDefinition):
         self.definitions.append(definition)
 
 
-class BaseImport(Node):
-    def __init__(self, modname: str, location: Location):
-        super().__init__(location)
-        assert isinstance(modname, str)
-        self.modname = modname
-
-
-class Import(BaseImport):
-    def __repr__(self):
-        return f"import({self.modname})"
-
-
-class ImportFrom(BaseImport):
+class Import(Node):
     def __init__(
-        self, modname: str, names: list[tuple[str, Location]], location: Location
+        self, namespace, names: list[tuple[str, Location]], location: Location
     ):
-        super().__init__(modname, location)
+        super().__init__(location)
         assert isinstance(names, list)
-        self.modname = modname
+        self.namespace = namespace
         self.names = names
 
+    def get_deps(self):
+        if self.namespace:
+            return [self.namespace[-1][1]]
+        else:
+            return [name for name, loc in self.names]
+
     def __repr__(self):
-        return f"import({self.names})from({self.modname})"
+        if self.namespace:
+            return f"import({self.names})from({self.namespace})"
+        else:
+            return f"import({self.names})"
 
 
 def type_parameter(id: Id, location: Location) -> "TypeParameter":

@@ -61,15 +61,15 @@ class SymbolSaver:
 
 	fn save_import(imp: ast.Import):
 		m_ser.begin_object()
-		save_string_list(attr: "namespace", text: imp.namespace)
-		case imp.kind:
-			Self:
+		case imp.namespace:
+			None:
 				pass
-			Names(names):
-				m_ser.begin_array()
-				for name in names:
-					m_ser.add_text_as_element(text: name.name)
-				m_ser.end_array_as_attribute(attr: "names")
+			Some(namespace):
+				save_string_list(attr: "namespace", text: namespace)
+		m_ser.begin_array()
+		for name in imp.names:
+			m_ser.add_text_as_element(text: name.name)
+		m_ser.end_array_as_attribute(attr: "names")
 		m_ser.end_object_as_element()
 
 	fn save_definition(definition: ast.Definition):
@@ -408,18 +408,17 @@ class SymbolLoader:
 		ast.new_module(namespace, location: location_default(), filename: Option.None(), imports, definitions)
 
 	fn load_import() -> ast.Import:
-		let namespace = load_string_list(attr: "namespace")
 		let location = location_default()
-		let kind = if m_des.has_attribute(attr: "names"):
-			let names: List[ast.NameAtLocation] = List()
-			for name_obj in m_des.get_array_attribute(attr: "names"):
-				m_des.push_value(value: name_obj)
-				names.append(ast.NameAtLocation(name: m_des.get_text(), location))
-				m_des.pop_value()
-			ast.ImportKind.Names(names)
+		let names: List[ast.NameAtLocation] = List()
+		for name_obj in m_des.get_array_attribute(attr: "names"):
+			m_des.push_value(value: name_obj)
+			names.append(ast.NameAtLocation(name: m_des.get_text(), location))
+			m_des.pop_value()
+		let namespace: Option[List[str]] = if m_des.has_attribute(attr: "namespace"):
+			Option.Some(load_string_list(attr: "namespace"))
 		else:
-			ast.ImportKind.Self()
-		ast.Import(namespace, kind, location)
+			Option.None()
+		ast.Import(location, namespace, names)
 
 	fn load_definition() -> ast.Definition:
 		let def_kind = m_des.get_text_attribute(attr: "kind")

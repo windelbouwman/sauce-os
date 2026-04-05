@@ -162,13 +162,17 @@ class CustomTransformer(LarkTransformer):
         return x
 
     def import1(self, x):
-        modname = x[1].value
-        return ast.Import(modname, get_loc(x[1]))
+        location = get_loc(x[0])
+        names = x[1]
+        return ast.Import(None, names, location)
 
-    def import2(self, x):
-        location, modname = x[1].names[-1]  # take last item from qual name for now.
+    def import_from(self, x):
+        namespace = x[1].names
+        # take last item from qual name for now.
+        #  location, modname#
+        location = get_loc(x[2])
         names = x[3]
-        return ast.ImportFrom(modname, names, location)
+        return ast.Import(namespace, names, location)
 
     def definitions(self, x):
         return x
@@ -889,9 +893,9 @@ module: module_decl docstring imports definitions EOF
 module_decl: KW_MODULE qual_name NEWLINE
 eval_expr: expression NEWLINE EOF
 
-imports: (import1|import2)*
-import1: KW_IMPORT ID NEWLINE
-import2: KW_FROM qual_name KW_IMPORT ids NEWLINE
+imports: (import1|import_from)*
+import1: KW_IMPORT ids NEWLINE
+import_from: KW_FROM qual_name KW_IMPORT ids NEWLINE
 
 definitions: definition*
 definition: func_def

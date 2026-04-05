@@ -1,7 +1,5 @@
 module main
-"""
-SlangC compiler
-"""
+"""SlangC compiler"""
 
 from std import print, get_n_args, get_arg
 from base.logging import log_info, log_error, set_log_level
@@ -60,6 +58,8 @@ pub fn main() -> int:
 			options.backend = Backend.Python()
 		elif argument == "--backend-null":
 			options.backend = Backend.Null()
+		elif argument == "--backend-sil":
+			options.backend = Backend.Sil()
 		elif argument == "--backend-riscv":
 			options.backend = Backend.Riscv()
 		elif argument == "--backend-x86":
@@ -123,6 +123,7 @@ fn print_usage():
 	print("    --backend-c-v2  : Spit out C code (version 2)")
 	print("    --backend-wasm  : Spit out WebAssembly")
 	print("    --backend-wat   : Spit out WebAssembly - text format")
+	print("    --backend-sil   : Spit out SIL (slang-intermediate-language)")
 	print("    --backend-riscv : Spit out RiscV code")
 	print("    --backend-null  : Skip code generation")
 	print("    --backend-slang : Spit out slang")

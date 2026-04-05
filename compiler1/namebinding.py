@@ -59,26 +59,33 @@ class ScopeFiller(BasePass):
 
         self.enter_scope(module.scope)
         for imp in module.imports:
-            if imp.modname in self._modules:
-                mod = self._modules[imp.modname]
-                if isinstance(imp, ast.Import):
-                    self.define_symbol(imp.modname, mod)
-                elif isinstance(imp, ast.ImportFrom):
-                    for name, location in imp.names:
-                        if mod.has_field(name):
-                            self.define_symbol(name, mod.get_field(name))
-                        else:
-                            self.error(location, f"No such field: {name}")
-                else:
-                    raise NotImplementedError(str(imp))
-            else:
-                self.error(imp.location, f"Module {imp.modname} not found")
+            self.handle_import(imp)
 
         self.visit_module(module)
         self.leave_scope()
         assert not self._scopes
         module._definitions = self._definitions
         self.finish("Scopes filled")
+
+    def handle_import(self, imp: ast.Import):
+        if imp.namespace:
+            modname = imp.namespace[-1][1]
+            namespace = self.find_module(modname)
+            for name, location in imp.names:
+                if namespace.has_field(name):
+                    self.define_symbol(name, namespace.get_field(name))
+                else:
+                    self.error(location, f"No such field: {name}")
+        else:
+            for modname, location in imp.names:
+                namespace = self.find_module(modname)
+                self.define_symbol(modname, namespace)
+
+    def find_module(self, modname):
+        if modname in self._modules:
+            return self._modules[modname]
+        else:
+            raise ValueError(f"module {modname} not found")
 
     def visit_definition(self, definition: ast.Definition):
         self.define(definition)

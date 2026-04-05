@@ -2,7 +2,7 @@ module compiler.namebinding
 
 from base.logging import log_info, log_trace
 from location import Location, location_default
-from base.listtype import List
+from base.listtype import List, list1
 from base.optiontype import Option, option_is_some
 from base.hashmap import HashMap, new_hashmap_str
 from base.utils import panic
@@ -41,8 +41,7 @@ fn import_symbols(binder: NameBinder, module_defs: List[ast.ModuleDef]) except C
 		log_info("Importing symbols into {module_def.get_name()}")
 		binder.errors.enter_file(filename: module_def.filename)
 		binder.enter_scope(scope: module_def.scope)
-		for imp in module_def.imports:
-			binder.import_mod(start: module_def.namespace, imp)
+		binder.fill_imports(module_def)
 		binder.leave_scope()
 		binder.errors.leave_file()
 		binder.render_or_raise()
@@ -422,21 +421,6 @@ fn enter_namespace(namespace: ast.NamespaceDef, path: List[str]) -> Option[ast.N
 				return Option.None()
 	Option.Some(namespace)
 
-fn find_module(root_namespace: ast.NamespaceDef, start: List[str], path: List[str]) -> Option[ast.NamespaceDef]:
-	"""Try to look up a module in the namespace"""
-	var depth = start.len()
-	while depth > 0:
-		case enter_namespace(namespace: root_namespace, path: start.take(n: depth - 1)):
-			Some(search_namespace):
-				case enter_namespace(namespace: search_namespace, path):
-					Some(namespace):
-						return Option.Some(namespace)
-					None:
-						depth -= 1
-			None:
-				panic("search namespace must be present")
-	Option.None()
-
 class NameBinder:
 	"""Helper class to fill scopes, and resolve names from scopes."""
 	var scopes: List[ast.Scope] = List()
@@ -445,22 +429,40 @@ class NameBinder:
 	var was_class_scope: bool = false  # HACK for multiple return values?
 	pub var errors: ErrorCollector = ErrorCollector()
 
-	pub fn import_mod(start: List[str], imp: ast.Import):
-		case find_module(root_namespace, start, path: imp.namespace):
-			Some(namespace):
-				case imp.kind:
-					Self:
-						define(is_pub: false, name: namespace.name, kind: ast.SymbolKind.Namespace(namespace), location: imp.location)
-					Names(names):
-						for name in names:
-							log_trace("Importing {name.name} from {namespace.name}")
-							try:
-								let symbol = resolve_attribute(namespace, attr: name.name, location: name.location)
-								define(is_pub: false, name: name.name, kind: symbol.kind, location: name.location)
-							except (error: SingleCompilationError):
-								errors.append(error)
+	pub fn fill_imports(module_def: ast.ModuleDef):
+		for imp in module_def.imports:
+			try:
+				import_mod(start: module_def.namespace, imp)
+			except (error: SingleCompilationError):
+				errors.append(error)
+
+	fn import_mod(start: List[str], imp: ast.Import) except SingleCompilationError:
+		case imp.namespace:
 			None:
-				add_error(location: imp.location, message: "Error, no module named: {ast.dotted(imp.namespace)}")
+				for name in imp.names:
+					let namespace = find_module(root_namespace, start, location: imp.location, path: list1(name.name))
+					define(is_pub: false, name: namespace.name, kind: ast.SymbolKind.Namespace(namespace), location: imp.location)
+			Some(path):
+				let namespace = find_module(root_namespace, start, location: imp.location, path)
+				for name in imp.names:
+					log_trace("Importing {name.name} from {namespace.name}")
+					let symbol = resolve_attribute(namespace, attr: name.name, location: name.location)
+					define(is_pub: false, name: name.name, kind: symbol.kind, location: name.location)
+
+	fn find_module(root_namespace: ast.NamespaceDef, start: List[str], location: Location, path: List[str]) -> ast.NamespaceDef except SingleCompilationError:
+		"""Try to look up a module in the namespace"""
+		var depth = start.len()
+		while depth > 0:
+			case enter_namespace(namespace: root_namespace, path: start.take(n: depth - 1)):
+				Some(search_namespace):
+					case enter_namespace(namespace: search_namespace, path):
+						Some(namespace):
+							return namespace
+						None:
+							depth -= 1
+				None:
+					panic("search namespace must be present")
+		raise make_error(location, message: "Error, no module named: {ast.dotted(path)}")
 
 	pub fn add_tycon(id: ast.NodeId, tycon: ast.TyCon):
 		tycon_map.insert(key: id, value: tycon)

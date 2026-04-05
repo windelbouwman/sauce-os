@@ -177,7 +177,7 @@ class WasmGenerator:
 		# Tag used for exceptions:
 		let typeidx = inject_type(webassembly.CompType.Func(params: list1(webassembly.ValueType.Ref(webassembly.nullable_ref_type(heap_type: webassembly.HeapType.Any()))), results: List()))
 		let tags: List[webassembly.Tag] = List()
-		tags.append(webassembly.Tag(typeidx))
+		imports.append(webassembly.Import(modname: "slangrt", name: "exception_tag", kind: webassembly.ExternType.Tag(typeidx)))
 
 		if not m_string_data.is_empty():
 			datas.append(webassembly.Data(data: m_string_data.to_bytes()))

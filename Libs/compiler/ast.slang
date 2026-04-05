@@ -620,6 +620,12 @@ pub fn qual_name_to_string(name: QualName) -> str:
 pub fn dotted(parts?: List[str]) -> str:
 	str_join(parts: parts, sep: ".")
 
+pub fn commas(names?: List[NameAtLocation]) -> str:
+	let parts: List[str] = List()
+	for name in names:
+		parts.append(name.name)
+	str_join(parts, sep: ", ")
+
 pub enum TypeKind:
 	Base(base: BaseType)
 	Undefined
@@ -980,26 +986,22 @@ pub fn new_empty_module(namespace: List[str], location: Location) -> ModuleDef:
 		imports: new_vector()
 		definitions: List()
 
-pub fn import_self(namespace: List[str], location: Location) -> Import:
+pub fn import_names(names: List[NameAtLocation], location: Location) -> Import:
 	Import:
-		namespace
 		location
-		kind: ImportKind.Self()
+		namespace: Option.None()
+		names
 
-pub fn import_names(namespace: List[str], location: Location, names: List[NameAtLocation]) -> Import:
+pub fn import_names_from(namespace: List[str], names: List[NameAtLocation], location: Location) -> Import:
 	Import:
-		namespace
 		location
-		kind: ImportKind.Names(names)
+		namespace: Option.Some(namespace)
+		names
 
 pub struct Import:
-	namespace: List[str]
 	location: Location
-	kind: ImportKind
-
-pub enum ImportKind:
-	Self
-	Names(names: List[NameAtLocation])
+	namespace: Option[List[str]]
+	names: List[NameAtLocation]
 
 pub struct NameAtLocation:
 	name: str
@@ -1883,14 +1885,15 @@ pub fn print_ast(module_def: ModuleDef):
 	let printer = AstPrinter()
 	printer.indent()
 	for imp in module_def.imports:
-		case imp.kind:
-			Self:
-				printer.print2(txt: "import {dotted(imp.namespace)}")
-			Names(names):
-				printer.print2(txt: "from {dotted(imp.namespace)} import ..")
+		printer.print2(txt: import_to_string(imp))
 	let visitor = new_print_visitor(printer)
 	visit_module(visitor, module_def)
 	printer.dedent()
+
+fn import_to_string(imp: Import) -> str:
+	case imp.namespace:
+		None: "import {commas(imp.names)}"
+		Some(namespace): "from {dotted(namespace)} import commas(imp.names)"
 
 pub fn new_print_visitor(printer: AstPrinter) -> Visitor[AstPrinter]:
 	Visitor:
