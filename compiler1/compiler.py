@@ -7,8 +7,6 @@ import sys
 import os
 from typing import TextIO, Optional
 
-import networkx as nx
-
 from . import ast
 from .parsing import parse_file
 from .namebinding import resolve_names, base_scope
@@ -22,6 +20,7 @@ from .transforms import (
     constant_folding,
     replace_unions,
     rewrite_interfaces,
+    rewrite_names,
 )
 from .flowcheck import flow_check
 from .pygenerator import gen_pycode
@@ -33,6 +32,8 @@ from .builtins import create_rt_module, get_builtins
 logger = logging.getLogger("slangc")
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), "runtime"))
 import slangrt
+
+__all__ = ["base_scope"]
 
 
 @dataclass
@@ -51,6 +52,7 @@ def do_compile(
         logger.error("No existing source files provided")
         return
 
+    filenames = list(sorted(set(filenames)))
     id_context = ast.IdContext()
 
     modules = []
@@ -61,13 +63,8 @@ def do_compile(
         modules.append(module)
         if options.dump_ast:
             ast.print_ast(module)
-    topo_sort(modules)
 
-    known_modules = {}
-    for module in modules:
-        analyze_ast(module, known_modules, options)
-        if options.dump_ast:
-            ast.print_ast(module)
+    analyze_ast(modules, options)
 
     if options.backend == "null":
         return modules
@@ -108,7 +105,7 @@ def do_compile(
             # namespace = get_builtins(args=options.program_args, stdout=output)
             namespace = {}
             exec(code, namespace)
-            namespace["main"]()
+            namespace["main_main"]()
         else:
             gen_pycode(modules, output)
     else:
@@ -117,60 +114,15 @@ def do_compile(
     logger.info(":party_popper:DONE&DONE", extra={"markup": True})
 
 
-def dependency_graph(modules: list[ast.Module]) -> nx.DiGraph:
-    """Create a dependency graph of all modules"""
-    g = nx.DiGraph()
-    for module in modules:
-        g.add_node(module.id.name)
-        for dep in module.get_deps():
-            g.add_edge(module.id.name, dep)
-    return g
-
-
-def topo_sort(modules: list[ast.Module]):
-    """Sort modules in dependency order (in-place).
-
-    Check each module used other modules, and
-    topologically sort the dependency graph.
-    """
-    g = dependency_graph(modules)
-    logger.debug(f"module dependency graph: {g}")
-    topo_sort_by_graph(modules, g)
-
-
-def topo_sort_by_graph(modules: list[ast.Module], g: nx.DiGraph):
-    """Sort topologically (in-place) given a dependency graph"""
-    m = {}
-    for module in modules:
-        m[module.id.name] = module
-
-    order = list(reversed(list(nx.topological_sort(g))))
-    logger.info(f"Compilation order: {order}")
-    modules.clear()
-    for name in order:
-        if name in m:
-            modules.append(m.pop(name))
-    assert not m
-
-
-def analyze_ast(
-    module: ast.Module,
-    known_modules: dict[str, ast.Module],
-    options: CompilationOptions,
-):
+def analyze_ast(modules: list[ast.Module], options: CompilationOptions):
     """Fill scopes, resolve symbols, evaluate type expressions."""
-    resolve_names(known_modules, module)
-    evaluate_types(module)
+    resolve_names(modules)
+    evaluate_types(modules)
 
     if options.dump_ast:
-        ast.print_ast(module)
+        print_modules(modules)
 
-    check_types(module)
-
-
-def check_modules(modules: list[ast.Module]):
-    for module in modules:
-        check_types(module)
+    check_types(modules)
 
 
 def print_modules(modules: list[ast.Module]):
@@ -190,24 +142,25 @@ def transform(
     """
     # Rewrite and type-check for each transformation.
     rewrite_loops(id_context, rt_module, modules)
-    check_modules(modules)
+    check_types(modules)
 
     rewrite_enums(id_context, modules)
     if options.dump_ast:
         print_modules(modules)
-    check_modules(modules)
+    check_types(modules)
 
     rewrite_classes(id_context, modules)
     if options.dump_ast:
         print_modules(modules)
-    check_modules(modules)
+    check_types(modules)
 
     # TODO: this can be optional, depending on what the backend supports!
     rewrite_switch(id_context, modules)
     replace_unions(id_context, modules)
     rewrite_interfaces(id_context, modules)
     # print_modules(modules)
-    check_modules(modules)
+    check_types(modules)
+    rewrite_names(id_context, modules)
 
     constant_folding(id_context, modules)
-    check_modules(modules)
+    check_types(modules)

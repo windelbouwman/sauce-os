@@ -6,6 +6,7 @@ Idea: Use python code as bootstrapping target!
 
 import logging
 import contextlib
+import json
 
 from . import ast
 
@@ -21,7 +22,7 @@ def gen_pycode(modules: list[ast.Module], f):
     g.emit("if __name__ == '__main__':")
     with g.indented():
         g.emit("import sys")
-        g.emit("sys.exit(main())")
+        g.emit("sys.exit(main_main())")
 
 
 class PyCodeGenerator:
@@ -35,24 +36,30 @@ class PyCodeGenerator:
         self.emit("")
 
     def gen_modules(self, modules):
+        imported_modules = set()
         for module in modules:
+            for definition in module.definitions:
+                if isinstance(definition, ast.ExternFunction):
+                    if definition.libname not in imported_modules:
+                        imported_modules.add(definition.libname)
+                        self.emit(f"import {definition.libname}")
             for definition in module.definitions:
                 if isinstance(definition, ast.VarDef):
                     self.global_names.append(self.gen_id(definition.id))
             for definition in module.definitions:
-                self.gen_definition(module.id.name, definition)
+                self.gen_definition(definition)
             for definition in module.definitions:
                 if isinstance(definition, ast.VarDef):
                     self.gen_global(definition)
 
-    def gen_definition(self, modname, definition: ast.Definition):
+    def gen_definition(self, definition: ast.Definition):
         if isinstance(definition, ast.FunctionDef):
             self.gen_func(definition)
         elif isinstance(definition, ast.StructDef):
             assert not definition.is_union
             self.emit(f"class {self.gen_id(definition.id)}:")
             self.indent()
-            field_names = [f"f_{field.id.name}" for field in definition.fields]
+            field_names = [field.id.name for field in definition.fields]
             args = ", ".join(field_names)
             self.emit(f"def __init__(self, {args}):")
             with self.indented():
@@ -61,7 +68,7 @@ class PyCodeGenerator:
             self.dedent()
             self.emit("")
         elif isinstance(definition, ast.ExternFunction):
-            self.emit(f"from slangrt import {modname}_{definition.id.name}")
+            pass
         elif isinstance(definition, ast.VarDef):
             pass
         else:
@@ -77,7 +84,7 @@ class PyCodeGenerator:
             params = ", ".join([self.gen_id(p.id) for p in func_def.parameters])
         else:
             params = ""
-        self.emit(f"def {self.gen_id(func_def.id)}({params}):")
+        self.emit(f"def {func_def.id.name}({params}):")
         self.indent()
         if self.global_names:
             global_decl = ", ".join(self.global_names)
@@ -86,10 +93,11 @@ class PyCodeGenerator:
         if func_def.statement.ty.is_void() or func_def.statement.ty.is_unreachable():
             self.gen_statement(func_def.statement, None)
         else:
-            res = "__slang_snag"
+            res = "__SLANG_SNAG"
             self.gen_statement(func_def.statement, res)
             self.emit(f"return {res}")
         self.dedent()
+        self.emit("")
         self.emit("")
 
     def gen_block(self, block: ast.ScopedBlock, target):
@@ -103,7 +111,7 @@ class PyCodeGenerator:
             if isinstance(kind.value.kind, ast.StatementExpression):
                 self.gen_statement(kind.value.kind.statement, varname)
             else:
-                val = self.gen_expression(kind.value)
+                val = self.gen_expression(kind.value, parens=False)
                 self.emit(f"{varname} = {val}")
         elif isinstance(kind, ast.CompoundStatement):
             for statement in kind.statements[:-1]:
@@ -175,7 +183,7 @@ class PyCodeGenerator:
     def gen_expression(self, expression: ast.Expression, parens: bool = True) -> str:
         kind = expression.kind
         if isinstance(kind, ast.StringConstant):
-            return repr(kind.text)
+            return json.dumps(kind.text)
         elif isinstance(kind, ast.CharConstant):
             return repr(kind.text)
         elif isinstance(kind, ast.NumericConstant):
@@ -191,11 +199,11 @@ class PyCodeGenerator:
         elif isinstance(kind, ast.ArrayIndex):
             assert len(kind.indici) == 1
             base = self.gen_expression(kind.base)
-            index = self.gen_expression(kind.indici[0])
+            index = self.gen_expression(kind.indici[0], parens=False)
             return f"{base}[{index}]"
         elif isinstance(kind, ast.DotOperator):
             base = self.gen_expression(kind.base)
-            return f"{base}.f_{kind.field}"
+            return f"{base}.{kind.field}"
         elif isinstance(kind, ast.StructLiteral):
             name = self.gen_id(kind.ty.kind.tycon.id)
             values = self.gen_expressions(kind.values)
@@ -218,13 +226,12 @@ class PyCodeGenerator:
             return f"({res})" if parens else res
         elif isinstance(kind, ast.ObjRef):
             obj = kind.obj
-            if isinstance(
-                obj, (ast.Variable, ast.FunctionDef, ast.Parameter, ast.VarDef)
-            ):
+            if isinstance(obj, (ast.Variable, ast.Parameter, ast.VarDef)):
                 return self.gen_id(obj.id)
+            elif isinstance(obj, ast.FunctionDef):
+                return obj.id.name
             elif isinstance(obj, ast.ExternFunction):
-                modname = obj.modname
-                return f"{modname}_{obj.id.name}"
+                return f"{obj.libname}.{obj.id.name}"
             else:
                 raise NotImplementedError(str(obj))
         elif isinstance(kind, ast.TypeCast):
@@ -259,8 +266,6 @@ class PyCodeGenerator:
         return ", ".join([self.gen_expression(value, parens=False) for value in values])
 
     def gen_id(self, id: ast.Id):
-        if id.name == "main":
-            return "main"
         return f"X{id.id}_{id.name}"
 
     def indent(self):

@@ -9,8 +9,9 @@ from .location import Location
 logger = logging.getLogger("slangc.typechecker")
 
 
-def check_types(module: ast.Module):
-    TypeChecker().check_module(module)
+def check_types(modules: list[ast.Module]):
+    for module in modules:
+        TypeChecker().check_module(module)
 
 
 class TypeChecker(BasePass):
@@ -20,7 +21,7 @@ class TypeChecker(BasePass):
         self._except_handlers = []
 
     def check_module(self, module: ast.Module):
-        self.begin(module.filename, f"Type checking module '{module.id.name}'")
+        self.begin(module.filename, f"Type checking module '{module}'")
         self.visit_module(module)
         self.finish("Type check OK.")
 

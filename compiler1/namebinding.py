@@ -9,10 +9,15 @@ from .errors import ParseError
 logger = logging.getLogger("slangc.namebinding")
 
 
-def resolve_names(known_modules, module: ast.Module):
+def resolve_names(modules: list[ast.Module]):
     """Fill scopes and bind names"""
-    ScopeFiller(known_modules).fill_module(module)
-    NameBinder().resolve_symbols(module)
+    root_namespace = ast.Scope(Span.default())
+    for module in modules:
+        ScopeFiller(root_namespace).fill_module(module)
+    for module in modules:
+        ScopeFiller(root_namespace).import_symbols(module)
+    for module in modules:
+        NameBinder().resolve_symbols(module)
 
 
 def base_scope() -> ast.Scope:
@@ -41,51 +46,83 @@ def base_scope() -> ast.Scope:
     return top_scope
 
 
+def enter_namespace(namespace: ast.Scope, path: list[str]):
+    for name in path:
+        if namespace.is_defined(name):
+            namespace = namespace.lookup(name)
+        else:
+            return
+    return namespace
+
+
 class ScopeFiller(BasePass):
-    def __init__(self, modules: dict[str, ast.Module]):
+    def __init__(self, root_namespace: ast.Scope):
         super().__init__()
         self._scopes: list[ast.Scope] = []
-        self._modules = modules
+        self._root_namespace = root_namespace
         self._definitions = []
 
     def fill_module(self, module: ast.Module):
         self._definitions = []
-        self.begin(module.filename, f"Filling scopes in module '{module.id.name}'")
-
-        if module.id.name in self._modules:
-            self.error(module.location, f"Cannot redefine {module.id.name}")
-        else:
-            self._modules[module.id.name] = module
-
+        self.begin(module.filename, f"Filling scopes in module '{module}'")
+        self.register_module(module)
         self.enter_scope(module.scope)
-        for imp in module.imports:
-            self.handle_import(imp)
-
         self.visit_module(module)
         self.leave_scope()
         assert not self._scopes
         module._definitions = self._definitions
         self.finish("Scopes filled")
 
-    def handle_import(self, imp: ast.Import):
+    def register_module(self, module: ast.Module):
+        ns = self._root_namespace
+
+        # Enter sub namespace:
+        for location, name in module.namespace[:-1]:
+            if ns.is_defined(name):
+                sub_ns = ns.lookup(name)
+                assert isinstance(sub_ns, ast.Scope)
+            else:
+                sub_ns = ast.Scope(Span.default())
+                ns.define(name, sub_ns)
+            ns = sub_ns
+
+        location, name = module.namespace[-1]
+        if ns.is_defined(name):
+            if len(module.scope) == 0:
+                module.scope = ns
+            else:
+                self.error(location, f"Cannot redefine {name}")
+        else:
+            ns.define(name, module.scope)
+
+    def import_symbols(self, module: ast.Module):
+        self.begin(module.filename, f"Importing symbols in module '{module}'")
+        self.enter_scope(module.scope)
+        for imp in module.imports:
+            self.handle_import([name for loc, name in module.namespace], imp)
+        self.leave_scope()
+        self.finish("Imports handled filled")
+
+    def handle_import(self, start: list[str], imp: ast.Import):
         if imp.namespace:
-            modname = imp.namespace[-1][1]
-            namespace = self.find_module(modname)
+            namespace = self.find_module(start, [name for loc, name in imp.namespace])
             for name, location in imp.names:
-                if namespace.has_field(name):
-                    self.define_symbol(name, namespace.get_field(name))
+                if namespace.is_defined(name):
+                    self.define_symbol(name, namespace.lookup(name))
                 else:
                     self.error(location, f"No such field: {name}")
         else:
             for modname, location in imp.names:
-                namespace = self.find_module(modname)
+                namespace = self.find_module(start, [modname])
                 self.define_symbol(modname, namespace)
 
-    def find_module(self, modname):
-        if modname in self._modules:
-            return self._modules[modname]
-        else:
-            raise ValueError(f"module {modname} not found")
+    def find_module(self, start: list[str], path: list[str]) -> ast.Scope:
+        for depth in reversed(range(0, len(start) + 1)):
+            search_ns = enter_namespace(self._root_namespace, start[:depth])
+            ns = enter_namespace(search_ns, path)
+            if ns:
+                return ns
+        raise ValueError(f"namespace {path} not found")
 
     def visit_definition(self, definition: ast.Definition):
         self.define(definition)
@@ -192,7 +229,7 @@ class ScopeFiller(BasePass):
 
     def define_symbol(self, name: str, symbol: ast.Definition):
         assert isinstance(name, str)
-        assert isinstance(symbol, (ast.Definition, ast.Module))
+        assert isinstance(symbol, (ast.Definition, ast.Scope))
         logger.debug(f"Define name '{name}'")
         scope = self._scopes[-1]
         if scope.is_defined(name):
@@ -210,10 +247,9 @@ class NameBinder(BasePass):
         self._references = []
 
     def resolve_symbols(self, module: ast.Module):
-        self.begin(module.filename, f"Resolving symbols in '{module.id.name}'")
+        self.begin(module.filename, f"Resolving symbols in '{module}'")
         self._references = []
         self.enter_scope(module.scope)
-
         self.visit_module(module)
         self.leave_scope()
         module._references = self._references
@@ -282,7 +318,7 @@ class NameBinder(BasePass):
                 elif isinstance(obj, ast.TypeParameter):
                     ty.kind = ast.TypeParameterKind(obj)
                 elif isinstance(obj, ast.TypeDef):
-                    ty.change_to(obj.ty)
+                    ty.kind = ast.TypeDefKind(obj)
                 else:
                     raise ValueError(f"Invalid type: {obj}")
             elif isinstance(ty.kind, ast.AbstractApp):
@@ -304,9 +340,9 @@ class NameBinder(BasePass):
             # Resolve obj_ref . field at this point, we can do this here.
             if isinstance(kind.base.kind, ast.ObjRef):
                 obj = kind.base.kind.obj
-                if isinstance(obj, ast.Module):
-                    if obj.has_field(kind.field):
-                        expression.kind = ast.ObjRef(obj.get_field(kind.field))
+                if isinstance(obj, ast.Scope):
+                    if obj.is_defined(kind.field):
+                        expression.kind = ast.ObjRef(obj.lookup(kind.field))
                     else:
                         self.error(expression.location, f"No such field: {kind.field}")
 
@@ -343,10 +379,10 @@ class NameBinder(BasePass):
     def resolve_qual_name(self, qual_name: ast.QualName):
         sym = self.lookup(qual_name.names[0][1], qual_name.names[0][0])
         for location, attr in qual_name.names[1:]:
-            try:
-                sym = sym.get_field(attr)
-            except ValueError as ex:
-                raise ParseError(location, str(ex))
+            if sym.is_defined(attr):
+                sym = sym.lookup(attr)
+            else:
+                raise ParseError(location, f"No attr: {attr}")
         return sym
 
     def lookup(self, name: str, location: Location):

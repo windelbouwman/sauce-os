@@ -8,9 +8,11 @@ from .location import Location
 from .basepass import BasePass
 
 
-def evaluate_types(module: ast.Module):
-    TypeEvaluation().run(module)
-    NewOpPass().run(module)
+def evaluate_types(modules: list[ast.Module]):
+    for module in modules:
+        TypeEvaluation().run(module)
+    for module in modules:
+        NewOpPass().run(module)
 
 
 class TypeEvaluation(BasePass):
@@ -132,6 +134,11 @@ class NewOpPass(BasePass):
                         expression.location,
                         f"Can only contrap struct type, not {ty}",
                     )
+
+    def visit_type(self, ty):
+        super().visit_type(ty)
+        if isinstance(ty.kind, ast.TypeDefKind):
+            ty.change_to(ty.kind.type_def.ty)
 
 
 def try_as_type(expression: ast.Expression):

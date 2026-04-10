@@ -34,3 +34,14 @@ def test_compiles(filename: Path, backend: str):
     if reference_output_filename.exists():
         expected_output = reference_output_filename.read_text()
         assert stdout == expected_output
+
+
+def test_linkage():
+    options = compiler.CompilationOptions(dump_ast=False, run_code=False, backend="py")
+    runtime_filename = root_path / "runtime" / "std.slang"
+    linkage_path = root_path / "examples" / "linkage"
+    sources = sorted(linkage_path.glob("*.slang"))
+    sources.append(runtime_filename)
+    f = io.StringIO()
+    compiler.do_compile(sources, f, options)
+    # print(f.getvalue())

@@ -404,10 +404,10 @@ ${BUILDDIR}/c/linkage/main.c: examples/linkage/main.slang ${BUILDDIR}/c/linkage/
 	${SLANGC} --backend-c -v -v --add-import ${BUILDDIR}/c/linkage/libfancy.json --add-import ${BUILDDIR}/c/linkage/libfubar.json -o $@ examples/linkage/main.slang
 
 ${BUILDDIR}/c/linkage/libfancy.so: ${BUILDDIR}/c/linkage/libfancy.c
-	gcc ${CFLAGS} -shared -fPIC -Wl,--no-undefined -o $@ $<
+	gcc ${CFLAGS} -L${BUILDDIR}/c -shared -fPIC -Wl,--no-undefined -o $@ $< -lslangrt
 
-${BUILDDIR}/c/linkage/main.exe: ${BUILDDIR}/c/linkage/main.c ${BUILDDIR}/c/linkage/libfancy.so ${BUILDDIR}/slangrt.a runtime/slangrt.h
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c/linkage -Wl,-rpath=`pwd`/${BUILDDIR}/c/linkage -l:libfancy.so ${BUILDDIR}/slangrt.a -lm
+${BUILDDIR}/c/linkage/main.exe: ${BUILDDIR}/c/linkage/main.c ${BUILDDIR}/c/linkage/libfancy.so ${BUILDDIR}/c/libslangrt.so runtime/slangrt.h ${BUILDDIR}/slangrt_main.o
+	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/slangrt_main.o -L${BUILDDIR}/c/linkage -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c/linkage -Wl,-rpath=`pwd`/${BUILDDIR}/c -l:libfancy.so -lslangrt -lm
 
 ${BUILDDIR}/c/linkage:
 	mkdir -p ${BUILDDIR}/c/linkage

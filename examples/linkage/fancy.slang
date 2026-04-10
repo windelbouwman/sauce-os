@@ -1,3 +1,4 @@
+module fancy
 
 import std
 from fubar import Foo, NUM

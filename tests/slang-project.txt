@@ -3,7 +3,4 @@
 ../Libs/image
 ../Libs/science
 ../Libs/compiler
-../Libs/regex/integersetlib.slang
-../Libs/regex/rangelib.slang
-../Libs/regex/regex.slang
 ../runtime/std.slang

@@ -62,6 +62,9 @@ class Scope:
     def define(self, name: str, symbol: "Definition"):
         self.symbols[name] = symbol
 
+    def __len__(self):
+        return len(self.symbols)
+
 
 class TypeKind:
     pass
@@ -623,6 +626,13 @@ class TypeParameterKind(TypeKind):
         return self.type_parameter.id.name
 
 
+class TypeDefKind(TypeKind):
+    def __init__(self, type_def: "TypeDef"):
+        super().__init__()
+        assert isinstance(type_def, TypeDef)
+        self.type_def = type_def
+
+
 str_type = base_type("str")
 char_type = base_type("char")
 int_type = base_type("int")
@@ -684,31 +694,28 @@ class Expression(Node):
         return to_string(self)
 
 
-class Module(ScopedDefinition):
+class Module:
     def __init__(
         self,
-        id: Id,
+        namespace: list,
         docstring: str,
         imports: list["Import"],
         definitions: list["Definition"],
         span: Span,
     ):
-        super().__init__(id, docstring, Location.default(), span)
+        assert isinstance(namespace, list)
+        assert all(isinstance(p, str) for loc, p in namespace)
+        self.namespace = namespace
+        self.docstring = docstring
+        self.scope = Scope(span)
+        self.span = span
         self.filename = "?no-name?"
         self.imports = list(imports)
         self.definitions = list(definitions)
         self.types = []
 
     def __repr__(self):
-        return f"Module({self.id.name})"
-
-    def get_deps(self) -> list[str]:
-        deps = []
-        for imp in self.imports:
-            deps.extend(imp.get_deps())
-        if self.id.name != "rt":
-            deps.append("rt")
-        return deps
+        return f"Module({self.namespace})"
 
     def has_field(self, name: str) -> bool:
         return self.scope.is_defined(name)
@@ -935,7 +942,7 @@ class VarDef(Definition):
 
 
 def function_def(
-    id: Id,
+    name: str,
     docstring: str,
     type_parameters: list[TypeParameter],
     parameters: list["Parameter"],
@@ -946,7 +953,7 @@ def function_def(
     span: Span,
 ):
     return FunctionDef(
-        id,
+        name,
         docstring,
         type_parameters,
         parameters,
@@ -961,7 +968,7 @@ def function_def(
 class FunctionDef(ScopedDefinition):
     def __init__(
         self,
-        id: Id,
+        name: str,
         docstring: str,
         type_parameters: list[TypeParameter],
         parameters: list["Parameter"],
@@ -971,7 +978,7 @@ class FunctionDef(ScopedDefinition):
         location: Location,
         span: Span,
     ):
-        super().__init__(id, docstring, location, span)
+        super().__init__(Id(name, 0), docstring, location, span)
         assert isinstance(statement, Statement)
         self.type_parameters = type_parameters
         self.parameters: list[Parameter] = parameters
@@ -1857,14 +1864,15 @@ class Variable(Definition):
 class ExternFunction(Definition):
     def __init__(
         self,
-        modname: str,
+        libname: str,
         name: str,
         parameter_types: list[Type],
         return_type: Type,
         location: Location,
     ):
         super().__init__(Id(name, 0), location)
-        self.modname = modname
+        assert isinstance(libname, str)
+        self.libname = libname
         parameter_names = [None] * len(parameter_types)
         self.ty = function_type(
             parameter_names, parameter_types, return_type, void_type

@@ -5,28 +5,28 @@ from . import ast
 
 
 def create_rt_module(id_context: ast.IdContext) -> ast.Module:
-    modname = "rt"
-    id = id_context.new_id(modname)
+    namespace = [(Location.default(), "rt")]
+    libname = "slangrt"
     span = Span.default()
-    mod = ast.Module(id, "builtins injected by the compiler", [], [], span)
+    mod = ast.Module(namespace, "builtins injected by the compiler", [], [], span)
     mod.add_definition(
         ast.ExternFunction(
-            modname, "int_to_str", [ast.int_type], ast.str_type, Location.default()
+            libname, "int_to_str", [ast.int_type], ast.str_type, Location.default()
         ),
     )
     mod.add_definition(
         ast.ExternFunction(
-            modname, "char_to_str", [ast.char_type], ast.str_type, Location.default()
+            libname, "char_to_str", [ast.char_type], ast.str_type, Location.default()
         )
     )
     mod.add_definition(
         ast.ExternFunction(
-            modname, "str_len", [ast.str_type], ast.int_type, Location.default()
+            libname, "str_len", [ast.str_type], ast.int_type, Location.default()
         )
     )
     mod.add_definition(
         ast.ExternFunction(
-            modname,
+            libname,
             "str_get",
             [ast.str_type, ast.int_type],
             ast.char_type,
@@ -35,7 +35,7 @@ def create_rt_module(id_context: ast.IdContext) -> ast.Module:
     )
     mod.add_definition(
         ast.ExternFunction(
-            modname,
+            libname,
             "str_compare",
             [ast.str_type, ast.str_type],
             ast.bool_type,
@@ -44,17 +44,17 @@ def create_rt_module(id_context: ast.IdContext) -> ast.Module:
     )
     mod.add_definition(
         ast.ExternFunction(
-            modname, "ctz", [ast.int_type], ast.int_type, Location.default()
+            libname, "ctz", [ast.int_type], ast.int_type, Location.default()
         )
     )
     mod.add_definition(
         ast.ExternFunction(
-            modname, "clz", [ast.int_type], ast.int_type, Location.default()
+            libname, "clz", [ast.int_type], ast.int_type, Location.default()
         )
     )
     mod.add_definition(
         ast.ExternFunction(
-            modname, "popcnt", [ast.int_type], ast.int_type, Location.default()
+            libname, "popcnt", [ast.int_type], ast.int_type, Location.default()
         )
     )
     return mod

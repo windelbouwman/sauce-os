@@ -1,6 +1,5 @@
 
 ../Libs/base
-../Libs/regex
 ../Libs/gfx
 ../Libs/image
 ../Libs/compiler

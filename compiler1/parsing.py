@@ -145,15 +145,13 @@ class CustomTransformer(LarkTransformer):
         return self.id_context.new_id(name)
 
     def module(self, x):
-        modname, docstring, imports, definitions, eof = x
-        id = self.id_context.new_id(modname)
+        namespace, docstring, imports, definitions, eof = x
         span = get_span(Location.default(), get_loc(eof))
-        return ast.Module(id, docstring, imports, definitions, span)
+        return ast.Module(namespace, docstring, imports, definitions, span)
 
     def module_decl(self, x):
-        _location, modname = x[1].names[-1]
-        self._modname = modname
-        return modname
+        namespace = x[1].names
+        return namespace
 
     def eval_expr(self, x):
         return x[0]
@@ -168,8 +166,6 @@ class CustomTransformer(LarkTransformer):
 
     def import_from(self, x):
         namespace = x[1].names
-        # take last item from qual name for now.
-        #  location, modname#
         location = get_loc(x[2])
         names = x[3]
         return ast.Import(namespace, names, location)
@@ -246,7 +242,7 @@ class CustomTransformer(LarkTransformer):
         assert is_terminal(x[-1], "DEDENT")
 
         return ast.function_def(
-            self.new_id(name),
+            name,
             docstring,
             type_parameters,
             parameters,
@@ -260,11 +256,10 @@ class CustomTransformer(LarkTransformer):
     def extern_func_def(self, x):
         # extern_func_def: KW_EXTERN STRING KW_FN id_and_type_parameters function_signature NEWLINE
         libname = x[1]
-        assert isinstance(libname, str)
         location, name, type_parameters = x[3]
         parameters, return_type, except_type = x[4]
         ptypes = [p.ty for p in parameters]
-        return ast.ExternFunction(self._modname, name, ptypes, return_type, location)
+        return ast.ExternFunction(libname, name, ptypes, return_type, location)
 
     def function_signature(self, x):
         # LEFT_PARENTHESIS parameters? RIGHT_PARENTHESIS (ARROW typ)?

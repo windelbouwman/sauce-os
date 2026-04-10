@@ -18,7 +18,7 @@ def run_bytecode(prog: Program, f):
     logger.info("Running byte-code!")
     m = VirtualMachine(f)
     m.load(prog)
-    m.invoke("main")
+    m.invoke("main_main")
 
 
 def check_value_type(value, ty: Typ):

@@ -542,15 +542,17 @@ class EnumRewriterPhase3(BaseTransformer):
 
 
 def rewrite_classes(id_context, modules):
-    ClassRewriter(id_context).transform(modules)
+    struct_defs = {}
+    ClassRewriter(id_context, struct_defs).transform(modules)
+    ClassRewriter2(id_context, struct_defs).transform(modules)
 
 
 class ClassRewriter(BaseTransformer):
     name = "class-rewrite"
 
-    def __init__(self, id_context: ast.IdContext):
+    def __init__(self, id_context: ast.IdContext, struct_defs):
         super().__init__(id_context)
-        self._struct_defs = {}
+        self._struct_defs = struct_defs
 
     def visit_module(self, module: ast.Module):
         self.new_defs = []
@@ -657,7 +659,7 @@ class ClassRewriter(BaseTransformer):
         ctor_code = ast.return_statement(init_literal, class_def.location)
         except_type = ast.void_type
         ctor_func = ast.function_def(
-            self.new_id(f"{class_def.id.name}_ctor"),
+            f"{class_def.id.name}_ctor",
             "ctor",
             type_parameters,
             ctor_parameters,
@@ -673,6 +675,14 @@ class ClassRewriter(BaseTransformer):
         self.new_defs.append(ctor_func)
 
         self._struct_defs[id(class_def)] = (struct_def, ctor_func)
+
+
+class ClassRewriter2(BaseTransformer):
+    name = "class-rewrite2"
+
+    def __init__(self, id_context: ast.IdContext, struct_defs):
+        super().__init__(id_context)
+        self._struct_defs = struct_defs
 
     def visit_type(self, ty: ast.Type):
         super().visit_type(ty)
@@ -943,7 +953,7 @@ class InterfaceMeister1(BaseTransformer):
             call_impl = ast.function_call(target, arguments, decl.location)
             statement = ast.expression_statement(call_impl, decl.location)
             invoker_function = ast.function_def(
-                self.new_id(f"invoke_{interface_def.id.name}_{decl.id.name}"),
+                f"invoke_{interface_def.id.name}_{decl.id.name}",
                 "Invoker function",
                 type_parameters,
                 parameters,
@@ -998,7 +1008,7 @@ class InterfaceMeister1(BaseTransformer):
             call_impl = ast.function_call(method.get_ref(location), args, location)
             statement = ast.expression_statement(call_impl, location)
             wrapper_function = ast.function_def(
-                self.new_id(f"{method.id.name}_wrapper"),
+                f"{method.id.name}_wrapper",
                 "Wrapper function",
                 type_parameters,
                 parameters,
@@ -1097,3 +1107,20 @@ def rewrite_interfaces(id_context: ast.IdContext, modules):
     m2.transform(modules)
     m3 = InterfaceMeister3(id_context, m1._struct_defs)
     m3.transform(modules)
+
+
+def rewrite_names(id_context: ast.IdContext, modules):
+    t = NameRewriter(id_context)
+    t.transform(modules)
+
+
+class NameRewriter(BaseTransformer):
+    name = "name-rewrite"
+
+    def visit_module(self, module: ast.Module):
+        modname = "_".join(name for loc, name in module.namespace)
+        for definition in module.definitions:
+            if isinstance(definition, ast.Definition):
+                definition.id.name = modname + "_" + definition.id.name
+            else:
+                raise NotImplementedError(str(type(definition)))

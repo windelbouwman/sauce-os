@@ -175,9 +175,7 @@ class ByteCodeGenerator:
 
         ret_ty = self.get_bc_ty(func_def.return_ty)
         self._functions.append(
-            bc.Function(
-                self.get_id(func_def.id), code, params, self._local_typs, ret_ty
-            )
+            bc.Function(func_def.id.name, code, params, self._local_typs, ret_ty)
         )
 
     def goto_inner_loop(self) -> LoopBlock:
@@ -439,12 +437,12 @@ class ByteCodeGenerator:
                 idx = self._locals.index(obj)
                 self.emit(OpCode.LOCAL_GET, idx)
             elif isinstance(obj, ast.FunctionDef):
-                self.emit(OpCode.LOADFUNC, self.get_id(obj.id))
+                self.emit(OpCode.LOADFUNC, obj.id.name)
             elif isinstance(obj, ast.VarDef):
                 global_index = self._type_map[id(obj)]
                 self.emit(OpCode.GLOBAL_GET, global_index)
             elif isinstance(obj, ast.ExternFunction):
-                self.emit(OpCode.BUILTIN, f"{obj.modname}_{obj.id.name}")
+                self.emit(OpCode.BUILTIN, obj.id.name)
             else:
                 raise NotImplementedError(str(obj))
         elif isinstance(kind, ast.StatementExpression):
