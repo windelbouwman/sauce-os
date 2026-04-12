@@ -6,6 +6,16 @@ import time
 import struct
 
 
+def wrap_unsigned(value: int, bits: int) -> int:
+    mask = (1 << bits) - 1
+    return value & mask
+
+
+def wrap_signed(value: int, bits: int) -> int:
+    mask = (1 << bits) - 1
+    return value
+
+
 def std_get_n_args() -> int:
     return len(sys.argv) - 1
 
@@ -29,7 +39,10 @@ def std_get_path_separator() -> str:
 
 std_print = print
 std_read_line = input
-rt_int_to_str = str
+
+
+def rt_int_to_str(value: int) -> str:
+    return str(value)
 
 
 def std_getch() -> int:

@@ -110,7 +110,7 @@ format: ${SLANG_FORMAT}
 	${SLANG_FORMAT} --in-place ${BASE_LIB_SRCS} ${IMAGE_LIB_SRCS} ${SCIENCE_LIB_SRCS} ${WEB_LIB_SRCS} ${COMPILER_LIB_SRCS} ${GFX_LIB_SRCS} ${SLANG_APPS} ${SLANG_EXAMPLES} ${TESTS}
 
 pytest-compiler1:
-	pytest -v test_compiler1.py
+	pytest -vv test_compiler1.py
 
 pytest-compiler: all-examples-c all-examples-python all-examples-x86 aoc all-examples-wasm all-examples-wat
 	pytest -vv test_compiler.py

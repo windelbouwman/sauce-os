@@ -973,13 +973,18 @@ class WasmGenerator:
 				panic("TODO: cast {from_type} to float")
 		elif to_type.is_int():
 			let to_bits = to_type.get_bits()
+			let to_signed = to_type.is_signed_int()
 			if from_type.is_int():
 				let from_bits = from_type.get_bits()
+				let from_signed = from_type.is_signed_int()
 				if to_bits == 64:
 					if from_bits == 64:
 						pass  # 64 to 64
 					else:
-						emit(Instruction.i64_extend_i32_s())
+						if from_signed:
+							emit(Instruction.i64_extend_i32_s())
+						else:
+							emit(Instruction.i64_extend_i32_u())
 				else:
 					if from_bits == 64:
 						emit(Instruction.i32_wrap_i64())

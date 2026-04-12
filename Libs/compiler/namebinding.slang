@@ -3,6 +3,7 @@ module compiler.namebinding
 from base.logging import log_info, log_trace
 from location import Location, location_default
 from base.listtype import List, list1
+from base.vectype import Vector, new_vector
 from base.optiontype import Option, option_is_some
 from base.hashmap import HashMap, new_hashmap_str
 from base.utils import panic
@@ -423,7 +424,7 @@ fn enter_namespace(namespace: ast.NamespaceDef, path: List[str]) -> Option[ast.N
 
 class NameBinder:
 	"""Helper class to fill scopes, and resolve names from scopes."""
-	var scopes: List[ast.Scope] = List()
+	var scopes: Vector[ast.Scope] = new_vector()
 	var root_namespace: ast.NamespaceDef = ast.NamespaceDef(name: "root", scope: ast.Scope())
 	pub var tycon_map: HashMap[ast.NodeId,ast.TyCon]
 	var was_class_scope: bool = false  # HACK for multiple return values?
@@ -485,12 +486,19 @@ class NameBinder:
 		for name in module_def.namespace:
 			i += 1
 			if n == i:
-				if ns.scope.is_defined(name):
-					add_error(location, message: "Symbol '{name}' already defined")
-					break
-				else:
-					let kind = ast.SymbolKind.Namespace(ast.NamespaceDef(name, scope: module_def.scope))
-					ns.scope.define(is_pub: true, name, kind, location)
+				case ns.scope.lookup(name):
+					Some(symbol):
+						case symbol.kind:
+							Namespace(ns2):
+								if module_def.scope.is_empty():
+									module_def.scope = ns2.scope
+								else:
+									panic("Scope must be empty")
+						else:
+							add_error(location, message: "Symbol '{name}' already defined")
+					None:
+						let kind = ast.SymbolKind.Namespace(ast.NamespaceDef(name, scope: module_def.scope))
+						ns.scope.define(is_pub: true, name, kind, location)
 			else:
 				case ns.scope.lookup(name):
 					Some(symbol):
@@ -508,7 +516,7 @@ class NameBinder:
 
 	pub fn define(is_pub: bool, name: str, kind: ast.SymbolKind, location: Location):
 		# log_trace("DEFINE {name}")
-		let scope = scopes.first()
+		let scope = scopes.last()
 		if scope.is_defined(name):
 			add_error(location, message: "Symbol '{name}' is already defined")
 		else:
@@ -590,7 +598,11 @@ class NameBinder:
 				raise make_error(location, message: "module '{namespace.name}' has no symbol: '{attr}'")
 
 	fn lookup_base_name(name: str, location: Location) -> ast.Symbol except SingleCompilationError:
-		for scope in scopes:
+		# loop in reverse:
+		var index = scopes.len()
+		while index > 0:
+			index -= 1
+			let scope = scopes.get(index)
 			case scope.lookup(name):
 				Some(symbol):
 					was_class_scope = scope.class_scope
@@ -600,10 +612,10 @@ class NameBinder:
 		raise make_error(location, message: "'{name}' not defined!")
 
 	pub fn enter_scope(scope: ast.Scope):
-		scopes.prepend(scope)
+		scopes.append(scope)
 
 	pub fn leave_scope():
-		scopes.drop_front()
+		scopes.drop_last()
 
 	fn make_error(location: Location, message: str) -> SingleCompilationError:
 		errors.make_error(location, message)

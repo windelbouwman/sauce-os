@@ -57,7 +57,7 @@ fn test_bit_rotations():
 	check_left_rotation(value: 0x11223344, amount: 4, expected: 0x12233441)
 
 fn check_left_rotation(value: int, amount: int, expected: int):
-	let v2 = leftrotate(value, amount)
+	let v2 = int(leftrotate(value: uint32(value), amount))
 	assert_int_equals(v2, expected)
 
 fn check_md5(input: str, digest: str):

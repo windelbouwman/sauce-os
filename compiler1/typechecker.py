@@ -505,6 +505,12 @@ class TypeChecker(BasePass):
             return self.unify_many(a.kind.type_args, b.kind.type_args)
         elif isinstance(a.kind, ast.BaseType) and isinstance(b.kind, ast.BaseType):
             return a.kind.equals(b.kind)
+        elif isinstance(a.kind, ast.IntegerType) and isinstance(
+            b.kind, ast.IntegerType
+        ):
+            return (a.kind.signed == b.kind.signed) and (a.kind.bits == b.kind.bits)
+        elif isinstance(a.kind, ast.FloatType) and isinstance(b.kind, ast.FloatType):
+            return a.kind.bits == b.kind.bits
         elif a.is_void() and b.is_void():
             return True
         elif isinstance(a.kind, ast.TypeParameterKind) and isinstance(

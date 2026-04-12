@@ -14,7 +14,14 @@ import bc
 import rt
 
 pub enum Value:
-	Int(value: int)
+	Int64(value: int64)
+	Int32(value: int32)
+	Int16(value: int16)
+	Int8(value: int8)
+	Uint64(value: uint64)
+	Uint32(value: uint32)
+	Uint16(value: uint16)
+	Uint8(value: uint8)
 	Str(value: str)
 	Char(value: char)
 	Float(value: float)
@@ -32,8 +39,22 @@ struct ListValue:
 
 pub fn value_to_string(value?: Value) -> str:
 	case value:
-		Int(value):
-			"int({value})"
+		Int64(value):
+			"int64({value})"
+		Int32(value):
+			"int32({int(value)})"
+		Int16(value):
+			"int16({int(value)})"
+		Int8(value):
+			"int8({int(value)})"
+		Uint64(value):
+			"uint64({int(value)})"
+		Uint32(value):
+			"uint32({int(value)})"
+		Uint16(value):
+			"uint16({int(value)})"
+		Uint8(value):
+			"uint8({int(value)})"
 		Str(value):
 			"str({value})"
 		Char(value):
@@ -66,12 +87,33 @@ fn str_from_value(value?: Value) -> str:
 	else:
 		panic("str_from_value: no str ({value_to_string(value)})")
 
-fn int_from_value(value?: Value) -> int:
+fn int64_from_value(value?: Value) -> int64:
 	case value:
-		Int(value):
+		Int64(value):
 			value
 	else:
-		panic("int_from_value: no int")
+		panic("int64_from_value: no int64")
+
+fn int32_from_value(value?: Value) -> int32:
+	case value:
+		Int32(value):
+			value
+	else:
+		panic("int32_from_value: no int32")
+
+fn uint64_from_value(value?: Value) -> uint64:
+	case value:
+		Uint64(value):
+			value
+	else:
+		panic("uint64_from_value: no uint64")
+
+fn uint32_from_value(value?: Value) -> uint32:
+	case value:
+		Uint32(value):
+			value
+	else:
+		panic("uint32_from_value: no uint32")
 
 fn char_from_value(value?: Value) -> char:
 	case value:
@@ -100,10 +142,10 @@ struct ExternFunctionImpl:
 
 fn efi_std_ord(arguments: List[Value]) -> Option[Value]:
 	let value = std.ord(char_from_value(arguments[0]))
-	Option.Some(Value.Int(value))
+	Option.Some(Value.Int64(value))
 
 fn efi_std_chr(arguments: List[Value]) -> Option[Value]:
-	let value = std.chr(int_from_value(arguments[0]))
+	let value = std.chr(int64_from_value(arguments[0]))
 	Option.Some(Value.Char(value))
 
 fn efi_std_float_to_str(arguments: List[Value]) -> Option[Value]:
@@ -111,24 +153,24 @@ fn efi_std_float_to_str(arguments: List[Value]) -> Option[Value]:
 	Option.Some(Value.Str(value))
 
 fn efi_std_float_to_str2(arguments: List[Value]) -> Option[Value]:
-	let value = std.float_to_str2(value: float_from_value(arguments[0]), digits: int_from_value(arguments[1]))
+	let value = std.float_to_str2(value: float_from_value(arguments[0]), digits: int64_from_value(arguments[1]))
 	Option.Some(Value.Str(value))
 
 fn efi_std_str_len(arguments: List[Value]) -> Option[Value]:
 	let text = str_from_value(arguments[0])
 	let value = std.str_len(text)
-	Option.Some(Value.Int(value))
+	Option.Some(Value.Int64(value))
 
 fn efi_std_str_get(arguments: List[Value]) -> Option[Value]:
 	let text = str_from_value(arguments[0])
-	let index = int_from_value(arguments[1])
+	let index = int64_from_value(arguments[1])
 	let value = std.str_get(text, index)
 	Option.Some(Value.Char(value))
 
 fn efi_std_str_slice(arguments: List[Value]) -> Option[Value]:
 	let text = str_from_value(arguments[0])
-	let begin = int_from_value(arguments[1])
-	let end = int_from_value(arguments[2])
+	let begin = int64_from_value(arguments[1])
+	let end = int64_from_value(arguments[2])
 	let value = std.str_slice(text, begin, end)
 	Option.Some(Value.Str(value))
 
@@ -145,7 +187,7 @@ fn efi_default(arguments: List[Value]) -> Option[Value]:
 	Option.None()
 
 fn efi_rt_int_to_str(arguments: List[Value]) -> Option[Value]:
-	let value = rt.int_to_str(int_from_value(arguments[0]))
+	let value = rt.int_to_str(int64_from_value(arguments[0]))
 	Option.Some(Value.Str(value))
 
 fn efi_rt_char_to_str(arguments: List[Value]) -> Option[Value]:
@@ -319,7 +361,7 @@ pub class VirtualMachine:
 			Literal(literal):
 				case literal:
 					Int(val):
-						push(Value.Int(val))
+						push(Value.Int64(val))
 					Str(val):
 						push(Value.Str(val))
 					Char(value):
@@ -359,7 +401,7 @@ pub class VirtualMachine:
 				let index = pop()
 				let base = pop()
 				let list = list_from_value(base)
-				let index2 = int_from_value(index)
+				let index2 = int64_from_value(index)
 				let value = list.values.get(index: index2)
 				push(value)
 			SetIndex:
@@ -367,7 +409,7 @@ pub class VirtualMachine:
 				let index = pop()
 				let base = pop()
 				let list = list_from_value(base)
-				let index2 = int_from_value(index)
+				let index2 = int64_from_value(index)
 				list.values.set(index: index2, value)
 			Not:
 				let value = pop()
@@ -378,43 +420,215 @@ pub class VirtualMachine:
 			Neg:
 				let value = pop()
 				case value:
-					Int(v):
-						push(Value.Int(-v))
+					Int64(v):
+						push(Value.Int64(-v))
 					Float(v):
 						push(Value.Float(-v))
 				else:
 					panic("Cannot negate: {value_to_string(value)}")
-			Binop(op):
+			Binop(op, ty):
 				let rhs = pop()
 				let lhs = pop()
-				case lhs:
-					Int(lhs_value):
-						let rhs_value = int_from_value(rhs)
-						let value = eval_binop_int(op, lhs: lhs_value, rhs: rhs_value)
-						push(Value.Int(value))
-					Float(lhs_value):
+				case ty:
+					Int(signed, bits):
+						if signed:
+							if bits == 64:
+								let lhs_value = int64_from_value(lhs)
+								let rhs_value = int64_from_value(rhs)
+								let value = eval_binop_int64(op, lhs: lhs_value, rhs: rhs_value)
+								push(Value.Int64(value))
+							else:
+								let lhs_value = int32_from_value(lhs)
+								let rhs_value = int32_from_value(rhs)
+								let value = eval_binop_int32(op, lhs: lhs_value, rhs: rhs_value)
+								push(Value.Int32(value))
+						else:
+							if bits == 64:
+								let lhs_value = uint64_from_value(lhs)
+								let rhs_value = uint64_from_value(rhs)
+								let value = eval_binop_uint64(op, lhs: lhs_value, rhs: rhs_value)
+								push(Value.Uint64(value))
+							else:
+								let lhs_value = uint32_from_value(lhs)
+								let rhs_value = uint32_from_value(rhs)
+								let value = eval_binop_uint32(op, lhs: lhs_value, rhs: rhs_value)
+								push(Value.Uint32(value))
+					Float(bits):
+						let lhs_value = float_from_value(lhs)
 						let rhs_value = float_from_value(rhs)
 						let value = eval_binop_float(op, lhs: lhs_value, rhs: rhs_value)
 						push(Value.Float(value))
 				else:
 					panic("Cannot binop")
-			Bitop(op):
+			Bitop(op, ty):
 				let rhs = pop()
 				let lhs = pop()
-				let lhs_value = int_from_value(lhs)
-				let rhs_value = int_from_value(rhs)
-				let value = eval_bitop(op, lhs: lhs_value, rhs: rhs_value)
-				push(Value.Int(value))
+				case ty:
+					Int(signed, bits):
+						if signed:
+							if bits == 64:
+								let lhs_value = int64_from_value(lhs)
+								let rhs_value = int64_from_value(rhs)
+								let value = eval_bitop_int64(op, lhs: lhs_value, rhs: rhs_value)
+								push(Value.Int64(value))
+							else:
+								let lhs_value = int32_from_value(lhs)
+								let rhs_value = int32_from_value(rhs)
+								let value = eval_bitop_int32(op, lhs: lhs_value, rhs: rhs_value)
+								push(Value.Int32(value))
+						else:
+							if bits == 64:
+								let lhs_value = uint64_from_value(lhs)
+								let rhs_value = uint64_from_value(rhs)
+								let value = eval_bitop_uint64(op, lhs: lhs_value, rhs: rhs_value)
+								push(Value.Uint64(value))
+							else:
+								let lhs_value = uint32_from_value(lhs)
+								let rhs_value = uint32_from_value(rhs)
+								let value = eval_bitop_uint32(op, lhs: lhs_value, rhs: rhs_value)
+								push(Value.Uint32(value))
+				else:
+					panic("Can only bit fiddle with integer types")
 			IntToFloat(bits):
-				let value = int_from_value(value: pop())
-				let f = float(value)
-				push(Value.Float(f))
+				let vm_value = pop()
+				case vm_value:
+					Int64(value):
+						push(Value.Float(float(value)))
+					Int32(value):
+						push(Value.Float(float(value)))
+					# Int16(value):
+					# 	push(Value.Float(float(value)))
+					# Int8(value):
+					# 	push(Value.Float(float(value)))
+					Uint64(value):
+						push(Value.Float(float(value)))
+					Uint32(value):
+						push(Value.Float(float(value)))
+					# Uint16(value):
+					# 	push(Value.Float(float(value)))
+					# Uint8(value):
+					# 	push(Value.Float(float(value)))
+				else:
+					panic("Can only cast integers to float")
 			FloatToInt(signed, bits):
 				let value = float_from_value(value: pop())
-				let f = int(value)
-				push(Value.Int(f))
+				if signed:
+					if bits == 64:
+						let new_value = int64(value)
+						push(Value.Int64(new_value))
+					else:
+						let new_value = int32(value)
+						push(Value.Int32(new_value))
+				else:
+					if bits == 64:
+						let new_value = uint64(value)
+						push(Value.Uint64(new_value))
+					else:
+						let new_value = uint32(value)
+						push(Value.Uint32(new_value))
 			IntCast(signed, bits):
-				pass  # No-op?
+				let vm_value = pop()
+				case vm_value:
+					Int64(value):
+						if signed:
+							switch bits:
+								64: push(Value.Int64(int64(value)))
+								32: push(Value.Int32(int32(value)))
+								16: push(Value.Int32(int32(value)))
+								8: push(Value.Int32(int32(value)))
+								# 16: push(Value.Int16(int16(value)))
+								# 8: push(Value.Int8(int8(value)))
+							else:
+								panic("Cannot bit cast to {bits} bits")
+						else:
+							switch bits:
+								64: push(Value.Uint64(uint64(value)))
+								32: push(Value.Uint32(uint32(value)))
+								16: push(Value.Uint32(uint32(value)))
+								8: push(Value.Uint32(uint32(value)))
+								# 16: push(Value.Uint16(uint16(value)))
+								# 8: push(Value.Uint8(uint8(value)))
+							else:
+								panic("Cannot bit cast to {bits} bits")
+					Int32(value):
+						if signed:
+							if bits == 64:
+								push(Value.Int64(int64(value)))
+							else:
+								push(Value.Int32(int32(value)))
+						else:
+							if bits == 64:
+								push(Value.Uint64(uint64(value)))
+							else:
+								push(Value.Uint32(uint32(value)))
+					Int16(value):
+						if signed:
+							if bits == 64:
+								push(Value.Int64(int64(value)))
+							else:
+								push(Value.Int32(int32(value)))
+						else:
+							if bits == 64:
+								push(Value.Uint64(uint64(value)))
+							else:
+								push(Value.Uint32(uint32(value)))
+					Int8(value):
+						if signed:
+							if bits == 64:
+								push(Value.Int64(int64(value)))
+							else:
+								push(Value.Int32(int32(value)))
+						else:
+							if bits == 64:
+								push(Value.Uint64(uint64(value)))
+							else:
+								push(Value.Uint32(uint32(value)))
+					Uint64(value):
+						if signed:
+							if bits == 64:
+								push(Value.Int64(int64(value)))
+							else:
+								push(Value.Int32(int32(value)))
+						else:
+							if bits == 64:
+								push(Value.Uint64(uint64(value)))
+							else:
+								push(Value.Uint32(uint32(value)))
+					Uint32(value):
+						if signed:
+							if bits == 64:
+								push(Value.Int64(int64(value)))
+							else:
+								push(Value.Int32(int32(value)))
+						else:
+							if bits == 64:
+								push(Value.Uint64(uint64(value)))
+							else:
+								push(Value.Uint32(uint32(value)))
+					Uint16(value):
+						if signed:
+							if bits == 64:
+								push(Value.Int64(int64(value)))
+							else:
+								push(Value.Int32(int32(value)))
+						else:
+							if bits == 64:
+								push(Value.Uint64(uint64(value)))
+							else:
+								push(Value.Uint32(uint32(value)))
+					Uint8(value):
+						if signed:
+							if bits == 64:
+								push(Value.Int64(int64(value)))
+							else:
+								push(Value.Int32(int32(value)))
+						else:
+							if bits == 64:
+								push(Value.Uint64(uint64(value)))
+							else:
+								push(Value.Uint32(uint32(value)))
+				else:
+					panic("Can only int cast int types")
 			FloatCast(bits):
 				pass  # No-op?
 			FromOpaque(ty):
@@ -448,7 +662,7 @@ pub class VirtualMachine:
 								pass
 			CallIndirect(parameter_types, return_type):
 				let func_pointer = pop()
-				let index = int_from_value(func_pointer)
+				let index = int64_from_value(func_pointer)
 				let n = parameter_types.len()
 				let arguments = pop_n(count: n)
 				let function_ref = m_functions.get(index)
@@ -475,13 +689,13 @@ pub class VirtualMachine:
 			DecRef(index):
 				print("TODO?: dec ref {index}")
 			LoadFunc(index):
-				push(Value.Int(index))
+				push(Value.Int64(index))
 			StructLiteral(struct_index):
 				let struc = structs[struct_index]
 				push_empty_list(count: struc.fields.len())
 			ArrayLiteral(ty):
 				let size = pop()
-				push_empty_list(count: int_from_value(size))
+				push_empty_list(count: int64_from_value(size))
 
 	fn push_empty_list(count: int):
 		let value = Value.Undefined()
@@ -531,8 +745,7 @@ pub class VirtualMachine:
 	pub fn push_frame(frame: Frame):
 		frames.append(frame)
 
-
-fn eval_binop_int(op: bc.BinaryOperator, lhs: int, rhs: int) -> int:
+fn eval_binop_int64(op: bc.BinaryOperator, lhs: int64, rhs: int64) -> int64:
 	case op:
 		Add: lhs + rhs
 		Sub: lhs - rhs
@@ -540,7 +753,58 @@ fn eval_binop_int(op: bc.BinaryOperator, lhs: int, rhs: int) -> int:
 		Modulo: lhs % rhs
 		Multiply: lhs * rhs
 
-fn eval_comparison_int(op: bc.ComparisonOperator, lhs: int, rhs: int) -> bool:
+fn eval_binop_int32(op: bc.BinaryOperator, lhs: int32, rhs: int32) -> int32:
+	case op:
+		Add: lhs + rhs
+		Sub: lhs - rhs
+		Divide: lhs / rhs
+		Modulo: lhs % rhs
+		Multiply: lhs * rhs
+
+fn eval_binop_uint64(op: bc.BinaryOperator, lhs: uint64, rhs: uint64) -> uint64:
+	case op:
+		Add: lhs + rhs
+		Sub: lhs - rhs
+		Divide: lhs / rhs
+		Modulo: lhs % rhs
+		Multiply: lhs * rhs
+
+fn eval_binop_uint32(op: bc.BinaryOperator, lhs: uint32, rhs: uint32) -> uint32:
+	case op:
+		Add: lhs + rhs
+		Sub: lhs - rhs
+		Divide: lhs / rhs
+		Modulo: lhs % rhs
+		Multiply: lhs * rhs
+
+fn eval_comparison_int64(op: bc.ComparisonOperator, lhs: int64, rhs: int64) -> bool:
+	case op:
+		Less: lhs < rhs
+		LessEquals: lhs <= rhs
+		Greater: lhs > rhs
+		GreaterEquals: lhs >= rhs
+		Equals: lhs == rhs
+		NotEquals: lhs != rhs
+
+fn eval_comparison_int32(op: bc.ComparisonOperator, lhs: int32, rhs: int32) -> bool:
+	case op:
+		Less: lhs < rhs
+		LessEquals: lhs <= rhs
+		Greater: lhs > rhs
+		GreaterEquals: lhs >= rhs
+		Equals: lhs == rhs
+		NotEquals: lhs != rhs
+
+fn eval_comparison_uint64(op: bc.ComparisonOperator, lhs: uint64, rhs: uint64) -> bool:
+	case op:
+		Less: lhs < rhs
+		LessEquals: lhs <= rhs
+		Greater: lhs > rhs
+		GreaterEquals: lhs >= rhs
+		Equals: lhs == rhs
+		NotEquals: lhs != rhs
+
+fn eval_comparison_uint32(op: bc.ComparisonOperator, lhs: uint32, rhs: uint32) -> bool:
 	case op:
 		Less: lhs < rhs
 		LessEquals: lhs <= rhs
@@ -567,7 +831,10 @@ fn eval_comparison_float(op: bc.ComparisonOperator, lhs: float, rhs: float) -> b
 		Equals: lhs == rhs
 		NotEquals: lhs != rhs
 
-fn eval_bitop(op: bc.BitOperator, lhs: int, rhs: int) -> int:
+# fn eval_bitop(op: bc.BitOperator, lhs: Value, rhs: Value):
+# 	pass
+
+fn eval_bitop_int64(op: bc.BitOperator, lhs: int64, rhs: int64) -> int64:
 	case op:
 		Shr: lhs >> rhs
 		Shl: lhs << rhs
@@ -575,11 +842,60 @@ fn eval_bitop(op: bc.BitOperator, lhs: int, rhs: int) -> int:
 		Or: lhs | rhs
 		Xor: lhs ^ rhs
 
+fn eval_bitop_int32(op: bc.BitOperator, lhs: int32, rhs: int32) -> int32:
+	case op:
+		Shr: lhs >> rhs
+		Shl: lhs << rhs
+		And: lhs & rhs
+		Or: lhs | rhs
+		Xor: lhs ^ rhs
+
+fn eval_bitop_uint64(op: bc.BitOperator, lhs: uint64, rhs: uint64) -> uint64:
+	case op:
+		Shr: lhs >> rhs
+		Shl: lhs << rhs
+		And: lhs & rhs
+		Or: lhs | rhs
+		Xor: lhs ^ rhs
+
+fn eval_bitop_uint32(op: bc.BitOperator, lhs: uint32, rhs: uint32) -> uint32:
+	case op:
+		Shr: lhs >> rhs
+		Shl: lhs << rhs
+		And: lhs & rhs
+		Or: lhs | rhs
+		Xor: lhs ^ rhs
+
+# fn eval_bitop_uint16(op: bc.BitOperator, lhs: uint16, rhs: uint16) -> uint16:
+# 	case op:
+# 		Shr: lhs >> rhs
+# 		Shl: lhs << rhs
+# 		And: lhs & rhs
+# 		Or: lhs | rhs
+# 		Xor: lhs ^ rhs
+
+# fn eval_bitop_uint8(op: bc.BitOperator, lhs: uint8, rhs: uint8) -> uint8:
+# 	case op:
+# 		Shr: lhs >> rhs
+# 		Shl: lhs << rhs
+# 		And: lhs & rhs
+# 		Or: lhs | rhs
+# 		Xor: lhs ^ rhs
+
 fn eval_comparison(op: bc.ComparisonOperator, lhs: Value, rhs: Value) -> bool:
 	case lhs:
-		Int(lhs_value):
-			let rhs_value = int_from_value(rhs)
-			eval_comparison_int(op, lhs: lhs_value, rhs: rhs_value)
+		Int64(lhs_value):
+			let rhs_value = int64_from_value(rhs)
+			eval_comparison_int64(op, lhs: lhs_value, rhs: rhs_value)
+		Int32(lhs_value):
+			let rhs_value = int32_from_value(rhs)
+			eval_comparison_int32(op, lhs: lhs_value, rhs: rhs_value)
+		Uint64(lhs_value):
+			let rhs_value = uint64_from_value(rhs)
+			eval_comparison_uint64(op, lhs: lhs_value, rhs: rhs_value)
+		Uint32(lhs_value):
+			let rhs_value = uint32_from_value(rhs)
+			eval_comparison_uint32(op, lhs: lhs_value, rhs: rhs_value)
 		Float(lhs_value):
 			let rhs_value = float_from_value(rhs)
 			eval_comparison_float(op, lhs: lhs_value, rhs: rhs_value)

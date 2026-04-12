@@ -131,10 +131,11 @@ pub enum VirtInst:
 	CallRm(rm: VirtRm)
 	Movsx8(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
 	Movsx16(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
+	Movsxd(reg: mil.Register, rm: VirtRm)
 	Movzx8(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
 	Movzx16(mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
-	CvtSi2Sx(mode: x86.SseMode, reg: mil.Register, rm: VirtRm)
-	CvtSx2Si(truncate: bool, mode: x86.SseMode, reg: mil.Register, rm: VirtRm)
+	CvtSi2Sx(bit_mode: x86.BitMode, sse_mode: x86.SseMode, reg: mil.Register, rm: VirtRm)
+	CvtSx2Si(truncate: bool, sse_mode: x86.SseMode, bit_mode: x86.BitMode, reg: mil.Register, rm: VirtRm)
 	CvtSs2Sd(reg: mil.Register, rm: VirtRm)
 	CvtSd2Ss(reg: mil.Register, rm: VirtRm)
 	Ucomisd(reg: mil.Register, rm: VirtRm)
@@ -182,6 +183,8 @@ fn vinst_to_str(vi?: VirtInst) -> str:
 			"movsx8 {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		Movsx16(mode, reg, rm):
 			"movsx16 {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		Movsxd(reg, rm):
+			"movsxd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		Movzx8(mode, reg, rm):
 			"movzx8 {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		Movzx16(mode, reg, rm):
@@ -190,21 +193,21 @@ fn vinst_to_str(vi?: VirtInst) -> str:
 			"sse mov {mil.vr_to_str(dst)}, {mil.vr_to_str(src)}"
 		SseOpRegRm(mode, op, reg, rm):
 			"sse xx {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
-		CvtSi2Sx(mode, reg, rm):
-			"cvtsi2{x86.sse_mode_to_str(mode)} {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
-		CvtSx2Si(truncate, mode, reg, rm):
+		CvtSi2Sx(bit_mode, sse_mode, reg, rm):
+			"cvtsi2{x86.sse_mode_to_str(sse_mode)} {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		CvtSx2Si(truncate, sse_mode, bit_mode, reg, rm):
 			let t = "t" if truncate else ""
-			"cvt{t}{x86.sse_mode_to_str(mode)}2si {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+			"cvt{t}{x86.sse_mode_to_str(sse_mode)}2si {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		CvtSs2Sd(reg, rm):
 			"cvtss2sd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		CvtSd2Ss(reg, rm):
 			"cvtsd2ss {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
 		Ucomisd(reg, rm):
 			"ucomisd {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
-		SseMovRegRm(mode, reg, rm):
-			"mov{x86.sse_mode_to_str(mode)} {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
-		SseMovRmReg(mode, rm, reg):
-			"mov{x86.sse_mode_to_str(mode)} {vrm_to_str(rm)}, {mil.vr_to_str(reg)}"
+		SseMovRegRm(sse_mode, reg, rm):
+			"mov{x86.sse_mode_to_str(sse_mode)} {mil.vr_to_str(reg)}, {vrm_to_str(rm)}"
+		SseMovRmReg(sse_mode, rm, reg):
+			"mov{x86.sse_mode_to_str(sse_mode)} {vrm_to_str(rm)}, {mil.vr_to_str(reg)}"
 		Actual(instruction):
 			x86.instruction_to_string(instruction)
 		Exit:
@@ -551,11 +554,14 @@ fn select_instruction(ctx: X86Ctx, context: SelectionContext[VirtInst], instruct
 							conv_ins.add_use(value_reg)
 						I64:
 							let rm = VirtRm.Reg(value_reg)
-							let conv_ins = context.emit_and_get(VirtInst.CvtSi2Sx(mode: x86.SseMode.Double(), reg: dst_reg, rm))
+							let conv_ins = context.emit_and_get(VirtInst.CvtSi2Sx(bit_mode: x86.BitMode.R64(), sse_mode: x86.SseMode.Double(), reg: dst_reg, rm))
 							conv_ins.add_def(dst_reg)
 							conv_ins.add_use(value_reg)
 						I32:
-							unimplemented("Convert i32 to f64")
+							let rm = VirtRm.Reg(value_reg)
+							let conv_ins = context.emit_and_get(VirtInst.CvtSi2Sx(bit_mode: x86.BitMode.R32(), sse_mode: x86.SseMode.Double(), reg: dst_reg, rm))
+							conv_ins.add_def(dst_reg)
+							conv_ins.add_use(value_reg)
 						I16:
 							unimplemented("Convert i16 to f64")
 						I8:
@@ -570,9 +576,15 @@ fn select_instruction(ctx: X86Ctx, context: SelectionContext[VirtInst], instruct
 						F32:
 							unimplemented("Convert f32 to f32")
 						I64:
-							unimplemented("Convert i64 to f32")
+							let rm = VirtRm.Reg(value_reg)
+							let conv_ins = context.emit_and_get(VirtInst.CvtSi2Sx(bit_mode: x86.BitMode.R64(), sse_mode: x86.SseMode.Single(), reg: dst_reg, rm))
+							conv_ins.add_def(dst_reg)
+							conv_ins.add_use(value_reg)
 						I32:
-							unimplemented("Convert i32 to f32")
+							let rm = VirtRm.Reg(value_reg)
+							let conv_ins = context.emit_and_get(VirtInst.CvtSi2Sx(bit_mode: x86.BitMode.R32(), sse_mode: x86.SseMode.Single(), reg: dst_reg, rm))
+							conv_ins.add_def(dst_reg)
+							conv_ins.add_use(value_reg)
 						I16:
 							unimplemented("Convert i16 to f32")
 						I8:
@@ -581,19 +593,25 @@ fn select_instruction(ctx: X86Ctx, context: SelectionContext[VirtInst], instruct
 					case value.ty:
 						F64:
 							let rm = VirtRm.Reg(value_reg)
-							let conv_ins = context.emit_and_get(VirtInst.CvtSx2Si(truncate: true, mode: x86.SseMode.Double(), reg: dst_reg, rm))
+							let conv_ins = context.emit_and_get(VirtInst.CvtSx2Si(truncate: true, sse_mode: x86.SseMode.Double(), bit_mode: x86.BitMode.R64(), reg: dst_reg, rm))
 							conv_ins.add_def(dst_reg)
 							conv_ins.add_use(value_reg)
 						F32:
 							let rm = VirtRm.Reg(value_reg)
-							let conv_ins = context.emit_and_get(VirtInst.CvtSx2Si(truncate: true, mode: x86.SseMode.Single(), reg: dst_reg, rm))
+							let conv_ins = context.emit_and_get(VirtInst.CvtSx2Si(truncate: true, sse_mode: x86.SseMode.Single(), bit_mode: x86.BitMode.R64(), reg: dst_reg, rm))
 							conv_ins.add_def(dst_reg)
 							conv_ins.add_use(value_reg)
 						I64:
 							move(context, mode: x86.BitMode.R64(), dst: dst_reg, src: value_reg)
 						I32:
-							# TODO: Sign extend, use CDQE?
-							unimplemented("Convert i32 to i64")
+							let rm = VirtRm.Reg(value_reg)
+							let vi = if signed:
+								VirtInst.Movsxd(reg: dst_reg, rm)
+							else:
+								VirtInst.RegRm(mode: x86.BitMode.R32(), op: x86.Op.Mov(), reg: dst_reg, rm)
+							let sx_ins = context.emit_and_get(vi)
+							sx_ins.add_def(dst_reg)
+							sx_ins.add_use(value_reg)
 						I16:
 							let rm = VirtRm.Reg(value_reg)
 							let mode = x86.BitMode.R64()
@@ -617,9 +635,15 @@ fn select_instruction(ctx: X86Ctx, context: SelectionContext[VirtInst], instruct
 				I32:
 					case value.ty:
 						F64:
-							unimplemented("Convert to f64 to i32")
+							let rm = VirtRm.Reg(value_reg)
+							let conv_ins = context.emit_and_get(VirtInst.CvtSx2Si(truncate: true, sse_mode: x86.SseMode.Double(), bit_mode: x86.BitMode.R32(), reg: dst_reg, rm))
+							conv_ins.add_def(dst_reg)
+							conv_ins.add_use(value_reg)
 						F32:
-							unimplemented("Convert to f32 to i32")
+							let rm = VirtRm.Reg(value_reg)
+							let conv_ins = context.emit_and_get(VirtInst.CvtSx2Si(truncate: true, sse_mode: x86.SseMode.Single(), bit_mode: x86.BitMode.R32(), reg: dst_reg, rm))
+							conv_ins.add_def(dst_reg)
+							conv_ins.add_use(value_reg)
 						I64:
 							move(context, mode: x86.BitMode.R32(), dst: dst_reg, src: value_reg)
 						I32:
@@ -841,6 +865,10 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 			let rm2 = mat_rm(rm)
 			let reg2 = mat_reg(reg)
 			emit(x86.Instruction.Movsx16(mode, reg: reg2, rm: rm2), out)
+		Movsxd(reg, rm):
+			let rm2 = mat_rm(rm)
+			let reg2 = mat_reg(reg)
+			emit(x86.Instruction.Movsxd(reg: reg2, rm: rm2), out)
 		Movzx8(mode, reg, rm):
 			let rm2 = mat_rm(rm)
 			let reg2 = mat_reg(reg)
@@ -861,14 +889,14 @@ fn materialize(context: SelectionContext[VirtInst], minst: mil.Instruction[VirtI
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
 			emit(x86.Instruction.SseOpRegRm(mode, op, reg: reg2, rm: rm2), out)
-		CvtSi2Sx(mode, reg, rm):
+		CvtSi2Sx(bit_mode, sse_mode, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
-			emit(x86.Instruction.CvtSi2Sx(mode, reg: reg2, rm: rm2), out)
-		CvtSx2Si(truncate, mode, reg, rm):
+			emit(x86.Instruction.CvtSi2Sx(bit_mode, sse_mode, reg: reg2, rm: rm2), out)
+		CvtSx2Si(truncate, sse_mode, bit_mode, reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)
-			emit(x86.Instruction.CvtSx2Si(truncate, mode, reg: reg2, rm: rm2), out)
+			emit(x86.Instruction.CvtSx2Si(truncate, sse_mode, bit_mode, reg: reg2, rm: rm2), out)
 		CvtSs2Sd(reg, rm):
 			let reg2 = mat_reg(reg)
 			let rm2 = mat_rm(rm)

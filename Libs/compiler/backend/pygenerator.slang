@@ -25,6 +25,7 @@ class PyGenerator:
 
 	pub fn generate(module_defs: List[ast.ModuleDef]):
 		emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
+		emit("from slangrt import wrap_signed, wrap_unsigned")
 		var has_main = false
 		for module_def in module_defs:
 			gen_module(module_def)
@@ -268,7 +269,7 @@ class PyGenerator:
 				if ty.is_float():
 					"float({txt})"
 				elif ty.is_int():
-					"int({txt})"
+					wrap_int(value: "int({txt})", ty)
 				else:
 					panic("Cannot cast to {ty}")
 			Box(value):
@@ -295,23 +296,25 @@ class PyGenerator:
 				"{gen_expression(call.callee, parens: true)}({argument_text})"
 			Unop(op, value):
 				let op2 = case op:
-					Not:
-						"not "
-					Minus:
-						"-"
+					Not: "not "
+					Minus: "-"
 				let txt = "{op2}{gen_expression(value, parens: true)}"
 				"({txt})" if parens else txt
 			Binop(binop):
 				let float_division = binop.lhs.ty.is_float()
 				let txt = case binop.op:
 					Div:
+						let div_text = "{gen_expression(binop.lhs, parens: true)} / {gen_expression(binop.rhs, parens: true)}"
 						if float_division:
-							"{gen_expression(binop.lhs, parens: true)} / {gen_expression(binop.rhs, parens: true)}"
+							div_text
 						else:
-							"int({gen_expression(binop.lhs, parens: true)} / {gen_expression(binop.rhs, parens: true)})"
+							"int({div_text})"
 				else:
 					let op = binary_operator_to_str(op: binop.op, float_division)
-					"{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
+					var text = "{gen_expression(binop.lhs, parens: true)} {op} {gen_expression(binop.rhs, parens: true)}"
+					if expression.ty.is_int():
+						text = wrap_int(value: text, ty: expression.ty)
+					text
 				"({txt})" if parens else txt
 			If(if_expression):
 				let true_value = gen_expression(if_expression.true_value, parens: false)
@@ -339,6 +342,11 @@ class PyGenerator:
 
 	fn dedent():
 		out.dedent()
+
+fn wrap_int(value: str, ty: ast.Type) -> str:
+	let wrap_func = "wrap_signed" if ty.is_signed_int() else "wrap_unsigned"
+	let bits = ty.get_bits()
+	"{wrap_func}({value}, {bits})"
 
 fn binary_operator_to_str(op: ast.BinaryOperator, float_division: bool) -> str:
 	case op:

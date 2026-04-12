@@ -24,11 +24,7 @@ def run_bytecode(prog: Program, f):
 def check_value_type(value, ty: Typ):
     """Assert that the given value is of the given type."""
     if isinstance(ty, bc.BaseTyp):
-        if ty.type_id == bc.SimpleTyp.FLOAT:
-            assert isinstance(value, float)
-        elif ty.type_id == bc.SimpleTyp.INT:
-            assert isinstance(value, int)
-        elif ty.type_id == bc.SimpleTyp.BOOL:
+        if ty.type_id == bc.SimpleTyp.BOOL:
             assert isinstance(value, bool)
         elif ty.type_id == bc.SimpleTyp.STR:
             assert isinstance(value, str)
@@ -37,6 +33,10 @@ def check_value_type(value, ty: Typ):
             pass
         else:
             raise NotImplementedError(str(ty.type_id))
+    elif isinstance(ty, bc.FloatTyp):
+        assert isinstance(value, float)
+    elif isinstance(ty, bc.IntegerTyp):
+        assert isinstance(value, int)
     elif isinstance(ty, bc.StructTyp):
         assert isinstance(value, list)
     elif isinstance(ty, bc.PointerTyp):
@@ -219,6 +219,9 @@ class VirtualMachine:
             rhs = self.pop_value()
             lhs = self.pop_value()
             res = binary_op_funcs[opcode](lhs, rhs)
+            ty = args[0]
+            if isinstance(ty, bc.IntegerTyp):
+                res = wrap_int(res, ty)
             self.push_value(res)
         elif opcode in unary_op_funcs:
             rhs = self.pop_value()
@@ -227,13 +230,10 @@ class VirtualMachine:
         elif opcode == OpCode.CAST:
             val = self.pop_value()
             to_ty = args[0]
-            if isinstance(to_ty, bc.BaseTyp):
-                if to_ty.type_id == bc.SimpleTyp.FLOAT:
-                    cast_val = float(val)
-                elif to_ty.type_id == bc.SimpleTyp.INT:
-                    cast_val = int(val)
-                else:
-                    raise NotImplementedError(str(to_ty.type_id))
+            if isinstance(to_ty, bc.FloatTyp):
+                cast_val = float(val)
+            elif isinstance(to_ty, bc.IntegerTyp):
+                cast_val = wrap_int(int(val), to_ty)
             else:
                 raise NotImplementedError(str(to_ty))
             self.push_value(cast_val)
@@ -343,3 +343,21 @@ binary_op_funcs = {
 }
 
 unary_op_funcs = {OpCode.NOT: lambda a: not a, OpCode.NEG: lambda a: -a}
+
+
+def wrap_int(value: int, ty: bc.IntegerTyp) -> int:
+    if ty.signed:
+        value = wrap_signed(value, ty.bits)
+    else:
+        value = wrap_unsigned(value, ty.bits)
+    return value
+
+
+def wrap_unsigned(value: int, bits: int) -> int:
+    mask = (1 << bits) - 1
+    return value & mask
+
+
+def wrap_signed(value: int, bits: int) -> int:
+    # TODO
+    return value

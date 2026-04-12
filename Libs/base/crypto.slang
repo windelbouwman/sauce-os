@@ -18,13 +18,13 @@ pub fn md5(data: Bytes) -> Bytes:
 	# Step 2: append length in bits
 	data2.pack_u64_le(data.len() * 8)
 
-	var a0 = 0x67452301
-	var b0 = 0xefcdab89
-	var c0 = 0x98badcfe
-	var d0 = 0x10325476
+	var a0 = uint32(0x67452301)
+	var b0 = uint32(0xefcdab89)
+	var c0 = uint32(0x98badcfe)
+	var d0 = uint32(0x10325476)
 
 	let s: [int] = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21]
-	var M: [int] = [16 : int]
+	var M: [uint32] = [16 : uint32]
 	let K: [int] = [64 : int]
 	fill_md5_K(K)
 
@@ -32,7 +32,7 @@ pub fn md5(data: Bytes) -> Bytes:
 	while not reader.at_end():
 		var i = 0
 		while i < 16:
-			M[i] = reader.read_u32_le()
+			M[i] = uint32(reader.read_u32_le())
 			i += 1
 
 		var A = a0
@@ -42,48 +42,48 @@ pub fn md5(data: Bytes) -> Bytes:
 
 		i = 0
 		while i < 64:
-			var F = 0
+			var F = uint32(0)
 			var g = 0
 			if i < 16:
-				F = (B & C) | ((0xFFffFFFF ^ B) & D)
+				F = (B & C) | ((uint32(0xFFffFFFF) ^ B) & D)
 				g = i
 			elif i < 32:
-				F = (D & B) | ((0xFFffFFFF ^ D) & C)
+				F = (D & B) | ((uint32(0xFFffFFFF) ^ D) & C)
 				g = (5 * i + 1) % 16
 			elif i < 48:
 				F = B ^ C ^ D
 				g = (3 * i + 5) % 16
 			else:
-				F = C ^ (B | (0xFFFFFFFF ^ D))
+				F = C ^ (B | (uint32(0xFFFFFFFF) ^ D))
 				g = (7 * i) % 16
-			F = wrap_u32(F + A + K[i] + M[g])
+			F = F + A + uint32(K[i]) + M[g]
 			A = D
 			D = C
 			C = B
-			B = wrap_u32(B + leftrotate(value: F, amount: s[i]))
+			B = B + leftrotate(value: F, amount: s[i])
 
 			i += 1
 
-		a0 = wrap_u32(a0 + A)
-		b0 = wrap_u32(b0 + B)
-		c0 = wrap_u32(c0 + C)
-		d0 = wrap_u32(d0 + D)
+		a0 = a0 + A
+		b0 = b0 + B
+		c0 = c0 + C
+		d0 = d0 + D
 
 	let digest = ByteArray()
-	digest.pack_u32_le(a0)
-	digest.pack_u32_le(b0)
-	digest.pack_u32_le(c0)
-	digest.pack_u32_le(d0)
+	digest.pack_u32_le(int(a0))
+	digest.pack_u32_le(int(b0))
+	digest.pack_u32_le(int(c0))
+	digest.pack_u32_le(int(d0))
 	digest.to_bytes()
 
-pub fn leftrotate(value: int, amount: int) -> int:
-	(0xffFFffFF & (value << amount)) | (value >> (32 - amount))
+pub fn leftrotate(value: uint32, amount: int) -> uint32:
+	(value << uint32(amount)) | (value >> uint32(32 - amount))
 
-pub fn right_rotate(value: int, amount: int) -> int:
-	(value >> amount) | (0xffFFffFF & (value << (32 - amount)))
+pub fn right_rotate(value: uint32, amount: int) -> uint32:
+	(value >> uint32(amount)) | (value << uint32(32 - amount))
 
-pub fn right_shift(value: int, amount: int) -> int:
-	value >> amount
+pub fn right_shift(value: uint32, amount: int) -> uint32:
+	value >> uint32(amount)
 
 pub fn compute_md5_K(K: [int]):
 	var i = 0
@@ -160,9 +160,6 @@ pub fn fill_md5_K(K: [int]):
 	K[62] = 0x2ad7d2bb
 	K[63] = 0xeb86d391
 
-fn wrap_u32(value?: int) -> int:
-	value & 0xFFffFFff
-
 fn sha_pre_process(data: Bytes) -> Bytes:
 	"""Append a 1 bit, and align to 512 bits."""
 	# Step 1: pad until almost modulo 512:
@@ -177,25 +174,25 @@ fn sha_pre_process(data: Bytes) -> Bytes:
 	data2.to_bytes()
 
 pub fn sha1(data: Bytes) -> Bytes:
-	var h0 = 0x67452301
-	var h1 = 0xEFCDAB89
-	var h2 = 0x98BADCFE
-	var h3 = 0x10325476
-	var h4 = 0xC3D2E1F0
+	var h0 = uint32(0x67452301)
+	var h1 = uint32(0xEFCDAB89)
+	var h2 = uint32(0x98BADCFE)
+	var h3 = uint32(0x10325476)
+	var h4 = uint32(0xC3D2E1F0)
 
 	data = sha_pre_process(data)
 
 	# for each chunk:
 	let reader = ByteReader(m_bytes: data)
-	var w = [80 : int]
+	var w = [80 : uint32]
 	while not reader.at_end():
 
 		var i = 0
 		while i < 16:
-			w[i] = reader.read_u32_be()
+			w[i] = uint32(reader.read_u32_be())
 			i += 1
 		while i < 80:
-			w[i] = wrap_u32(leftrotate(value: w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], amount: 1))
+			w[i] = leftrotate(value: w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], amount: 1)
 			i += 1
 
 		var a = h0
@@ -207,42 +204,42 @@ pub fn sha1(data: Bytes) -> Bytes:
 		# Main loop:
 		i = 0
 		while i < 80:
-			var f = 0
-			var k = 0
+			var f: uint32 = uint32(0)
+			var k: uint32 = uint32(0)
 			if i < 20:
-				f = (b & c) | ((0xFFffFFFF ^ b) & d)
-				k = 0x5a827999
+				f = (b & c) | ((uint32(0xFFffFFFF) ^ b) & d)
+				k = uint32(0x5a827999)
 			elif i < 40:
 				f = b ^ c ^ d
-				k = 0x6ed9eba1
+				k = uint32(0x6ed9eba1)
 			elif i < 60:
 				f = (b & c) | (b & d) | (c & d)
-				k = 0x8f1bbcdc
+				k = uint32(0x8f1bbcdc)
 			else:
 				f = b ^ c ^ d
-				k = 0xca62c1d6
+				k = uint32(0xca62c1d6)
 
-			let temp = wrap_u32(leftrotate(value: a, amount: 5) + f + e + k + w[i])
+			let temp = leftrotate(value: a, amount: 5) + f + e + k + w[i]
 			e = d
 			d = c
-			c = wrap_u32(leftrotate(value: b, amount: 30))
+			c = leftrotate(value: b, amount: 30)
 			b = a
 			a = temp
 
 			i += 1
 
-		h0 = wrap_u32(h0 + a)
-		h1 = wrap_u32(h1 + b)
-		h2 = wrap_u32(h2 + c)
-		h3 = wrap_u32(h3 + d)
-		h4 = wrap_u32(h4 + e)
+		h0 = h0 + a
+		h1 = h1 + b
+		h2 = h2 + c
+		h3 = h3 + d
+		h4 = h4 + e
 
 	let digest = ByteArray()
-	digest.pack_u32_be(h0)
-	digest.pack_u32_be(h1)
-	digest.pack_u32_be(h2)
-	digest.pack_u32_be(h3)
-	digest.pack_u32_be(h4)
+	digest.pack_u32_be(int(h0))
+	digest.pack_u32_be(int(h1))
+	digest.pack_u32_be(int(h2))
+	digest.pack_u32_be(int(h3))
+	digest.pack_u32_be(int(h4))
 	digest.to_bytes()
 
 pub fn sha256(data: Bytes) -> Bytes:
@@ -252,29 +249,29 @@ pub fn sha256(data: Bytes) -> Bytes:
 	"""
 	data = sha_pre_process(data)
 
-	var h0 = 0x6a09e667
-	var h1 = 0xbb67ae85
-	var h2 = 0x3c6ef372
-	var h3 = 0xa54ff53a
-	var h4 = 0x510e527f
-	var h5 = 0x9b05688c
-	var h6 = 0x1f83d9ab
-	var h7 = 0x5be0cd19
+	var h0 = uint32(0x6a09e667)
+	var h1 = uint32(0xbb67ae85)
+	var h2 = uint32(0x3c6ef372)
+	var h3 = uint32(0xa54ff53a)
+	var h4 = uint32(0x510e527f)
+	var h5 = uint32(0x9b05688c)
+	var h6 = uint32(0x1f83d9ab)
+	var h7 = uint32(0x5be0cd19)
 
 	# for each chunk:
 	let reader = ByteReader(m_bytes: data)
 	let k = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]
-	var w = [64 : int]
+	var w = [64 : uint32]
 	while not reader.at_end():
 
 		var i = 0
 		while i < 16:
-			w[i] = reader.read_u32_be()
+			w[i] = uint32(reader.read_u32_be())
 			i += 1
 		while i < 64:
 			let s0 = right_rotate(value: w[i - 15], amount: 7) ^ right_rotate(value: w[i - 15], amount: 18) ^ right_shift(value: w[i - 15], amount: 3)
 			let s1 = right_rotate(value: w[i - 2], amount: 17) ^ right_rotate(value: w[i - 2], amount: 19) ^ right_shift(value: w[i - 2], amount: 10)
-			w[i] = wrap_u32(w[i - 16] + s0 + w[i - 7] + s1)
+			w[i] = w[i - 16] + s0 + w[i - 7] + s1
 			i += 1
 
 		var a = h0
@@ -290,39 +287,39 @@ pub fn sha256(data: Bytes) -> Bytes:
 		i = 0
 		while i < 64:
 			let s1 = right_rotate(value: e, amount: 6) ^ right_rotate(value: e, amount: 11) ^ right_rotate(value: e, amount: 25)
-			let ch = (e & f) ^ ((0xffFFffFF ^ e) & g)
-			let temp1 = wrap_u32(h + s1 + ch + k[i] + w[i])
+			let ch = (e & f) ^ ((uint32(0xffFFffFF) ^ e) & g)
+			let temp1 = h + s1 + ch + uint32(k[i]) + w[i]
 			let s0 = right_rotate(value: a, amount: 2) ^ right_rotate(value: a, amount: 13) ^ right_rotate(value: a, amount: 22)
 			let maj = (a & b) ^ (a & c) ^ (b & c)
-			let temp2 = wrap_u32(s0 + maj)
+			let temp2 = s0 + maj
 
 			h = g
 			g = f
 			f = e
-			e = wrap_u32(d + temp1)
+			e = d + temp1
 			d = c
 			c = b
 			b = a
-			a = wrap_u32(temp1 + temp2)
+			a = temp1 + temp2
 
 			i += 1
 
-		h0 = wrap_u32(h0 + a)
-		h1 = wrap_u32(h1 + b)
-		h2 = wrap_u32(h2 + c)
-		h3 = wrap_u32(h3 + d)
-		h4 = wrap_u32(h4 + e)
-		h5 = wrap_u32(h5 + f)
-		h6 = wrap_u32(h6 + g)
-		h7 = wrap_u32(h7 + h)
+		h0 = h0 + a
+		h1 = h1 + b
+		h2 = h2 + c
+		h3 = h3 + d
+		h4 = h4 + e
+		h5 = h5 + f
+		h6 = h6 + g
+		h7 = h7 + h
 
 	let digest = ByteArray()
-	digest.pack_u32_be(h0)
-	digest.pack_u32_be(h1)
-	digest.pack_u32_be(h2)
-	digest.pack_u32_be(h3)
-	digest.pack_u32_be(h4)
-	digest.pack_u32_be(h5)
-	digest.pack_u32_be(h6)
-	digest.pack_u32_be(h7)
+	digest.pack_u32_be(int(h0))
+	digest.pack_u32_be(int(h1))
+	digest.pack_u32_be(int(h2))
+	digest.pack_u32_be(int(h3))
+	digest.pack_u32_be(int(h4))
+	digest.pack_u32_be(int(h5))
+	digest.pack_u32_be(int(h6))
+	digest.pack_u32_be(int(h7))
 	digest.to_bytes()

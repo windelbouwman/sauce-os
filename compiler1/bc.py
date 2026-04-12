@@ -16,8 +16,6 @@ class Program:
 
 class SimpleTyp(Enum):
     VOID = 1
-    INT = 3
-    FLOAT = 4
     STR = 5
     BOOL = 7
     CHAR = 8
@@ -25,8 +23,7 @@ class SimpleTyp(Enum):
 
 
 class Typ:
-    def __init__(self, kind):
-        self.kind = kind
+    pass
 
 
 class BaseTyp(Typ):
@@ -35,6 +32,17 @@ class BaseTyp(Typ):
 
     def __repr__(self):
         return f"{self.type_id}"
+
+
+class IntegerTyp(Typ):
+    def __init__(self, signed, bits):
+        self.signed = signed
+        self.bits = bits
+
+
+class FloatTyp(Typ):
+    def __init__(self, bits):
+        self.bits = bits
 
 
 class ArrayTyp(Typ):

@@ -141,7 +141,7 @@ class SilGen:
 
 	fn gen_vm_value(ty: bc.Type, value: vm.Value) -> List[sil.BlobContent]:
 		case value:
-			Int(value):
+			Int64(value):
 				case ty:
 					Int(signed, bits):
 						# TODO: pack differently when i8?
@@ -150,6 +150,62 @@ class SilGen:
 					Function(parameter_types, return_type):
 						let name = get_function_name(index: value)
 						list1(sil.BlobContent.Ptr(name))
+				else:
+					panic("Value must be function or int")
+			Int32(value):
+				case ty:
+					Int(signed, bits):
+						# TODO: pack differently when i8?
+						let data = pack_i32(value)
+						list1(sil.BlobContent.Raw(data))
+				else:
+					panic("Value must be function or int")
+			Int16(value):
+				case ty:
+					Int(signed, bits):
+						# TODO: pack differently when i8?
+						let data = pack_i16(value)
+						list1(sil.BlobContent.Raw(data))
+				else:
+					panic("Value must be function or int")
+			Int8(value):
+				case ty:
+					Int(signed, bits):
+						# TODO: pack differently when i8?
+						let data = pack_i8(value)
+						list1(sil.BlobContent.Raw(data))
+				else:
+					panic("Value must be function or int")
+			Uint64(value):
+				case ty:
+					Int(signed, bits):
+						# TODO: pack differently when i8?
+						let data = pack_u64(value)
+						list1(sil.BlobContent.Raw(data))
+				else:
+					panic("Value must be function or int")
+			Uint32(value):
+				case ty:
+					Int(signed, bits):
+						# TODO: pack differently when i8?
+						let data = pack_u32(value)
+						list1(sil.BlobContent.Raw(data))
+				else:
+					panic("Value must be function or int")
+			Uint16(value):
+				case ty:
+					Int(signed, bits):
+						# TODO: pack differently when i8?
+						let data = pack_u16(value)
+						list1(sil.BlobContent.Raw(data))
+				else:
+					panic("Value must be function or int")
+			Uint8(value):
+				case ty:
+					Int(signed, bits):
+						# TODO: pack differently when i8?
+						let data = pack_u8(value)
+						list1(sil.BlobContent.Raw(data))
 				else:
 					panic("Value must be function or int")
 			Bool(b):
@@ -466,7 +522,7 @@ class SilGen:
 					Array(element_type):
 						let value = pop()
 						push(value.value, ty)
-			Binop(op):
+			Binop(op, ty):
 				let rhs = pop()
 				let lhs = pop()
 				let op2 = case op:
@@ -635,7 +691,7 @@ class SilGen:
 						push(dst, ty: bc.Type.Float(bits))
 				else:
 					unimplemented("NEG for {bc.type_to_string(value.ty)}")
-			Bitop(op):
+			Bitop(op, ty):
 				let rhs = pop()
 				let lhs = pop()
 				let op2 = case op:
@@ -646,7 +702,7 @@ class SilGen:
 					Xor:
 						sil.BitwiseOp.Xor()
 					Shr:
-						case lhs.ty:
+						case ty:
 							Int(signed, bits):
 								if signed:
 									sil.BitwiseOp.Sar()
@@ -657,7 +713,7 @@ class SilGen:
 					Shl:
 						sil.BitwiseOp.Shl()
 				let dst = new_tmp(ty: lhs.value.ty)
-				push(dst, ty: lhs.ty)
+				push(dst, ty)
 				emit(sil.OpCode.Bitop(dst, op2, lhs: lhs.value, rhs: rhs.value))
 			DecRef(index):
 				log_warning("Dec ref implemented as no-op")
@@ -864,6 +920,48 @@ fn pack_i64(value: int) -> Bytes:
 	"""Place 64 bits integer into 8 bytes"""
 	let ba = ByteArray()
 	ba.pack_u64_le(value)
+	ba.to_bytes()
+
+fn pack_i32(value: int32) -> Bytes:
+	"""Place 64 bits integer into 8 bytes"""
+	let ba = ByteArray()
+	ba.pack_u64_le(int(value))
+	ba.to_bytes()
+
+fn pack_i16(value: int16) -> Bytes:
+	"""Place 64 bits integer into 8 bytes"""
+	let ba = ByteArray()
+	ba.pack_u64_le(int(value))
+	ba.to_bytes()
+
+fn pack_i8(value: int8) -> Bytes:
+	"""Place 64 bits integer into 8 bytes"""
+	let ba = ByteArray()
+	ba.pack_u64_le(int(value))
+	ba.to_bytes()
+
+fn pack_u64(value: uint64) -> Bytes:
+	"""Place 64 bits integer into 8 bytes"""
+	let ba = ByteArray()
+	ba.pack_u64_le(int(value))  # TODO: do not cast?
+	ba.to_bytes()
+
+fn pack_u32(value: uint32) -> Bytes:
+	"""Place 64 bits integer into 8 bytes"""
+	let ba = ByteArray()
+	ba.pack_u64_le(int(value))  # TODO: do not cast?
+	ba.to_bytes()
+
+fn pack_u16(value: uint16) -> Bytes:
+	"""Place 64 bits integer into 8 bytes"""
+	let ba = ByteArray()
+	ba.pack_u64_le(int(value))  # TODO: do not cast?
+	ba.to_bytes()
+
+fn pack_u8(value: uint8) -> Bytes:
+	"""Place 64 bits integer into 8 bytes"""
+	let ba = ByteArray()
+	ba.pack_u64_le(int(value))  # TODO: do not cast?
 	ba.to_bytes()
 
 fn pack_str(text: str) -> Bytes:

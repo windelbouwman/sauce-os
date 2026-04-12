@@ -28,19 +28,17 @@ def base_scope() -> ast.Scope:
     top_scope.define("float", ast.float_type)
     top_scope.define("bool", ast.bool_type)
 
-    # Take a short-cut, and assume all integer types are 'int':
-    top_scope.define("uint8", ast.int_type)
-    top_scope.define("uint16", ast.int_type)
-    top_scope.define("uint32", ast.int_type)
-    top_scope.define("uint64", ast.int_type)
-    top_scope.define("int8", ast.int_type)
-    top_scope.define("int16", ast.int_type)
-    top_scope.define("int32", ast.int_type)
-    top_scope.define("int64", ast.int_type)
+    top_scope.define("uint8", ast.uint8_type)
+    top_scope.define("uint16", ast.uint16_type)
+    top_scope.define("uint32", ast.uint32_type)
+    top_scope.define("uint64", ast.uint64_type)
+    top_scope.define("int8", ast.int8_type)
+    top_scope.define("int16", ast.int16_type)
+    top_scope.define("int32", ast.int32_type)
+    top_scope.define("int64", ast.int64_type)
 
-    # Take a short-cut, and assume all float types are 'float':
-    top_scope.define("float32", ast.float_type)
-    top_scope.define("float64", ast.float_type)
+    top_scope.define("float32", ast.float32_type)
+    top_scope.define("float64", ast.float64_type)
     top_scope.define("unreachable", ast.unreachable_type())
 
     return top_scope
@@ -88,8 +86,9 @@ class ScopeFiller(BasePass):
 
         location, name = module.namespace[-1]
         if ns.is_defined(name):
-            if len(module.scope) == 0:
-                module.scope = ns
+            existing_ns = ns.lookup(name)
+            if isinstance(existing_ns, ast.Scope) and (len(module.scope) == 0):
+                module.scope = existing_ns
             else:
                 self.error(location, f"Cannot redefine {name}")
         else:

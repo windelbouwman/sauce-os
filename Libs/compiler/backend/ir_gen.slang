@@ -397,7 +397,7 @@ class BytecodeGenerator:
 						emit(Instruction.Dup())
 						emit(Instruction.GetAttr(index))
 						gen_expression(value)
-						gen_binop(op)
+						gen_binop(op, ty: value.ty)
 					None:
 						gen_expression(value)
 				emit(Instruction.SetAttr(index))
@@ -410,7 +410,7 @@ class BytecodeGenerator:
 					Some(op):
 						emit(Instruction.GetIndex())
 						gen_expression(value)
-						gen_binop(op)
+						gen_binop(op, ty: value.ty)
 						# TBD: we do want to duplicate base and index here
 						panic("x[y] += not implemented")
 					None:
@@ -423,7 +423,7 @@ class BytecodeGenerator:
 						Some(op):
 							emit(Instruction.LocalGet(index))
 							gen_expression(value)
-							gen_binop(op)
+							gen_binop(op, ty: value.ty)
 						None:
 							gen_expression(value)
 					emit(Instruction.LocalSet(index))
@@ -433,7 +433,7 @@ class BytecodeGenerator:
 						Some(op):
 							emit(Instruction.GlobalGet(index))
 							gen_expression(value)
-							gen_binop(op)
+							gen_binop(op, ty: value.ty)
 						None:
 							gen_expression(value)
 					emit(Instruction.GlobalSet(index))
@@ -443,7 +443,7 @@ class BytecodeGenerator:
 					Some(op):
 						emit(Instruction.ParameterGet(parameter_index))
 						gen_expression(value)
-						gen_binop(op)
+						gen_binop(op, ty: value.ty)
 					None:
 						gen_expression(value)
 				emit(Instruction.ParameterSet(parameter_index))
@@ -799,20 +799,21 @@ class BytecodeGenerator:
 	fn gen_binop_expr(binop: ast.BinopExpression):
 		gen_expression(binop.lhs)
 		gen_expression(binop.rhs)
-		gen_binop(op: binop.op)
+		gen_binop(op: binop.op, ty: binop.lhs.ty)
 
-	fn gen_binop(op: ast.BinaryOperator):
+	fn gen_binop(op: ast.BinaryOperator, ty: ast.Type):
+		let bc_type = get_bc_type(ty)
 		case op:
 			Add:
-				emit(Instruction.Binop(op: bc.BinaryOperator.Add()))
+				emit(Instruction.Binop(op: bc.BinaryOperator.Add(), ty: bc_type))
 			Sub:
-				emit(Instruction.Binop(op: bc.BinaryOperator.Sub()))
+				emit(Instruction.Binop(op: bc.BinaryOperator.Sub(), ty: bc_type))
 			Mul:
-				emit(Instruction.Binop(op: bc.BinaryOperator.Multiply()))
+				emit(Instruction.Binop(op: bc.BinaryOperator.Multiply(), ty: bc_type))
 			Div:
-				emit(Instruction.Binop(op: bc.BinaryOperator.Divide()))
+				emit(Instruction.Binop(op: bc.BinaryOperator.Divide(), ty: bc_type))
 			Mod:
-				emit(Instruction.Binop(op: bc.BinaryOperator.Modulo()))
+				emit(Instruction.Binop(op: bc.BinaryOperator.Modulo(), ty: bc_type))
 			NotEquals:
 				panic("No bytecode for not-equals")
 			Equals:
@@ -830,15 +831,15 @@ class BytecodeGenerator:
 			Or:
 				panic("unreachable: or")
 			BitAnd:
-				emit(Instruction.Bitop(op: bc.BitOperator.And()))
+				emit(Instruction.Bitop(op: bc.BitOperator.And(), ty: bc_type))
 			BitXor:
-				emit(Instruction.Bitop(op: bc.BitOperator.Xor()))
+				emit(Instruction.Bitop(op: bc.BitOperator.Xor(), ty: bc_type))
 			BitOr:
-				emit(Instruction.Bitop(op: bc.BitOperator.Or()))
+				emit(Instruction.Bitop(op: bc.BitOperator.Or(), ty: bc_type))
 			ShiftLeft:
-				emit(Instruction.Bitop(op: bc.BitOperator.Shl()))
+				emit(Instruction.Bitop(op: bc.BitOperator.Shl(), ty: bc_type))
 			ShiftRight:
-				emit(Instruction.Bitop(op: bc.BitOperator.Shr()))
+				emit(Instruction.Bitop(op: bc.BitOperator.Shr(), ty: bc_type))
 
 	fn new_label() -> int:
 		gen_id()

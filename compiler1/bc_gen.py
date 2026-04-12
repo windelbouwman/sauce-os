@@ -99,11 +99,11 @@ class ByteCodeGenerator:
 
     def get_bc_ty(self, ty: ast.Type) -> bc.Typ:
         if ty.is_int():
-            return bc.BaseTyp(bc.SimpleTyp.INT)
+            return bc.IntegerTyp(ty.kind.signed, ty.kind.bits)
         elif ty.is_str():
             return bc.BaseTyp(bc.SimpleTyp.STR)
         elif ty.is_float():
-            return bc.BaseTyp(bc.SimpleTyp.FLOAT)
+            return bc.FloatTyp(ty.kind.bits)
         elif ty.is_bool():
             return bc.BaseTyp(bc.SimpleTyp.BOOL)
         elif ty.is_char():

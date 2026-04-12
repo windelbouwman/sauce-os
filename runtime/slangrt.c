@@ -365,18 +365,96 @@ slang_bool_t slangrt_unbox_bool(void* p1)
 
 void* slangrt_box_int64(slang_int64_t value)
 {
-    intptr_t p2 = value;
-    // TODO: we loose 1 bit here!
-    // IDEA: alloc 8 bytes on the heap
-    p2 = (p2 << 1) | 1;
-    return (void*)p2;
+    slang_int64_t* p1 = rt_malloc(sizeof(slang_int64_t));
+    *p1 = value;
+    return p1;
 }
 
 slang_int64_t slangrt_unbox_int64(void* p1)
 {
+    return *(slang_int64_t*)p1;
+}
+
+void* slangrt_box_int32(slang_int32_t value)
+{
+    intptr_t p2 = value;
+    p2 = (p2 << 1) | 1;
+    return (void*)p2;
+}
+
+slang_int32_t slangrt_unbox_int32(void* p1)
+{
     intptr_t p2 = (intptr_t)p1;
     p2 = p2 >> 1;
-    return (slang_int64_t)p2;
+    return (slang_int32_t)p2;
+}
+
+void* slangrt_box_int16(slang_int16_t value)
+{
+    intptr_t p2 = value;
+    p2 = (p2 << 1) | 1;
+    return (void*)p2;
+}
+
+slang_int16_t slangrt_unbox_int16(void* p1)
+{
+    intptr_t p2 = (intptr_t)p1;
+    p2 = p2 >> 1;
+    return (slang_int16_t)p2;
+}
+
+void* slangrt_box_int8(slang_int8_t value)
+{
+    intptr_t p2 = value;
+    p2 = (p2 << 1) | 1;
+    return (void*)p2;
+}
+
+slang_int8_t slangrt_unbox_int8(void* p1)
+{
+    intptr_t p2 = (intptr_t)p1;
+    p2 = p2 >> 1;
+    return (slang_int8_t)p2;
+}
+
+void* slangrt_box_uint64(slang_uint64_t value)
+{
+    slang_uint64_t* p1 = rt_malloc(sizeof(slang_uint64_t));
+    *p1 = value;
+    return p1;
+}
+
+slang_uint64_t slangrt_unbox_uint64(void* p1)
+{
+    return *(slang_uint64_t*)p1;
+}
+
+void* slangrt_box_uint32(slang_uint32_t value)
+{
+    uintptr_t p2 = value;
+    p2 = (p2 << 1) | 1;
+    return (void*)p2;
+}
+
+slang_uint32_t slangrt_unbox_uint32(void* p1)
+{
+    uintptr_t p2 = (uintptr_t)p1;
+    p2 = p2 >> 1;
+    return (slang_uint32_t)p2;
+}
+
+void* slangrt_box_uint16(slang_uint16_t value)
+{
+    uintptr_t p2 = value;
+    p2 = (p2 << 1) | 1;
+    return (void*)p2;
+}
+
+slang_uint16_t slangrt_unbox_uint16(void* p1)
+{
+    uintptr_t p2 = (uintptr_t)p1;
+    p2 = p2 >> 1;
+    return (slang_uint16_t)p2;
 }
 
 void* slangrt_box_uint8(slang_uint8_t value)

@@ -1031,6 +1031,9 @@ pub class Scope:
 		let symbol = Symbol(is_pub, name, kind, location)
 		symbols.insert(key: name, value: symbol)
 
+	pub fn is_empty() -> bool:
+		symbols.is_empty()
+
 	pub fn is_defined(name: str) -> bool:
 		# Check if given name is defined.
 		option_is_some(lookup(name))

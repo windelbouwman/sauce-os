@@ -156,7 +156,7 @@ class CGenerator:
 
 	fn gen_vm_value(ty: bc.Type, value: vm.Value) -> str:
 		case value:
-			Int(v):
+			Int64(v):
 				case ty:
 					Int(signed, bits):
 						"{v}"
@@ -165,6 +165,13 @@ class CGenerator:
 						name
 				else:
 					panic("Value must be function or int")
+			Int32(v): "{int(v)}"
+			Int16(v): "{int(v)}"
+			Int8(v): "{int(v)}"
+			Uint64(v): "{int(v)}"
+			Uint32(v): "{int(v)}"
+			Uint16(v): "{int(v)}"
+			Uint8(v): "{int(v)}"
 			Bool(v):
 				"1" if v else "0"
 			Float(value):
@@ -365,11 +372,10 @@ class CGenerator:
 				emit(" = -{rhs.name};")
 				push(Value(name: varname, ty))
 
-			Binop(op):
+			Binop(op, ty):
 				let rhs = pop()
 				let lhs = pop()
 				let varname = new_local_var()
-				let ty = lhs.ty
 				write("const ")
 				gen_typed_name(ty, name: varname)
 				let op_txt = case op:
@@ -385,7 +391,7 @@ class CGenerator:
 				emit(";")
 				push(Value(name: varname, ty))
 
-			Bitop(op):
+			Bitop(op, ty):
 				let rhs = pop()
 				let lhs = pop()
 				let op_txt = case op:
@@ -394,7 +400,6 @@ class CGenerator:
 					Xor: "^"
 					Shr: ">>"
 					Shl: "<<"
-				let ty = lhs.ty
 				let varname = new_local_var()
 				write("const ")
 				gen_typed_name(ty, name: varname)

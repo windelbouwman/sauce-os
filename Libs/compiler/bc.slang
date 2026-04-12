@@ -75,8 +75,8 @@ pub enum Instruction:
 	Not
 	Neg
 
-	Binop(op: BinaryOperator)
-	Bitop(op: BitOperator)
+	Binop(op: BinaryOperator, ty: Type)
+	Bitop(op: BitOperator, ty: Type)
 
 	IntCast(signed: bool, bits: int)
 	FloatCast(bits: int)
@@ -177,8 +177,8 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 			"jump-if({op2}, {v1}, {v2})"
 		Not: "not"
 		Neg: "neg"
-		Binop(op): binop_to_string(op)
-		Bitop(op): bitop_to_string(op)
+		Binop(op, ty): binop_to_string(op)
+		Bitop(op, ty): bitop_to_string(op)
 		IntCast(signed, bits): "int-to-int{bits}" if signed else "int-to-uint{bits}"
 		FloatCast(bits): "float-to-float{bits}"
 		IntToFloat(bits): "int-to-float{bits}"

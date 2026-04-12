@@ -149,10 +149,16 @@ class Type:
         return isinstance(self.kind, BaseType) and self.kind.is_opaque()
 
     def is_int(self) -> bool:
-        return isinstance(self.kind, BaseType) and self.kind.is_int()
+        return isinstance(self.kind, IntegerType)
 
     def is_float(self) -> bool:
-        return isinstance(self.kind, BaseType) and self.kind.is_float()
+        return isinstance(self.kind, FloatType)
+
+    def is_signed(self) -> bool:
+        return self.kind.signed
+
+    def get_bits(self) -> int:
+        return self.kind.bits
 
     def is_str(self) -> bool:
         return isinstance(self.kind, BaseType) and self.kind.is_str()
@@ -416,6 +422,27 @@ class TypeFunc(TypeConstructor):
         self.ty = ty
 
 
+def integer_type(signed: bool, bits: int):
+    return Type(IntegerType(signed, bits))
+
+
+class IntegerType(TypeKind):
+    def __init__(self, signed: bool, bits: int):
+        super().__init__()
+        self.signed = signed
+        self.bits = bits
+
+
+def float_type(bits: int):
+    return Type(FloatType(bits))
+
+
+class FloatType(TypeKind):
+    def __init__(self, bits: int):
+        super().__init__()
+        self.bits = bits
+
+
 def base_type(name: str):
     return Type(BaseType(name))
 
@@ -437,12 +464,6 @@ class BaseType(TypeKind):
 
     def is_opaque(self) -> bool:
         return self.name == "ptr"
-
-    def is_int(self) -> bool:
-        return self.name == "int"
-
-    def is_float(self) -> bool:
-        return self.name == "float"
 
     def is_str(self) -> bool:
         return self.name == "str"
@@ -635,9 +656,19 @@ class TypeDefKind(TypeKind):
 
 str_type = base_type("str")
 char_type = base_type("char")
-int_type = base_type("int")
+int8_type = integer_type(True, 8)
+int16_type = integer_type(True, 16)
+int32_type = integer_type(True, 32)
+int64_type = integer_type(True, 64)
+uint8_type = integer_type(False, 8)
+uint16_type = integer_type(False, 16)
+uint32_type = integer_type(False, 32)
+uint64_type = integer_type(False, 64)
+int_type = int64_type
 ptr_type = base_type("ptr")
-float_type = base_type("float")
+float32_type = float_type(32)
+float64_type = float_type(64)
+float_type = float64_type
 bool_type = base_type("bool")
 void_type = Type(VoidType())
 

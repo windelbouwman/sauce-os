@@ -501,7 +501,15 @@ class CGenerator2:
 				elif ty.is_str():
 					write("(char*)")
 				elif ty.is_int():
-					write("(intptr_t)")
+					let signed = ty.is_signed_int()
+					let bits = ty.get_bits()
+					write("(")
+					if signed:
+						write("slang_int")
+					else:
+						write("slang_uint")
+					write(str(bits))
+					write("_t)")
 				elif ty.is_bool():
 					write("(intptr_t)")
 				elif ty.is_struct():
