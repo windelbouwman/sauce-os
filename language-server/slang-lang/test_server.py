@@ -15,6 +15,8 @@ server_script = os.path.abspath(os.path.join(os.path.dirname(__file__), "server.
 
 example_uri = "file:///snippets/example.slang"
 example_source = """
+module main
+
 fn main() -> int:
 \tlet x = foo(a: 5, b: 42)
 \t# A nice place for a completion would be here:
@@ -87,7 +89,7 @@ async def test_doc_change_ok(client: LanguageClient):
                 version=5, uri=example_uri
             ),
             content_changes=[
-                lsptypes.TextDocumentContentChangeEvent_Type1(
+                lsptypes.TextDocumentContentChangePartial(
                     lsptypes.Range(
                         start=lsptypes.Position(line=1, character=16),
                         end=lsptypes.Position(line=1, character=16),
@@ -113,10 +115,10 @@ async def test_doc_change_error(client: LanguageClient):
                 version=5, uri=example_uri
             ),
             content_changes=[
-                lsptypes.TextDocumentContentChangeEvent_Type1(
+                lsptypes.TextDocumentContentChangePartial(
                     lsptypes.Range(
-                        start=lsptypes.Position(line=1, character=16),
-                        end=lsptypes.Position(line=1, character=16),
+                        start=lsptypes.Position(line=3, character=16),
+                        end=lsptypes.Position(line=3, character=16),
                     ),
                     text="bla",
                 )
@@ -127,7 +129,7 @@ async def test_doc_change_error(client: LanguageClient):
     await client.wait_for_notification(lsptypes.TEXT_DOCUMENT_PUBLISH_DIAGNOSTICS)
     assert example_uri in client.diagnostics
     assert len(client.diagnostics[example_uri]) == 1
-    assert client.diagnostics[example_uri][0].range.start.line == 1
+    assert client.diagnostics[example_uri][0].range.start.line == 3
     assert client.diagnostics[example_uri][0].range.start.character == 13
     assert client.diagnostics[example_uri][0].message == "Undefined symbol: intbla"
 
@@ -136,7 +138,7 @@ async def test_doc_change_error(client: LanguageClient):
 async def test_signature_of_foo(client: LanguageClient):
     result = await client.text_document_signature_help_async(
         params=lsptypes.SignatureHelpParams(
-            position=lsptypes.Position(line=2, character=13),
+            position=lsptypes.Position(line=4, character=13),
             text_document=lsptypes.TextDocumentIdentifier(uri=example_uri),
             context=lsptypes.SignatureHelpContext(
                 trigger_kind=lsptypes.SignatureHelpTriggerKind.TriggerCharacter,
@@ -146,7 +148,7 @@ async def test_signature_of_foo(client: LanguageClient):
         )
     )
 
-    assert len(result.signatures) > 0
+    assert len(result.signatures) == 1
     assert result.signatures[0].label == "foo(a: int, b: int) -> Position"
     assert result.signatures[0].parameters[0].label == "a"
     assert result.signatures[0].parameters[1].label == "b"
@@ -156,7 +158,7 @@ async def test_signature_of_foo(client: LanguageClient):
 async def test_signature_of_up_method(client: LanguageClient):
     result = await client.text_document_signature_help_async(
         params=lsptypes.SignatureHelpParams(
-            position=lsptypes.Position(line=10, character=7),
+            position=lsptypes.Position(line=12, character=7),
             text_document=lsptypes.TextDocumentIdentifier(uri=example_uri),
             context=lsptypes.SignatureHelpContext(
                 trigger_kind=lsptypes.SignatureHelpTriggerKind.TriggerCharacter,
@@ -166,7 +168,7 @@ async def test_signature_of_up_method(client: LanguageClient):
         )
     )
 
-    assert len(result.signatures) > 0
+    assert len(result.signatures) == 1
     assert result.signatures[0].label == "up(amount: int) -> void"
     assert result.signatures[0].parameters[0].label == "amount"
 
@@ -176,7 +178,7 @@ async def test_invoked_completion(client: LanguageClient):
     """Retrieve completion suggestion."""
     result = await client.text_document_completion_async(
         params=lsptypes.CompletionParams(
-            position=lsptypes.Position(line=5, character=23),
+            position=lsptypes.Position(line=7, character=23),
             text_document=lsptypes.TextDocumentIdentifier(uri=example_uri),
             context=lsptypes.CompletionContext(
                 trigger_kind=lsptypes.CompletionTriggerKind.Invoked,
@@ -194,7 +196,7 @@ async def test_dot_completion(client: LanguageClient):
     """Retrieve completion suggestion after typing a '.' after 'pos'"""
     result = await client.text_document_completion_async(
         params=lsptypes.CompletionParams(
-            position=lsptypes.Position(line=10, character=4),
+            position=lsptypes.Position(line=12, character=4),
             text_document=lsptypes.TextDocumentIdentifier(uri=example_uri),
             context=lsptypes.CompletionContext(
                 trigger_kind=lsptypes.CompletionTriggerKind.TriggerCharacter,
@@ -203,7 +205,7 @@ async def test_dot_completion(client: LanguageClient):
         )
     )
 
-    assert len(result.items) > 0
+    assert len(result.items) == 3
     assert result.items[0].label == "down"
     assert result.items[1].label == "up"
     assert result.items[2].label == "y"
@@ -214,13 +216,13 @@ async def test_go_to_definition(client: LanguageClient):
     """Test go to the definition of the 'up' method."""
     result = await client.text_document_definition_async(
         params=lsptypes.DefinitionParams(
-            position=lsptypes.Position(line=10, character=6),
+            position=lsptypes.Position(line=12, character=6),
             text_document=lsptypes.TextDocumentIdentifier(uri=example_uri),
         )
     )
 
     assert result.uri == example_uri
-    assert result.range.start.line == 15
+    assert result.range.start.line == 17
     assert result.range.start.character == 4
-    assert result.range.end.line == 15
+    assert result.range.end.line == 17
     assert result.range.end.character == 6

@@ -6,6 +6,7 @@ from compiler.parsing.token import token_to_string
 from std import read_file, print, get_n_args, get_arg
 from base.hashmap import HashMap, new_hashmap_str
 from base.sorting import sort_list
+from compiler.string_table import StringTable
 
 pub fn main() -> int:
 	let filenames: List[str] = List()
@@ -18,9 +19,10 @@ pub fn main() -> int:
 		filenames.append(argument)
 		i += 1
 
+	let strtab = StringTable()
 	for filename in filenames:
 		let source = read_file(filename)
-		let lex = Lexer()
+		let lex = Lexer(strtab)
 		lex.init(source)
 		loop:
 			let token = lex.next_token()
@@ -38,7 +40,7 @@ pub fn main() -> int:
 				DocString(value):
 					"DOCSTRING"
 			else:
-				token_to_string(tok: token)
+				token_to_string(strtab, tok: token)
 
 			let count = stats.get_or_else(key: category, default: 0) + 1
 			stats.insert(key: category, value: count)

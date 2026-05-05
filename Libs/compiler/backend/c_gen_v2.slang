@@ -15,11 +15,12 @@ from base.utils import panic
 from base.logging import log_info
 from text_gen import TextGenerator
 from pygenerator import escape_string, needs_escaping, escape_char
+from string_table import StringTable
 
 
-pub fn gen_c_code_v2(module_defs: List[ast.ModuleDef], output_filename: Option[str]):
+pub fn gen_c_code_v2(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[str]):
 	log_info("Generating C-code")
-	let g = CGenerator2()
+	let g = CGenerator2(strtab)
 	g.out.begin(output_filename)
 	g.gen_module_defs(module_defs)
 	g.out.end()
@@ -32,6 +33,7 @@ class CGenerator2:
 	pub var out: TextGenerator = TextGenerator()
 	var next_id: int = 1
 	var m_blocks: List[BlockType] = List()
+	var strtab: StringTable
 
 	pub fn gen_module_defs(module_defs: List[ast.ModuleDef]):
 		gen_header()
@@ -112,14 +114,14 @@ class CGenerator2:
 				let parts: List[str] = List()
 				for value in values:
 					parts.append(gen_global_expression(value))
-				write("struct {struct_def.id.name} {name} = \{")
+				write("struct {strtab.get(struct_def.id.name)} {name} = \{")
 				write(str_join(parts, sep: ", "))
 				emit("\};")
 				"&{name}"
 			FunctionRef(function_def, type_arguments):
-				function_def.name
+				strtab.get(function_def.name)
 		else:
-			panic("gen_global_expression: {expression} not supported")
+			panic("gen_global_expression: {ast.expression_to_string(strtab, expression)} not supported")
 
 	fn gen_function_defs(module_defs: List[ast.ModuleDef]):
 		for module_def in module_defs:
@@ -133,14 +135,14 @@ class CGenerator2:
 					pass
 
 	fn gen_struct_decl(struct_def: ast.StructDef) -> str:
-		"struct {struct_def.id.name}"
+		"struct {strtab.get(struct_def.id.name)}"
 
 	fn gen_struct(struct_def: ast.StructDef):
 		let decl = gen_struct_decl(struct_def)
 		emit("{decl} \{")
 		indent()
 		for field in struct_def.fields:
-			gen_typed_name(ty: field.ty, name: field.name)
+			gen_typed_name(ty: field.ty, name: strtab.get(field.name))
 			emit(";")
 		dedent()
 		emit("\};")
@@ -150,12 +152,12 @@ class CGenerator2:
 		# Create struct constructor function
 		if struct_def.is_union:
 			panic("Unions not supported")
-		let name = struct_def.id.name
+		let name = strtab.get(struct_def.id.name)
 		write("struct {name}* {name}_new(")
 		let n = struct_def.fields.len()
 		var i = 0
 		for field in struct_def.fields:
-			gen_typed_name(ty: field.ty, name: field.name)
+			gen_typed_name(ty: field.ty, name: strtab.get(field.name))
 			i += 1
 			if i < n:
 				write(", ")
@@ -169,10 +171,11 @@ class CGenerator2:
 		gen_struct_ctor_decl(struct_def)
 		emit(" \{")
 		indent()
-		let struct_name = struct_def.id.name
+		let struct_name = strtab.get(struct_def.id.name)
 		emit("struct {struct_name}* X = malloc(sizeof(struct {struct_name}));")
 		for field in struct_def.fields:
-			emit("X->{field.name} = {field.name};")
+			let field_name = strtab.get(field.name)
+			emit("X->{field_name} = {field_name};")
 		emit("return X;")
 		dedent()
 		emit("\}")
@@ -180,7 +183,7 @@ class CGenerator2:
 
 	fn gen_function_decl(function_def: ast.FunctionDef):
 		gen_typed_name(ty: function_def.info.return_type, name: "")
-		let name = function_def.name
+		let name = strtab.get(function_def.name)
 		write(" {name}(")
 		let n = function_def.parameters.len()
 		var i = 0
@@ -240,7 +243,7 @@ class CGenerator2:
 			"void* {name}"
 		elif ty.is_struct():
 			let struct_def = ty.get_struct_def()
-			"struct {struct_def.id.name}* {name}"
+			"struct {strtab.get(struct_def.id.name)}* {name}"
 		elif ty.is_function_type():
 			let ret_ty = ty.get_return_type()
 			let parts: List[str] = List()
@@ -258,7 +261,7 @@ class CGenerator2:
 			let txt = gen_typed_name2(ty: ety, name: "")
 			"{txt}* {name}"
 		else:
-			panic("Type: {ty} not supported")
+			panic("Type: {ast.type_to_string(strtab, ty)} not supported")
 
 	fn gen_block(statement?: ast.Statement, target: Option[str]):
 		indent()
@@ -310,7 +313,7 @@ class CGenerator2:
 					GetAttr(base, attr):
 						gen_expression(base)
 						write("->")
-						write(attr)
+						write(strtab.get(attr))
 					GetIndex(base, indici):
 						gen_expression(base)
 						write("[")
@@ -321,7 +324,7 @@ class CGenerator2:
 					ParameterRef(parameter_def):
 						write(gen_id(id: parameter_def.id))
 				else:
-					panic("Unsupported assignment target: {target}")
+					panic("Unsupported assignment target: {ast.expression_to_string(strtab, target)}")
 
 				write(" ")
 				case operator:
@@ -486,7 +489,7 @@ class CGenerator2:
 				write(")")
 			GetAttr(base, name):
 				gen_expression(base)
-				write("->{name}")
+				write("->{strtab.get(name)}")
 			GetIndex(base, indici):
 				gen_expression(base)
 				write("[")
@@ -519,14 +522,14 @@ class CGenerator2:
 				elif ty.is_char():
 					write("(char)")
 				else:
-					panic("Unsupported cast to: {ty}")
+					panic("Unsupported cast to: {ast.type_to_string(strtab, ty)}")
 				write("(")
 				gen_expression(value)
 				write("))")
 			ParameterRef(parameter_def):
 				write(gen_id(id: parameter_def.id))
 			FunctionRef(function_def, type_arguments):
-				write(function_def.name)
+				write(strtab.get(function_def.name))
 			VariableRef(variable):
 				write(gen_id(id: variable.id))
 			IntLiteral(value):
@@ -544,7 +547,7 @@ class CGenerator2:
 					write("'{value}'")
 			StructLiteral(ty, values):
 				let struct_def = ty.get_struct_def()
-				write("{struct_def.id.name}_new(")
+				write("{strtab.get(struct_def.id.name)}_new(")
 				gen_expression_list(values)
 				write(")")
 			ArrayLiteral(values):
@@ -584,7 +587,7 @@ class CGenerator2:
 				gen_expression(if_expression.false_value)
 				write(")")
 		else:
-			panic("Unsupported expression: {expression}")
+			panic("Unsupported expression: {ast.expression_to_string(strtab, expression)}")
 
 	fn gen_expression_list(values: List[ast.Expression]):
 		let n = values.len()
@@ -620,7 +623,7 @@ class CGenerator2:
 		elif value.ty.is_opaque():
 			pass
 		else:
-			panic("Cannot box: {value.ty}")
+			panic("Cannot box: {ast.type_to_string(strtab, value.ty)}")
 		write("(")
 		gen_expression(value)
 		write("))")
@@ -652,14 +655,11 @@ class CGenerator2:
 			gen_typed_name(ty: to_type, name: "")
 			write(")")
 		else:
-			panic("Cannot unbox: {to_type}")
+			panic("Cannot unbox: {ast.type_to_string(strtab, to_type)}")
 		write("(")
 
 	fn gen_id(id: ast.NodeId) -> str:
-		if id.name == "main":
-			"{id.name}2"
-		else:
-			"X{id.id}_{id.name}"
+		"X{id.id}_{strtab.get(id.name)}"
 
 	fn new_var(name: str) -> str:
 		next_id += 1

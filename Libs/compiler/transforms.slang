@@ -18,18 +18,19 @@ from base.listtype import List, list1, list2
 from base.optiontype import Option, option_unwrap, option_is_none, option_is_some
 from base.vectype import vec2, vec3, vec4, Vector, new_vector, new_vector_with_capacity
 from base.strlib import str_join
-from base.hashmap import HashMap, new_hashmap_str
+from base.hashmap import HashMap, new_hashmap_str, new_hashmap_uint32
 from errors import CompilationError
+from string_table import StringTable
 import ast
 
 pub struct TransformOptions:
 	# If the backend can generate code for switch statements, set this boolean to true
 	keep_switch: bool
 
-pub fn transform(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext, id_gen: IdGen, rt_module: ast.ModuleDef, options: TransformOptions) except CompilationError:
+pub fn transform(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext, id_gen: IdGen, rt_module: ast.ModuleDef, options: TransformOptions) except CompilationError:
 	log_debug("Transforming modules")
 	let transformer = Transformer:
-		class_rewriter: ClassRewriter(typectx, id_gen, rt_module)
+		class_rewriter: ClassRewriter(strtab, typectx, id_gen, rt_module)
 		modname: "?"
 		options
 
@@ -126,7 +127,7 @@ pub fn transform(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext, id_
 
 	# TBD:
 	# Optionally check types in between?
-	type_check(module_defs, typectx, display_warnings: false)
+	type_check(module_defs, strtab, typectx, display_warnings: false)
 
 	log_info("Type erasure")
 
@@ -209,12 +210,12 @@ fn transformer_on_definition7b(transformer: Transformer, definition: ast.Definit
 			case definition:
 				Struct(struct_def):
 					struct_def.type_parameters.clear()
-					struct_def.id.name = transformer.modname + "_" + struct_def.id.name
+					struct_def.id.name = transformer.class_rewriter.prefix_name(prefix: transformer.modname, name: struct_def.id.name)
 				Function(function_def):
 					function_def.type_parameters.clear()
-					function_def.name = transformer.modname + "_" + function_def.name
+					function_def.name = transformer.class_rewriter.prefix_name(prefix: transformer.modname, name: function_def.name)
 				Var(var_def):
-					var_def.variable.id.name = transformer.modname + "_" + var_def.variable.id.name
+					var_def.variable.id.name = transformer.class_rewriter.prefix_name(prefix: transformer.modname, name: var_def.variable.id.name)
 			else:
 				panic("Only structs and functions supported during type erasure!")
 	else:
@@ -330,7 +331,7 @@ fn transformer_on_statement7(transformer: Transformer, statement: ast.Statement,
 							if value.ty.is_opaque() or value.ty.is_type_parameter():
 								target.change_to(to: value)
 							else:
-								panic("Only supported type cast from opaque as assignment target (not {value.ty})")
+								panic("Only supported type cast from opaque as assignment target (not {ast.type_to_string(strtab: transformer.class_rewriter.strtab, value.ty)})")
 					else:
 						pass
 
@@ -362,37 +363,37 @@ fn transformer_on_expression1(transformer: Transformer, expression: ast.Expressi
 						elif value.ty.is_int():
 							# call int-to-str
 							let int_to_str_func = transformer.class_rewriter.load_std_function(name: "int_to_str", location: expression.location)
-							let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
+							let arg1 = ast.LabeledExpression(name: Option.Some(transformer.class_rewriter.strtab.intern("value")), value, location: expression.location)
 							let arguments = list1(arg1)
 							let call = int_to_str_func.call_it(arguments, location: expression.location)
 							expression.change_to(to: call)
 						elif value.ty.is_char():
 							# call char-to-str
 							let char_to_str_func = transformer.class_rewriter.load_std_function(name: "char_to_str", location: expression.location)
-							let arg1 = ast.LabeledExpression(name: Option.Some("value"), value, location: expression.location)
+							let arg1 = ast.LabeledExpression(name: Option.Some(transformer.class_rewriter.strtab.intern("value")), value, location: expression.location)
 							let arguments = list1(arg1)
 							let call = char_to_str_func.call_it(arguments, location: expression.location)
 							expression.change_to(to: call)
-						elif value.ty.has_method("to_string"):
+						elif value.ty.has_method(transformer.class_rewriter.strtab.intern("to_string")):
 							# Invoke to_string method
 							let arguments: List[ast.LabeledExpression] = List()
-							let call_to_string = value.call_method(method: "to_string", arguments, location: expression.location)
+							let call_to_string = value.call_method(method: transformer.class_rewriter.strtab.intern("to_string"), arguments, location: expression.location)
 							expression.change_to(to: call_to_string)
 						else:
 							panic("Invalid type for to-string")
 				GetIndex(base, indici):
-					if base.ty.has_method("get"):
+					if base.ty.has_method(transformer.class_rewriter.strtab.intern("get")):
 						assert(condition: indici.len() == 1, message: "Only support single indexing.")
 						let index = indici.first()
-						let arg1 = ast.LabeledExpression(name: Option.Some("index"), value: index, location: index.location)
+						let arg1 = ast.LabeledExpression(name: Option.Some(transformer.class_rewriter.strtab.intern("index")), value: index, location: index.location)
 						let arguments = list1(arg1)
-						let call_get = base.call_method(method: "get", arguments, location: expression.location)
+						let call_get = base.call_method(method: transformer.class_rewriter.strtab.intern("get"), arguments, location: expression.location)
 						expression.change_to(to: call_get)
 					elif base.ty.is_str():
 						assert(condition: indici.len() == 1, message: "Only support single indexing.")
 						let index = indici.first()
-						let arg1 = ast.LabeledExpression(name: Option.Some("text"), value: base, location: index.location)
-						let arg2 = ast.LabeledExpression(name: Option.Some("index"), value: index, location: index.location)
+						let arg1 = ast.LabeledExpression(name: Option.Some(transformer.class_rewriter.strtab.intern("text")), value: base, location: index.location)
+						let arg2 = ast.LabeledExpression(name: Option.Some(transformer.class_rewriter.strtab.intern("index")), value: index, location: index.location)
 						let arguments = list2(arg1, arg2)
 						let str_get_func = transformer.class_rewriter.load_std_function(name: "str_get", location: expression.location)
 						let call_str_get = str_get_func.call_it(arguments, location: expression.location)
@@ -468,7 +469,7 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
 								# Rewrite method call
 								# log_info("Rewrite method call")
 								let function_ref: ast.Expression = ast.get_method_ref_from_type(ty: base.ty, attr: name, location: expression.location)
-								let this_arg = ast.LabeledExpression(location: base.location, name: Option.Some("this"), value: base)
+								let this_arg = ast.LabeledExpression(location: base.location, name: Option.Some(transformer.class_rewriter.strtab.intern("this")), value: base)
 								let arguments = call.arguments
 								arguments.prepend(this_arg)
 								call.callee = function_ref
@@ -479,7 +480,7 @@ fn transformer_on_expression2(transformer: Transformer, expression: ast.Expressi
 								let invoker = impl2.get_invoker(name)
 								let type_arguments: Vector[ast.Type] = new_vector()
 								let function_ref = ast.function_ref(function_def: invoker, type_arguments, location: expression.location)
-								let this_arg = ast.LabeledExpression(location: base.location, name: Option.Some("this"), value: base)
+								let this_arg = ast.LabeledExpression(location: base.location, name: Option.Some(transformer.class_rewriter.strtab.intern("this")), value: base)
 								let arguments = call.arguments
 								arguments.prepend(this_arg)
 								call.callee = function_ref
@@ -603,7 +604,10 @@ fn transformer_on_node7b(transformer: Transformer, node: ast.VisitNode, phase: a
 		Pre:
 			case node:
 				ModuleNode(module_def):
-					transformer.modname = str_join(parts: module_def.namespace, sep: "_")
+					let parts: List[str] = List()
+					for name in module_def.namespace:
+						parts.append(transformer.class_rewriter.strtab.get(name))
+					transformer.modname = str_join(parts, sep: "_")
 			else:
 				pass
 	else:
@@ -646,21 +650,21 @@ class InterfaceImpl2:
 	"""Interface implementation details"""
 	pub var struct_def: ast.StructDef
 	var vtable_map: HashMap[str,ast.Variable] = new_hashmap_str()
-	var invoker_map: HashMap[str,ast.FunctionDef] = new_hashmap_str()
+	var invoker_map: HashMap[uint32,ast.FunctionDef] = new_hashmap_uint32()
 
-	pub fn get_impl_vtable(ty: ast.Type) -> ast.Variable:
+	pub fn get_impl_vtable(strtab: StringTable, ty: ast.Type) -> ast.Variable:
 		"""Get vtable for given type."""
-		let key = ty.to_string()
+		let key = ast.type_to_string(strtab, ty)
 		vtable_map.get(key)
 
-	pub fn set_impl_vtable(ty: ast.Type, vtable: ast.Variable):
-		let key = ty.to_string()
+	pub fn set_impl_vtable(strtab: StringTable, ty: ast.Type, vtable: ast.Variable):
+		let key = ast.type_to_string(strtab, ty)
 		vtable_map.insert(key, value: vtable)
 
-	pub fn set_invoker(name: str, invoker: ast.FunctionDef):
+	pub fn set_invoker(name: uint32, invoker: ast.FunctionDef):
 		invoker_map.insert(key: name, value: invoker)
 
-	pub fn get_invoker(name: str) -> ast.FunctionDef:
+	pub fn get_invoker(name: uint32) -> ast.FunctionDef:
 		invoker_map.get(key: name)
 
 class ClassRewriter:
@@ -669,12 +673,13 @@ class ClassRewriter:
 	pub var enum_impl_map: HashMap[ast.NodeId,EnumImpl] = ast.new_hashmap_nodeid()
 	pub var interface_impl2_map: HashMap[ast.NodeId,InterfaceImpl2] = ast.new_hashmap_nodeid()
 	pub var new_definitions: List[ast.Definition] = List()
+	pub var strtab: StringTable
 	pub var typectx: ast.TypeContext
 	var id_gen: IdGen
 	var rt_module: ast.ModuleDef
 
 	pub fn rewrite_class_def(class_def: ast.ClassDef):
-		log_info("Rewriting class def {class_def.id.name}")
+		log_info("Rewriting class def {strtab.get(class_def.id.name)}")
 		let methods: List[ast.FunctionDef] = List()
 		let builder = ast.StructBuilder()
 		builder.set_name(name: class_def.id.name)
@@ -694,7 +699,7 @@ class ClassRewriter:
 				Function(function_def):
 					methods.append(function_def)
 			else:
-				panic("only fields and functions expected, not {ast.definition_to_str(definition)}")
+				panic("only fields and functions expected, not {ast.definition_to_str(strtab, definition)}")
 
 		let struct_def = builder.finish()
 		new_definitions.append(ast.Definition.Struct(struct_def))
@@ -713,7 +718,7 @@ class ClassRewriter:
 			method.type_parameters.append(type_parameter)
 			type_arguments.append(ast.type_parameter_ref(type_parameter))
 		let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
-		method.name = "{class_def.id.name}_{method.name}"
+		method.name = strtab.intern("{strtab.get(class_def.id.name)}_{strtab.get(method.name)}")
 		let this_parameter = option_unwrap(method.this_parameter)
 		method.this_parameter = Option.None()
 		# TODO: why does the below cause trouble?
@@ -723,7 +728,7 @@ class ClassRewriter:
 
 	fn create_constructor(class_def: ast.ClassDef, struct_def: ast.StructDef):
 		# Create constructor function
-		let ctor_name = "{class_def.id.name}_ctor"
+		let ctor_name = strtab.intern("{strtab.get(class_def.id.name)}_ctor")
 		let type_parameters: List[ast.TypeParameter] = List()
 		let except_type = typectx.void_type()
 		let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: class_def.type_parameters.len())
@@ -781,11 +786,14 @@ class ClassRewriter:
 			Some(value):
 				value
 			None:
-				panic("Ctor not found: {class_def.id.name}")
+				panic("Ctor not found: {strtab.get(class_def.id.name)}")
 		let type_arguments = ty.get_type_arguments()
 		let ctor_func_ref = ast.function_ref(function_def: ctor_func_def, type_arguments, location)
 		let struct_ty: ast.Type = ast.undefined_type()
 		ast.call(callee: ctor_func_ref, arguments, ty: struct_ty, location)
+
+	pub fn prefix_name(prefix: str, name: uint32) -> uint32:
+		strtab.intern(prefix + "_" + strtab.get(name))
 
 	fn get_unique_id() -> int:
 		id_gen.new_id()
@@ -793,7 +801,7 @@ class ClassRewriter:
 	fn new_variable(name: str, ty: ast.Type, location: Location) -> ast.Variable:
 		# Create a new variable with unique id
 		let id = get_unique_id()
-		ast.variable(name, id, ty, location)
+		ast.variable(name: strtab.intern(name), id, ty, location)
 
 	fn get_enum_impl(id: ast.NodeId) -> EnumImpl:
 		enum_impl_map.get(key: id)
@@ -809,13 +817,13 @@ class ClassRewriter:
 			panic("{name} must be external function")
 
 	fn load_rt_symbol(name: str) -> ast.Symbol:
-		option_unwrap(rt_module.scope.lookup(name))
+		option_unwrap(rt_module.scope.lookup(name: strtab.intern(name)))
 
 	pub fn rewrite_interface_def(interface_def: ast.InterfaceDef):
 		# Create method table for this interface
-		log_debug("Rewrite interface def {interface_def.id.name}")
+		log_debug("Rewrite interface def {strtab.get(interface_def.id.name)}")
 		let builder1 = ast.StructBuilder()
-		builder1.set_name(name: "{interface_def.id.name}Functions")
+		builder1.set_name(name: strtab.intern("{strtab.get(interface_def.id.name)}Functions"))
 		builder1.set_id(id: get_unique_id())
 
 		let type_arguments: Vector[ast.Type] = new_vector_with_capacity(capacity: interface_def.type_parameters.len())
@@ -832,19 +840,19 @@ class ClassRewriter:
 					let ty = ast.get_function_type2(function_def, type_arguments)
 					builder1.add_field(name: function_def.name, ty, location: interface_def.location)
 			else:
-				panic("only functions expected, not {ast.definition_to_str(definition)}")
+				panic("only functions expected, not {ast.definition_to_str(strtab, definition)}")
 
 		let struct_def1 = builder1.finish()
 		new_definitions.append(ast.Definition.Struct(struct_def1))
 
-		log_debug("Creating struct for {interface_def.id.name}")
+		log_debug("Creating struct for {strtab.get(interface_def.id.name)}")
 		let builder2 = ast.StructBuilder()
-		builder2.set_name(name: "{interface_def.id.name}Combo")
+		builder2.set_name(name: strtab.intern("{strtab.get(interface_def.id.name)}Combo"))
 		builder2.set_id(id: get_unique_id())
-		builder2.add_field(name: "data", ty: typectx.opaque_type(), location: interface_def.location)
+		builder2.add_field(name: strtab.intern("data"), ty: typectx.opaque_type(), location: interface_def.location)
 		let type_arguments2: Vector[ast.Type] = new_vector()
 		let vtable_ty = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def1), type_arguments: type_arguments2)
-		builder2.add_field(name: "vtable", ty: vtable_ty, location: interface_def.location)
+		builder2.add_field(name: strtab.intern("vtable"), ty: vtable_ty, location: interface_def.location)
 		let struct_def2 = builder2.finish()
 		new_definitions.append(ast.Definition.Struct(struct_def2))
 		let impl2 = InterfaceImpl2(struct_def: struct_def2)
@@ -861,7 +869,7 @@ class ClassRewriter:
 					impl2.set_invoker(name: function_def.name, invoker: invoke_helper)
 					new_definitions.append(ast.Definition.Function(invoke_helper))
 			else:
-				panic("only functions expected, not {ast.definition_to_str(definition)}")
+				panic("only functions expected, not {ast.definition_to_str(strtab, definition)}")
 
 	fn create_invoker_helper(this_ty: ast.Type, function_def: ast.FunctionDef) -> ast.FunctionDef:
 		"""Create a function that takes a vtable/data pair, which calls the proper function."""
@@ -880,13 +888,13 @@ class ClassRewriter:
 		let this_param = parameters[0]
 		this_param.ty = this_ty
 
-		let target = this_param.ref(location).get_attr_typed(attr: "vtable", location).get_attr_typed(attr: function_def.name, location)
+		let target = this_param.ref(location).get_attr_typed(attr: strtab.intern("vtable"), location).get_attr_typed(attr: function_def.name, location)
 		let arguments: List[ast.LabeledExpression] = List()
 		var first = true
 		for parameter in parameters:
 			if first:
-				let data = this_param.ref(location).get_attr_typed(attr: "data", location)
-				arguments.append(ast.LabeledExpression(location, name: Option.Some("this"), value: data))
+				let data = this_param.ref(location).get_attr_typed(attr: strtab.intern("data"), location)
+				arguments.append(ast.LabeledExpression(location, name: Option.Some(strtab.intern("this")), value: data))
 				first = false
 			else:
 				let data = parameter.ref(location)
@@ -902,7 +910,7 @@ class ClassRewriter:
 		# parameters.append(ast.ParameterDef())
 		let invoker_function_def = ast.function_def:
 			is_pub: true
-			name: "invoke_{function_def.name}"
+			name: strtab.intern("invoke_{strtab.get(function_def.name)}")
 			docstring: Option.None()
 			type_parameters
 			this_parameter: Option.None()
@@ -921,12 +929,12 @@ class ClassRewriter:
 		log_debug("Rewrite interface implementation")
 
 		let values: List[ast.Expression] = List()
-		let type_key = impl_def.target_type.to_string()
+		let type_key = ast.type_to_string(strtab, impl_def.target_type)
 		for definition in impl_def.definitions:
 			case definition:
 				Function(method):
 					# TODO: merge code with the lift_method function?
-					method.name = "{impl_def.id.name}_{method.name}"
+					method.name = strtab.intern("{strtab.get(impl_def.id.name)}_{strtab.get(method.name)}")
 					uplift_this_parameter(function_def: method)
 					new_definitions.append(ast.Definition.Function(method))
 
@@ -943,11 +951,11 @@ class ClassRewriter:
 		let type_arguments2: Vector[ast.Type] = new_vector()
 		let iface_type = ast.apply_tycon(tycon: ast.TyCon.Struct(impl2.struct_def), type_arguments: type_arguments2)
 
-		let vtable_ty = iface_type.get_field_type(attr: "vtable")
+		let vtable_ty = iface_type.get_field_type(attr: strtab.intern("vtable"))
 		let vtable_value = ast.struct_literal(ty: vtable_ty, values, location: impl_def.location)
-		let vtable_name = "{impl_def.id.name}_vtable"
+		let vtable_name = strtab.intern("{strtab.get(impl_def.id.name)}_vtable")
 		let variable = ast.variable(name: vtable_name, id: get_unique_id(), ty: vtable_ty, location: impl_def.location)
-		impl2.set_impl_vtable(ty: impl_def.target_type, vtable: variable)
+		impl2.set_impl_vtable(strtab, ty: impl_def.target_type, vtable: variable)
 		let vtable_global = ast.VariableDef(is_pub: true, variable, value: ast.VariableDefValue.Intern(value: Option.Some(vtable_value)))
 		new_definitions.append(ast.Definition.Var(vtable_global))
 
@@ -958,7 +966,7 @@ class ClassRewriter:
 		let parameters: List[ast.ParameterDef] = List()
 		let arguments: List[ast.LabeledExpression] = List()
 		let this_param: ast.ParameterDef = ast.parameter_def:
-			name: "this"
+			name: strtab.intern("this")
 			id: get_unique_id()
 			label_is_optional: true
 			ty: typectx.opaque_type()
@@ -969,7 +977,7 @@ class ClassRewriter:
 			value: this_param.ref(location)
 			to_type: method.parameters.get(index: 0).ty
 			location
-		arguments.append(ast.LabeledExpression(location, name: Option.Some("this"), value: this_unboxed))
+		arguments.append(ast.LabeledExpression(location, name: Option.Some(strtab.intern("this")), value: this_unboxed))
 
 		var first = true
 		for p in method.parameters:
@@ -990,7 +998,7 @@ class ClassRewriter:
 		let call_impl = ast.call(callee: method_ref, arguments, ty: typectx.void_type(), location)
 		let wrapper_function = ast.function_def:
 			is_pub: true
-			name: "{method.name}_wrapper"
+			name: strtab.intern("{strtab.get(method.name)}_wrapper")
 			docstring: Option.None()
 			type_parameters
 			this_parameter: Option.None()
@@ -1008,7 +1016,7 @@ class ClassRewriter:
 		let impl2 = interface_impl2_map.get(key: interface_def.id)
 		let type_arguments2: Vector[ast.Type] = new_vector()
 		let iface_type = ast.apply_tycon(tycon: ast.TyCon.Struct(impl2.struct_def), type_arguments: type_arguments2)
-		let vtable_global_var = impl2.get_impl_vtable(ty: value.ty)
+		let vtable_global_var = impl2.get_impl_vtable(strtab, ty: value.ty)
 		let vtable_ptr = vtable_global_var.ref(location: value.location)
 		let data_ptr = ast.box_expression(value, location: value.location)
 		let values: List[ast.Expression] = list2(data_ptr, vtable_ptr)
@@ -1020,37 +1028,37 @@ class ClassRewriter:
 
 		if for_statement.iter_value.ty.is_array():
 			transform_for_loop_over_array(for_statement, location)
-		elif for_statement.iter_value.ty.is_iterable_like():
+		elif for_statement.iter_value.ty.is_iterable_like(strtab):
 			transform_for_loop_over_iterator(for_statement, location)
-		elif for_statement.iter_value.ty.is_sequence_like():
+		elif for_statement.iter_value.ty.is_sequence_like(strtab):
 			transform_for_loop_over_sequence(for_statement, location)
 		elif for_statement.iter_value.ty.is_str():
 			transform_for_loop_over_str(for_statement, location)
 		else:
-			panic("Cannot for-loop over {for_statement.iter_value.ty}")
+			panic("Cannot for-loop over {ast.type_to_string(strtab, for_statement.iter_value.ty)}")
 
 	fn transform_for_loop_over_iterator(for_statement: ast.ForStatement, location: Location) -> ast.Statement:
 		# Implement loop over 'iter' method:
 		# log_info(".... {for_statement.iter_value.ty}")
 		var arguments: List[ast.LabeledExpression] = List()
-		let iter_val = for_statement.iter_value.call_method(method: "iter", arguments, location)
+		let iter_val = for_statement.iter_value.call_method(method: strtab.intern("iter"), arguments, location)
 		let iter_var = new_variable(name: "it", ty: iter_val.ty, location)
 		let let_it_var = ast.let_statement(variable: iter_var, type_hint: Option.None(), value: iter_val, location)
 
 		# log_info("....>>> {iter_var.ty}")
 		arguments = List()
-		let opt_val = iter_var.ref(location).call_method(method: "next", arguments, location)
+		let opt_val = iter_var.ref(location).call_method(method: strtab.intern("next"), arguments, location)
 		let opt_var = new_variable(name: "opt", ty: opt_val.ty, location)
 		let let_opt_var = ast.let_statement(variable: opt_var, type_hint: Option.None(), value: opt_val, location)
 
 		let arm1 = ast.CaseArm:
 			location
-			name: "None"
+			name: strtab.intern("None")
 			variables: List()
 			block: ast.scoped_block(body: ast.break_statement(location))
 		let arm2 = ast.CaseArm:
 			location
-			name: "Some"
+			name: strtab.intern("Some")
 			variables: list1(for_statement.iter_var)
 			block: for_statement.block
 		let arms: List[ast.CaseArm] = list2(arm1, arm2)
@@ -1079,7 +1087,7 @@ class ClassRewriter:
 		let size_var = new_variable(name: "size", ty: typectx.int_type(), location)
 		let x_ref1 = x_var.ref(location)
 		let method_arguments_for_len: List[ast.LabeledExpression] = List()
-		let call_len_method = x_ref1.call_method(method: "len", arguments: method_arguments_for_len, location)
+		let call_len_method = x_ref1.call_method(method: strtab.intern("len"), arguments: method_arguments_for_len, location)
 		let let_size = ast.let_statement(variable: size_var, type_hint: Option.None(), value: call_len_method, location)
 
 		# index < size
@@ -1091,8 +1099,8 @@ class ClassRewriter:
 		let x_ref2 = x_var.ref(location)
 		let index_ref2 = index_var.ref(location)
 		let method_arguments_for_get: List[ast.LabeledExpression] = List()
-		method_arguments_for_get.append(ast.LabeledExpression(name: Option.Some("index"), value: index_ref2, location))
-		let call_get_method = x_ref2.call_method(method: "get", arguments: method_arguments_for_get, location)
+		method_arguments_for_get.append(ast.LabeledExpression(name: Option.Some(strtab.intern("index")), value: index_ref2, location))
+		let call_get_method = x_ref2.call_method(method: strtab.intern("get"), arguments: method_arguments_for_get, location)
 		let let_v = ast.let_statement(variable: for_statement.iter_var, type_hint: Option.None(), value: call_get_method, location)
 
 		# index = index + 1
@@ -1164,7 +1172,7 @@ class ClassRewriter:
 		let str_len_func = load_std_function(name: "str_len", location)
 		let x_ref1 = x_var.ref(location)
 		let arguments_for_str_len: List[ast.LabeledExpression] = List()
-		arguments_for_str_len.append(ast.LabeledExpression(name: Option.Some("text"), value: x_ref1, location))
+		arguments_for_str_len.append(ast.LabeledExpression(name: Option.Some(strtab.intern("text")), value: x_ref1, location))
 		let call_str_len = str_len_func.call_it(arguments: arguments_for_str_len, location)
 		let let_size = ast.let_statement(variable: size_var, type_hint: Option.None(), value: call_str_len, location)
 
@@ -1178,8 +1186,8 @@ class ClassRewriter:
 		let x_ref2 = x_var.ref(location)
 		let index_ref2 = index_var.ref(location)
 		let arguments_for_str_get: List[ast.LabeledExpression] = List()
-		arguments_for_str_get.append(ast.LabeledExpression(name: Option.Some("text"), value: x_ref2, location))
-		arguments_for_str_get.append(ast.LabeledExpression(name: Option.Some("index"), value: index_ref2, location))
+		arguments_for_str_get.append(ast.LabeledExpression(name: Option.Some(strtab.intern("text")), value: x_ref2, location))
+		arguments_for_str_get.append(ast.LabeledExpression(name: Option.Some(strtab.intern("index")), value: index_ref2, location))
 		let call_str_get = str_get_func.call_it(arguments: arguments_for_str_get, location)
 		let let_v = ast.let_statement(variable: for_statement.iter_var, type_hint: Option.None(), value: call_str_get, location)
 
@@ -1212,7 +1220,7 @@ class ClassRewriter:
 		ast.StatementKind.Compound(vec2(let_x, else_clause))
 
 	pub fn rewrite_enum_def(enum_def: ast.EnumDef):
-		log_info("Rewriting enum def {enum_def.id.name}")
+		log_info("Rewriting enum def {strtab.get(enum_def.id.name)}")
 
 		# Check for enum def characteristics:
 		var n_arms = 0
@@ -1236,7 +1244,7 @@ class ClassRewriter:
 			# use a struct with 'tag' and 'data' fields
 
 			let builder2 = ast.StructBuilder()
-			builder2.set_name(name: "{enum_def.id.name}Data")
+			builder2.set_name(name: strtab.intern("{strtab.get(enum_def.id.name)}Data"))
 			builder2.set_id(get_unique_id())
 			builder2.set_is_union(true)
 
@@ -1246,20 +1254,20 @@ class ClassRewriter:
 				type_arguments2.append(type_parameter_ref2)
 
 			for variant in enum_def.variants:
-				let union_field_name = "data_{variant.name}"
+				let union_field_name = strtab.intern("data_{strtab.get(variant.name)}")
 				if variant.payload.len() == 1:
 					let t3 = variant.payload.first()
 					builder2.add_field(name: union_field_name, ty: t3, location: variant.location)
 				elif variant.payload.len() > 1:
 					let builder3 = ast.StructBuilder()
-					builder3.set_name(name: "{enum_def.id.name}Data{variant.name}")
+					builder3.set_name(name: strtab.intern("{strtab.get(enum_def.id.name)}Data{strtab.get(variant.name)}"))
 					builder3.set_id(id: get_unique_id())
 					for type_parameter in enum_def.type_parameters:
 						let type_parameter_ref3 = builder3.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
 
 					var idx = 0
 					for payload_type in variant.payload:
-						builder3.add_field(name: "f_{idx}", ty: payload_type, location: variant.location)
+						builder3.add_field(name: strtab.intern("f_{idx}"), ty: payload_type, location: variant.location)
 						idx += 1
 
 					let struct_def3 = builder3.finish()
@@ -1268,7 +1276,7 @@ class ClassRewriter:
 					builder2.add_field(name: union_field_name, ty: t3, location: variant.location)
 
 			# Add field for enum variants without data:
-			builder2.add_field(name: "nodata", ty: typectx.opaque_type(), location: enum_def.location)
+			builder2.add_field(name: strtab.intern("nodata"), ty: typectx.opaque_type(), location: enum_def.location)
 
 			let union_def = builder2.finish()
 			new_definitions.append(ast.Definition.Struct(union_def))
@@ -1282,9 +1290,9 @@ class ClassRewriter:
 				let type_parameter_ref = builder.add_type_parameter(name: type_parameter.id.name, id: get_unique_id(), location: type_parameter.location)
 				type_arguments.append(type_parameter_ref)
 
-			builder.add_field(name: "tag", ty: typectx.int_type(), location: enum_def.location)
+			builder.add_field(name: strtab.intern("tag"), ty: typectx.int_type(), location: enum_def.location)
 			let union_type = ast.apply_tycon(tycon: ast.TyCon.Struct(union_def), type_arguments)
-			builder.add_field(name: "data", ty: union_type, location: enum_def.location)
+			builder.add_field(name: strtab.intern("data"), ty: union_type, location: enum_def.location)
 			let struct_def = builder.finish()
 			# let m = ast.create_subst_mapping(type_parameters: enum_def.type_parameters, type_arguments)
 
@@ -1307,14 +1315,14 @@ class ClassRewriter:
 				for arm in case_statement.arms:
 					let variant = option_unwrap(ast.get_enum_variant(enum_def, attr: arm.name))
 					let arm_tag = variant.tag_value
-					let union_field_name = "data_{variant.name}"
+					let union_field_name = strtab.intern("data_{strtab.get(variant.name)}")
 					let switch_arm_value = ast.integer_literal(typectx, value: arm_tag, location: arm.location)
 					let switch_arm_body: Vector[ast.Statement] = new_vector()
 
 					# Unpack payload:
 					if arm.variables.len() == 1:
 						let x_var_ref = x_var.ref(location: arm.location)
-						let data_value = x_var_ref.get_attr_typed(attr: "data", location: arm.location)
+						let data_value = x_var_ref.get_attr_typed(attr: strtab.intern("data"), location: arm.location)
 						let union_value = data_value.get_attr_typed(attr: union_field_name, location: arm.location)
 						let store_var = ast.let_statement(variable: arm.variables.first(), type_hint: Option.None(), value: union_value, location: arm.location)
 						switch_arm_body.append(store_var)
@@ -1322,9 +1330,9 @@ class ClassRewriter:
 						var idx = 0
 						for variable in arm.variables:
 							let x_var_ref = x_var.ref(location: arm.location)
-							let data_value = x_var_ref.get_attr_typed(attr: "data", location: arm.location)
+							let data_value = x_var_ref.get_attr_typed(attr: strtab.intern("data"), location: arm.location)
 							let union_value = data_value.get_attr_typed(attr: union_field_name, location: arm.location)
-							let actual_value = union_value.get_attr_typed(attr: "f_{idx}", location: arm.location)
+							let actual_value = union_value.get_attr_typed(attr: strtab.intern("f_{idx}"), location: arm.location)
 							let store_var = ast.let_statement(variable, type_hint: Option.None(), value: actual_value, location: arm.location)
 							switch_arm_body.append(store_var)
 							idx += 1
@@ -1343,7 +1351,7 @@ class ClassRewriter:
 						else_block.body
 
 				let x_var_ref0 = x_var.ref(location)
-				let switch_value = x_var_ref0.get_attr_typed(attr: "tag", location)
+				let switch_value = x_var_ref0.get_attr_typed(attr: strtab.intern("tag"), location)
 				let switch_on_tag = ast.switch_statement(value: switch_value, arms: switch_arms, default_body: switch_default_code, location)
 
 				ast.compound(inner: vec2(store_tagged_union, switch_on_tag), location)
@@ -1433,11 +1441,11 @@ class ClassRewriter:
 			Struct(struct_def):
 				let type_arguments = enum_ty.get_type_arguments()
 				let struct_type = ast.apply_tycon(tycon: ast.TyCon.Struct(struct_def), type_arguments)
-				let union_type = struct_type.get_field_type(attr: "data")
+				let union_type = struct_type.get_field_type(attr: strtab.intern("data"))
 
-				var union_field_name = "data_{variant.name}"
+				var union_field_name = strtab.intern("data_{strtab.get(variant.name)}")
 				let union_value = if values.len() == 0:
-					union_field_name = "nodata"
+					union_field_name = strtab.intern("nodata")
 					ast.null_value(typectx, location)
 				elif values.len() == 1:
 					values.first()
@@ -1465,7 +1473,7 @@ class ClassRewriter:
 				opaq = true
 
 			if opaq:
-				log_info("We need a bridge function for {ft} {value}")
+				log_info("We need a bridge function for {ast.type_to_string(strtab, ft)} {ast.expression_to_string(strtab, value)}")
 				case value.kind:
 					FunctionRef(function_def, type_arguments):
 						# TODO: check for existing bridge functions!
@@ -1478,7 +1486,7 @@ class ClassRewriter:
 		# Create a bridge function which takes potential opaque parameters
 		# and calls the specific function with opaque types casted.
 		let location = function_def.location
-		let bridge_function_name = "X{get_unique_id()}_bridge_to_{function_def.name}"
+		let bridge_function_name = "X{get_unique_id()}_bridge_to_{strtab.get(function_def.name)}"
 		let type_parameters: List[ast.TypeParameter] = List()
 		let parameters: List[ast.ParameterDef] = List()
 		let arguments: List[ast.LabeledExpression] = List()
@@ -1519,7 +1527,7 @@ class ClassRewriter:
 
 		let bridge_function = ast.function_def:
 			is_pub: true
-			name: bridge_function_name
+			name: strtab.intern(bridge_function_name)
 			docstring: Option.None()
 			type_parameters
 			this_parameter: Option.None()

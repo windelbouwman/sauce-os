@@ -9,10 +9,12 @@ from base.hashmap import HashMap, new_hashmap_str
 from base.utils import panic
 import ast
 from errors import CompilationError, SingleCompilationError, ErrorCollector
+from string_table import StringTable
 
-pub fn bind_names(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext) except CompilationError:
+pub fn bind_names(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext) except CompilationError:
 	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
-	let binder = NameBinder(tycon_map)
+	let root_namespace = ast.NamespaceDef(name: strtab.intern("root"), scope: ast.Scope())
+	let binder = NameBinder(root_namespace, tycon_map, strtab)
 	fill_scopes(binder, module_defs)
 	import_symbols(binder, module_defs)
 	resolve_symbols(binder, typectx, module_defs)
@@ -27,7 +29,7 @@ fn fill_scopes(binder: NameBinder, module_defs: List[ast.ModuleDef]) except Comp
 		on_expression: filler_on_expression
 		on_node: filler_on_node
 	for module_def in module_defs:
-		log_info("Filling scopes for {module_def.get_name()}")
+		log_info("Filling scopes for {module_def.get_name(strtab: binder.strtab)}")
 		binder.errors.enter_file(filename: module_def.filename)
 		binder.register_module_into_namespace(module_def)
 		binder.enter_scope(scope: module_def.scope)
@@ -39,7 +41,7 @@ fn fill_scopes(binder: NameBinder, module_defs: List[ast.ModuleDef]) except Comp
 fn import_symbols(binder: NameBinder, module_defs: List[ast.ModuleDef]) except CompilationError:
 	log_info("Resolving imported symbols")
 	for module_def in module_defs:
-		log_info("Importing symbols into {module_def.get_name()}")
+		log_info("Importing symbols into {module_def.get_name(strtab: binder.strtab)}")
 		binder.errors.enter_file(filename: module_def.filename)
 		binder.enter_scope(scope: module_def.scope)
 		binder.fill_imports(module_def)
@@ -49,9 +51,9 @@ fn import_symbols(binder: NameBinder, module_defs: List[ast.ModuleDef]) except C
 
 fn resolve_symbols(binder: NameBinder, typectx: ast.TypeContext, module_defs: List[ast.ModuleDef]) except CompilationError:
 	let bind_visitor = new_bind_visitor(binder)
-	binder.enter_scope(scope: base_scope(typectx))
+	binder.enter_scope(scope: base_scope(strtab: binder.strtab, typectx))
 	for module_def in module_defs:
-		log_info("Binding names for {module_def.get_name()}")
+		log_info("Binding names for {module_def.get_name(strtab: binder.strtab)}")
 		binder.errors.enter_file(filename: module_def.filename)
 		binder.enter_scope(scope: module_def.scope)
 		ast.visit_module(visitor: bind_visitor, module_def)
@@ -69,7 +71,7 @@ fn check_unused_symbols(binder: NameBinder, module_defs: List[ast.ModuleDef]) ex
 				if option_is_some(module_def.filename):
 					# TODO: re-enable / put behind option flag?
 					if false:
-						binder.add_warning(location: symbol.location, message: "Symbol '{symbol.name}' defined but unused.")
+						binder.add_warning(location: symbol.location, message: "Symbol '{binder.strtab.get(symbol.name)}' defined but unused.")
 		binder.errors.leave_file()
 	binder.render_or_raise()
 
@@ -82,9 +84,10 @@ fn new_bind_visitor(binder: NameBinder) -> ast.Visitor[NameBinder]:
 		on_expression: binder_on_expression
 		on_node: binder_on_node
 
-pub fn bind_names_expression(expression: ast.Expression) except CompilationError:
+pub fn bind_names_expression(strtab: StringTable, expression: ast.Expression) except CompilationError:
 	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
-	let binder = NameBinder(tycon_map)
+	let root_namespace = ast.NamespaceDef(name: strtab.intern("root"), scope: ast.Scope())
+	let binder = NameBinder(root_namespace, tycon_map, strtab)
 	let bind_visitor = new_bind_visitor(binder)
 	ast.visit_expression(visitor: bind_visitor, expression)
 	binder.render_or_raise()
@@ -386,29 +389,29 @@ fn binder_on_node(binder: NameBinder, node: ast.VisitNode, phase: ast.VisitPhase
 	else:
 		pass
 
-fn base_scope(typectx: ast.TypeContext) -> ast.Scope:
+fn base_scope(strtab: StringTable, typectx: ast.TypeContext) -> ast.Scope:
 	let s = ast.Scope()
 	let location = location_default()
 	let is_pub = true
-	s.define(is_pub, name: "int", kind: ast.SymbolKind.Typ(ty: typectx.int_type()), location)
-	s.define(is_pub, name: "uint8", kind: ast.SymbolKind.Typ(ty: ast.uint8_type()), location)
-	s.define(is_pub, name: "uint16", kind: ast.SymbolKind.Typ(ty: ast.uint16_type()), location)
-	s.define(is_pub, name: "uint32", kind: ast.SymbolKind.Typ(ty: ast.uint32_type()), location)
-	s.define(is_pub, name: "uint64", kind: ast.SymbolKind.Typ(ty: ast.uint64_type()), location)
-	s.define(is_pub, name: "int8", kind: ast.SymbolKind.Typ(ty: ast.int8_type()), location)
-	s.define(is_pub, name: "int16", kind: ast.SymbolKind.Typ(ty: ast.int16_type()), location)
-	s.define(is_pub, name: "int32", kind: ast.SymbolKind.Typ(ty: ast.int32_type()), location)
-	s.define(is_pub, name: "int64", kind: ast.SymbolKind.Typ(ty: ast.int64_type()), location)
-	s.define(is_pub, name: "str", kind: ast.SymbolKind.Typ(ty: typectx.str_type()), location)
-	s.define(is_pub, name: "char", kind: ast.SymbolKind.Typ(ty: typectx.char_type()), location)
-	s.define(is_pub, name: "bool", kind: ast.SymbolKind.Typ(ty: typectx.bool_type()), location)
-	s.define(is_pub, name: "float", kind: ast.SymbolKind.Typ(ty: typectx.float_type()), location)
-	s.define(is_pub, name: "float32", kind: ast.SymbolKind.Typ(ty: ast.float32_type()), location)
-	s.define(is_pub, name: "float64", kind: ast.SymbolKind.Typ(ty: ast.float64_type()), location)
-	s.define(is_pub, name: "ptr", kind: ast.SymbolKind.Typ(ty: typectx.opaque_type()), location)
+	s.define(is_pub, name: strtab.intern("int"), kind: ast.SymbolKind.Typ(ty: typectx.int_type()), location)
+	s.define(is_pub, name: strtab.intern("uint8"), kind: ast.SymbolKind.Typ(ty: ast.uint8_type()), location)
+	s.define(is_pub, name: strtab.intern("uint16"), kind: ast.SymbolKind.Typ(ty: ast.uint16_type()), location)
+	s.define(is_pub, name: strtab.intern("uint32"), kind: ast.SymbolKind.Typ(ty: ast.uint32_type()), location)
+	s.define(is_pub, name: strtab.intern("uint64"), kind: ast.SymbolKind.Typ(ty: ast.uint64_type()), location)
+	s.define(is_pub, name: strtab.intern("int8"), kind: ast.SymbolKind.Typ(ty: ast.int8_type()), location)
+	s.define(is_pub, name: strtab.intern("int16"), kind: ast.SymbolKind.Typ(ty: ast.int16_type()), location)
+	s.define(is_pub, name: strtab.intern("int32"), kind: ast.SymbolKind.Typ(ty: ast.int32_type()), location)
+	s.define(is_pub, name: strtab.intern("int64"), kind: ast.SymbolKind.Typ(ty: ast.int64_type()), location)
+	s.define(is_pub, name: strtab.intern("str"), kind: ast.SymbolKind.Typ(ty: typectx.str_type()), location)
+	s.define(is_pub, name: strtab.intern("char"), kind: ast.SymbolKind.Typ(ty: typectx.char_type()), location)
+	s.define(is_pub, name: strtab.intern("bool"), kind: ast.SymbolKind.Typ(ty: typectx.bool_type()), location)
+	s.define(is_pub, name: strtab.intern("float"), kind: ast.SymbolKind.Typ(ty: typectx.float_type()), location)
+	s.define(is_pub, name: strtab.intern("float32"), kind: ast.SymbolKind.Typ(ty: ast.float32_type()), location)
+	s.define(is_pub, name: strtab.intern("float64"), kind: ast.SymbolKind.Typ(ty: ast.float64_type()), location)
+	s.define(is_pub, name: strtab.intern("ptr"), kind: ast.SymbolKind.Typ(ty: typectx.opaque_type()), location)
 	s
 
-fn enter_namespace(namespace: ast.NamespaceDef, path: List[str]) -> Option[ast.NamespaceDef]:
+fn enter_namespace(namespace: ast.NamespaceDef, path: List[uint32]) -> Option[ast.NamespaceDef]:
 	"""Follow a path to a namespace"""
 	for name in path:
 		case namespace.scope.lookup(name):
@@ -425,8 +428,9 @@ fn enter_namespace(namespace: ast.NamespaceDef, path: List[str]) -> Option[ast.N
 class NameBinder:
 	"""Helper class to fill scopes, and resolve names from scopes."""
 	var scopes: Vector[ast.Scope] = new_vector()
-	var root_namespace: ast.NamespaceDef = ast.NamespaceDef(name: "root", scope: ast.Scope())
+	var root_namespace: ast.NamespaceDef
 	pub var tycon_map: HashMap[ast.NodeId,ast.TyCon]
+	pub var strtab: StringTable
 	var was_class_scope: bool = false  # HACK for multiple return values?
 	pub var errors: ErrorCollector = ErrorCollector()
 
@@ -437,7 +441,7 @@ class NameBinder:
 			except (error: SingleCompilationError):
 				errors.append(error)
 
-	fn import_mod(start: List[str], imp: ast.Import) except SingleCompilationError:
+	fn import_mod(start: List[uint32], imp: ast.Import) except SingleCompilationError:
 		case imp.namespace:
 			None:
 				for name in imp.names:
@@ -446,11 +450,11 @@ class NameBinder:
 			Some(path):
 				let namespace = find_module(root_namespace, start, location: imp.location, path)
 				for name in imp.names:
-					log_trace("Importing {name.name} from {namespace.name}")
+					log_trace("Importing {strtab.get(name.name)} from {strtab.get(namespace.name)}")
 					let symbol = resolve_attribute(namespace, attr: name.name, location: name.location)
 					define(is_pub: false, name: name.name, kind: symbol.kind, location: name.location)
 
-	fn find_module(root_namespace: ast.NamespaceDef, start: List[str], location: Location, path: List[str]) -> ast.NamespaceDef except SingleCompilationError:
+	fn find_module(root_namespace: ast.NamespaceDef, start: List[uint32], location: Location, path: List[uint32]) -> ast.NamespaceDef except SingleCompilationError:
 		"""Try to look up a module in the namespace"""
 		var depth = start.len()
 		while depth > 0:
@@ -463,7 +467,7 @@ class NameBinder:
 							depth -= 1
 				None:
 					panic("search namespace must be present")
-		raise make_error(location, message: "Error, no module named: {ast.dotted(path)}")
+		raise make_error(location, message: "Error, no module named: {ast.dotted(strtab, path)}")
 
 	pub fn add_tycon(id: ast.NodeId, tycon: ast.TyCon):
 		tycon_map.insert(key: id, value: tycon)
@@ -495,7 +499,7 @@ class NameBinder:
 								else:
 									panic("Scope must be empty")
 						else:
-							add_error(location, message: "Symbol '{name}' already defined")
+							add_error(location, message: "Symbol '{strtab.get(name)}' already defined")
 					None:
 						let kind = ast.SymbolKind.Namespace(ast.NamespaceDef(name, scope: module_def.scope))
 						ns.scope.define(is_pub: true, name, kind, location)
@@ -506,7 +510,7 @@ class NameBinder:
 							Namespace(ns2):
 								ns = ns2
 						else:
-							add_error(location, message: "'{name}' is not a namespace")
+							add_error(location, message: "'{strtab.get(name)}' is not a namespace")
 							break
 					None:
 						let sub_ns = ast.NamespaceDef(name, scope: ast.Scope())
@@ -514,15 +518,15 @@ class NameBinder:
 						ns.scope.define(is_pub: true, name, kind, location)
 						ns = sub_ns
 
-	pub fn define(is_pub: bool, name: str, kind: ast.SymbolKind, location: Location):
+	pub fn define(is_pub: bool, name: uint32, kind: ast.SymbolKind, location: Location):
 		# log_trace("DEFINE {name}")
 		let scope = scopes.last()
 		if scope.is_defined(name):
-			add_error(location, message: "Symbol '{name}' is already defined")
+			add_error(location, message: "Symbol '{strtab.get(name)}' is already defined")
 		else:
 			scope.define(is_pub, name, kind, location)
 
-	pub fn lookup_expression_kind(name: str, location: Location) -> ast.ExpressionKind except SingleCompilationError:
+	pub fn lookup_expression_kind(name: uint32, location: Location) -> ast.ExpressionKind except SingleCompilationError:
 		let symbol = lookup_base_name(name, location)
 		symbol.add_reference(location)
 		let introduce_this = if was_class_scope:
@@ -537,12 +541,12 @@ class NameBinder:
 			false
 
 		if introduce_this:
-			let base = lookup_expression(name: "this", location)
+			let base = lookup_expression(name: strtab.intern("this"), location)
 			ast.ExpressionKind.GetAttr(base, field: name)
 		else:
 			symbol_to_kind(symbol)
 
-	fn lookup_expression(name: str, location: Location) -> ast.Expression except SingleCompilationError:
+	fn lookup_expression(name: uint32, location: Location) -> ast.Expression except SingleCompilationError:
 		let symbol = lookup_base_name(name, location)
 		let kind = symbol_to_kind(symbol)
 		ast.Expression(kind, ty: ast.undefined_type(), location)
@@ -556,7 +560,7 @@ class NameBinder:
 			TypeConstructor(tycon):
 				ast.TypeKind.UnApp(tycon)
 		else:
-			raise make_error(location: name.location, message: "Not a type: {symbol}")
+			raise make_error(location: name.location, message: "Not a type: {ast.symbol_to_string(strtab, symbol)}")
 
 	pub fn resolve_tycon(name: ast.QualName) -> ast.TyCon except SingleCompilationError:
 		"""Resolve qualified name to a type constructor"""
@@ -565,7 +569,7 @@ class NameBinder:
 			TypeConstructor(tycon):
 				tycon
 		else:
-			raise make_error(location: name.location, message: "Not a tycon: {symbol}")
+			raise make_error(location: name.location, message: "Not a tycon: {ast.symbol_to_string(strtab, symbol)}")
 
 	fn resolve_qual_name(name: ast.QualName) -> ast.Symbol except SingleCompilationError:
 		"""Resolve a qualified name to a symbol"""
@@ -582,22 +586,22 @@ class NameBinder:
 					Namespace(namespace):
 						symbol = resolve_attribute(namespace, attr: part, location: name.location)
 				else:
-					raise make_error(location: name.location, message: "Not a module we want to get {part} from")
+					raise make_error(location: name.location, message: "Not a module we want to get {strtab.get(part)} from")
 
 		symbol
 
-	pub fn resolve_attribute(namespace: ast.NamespaceDef, attr: str, location: Location) -> ast.Symbol except SingleCompilationError:
+	pub fn resolve_attribute(namespace: ast.NamespaceDef, attr: uint32, location: Location) -> ast.Symbol except SingleCompilationError:
 		"""Try to load an attribute from a module."""
 		case namespace.scope.lookup(name: attr):
 			Some(symbol):
 				if symbol.is_pub:
 					symbol
 				else:
-					raise make_error(location, message: "Symbol '{attr}' is private")
+					raise make_error(location, message: "Symbol '{strtab.get(attr)}' is private")
 			None:
-				raise make_error(location, message: "module '{namespace.name}' has no symbol: '{attr}'")
+				raise make_error(location, message: "module '{strtab.get(namespace.name)}' has no symbol: '{strtab.get(attr)}'")
 
-	fn lookup_base_name(name: str, location: Location) -> ast.Symbol except SingleCompilationError:
+	fn lookup_base_name(name: uint32, location: Location) -> ast.Symbol except SingleCompilationError:
 		# loop in reverse:
 		var index = scopes.len()
 		while index > 0:
@@ -609,7 +613,7 @@ class NameBinder:
 					return symbol
 				None:
 					pass
-		raise make_error(location, message: "'{name}' not defined!")
+		raise make_error(location, message: "'{strtab.get(name)}' not defined!")
 
 	pub fn enter_scope(scope: ast.Scope):
 		scopes.append(scope)

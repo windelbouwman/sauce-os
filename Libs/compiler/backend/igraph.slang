@@ -143,7 +143,8 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V], vregs: Vector[mil.Re
 
 fn add_reg_interference(ig: InterferenceGraph, reg: mil.Register, live_registers: LiveSet):
 	let n1 = ig.get_node(id: reg.id)
-	for live in live_registers:
+	for live_u32 in live_registers:
+		let live = int(live_u32)
 		if reg.id != live:
 			let n2 = ig.get_node(id: live)
 			# Only add edges to the same kind of register for now.
@@ -159,7 +160,7 @@ pub class InterferenceGraph:
 		if not n.masked:
 			n.masked = true
 			for m_id in get_adj_set(n):
-				let m = m_nodes.get(index: m_id)
+				let m = m_nodes.get(index: int(m_id))
 				m.degree -= 1
 		else:
 			panic("Node already masked")
@@ -168,7 +169,7 @@ pub class InterferenceGraph:
 		if n.masked:
 			n.masked = false
 			for m_id in get_adj_set(n):
-				let m = m_nodes.get(index: m_id)
+				let m = m_nodes.get(index: int(m_id))
 				m.degree += 1
 		else:
 			panic("Node already un-masked")
@@ -233,7 +234,7 @@ pub class AdjecentIter:
 		loop:
 			case m_set_iter.next():
 				Some(m_id):
-					let m = m_nodes.get(index: m_id)
+					let m = m_nodes.get(index: int(m_id))
 					if not m.masked:
 						return Option.Some(m)
 				None:

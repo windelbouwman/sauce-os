@@ -9,7 +9,8 @@ from location import Location, location_at, new_location
 from base.strlib import is_digit, digit_to_int, is_hex_digit, hex_digit_to_int, is_bin_digit, bin_digit_to_int, is_lf, is_tab, split_lines, trim
 from base.vectype import Vector, new_vector
 from base.deque import Queue, new_queue
-from base.hashmap import HashMap, new_hashmap_str
+from base.hashmap import HashMap, new_hashmap_uint32
+from string_table import StringTable
 
 enum LexerMode:
 	Normal
@@ -17,13 +18,14 @@ enum LexerMode:
 
 pub class Lexer:
 	var pending: Queue[Token] = new_queue()
-	var indent_stack: Vector[int] = new_vector()
+	var indent_stack: Vector[uint32] = new_vector()
 	var at_bol: bool = true  # at begin-of-line (bol)
 	var at_end: bool = false
-	var spaces: int = 0
+	var spaces: uint32 = uint32(0)
 	var source: str = ""
 	var source_length: int = 0
-	var m_keywords: HashMap[str,TokenKind] = new_hashmap_str()
+	var m_keywords: HashMap[uint32,TokenKind] = new_hashmap_uint32()
+	var strtab: StringTable
 
 	var m_mode: LexerMode = LexerMode.Normal()
 	var m_keep_comments: bool = false
@@ -31,13 +33,13 @@ pub class Lexer:
 	var offset: int = 0
 
 	pub fn init(source: str):
-		fill_keyword_dictionary(keywords: m_keywords)
+		fill_keyword_dictionary()
 		this.source = source
 		offset = 0
 		source_length = str_len(text: source)
 		at_end = false
 		at_bol = true
-		indent_stack.append(0)
+		indent_stack.append(uint32(0))
 
 	pub fn keep_comments():
 		m_keep_comments = true
@@ -107,7 +109,7 @@ pub class Lexer:
 		if not at_bol or m_keep_comments:
 			emit(tok)
 		at_bol = true
-		spaces = 0
+		spaces = uint32(0)
 
 	fn emit(tok: Token):
 		pending.push(tok)
@@ -141,15 +143,15 @@ pub class Lexer:
 		if is_id(c):
 			parse_identifier()
 		elif c == ' ':
-			var amount = 1
+			var amount: uint32 = uint32(1)
 			while match(' '):
-				amount += 1
+				amount += uint32(1)
 			TokenKind.Space(amount)
 		elif is_tab(c):
-			var amount = 1
+			var amount = uint32(1)
 			while is_tab(c: peek()):
 				offset += 1
-				amount += 1
+				amount += uint32(1)
 			TokenKind.Tab(amount)
 		elif is_lf(c):
 			TokenKind.NewLine()
@@ -306,11 +308,12 @@ pub class Lexer:
 
 		# Check for keywords:
 		let txt = get_lexeme()
-		case m_keywords.maybe_get(key: txt):
+		let id = strtab.intern(txt)
+		case m_keywords.maybe_get(key: id):
 			Some(k2):
 				k2
 			None:
-				TokenKind.Identifier(txt)
+				TokenKind.Identifier(id)
 
 	fn parse_char() -> TokenKind:
 		"""Char literal"""
@@ -535,6 +538,51 @@ pub class Lexer:
 	fn get_lexeme() -> str:
 		std.str_slice(text: source, begin: tok_begin, end: offset)
 
+	fn fill_keyword_dictionary():
+		add_keyword(key: "and", value: TokenKind.KwAnd())
+		add_keyword(key: "break", value: TokenKind.KwBreak())
+		add_keyword(key: "case", value: TokenKind.KwCase())
+		add_keyword(key: "class", value: TokenKind.KwClass())
+		add_keyword(key: "continue", value: TokenKind.KwContinue())
+		add_keyword(key: "else", value: TokenKind.KwElse())
+		add_keyword(key: "elif", value: TokenKind.KwElif())
+		add_keyword(key: "enum", value: TokenKind.KwEnum())
+		add_keyword(key: "except", value: TokenKind.KwExcept())
+		add_keyword(key: "extern", value: TokenKind.KwExtern())
+		add_keyword(key: "fn", value: TokenKind.KwFn())
+		add_keyword(key: "for", value: TokenKind.KwFor())
+		add_keyword(key: "from", value: TokenKind.KwFrom())
+		add_keyword(key: "if", value: TokenKind.KwIf())
+		add_keyword(key: "import", value: TokenKind.KwImport())
+		add_keyword(key: "impl", value: TokenKind.KwImpl())
+		add_keyword(key: "in", value: TokenKind.KwIn())
+		add_keyword(key: "interface", value: TokenKind.KwInterface())
+		add_keyword(key: "let", value: TokenKind.KwLet())
+		add_keyword(key: "loop", value: TokenKind.KwLoop())
+		add_keyword(key: "module", value: TokenKind.KwModule())
+		add_keyword(key: "macro", value: TokenKind.KwMacro())
+		add_keyword(key: "not", value: TokenKind.KwNot())
+		add_keyword(key: "or", value: TokenKind.KwOr())
+		add_keyword(key: "pass", value: TokenKind.KwPass())
+		add_keyword(key: "pub", value: TokenKind.KwPub())
+		add_keyword(key: "raise", value: TokenKind.KwRaise())
+		add_keyword(key: "return", value: TokenKind.KwReturn())
+		add_keyword(key: "struct", value: TokenKind.KwStruct())
+		add_keyword(key: "switch", value: TokenKind.KwSwitch())
+		add_keyword(key: "try", value: TokenKind.KwTry())
+		add_keyword(key: "var", value: TokenKind.KwVar())
+		add_keyword(key: "while", value: TokenKind.KwWhile())
+		add_keyword(key: "true", value: TokenKind.Bool(value: true))
+		add_keyword(key: "false", value: TokenKind.Bool(value: false))
+		add_keyword(key: "type", value: TokenKind.KwType())
+		add_keyword(key: "unreachable", value: TokenKind.KwUnreachable())
+		add_keyword(key: "box", value: TokenKind.KwBox())
+		add_keyword(key: "unbox", value: TokenKind.KwUnbox())
+		add_keyword(key: "null", value: TokenKind.KwNull())
+
+	fn add_keyword(key: str, value: TokenKind):
+		m_keywords.insert(key: strtab.intern(key), value)
+
 fn is_id(c: char) -> bool:
 	let o = ord(c)
 	if (o >= 97) and (o <= 122):  # 'a' .. 'z' (most common case)
@@ -548,45 +596,3 @@ fn is_id(c: char) -> bool:
 
 fn is_id_or_digit(c: char) -> bool:
 	is_id(c) or is_digit(c)
-
-fn fill_keyword_dictionary(keywords: HashMap[str,TokenKind]):
-	keywords.insert(key: "and", value: TokenKind.KwAnd())
-	keywords.insert(key: "break", value: TokenKind.KwBreak())
-	keywords.insert(key: "case", value: TokenKind.KwCase())
-	keywords.insert(key: "class", value: TokenKind.KwClass())
-	keywords.insert(key: "continue", value: TokenKind.KwContinue())
-	keywords.insert(key: "else", value: TokenKind.KwElse())
-	keywords.insert(key: "elif", value: TokenKind.KwElif())
-	keywords.insert(key: "enum", value: TokenKind.KwEnum())
-	keywords.insert(key: "except", value: TokenKind.KwExcept())
-	keywords.insert(key: "extern", value: TokenKind.KwExtern())
-	keywords.insert(key: "fn", value: TokenKind.KwFn())
-	keywords.insert(key: "for", value: TokenKind.KwFor())
-	keywords.insert(key: "from", value: TokenKind.KwFrom())
-	keywords.insert(key: "if", value: TokenKind.KwIf())
-	keywords.insert(key: "import", value: TokenKind.KwImport())
-	keywords.insert(key: "impl", value: TokenKind.KwImpl())
-	keywords.insert(key: "in", value: TokenKind.KwIn())
-	keywords.insert(key: "interface", value: TokenKind.KwInterface())
-	keywords.insert(key: "let", value: TokenKind.KwLet())
-	keywords.insert(key: "loop", value: TokenKind.KwLoop())
-	keywords.insert(key: "module", value: TokenKind.KwModule())
-	keywords.insert(key: "macro", value: TokenKind.KwMacro())
-	keywords.insert(key: "not", value: TokenKind.KwNot())
-	keywords.insert(key: "or", value: TokenKind.KwOr())
-	keywords.insert(key: "pass", value: TokenKind.KwPass())
-	keywords.insert(key: "pub", value: TokenKind.KwPub())
-	keywords.insert(key: "raise", value: TokenKind.KwRaise())
-	keywords.insert(key: "return", value: TokenKind.KwReturn())
-	keywords.insert(key: "struct", value: TokenKind.KwStruct())
-	keywords.insert(key: "switch", value: TokenKind.KwSwitch())
-	keywords.insert(key: "try", value: TokenKind.KwTry())
-	keywords.insert(key: "var", value: TokenKind.KwVar())
-	keywords.insert(key: "while", value: TokenKind.KwWhile())
-	keywords.insert(key: "true", value: TokenKind.Bool(value: true))
-	keywords.insert(key: "false", value: TokenKind.Bool(value: false))
-	keywords.insert(key: "type", value: TokenKind.KwType())
-	keywords.insert(key: "unreachable", value: TokenKind.KwUnreachable())
-	keywords.insert(key: "box", value: TokenKind.KwBox())
-	keywords.insert(key: "unbox", value: TokenKind.KwUnbox())
-	keywords.insert(key: "null", value: TokenKind.KwNull())

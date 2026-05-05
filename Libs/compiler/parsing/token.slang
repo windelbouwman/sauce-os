@@ -2,6 +2,7 @@ module compiler.parsing.token
 
 from location import Location, location_default
 from base.listtype import List
+from string_table import StringTable
 
 pub fn default_token() -> Token:
 	Token:
@@ -13,7 +14,7 @@ pub struct Token:
 	kind: TokenKind
 
 pub enum TokenKind:
-	Identifier(id: str)
+	Identifier(id: uint32)
 
 	# Keywords:
 	KwAnd
@@ -103,11 +104,11 @@ pub enum TokenKind:
 	SlashEquals
 
 	# White-space:
-	Space(amount: int)
-	Tab(amount: int)
+	Space(amount: uint32)
+	Tab(amount: uint32)
 	NewLine
 	Comment(comment: str)
-	TabbedComment(tabs: int, comment: str)
+	TabbedComment(tabs: uint32, comment: str)
 	Indent
 	Dedent
 
@@ -120,7 +121,7 @@ pub enum CharEscapeMode:
 	Octal
 	Hex
 
-pub fn token_to_string(tok: Token) -> str:
+pub fn token_to_string(strtab: StringTable, tok: Token) -> str:
 	"""Convert token to txt"""
 	case tok.kind:
 		KwAnd: "AND"
@@ -161,7 +162,7 @@ pub fn token_to_string(tok: Token) -> str:
 		KwBox: "BOX"
 		KwUnbox: "UNBOX"
 		KwNull: "NULL"
-		Identifier(id): "ID({id})"
+		Identifier(id): "ID({strtab.get(id)})"
 		StringStart: "STRING_START"
 		StringContent(content): "STRING_CONTENT({content})"
 		StringEnd: "STRING_END"
@@ -171,10 +172,10 @@ pub fn token_to_string(tok: Token) -> str:
 		Integer(value, raw_text): "INT({value}/{raw_text})"
 		Float(v, raw_text): "FLOAT({raw_text})"
 		Bool(value): "BOOL(yes)" if value else "BOOL(no)"
-		Space(amount): "SPACE({amount})"
-		Tab(amount): "TAB({amount})"
+		Space(amount): "SPACE({int(amount)})"
+		Tab(amount): "TAB({int(amount)})"
 		Comment(comment): "COMMENT({comment})"
-		TabbedComment(tabs, comment): "TABBED_COMMENT({tabs}, {comment})"
+		TabbedComment(tabs, comment): "TABBED_COMMENT({int(tabs)}, {comment})"
 		NewLine: "NEWLINE"
 		Indent: "INDENT"
 		Dedent: "DEDENT"

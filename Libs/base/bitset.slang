@@ -143,12 +143,12 @@ pub class BitSetIter:
 		m_slot = 0
 		m_word = m_bitset.m_integers[m_slot]
 
-	pub fn next() -> Option[int]:
+	pub fn next() -> Option[uint32]:
 		while m_slot < m_bitset.m_num_integers:
 			if m_word != 0:
 				let b = ctz(m_word)
 				m_word = m_word & (m_word - 1)
-				return Option.Some(m_slot * n_bits_per_int + b)
+				return Option.Some(uint32(m_slot * n_bits_per_int + b))
 
 			# Next word:
 			m_slot += 1

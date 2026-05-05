@@ -22,5 +22,5 @@ fn test_hash_examples():
 	check_hash("getopt_long_onl", 0x0f256dbc)
 
 fn check_hash(text?: str, value?: int):
-	let x = elf_hash(text)
+	let x = int(elf_hash(text))
 	assert_int_equals(x, value)

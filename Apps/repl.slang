@@ -13,7 +13,7 @@ from base.optiontype import Option
 from compiler import bc, ast, vm
 from compiler.errors import CompilationError, display_error, new_single_error
 from compiler.vm import VirtualMachine, eval_code, value_to_string
-
+from compiler.string_table import StringTable
 
 pub fn main() -> int:
 	var verbosity = 1
@@ -41,18 +41,19 @@ class Repl:
 	var id_gen: IdGen = IdGen()
 	var typectx: ast.TypeContext = ast.make_typectx()
 	var m_vm: VirtualMachine = VirtualMachine()
+	var strtab: StringTable = StringTable()
 
 	pub fn eval(line: str):
 		try:
 			log_info("Parsing [{line}]")
-			let statement = parse_line(typectx, line, id_gen)
+			let statement = parse_line(strtab, typectx, line, id_gen)
 			case statement.kind:
 				Expr(expression):
 					let x = eval_expression(expression)
 					print("Computed result: {value_to_string(x)}")
 			else:
-				print_statement_ast(statement)
-				print("Unsupported statement: {statement}")
+				print_statement_ast(strtab, statement)
+				print("Unsupported statement: {ast.statement_to_string(strtab, statement)}")
 
 		except (error: CompilationError):
 			display_error(error)
@@ -61,29 +62,29 @@ class Repl:
 
 	fn eval_expression(expression: ast.Expression) -> vm.Value except CompilationError:
 		# print_expression_ast(expression)
-		bind_names_expression(expression)
+		bind_names_expression(strtab, expression)
 		log_debug("Type checking")
-		type_check_expression(typectx, expression)
-		print_expression_ast(expression)
+		type_check_expression(strtab, typectx, expression)
+		print_expression_ast(strtab, expression)
 		log_debug("Creating bytecode")
-		let code = gen_expression_bytecode(expression)
+		let code = gen_expression_bytecode(strtab, expression)
 		bc.print_bc_instructions(instructions: code)
 		log_debug("Executing")
 		let x = eval_code(vm: m_vm, code)
 		return x
 
-fn parse_line(typectx: ast.TypeContext, line: str, id_gen: IdGen) -> ast.Statement except CompilationError:
+fn parse_line(strtab: StringTable, typectx: ast.TypeContext, line: str, id_gen: IdGen) -> ast.Statement except CompilationError:
 	var statement = ast.pass_statement(location: location_default())
 	try:
-		statement = parse_statement_from_text(source: line, id_gen, typectx)
+		statement = parse_statement_from_text(source: line, id_gen, typectx, strtab)
 	except (err: ParseError):
 		raise new_single_error(filename: Option.None(), location: err.location, message: err.message)
 	statement
 
-fn print_statement_ast(statement: ast.Statement):
-	let visitor = ast.new_print_visitor(printer: ast.AstPrinter())
+fn print_statement_ast(strtab: StringTable, statement: ast.Statement):
+	let visitor = ast.new_print_visitor(printer: ast.AstPrinter(strtab))
 	ast.visit_statement(visitor, statement)
 
-fn print_expression_ast(expression: ast.Expression):
-	let visitor = ast.new_print_visitor(printer: ast.AstPrinter())
+fn print_expression_ast(strtab: StringTable, expression: ast.Expression):
+	let visitor = ast.new_print_visitor(printer: ast.AstPrinter(strtab))
 	ast.visit_expression(visitor, expression)

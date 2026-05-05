@@ -27,33 +27,35 @@ from base.optiontype import Option
 from text_gen import TextGenerator
 from base.hashmap import HashMap, new_hashmap_str
 from location import location_default
+from string_table import StringTable
 from std import str_len, ord, str_get
 from base.utils import panic, assert
 from base.logging import log_info, log_debug
 
-pub fn gen_webassembly_text(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext, output_filename: Option[str]):
-	let wasm_module = gen_webassembly_module(module_defs, typectx)
+pub fn gen_webassembly_text(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext, output_filename: Option[str]):
+	let wasm_module = gen_webassembly_module(module_defs, strtab, typectx)
 	let out = TextGenerator()
 	out.m_one_tab = "  "
 	out.begin(output_filename)
 	webassembly.to_wat(wasm_module, out)
 	out.end()
 
-pub fn gen_webassembly_binary(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext, filename: str):
-	let wasm_module = gen_webassembly_module(module_defs, typectx)
+pub fn gen_webassembly_binary(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext, filename: str):
+	let wasm_module = gen_webassembly_module(module_defs, strtab, typectx)
 	let data = webassembly.to_wasm(wasm_module)
 	let handle = std.file_open(filename, mode: "wb")
 	let written = std.file_write_n_bytes(handle, buffer: data.as_array(), bufsize: data.len())
 	assert(condition: written == data.len(), message: "file_write_n_bytes failed")
 	std.file_close(handle)
 
-pub fn gen_webassembly_module(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext) -> webassembly.Module:
+pub fn gen_webassembly_module(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext) -> webassembly.Module:
 	log_info("Generating WebAssembly")
-	let generator = WasmGenerator(typectx)
+	let generator = WasmGenerator(strtab, typectx)
 	let wasm_module = generator.gen_module_defs(modules: module_defs)
 	wasm_module
 
 class WasmGenerator:
+	var strtab: StringTable
 	var typectx: ast.TypeContext
 	var types: List[webassembly.CompType] = List()
 	var imports: List[webassembly.Import] = List()
@@ -117,7 +119,7 @@ class WasmGenerator:
 		add_builtin()
 
 		for module_def in modules:
-			log_info("Generating external functions {module_def.get_name()}")
+			log_info("Generating external functions {module_def.get_name(strtab)}")
 			for definition in module_def.definitions:
 				case definition:
 					Function(function_def):
@@ -137,7 +139,7 @@ class WasmGenerator:
 								global_counter += 1
 								let global_ty = get_wasm_type(ty: var_def.variable.ty)
 								let kind = webassembly.ExternType.Global(ty: global_ty, mutable: true)
-								imports.append(webassembly.Import(modname: libname, name: var_def.variable.id.name, kind))
+								imports.append(webassembly.Import(modname: libname, name: strtab.get(var_def.variable.id.name), kind))
 				else:
 					pass
 
@@ -147,9 +149,9 @@ class WasmGenerator:
 					Function(function_def):
 						case function_def.body:
 							Intern(scoped_block):
-								let key = function_def.name
+								let key = strtab.get(function_def.name)
 								index_mapping.insert(key, value: func_counter)
-								let name = function_def.name
+								let name = strtab.get(function_def.name)
 								# if function_def.is_pub:
 								# To use function pointers, functions must be exported, regardless of pub flag.
 								exports.append(webassembly.Export(name, kind: webassembly.ExportKind.Func(funcidx: func_counter)))
@@ -162,7 +164,7 @@ class WasmGenerator:
 						case var_def.value:
 							Intern(value):
 								global_mapping.insert(key: var_def.variable.id, value: global_counter)
-								let name = var_def.variable.id.name
+								let name = strtab.get(var_def.variable.id.name)
 								# if var_def.is_pub:
 								exports.append(webassembly.Export(name, kind: webassembly.ExportKind.Global(globalidx: global_counter)))
 								global_counter += 1
@@ -197,12 +199,12 @@ class WasmGenerator:
 		# log_debug("extern function def: {extern_function_def.name}")
 
 		# Kludge to use native popcnt instructions
-		if function_def.name == "rt_popcnt" or function_def.name == "rt_ctz" or function_def.name == "rt_clz":
+		if function_def.name == strtab.intern("rt_popcnt") or function_def.name == strtab.intern("rt_ctz") or function_def.name == strtab.intern("rt_clz"):
 			return
 
 		# Re-export imported function to be able to use it as function pointer
-		exports.append(webassembly.Export(name: function_def.name, kind: webassembly.ExportKind.Func(funcidx: func_counter)))
-		index_mapping.insert(key: function_def.name, value: func_counter)
+		exports.append(webassembly.Export(name: strtab.get(function_def.name), kind: webassembly.ExportKind.Func(funcidx: func_counter)))
+		index_mapping.insert(key: strtab.get(function_def.name), value: func_counter)
 		func_counter += 1
 
 		let parameter_types: Vector[ast.Type] = new_vector()
@@ -212,7 +214,7 @@ class WasmGenerator:
 		let func_ty = reg_signature(parameter_types, return_type: function_def.info.return_type)
 		case function_def.body:
 			Extern(libname):
-				imports.append(webassembly.Import(modname: libname, name: function_def.name, kind: webassembly.ExternType.Func(typeidx: func_ty)))
+				imports.append(webassembly.Import(modname: libname, name: strtab.get(function_def.name), kind: webassembly.ExternType.Func(typeidx: func_ty)))
 		else:
 			panic("Invalid extern function")
 
@@ -228,7 +230,7 @@ class WasmGenerator:
 						None:
 							panic("Function declarations not supported")
 				Struct(struct_def):
-					log_debug("Struct def: {struct_def.id.name}")
+					log_debug("Struct def: {strtab.get(struct_def.id.name)}")
 				Var(var_def):
 					case var_def.value:
 						Intern(value):
@@ -246,7 +248,7 @@ class WasmGenerator:
 						Extern(libname, initialized):
 							pass
 			else:
-				panic("Definition {ast.definition_to_str(definition)} not supported")
+				panic("Definition {ast.definition_to_str(strtab, definition)} not supported")
 
 	fn get_struct_def_index(struct_def: ast.StructDef) -> int:
 		if struct_mapping.contains(key: struct_def.id):
@@ -307,7 +309,7 @@ class WasmGenerator:
 			let index = get_array_type_index(element_type: ty.get_element_type())
 			webassembly.ValueType.Ref(webassembly.RefType(nullable: true, heap_type: webassembly.HeapType.TypeIdx(index)))
 		else:
-			panic("TODO: {ty}!")
+			panic("TODO: {ast.type_to_string(strtab, ty)}!")
 
 	fn reg_signature(parameter_types: Vector[ast.Type], return_type: ast.Type) -> int:
 		let params: List[webassembly.ValueType] = List()
@@ -329,7 +331,7 @@ class WasmGenerator:
 			index
 
 	fn gen_function(function_def: ast.FunctionDef):
-		log_info("Generating code for: {ast.function_def_to_str(function_def)}")
+		log_info("Generating code for: {ast.function_def_to_str(strtab, function_def)}")
 		code = List()
 		local_variables = List()
 		n_parameters = 0
@@ -429,7 +431,7 @@ class WasmGenerator:
 				box_value(value)
 				emit(Instruction.ctrl_throw(0))
 		else:
-			panic("Not implemented: {statement}")
+			panic("Not implemented: {ast.statement_to_string(strtab, statement)}")
 
 	fn gen_try(try_statement: ast.TryStatement):
 		enter_block(is_loop: false)
@@ -527,7 +529,7 @@ class WasmGenerator:
 						gen_expression(value)
 				emit(Instruction.local_set(localidx))
 		else:
-			panic("Unsupported assignment target: {target}")
+			panic("Unsupported assignment target: {ast.expression_to_string(strtab, target)}")
 
 	fn gen_op_for_type(op: ast.BinaryOperator, ty: ast.Type):
 		if ty.is_int():
@@ -568,7 +570,7 @@ class WasmGenerator:
 				else:
 					panic("Invalid 32 bits float binop: {ast.binary_op_to_str(op)}")
 		else:
-			panic("Unsupported += type: {ty}")
+			panic("Unsupported += type: {ast.type_to_string(strtab, ty)}")
 
 	fn gen_condition(expression?: ast.Expression):
 		"""Generate condition, keeping track of short circuit logic."""
@@ -706,7 +708,7 @@ class WasmGenerator:
 			Stmt(statement):
 				gen_statement(statement, target: Option.Some(expression.ty))
 		else:
-			panic("Not implemented expression: {expression}")
+			panic("Not implemented expression: {ast.expression_to_string(strtab, expression)}")
 
 	fn box_value(value: ast.Expression):
 		gen_expression(value)
@@ -729,7 +731,7 @@ class WasmGenerator:
 		elif value.ty.is_opaque() or value.ty.is_tycon_app() or value.ty.is_array():
 			pass
 		else:
-			panic("TODO: box of {value.ty}")
+			panic("TODO: box of {ast.type_to_string(strtab, value.ty)}")
 
 	fn unbox_value(to_type: ast.Type):
 		if to_type.is_str():
@@ -770,7 +772,7 @@ class WasmGenerator:
 			let index = get_array_type_index(element_type: to_type.get_element_type())
 			emit(Instruction.ref_cast(webassembly.nullable_ref_type(webassembly.HeapType.TypeIdx(index))))
 		else:
-			panic("TODO: unbox to {to_type}")
+			panic("TODO: unbox to {ast.type_to_string(strtab, to_type)}")
 
 	fn gen_call(call: ast.FunctionCall):
 		case call.callee.kind:
@@ -778,19 +780,19 @@ class WasmGenerator:
 				for argument in call.arguments:
 					gen_expression(argument.value)
 				# Kludge for builtin popcnt and clz instructions:
-				if function_def.name == "rt_popcnt":
+				if function_def.name == strtab.intern("rt_popcnt"):
 					let bits = call.arguments.first().value.ty.get_bits()
 					if bits == 64:
 						emit(Instruction.i64_popcnt())
 					else:
 						emit(Instruction.i32_popcnt())
-				elif function_def.name == "rt_ctz":
+				elif function_def.name == strtab.intern("rt_ctz"):
 					let bits = call.arguments.first().value.ty.get_bits()
 					if bits == 64:
 						emit(Instruction.i64_ctz())
 					else:
 						emit(Instruction.i32_ctz())
-				elif function_def.name == "rt_clz":
+				elif function_def.name == strtab.intern("rt_clz"):
 					let bits = call.arguments.first().value.ty.get_bits()
 					if bits == 64:
 						emit(Instruction.i64_clz())
@@ -811,7 +813,7 @@ class WasmGenerator:
 			emit(Instruction.ctrl_call_ref(type_index))
 
 	fn get_func_index(function_def: ast.FunctionDef) -> int:
-		let key = function_def.name
+		let key = strtab.get(function_def.name)
 		index_mapping.get(key)
 
 	fn gen_binop(binop: ast.BinopExpression):
@@ -913,7 +915,7 @@ class WasmGenerator:
 			else:
 				panic("Invalid opaque binop: {ast.binary_op_to_str(binop.op)}")
 		else:
-			panic("Binop type not supported: {binop.lhs.ty}")
+			panic("Binop type not supported: {ast.type_to_string(strtab, binop.lhs.ty)}")
 
 	fn gen_unop(op: ast.UnaryOperator, value: ast.Expression):
 		case op:
@@ -940,7 +942,7 @@ class WasmGenerator:
 					else:
 						emit(Instruction.f32_neg())
 				else:
-					panic("unop(-) for {value.ty}")
+					panic("unop(-) for {ast.type_to_string(strtab, value.ty)}")
 
 	fn gen_type_cast(from_type: ast.Type, to_type: ast.Type):
 		if to_type.is_float():
@@ -970,7 +972,7 @@ class WasmGenerator:
 					else:
 						pass  # 32 to 32
 			else:
-				panic("TODO: cast {from_type} to float")
+				panic("TODO: cast {ast.type_to_string(strtab, from_type)} to float")
 		elif to_type.is_int():
 			let to_bits = to_type.get_bits()
 			let to_signed = to_type.is_signed_int()
@@ -1003,22 +1005,22 @@ class WasmGenerator:
 					else:
 						emit(Instruction.i32_trunc_f32_s())
 			else:
-				panic("TODO: cast {from_type} to int")
+				panic("TODO: cast {ast.type_to_string(strtab, from_type)} to int")
 		else:
-			panic("TODO: cast to {to_type}")
+			panic("TODO: cast to {ast.type_to_string(strtab, to_type)}")
 
 	fn get_local_index(id: ast.NodeId) -> int:
-		index_mapping.get(key: ast.node_id_to_string(id))
+		index_mapping.get(key: ast.node_id_to_string(strtab, id))
 
 	fn create_parameter(id: ast.NodeId, ty: ast.Type) -> int:
 		let idx = n_parameters
 		n_parameters += 1
-		index_mapping.insert(key: ast.node_id_to_string(id), value: idx)
+		index_mapping.insert(key: ast.node_id_to_string(strtab, id), value: idx)
 		idx
 
 	fn create_local(id: ast.NodeId, ty: ast.Type) -> int:
 		let idx = create_anonymous_local(ty)
-		index_mapping.insert(key: ast.node_id_to_string(id), value: idx)
+		index_mapping.insert(key: ast.node_id_to_string(strtab, id), value: idx)
 		idx
 
 	fn create_anonymous_local(ty: ast.Type) -> int:

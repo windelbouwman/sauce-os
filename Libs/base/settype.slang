@@ -2,9 +2,9 @@ module base.settype
 """Set datatype, build upon the HashMap datatype."""
 
 from optiontype import Option, option_unwrap
-from hashmap import HashMap, HashMapIter, new_hashmap, int_hash, int_eq, str_hash, str_eq
+from hashmap import HashMap, HashMapIter, new_hashmap, int_hash, int_eq, str_hash, str_eq, uint32_hash, uint32_eq
 
-pub fn new_set[T](f_hash: fn(T) -> int, f_eq: fn(T, T) -> bool) -> Set[T]:
+pub fn new_set[T](f_hash: fn(T) -> uint32, f_eq: fn(T, T) -> bool) -> Set[T]:
 	let m_items = new_hashmap(f_hash, f_eq)
 	Set(m_items)
 
@@ -15,6 +15,9 @@ pub fn new_str_set() -> Set[str]:
 
 pub fn new_int_set() -> Set[int]:
 	new_set(f_hash: int_hash, f_eq: int_eq)
+
+pub fn new_uint32_set() -> Set[uint32]:
+	new_set(f_hash: uint32_hash, f_eq: uint32_eq)
 
 pub class Set[T]:
 	var m_items: HashMap[T,bool]

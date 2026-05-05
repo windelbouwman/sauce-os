@@ -432,6 +432,13 @@ class IntegerType(TypeKind):
         self.signed = signed
         self.bits = bits
 
+    def __str__(self):
+        if self.signed and self.bits == 64:
+            return "int"
+        else:
+            prefix = "int" if self.signed else "uint"
+            return f"{prefix}{self.bits}"
+
 
 def float_type(bits: int):
     return Type(FloatType(bits))

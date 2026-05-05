@@ -6,19 +6,20 @@ from base.optiontype import Option, option_unwrap, option_is_none
 from base.listtype import List
 from base.vectype import Vector
 from base.strlib import str_join
-from base.settype import new_str_set
+from base.settype import new_uint32_set
 from location import Location
 from base.utils import panic, assert
 from base.logging import log_info
 from errors import CompilationError, ErrorCollector
+from string_table import StringTable
 
-pub fn type_check(module_defs: List[ast.ModuleDef], typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
+pub fn type_check(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
 	for module_def in module_defs:
-		type_check_module(module_def, typectx, display_warnings)
+		type_check_module(module_def, strtab, typectx, display_warnings)
 
-fn type_check_module(module_def: ast.ModuleDef, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
-	log_info("Type-checking module {module_def.get_name()}")
-	let checker = TypeChecker(m_typectx: typectx)
+fn type_check_module(module_def: ast.ModuleDef, strtab: StringTable, typectx: ast.TypeContext, display_warnings: bool) except CompilationError:
+	log_info("Type-checking module {module_def.get_name(strtab)}")
+	let checker = TypeChecker(strtab, m_typectx: typectx)
 	let visitor = new_type_check_visitor(checker)
 	checker.errors.enter_file(filename: module_def.filename)
 	ast.visit_module(visitor, module_def)
@@ -34,8 +35,8 @@ fn new_type_check_visitor(checker: TypeChecker) -> ast.Visitor[TypeChecker]:
 		on_expression: checker_on_expression
 		on_node: checker_on_node
 
-pub fn type_check_expression(typectx: ast.TypeContext, expression: ast.Expression) except CompilationError:
-	let checker = TypeChecker(m_typectx: typectx)
+pub fn type_check_expression(strtab: StringTable, typectx: ast.TypeContext, expression: ast.Expression) except CompilationError:
+	let checker = TypeChecker(strtab, m_typectx: typectx)
 	let visitor = new_type_check_visitor(checker)
 	ast.visit_expression(visitor, expression)
 	checker.errors.render_or_raise()
@@ -112,6 +113,7 @@ class TypeChecker:
 	pub var current_function: Option[ast.FunctionDef] = Option.None()
 	pub var loops: int = 0
 	pub var exception_handlers: List[ast.Type] = List()
+	var strtab: StringTable
 	var m_typectx: ast.TypeContext
 
 	pub fn check_function_def(function_def: ast.FunctionDef):
@@ -131,7 +133,7 @@ class TypeChecker:
 			Case(case_statement):
 				if case_statement.value.ty.is_enum():
 					let variant_names = case_statement.value.ty.get_enum_variant_names()
-					let uncovered_arms = new_str_set()
+					let uncovered_arms = new_uint32_set()
 					for variant_name in variant_names:
 						uncovered_arms.add(variant_name)
 					for arm in case_statement.arms:
@@ -148,18 +150,18 @@ class TypeChecker:
 								else:
 									add_error(location: arm.location, message: "Enum case covered twice")
 							None:
-								add_error(location: arm.location, message: "No such enum variant: {arm.name}")
+								add_error(location: arm.location, message: "No such enum variant: {strtab.get(arm.name)}")
 						for variable in arm.variables:
 							variable.writable = true
 					if option_is_none(case_statement.else_block):
 						let parts: List[str] = List()
 						for uncovered_arm in uncovered_arms:
-							parts.append(uncovered_arm)
+							parts.append(strtab.get(uncovered_arm))
 						if parts.len() > 0:
 							let uncovered_text = str_join(parts, sep: ", ")
 							add_error(location: statement.location, message: "Enum cases not covered: {uncovered_text}")
 				else:
-					add_error(location: case_statement.value.location, message: "Got {case_statement.value.ty}, expected enum")
+					add_error(location: case_statement.value.location, message: "Got {ast.type_to_string(strtab, case_statement.value.ty)}, expected enum")
 			For(for_statement):
 				if for_statement.iter_value.ty.is_array():
 					let size = for_statement.iter_value.ty.get_array_size()
@@ -167,20 +169,20 @@ class TypeChecker:
 						for_statement.iter_var.ty = for_statement.iter_value.ty.get_element_type()
 					else:
 						add_error(location: for_statement.iter_value.location, message: "Array size unknown")
-				elif for_statement.iter_value.ty.is_iterable_like():
+				elif for_statement.iter_value.ty.is_iterable_like(strtab):
 					# TODO: we have a few assumptions here, which panic. Should be proper warning:
-					let iter_ty: ast.Type = for_statement.iter_value.ty.get_field_type(attr: "iter").get_return_type()
-					let opt_ty: ast.Type = iter_ty.get_field_type(attr: "next").get_return_type()
-					let opt_variant = option_unwrap(opt_ty.get_enum_variant_from_type(attr: "Some"))
+					let iter_ty: ast.Type = for_statement.iter_value.ty.get_field_type(attr: strtab.intern("iter")).get_return_type()
+					let opt_ty: ast.Type = iter_ty.get_field_type(attr: strtab.intern("next")).get_return_type()
+					let opt_variant = option_unwrap(opt_ty.get_enum_variant_from_type(attr: strtab.intern("Some")))
 					let val_ty: ast.Type = ast.get_variant_payload_types(ty: opt_ty, variant: opt_variant).first()
 					for_statement.iter_var.ty = val_ty
-				elif for_statement.iter_value.ty.is_sequence_like():
-					let val_ty: ast.Type = for_statement.iter_value.ty.get_field_type(attr: "get").get_return_type()
+				elif for_statement.iter_value.ty.is_sequence_like(strtab):
+					let val_ty: ast.Type = for_statement.iter_value.ty.get_field_type(attr: strtab.intern("get")).get_return_type()
 					for_statement.iter_var.ty = val_ty
 				elif for_statement.iter_value.ty.is_str():
 					for_statement.iter_var.ty = m_typectx.char_type()
 				else:
-					add_error(location: for_statement.iter_value.location, message: "Value cannot be iterated: {for_statement.iter_value.ty}")
+					add_error(location: for_statement.iter_value.location, message: "Value cannot be iterated: {ast.type_to_string(strtab, for_statement.iter_value.ty)}")
 				for_statement.iter_var.writable = true
 			Try(try_statement):
 				exception_handlers.drop_last()
@@ -299,9 +301,9 @@ class TypeChecker:
 									case argument.name:
 										Some(name):
 											if not (label == name):
-												add_error(location: argument.location, message: "Got label '{name}', expected label '{label}'")
+												add_error(location: argument.location, message: "Got label '{strtab.get(name)}', expected label '{strtab.get(label)}'")
 										None:
-											add_error(location: argument.location, message: "Expected a labeled argument '{label}'")
+											add_error(location: argument.location, message: "Expected a labeled argument '{strtab.get(label)}'")
 								None:
 									pass
 
@@ -319,7 +321,7 @@ class TypeChecker:
 					if not except_type.is_void():
 						check_may_raise_exception(ty: except_type, location: expression.location)
 				else:
-					add_error(location: expression.location, message: "Cannot call non-function type {call.callee.ty}")
+					add_error(location: expression.location, message: "Cannot call non-function type {ast.type_to_string(strtab, call.callee.ty)}")
 			ParameterRef(parameter_def):
 				# TODO: clone type?
 				# log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {parameter.ty}")
@@ -334,18 +336,18 @@ class TypeChecker:
 			TypeCast(ty, value):
 				if ty.is_int():
 					if not (value.ty.is_int() or value.ty.is_float()):
-						add_error(location: expression.location, message: "Cannot cast to int from {value.ty}")
+						add_error(location: expression.location, message: "Cannot cast to int from {ast.type_to_string(strtab, value.ty)}")
 				elif ty.is_float():
 					if not (value.ty.is_int() or value.ty.is_float()):
-						add_error(location: expression.location, message: "Cannot cast to float from {value.ty}")
+						add_error(location: expression.location, message: "Cannot cast to float from {ast.type_to_string(strtab, value.ty)}")
 				elif ty.is_interface():
 					pass  # We can cast anything to an interface.
 				else:
-					add_error(location: expression.location, message: "Cannot cast '{value.ty}' to '{ty}'")
+					add_error(location: expression.location, message: "Cannot cast '{ast.type_to_string(strtab, value.ty)}' to '{ast.type_to_string(strtab, ty)}'")
 				expression.ty = ty
 			ToString(value):
-				if not (value.ty.is_int() or value.ty.is_str() or value.ty.is_char() or value.ty.has_method("to_string")):
-					add_error(location: expression.location, message: "Cannot convert {value.ty} to string automatically")
+				if not (value.ty.is_int() or value.ty.is_str() or value.ty.is_char() or value.ty.has_method(strtab.intern("to_string"))):
+					add_error(location: expression.location, message: "Cannot convert {ast.type_to_string(strtab, value.ty)} to string automatically")
 				expression.ty = m_typectx.str_type()
 			Typ(t):
 				add_error(location: expression.location, message: "Cannot use a type here")
@@ -371,43 +373,43 @@ class TypeChecker:
 						if ty.is_float() or ty.is_int():
 							expression.ty = ty
 						else:
-							add_error(location: expression.location, message: "Got {ty}, but unary '-' requires numeric type")
+							add_error(location: expression.location, message: "Got {ast.type_to_string(strtab, ty)}, but unary '-' requires numeric type")
 					Not:
 						let ty = rhs.ty
 						if ty.is_bool():
 							expression.ty = ty
 						else:
-							add_error(location: expression.location, message: "Got {ty}, but 'not' operator requires bool type")
+							add_error(location: expression.location, message: "Got {ast.type_to_string(strtab, ty)}, but 'not' operator requires bool type")
 			NameRef(name):
-				panic("names must be resolved: {name}")
+				panic("names must be resolved: {strtab.get(name)}")
 			LoadSymbol(symbol):
-				panic("symbols should be resolved: {symbol}")
+				panic("symbols should be resolved: {ast.symbol_to_string(strtab, symbol)}")
 			Variant(ty, v):
 				add_error(location: expression.location, message: "variants must be literals")
 			Null:
 				pass
 			GetAttr(base, attr):
-				let also_private = base.is_this()
+				let also_private = base.is_this(strtab)
 				case base.ty.maybe_get_field_type(attr, also_private):
 					Some(ty):
 						expression.ty = ty
 						expression.writable = true
 					None:
-						add_error(location: expression.location, message: "Type {base.ty} has no public field: {attr}")
+						add_error(location: expression.location, message: "Type {ast.type_to_string(strtab, base.ty)} has no public field: {strtab.get(attr)}")
 						expression.ty = ast.undefined_type()
 			GetIndex(base, indici):
 				if base.ty.is_array():
 					expression.ty = base.ty.get_element_type()
 					expression.writable = base.writable
-				elif base.ty.has_method("get"):
+				elif base.ty.has_method(strtab.intern("get")):
 					# Maybe we try to access an object with get/set interface
 					# TODO: we have a few assumptions here, which panic. Should be proper warning:
-					let val_ty: ast.Type = base.ty.get_field_type(attr: "get").get_return_type()
+					let val_ty: ast.Type = base.ty.get_field_type(attr: strtab.intern("get")).get_return_type()
 					expression.ty = val_ty
 				elif base.ty.is_str():
 					expression.ty = m_typectx.char_type()
 				else:
-					add_error(location: expression.location, message: "Got {base.ty}, expected array or indexable type")
+					add_error(location: expression.location, message: "Got {ast.type_to_string(strtab, base.ty)}, expected array or indexable type")
 
 				if indici.len() == 1:
 					let index: ast.Expression = indici.first()
@@ -491,7 +493,7 @@ class TypeChecker:
 		else:
 			let expected_exception_type = exception_handlers.last()
 			if not unify(ty1: ty, ty2: expected_exception_type):
-				add_error(location, message: "Raised {ty}, expected: {expected_exception_type}")
+				add_error(location, message: "Raised {ast.type_to_string(strtab, ty)}, expected: {ast.type_to_string(strtab, expected_exception_type)}")
 
 	fn assert_void(statement: ast.Statement):
 		if not statement.ty.is_unreachable():
@@ -526,7 +528,7 @@ class TypeChecker:
 
 	fn check_type(given_ty: ast.Type, expected_ty: ast.Type, location: Location):
 		if not unify(ty1: given_ty, ty2: expected_ty):
-			add_error(location, message: "Got {given_ty}, expected {expected_ty}")
+			add_error(location, message: "Got {ast.type_to_string(strtab, given_ty)}, expected {ast.type_to_string(strtab, expected_ty)}")
 
 	fn unify(ty1: ast.Type, ty2: ast.Type) -> bool:
 		if ty1.is_base_type() and ty2.is_base_type():

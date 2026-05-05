@@ -13,11 +13,12 @@ import ast
 from text_gen import TextGenerator
 from base.optiontype import Option, option_unwrap
 from base.listtype import List
+from string_table import StringTable
 
-pub fn gen_slang(module_defs: List[ast.ModuleDef], output_filename: Option[str]):
+pub fn gen_slang(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[str]):
 	"""Create slang-lang source code."""
 	log_info("Generating slang code")
-	let g = SlangGenerator()
+	let g = SlangGenerator(strtab)
 	g.out.begin(output_filename)
 	g.out.m_one_tab = "\t"
 	for module_def in module_defs:
@@ -26,6 +27,7 @@ pub fn gen_slang(module_defs: List[ast.ModuleDef], output_filename: Option[str])
 
 class SlangGenerator:
 	pub var out: TextGenerator = TextGenerator()
+	var strtab: StringTable
 
 	pub fn gen_module(module_def: ast.ModuleDef):
 		for definition in module_def.definitions:
@@ -48,13 +50,14 @@ class SlangGenerator:
 				if not function_def.info.except_type.is_void():
 					return_types = return_types + " except {gen_type(function_def.info.except_type)}"
 
+				let func_name = strtab.get(function_def.name)
 				case function_def.body:
 					Intern(scoped_block):
-						emit("fn {function_def.name}({params}){return_types}:")
+						emit("fn {func_name}({params}){return_types}:")
 						gen_block(scoped_block)
 						emit("")
 					Extern(libname):
-						emit("extern \"{libname}\" fn {function_def.name}({params}){return_types}")
+						emit("extern \"{libname}\" fn {func_name}({params}){return_types}")
 					None:
 						panic("Function declarations not supported")
 			Struct(struct_def):
@@ -63,7 +66,7 @@ class SlangGenerator:
 				indent()
 				for field in struct_def.fields:
 					let typed_name = gen_type(field.ty)
-					emit("{field.name}: {gen_type(field.ty)}")
+					emit("{strtab.get(field.name)}: {gen_type(field.ty)}")
 				dedent()
 				emit("")
 			Var(variable_def):
@@ -79,7 +82,7 @@ class SlangGenerator:
 					Extern(libname, initialized):
 						emit("extern var {variable_name}")
 		else:
-			panic("gen_definition: Unsupported: {ast.definition_to_str(definition)}")
+			panic("gen_definition: Unsupported: {ast.definition_to_str(strtab, definition)}")
 
 	fn gen_type(ty?: ast.Type) -> str:
 		if ty.is_int():
@@ -121,7 +124,7 @@ class SlangGenerator:
 		elif ty.is_undefined():
 			"undefined"
 		else:
-			panic("gen_type: Unsupported: {ty}")
+			panic("gen_type: Unsupported: {ast.type_to_string(strtab, ty)}")
 
 	fn gen_block(block?: ast.ScopedBlock):
 		indent()
@@ -184,7 +187,7 @@ class SlangGenerator:
 			Unreachable:
 				emit("unreachable")
 		else:
-			panic("gen_statement: Unsupported: {statement}")
+			panic("gen_statement: Unsupported: {ast.statement_to_string(strtab, statement)}")
 
 	fn gen_if_statement(if_statement: ast.IfStatement, kw: str):
 		emit("{kw} {gen_expression(if_statement.condition, parens: false)}:")
@@ -222,7 +225,7 @@ class SlangGenerator:
 				let parts: List[str] = List()
 				for field in struct_def.fields:
 					let value = option_unwrap(value_iter.next())
-					parts.append("{field.name}: {gen_expression(value, parens: false)}")
+					parts.append("{strtab.get(field.name)}: {gen_expression(value, parens: false)}")
 				let args = str_join(parts, sep: ", ")
 				"{name}({args})"
 			ArrayLiteral(values):
@@ -237,7 +240,7 @@ class SlangGenerator:
 			VariableRef(variable):
 				get_id(variable.id)
 			FunctionRef(function_def, type_arguments):
-				function_def.name
+				strtab.get(function_def.name)
 			TypeCast(ty, value):
 				"{gen_type(ty)}({gen_expression(value, parens: false)})"
 			Box(value):
@@ -252,7 +255,7 @@ class SlangGenerator:
 				"{gen_expression(call.callee, parens: true)}({argument_text})"
 			GetAttr(base, attr):
 				let b = gen_expression(base, parens: true)
-				"{b}.{attr}"
+				"{b}.{strtab.get(attr)}"
 			GetIndex(base, indici):
 				let b = gen_expression(base, parens: true)
 				let i = gen_expression_list(expressions: indici)
@@ -272,7 +275,7 @@ class SlangGenerator:
 			If(if_expression):
 				"{gen_expression(if_expression.true_value, parens: true)} if {gen_expression(if_expression.condition, parens: true)} else {gen_expression(if_expression.false_value, parens: true)}"
 		else:
-			panic("Unsupported: {expression}")
+			panic("Unsupported: {ast.expression_to_string(strtab, expression)}")
 
 	fn gen_expression_list(expressions: List[ast.Expression]) -> str:
 		let parts: List[str] = List()
@@ -281,7 +284,7 @@ class SlangGenerator:
 		str_join(parts, sep: ", ")
 
 	fn get_id(id?: ast.NodeId) -> str:
-		"X{id.id}_{id.name}"
+		"X{id.id}_{strtab.get(id.name)}"
 
 	fn emit(txt?: str):
 		out.emit(txt)

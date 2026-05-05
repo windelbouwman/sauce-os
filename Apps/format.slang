@@ -12,6 +12,7 @@ from base.utils import panic
 from base.logging import log_info, log_debug, log_error, set_log_level
 from base.fs import Path, new_path
 from compiler.parsing.lexer import Lexer
+from compiler.string_table import StringTable
 from base.strlib import str_repeat, split_lines, StringBuilder
 from base.diff import diff_lines
 from compiler.parsing.token import token_to_string, Token
@@ -79,14 +80,15 @@ fn parse_arguments() -> Arguments:
 fn format_source(source_path: Path, arguments: Arguments, status: Status):
 	"""Format a single source file"""
 	log_debug("formatting {source_path} ...")
+	let strtab = StringTable()
 	let tokens: List[Token] = List()
 	try:
-		read_tokens(path: source_path, tokens)
+		read_tokens(strtab, path: source_path, tokens)
 	except (message: str):
 		log_error("Cannot read {source_path}: {message}")
 		status.invalid_files += 1
 		return
-	let formatted_lines = format_tokens(tokens)
+	let formatted_lines = format_tokens(strtab, tokens)
 	let original_lines = source_path.read_lines()
 	if run_line_diff(original_lines, formatted_lines) == 0:
 		log_info("No formatting required for {source_path}")
@@ -113,9 +115,9 @@ fn run_line_diff(a?: Vector[str], b?: Vector[str]) -> int:
 				n_diffs += 1
 	n_diffs
 
-fn read_tokens(path: Path, tokens: List[Token]) except str:
+fn read_tokens(strtab: StringTable, path: Path, tokens: List[Token]) except str:
 	let source = path.read_text()
-	let lex = Lexer()
+	let lex = Lexer(strtab)
 	lex.init(source)
 	lex.keep_comments()
 
@@ -129,7 +131,7 @@ fn read_tokens(path: Path, tokens: List[Token]) except str:
 		else:
 			tokens.append(token)
 
-fn format_tokens(tokens: List[Token]) -> Vector[str]:
+fn format_tokens(strtab: StringTable, tokens: List[Token]) -> Vector[str]:
 	"""Format a list of tokens into text lines."""
 	let out = Gen()
 	var in_string = false
@@ -140,7 +142,7 @@ fn format_tokens(tokens: List[Token]) -> Vector[str]:
 	var in_if = false
 	for token in tokens:
 		case token.kind:
-			Identifier(id): out.separated(id)
+			Identifier(id): out.separated(strtab.get(id))
 
 			KwAnd: out.spaced("and")
 			KwBreak: out.text("break")
@@ -262,7 +264,7 @@ fn format_tokens(tokens: List[Token]) -> Vector[str]:
 				out.emit("  " + comment)
 				out.newline()
 			TabbedComment(tabs, comment):
-				let tab_text = str_repeat(text: "\t", count: tabs)
+				let tab_text = str_repeat(text: "\t", count: int(tabs))
 				out.raw_line(tab_text + comment)
 			Indent: out.indent()
 			Dedent: out.dedent()

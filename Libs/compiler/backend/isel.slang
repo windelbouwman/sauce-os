@@ -2,7 +2,7 @@ module compiler.isel
 """Instruction selection related code."""
 
 from base.listtype import List
-from base.hashmap import HashMap, new_hashmap_int
+from base.hashmap import HashMap, new_hashmap_int, new_hashmap_uint32
 from base.vectype import Vector, new_vector
 from base.bytes import ByteArray
 from outstream import BinaryOutput, DataItem
@@ -32,7 +32,7 @@ pub struct Frame:
 pub class SelectionContext[V]:
 	var codes: Vector[mil.Instruction[V]] = new_vector()
 	var m_tmp_regs: HashMap[int,mil.Register] = new_hashmap_int()
-	var m_pre_colored_regs: HashMap[int,mil.Register] = new_hashmap_int()
+	var m_pre_colored_regs: HashMap[uint32,mil.Register] = new_hashmap_uint32()
 	pub var frame: Frame
 
 	pub fn get_value_vreg(value?: sil.Value) -> mil.Register:
@@ -58,7 +58,7 @@ pub class SelectionContext[V]:
 
 	pub fn get_pre_colored(color: int, kind: int) -> mil.Register:
 		# TODO: maybe index by tuple of color/kind?
-		let key = 1000 * kind + color
+		let key = uint32(1000 * kind + color)
 		if m_pre_colored_regs.contains(key):
 			m_pre_colored_regs.get(key)
 		else:

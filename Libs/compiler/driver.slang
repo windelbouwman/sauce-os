@@ -15,6 +15,7 @@ from base.logging import log_error, log_info, log_trace, log_debug
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
 from basepass import IdGen
+from string_table import StringTable
 from transforms import transform, TransformOptions
 from builtins import get_rt_module
 from base.listtype import List, list1
@@ -80,7 +81,7 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 	builder.m_profiler.enter(name: "compile")
 
 	for filename in options.add_imports:
-		let imported_modules = load_symbol_table(filename, typectx: builder.m_typectx)
+		let imported_modules = load_symbol_table(filename, strtab: builder.strtab, typectx: builder.m_typectx)
 		for module_def in imported_modules:
 			builder.add_module(module_def)
 
@@ -109,11 +110,11 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 		Null:  # no-op backend.
 			pass
 		Python:
-			gen_python(module_defs: builder.m_modules, output_filename: options.output_filename)
+			gen_python(strtab: builder.strtab, module_defs: builder.m_modules, output_filename: options.output_filename)
 		Slang:
-			gen_slang(module_defs: builder.m_modules, output_filename: options.output_filename)
+			gen_slang(strtab: builder.strtab, module_defs: builder.m_modules, output_filename: options.output_filename)
 		Bytecode:
-			let program = gen_bytecode(module_defs: builder.m_modules, debug: builder.m_debug)
+			let program = gen_bytecode(strtab: builder.strtab, module_defs: builder.m_modules, debug: builder.m_debug)
 			if options.run_code:
 				if options.verbosity > 1:
 					bc.print_bc_program(program)
@@ -123,30 +124,30 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 				bc.print_bc_program_to_file(program, filename: options.output_filename)
 		C:
 			# Generate C-code via bytecode:
-			let program = gen_bytecode(module_defs: builder.m_modules, debug: builder.m_debug)
+			let program = gen_bytecode(strtab: builder.strtab, module_defs: builder.m_modules, debug: builder.m_debug)
 			if options.verbosity > 1:
 				bc.print_bc_program(program)
 			gen_c_code(program, output_filename: options.output_filename)
 		C2:
 			# Generate C-code straight from AST:
-			gen_c_code_v2(module_defs: builder.m_modules, output_filename: options.output_filename)
+			gen_c_code_v2(strtab: builder.strtab, module_defs: builder.m_modules, output_filename: options.output_filename)
 		WebAssembly(binary):
 			if binary:
 				let filename = option_unwrap_or(option: options.output_filename, default: "out.wasm")
-				gen_webassembly_binary(module_defs: builder.m_modules, typectx: builder.m_typectx, filename)
+				gen_webassembly_binary(module_defs: builder.m_modules, strtab: builder.strtab, typectx: builder.m_typectx, filename)
 			else:
-				gen_webassembly_text(module_defs: builder.m_modules, typectx: builder.m_typectx, output_filename: options.output_filename)
+				gen_webassembly_text(module_defs: builder.m_modules, strtab: builder.strtab, typectx: builder.m_typectx, output_filename: options.output_filename)
 		Sil:
-			let bc_program = gen_bytecode(module_defs: builder.m_modules, debug: builder.m_debug)
+			let bc_program = gen_bytecode(strtab: builder.strtab, module_defs: builder.m_modules, debug: builder.m_debug)
 			let sil_program = to_sil(program: bc_program, bits: 64)
 			sil.print_sil_program_to_file(program: sil_program, filename: options.output_filename)
 		Riscv:
-			let bc_program = gen_bytecode(module_defs: builder.m_modules, debug: builder.m_debug)
+			let bc_program = gen_bytecode(strtab: builder.strtab, module_defs: builder.m_modules, debug: builder.m_debug)
 			let sil_program = to_sil(program: bc_program, bits: 32)
 			optimize_sil(program: sil_program, level: options.optimization_level)
 			gen_riscv(program: sil_program, options: cgen_options)
 		X86:
-			let bc_program = gen_bytecode(module_defs: builder.m_modules, debug: builder.m_debug)
+			let bc_program = gen_bytecode(strtab: builder.strtab, module_defs: builder.m_modules, debug: builder.m_debug)
 			let sil_program = to_sil(program: bc_program, bits: 64)
 			optimize_sil(program: sil_program, level: options.optimization_level)
 			gen_x86(program: sil_program, options: cgen_options)
@@ -159,9 +160,10 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 
 fn new_builder(options: CompilationOptions) -> Builder:
 	let typectx = ast.make_typectx()
-	let rt_module = get_rt_module(typectx)
+	let strtab = StringTable()
+	let rt_module = get_rt_module(strtab, typectx)
 	let debug = Option.Some(DbgInfo()) if options.debug else Option.None()
-	let builder = Builder(options, m_typectx: typectx, m_rt_module: rt_module, m_debug: debug)
+	let builder = Builder(options, m_typectx: typectx, m_rt_module: rt_module, strtab, m_debug: debug)
 	builder.add_module(module_def: rt_module)
 	builder
 
@@ -172,36 +174,37 @@ class Builder:
 	pub var m_modules: List[ast.ModuleDef] = List()
 	pub var m_typectx: ast.TypeContext
 	var m_rt_module: ast.ModuleDef
+	pub var strtab: StringTable
 	pub var m_debug: Option[DbgInfo]
 
 	pub fn add_module(module_def: ast.ModuleDef):
 		m_modules.append(module_def)
 
 	pub fn parse_module(path: Path) except ParseError:
-		let program = parse_source(path, id_gen: m_id_gen, typectx: m_typectx, debug: m_debug)
-		log_trace("Parsed module: {program.get_name()}")
+		let program = parse_source(path, id_gen: m_id_gen, typectx: m_typectx, strtab, debug: m_debug)
+		log_trace("Parsed module: {program.get_name(strtab)}")
 		if options.dump_ast:
-			ast.print_ast(module_def: program)
+			ast.print_ast(strtab, module_def: program)
 		add_module(module_def: program)
 
 	pub fn do_transform() except CompilationError:
 		"""Perform type checking and transformation on the added modules"""
 		m_profiler.enter(name: "binding")
-		bind_names(module_defs: m_modules, typectx: m_typectx)
-		resolve_newops(module_defs: m_modules, id_gen: m_id_gen)
+		bind_names(module_defs: m_modules, strtab, typectx: m_typectx)
+		resolve_newops(strtab, module_defs: m_modules, id_gen: m_id_gen)
 		m_profiler.leave()
 
 		if options.dump_ast:
-			ast.print_ast2(module_defs: m_modules)
+			ast.print_ast2(strtab, module_defs: m_modules)
 
 		m_profiler.enter(name: "typecheck")
-		type_check(module_defs: m_modules, typectx: m_typectx, display_warnings: true)
+		type_check(module_defs: m_modules, strtab, typectx: m_typectx, display_warnings: true)
 		m_profiler.leave()
 
 		m_profiler.enter(name: "export")
 		case options.gen_export:
 			Some(filename):
-				store_symbol_table(module_defs: m_modules, filename)
+				store_symbol_table(strtab, module_defs: m_modules, filename)
 			None:
 				pass
 		m_profiler.leave()
@@ -216,15 +219,15 @@ class Builder:
 		# 	pass
 
 		m_profiler.enter(name: "transform")
-		transform(module_defs: m_modules, typectx: m_typectx, id_gen: m_id_gen, rt_module: m_rt_module, options: transform_options)
+		transform(module_defs: m_modules, strtab, typectx: m_typectx, id_gen: m_id_gen, rt_module: m_rt_module, options: transform_options)
 		m_profiler.leave()
 
 		if options.dump_ast:
-			ast.print_ast2(module_defs: m_modules)
+			ast.print_ast2(strtab, module_defs: m_modules)
 
 		m_profiler.enter(name: "typecheck")
-		type_check(module_defs: m_modules, typectx: m_typectx, display_warnings: false)
+		type_check(module_defs: m_modules, strtab, typectx: m_typectx, display_warnings: false)
 		m_profiler.leave()
 
 		if options.dump_ast:
-			ast.print_ast2(module_defs: m_modules)
+			ast.print_ast2(strtab, module_defs: m_modules)

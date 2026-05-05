@@ -15,6 +15,10 @@ pub fn new_hashmap_int[V]() -> HashMap[int,V]:
 	"""Create a new hashmap with integer keys"""
 	new_hashmap(f_hash: int_hash, f_eq: int_eq)
 
+pub fn new_hashmap_uint32[V]() -> HashMap[uint32,V]:
+	"""Create a new hashmap with uin32 keys"""
+	new_hashmap(f_hash: uint32_hash, f_eq: uint32_eq)
+
 pub fn new_hashmap_str[V]() -> HashMap[str,V]:
 	"""Create a new hashmap with string keys"""
 	new_hashmap(f_hash: str_hash, f_eq: str_eq)
@@ -23,12 +27,12 @@ pub fn new_hashmap_char[V]() -> HashMap[char,V]:
 	"""Create a new hashmap with char keys"""
 	new_hashmap(f_hash: char_hash, f_eq: char_eq)
 
-pub fn new_hashmap[K,V](f_hash: fn(K) -> int, f_eq: fn(K, K) -> bool) -> HashMap[K,V]:
+pub fn new_hashmap[K,V](f_hash: fn(K) -> uint32, f_eq: fn(K, K) -> bool) -> HashMap[K,V]:
 	let m: HashMap[K,V] = HashMap(f: HashableApi(f_hash, f_eq))
 	m.init()
 	m
 
-pub fn str_hash(text?: str) -> int:
+pub fn str_hash(text?: str) -> uint32:
 	djb2(text)
 
 pub fn str_eq(a?: str, b?: str) -> bool:
@@ -37,14 +41,20 @@ pub fn str_eq(a?: str, b?: str) -> bool:
 pub fn int_eq(a: int, b: int) -> bool:
 	a == b
 
-pub fn int_hash(x: int) -> int:
+pub fn int_hash(x: int) -> uint32:
+	uint32(x)
+
+pub fn uint32_eq(a: uint32, b: uint32) -> bool:
+	a == b
+
+pub fn uint32_hash(x: uint32) -> uint32:
 	x
 
 pub fn char_eq(a: char, b: char) -> bool:
 	a == b
 
-pub fn char_hash(x: char) -> int:
-	ord(x)
+pub fn char_hash(x: char) -> uint32:
+	uint32(ord(x))
 
 pub class HashMap[K,V]:
 	pub var num_buckets: int = 0
@@ -70,14 +80,14 @@ pub class HashMap[K,V]:
 					break
 		Option.None()
 
-	fn get_hash(key: K) -> int:
+	fn get_hash(key: K) -> uint32:
 		var value = this.f.f_hash(key)
-		-value if value < 0 else value
+		value
 
-	fn get_index(hash: int) -> int:
+	fn get_index(hash: uint32) -> int:
 		if num_buckets == 0:
 			panic("Uninitialized hashmap!")
-		hash % num_buckets
+		int(hash) % num_buckets
 
 	pub fn contains(key: K) -> bool:
 		option_is_some(maybe_get(key))
@@ -252,11 +262,11 @@ pub class HashMapIter[K,V]:
 		Option.None()
 
 struct HashableApi[T]:
-	f_hash: fn(T) -> int
+	f_hash: fn(T) -> uint32
 	f_eq: fn(T, T) -> bool
 
 struct KeyValuePair[K,V]:
 	key: K
-	hash: int
+	hash: uint32
 	value: V
 	next: Option[KeyValuePair[K,V]]

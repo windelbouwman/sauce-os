@@ -10,10 +10,11 @@ from base.settype import Set, new_str_set
 from std import float_to_str2, str_len, str_slice
 from base.strlib import str_join
 from text_gen import TextGenerator
+from string_table import StringTable
 
-pub fn gen_python(module_defs: List[ast.ModuleDef], output_filename: Option[str]):
+pub fn gen_python(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[str]):
 	log_info("Generating python code")
-	let g = PyGenerator()
+	let g = PyGenerator(strtab)
 	g.out.begin(output_filename)
 	g.generate(module_defs)
 	g.out.end()
@@ -22,6 +23,7 @@ class PyGenerator:
 	pub var out: TextGenerator = TextGenerator()
 	var global_header: str = ""
 	var importe_modules: Set[str] = new_str_set()
+	var strtab: StringTable
 
 	pub fn generate(module_defs: List[ast.ModuleDef]):
 		emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
@@ -29,7 +31,7 @@ class PyGenerator:
 		var has_main = false
 		for module_def in module_defs:
 			gen_module(module_def)
-			if module_def.scope.is_defined(name: "main"):
+			if module_def.scope.is_defined(name: strtab.intern("main")):
 				has_main = true
 		if has_main:
 			emit("if __name__ == '__main__':")
@@ -82,7 +84,7 @@ class PyGenerator:
 						for parameter in function_def.parameters:
 							parameter_names.append(get_id(id: parameter.id))
 						let params = str_join(parts: parameter_names, sep: ", ")
-						emit("def {function_def.name}({params}):")
+						emit("def {strtab.get(function_def.name)}({params}):")
 						if str_len(text: global_header) > 0:
 							indent()
 							emit(global_header)
@@ -106,16 +108,17 @@ class PyGenerator:
 			Struct(struct_def):
 				if struct_def.is_union:
 					panic("Unions not supported")
-				emit("class {struct_def.id.name}:")
+				emit("class {strtab.get(struct_def.id.name)}:")
 				indent()
 				let parameter_names: List[str] = List()
 				for field in struct_def.fields:
-					parameter_names.append(field.name)
+					parameter_names.append(strtab.get(field.name))
 				let params = str_join(parts: parameter_names, sep: ", ")
 				emit("def __init__(self, {params}):")
 				indent()
 				for field in struct_def.fields:
-					emit("self.{field.name} = {field.name}")
+					let field_name = strtab.get(field.name)
+					emit("self.{field_name} = {field_name}")
 				dedent()
 				dedent()
 				emit("")
@@ -216,7 +219,7 @@ class PyGenerator:
 			Unreachable:
 				emit("raise RuntimeError('unreachable')")
 		else:
-			panic("gen_statement: Unsupported: {statement}")
+			panic("gen_statement: Unsupported: {ast.statement_to_string(strtab, statement)}")
 
 	fn gen_if_statement(if_statement: ast.IfStatement, kw: str, target: Option[str]):
 		emit("{kw} {gen_expression(if_statement.condition, parens: false)}:")
@@ -250,7 +253,7 @@ class PyGenerator:
 			StructLiteral(ty, values):
 				let struct_def = ty.get_struct_def()
 				let args = gen_expression_list(expressions: values)
-				"{struct_def.id.name}({args})"
+				"{strtab.get(struct_def.id.name)}({args})"
 			ArrayLiteral(values):
 				let args = gen_expression_list(expressions: values)
 				"[{args}]"
@@ -259,7 +262,7 @@ class PyGenerator:
 				"[None] * {size_txt}"
 			GetAttr(base, attr):
 				let b = gen_expression(base, parens: true)
-				"{b}.{attr}"
+				"{b}.{strtab.get(attr)}"
 			GetIndex(base, indici):
 				let b = gen_expression(base, parens: true)
 				let i = gen_expression_list(expressions: indici)
@@ -271,7 +274,7 @@ class PyGenerator:
 				elif ty.is_int():
 					wrap_int(value: "int({txt})", ty)
 				else:
-					panic("Cannot cast to {ty}")
+					panic("Cannot cast to {ast.type_to_string(strtab, ty)}")
 			Box(value):
 				gen_expression(value, parens: true)
 			Unbox(value, to_type):
@@ -281,13 +284,14 @@ class PyGenerator:
 			VariableRef(variable):
 				get_id(id: variable.id)
 			FunctionRef(function_def, type_arguments):
+				let func_name = strtab.get(function_def.name)
 				case function_def.body:
 					Extern(libname):
-						"{libname}.{function_def.name}"
+						"{libname}.{func_name}"
 					Intern(body):
-						function_def.name
+						func_name
 					None:
-						function_def.name
+						func_name
 			Call(call):
 				let expressions: List[ast.Expression] = List()
 				for argument in call.arguments:
@@ -323,7 +327,7 @@ class PyGenerator:
 				let txt = "{true_value} if {condition} else {false_value}"
 				"({txt})" if parens else txt
 		else:
-			panic("Unsupported: {expression}")
+			panic("Unsupported: {ast.expression_to_string(strtab, expression)}")
 
 	fn gen_expression_list(expressions: List[ast.Expression]) -> str:
 		let parts: List[str] = List()
@@ -332,7 +336,7 @@ class PyGenerator:
 		str_join(parts, sep: ", ")
 
 	fn get_id(id: ast.NodeId) -> str:
-		"X{id.id}_{id.name}"
+		"X{id.id}_{strtab.get(id.name)}"
 
 	fn emit(txt?: str):
 		out.emit(txt)

@@ -12,8 +12,9 @@ from base.json import JsonBuilder, JsonException, write_json_to_file, read_json_
 from base.json import JsonValue, JsonBrowser
 from location import location_default
 import ast
+from string_table import StringTable
 
-pub fn store_symbol_table(module_defs: List[ast.ModuleDef], filename: str):
+pub fn store_symbol_table(strtab: StringTable, module_defs: List[ast.ModuleDef], filename: str):
 	# Save symbol table for later use.
 	# This is useful when saving a symbol table
 	# to file.
@@ -23,13 +24,14 @@ pub fn store_symbol_table(module_defs: List[ast.ModuleDef], filename: str):
 
 	# TODO: we could use ast.Visitor here
 	let libname = basename(path: filename)
-	let saver = SymbolSaver(m_libname: libname)
+	let saver = SymbolSaver(strtab, m_libname: libname)
 
 	let obj = saver.save_modules(module_defs)
 	write_json_to_file(filename, obj)
 
 class SymbolSaver:
 	var m_ser: JsonBuilder = JsonBuilder()
+	var strtab: StringTable
 	var m_libname: str
 
 	pub fn save_modules(module_defs: List[ast.ModuleDef]) -> JsonValue:
@@ -39,16 +41,16 @@ class SymbolSaver:
 		m_ser.begin_array()
 		for module_def in module_defs:
 			if option_is_some(module_def.filename):
-				log_info("Saving meta-info for module: {module_def.get_name()}")
+				log_info("Saving meta-info for module: {module_def.get_name(strtab)}")
 				save_module(module_def)
 			else:
-				log_debug("Skip saving meta-info for module: {module_def.get_name()}")
+				log_debug("Skip saving meta-info for module: {module_def.get_name(strtab)}")
 		m_ser.end_array_as_attribute(attr: "modules")
 		m_ser.end_object()
 
 	fn save_module(module_def: ast.ModuleDef):
 		m_ser.begin_object()
-		save_string_list(attr: "namespace", module_def.namespace)
+		save_name_list(attr: "namespace", module_def.namespace)
 		m_ser.begin_array()
 		for imp in module_def.imports:
 			save_import(imp)
@@ -65,10 +67,10 @@ class SymbolSaver:
 			None:
 				pass
 			Some(namespace):
-				save_string_list(attr: "namespace", text: namespace)
+				save_name_list(attr: "namespace", text: namespace)
 		m_ser.begin_array()
 		for name in imp.names:
-			m_ser.add_text_as_element(text: name.name)
+			m_ser.add_text_as_element(text: strtab.get(name.name))
 		m_ser.end_array_as_attribute(attr: "names")
 		m_ser.end_object_as_element()
 
@@ -90,7 +92,7 @@ class SymbolSaver:
 		else:
 			pass
 
-		log_debug("Saving {ast.definition_to_str(definition)}")
+		log_debug("Saving {ast.definition_to_str(strtab, definition)}")
 		m_ser.begin_object()
 		case definition:
 			Macro(macro_def):
@@ -144,7 +146,7 @@ class SymbolSaver:
 		m_ser.begin_array()
 		for variant in enum_def.variants:
 			m_ser.begin_object()
-			m_ser.add_text_attribute(attr: "name", text: variant.name)
+			m_ser.add_text_attribute(attr: "name", text: strtab.get(variant.name))
 			save_types(attr: "payload", types: variant.payload)
 			m_ser.end_object_as_element()
 		m_ser.end_array_as_attribute(attr: "variants")
@@ -164,7 +166,7 @@ class SymbolSaver:
 	fn save_function_def(function_def: ast.FunctionDef):
 		m_ser.add_text_attribute(attr: "kind", text: "function")
 		m_ser.add_boolean_attribute(attr: "pub", value: function_def.is_pub)
-		m_ser.add_text_attribute(attr: "name", text: function_def.name)
+		m_ser.add_text_attribute(attr: "name", text: strtab.get(function_def.name))
 		m_ser.add_integer_attribute(attr: "id", value: 0)
 		save_type_parameters(type_parameters: function_def.type_parameters)
 		save_doc_string(docstring: function_def.docstring)
@@ -173,7 +175,7 @@ class SymbolSaver:
 		m_ser.begin_array()
 		for parameter_def in function_def.parameters:
 			m_ser.begin_object()
-			m_ser.add_text_attribute(attr: "name", text: parameter_def.id.name)
+			m_ser.add_text_attribute(attr: "name", text: strtab.get(parameter_def.id.name))
 			m_ser.add_boolean_attribute(attr: "label_is_optional", value: parameter_def.label_is_optional)
 			save_type(attr: "type", ty: parameter_def.ty)
 			m_ser.end_object_as_element()
@@ -190,7 +192,7 @@ class SymbolSaver:
 		save_type_if_non_void(attr: "except-type", ty: info.except_type)
 
 	fn save_struct_def(struct_def: ast.StructDef):
-		log_debug("Saving meta-info for struct-def: {ast.node_id_to_string(struct_def.id)}")
+		log_debug("Saving meta-info for struct-def: {ast.node_id_to_string(strtab, struct_def.id)}")
 		m_ser.add_text_attribute(attr: "kind", text: "struct")
 		m_ser.add_boolean_attribute(attr: "pub", value: struct_def.is_pub)
 		save_id(id: struct_def.id)
@@ -201,7 +203,7 @@ class SymbolSaver:
 		m_ser.begin_array()
 		for field in struct_def.fields:
 			m_ser.begin_object()
-			m_ser.add_text_attribute(attr: "name", text: field.name)
+			m_ser.add_text_attribute(attr: "name", text: strtab.get(field.name))
 			save_type(attr: "type", ty: field.ty)
 			m_ser.end_object_as_element()
 
@@ -326,7 +328,7 @@ class SymbolSaver:
 				save_type_if_non_void(attr: "return-type", ty: return_type)
 				save_type_if_non_void(attr: "except-type", ty: except_type)
 			else:
-				panic("save_type: Not-impl: {ty}")
+				panic("save_type: Not-impl: {ast.type_to_string(strtab, ty)}")
 			m_ser.end_object_as_attribute(attr)
 
 	fn save_tycon(tycon: ast.TyCon):
@@ -345,8 +347,14 @@ class SymbolSaver:
 				panic("Cannot save tycon name-ref")
 
 	fn save_id(id: ast.NodeId):
-		m_ser.add_text_attribute(attr: "name", text: id.name)
+		m_ser.add_text_attribute(attr: "name", text: strtab.get(id.name))
 		m_ser.add_integer_attribute(attr: "id", value: id.id)
+
+	fn save_name_list(attr: str, values?: List[uint32]):
+		m_ser.begin_array()
+		for name in values:
+			m_ser.add_text_as_element(text: strtab.get(name))
+		m_ser.end_array_as_attribute(attr)
 
 	fn save_string_list(attr: str, values?: List[str]):
 		m_ser.begin_array()
@@ -354,9 +362,9 @@ class SymbolSaver:
 			m_ser.add_text_as_element(text: name)
 		m_ser.end_array_as_attribute(attr)
 
-pub fn load_symbol_table(filename: str, typectx: ast.TypeContext) -> List[ast.ModuleDef]:
+pub fn load_symbol_table(filename: str, strtab: StringTable, typectx: ast.TypeContext) -> List[ast.ModuleDef]:
 	log_info("Read type info from: {filename}")
-	let loader = SymbolLoader(typectx)
+	let loader = SymbolLoader(strtab, typectx)
 	try:
 		let obj = read_json_from_file(filename)
 		loader.push_json(value: obj)
@@ -366,6 +374,7 @@ pub fn load_symbol_table(filename: str, typectx: ast.TypeContext) -> List[ast.Mo
 	loader.load_modules()
 
 class SymbolLoader:
+	var strtab: StringTable
 	var typectx: ast.TypeContext
 	var m_des: JsonBrowser = JsonBrowser()
 	var m_type_parameter_map: HashMap[ast.NodeId,ast.TypeParameter] = ast.new_hashmap_nodeid()
@@ -390,7 +399,7 @@ class SymbolLoader:
 		modules
 
 	fn load_module() -> ast.ModuleDef:
-		let namespace = load_string_list(attr: "namespace")
+		let namespace = load_name_list(attr: "namespace")
 
 		# log_info("Load info for module: {mod_name}")
 
@@ -412,19 +421,19 @@ class SymbolLoader:
 		let names: List[ast.NameAtLocation] = List()
 		for name_obj in m_des.get_array_attribute(attr: "names"):
 			m_des.push_value(value: name_obj)
-			names.append(ast.NameAtLocation(name: m_des.get_text(), location))
+			names.append(ast.NameAtLocation(name: strtab.intern(m_des.get_text()), location))
 			m_des.pop_value()
-		let namespace: Option[List[str]] = if m_des.has_attribute(attr: "namespace"):
-			Option.Some(load_string_list(attr: "namespace"))
+		let namespace: Option[List[uint32]] = if m_des.has_attribute(attr: "namespace"):
+			Option.Some(load_name_list(attr: "namespace"))
 		else:
 			Option.None()
 		ast.Import(location, namespace, names)
 
 	fn load_definition() -> ast.Definition:
 		let def_kind = m_des.get_text_attribute(attr: "kind")
-		let def_name = m_des.get_text_attribute(attr: "name")
+		let def_name = strtab.intern(m_des.get_text_attribute(attr: "name"))
 		let def_id = m_des.get_integer_attribute(attr: "id")
-		log_trace("  --> DEF-{def_kind}: {def_name} / {def_id}")
+		log_trace("  --> DEF-{def_kind}: {strtab.get(def_name)} / {def_id}")
 		if def_kind == "function":
 			let function_def = load_function(def_name, def_id)
 			ast.Definition.Function(function_def)
@@ -452,7 +461,7 @@ class SymbolLoader:
 		else:
 			panic("Not implemented definition kind: {def_kind}")
 
-	fn load_variable_def(def_name: str, def_id: int) -> ast.VariableDef:
+	fn load_variable_def(def_name: uint32, def_id: int) -> ast.VariableDef:
 		let is_pub = m_des.get_boolean_attribute(attr: "pub")
 		let id = ast.NodeId(name: def_name, id: def_id)
 		let ty = load_type(attr: "type")
@@ -464,7 +473,7 @@ class SymbolLoader:
 			variable
 			value: ast.VariableDefValue.Extern(libname: m_libname, is_initialized)
 
-	fn load_function(def_name: str, def_id: int) -> ast.FunctionDef:
+	fn load_function(def_name: uint32, def_id: int) -> ast.FunctionDef:
 		let is_pub = m_des.get_boolean_attribute(attr: "pub")
 		let type_parameters = load_type_parameters()
 		let docstring = load_docstring()
@@ -486,7 +495,7 @@ class SymbolLoader:
 		f.info = info
 		case m_this_type:
 			Some(ty):
-				let this_parameter = ast.parameter_def(name: "this", id: 0, label_is_optional: true, ty, location: location_default())
+				let this_parameter = ast.parameter_def(name: strtab.intern("this"), id: 0, label_is_optional: true, ty, location: location_default())
 				f.this_parameter = Option.Some(this_parameter)
 			None:
 				pass
@@ -506,14 +515,14 @@ class SymbolLoader:
 		parameters
 
 	fn load_parameter() -> ast.ParameterDef:
-		let name = m_des.get_text_attribute(attr: "name")
+		let name = strtab.intern(m_des.get_text_attribute(attr: "name"))
 		let label_is_optional = m_des.get_boolean_attribute(attr: "label_is_optional")
 		let id = 0
 		let ty = load_type(attr: "type")
 		let location = location_default()
 		ast.parameter_def(name, id, label_is_optional, ty, location)
 
-	fn load_struct_def(def_name: str, def_id: int) -> ast.StructDef:
+	fn load_struct_def(def_name: uint32, def_id: int) -> ast.StructDef:
 		let builder = ast.StructBuilder()
 		let is_pub = m_des.get_boolean_attribute(attr: "pub")
 		builder.set_name(name: def_name)
@@ -523,7 +532,7 @@ class SymbolLoader:
 		let docstring = load_docstring()
 		for field_obj in m_des.get_array_attribute(attr: "fields"):
 			m_des.push_value(value: field_obj)
-			let field_name = m_des.get_text_attribute(attr: "name")
+			let field_name = strtab.intern(m_des.get_text_attribute(attr: "name"))
 			let field_type = load_type(attr: "type")
 			builder.add_field(name: field_name, ty: field_type, location: location_default())
 			m_des.pop_value()
@@ -533,14 +542,14 @@ class SymbolLoader:
 		struct_def.scope = ast.Scope()
 		struct_def
 
-	fn load_type_def(def_name: str, def_id: int) -> ast.TypeDef:
+	fn load_type_def(def_name: uint32, def_id: int) -> ast.TypeDef:
 		let is_pub = m_des.get_boolean_attribute(attr: "pub")
 		let id = ast.NodeId(name: def_name, id: def_id)
 		let location = location_default()
 		let ty = load_type(attr: "type")
 		ast.TypeDef(is_pub, id, location, ty)
 
-	fn load_enum_def(def_name: str, def_id: int) -> ast.EnumDef:
+	fn load_enum_def(def_name: uint32, def_id: int) -> ast.EnumDef:
 		let location = location_default()
 		let is_pub = m_des.get_boolean_attribute(attr: "pub")
 		let docstring = load_docstring()
@@ -549,7 +558,7 @@ class SymbolLoader:
 		var tag_index = 0
 		for variant_obj in m_des.get_array_attribute(attr: "variants"):
 			m_des.push_value(value: variant_obj)
-			let variant_name = m_des.get_text_attribute(attr: "name")
+			let variant_name = strtab.intern(m_des.get_text_attribute(attr: "name"))
 			let payload = load_types(attr: "payload")
 			let variant = ast.EnumVariant(name: variant_name, tag_value: tag_index, location, payload)
 			variants.append(variant)
@@ -558,7 +567,7 @@ class SymbolLoader:
 
 		ast.enum_def(is_pub, name: def_name, id: def_id, docstring, location, type_parameters, variants)
 
-	fn load_class_def(def_name: str, def_id: int) -> ast.ClassDef:
+	fn load_class_def(def_name: uint32, def_id: int) -> ast.ClassDef:
 		let id = ast.NodeId(name: def_name, id: def_id)
 		let location = location_default()
 		let is_pub = m_des.get_boolean_attribute(attr: "pub")
@@ -724,8 +733,17 @@ class SymbolLoader:
 
 	fn load_id() -> ast.NodeId:
 		let id = m_des.get_integer_attribute(attr: "id")
-		let name = m_des.get_text_attribute(attr: "name")
+		let name = strtab.intern(m_des.get_text_attribute(attr: "name"))
 		ast.NodeId(id, name)
+
+	fn load_name_list(attr: str) -> List[uint32]:
+		let values: List[uint32] = List()
+		for value in m_des.get_array_attribute(attr):
+			m_des.push_value(value)
+			let text = m_des.get_text()
+			m_des.pop_value()
+			values.append(strtab.intern(text))
+		values
 
 	fn load_string_list(attr: str) -> List[str]:
 		let values: List[str] = List()

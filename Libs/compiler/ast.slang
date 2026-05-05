@@ -8,11 +8,12 @@ from location import Location, location_default
 from base.listtype import List
 from base.optiontype import Option, option_unwrap, option_is_some
 from base.vectype import Vector, new_vector_with_capacity, new_vector
-from base.hashmap import HashMap, new_hashmap_str, new_hashmap, str_hash
+from base.hashmap import HashMap, new_hashmap_str, new_hashmap, str_hash, new_hashmap_uint32
+from string_table import StringTable
 
 # Name coupled with global unique ID:
 pub struct NodeId:
-	name: str
+	name: uint32
 	id: int
 
 fn node_id_equal(node_id1: NodeId, node_id2: NodeId) -> bool:
@@ -21,14 +22,14 @@ fn node_id_equal(node_id1: NodeId, node_id2: NodeId) -> bool:
 	else:
 		false
 
-pub fn node_id_to_string(id?: NodeId) -> str:
-	"{id.name}${id.id}"
+pub fn node_id_to_string(strtab: StringTable, id?: NodeId) -> str:
+	"{strtab.get(id.name)}${id.id}"
 
 pub fn new_hashmap_nodeid[T]() -> HashMap[NodeId,T]:
 	new_hashmap(f_hash: node_id_hash, f_eq: node_id_equal)
 
-fn node_id_hash(a?: NodeId) -> int:
-	str_hash(a.name) * 7919 + a.id
+fn node_id_hash(a?: NodeId) -> uint32:
+	a.name * uint32(7919) + uint32(a.id)
 
 pub struct DocString:
 	"""A docstring (like this one 8-))"""
@@ -38,9 +39,6 @@ pub struct DocString:
 pub class Type:
 	pub var kind: TypeKind
 	pub var was_generic: bool = false
-
-	pub fn to_string() -> str:
-		type_to_string(this)
 
 	pub fn change_to(to_type: Type):
 		change_type_to(ty: this, to_type)
@@ -67,13 +65,13 @@ pub class Type:
 		else:
 			panic("get_enum_def: type must be enum")
 
-	pub fn get_enum_variant_from_type(attr: str) -> Option[EnumVariant]:
+	pub fn get_enum_variant_from_type(attr: uint32) -> Option[EnumVariant]:
 		let enum_def = get_enum_def()
 		get_enum_variant(enum_def, attr)
 
-	pub fn get_enum_variant_names() -> List[str]:
+	pub fn get_enum_variant_names() -> List[uint32]:
 		let enum_def = get_enum_def()
-		let names: List[str] = List()
+		let names: List[uint32] = List()
 		for variant in enum_def.variants:
 			names.append(variant.name)
 		names
@@ -254,17 +252,17 @@ pub class Type:
 		else:
 			panic("No interface type")
 
-	pub fn has_field(attr: str) -> bool:
+	pub fn has_field(attr: uint32) -> bool:
 		option_is_some(maybe_get_field_type(attr, also_private: false))
 
-	pub fn get_field_type(attr: str) -> Type:
+	pub fn get_field_type(attr: uint32) -> Type:
 		case maybe_get_field_type(attr, also_private: true):
 			Some(ty):
 				ty
 			None:
-				panic("No field: {attr}")
+				panic("No field")
 
-	pub fn maybe_get_field_type(attr: str, also_private: bool) -> Option[Type]:
+	pub fn maybe_get_field_type(attr: uint32, also_private: bool) -> Option[Type]:
 		case kind:
 			App(tycon, type_arguments):
 				case tycon:
@@ -331,17 +329,17 @@ pub class Type:
 		else:
 			panic("Type without fields")
 
-	pub fn has_method(name?: str) -> bool:
+	pub fn has_method(name?: uint32) -> bool:
 		if has_field(attr: name):
 			get_field_type(attr: name).is_function_type()
 		else:
 			false
 
-	pub fn is_sequence_like() -> bool:
-		has_method("len") and has_method("get")
+	pub fn is_sequence_like(strtab: StringTable) -> bool:
+		has_method(strtab.intern("len")) and has_method(strtab.intern("get"))
 
-	pub fn is_iterable_like() -> bool:
-		has_method("iter")
+	pub fn is_iterable_like(strtab: StringTable) -> bool:
+		has_method(strtab.intern("iter"))
 
 	pub fn is_nullable() -> bool:
 		# TODO
@@ -445,14 +443,14 @@ pub fn clone_type(ty?: Type) -> Type:
 pub fn new_type(kind: TypeKind) -> Type:
 	Type(kind)
 
-fn types_to_string(typs: Vector[Type]) -> str:
+fn types_to_string(strtab: StringTable, typs: Vector[Type]) -> str:
 	let parts: List[str] = List()
 	for ty in typs:
-		parts.append(type_to_string(ty))
+		parts.append(type_to_string(strtab, ty))
 	"[" + str_join(parts, sep: ", ") + "]"
 
-fn type_to_string(ty?: Type) -> str:
-	let txt = type_kind_to_string(kind: ty.kind)
+pub fn type_to_string(strtab: StringTable, ty?: Type) -> str:
+	let txt = type_kind_to_string(strtab, kind: ty.kind)
 
 	if ty.was_generic:
 		"@" + txt
@@ -474,7 +472,7 @@ pub fn apply_tycon(tycon: TyCon, type_arguments: Vector[Type]) -> Type:
 		assert(condition: false, message: "type arguments does not match amount of type parameters")
 	new_type(kind: TypeKind.App(tycon, type_arguments))
 
-pub fn subst(ty: Type, m: HashMap[str,Type]) -> Type:
+pub fn subst(ty: Type, m: HashMap[uint32,Type]) -> Type:
 	case ty.kind:
 		TypeParam(p):
 			case m.maybe_get(key: p.id.name):
@@ -504,20 +502,20 @@ pub fn subst(ty: Type, m: HashMap[str,Type]) -> Type:
 	else:
 		ty
 
-fn subst_many(typs: Vector[Type], m: HashMap[str,Type]) -> Vector[Type]:
+fn subst_many(typs: Vector[Type], m: HashMap[uint32,Type]) -> Vector[Type]:
 	let typs2: Vector[Type] = new_vector_with_capacity(capacity: typs.len())
 	for ty in typs:
 		typs2.append(subst(ty, m))
 	typs2
 
-pub fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: Vector[Type]) -> HashMap[str,Type]:
+pub fn create_subst_mapping(type_parameters: List[TypeParameter], type_arguments: Vector[Type]) -> HashMap[uint32,Type]:
 	if type_parameters.len() != type_arguments.len():
-		for type_parameter in type_parameters:
-			log_error("type parameter: {node_id_to_string(type_parameter.id)}")
-		for type_argument in type_arguments:
-			log_error("type argument: {type_argument}")
+		# for type_parameter in type_parameters:
+		# 	log_error("type parameter: {node_id_to_string(type_parameter.id)}")
+		# for type_argument in type_arguments:
+		# 	log_error("type argument: {type_argument}")
 		panic("amount of type parameters and type arguments must be equal")
-	let m: HashMap[str,Type] = new_hashmap_str()
+	let m: HashMap[uint32,Type] = new_hashmap_uint32()
 	let tpi = type_parameters.iter()
 	for ty in type_arguments:
 		let tp = option_unwrap(tpi.next())
@@ -558,7 +556,7 @@ pub fn get_types_from_parameter_types(p2?: Vector[ParameterType]) -> Vector[Type
 		t.append(p.ty)
 	t
 
-pub fn get_enum_variant(enum_def: EnumDef, attr: str) -> Option[EnumVariant]:
+pub fn get_enum_variant(enum_def: EnumDef, attr: uint32) -> Option[EnumVariant]:
 	case enum_def.scope.lookup(name: attr):
 		Some(symbol):
 			case symbol.kind:
@@ -570,7 +568,7 @@ pub fn get_enum_variant(enum_def: EnumDef, attr: str) -> Option[EnumVariant]:
 		None:
 			Option.None()
 
-fn get_subst_map(ty: Type) -> HashMap[str,Type]:
+fn get_subst_map(ty: Type) -> HashMap[uint32,Type]:
 	case ty.kind:
 		App(tycon, type_arguments):
 			create_subst_mapping(type_parameters: tycon_get_type_parameters(tycon), type_arguments)
@@ -581,16 +579,16 @@ pub fn get_variant_payload_types(ty: Type, variant: EnumVariant) -> Vector[Type]
 	let m = get_subst_map(ty)
 	subst_many(typs: variant.payload, m)
 
-pub fn get_struct_field_index(ty: Type, attr: str) -> int:
+pub fn get_struct_field_index(ty: Type, attr: uint32) -> int:
 	let struct_def = ty.get_struct_def()
 	var index = 0
 	for field in struct_def.fields:
 		if field.name == attr:
 			return index
 		index += 1
-	panic("No attr: {attr}")
+	panic("No attr")
 
-pub fn get_method_ref_from_type(ty: Type, attr: str, location: Location) -> Expression:
+pub fn get_method_ref_from_type(ty: Type, attr: uint32, location: Location) -> Expression:
 	case ty.kind:
 		App(tycon, type_arguments):
 			case tycon:
@@ -602,28 +600,31 @@ pub fn get_method_ref_from_type(ty: Type, attr: str, location: Location) -> Expr
 					else:
 						panic("get_method_ref_from_type: class must contain func/vars")
 			else:
-				panic("get_method_ref_from_type: No class: {ty}")
+				panic("get_method_ref_from_type: No class")
 	else:
-		panic("get_method_ref_from_type: No class: {ty}")
+		panic("get_method_ref_from_type: No class")
 
 pub struct QualName:
 	location: Location
-	parts: List[str]
+	parts: List[uint32]
 
 # enum QualPart:
 #     Name(name: str)
 #     Based(base: QualName, attr: str)
 
-pub fn qual_name_to_string(name: QualName) -> str:
-	dotted(name.parts)
+pub fn qual_name_to_string(strtab: StringTable, name: QualName) -> str:
+	dotted(strtab, name.parts)
 
-pub fn dotted(parts?: List[str]) -> str:
+pub fn dotted(strtab: StringTable, parts2?: List[uint32]) -> str:
+	let parts: List[str] = List()
+	for name in parts2:
+		parts.append(strtab.get(name))
 	str_join(parts: parts, sep: ".")
 
-pub fn commas(names?: List[NameAtLocation]) -> str:
+pub fn commas(strtab: StringTable, names?: List[NameAtLocation]) -> str:
 	let parts: List[str] = List()
 	for name in names:
-		parts.append(name.name)
+		parts.append(strtab.get(name.name))
 	str_join(parts, sep: ", ")
 
 pub enum TypeKind:
@@ -646,7 +647,7 @@ pub enum TypeKind:
 
 	Def(type_def: TypeDef)
 
-fn type_kind_to_string(kind: TypeKind) -> str:
+fn type_kind_to_string(strtab: StringTable, kind: TypeKind) -> str:
 	case kind:
 		Base(base):
 			base_type_to_str(base)
@@ -659,37 +660,37 @@ fn type_kind_to_string(kind: TypeKind) -> str:
 		Unreachable:
 			"UNREACHABLE-TYPE"
 		NameRef(name):
-			"QualName({qual_name_to_string(name)})"
+			"QualName({qual_name_to_string(strtab, name)})"
 		Array(element_type, size):
-			"ARRAY({element_type} x {size})"
+			"ARRAY({type_to_string(strtab, element_type)} x {size})"
 		Pointer(pointed_type):
-			"PTR({pointed_type})"
+			"PTR({type_to_string(strtab, pointed_type)})"
 		Function(parameter_types, info):
 			let typs = get_types_from_parameter_types(parameter_types)
-			"FUNC-TYPE({types_to_string(typs)},{info.return_type},{info.except_type})"
+			"FUNC-TYPE({types_to_string(strtab, typs)},{type_to_string(strtab, info.return_type)},{type_to_string(strtab, info.except_type)})"
 		Undefined:
 			"UNDEFINED"
 		TypeParam(param):
-			"TYPE-PARAM({node_id_to_string(param.id)})"
+			"TYPE-PARAM({node_id_to_string(strtab, param.id)})"
 		TypeVar(v):
 			case v.ty:
 				None:
 					"TYPE-VAR(id={v.unique})"
 				Some(ty_assigned):
-					"TYPE-VAR(id={v.unique},{ty_assigned})"
+					"TYPE-VAR(id={v.unique},{type_to_string(strtab, ty_assigned)})"
 		UnApp(tycon):
-			"UnApp({tycon_to_str(tycon)})"
+			"UnApp({tycon_to_str(strtab, tycon)})"
 		App(tycon, type_arguments):
 			if type_arguments.is_empty():
-				tycon_to_str(tycon)
+				tycon_to_str(strtab, tycon)
 			else:
-				let args = types_to_string(typs: type_arguments)
-				tycon_to_str(tycon) + args
+				let args = types_to_string(strtab, typs: type_arguments)
+				tycon_to_str(strtab, tycon) + args
 		Def(type_def):
-			type_def_to_str(type_def)
+			type_def_to_str(strtab, type_def)
 
 pub struct ParameterType:
-	label: Option[str]
+	label: Option[uint32]
 	ty: Type
 
 enum BaseType:
@@ -760,20 +761,20 @@ pub enum TyCon:
 	Ref(key: NodeId)
 	NameRef(name: QualName)
 
-fn tycon_to_str(tycon: TyCon) -> str:
+fn tycon_to_str(strtab: StringTable, tycon: TyCon) -> str:
 	case tycon:
 		Struct(struct_def):
-			struct_def_to_str(struct_def)
+			struct_def_to_str(strtab, struct_def)
 		Enum(enum_def):
-			enum_def_to_str(enum_def)
+			enum_def_to_str(strtab, enum_def)
 		Class(class_def):
-			class_def_to_str(class_def)
+			class_def_to_str(strtab, class_def)
 		Interface(interface_def):
 			"tycon-interface"
 		Ref(key):
-			"tycon-ref-{node_id_to_string(key)}"
+			"tycon-ref-{node_id_to_string(strtab, key)}"
 		NameRef(name):
-			"tycon-name-ref-{qual_name_to_string(name)}"
+			"tycon-name-ref-{qual_name_to_string(strtab, name)}"
 
 pub fn tycon_equal(tycon1: TyCon, tycon2: TyCon) -> bool:
 	case tycon1:
@@ -946,30 +947,30 @@ pub fn type_var_equals(type_var1: TypeVariable, type_var2: TypeVariable) -> bool
 
 pub struct NamespaceDef:
 	"""Module namespace"""
-	name: str
+	name: uint32
 	scope: Scope
 
 pub class ModuleDef:
-	pub var namespace: List[str]
+	pub var namespace: List[uint32]
 	pub var location: Location
 	pub var filename: Option[str]
 	pub var imports: Vector[Import]
 	pub var definitions: List[Definition]
 	pub var scope: Scope
 
-	pub fn get_name() -> str:
-		dotted(namespace)
+	pub fn get_name(strtab: StringTable) -> str:
+		dotted(strtab, namespace)
 
-	fn define_symbol(name: str, definition: Definition):
+	fn define_symbol(definition: Definition):
 		definitions.append(definition)
 
 	pub fn define_function(function_def: FunctionDef):
-		define_symbol(name: function_def.name, definition: Definition.Function(function_def))
+		define_symbol(definition: Definition.Function(function_def))
 
 	pub fn define_enum(enum_def: EnumDef):
-		define_symbol(name: enum_def.id.name, definition: Definition.Enum(enum_def))
+		define_symbol(definition: Definition.Enum(enum_def))
 
-pub fn new_module(namespace: List[str], location: Location, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> ModuleDef:
+pub fn new_module(namespace: List[uint32], location: Location, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> ModuleDef:
 	ModuleDef:
 		namespace
 		location
@@ -978,7 +979,7 @@ pub fn new_module(namespace: List[str], location: Location, filename: Option[str
 		definitions
 		scope: Scope()
 
-pub fn new_empty_module(namespace: List[str], location: Location) -> ModuleDef:
+pub fn new_empty_module(namespace: List[uint32], location: Location) -> ModuleDef:
 	new_module:
 		namespace
 		location
@@ -992,7 +993,7 @@ pub fn import_names(names: List[NameAtLocation], location: Location) -> Import:
 		namespace: Option.None()
 		names
 
-pub fn import_names_from(namespace: List[str], names: List[NameAtLocation], location: Location) -> Import:
+pub fn import_names_from(namespace: List[uint32], names: List[NameAtLocation], location: Location) -> Import:
 	Import:
 		location
 		namespace: Option.Some(namespace)
@@ -1000,14 +1001,14 @@ pub fn import_names_from(namespace: List[str], names: List[NameAtLocation], loca
 
 pub struct Import:
 	location: Location
-	namespace: Option[List[str]]
+	namespace: Option[List[uint32]]
 	names: List[NameAtLocation]
 
 pub struct NameAtLocation:
-	name: str
+	name: uint32
 	location: Location
 
-pub fn extern_function_def(is_pub: bool, libname: str, name: str, docstring: Option[DocString], type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
+pub fn extern_function_def(is_pub: bool, libname: str, name: uint32, docstring: Option[DocString], type_parameters: List[TypeParameter], parameters: List[ParameterDef], return_type: Type, location: Location) -> FunctionDef:
 	let info = FunctionInfo:
 		return_type
 		except_type: void_type2()
@@ -1024,27 +1025,27 @@ pub fn extern_function_def(is_pub: bool, libname: str, name: str, docstring: Opt
 		body: FunctionDefBody.Extern(libname)
 
 pub class Scope:
-	var symbols: HashMap[str,Symbol] = new_hashmap_str()
+	var symbols: HashMap[uint32,Symbol] = new_hashmap_uint32()
 	pub var class_scope: bool = false
 
-	pub fn define(is_pub: bool, name: str, kind: SymbolKind, location: Location):
+	pub fn define(is_pub: bool, name: uint32, kind: SymbolKind, location: Location):
 		let symbol = Symbol(is_pub, name, kind, location)
 		symbols.insert(key: name, value: symbol)
 
 	pub fn is_empty() -> bool:
 		symbols.is_empty()
 
-	pub fn is_defined(name: str) -> bool:
+	pub fn is_defined(name: uint32) -> bool:
 		# Check if given name is defined.
 		option_is_some(lookup(name))
 
-	pub fn lookup(name: str) -> Option[Symbol]:
+	pub fn lookup(name: uint32) -> Option[Symbol]:
 		symbols.maybe_get(key: name)
 
-	fn dump():
+	fn dump(strtab: StringTable):
 		log_info("Scope:")
 		for name in symbols:
-			log_info(" - {name}")
+			log_info(" - {strtab.get(name)}")
 
 	pub fn get_symbols() -> List[Symbol]:
 		symbols.values()
@@ -1062,7 +1063,7 @@ pub enum SymbolKind:
 
 pub class Symbol:
 	pub var is_pub: bool
-	pub var name: str
+	pub var name: uint32
 	pub var kind: SymbolKind
 	pub var location: Location
 	var references: List[Location] = List()
@@ -1074,26 +1075,26 @@ pub class Symbol:
 	pub fn get_references() -> int:
 		references.len()
 
-	pub fn to_string() -> str:
-		case kind:
-			Namespace(namespace):
-				"namespace:{namespace.name}"
-			Macro(macro_def):
-				macro_def_to_str(macro_def)
-			Function(function_def):
-				function_def_to_str(function_def)
-			Parameter(parameter):
-				"parameter:{node_id_to_string(parameter.id)}"
-			Var(variable):
-				"var:{node_id_to_string(variable.id)}"
-			TypeConstructor(t):
-				"tycon"
-			Typ(t):
-				"typ"
-			Variant(v):
-				"EnumVariant({v.name})"
-			Field(field):
-				"Field({field.name})"
+pub fn symbol_to_string(strtab: StringTable, symbol?: Symbol) -> str:
+	case symbol.kind:
+		Namespace(namespace):
+			"namespace:{strtab.get(namespace.name)}"
+		Macro(macro_def):
+			macro_def_to_str(strtab, macro_def)
+		Function(function_def):
+			function_def_to_str(strtab, function_def)
+		Parameter(parameter):
+			"parameter:{node_id_to_string(strtab, parameter.id)}"
+		Var(variable):
+			"var:{node_id_to_string(strtab, variable.id)}"
+		TypeConstructor(t):
+			"tycon"
+		Typ(t):
+			"typ"
+		Variant(v):
+			"EnumVariant({strtab.get(v.name)})"
+		Field(field):
+			"Field({strtab.get(field.name)})"
 
 pub enum Definition:
 	Macro(macro_def: MacroDef)
@@ -1106,33 +1107,33 @@ pub enum Definition:
 	Var(var_def: VariableDef)
 	Type(type_def: TypeDef)
 
-pub fn definition_to_str(definition: Definition) -> str:
+pub fn definition_to_str(strtab: StringTable, definition: Definition) -> str:
 	case definition:
 		Macro(macro_def):
-			macro_def_to_str(macro_def)
+			macro_def_to_str(strtab, macro_def)
 		Function(function_def):
-			function_def_to_str(function_def)
+			function_def_to_str(strtab, function_def)
 		Enum(enum_def):
-			enum_def_to_str(enum_def)
+			enum_def_to_str(strtab, enum_def)
 		Struct(struct_def):
-			struct_def_to_str(struct_def)
+			struct_def_to_str(strtab, struct_def)
 		Class(class_def):
-			class_def_to_str(class_def)
+			class_def_to_str(strtab, class_def)
 		Interface(interface_def):
 			"Interface"
 		Impl(impl_def):
 			"Impl"
 		Var(variable_def):
-			variable_def_to_str(variable_def)
+			variable_def_to_str(strtab, variable_def)
 		Type(type_def):
-			type_def_to_str(type_def)
+			type_def_to_str(strtab, type_def)
 
 pub struct MacroDef:
-	name: str
+	name: uint32
 	location: Location
 
-fn macro_def_to_str(macro_def: MacroDef) -> str:
-	"Macro({macro_def.name})"
+fn macro_def_to_str(strtab: StringTable, macro_def: MacroDef) -> str:
+	"Macro({strtab.get(macro_def.name)})"
 
 pub struct VariableDef:
 	is_pub: bool
@@ -1143,10 +1144,10 @@ pub enum VariableDefValue:
 	Intern(value: Option[Expression])
 	Extern(libname: str, initialized: bool)
 
-fn variable_def_to_str(variable_def: VariableDef) -> str:
-	"var-def:{node_id_to_string(variable_def.variable.id)}"
+fn variable_def_to_str(strtab: StringTable, variable_def: VariableDef) -> str:
+	"var-def:{node_id_to_string(strtab, variable_def.variable.id)}"
 
-pub fn new_type_parameter(name: str, id: int, location: Location) -> TypeParameter:
+pub fn new_type_parameter(name: uint32, id: int, location: Location) -> TypeParameter:
 	TypeParameter(id: NodeId(name, id), location)
 
 pub fn type_parameter_equals(tp1: TypeParameter, tp2: TypeParameter) -> bool:
@@ -1156,7 +1157,7 @@ pub struct TypeParameter:
 	id: NodeId
 	location: Location
 
-pub fn struct_def(is_pub: bool, name: str, id: int, docstring: Option[DocString], type_parameters: List[TypeParameter], fields: List[StructField], location: Location) -> StructDef:
+pub fn struct_def(is_pub: bool, name: uint32, id: int, docstring: Option[DocString], type_parameters: List[TypeParameter], fields: List[StructField], location: Location) -> StructDef:
 	StructDef:
 		is_pub
 		id: NodeId(name, id)
@@ -1177,19 +1178,19 @@ pub struct StructDef:
 	location: Location
 	scope: Scope
 
-fn struct_def_to_str(struct_def: StructDef) -> str:
+fn struct_def_to_str(strtab: StringTable, struct_def: StructDef) -> str:
 	let t = "Union" if struct_def.is_union else "Struct"
-	"{t}({node_id_to_string(struct_def.id)})"
+	"{t}({node_id_to_string(strtab, struct_def.id)})"
 
 pub class StructBuilder:
-	var nodeId: NodeId = NodeId(name: "", id: 0)
+	var nodeId: NodeId = NodeId(name: uint32(0xffffffff), id: 0)
 	var is_pub: bool = true
 	var is_union: bool = false
 	var location: Location = location_default()
 	var type_parameters: List[TypeParameter] = List()
 	var fields: List[StructField] = List()
 
-	pub fn set_name(name: str):
+	pub fn set_name(name: uint32):
 		nodeId.name = name
 
 	pub fn set_id(id?: int):
@@ -1201,12 +1202,12 @@ pub class StructBuilder:
 	pub fn set_is_union(is_union?: bool):
 		this.is_union = is_union
 
-	pub fn add_type_parameter(name: str, id: int, location: Location) -> Type:
+	pub fn add_type_parameter(name: uint32, id: int, location: Location) -> Type:
 		let type_parameter = new_type_parameter(name, id, location)
 		type_parameters.append(type_parameter)
 		type_parameter_ref(type_parameter)
 
-	pub fn add_field(name: str, ty: Type, location: Location):
+	pub fn add_field(name: uint32, ty: Type, location: Location):
 		fields.append(StructField(name, ty, location))
 
 	pub fn finish() -> StructDef:
@@ -1224,11 +1225,11 @@ pub class StructBuilder:
 			scope
 
 pub struct StructField:
-	name: str
+	name: uint32
 	ty: Type
 	location: Location
 
-pub fn enum_def(is_pub: bool, name: str, id: int, docstring: Option[DocString], location: Location, type_parameters: List[TypeParameter], variants: List[EnumVariant]) -> EnumDef:
+pub fn enum_def(is_pub: bool, name: uint32, id: int, docstring: Option[DocString], location: Location, type_parameters: List[TypeParameter], variants: List[EnumVariant]) -> EnumDef:
 	EnumDef:
 		is_pub
 		id: NodeId(name, id)
@@ -1247,11 +1248,11 @@ pub struct EnumDef:
 	variants: List[EnumVariant]
 	scope: Scope
 
-fn enum_def_to_str(enum_def: EnumDef) -> str:
-	"enum({node_id_to_string(enum_def.id)})"
+fn enum_def_to_str(strtab: StringTable, enum_def: EnumDef) -> str:
+	"enum({node_id_to_string(strtab, enum_def.id)})"
 
 pub struct EnumVariant:
-	name: str
+	name: uint32
 	tag_value: int
 	location: Location
 	payload: Vector[Type]
@@ -1266,8 +1267,8 @@ pub struct ClassDef:
 	definitions: List[Definition]
 	scope: Scope
 
-fn class_def_to_str(class_def: ClassDef) -> str:
-	"class({node_id_to_string(class_def.id)})"
+fn class_def_to_str(strtab: StringTable, class_def: ClassDef) -> str:
+	"class({node_id_to_string(strtab, class_def.id)})"
 
 pub struct InterfaceDef:
 	is_pub: bool
@@ -1294,10 +1295,10 @@ pub struct TypeDef:
 	ty: Type
 	location: Location
 
-fn type_def_to_str(type_def: TypeDef) -> str:
-	"typedef-{node_id_to_string(type_def.id)}:{type_def.ty}"
+fn type_def_to_str(strtab: StringTable, type_def: TypeDef) -> str:
+	"typedef-{node_id_to_string(strtab, type_def.id)}:{type_to_string(strtab, type_def.ty)}"
 
-pub fn function_def(is_pub: bool, name: str, docstring: Option[DocString], type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
+pub fn function_def(is_pub: bool, name: uint32, docstring: Option[DocString], type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, body: Statement, location: Location) -> FunctionDef:
 	let info = FunctionInfo:
 		return_type
 		except_type
@@ -1319,7 +1320,7 @@ pub struct FunctionInfo:
 
 pub struct FunctionDef:
 	# modname: str
-	name: str
+	name: uint32
 	docstring: Option[DocString]
 	# id: NodeId
 	is_pub: bool
@@ -1336,7 +1337,7 @@ enum FunctionDefBody:
 	None
 
 
-pub fn function_decl_def(name: str, type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, location: Location) -> FunctionDef:
+pub fn function_decl_def(name: uint32, type_parameters: List[TypeParameter], this_parameter: Option[ParameterDef], parameters: List[ParameterDef], return_type: Type, except_type: Type, location: Location) -> FunctionDef:
 	let info = FunctionInfo:
 		return_type
 		except_type
@@ -1354,8 +1355,8 @@ pub fn function_decl_def(name: str, type_parameters: List[TypeParameter], this_p
 		location
 		body: FunctionDefBody.None()
 
-pub fn function_def_to_str(function_def: FunctionDef) -> str:
-	"function:{function_def.name}"
+pub fn function_def_to_str(strtab: StringTable, function_def: FunctionDef) -> str:
+	"function:{strtab.get(function_def.name)}"
 
 pub fn function_ref(function_def: FunctionDef, type_arguments: Vector[Type], location: Location) -> Expression:
 	let kind = ExpressionKind.FunctionRef(function_def, type_arguments)
@@ -1365,7 +1366,7 @@ pub fn function_ref(function_def: FunctionDef, type_arguments: Vector[Type], loc
 fn get_parameter_types_from_parameters(parameters: List[ParameterDef]) -> Vector[ParameterType]:
 	let parameter_types: Vector[ParameterType] = new_vector_with_capacity(capacity: parameters.len())
 	for parameter in parameters:
-		let label: Option[str] = if parameter.label_is_optional:
+		let label: Option[uint32] = if parameter.label_is_optional:
 			Option.None()
 		else:
 			Option.Some(parameter.id.name)
@@ -1398,7 +1399,7 @@ fn get_function_type3(type_parameters: List[TypeParameter], type_arguments: Vect
 			except_type: subst(ty: info.except_type, m)
 		function_type(parameter_types: parameter_types2, info: info2)
 
-pub fn parameter_def(name: str, id: int, label_is_optional: bool, ty: Type, location: Location) -> ParameterDef:
+pub fn parameter_def(name: uint32, id: int, label_is_optional: bool, ty: Type, location: Location) -> ParameterDef:
 	ParameterDef(id: NodeId(name, id), label_is_optional, ty, location)
 
 pub class ParameterDef:
@@ -1410,13 +1411,13 @@ pub class ParameterDef:
 	pub fn ref(location: Location) -> Expression:
 		parameter_ref(parameter_def: this, location)
 
-pub fn unlabeled_parameter(name: str, ty: Type) -> ParameterDef:
+pub fn unlabeled_parameter(name: uint32, ty: Type) -> ParameterDef:
 	parameter_def(name, id: 0, label_is_optional: true, ty, location: location_default())
 
-pub fn labeled_parameter(name: str, ty: Type) -> ParameterDef:
+pub fn labeled_parameter(name: uint32, ty: Type) -> ParameterDef:
 	parameter_def(name, id: 0, label_is_optional: false, ty, location: location_default())
 
-pub fn variable(name: str, id: int, ty: Type, location: Location) -> Variable:
+pub fn variable(name: uint32, id: int, ty: Type, location: Location) -> Variable:
 	Variable(id: NodeId(name, id), ty, location)
 
 pub class Variable:
@@ -1439,9 +1440,6 @@ pub class Statement:
 	pub var kind: StatementKind
 	pub var location: Location
 	pub var ty: Type
-
-	pub fn to_string() -> str:
-		statement_to_string(statement: this)
 
 	pub fn is_breakable() -> bool:
 		"""Can we use break / continue within this statement?"""
@@ -1565,7 +1563,7 @@ pub struct CaseStatement:
 
 pub struct CaseArm:
 	location: Location
-	name: str
+	name: uint32
 	variables: List[Variable]
 	block: ScopedBlock
 
@@ -1633,14 +1631,11 @@ pub class Expression:
 	pub var location: Location
 	pub var writable: bool = false
 
-	pub fn to_string() -> str:
-		expression_to_string(this)
-
-	pub fn is_this() -> bool:
+	pub fn is_this(strtab: StringTable) -> bool:
 		"""Check if the expression is a reference to the 'this' parameter"""
 		case kind:
 			ParameterRef(parameter):
-				parameter.id.name == "this"
+				parameter.id.name == strtab.intern("this")
 		else:
 			false
 
@@ -1649,7 +1644,7 @@ pub class Expression:
 			Null: true
 		else: false
 
-	pub fn call_method(method: str, arguments: List[LabeledExpression], location: Location) -> Expression:
+	pub fn call_method(method: uint32, arguments: List[LabeledExpression], location: Location) -> Expression:
 		let callee = get_attr_typed(attr: method, location)
 		let result_ty: Type = callee.ty.get_return_type()
 		call(callee, arguments, ty: result_ty, location)
@@ -1667,7 +1662,7 @@ pub class Expression:
 	pub fn equals(typectx: TypeContext, rhs: Expression, location: Location) -> Expression:
 		binop(lhs: this, op: BinaryOperator.Equals(), rhs, ty: typectx.bool_type(), location)
 
-	pub fn get_attr_typed(attr: str, location: Location) -> Expression:
+	pub fn get_attr_typed(attr: uint32, location: Location) -> Expression:
 		let attr_ty = ty.get_field_type(attr)
 		get_attr(base: this, field: attr, ty: attr_ty, location)
 
@@ -1686,11 +1681,11 @@ fn change_expression_to(expression: Expression, to: Expression):
 
 pub enum ExpressionKind:
 	Call(call: FunctionCall)
-	GetAttr(base: Expression, name: str)
+	GetAttr(base: Expression, name: uint32)
 	GetIndex(base: Expression, indici: List[Expression])
 	Binop(binop: BinopExpression)
 	Unop(op: UnaryOperator, rhs: Expression)
-	NameRef(name: str)
+	NameRef(name: uint32)
 	VariableRef(variable: Variable)
 	FunctionRef(function: FunctionDef, type_arguments: Vector[Type])
 	ParameterRef(parameter: ParameterDef)
@@ -1701,7 +1696,7 @@ pub enum ExpressionKind:
 	CharLiteral(value: char)
 	BoolLiteral(value: bool)
 	StructLiteral(ty: Type, values: List[Expression])
-	UnionLiteral(ty: Type, field: str, value: Expression)
+	UnionLiteral(ty: Type, field: uint32, value: Expression)
 	ClassLiteral(typ: Type, arguments: List[LabeledExpression])
 	ArrayLiteral(values: List[Expression])
 	ArrayLiteral2(size: Expression, ty: Type)
@@ -1718,13 +1713,13 @@ pub enum ExpressionKind:
 
 pub struct LabeledExpression:
 	location: Location
-	name: Option[str]
+	name: Option[uint32]
 	value: Expression
 
 pub fn struct_literal(ty: Type, values: List[Expression], location: Location) -> Expression:
 	Expression(kind: ExpressionKind.StructLiteral(ty, values), ty, location)
 
-pub fn union_literal(ty: Type, field: str, value: Expression, location: Location) -> Expression:
+pub fn union_literal(ty: Type, field: uint32, value: Expression, location: Location) -> Expression:
 	Expression(kind: ExpressionKind.UnionLiteral(ty, field, value), ty, location)
 
 pub fn array_literal(values: List[Expression], location: Location) -> Expression:
@@ -1743,7 +1738,7 @@ pub fn call(callee: Expression, arguments: List[LabeledExpression], ty: Type, lo
 	let kind = ExpressionKind.Call(c)
 	Expression(kind, ty, location)
 
-pub fn get_attr(base: Expression, field: str, ty: Type, location: Location) -> Expression:
+pub fn get_attr(base: Expression, field: uint32, ty: Type, location: Location) -> Expression:
 	let kind = ExpressionKind.GetAttr(base, field)
 	Expression(kind, ty, location)
 
@@ -1782,7 +1777,7 @@ fn variable_ref(variable: Variable, location: Location) -> Expression:
 	Expression(kind, ty: variable.ty, location)
 
 # Reference a symbol:
-pub fn name_ref(typectx: TypeContext, name: str, location: Location) -> Expression:
+pub fn name_ref(typectx: TypeContext, name: uint32, location: Location) -> Expression:
 	let kind = ExpressionKind.NameRef(name)
 	let ty = typectx.undefined_type()
 	Expression(kind, ty, location)
@@ -1879,24 +1874,24 @@ pub fn to_string(typectx: TypeContext, value: Expression, location: Location) ->
 pub fn null_value(typectx: TypeContext, location: Location) -> Expression:
 	Expression(kind: ExpressionKind.Null(), ty: typectx.opaque_type(), location)
 
-pub fn print_ast2(module_defs: List[ModuleDef]):
+pub fn print_ast2(strtab: StringTable, module_defs: List[ModuleDef]):
 	for module_def in module_defs:
-		print_ast(module_def)
+		print_ast(strtab, module_def)
 
-pub fn print_ast(module_def: ModuleDef):
-	print("Module: {module_def.get_name()}")
-	let printer = AstPrinter()
+pub fn print_ast(strtab: StringTable, module_def: ModuleDef):
+	print("Module: {module_def.get_name(strtab)}")
+	let printer = AstPrinter(strtab)
 	printer.indent()
 	for imp in module_def.imports:
-		printer.print2(txt: import_to_string(imp))
+		printer.print2(txt: import_to_string(strtab, imp))
 	let visitor = new_print_visitor(printer)
 	visit_module(visitor, module_def)
 	printer.dedent()
 
-fn import_to_string(imp: Import) -> str:
+fn import_to_string(strtab: StringTable, imp: Import) -> str:
 	case imp.namespace:
-		None: "import {commas(imp.names)}"
-		Some(namespace): "from {dotted(namespace)} import commas(imp.names)"
+		None: "import {commas(strtab, imp.names)}"
+		Some(namespace): "from {dotted(strtab, namespace)} import commas(strtab, imp.names)"
 
 pub fn new_print_visitor(printer: AstPrinter) -> Visitor[AstPrinter]:
 	Visitor:
@@ -1909,6 +1904,7 @@ pub fn new_print_visitor(printer: AstPrinter) -> Visitor[AstPrinter]:
 
 pub class AstPrinter:
 	var indent_level: int = 0
+	pub var strtab: StringTable
 
 	pub fn indent():
 		indent_level += 1
@@ -1926,19 +1922,19 @@ pub class AstPrinter:
 fn print_ast_definition(printer: AstPrinter, definition: Definition, phase: VisitPhase):
 	case phase:
 		Pre:
-			printer.print2(txt: definition_to_str(definition))
+			printer.print2(txt: definition_to_str(strtab: printer.strtab, definition))
 			case definition:
 				Struct(struct_def):
 					for type_parameter in struct_def.type_parameters:
-						printer.print2(txt: "- TP {node_id_to_string(type_parameter.id)}")
+						printer.print2(txt: "- TP {node_id_to_string(strtab: printer.strtab, type_parameter.id)}")
 					for field in struct_def.fields:
-						printer.print2(txt: "- FIELD {field.name}")
+						printer.print2(txt: "- FIELD {printer.strtab.get(field.name)}")
 				Enum(enum_def):
 					for type_parameter in enum_def.type_parameters:
-						printer.print2(txt: "- TP {node_id_to_string(type_parameter.id)}")
+						printer.print2(txt: "- TP {node_id_to_string(strtab: printer.strtab, type_parameter.id)}")
 				Class(class_def):
 					for type_parameter in class_def.type_parameters:
-						printer.print2(txt: "- TP {node_id_to_string(type_parameter.id)}")
+						printer.print2(txt: "- TP {node_id_to_string(strtab: printer.strtab, type_parameter.id)}")
 			else:
 				pass
 			printer.indent()
@@ -1950,7 +1946,7 @@ fn print_ast_definition(printer: AstPrinter, definition: Definition, phase: Visi
 fn print_ast_type(printer: AstPrinter, ty: Type, phase: VisitPhase):
 	case phase:
 		Pre:
-			let txt = type_to_string(ty)
+			let txt = type_to_string(strtab: printer.strtab, ty)
 			printer.print2(txt: "TYPE {txt}")
 			printer.indent()
 		Post:
@@ -1958,7 +1954,7 @@ fn print_ast_type(printer: AstPrinter, ty: Type, phase: VisitPhase):
 	else:
 		pass
 
-fn statement_to_string(statement: Statement) -> str:
+pub fn statement_to_string(strtab: StringTable, statement: Statement) -> str:
 	case statement.kind:
 		Expr(x):
 			"EXPR"
@@ -1994,7 +1990,7 @@ fn statement_to_string(statement: Statement) -> str:
 		Case(f):
 			"CASE"
 		Let(letty):
-			"LET {node_id_to_string(letty.variable.id)}"
+			"LET {node_id_to_string(strtab, letty.variable.id)}"
 		Switch(switchy):
 			"SWITCH"
 		Unreachable:
@@ -2003,14 +1999,14 @@ fn statement_to_string(statement: Statement) -> str:
 fn print_ast_statement(printer: AstPrinter, statement: Statement, phase: VisitPhase):
 	case phase:
 		Pre:
-			printer.print2(txt: "STMT {statement}")
+			printer.print2(txt: "STMT {statement_to_string(strtab: printer.strtab, statement)}")
 			printer.indent()
 		Post:
 			printer.dedent()
 	else:
 		pass
 
-fn expression_to_string(expression?: Expression) -> str:
+pub fn expression_to_string(strtab: StringTable, expression?: Expression) -> str:
 	case expression.kind:
 		StringLiteral(value):
 			"String={value}"
@@ -2028,11 +2024,11 @@ fn expression_to_string(expression?: Expression) -> str:
 		Call(c):
 			"CALL"
 		NameRef(name):
-			"REF({name})"
+			"REF({strtab.get(name)})"
 		LoadSymbol(symbol):
-			"LOAD_SYM({symbol})"
+			"LOAD_SYM({symbol_to_string(strtab, symbol)})"
 		GetAttr(base, attr):
-			"GET-ATTR({attr})"
+			"GET-ATTR({strtab.get(attr)})"
 		GetIndex(base, indici):
 			"GET-INDEX"
 		Null:
@@ -2044,19 +2040,19 @@ fn expression_to_string(expression?: Expression) -> str:
 			let op_txt = unary_op_to_str(op)
 			"UNOP({op_txt})"
 		VariableRef(v):
-			"VARIABLE-REF({node_id_to_string(v.id)})"
+			"VARIABLE-REF({node_id_to_string(strtab, v.id)})"
 		FunctionRef(function, type_arguments):
-			let txt = "FN-{function.name}"
+			let txt = "FN-{strtab.get(function.name)}"
 			if type_arguments.is_empty():
 				txt
 			else:
-				txt + types_to_string(typs: type_arguments)
+				txt + types_to_string(strtab, typs: type_arguments)
 		ParameterRef(parameter_def):
-			"parameter:{node_id_to_string(parameter_def.id)}"
+			"parameter:{node_id_to_string(strtab, parameter_def.id)}"
 		StructLiteral(ty, values):
 			"STRUCT-LITERAL"
 		UnionLiteral(ty, field, value):
-			"UNION-LITERAL field={field}"
+			"UNION-LITERAL field={strtab.get(field)}"
 		ClassLiteral(ty, arguments):
 			"CLASS-LITERAL"
 		ArrayLiteral(values):
@@ -2078,7 +2074,7 @@ fn expression_to_string(expression?: Expression) -> str:
 		EnumLiteral(ty, v, values):
 			"ENUM-LITERAL"
 		Stmt(statement):
-			let txt = statement_to_string(statement)
+			let txt = statement_to_string(strtab, statement)
 			"STMT-{txt}"
 		If(if_expression):
 			"IF-EXPR"
@@ -2086,8 +2082,8 @@ fn expression_to_string(expression?: Expression) -> str:
 fn print_ast_expression(printer: AstPrinter, expression: Expression, phase: VisitPhase):
 	case phase:
 		Pre:
-			let ty_txt = type_to_string(expression.ty)
-			printer.print2(txt: "EXPR {expression} ---> {ty_txt}")
+			let ty_txt = type_to_string(strtab: printer.strtab, expression.ty)
+			printer.print2(txt: "EXPR {expression_to_string(strtab: printer.strtab, expression)} ---> {ty_txt}")
 			printer.indent()
 		Post:
 			printer.dedent()

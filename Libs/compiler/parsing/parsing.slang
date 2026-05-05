@@ -13,14 +13,16 @@ import dbginfo
 from base.vectype import Vector, new_vector
 from basepass import IdGen
 from base.logging import log_debug, log_trace
+from string_table import StringTable
 
 
-pub fn parse_source(path: Path, id_gen: IdGen, typectx: ast.TypeContext, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
+pub fn parse_source(path: Path, id_gen: IdGen, typectx: ast.TypeContext, strtab: StringTable, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
 	let source = path.read_text()
-	parse_module_from_text(source, filename: path.filename, id_gen, typectx, debug)
+	parse_module_from_text(source, filename: path.filename, id_gen, typectx, strtab, debug)
 
-pub fn parse_module_from_text(source: str, filename: str, id_gen: IdGen, typectx: ast.TypeContext, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
-	let parser = Parser(typectx, id_gen)
+pub fn parse_module_from_text(source: str, filename: str, id_gen: IdGen, typectx: ast.TypeContext, strtab: StringTable, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
+	let lex = Lexer(strtab)
+	let parser = Parser(typectx, lex, id_gen, strtab)
 	case debug:
 		Some(info):
 			info.add_source(filename, code: source)
@@ -29,15 +31,17 @@ pub fn parse_module_from_text(source: str, filename: str, id_gen: IdGen, typectx
 	parser.feed(source)
 	parser.parse_module(filename)
 
-pub fn parse_statement_from_text(source: str, id_gen: IdGen, typectx: ast.TypeContext) -> ast.Statement except ParseError:
+pub fn parse_statement_from_text(source: str, id_gen: IdGen, typectx: ast.TypeContext, strtab: StringTable) -> ast.Statement except ParseError:
 	"""Invoke parsing, purely on statement."""
-	let parser = Parser(typectx, id_gen)
+	let lex = Lexer(strtab)
+	let parser = Parser(typectx, lex, id_gen, strtab)
 	parser.feed(source)
 	parser.parse_statement()
 
-pub fn parse_expr_from_text(source: str, id_gen: IdGen, typectx: ast.TypeContext) -> ast.Expression except ParseError:
+pub fn parse_expr_from_text(source: str, id_gen: IdGen, typectx: ast.TypeContext, strtab: StringTable) -> ast.Expression except ParseError:
 	"""Invoke parsing, purely on expression."""
-	let parser = Parser(typectx, id_gen)
+	let lex = Lexer(strtab)
+	let parser = Parser(typectx, lex, id_gen, strtab)
 	parser.feed(source)
 	parser.parse_expression()
 
@@ -48,10 +52,11 @@ pub struct ParseError:
 class Parser:
 	"""An attempt at a recursive descent parser."""
 	var typectx: ast.TypeContext
-	var lex: Lexer = Lexer()
+	var lex: Lexer
 	var m_peek: Token = default_token()
 	var m_peek2: Token = default_token()
 	var id_gen: IdGen
+	var strtab: StringTable
 
 	pub fn feed(source: str):
 		lex.init(source)
@@ -276,7 +281,7 @@ class Parser:
 	fn parse_class_def(is_pub: bool) -> ast.ClassDef except ParseError:
 		"""Parse a class definition."""
 		let name_at = parse_name()
-		log_debug("Parsing class: {name_at.name}")
+		log_debug("Parsing class: {strtab.get(name_at.name)}")
 		let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
 		parse_colon()
 		parse_newline()
@@ -304,7 +309,7 @@ class Parser:
 					let var_def = parse_var_def(is_pub: is_pub2, writable: true)
 					definitions.append(ast.Definition.Var(var_def))
 				KwFn:
-					let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
+					let this_parameter = ast.parameter_def(name: strtab.intern("this"), id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
 					let func_def = parse_func_def(is_pub: is_pub2, this_parameter: Option.Some(this_parameter))
 					definitions.append(ast.Definition.Function(func_def))
 			else:
@@ -332,7 +337,7 @@ class Parser:
 	fn parse_interface_def(is_pub: bool) -> ast.InterfaceDef except ParseError:
 		"""Parse an interface definition."""
 		let name_at = parse_name()
-		log_debug("Parsing interface: {name_at.name}")
+		log_debug("Parsing interface: {strtab.get(name_at.name)}")
 		let type_parameters: List[ast.TypeParameter] = parse_type_parameters()
 		parse_colon()
 		parse_newline()
@@ -348,7 +353,7 @@ class Parser:
 				Dedent:
 					break
 				KwFn:
-					let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
+					let this_parameter = ast.parameter_def(name: strtab.intern("this"), id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
 					let func_def = parse_func_decl_def(this_parameter: Option.Some(this_parameter))
 					definitions.append(ast.Definition.Function(func_def))
 			else:
@@ -383,7 +388,7 @@ class Parser:
 				Dedent:
 					break
 				KwFn:
-					let this_parameter = ast.parameter_def(name: "this", id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
+					let this_parameter = ast.parameter_def(name: strtab.intern("this"), id: new_id(), label_is_optional: true, ty: this_type, location: tok.location)
 					let func_def = parse_func_def(is_pub: true, this_parameter: Option.Some(this_parameter))
 					definitions.append(ast.Definition.Function(func_def))
 			else:
@@ -391,7 +396,7 @@ class Parser:
 
 		let id = new_id()
 		ast.ImplDef:
-			id: ast.NodeId(name: "impl_{id}", id)
+			id: ast.NodeId(name: strtab.intern("impl_{id}"), id)
 			interface_type
 			target_type
 			docstring
@@ -409,7 +414,7 @@ class Parser:
 
 	fn parse_func_def(is_pub: bool, this_parameter: Option[ast.ParameterDef]) -> ast.FunctionDef except ParseError:
 		let name_at = parse_name()
-		log_debug("Parsing function: {name_at.name}")
+		log_debug("Parsing function: {strtab.get(name_at.name)}")
 		let type_parameters = parse_type_parameters()
 		let parameters = parse_parameters()
 		let info = parse_function_info()
@@ -432,7 +437,7 @@ class Parser:
 	fn parse_extern_func_def(libname: str) -> ast.FunctionDef except ParseError:
 		let is_pub = true
 		let name_at = parse_name()
-		let name: str = name_at.name
+		let name: uint32 = name_at.name
 		let type_parameters = parse_type_parameters()
 		let parameters = parse_parameters()
 		let info = parse_function_info()
@@ -563,8 +568,8 @@ class Parser:
 		else:
 			raise unexpected_token(tok, expected: "identifier")
 
-	fn parse_qual_name_suffix(name: str, location: Location) -> ast.QualName except ParseError:
-		let parts: List[str] = List()
+	fn parse_qual_name_suffix(name: uint32, location: Location) -> ast.QualName except ParseError:
+		let parts: List[uint32] = List()
 		parts.append(name)
 		loop:
 			case m_peek.kind:
@@ -606,7 +611,7 @@ class Parser:
 				move_token()
 		else:
 			loop:
-				let label: Option[str] = Option.None()
+				let label: Option[uint32] = Option.None()
 				let param_type = parse_type()
 				parameter_types.append(ast.ParameterType(label, ty: param_type))
 
@@ -806,7 +811,7 @@ class Parser:
 
 		# Parse expression
 		let value = parse_expression()
-		let name: Option[str] = case value.kind:
+		let name: Option[uint32] = case value.kind:
 			NameRef(name2):
 				Option.Some(name2)
 		else:
@@ -903,7 +908,7 @@ class Parser:
 
 		ast.case_statement(value: case_value, arms: case_arms, else_clause, location)
 
-	fn parse_case_arm(name: str, location: Location) -> ast.CaseArm except ParseError:
+	fn parse_case_arm(name: uint32, location: Location) -> ast.CaseArm except ParseError:
 		let variables: List[ast.Variable] = List()
 		# Eventual payload values to unpack:
 		case m_peek.kind:
@@ -1395,4 +1400,4 @@ class Parser:
 		id_gen.new_id()
 
 	fn unexpected_token(tok: Token, expected: str) -> ParseError:
-		ParseError(location: tok.location, message: "Expected {expected}, got {token_to_string(tok)}")
+		ParseError(location: tok.location, message: "Expected {expected}, got {token_to_string(strtab, tok)}")

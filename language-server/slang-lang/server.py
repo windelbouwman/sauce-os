@@ -18,8 +18,7 @@ import asyncio
 import sys
 import os
 import rich.text
-import networkx as nx
-from pygls.server import LanguageServer
+from pygls.lsp.server import LanguageServer
 from pygls.uris import to_fs_path, from_fs_path
 from lsprotocol import types
 
@@ -168,9 +167,10 @@ async def validator_worker(ls: LanguageServer, queue: asyncio.Queue):
                 uri = from_fs_path(filename)
                 diagnostics_per_file[uri] = []
 
+            loop = asyncio.get_running_loop()
             t1 = time.monotonic()
             try:
-                modules = await ls.loop.run_in_executor(None, _cpu_validate, sources)
+                modules = await loop.run_in_executor(None, _cpu_validate, sources)
             except CompilationError as ex:
                 logger.debug("Compilation errors occurred")
                 for filename, location, message in ex.errors:
@@ -193,7 +193,9 @@ async def validator_worker(ls: LanguageServer, queue: asyncio.Queue):
             logger.info(f"Compilation done in {db.last_compilation_duration} seconds!")
 
             for uri, diagnostics in diagnostics_per_file.items():
-                ls.publish_diagnostics(uri, diagnostics)
+                ls.text_document_publish_diagnostics(
+                    types.PublishDiagnosticsParams(uri, diagnostics)
+                )
 
     except Exception:
         logger.exception("Exception occurred in background worker task.")
@@ -215,52 +217,22 @@ class IncrementalCompiler:
     """
 
     def __init__(self):
-        self.id_context = ast.IdContext()
-        self.rt_module = slangc.create_rt_module(self.id_context)
-        self.known_modules = {}
-        self.module_cache = {}
-        self.dependency_graph = nx.DiGraph()
+        pass
 
     def compile(self, sources) -> list[ast.Module]:
-        # Remove dependencies of in editor sources from cache:
-        for source in sources:
-            if isinstance(source, tuple):
-                filename = source[0]
-                if filename in self.module_cache:
-                    m = self.module_cache[filename]
-                    if self.dependency_graph.has_node(m.id.name):
-                        needed_by = nx.ancestors(self.dependency_graph, m.id.name)
-                        for n in needed_by:
-                            if n in self.known_modules:
-                                dependant_filename = self.known_modules[n].filename
-                                if dependant_filename in self.module_cache:
-                                    # logger.info(f"Clearing {nf} from cache")
-                                    self.module_cache.pop(dependant_filename)
+        id_context = ast.IdContext()
+        rt_module = slangc.create_rt_module(id_context)
 
         # Parse sources into modules
         modules = []
-        modules.append(self.rt_module)
+        modules.append(rt_module)
         for source in sources:
-            if isinstance(source, str) and source in self.module_cache:
-                module = self.module_cache[source]
-            else:
-                module = slangc.parse_file(self.id_context, source)
-                if module.id.name in self.known_modules:
-                    self.known_modules.pop(module.id.name)
+            module = slangc.parse_file(id_context, source)
             modules.append(module)
 
-        self.dependency_graph = slangc.dependency_graph(modules)
-        slangc.topo_sort_by_graph(modules, self.dependency_graph)
-
         # Analyze modules:
-        for module in modules:
-            if module.id.name in self.known_modules:
-                continue
-            slangc.resolve_names(self.known_modules, module)
-            slangc.evaluate_types(module)
-            slangc.check_types(module)
-            if module.filename:
-                self.module_cache[module.filename] = module
+        options = slangc.CompilationOptions()
+        slangc.analyze_ast(modules, options)
 
         return modules
 
@@ -407,7 +379,7 @@ def module_to_scope_tree(module: ast.Module) -> "ScopeTreeItem":
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 db = DataBase()
-server = LanguageServer("Slang-Lang-Server", "v0.1", loop=loop)
+server = LanguageServer("Slang-Lang-Server", "v0.1")
 
 
 @server.feature(
@@ -711,7 +683,9 @@ async def did_change(ls: LanguageServer, params: types.DidChangeTextDocumentPara
 @server.feature(types.TEXT_DOCUMENT_DID_CLOSE)
 async def did_close(ls: LanguageServer, params: types.DidOpenTextDocumentParams):
     uri = params.text_document.uri
-    ls.publish_diagnostics(uri, [])
+    ls.text_document_publish_diagnostics(
+        types.PublishDiagnosticsParams(uri, diagnostics=[])
+    )
 
 
 def make_lsp_range(location: SlangLocation) -> types.Range:

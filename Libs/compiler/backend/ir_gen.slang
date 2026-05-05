@@ -5,23 +5,24 @@ import ast
 from base.listtype import List
 from base.optiontype import option_unwrap, Option
 from base.vectype import Vector, new_vector, new_vector_with_capacity
-from base.hashmap import HashMap, new_hashmap_int, new_hashmap_str
+from base.hashmap import HashMap, new_hashmap_int, new_hashmap_uint32
 from base.settype import Set, new_int_set
 from base.utils import panic, assert
 from base.logging import log_info, log_debug, log_trace
 import dbginfo
 from bc import Instruction
 import bc
+from string_table import StringTable
 
-pub fn gen_bytecode(module_defs: List[ast.ModuleDef], debug: Option[dbginfo.DbgInfo]) -> bc.Program:
-	let g = BytecodeGenerator(m_debug: debug)
+pub fn gen_bytecode(strtab: StringTable, module_defs: List[ast.ModuleDef], debug: Option[dbginfo.DbgInfo]) -> bc.Program:
+	let g = BytecodeGenerator(m_debug: debug, strtab)
 	g.forward_declarations(module_defs)
 	for module_def in module_defs:
 		g.gen_prog(module_def)
 	bc.Program(functions: g.functions, structs: g.structs, globals: g.global_variables, extern_functions: g.extern_functions)
 
-pub fn gen_expression_bytecode(expression: ast.Expression) -> Vector[Instruction]:
-	let g = BytecodeGenerator(m_debug: Option.None())
+pub fn gen_expression_bytecode(strtab: StringTable, expression: ast.Expression) -> Vector[Instruction]:
+	let g = BytecodeGenerator(m_debug: Option.None(), strtab)
 	g.gen_expression(expression)
 	g.emit(Instruction.Return(n_args: 1))
 	g.get_relocated_instructions()
@@ -57,10 +58,11 @@ class BytecodeGenerator:
 
 	pub var structs: Vector[bc.Struct] = new_vector()
 	pub var functions: Vector[bc.Function] = new_vector()
-	var function_map: HashMap[str,int] = new_hashmap_str()
+	var function_map: HashMap[uint32,int] = new_hashmap_uint32()
 	var block_stack: List[ControlBlock] = List()
 
 	var m_debug: Option[dbginfo.DbgInfo]
+	var strtab: StringTable
 
 	pub fn forward_declarations(module_defs: List[ast.ModuleDef]):
 		# struct forward declarations:
@@ -82,8 +84,8 @@ class BytecodeGenerator:
 						assert(condition: not struct_def.is_union, message: "Unions not supported in bytecode.")
 						let fields2: List[bc.TypedName] = List()
 						for field1 in struct_def.fields:
-							fields2.append(bc.TypedName(name: field1.name, ty: get_bc_type(field1.ty)))
-						structs.append(bc.Struct(name: struct_def.id.name, fields: fields2))
+							fields2.append(bc.TypedName(name: strtab.get(field1.name), ty: get_bc_type(field1.ty)))
+						structs.append(bc.Struct(name: strtab.get(struct_def.id.name), fields: fields2))
 					Var(variable_def):
 						gen_global_variable(variable_def)
 					Function(function_def):
@@ -110,7 +112,7 @@ class BytecodeGenerator:
 									Some(info):
 										case module_def.filename:
 											Some(filename2):
-												info.add_function(name: function_def.name, filename: filename2, location: function_def.location)
+												info.add_function(name: strtab.get(function_def.name), filename: filename2, location: function_def.location)
 											None:
 												pass
 									None:
@@ -123,7 +125,7 @@ class BytecodeGenerator:
 					pass
 
 	pub fn gen_prog(module_def: ast.ModuleDef):
-		log_info("Generating bytecode for {module_def.get_name()}")
+		log_info("Generating bytecode for {module_def.get_name(strtab)}")
 		for definition in module_def.definitions:
 			case definition:
 				Function(function_def):
@@ -161,11 +163,10 @@ class BytecodeGenerator:
 
 	fn gen_extern_function(function_def: ast.FunctionDef):
 		let func_index = extern_functions.len()
-		let name = function_def.name
 
 		let parameters: Vector[bc.TypedName] = new_vector_with_capacity(capacity: function_def.parameters.len())
 		for parameter in function_def.parameters:
-			parameters.append(bc.TypedName(name: parameter.id.name, ty: get_bc_type(parameter.ty)))
+			parameters.append(bc.TypedName(name: strtab.get(parameter.id.name), ty: get_bc_type(parameter.ty)))
 
 		let return_types: Vector[bc.Type] = new_vector()
 		var no_return = false
@@ -179,18 +180,18 @@ class BytecodeGenerator:
 		if not function_def.info.except_type.is_void():
 			return_types.append(bc.Type.Ptr())
 
-		let extern_function = bc.ExternFunction(name, parameters, return_types, no_return)
+		let extern_function = bc.ExternFunction(name: strtab.get(function_def.name), parameters, return_types, no_return)
 		extern_functions.append(extern_function)
-		function_map.insert(key: name, value: func_index)
+		function_map.insert(key: function_def.name, value: func_index)
 
 	fn gen_func(function_def: ast.FunctionDef):
 		case function_def.body:
 			Intern(scoped_block):
-				log_debug("generate bytecode for {function_def.name}")
+				log_debug("generate bytecode for {strtab.get(function_def.name)}")
 				local_var_mapping.clear()
 				let parameters: Vector[bc.TypedName] = new_vector_with_capacity(capacity: function_def.parameters.len())
 				for parameter in function_def.parameters:
-					let p2 = bc.TypedName(name: parameter.id.name, ty: get_bc_type(parameter.ty))
+					let p2 = bc.TypedName(name: strtab.get(parameter.id.name), ty: get_bc_type(parameter.ty))
 					let parameter_index = parameters.len()
 					local_var_mapping.insert(key: parameter.id, value: parameter_index)
 					parameters.append(p2)
@@ -238,8 +239,7 @@ class BytecodeGenerator:
 
 				let instructions = get_relocated_instructions()
 				let locals = local_variables
-				let name = function_def.name
-				functions.append(bc.Function(name, is_pub: function_def.is_pub, parameters, return_types, no_return, locals, instructions))
+				functions.append(bc.Function(name: strtab.get(function_def.name), is_pub: function_def.is_pub, parameters, return_types, no_return, locals, instructions))
 			Extern(libname):
 				pass
 			None:
@@ -449,7 +449,7 @@ class BytecodeGenerator:
 				emit(Instruction.ParameterSet(parameter_index))
 
 		else:
-			panic("Cannot assign: {target}")
+			panic("Cannot assign: {ast.expression_to_string(strtab, target)}")
 
 	fn gen_try_statement(try_statement: ast.TryStatement):
 		log_trace("gen_try_statement")
@@ -689,7 +689,7 @@ class BytecodeGenerator:
 					elif value.ty.is_float():
 						emit(Instruction.FloatCast(bits))
 					else:
-						panic("cannot cast to float: {value.ty}")
+						panic("cannot cast to float: {ast.type_to_string(strtab, value.ty)}")
 				elif ty.is_int():
 					let signed = ty.is_signed_int()
 					let bits = ty.get_bits()
@@ -698,9 +698,9 @@ class BytecodeGenerator:
 					elif value.ty.is_int():
 						emit(Instruction.IntCast(signed, bits))
 					else:
-						panic("cannot cast to int: {value.ty}")
+						panic("cannot cast to int: {ast.type_to_string(strtab, value.ty)}")
 				else:
-					panic("unsupported type-casting from {value.ty} to {ty}")
+					panic("unsupported type-casting from {ast.type_to_string(strtab, value.ty)} to {ast.type_to_string(strtab, ty)}")
 			Box(value):
 				gen_expression(value)
 				emit(Instruction.ToOpaque(get_bc_type(value.ty)))
@@ -710,7 +710,7 @@ class BytecodeGenerator:
 			If(if_expression):
 				gen_if_expression(if_expression)
 		else:
-			panic("gen_expression: Unsupported: {expression}")
+			panic("gen_expression: Unsupported: {ast.expression_to_string(strtab, expression)}")
 
 	fn gen_if_expression(if_expression: ast.IfExpression):
 		let index = new_local(name: "tmp", ty: get_bc_type(if_expression.true_value.ty), writable: true)
@@ -890,7 +890,7 @@ class BytecodeGenerator:
 	fn add_local(variable: ast.Variable, writable: bool) -> int:
 		# Add a local variable!
 		let ty = get_bc_type(variable.ty)
-		let index = new_local(name: variable.id.name, ty, writable: variable.writable or writable)
+		let index = new_local(name: strtab.get(variable.id.name), ty, writable: variable.writable or writable)
 		local_var_mapping.insert(key: variable.id, value: index)
 		index
 
@@ -952,7 +952,7 @@ class BytecodeGenerator:
 			let element_type2 = ty2.get_element_type()
 			bc.Type.Array(get_bc_type(element_type2))
 		else:
-			panic("get_bc_type: Type {ty2} not supported")
+			panic("get_bc_type: Type {ast.type_to_string(strtab, ty2)} not supported")
 
 	fn enter_block(block: ControlBlock):
 		block_stack.prepend(block)
@@ -975,7 +975,7 @@ class BytecodeGenerator:
 			code.append(instruction)
 
 	fn get_name(id?: ast.NodeId) -> str:
-		"X{id.id}_{id.name}"
+		"X{id.id}_{strtab.get(id.name)}"
 
 	fn gen_id() -> int:
 		let x = id_counter
@@ -983,11 +983,11 @@ class BytecodeGenerator:
 		x
 
 
-fn get_attr_index(ty: ast.Type, attr: str) -> int:
+fn get_attr_index(ty: ast.Type, attr: uint32) -> int:
 	let struct_def = ty.get_struct_def()
 	var index = 0
 	for field in struct_def.fields:
 		if field.name == attr:
 			return index
 		index += 1
-	panic("No field: {attr}")
+	panic("No field")
