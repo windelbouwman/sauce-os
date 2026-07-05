@@ -92,6 +92,10 @@ profile6: ${BUILDDIR}/c/apps/format.exe
 	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ${BUILDDIR}/c/apps/format.exe --check ${BASE_LIB_SRCS} ${IMAGE_LIB_SRCS} ${SCIENCE_LIB_SRCS} ${WEB_LIB_SRCS} ${COMPILER_LIB_SRCS} ${GFX_LIB_SRCS} ${SLANG_APPS} ${SLANG_EXAMPLES}
 	kcachegrind build/callgrind.out
 
+profile7:
+	valgrind --tool=callgrind --callgrind-out-file=build/callgrind.out ./build/compiler5 --backend-wat -o build/wat/tests/test_vector.wat tests/test_vector.slang --add-import build/wat/libbase.json --add-import build/wat/libcompiler.json --add-import build/wat/libimage.json --add-import build/wat/libscience.json
+	kcachegrind build/callgrind.out
+
 leakcheck: ${COMPILER5} | ${BUILDDIR}
 	valgrind ./${COMPILER5} --backend-null ${BASE_LIB_SRCS}
 
@@ -428,10 +432,11 @@ ${BUILDDIR}/c/native_example:
 # x86 backend
 ############################################################################
 
-.PHONY: native all-examples-x86 all-tests-x86
+.PHONY: native all-examples-x86 all-tests-x86 all-apps-x86
 native: all-examples-x86 native_example
 all-examples-x86: $(EXAMPLES_X86)
 all-tests-x86: ${X86_TESTS}
+all-apps-x86: ${APP_X86}
 
 ${BUILDDIR}/x86:
 	mkdir -p $@
@@ -686,7 +691,7 @@ ${BUILDDIR}/wasm/snippets/%.wasm: examples/snippets/%.slang runtime/std.slang ${
 	wasm-tools validate $@
 
 # Web app
-.PHONY: webapp
+.PHONY: webapp serve
 webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_TESTS} ${BUILDDIR}/wasm/compiler.wasm ${BUILDDIR}/wasm/apps/mandel.wasm all-examples-wasm
 	mkdir -p ${BUILDDIR}/webapp
 	mkdir -p ${BUILDDIR}/webapp/snippets
@@ -702,6 +707,10 @@ webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_T
 	cp webapp/index.html webapp/style.css ${BUILDDIR}/webapp/
 	cp webapp/webrt.js webapp/memfs.js ${BUILDDIR}/webapp/
 	cp runtime/slangrt.js ${BUILDDIR}/webapp/
+	python webapp/create_meta_data.py ${BUILDDIR}/webapp
+
+serve: webapp
+	python -m http.server -d ${BUILDDIR}/webapp
 
 ############################################################################
 # Bootstrapping

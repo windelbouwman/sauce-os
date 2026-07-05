@@ -1,7 +1,7 @@
 from rich import print
 import rich.markup
 from functools import lru_cache
-from .location import Location
+from .location import Location, RowColumnCalculator
 
 
 def count_leading_tabs(line: str) -> int:
@@ -9,20 +9,22 @@ def count_leading_tabs(line: str) -> int:
 
 
 def print_error(code: str, filename: str, location: Location, message: str):
+    rcc = RowColumnCalculator(code)
+    row, begin_column = rcc.offset_to_row_column(location.begin)
+    row += 1
+    _, end_column = rcc.offset_to_row_column(location.end)
     print("***********************", filename, location)
     context_amount = 5
     was_printed = False
     for row_nr, text in enumerate(code.splitlines(), start=1):
-        if row_nr < location.begin.row - context_amount:
+        if row_nr < row - context_amount:
             continue
 
         print(f"[italic]{row_nr:5}[/italic]:\t{rich.markup.escape(text)}")
-        if row_nr == location.begin.row:
+        if row_nr == row:
             tabs = count_leading_tabs(text)
-            indent = (
-                " " * 6 + "\t" + "\t" * tabs + " " * (location.begin.column - 1 - tabs)
-            )
-            lexeme_length = max(location.end.column - location.begin.column, 1)
+            indent = " " * 6 + "\t" + "\t" * tabs + " " * (begin_column - tabs)
+            lexeme_length = max(end_column - begin_column, 1)
             pointer = indent + "^" * lexeme_length
             indent += " " * (lexeme_length // 2)
             print(pointer)
@@ -30,7 +32,7 @@ def print_error(code: str, filename: str, location: Location, message: str):
             print(indent + f"+----< [bold]{message}[/bold]")
             was_printed = True
 
-        if row_nr > location.begin.row + context_amount:
+        if row_nr > row + context_amount:
             break
 
     if not was_printed:

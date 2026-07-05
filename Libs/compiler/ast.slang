@@ -955,7 +955,7 @@ pub class ModuleDef:
 	pub var location: Location
 	pub var filename: Option[str]
 	pub var imports: Vector[Import]
-	pub var definitions: List[Definition]
+	pub var definitions: Vector[Definition]
 	pub var scope: Scope
 
 	pub fn get_name(strtab: StringTable) -> str:
@@ -970,7 +970,7 @@ pub class ModuleDef:
 	pub fn define_enum(enum_def: EnumDef):
 		define_symbol(definition: Definition.Enum(enum_def))
 
-pub fn new_module(namespace: List[uint32], location: Location, filename: Option[str], imports: Vector[Import], definitions: List[Definition]) -> ModuleDef:
+pub fn new_module(namespace: List[uint32], location: Location, filename: Option[str], imports: Vector[Import], definitions: Vector[Definition]) -> ModuleDef:
 	ModuleDef:
 		namespace
 		location
@@ -985,7 +985,7 @@ pub fn new_empty_module(namespace: List[uint32], location: Location) -> ModuleDe
 		location
 		filename: Option.None()
 		imports: new_vector()
-		definitions: List()
+		definitions: new_vector()
 
 pub fn import_names(names: List[NameAtLocation], location: Location) -> Import:
 	Import:
@@ -1157,7 +1157,7 @@ pub struct TypeParameter:
 	id: NodeId
 	location: Location
 
-pub fn struct_def(is_pub: bool, name: uint32, id: int, docstring: Option[DocString], type_parameters: List[TypeParameter], fields: List[StructField], location: Location) -> StructDef:
+pub fn struct_def(is_pub: bool, name: uint32, id: int, docstring: Option[DocString], type_parameters: List[TypeParameter], fields: Vector[StructField], location: Location) -> StructDef:
 	StructDef:
 		is_pub
 		id: NodeId(name, id)
@@ -1174,7 +1174,7 @@ pub struct StructDef:
 	docstring: Option[DocString]
 	is_union: bool
 	type_parameters: List[TypeParameter]
-	fields: List[StructField]
+	fields: Vector[StructField]
 	location: Location
 	scope: Scope
 
@@ -1188,7 +1188,7 @@ pub class StructBuilder:
 	var is_union: bool = false
 	var location: Location = location_default()
 	var type_parameters: List[TypeParameter] = List()
-	var fields: List[StructField] = List()
+	var fields: Vector[StructField] = new_vector()
 
 	pub fn set_name(name: uint32):
 		nodeId.name = name
@@ -1264,7 +1264,7 @@ pub struct ClassDef:
 	location: Location
 	is_extern: Option[str]
 	type_parameters: List[TypeParameter]
-	definitions: List[Definition]
+	definitions: Vector[Definition]
 	scope: Scope
 
 fn class_def_to_str(strtab: StringTable, class_def: ClassDef) -> str:
@@ -1277,7 +1277,7 @@ pub struct InterfaceDef:
 	docstring: Option[DocString]
 	location: Location
 	is_extern: Option[str]
-	definitions: List[Definition]
+	definitions: Vector[Definition]
 	scope: Scope
 
 pub struct ImplDef:
@@ -1286,7 +1286,7 @@ pub struct ImplDef:
 	target_type: Type
 	docstring: Option[DocString]
 	location: Location
-	definitions: List[Definition]
+	definitions: Vector[Definition]
 	scope: Scope
 
 pub struct TypeDef:
@@ -1425,6 +1425,7 @@ pub class Variable:
 	pub var ty: Type
 	pub var location: Location
 	pub var writable: bool = false
+	pub var escapes: bool = false
 
 	pub fn ref(location: Location) -> Expression:
 		variable_ref(variable: this, location)

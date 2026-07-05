@@ -106,7 +106,7 @@ def spec_to_pattern(token_spec):
     return re.compile(regex, re.MULTILINE | re.DOTALL)
 
 
-def tokenize(code: str | tuple[Location, str]):
+def tokenize(code: str):
     newline_regex = r"\n"
     escape_regex = r"(\\[ntr'\"\{\}\\])|(\\[0-8][0-8][0-8])|(\\x[0-9a-fA-F][0-9a-fA-F])"
     main_pattern = spec_to_pattern(
@@ -148,25 +148,22 @@ def tokenize(code: str | tuple[Location, str]):
     }
 
     assert isinstance(code, str)
-    start_row = start_col = 1
-    row, col = start_row, start_col
-    col_start = 0
     pos = 0
     mode = "normal"  # or string!
     curly_stack = []
 
     while pos < len(code):
+        begin = pos
         mo = patterns[mode].match(code, pos)
         if mo is None:
             raise RuntimeError(f"No match at {pos}")
         pos = mo.end()
+        end = pos
 
         # print(mo)
         kind: str = mo.lastgroup
         value = mo.group()
-        col = mo.start() - col_start + start_col
-        col2 = mo.end() - col_start + start_col
-        loc = Location(Position(row, col), Position(row, col2))
+        loc = Location(begin, end)
 
         if mode == "normal":
             if kind == "OP" or kind == "OP2":
@@ -192,8 +189,6 @@ def tokenize(code: str | tuple[Location, str]):
                 mode = "string"
             elif kind == "DOCSTRING":
                 value = value[3:-3]
-                newlines = len(re.findall(newline_regex, value))
-                row += newlines
             elif kind == "CHAR":
                 value = value[1:-1]
                 if value[0] == "\\":
@@ -217,13 +212,10 @@ def tokenize(code: str | tuple[Location, str]):
             elif kind == "SPACE" or kind == "TAB":
                 pass
             elif kind == "NEWLINE":
-                col_start = mo.end()
-                row += 1
+                pass
             elif kind == "COMMENT":
                 # Register line comment as newline!
                 kind = "NEWLINE"
-                col_start = mo.end()
-                row += 1
             elif kind == "OTHER":
                 if value.isprintable():
                     c = value
@@ -252,7 +244,7 @@ def tokenize(code: str | tuple[Location, str]):
         tok = Token(kind, value, loc)
         yield tok
 
-    end_loc = Location(Position(row, 1), Position(row, 1))
+    end_loc = Location(1, 1)
     yield Token("EOF", "EOF", end_loc)
 
 

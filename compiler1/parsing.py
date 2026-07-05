@@ -15,47 +15,49 @@ from .errors import ParseError, CompilationError
 logger = logging.getLogger("slangc.parser")
 
 
-def parse_file(id_context: ast.IdContext, filename: str) -> ast.Module:
-    if isinstance(filename, tuple):
-        filename, code = filename
-    else:
-        with open(filename, "r") as f:
-            code = f.read()
-    logger.info(f"Parsing {filename}")
-    return parse_source(id_context, code, filename)
-
-
-def parse_source(id_context: ast.IdContext, code: str, filename: str) -> ast.Module:
-    """Parse the given code."""
-    logger.debug("Starting parse")
-    try:
-        module: ast.Module = lark_it(id_context, code, "module")
-    except ParseError as ex:
-        raise CompilationError([(filename, ex.location, ex.message)])
-
-    assert isinstance(module, ast.Module)
-
-    module.filename = filename
-    logger.debug("Parse complete!")
-    return module
-
-
-def lark_it(id_context: ast.IdContext, code, start):
-    """Invoke the lark parsing."""
-    try:
-        tree = lark_parser.parse(code, start=start)
-    except UnexpectedInput as ex:
-        raise ParseError(
-            Location.from_row_column(ex.line, ex.column), f"Parsing choked: {ex}"
+class Parser:
+    def __init__(self, id_context: ast.IdContext):
+        self.id_context = id_context
+        self.trafo = CustomTransformer(self.id_context)
+        self.lark_parser = Lark(
+            grammar,
+            parser="lalr",
+            lexer=CustomLarkLexer,
+            start=["module", "eval_expr"],
+            transformer=self.trafo,
         )
 
-    try:
-        return CustomTransformer(id_context).transform(tree)
-    except VisitError as ex:
-        if isinstance(ex.orig_exc, ParseError):
-            raise ex.orig_exc
+    def parse_file(self, filename: str) -> ast.Module:
+        if isinstance(filename, tuple):
+            filename, code = filename
         else:
-            raise
+            with open(filename, "r") as f:
+                code = f.read()
+        logger.info(f"Parsing {filename}")
+        return self.parse_source(code, filename)
+
+    def parse_source(self, code: str, filename: str) -> ast.Module:
+        """Parse the given code."""
+        logger.debug("Starting parse")
+        try:
+            module: ast.Module = self.lark_it(code, "module")
+        except ParseError as ex:
+            raise CompilationError([(filename, ex.location, ex.message)])
+
+        assert isinstance(module, ast.Module)
+
+        module.filename = filename
+        logger.debug("Parse complete!")
+        return module
+
+    def lark_it(self, code, start):
+        """Invoke the lark parsing."""
+        try:
+            return self.lark_parser.parse(code, start=start)
+        except UnexpectedInput as ex:
+            raise ParseError(
+                Location(ex.token.start_pos, ex.token.end_pos), f"Parsing choked: {ex}"
+            )
 
 
 class CustomLarkLexer(LarkLexer):
@@ -103,10 +105,8 @@ class CustomLarkLexer(LarkLexer):
             yield LarkToken(
                 ty2,
                 token.value,
-                line=token.location.begin.row,
-                column=token.location.begin.column,
-                end_line=token.location.end.row,
-                end_column=token.location.end.column,
+                start_pos=token.location.begin,
+                end_pos=token.location.end,
             )
 
 
@@ -119,9 +119,7 @@ def get_loc2(tok1: LarkToken, tok2: LarkToken) -> Location:
     """Get Location from two lark tokens."""
     assert isinstance(tok1, LarkToken)
     assert isinstance(tok2, LarkToken)
-    return Location(
-        Position(tok1.line, tok1.column), Position(tok2.end_line, tok2.end_column)
-    )
+    return Location(tok1.start_pos, tok2.end_pos)
 
 
 def get_span(loc1: Location, loc2: Location):
@@ -1071,6 +1069,3 @@ labeled_expression: test
 %declare STRING_START STRING_LITERAL STRING_END
 
 """
-lark_parser = Lark(
-    grammar, parser="lalr", lexer=CustomLarkLexer, start=["module", "eval_expr"]
-)

@@ -70,7 +70,7 @@ pub fn transform(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx:
 		ast.visit_module(visitor, module_def)
 
 		# Filter class-defs / enum-defs / interface-defs:
-		let new_defs2: List[ast.Definition] = List()
+		let new_defs2: Vector[ast.Definition] = new_vector()
 		for def2 in module_def.definitions:
 			case def2:
 				Class(c):
@@ -86,7 +86,8 @@ pub fn transform(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx:
 			else:
 				new_defs2.append(def2)
 
-		new_defs2.take_extend(transformer.class_rewriter.new_definitions)
+		new_defs2.extend(transformer.class_rewriter.new_definitions)
+		transformer.class_rewriter.new_definitions.clear()
 		module_def.definitions = new_defs2
 
 	# ast.print_ast(module)
@@ -164,7 +165,7 @@ pub fn transform(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx:
 fn remove_union_defs(module_defs: List[ast.ModuleDef]):
 	for module_def in module_defs:
 		# Filter union-defs:
-		let new_defs2: List[ast.Definition] = List()
+		let new_defs2: Vector[ast.Definition] = new_vector()
 		for def2 in module_def.definitions:
 			case def2:
 				Struct(struct_def):
@@ -593,7 +594,8 @@ fn transformer_on_node7(transformer: Transformer, node: ast.VisitNode, phase: as
 		Post:
 			case node:
 				ModuleNode(module_def):
-					module_def.definitions.take_extend(transformer.class_rewriter.new_definitions)
+					module_def.definitions.extend(transformer.class_rewriter.new_definitions)
+					transformer.class_rewriter.new_definitions.clear()
 			else:
 				pass
 	else:
@@ -672,7 +674,7 @@ class ClassRewriter:
 	pub var class_struct_map: HashMap[ast.NodeId,ast.StructDef] = ast.new_hashmap_nodeid()
 	pub var enum_impl_map: HashMap[ast.NodeId,EnumImpl] = ast.new_hashmap_nodeid()
 	pub var interface_impl2_map: HashMap[ast.NodeId,InterfaceImpl2] = ast.new_hashmap_nodeid()
-	pub var new_definitions: List[ast.Definition] = List()
+	pub var new_definitions: Vector[ast.Definition] = new_vector()
 	pub var strtab: StringTable
 	pub var typectx: ast.TypeContext
 	var id_gen: IdGen

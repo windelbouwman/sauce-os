@@ -409,7 +409,7 @@ class SymbolLoader:
 			imports.append(load_import())
 			m_des.pop_value()
 
-		let definitions: List[ast.Definition] = List()
+		let definitions: Vector[ast.Definition] = new_vector()
 		for definition_obj in m_des.get_array_attribute(attr: "definitions"):
 			m_des.push_value(value: definition_obj)
 			definitions.append(load_definition())
@@ -589,8 +589,8 @@ class SymbolLoader:
 
 		class_def
 
-	fn load_definitions(attr: str) -> List[ast.Definition]:
-		let definitions: List[ast.Definition] = List()
+	fn load_definitions(attr: str) -> Vector[ast.Definition]:
+		let definitions: Vector[ast.Definition] = new_vector()
 		for definition_obj in m_des.get_array_attribute(attr):
 			m_des.push_value(value: definition_obj)
 			let definition = load_definition()
@@ -689,7 +689,10 @@ class SymbolLoader:
 			if type_name == "int":
 				let signed = m_des.get_boolean_attribute(attr: "signed")
 				let bits = m_des.get_integer_attribute(attr: "bits")
-				ast.specific_int_type(signed, bits)
+				if signed and bits == 64:
+					typectx.int_type()
+				else:
+					ast.specific_int_type(signed, bits)
 			elif type_name == "str":
 				typectx.str_type()
 			elif type_name == "bool":

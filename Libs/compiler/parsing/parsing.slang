@@ -90,7 +90,7 @@ class Parser:
 			else:
 				break
 
-		let definitions: List[ast.Definition] = List()
+		let definitions: Vector[ast.Definition] = new_vector()
 		loop:
 			var tok = get_token()
 			var is_pub = false
@@ -268,7 +268,7 @@ class Parser:
 		parse_indent()
 		let docstring = parse_optional_docstring()
 
-		let fields: List[ast.StructField] = List()
+		let fields: Vector[ast.StructField] = new_vector()
 		while not try_parse_dedent():
 			let field_name_at = parse_name()
 			parse_colon()
@@ -288,7 +288,7 @@ class Parser:
 		parse_indent()
 		let docstring = parse_optional_docstring()
 
-		let definitions: List[ast.Definition] = List()
+		let definitions: Vector[ast.Definition] = new_vector()
 		# TODO: create type instance per 'this' parameter
 		let this_type = ast.undefined_type()
 		loop:
@@ -345,7 +345,7 @@ class Parser:
 		let docstring = parse_optional_docstring()
 
 		let this_type = ast.clone_type(typectx.opaque_type())
-		let definitions: List[ast.Definition] = List()
+		let definitions: Vector[ast.Definition] = new_vector()
 		loop:
 			let tok = get_token()
 
@@ -380,7 +380,7 @@ class Parser:
 		let docstring = parse_optional_docstring()
 
 		let this_type = target_type
-		let definitions: List[ast.Definition] = List()
+		let definitions: Vector[ast.Definition] = new_vector()
 		loop:
 			let tok = get_token()
 

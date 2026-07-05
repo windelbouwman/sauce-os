@@ -12,6 +12,7 @@ from typechecking import type_check
 from typedb import store_symbol_table, load_symbol_table
 from base.utils import panic, assert
 from base.logging import log_error, log_info, log_trace, log_debug
+from escape_analysis import escape
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
 from basepass import IdGen
@@ -114,7 +115,7 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 		Slang:
 			gen_slang(strtab: builder.strtab, module_defs: builder.m_modules, output_filename: options.output_filename)
 		Bytecode:
-			let program = gen_bytecode(strtab: builder.strtab, module_defs: builder.m_modules, debug: builder.m_debug)
+			let program = builder.get_bc_program()
 			if options.run_code:
 				if options.verbosity > 1:
 					bc.print_bc_program(program)
@@ -124,7 +125,7 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 				bc.print_bc_program_to_file(program, filename: options.output_filename)
 		C:
 			# Generate C-code via bytecode:
-			let program = gen_bytecode(strtab: builder.strtab, module_defs: builder.m_modules, debug: builder.m_debug)
+			let program = builder.get_bc_program()
 			if options.verbosity > 1:
 				bc.print_bc_program(program)
 			gen_c_code(program, output_filename: options.output_filename)
@@ -138,17 +139,14 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 			else:
 				gen_webassembly_text(module_defs: builder.m_modules, strtab: builder.strtab, typectx: builder.m_typectx, output_filename: options.output_filename)
 		Sil:
-			let bc_program = gen_bytecode(strtab: builder.strtab, module_defs: builder.m_modules, debug: builder.m_debug)
-			let sil_program = to_sil(program: bc_program, bits: 64)
+			let sil_program = builder.get_sil_program(bits: 64)
 			sil.print_sil_program_to_file(program: sil_program, filename: options.output_filename)
 		Riscv:
-			let bc_program = gen_bytecode(strtab: builder.strtab, module_defs: builder.m_modules, debug: builder.m_debug)
-			let sil_program = to_sil(program: bc_program, bits: 32)
+			let sil_program = builder.get_sil_program(bits: 32)
 			optimize_sil(program: sil_program, level: options.optimization_level)
 			gen_riscv(program: sil_program, options: cgen_options)
 		X86:
-			let bc_program = gen_bytecode(strtab: builder.strtab, module_defs: builder.m_modules, debug: builder.m_debug)
-			let sil_program = to_sil(program: bc_program, bits: 64)
+			let sil_program = builder.get_sil_program(bits: 64)
 			optimize_sil(program: sil_program, level: options.optimization_level)
 			gen_x86(program: sil_program, options: cgen_options)
 	report.set_enabled(false)
@@ -229,5 +227,13 @@ class Builder:
 		type_check(module_defs: m_modules, strtab, typectx: m_typectx, display_warnings: false)
 		m_profiler.leave()
 
+		escape(module_defs: m_modules)
+
 		if options.dump_ast:
 			ast.print_ast2(strtab, module_defs: m_modules)
+
+	pub fn get_bc_program() -> bc.Program:
+		gen_bytecode(strtab, module_defs: m_modules, debug: m_debug)
+
+	pub fn get_sil_program(bits: int) -> sil.Program:
+		to_sil(program: get_bc_program(), bits)

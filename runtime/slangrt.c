@@ -1,5 +1,4 @@
 
-#include <execinfo.h>
 #include <inttypes.h>
 #include <math.h>
 #include <setjmp.h>
@@ -11,6 +10,10 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
+
+#ifdef __GLIBC__
+#include <execinfo.h>
+#endif
 
 #include "slangrt.h"
 
@@ -63,7 +66,7 @@ SLANG_API void std_putc(const char* ch)
 
 void print_trace(void)
 {
-    // #ifdef UNIX
+#ifdef __GLIBC__
     void* array[10];
     char** strings;
     int size, i;
@@ -78,7 +81,7 @@ void print_trace(void)
     }
 
     free(strings);
-    // #endif
+#endif
 }
 
 void std_exit(slang_int_t code)

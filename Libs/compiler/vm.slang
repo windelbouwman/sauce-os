@@ -320,8 +320,8 @@ fn frame_from_function(function: Function, arguments: List[Value]) -> Frame:
 	frame
 
 class Frame:
-	pub var arguments: List[Value] = List()
-	pub var locals: List[Value] = List()
+	pub var arguments: Vector[Value] = new_vector()
+	pub var locals: Vector[Value] = new_vector()
 	pub var stack: List[Value] = List()
 	pub var pc: int = 0
 	var code: Vector[Instruction]
@@ -334,7 +334,7 @@ class Frame:
 pub class VirtualMachine:
 	pub var frames: List[Frame] = List()
 	pub var globals: Vector[Value] = new_vector()
-	pub var m_functions: List[FunctionRef] = List()
+	pub var m_functions: Vector[FunctionRef] = new_vector()
 	pub var structs: Vector[bc.Struct] = new_vector()
 
 	pub fn step():

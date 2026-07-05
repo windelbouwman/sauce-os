@@ -12,6 +12,7 @@ import {
   rt_str_get,
 } from "./slangrt.js";
 import { MemoryFS } from "./memfs.js";
+import meta_data from "./meta-data.json" with { type: "json" };
 
 const example_menu = document.getElementById("example-menu");
 const editor = document.getElementById("input-code");
@@ -20,6 +21,10 @@ const console_output = document.getElementById("console-output");
 const run_button = document.getElementById("run-button");
 const backend_menu = document.getElementById("backend-menu");
 const extra_args_input = document.getElementById("extra-args");
+
+for (let name of meta_data.snippets) {
+  example_menu.add(new Option(name, name));
+}
 
 let fs = new MemoryFS();
 let env = {
@@ -258,41 +263,7 @@ async function runUnitTest(name) {
 }
 
 async function runUnitTests() {
-  // TODO: would be nice to somehow get this from file?
-  let test_names = [
-    "test_base64",
-    "test_bitset",
-    "test_bytes",
-    "test_compiler",
-    "test_crypto",
-    "test_datetime",
-    "test_deflate",
-    "test_diff",
-    "test_functools",
-    "test_geometries",
-    "test_gif",
-    "test_hashmap",
-    "test_hash",
-    "test_heapq",
-    "test_igraph",
-    "test_integer_set",
-    "test_json",
-    "test_list",
-    "test_math",
-    "test_opt",
-    "test_queue",
-    "test_regex",
-    "test_riscv",
-    "test_rope",
-    "test_rt",
-    "test_set",
-    "test_signal",
-    "test_sorting",
-    "test_strlib",
-    "test_vector",
-    "test_x86",
-  ];
-  for (let name of test_names) {
+  for (let name of meta_data.tests) {
     await runUnitTest(name);
   }
   std_print("All tests ran!");

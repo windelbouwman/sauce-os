@@ -8,7 +8,7 @@ import os
 from typing import TextIO, Optional
 
 from . import ast
-from .parsing import parse_file
+from .parsing import Parser
 from .namebinding import resolve_names, base_scope
 from .pass3 import evaluate_types
 from .typechecker import check_types
@@ -44,8 +44,36 @@ class CompilationOptions:
     program_args: tuple = ()
 
 
+class Compiler:
+    def __init__(self, options: CompilationOptions):
+        self.options = options
+        self.id_context = ast.IdContext()
+        self.parser = Parser(self.id_context)
+
+    def do_compile(self, filenames: list[str], output: Optional[TextIO]):
+        return do_compile_inner(self, filenames, output)
+
+    def parse(self, filenames):
+        modules = []
+        rt_module = create_rt_module(self.id_context)
+        modules.append(rt_module)
+        for filename in filenames:
+            module = self.parser.parse_file(filename)
+            modules.append(module)
+            if self.options.dump_ast:
+                ast.print_ast(module)
+        return rt_module, modules
+
+
 def do_compile(
     filenames: list[str], output: Optional[TextIO], options: CompilationOptions
+):
+    compiler = Compiler(options)
+    return do_compile_inner(compiler, filenames, output)
+
+
+def do_compile_inner(
+    compiler: Compiler, filenames: list[str], output: Optional[TextIO]
 ):
     """Compile a list of module."""
     if not filenames:
@@ -53,38 +81,30 @@ def do_compile(
         return
 
     filenames = list(sorted(set(filenames)))
-    id_context = ast.IdContext()
 
-    modules = []
-    rt_module = create_rt_module(id_context)
-    modules.append(rt_module)
-    for filename in filenames:
-        module = parse_file(id_context, filename)
-        modules.append(module)
-        if options.dump_ast:
-            ast.print_ast(module)
+    rt_module, modules = compiler.parse(filenames)
 
-    analyze_ast(modules, options)
+    analyze_ast(modules, compiler.options)
 
-    if options.backend == "null":
+    if compiler.options.backend == "null":
         return modules
 
-    transform(id_context, modules, rt_module, options)
+    transform(compiler.id_context, modules, rt_module, compiler.options)
 
-    if options.dump_ast:
+    if compiler.options.dump_ast:
         print_modules(modules)
 
     flow_check(modules)
 
     # Generate output
-    if options.backend == "vm":
+    if compiler.options.backend == "vm":
         prog = gen_bc(modules)
-        if options.run_code:
+        if compiler.options.run_code:
             run_bytecode(prog, output)
         else:
             print_bytecode(prog, output)
-    elif options.backend == "py":
-        if options.run_code:
+    elif compiler.options.backend == "py":
+        if compiler.options.run_code:
             f = io.StringIO()
             gen_pycode(modules, f)
             code = f.getvalue()
@@ -109,7 +129,7 @@ def do_compile(
         else:
             gen_pycode(modules, output)
     else:
-        raise ValueError(f"Unknown backend: {options.backend}")
+        raise ValueError(f"Unknown backend: {compiler.options.backend}")
 
     logger.info(":party_popper:DONE&DONE", extra={"markup": True})
 

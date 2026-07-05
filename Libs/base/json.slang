@@ -6,16 +6,17 @@ from logging import log_info
 from std import str_len, str_get, ord, str_slice
 from std import read_file, file_exists
 from std import file_writeln, file_open, file_close
-from strlib import str_join, is_digit, str_to_int
+from strlib import str_join, is_digit, digit_to_int
 from listtype import List
+from vectype import Vector, new_vector
 from optiontype import Option, option_is_some
 
 pub enum JsonValue:
 	Integer(value: int)
 	String(text: str)
 	Bool(value: bool)
-	Object(items: List[KeyValue])
-	Array(values: List[JsonValue])
+	Object(items: Vector[KeyValue])
+	Array(values: Vector[JsonValue])
 	Null
 
 struct KeyValue:
@@ -80,7 +81,7 @@ pub struct JsonException:
 pub class JsonBrowser:
 	# A helper class to help navigate JSON structures.
 	var m_value: JsonValue = JsonValue.Null()
-	var m_stack: List[JsonValue] = List()
+	var m_stack: Vector[JsonValue] = new_vector()
 
 	pub fn push_value(value: JsonValue):
 		m_stack.append(m_value)
@@ -112,14 +113,14 @@ pub class JsonBrowser:
 		else:
 			panic("Not a JSON object")
 
-	pub fn get_array_values() -> List[JsonValue]:
+	pub fn get_array_values() -> Vector[JsonValue]:
 		case m_value:
 			Array(values):
 				values
 		else:
 			panic("Not a JSON array")
 
-	pub fn get_array_attribute(attr: str) -> List[JsonValue]:
+	pub fn get_array_attribute(attr: str) -> Vector[JsonValue]:
 		enter_attribute(attr)
 		let values = get_array_values()
 		pop_value()
@@ -229,7 +230,7 @@ pub class JsonBuilder:
 
 
 class JsonObjectBuilder:
-	var m_attributes: List[KeyValue] = List()
+	var m_attributes: Vector[KeyValue] = new_vector()
 
 	pub fn add_attribute(attr: str, value: JsonValue):
 		m_attributes.append(KeyValue(key: attr, value))
@@ -239,7 +240,7 @@ class JsonObjectBuilder:
 
 
 class JsonArrayBuilder:
-	var m_values: List[JsonValue] = List()
+	var m_values: Vector[JsonValue] = new_vector()
 
 	pub fn add_element(value: JsonValue):
 		m_values.append(value)
@@ -275,7 +276,7 @@ class Parser:
 			raise unexpected(token, expected: "[ or number")
 
 	fn parse_object() -> JsonValue except JsonException:
-		let items: List[KeyValue] = List()
+		let items: Vector[KeyValue] = new_vector()
 		loop:
 			let key = parse_string()
 			parse_colon()
@@ -293,7 +294,7 @@ class Parser:
 		JsonValue.Object(items)
 
 	fn parse_array() -> JsonValue except JsonException:
-		let values: List[JsonValue] = List()
+		let values: Vector[JsonValue] = new_vector()
 		# Check for empty array:
 		let token = get_token()
 		case token.kind:
@@ -364,30 +365,18 @@ enum JsonTokenKind:
 
 fn token_to_str(token: JsonToken) -> str:
 	case token.kind:
-		BracketLeft:
-			"BracketLeft"
-		BracketRight:
-			"BracketRight"
-		BraceLeft:
-			"BraceLeft"
-		BraceRight:
-			"BraceRight"
-		Comma:
-			"Comma"
-		Colon:
-			"Colon"
-		Integer(value):
-			"Integer({value})"
-		String(text):
-			"String({text})"
-		Id(text):
-			"Id({text})"
-		Eof:
-			"Eof"
-		UnexpectedEof:
-			"UnexpectedEof"
-		Error(c):
-			"Error({ord(c)})"
+		BracketLeft: "BracketLeft"
+		BracketRight: "BracketRight"
+		BraceLeft: "BraceLeft"
+		BraceRight: "BraceRight"
+		Comma: "Comma"
+		Colon: "Colon"
+		Integer(value): "Integer({value})"
+		String(text): "String({text})"
+		Id(text): "Id({text})"
+		Eof: "Eof"
+		UnexpectedEof: "UnexpectedEof"
+		Error(c): "Error({ord(c)})"
 
 class Lexer:
 	var text: str
@@ -411,6 +400,8 @@ class Lexer:
 				let end = index
 				let slice = str_slice(text, begin, end)
 				return create_token(JsonTokenKind.Id(slice))
+			elif c == ' ':
+				pass
 			elif c == ',':
 				return create_token(JsonTokenKind.Comma())
 			elif c == ':':
@@ -435,15 +426,17 @@ class Lexer:
 				let slice = str_slice(text, begin: begin + 1, end: end - 1)
 				return create_token(JsonTokenKind.String(slice))
 			elif is_digit(c):
-				while is_digit(c: str_get(text, index)):
-					index += 1
-					if index >= n:
+				var value = digit_to_int(c)
+				loop:
+					c = str_get(text, index)
+					if is_digit(c):
+						value = value * 10 + digit_to_int(c)
+						index += 1
+						if index >= n:
+							break
+					else:
 						break
-				let end = index
-				let slice = str_slice(text, begin, end)
-				return create_token(JsonTokenKind.Integer(str_to_int(slice)))
-			elif c == ' ':
-				pass
+				return create_token(JsonTokenKind.Integer(value))
 			elif ord(c) == 13 or ord(c) == 10:
 				pass
 			else:
