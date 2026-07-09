@@ -10,11 +10,11 @@ pub fn main() -> int:
 	let d = a & b
 	let e = a | c
 	let f = c ^ e
-	print("a={a}")
-	print("b={b}")
-	print("c={c}")
-	print("d={d}")
-	print("e={e}")
-	print("f={f}")
+	print("{a=}")
+	print("{b=}")
+	print("{c=}")
+	print("{d=}")
+	print("{e=}")
+	print("{f=}")
 	print("OK")
 	0

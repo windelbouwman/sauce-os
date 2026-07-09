@@ -3,6 +3,7 @@ module compiler.elf_file
 
 import std
 from base.listtype import List
+from base.vectype import Vector, new_vector_with_capacity
 from base.bytes import Bytes, ByteArray, new_bytes, bytes_from_ascii
 from base.utils import assert, panic
 from base.logging import log_error, log_info
@@ -177,19 +178,15 @@ fn write_section_headers(writer: ElfWriter):
 		writer.write_section_header(sh)
 	writer.m_header.e_shstrndx = writer.m_header.e_shnum - 1
 
-pub fn read_elf(filename: str):
+pub fn read_elf(filename: str) -> ElfReader:
 	let handle = std.file_open(filename, mode: "rb")
-	let reader = ElfReader(handle)
-	try:
-		let header = reader.read_header()
-	except (err: str):
-		log_error("Error reading ELF file: {err}")
-	std.file_close(handle)
+	ElfReader(handle)
 
 fn new_64bit_header() -> ElfHeader:
 	let header = ElfHeader:
 		e_type: 1  # 0=None, 1=REL, 2=exec, 3=dynamic
 		e_machine: 0x3e  # 0x3E = x86-64
+		e_version: 1
 		e_entry: 0
 		e_phoff: 0
 		e_shoff: 0
@@ -216,9 +213,10 @@ fn new_sh() -> SectionHeader:
 		sh_addralign: 0
 		sh_entsize: 0
 
-struct ElfHeader:
+pub struct ElfHeader:
 	e_type: int
 	e_machine: int
+	e_version: int
 	e_entry: int  # Entry point
 	e_phoff: int  # Program header offset
 	e_shoff: int  # Section header offset
@@ -240,7 +238,7 @@ struct ProgramHeader:
 	p_memsz: int
 	p_align: int
 
-struct SectionHeader:
+pub struct SectionHeader:
 	sh_name: int  # Offset into shstrtab that gives this name
 	sh_type: int  # 0=NULL,1=PROGBITS
 	sh_flags: int
@@ -265,10 +263,13 @@ struct RelaTableEntry:
 	r_info: int
 	r_addend: int
 
-class ElfReader:
+pub class ElfReader:
 	var handle: int
 	var is_32bit: bool = false
 	var is_big_endian: bool = false
+
+	pub fn close():
+		std.file_close(handle)
 
 	pub fn read_header() -> ElfHeader except str:
 		# Read 16 bytes
@@ -292,9 +293,9 @@ class ElfReader:
 		let e_type = read16()  # 0-2
 		let e_machine = read16()  # 2-4
 		let e_version = read32()  # 4-8
-		let e_entry = read64()  # 8-16
-		let e_phoff = read64()  # 16-24
-		let e_shoff = read64()  # 24-32
+		let e_entry = read_size_t()  # 8-16
+		let e_phoff = read_size_t()  # 16-24
+		let e_shoff = read_size_t()  # 24-32
 		let e_flags = read32()  # 32-36
 		let e_ehsize = read16()  # 36-38
 		let e_phentsize = read16()  # 38-40
@@ -305,6 +306,7 @@ class ElfReader:
 		ElfHeader:
 			e_type
 			e_machine
+			e_version
 			e_entry
 			e_phoff
 			e_shoff
@@ -316,17 +318,110 @@ class ElfReader:
 			e_shnum
 			e_shstrndx
 
+	pub fn read_section_headers(header: ElfHeader) -> Vector[SectionHeader]:
+		let headers: Vector[SectionHeader] = new_vector_with_capacity(capacity: header.e_shnum)
+		seek(pos: header.e_shoff)
+		var i = 0
+		while i < header.e_shnum:
+			headers.append(read_section_header())
+			i += 1
+		headers
+
+	fn read_section_header() -> SectionHeader:
+		let sh_name = read32()
+		let sh_type = read32()
+		let sh_flags = read_size_t()
+		let sh_addr = read_size_t()
+		let sh_offset = read_size_t()
+		let sh_size = read_size_t()
+		let sh_link = read32()
+		let sh_info = read32()
+		let sh_addralign = read_size_t()
+		let sh_entsize = read_size_t()
+		SectionHeader:
+			sh_name
+			sh_type
+			sh_flags
+			sh_addr
+			sh_offset
+			sh_size
+			sh_link
+			sh_info
+			sh_addralign
+			sh_entsize
+
+	pub fn read_section(header: SectionHeader) -> Bytes:
+		seek(pos: header.sh_offset)
+		read_bytes(n: header.sh_size)
+
+	pub fn read_symbol_table(symtab_section: SectionHeader) -> Vector[SymbolTableEntry]:
+		seek(pos: symtab_section.sh_offset)
+		let n_entries = symtab_section.sh_size / symtab_section.sh_entsize
+		let entries: Vector[SymbolTableEntry] = new_vector_with_capacity(capacity: n_entries)
+		var i = 0
+		while i < n_entries:
+			entries.append(read_symtab_entry())
+			i += 1
+		entries
+
+	fn read_symtab_entry() -> SymbolTableEntry:
+		let st_name = read32()
+		var st_value = 0
+		var st_size = 0
+		if is_32bit:
+			st_value = read32()
+			st_size = read32()
+		let st_info = read8()
+		let st_other = read8()
+		let st_shndx = read16()
+		if not is_32bit:
+			st_value = read64()
+			st_size = read64()
+
+		SymbolTableEntry:
+			st_name
+			st_value
+			st_size
+			st_info
+			st_other
+			st_shndx
+
+	fn seek(pos: int):
+		std.file_seek(handle, pos)
+
 	fn read_bytes(n: int) -> Bytes:
-		new_bytes()
+		let ba = ByteArray()
+		let buffer: [uint8] = [n : uint8]
+
+		let res = std.file_read_n_bytes(handle, buffer, bufsize: n)
+		if res > 0:
+			var i = 0
+			while i < res:
+				ba.append(int(buffer[i]))
+				i += 1
+		ba.to_bytes()
+
+	fn read_size_t() -> int:
+		if is_32bit:
+			read32()
+		else:
+			read64()
 
 	fn read64() -> int:
-		0
+		let reader = read_bytes(n: 8).into_reader()
+		reader.read_u64_be() if is_big_endian else reader.read_u64_le()
 
 	fn read32() -> int:
-		0
+		let reader = read_bytes(n: 4).into_reader()
+		reader.read_u32_be() if is_big_endian else reader.read_u32_le()
 
 	fn read16() -> int:
-		0
+		let reader = read_bytes(n: 2).into_reader()
+		reader.read_u16_be() if is_big_endian else reader.read_u16_le()
+
+	fn read8() -> int:
+		let reader = read_bytes(n: 1).into_reader()
+		reader.read_byte()
 
 class ElfWriter:
 	var handle: int
@@ -543,5 +638,20 @@ pub class StringTable:
 		m_data.append(0)
 		offset
 
+	pub fn get_name(index?: int) -> str:
+		let ba = ByteArray()
+		while index < m_data.len():
+			let b = m_data.get(index)
+			if b == 0:
+				break
+			else:
+				ba.append(b)
+			index += 1
+		ba.to_bytes().as_ascii()
+
 	pub fn get_data() -> Bytes:
 		m_data.to_bytes()
+
+	pub fn set_data(data: Bytes):
+		m_data.clear()
+		m_data.extend(data)

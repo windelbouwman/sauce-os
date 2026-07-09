@@ -13,7 +13,7 @@ pub fn main() -> int:
 		3: 15
 	else:
 		100
-	std.print("a={a}")
+	std.print("{a=}")
 	std.print("x.b={get_x().b}")
 	0
 

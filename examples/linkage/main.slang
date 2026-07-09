@@ -17,12 +17,12 @@ pub fn main() -> int:
 
 	let foo = Foo.Bar(5)
 	let t = get_bar(foo)
-	print("t={t}")
+	print("{t=}")
 
 	let dev: Device[int] = Device(m_data: 12)
 	let a = dev.exe()
-	print("a={a}")
+	print("{a=}")
 	let b = dev.exe()
-	print("b={b}")
+	print("{b=}")
 
 	0

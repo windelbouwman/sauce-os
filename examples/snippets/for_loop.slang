@@ -25,7 +25,7 @@ pub fn main() -> int:
 
 	# For loop with array:
 	for a in x:
-		std.print("BOOM a={a} a*a={a * a}")
+		std.print("BOOM {a=} a*a={a * a}")
 
 	# While loop with array:
 	var i = 2

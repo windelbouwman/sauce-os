@@ -129,7 +129,7 @@ class JpegDecoder:
 			let H = samp >> 4
 			let V = samp & 0xF
 			let qid = read_byte()
-			log_debug("component {i}: C={C} samp={samp} H={H} V={V} qid={qid}")
+			log_debug("component {i}: {C=} {samp=} {H=} {V=} {qid=}")
 			m_components.append(Component(C, H, V, qid, dc_coeff: 0, T_dc: 0, T_ac: 0))
 			size -= 3
 			i += 1
@@ -146,7 +146,7 @@ class JpegDecoder:
 		while i < Ns:
 			let Cs = read_byte()
 			let Tda = read_byte()  # DC and AC Huffman table selectors
-			log_debug("Scan component: Cs={Cs} Tda={Tda}")
+			log_debug("Scan component: {Cs=} {Tda=}")
 			let component = m_components.get(index: i)
 			assert(condition: Cs == component.C, message: "Component ID mismatch")
 			component.T_dc = Tda >> 4
@@ -156,7 +156,7 @@ class JpegDecoder:
 
 		let Ss = read_byte()
 		let Se = read_byte()
-		log_debug("Ss={Ss} Se={Se}")
+		log_debug("{Ss=} {Se=}")
 		assert(condition: Ss == 0, message: "Ss must be 0")
 		assert(condition: Se == 63, message: "Se must be 63")
 		let Ahl = read_byte()

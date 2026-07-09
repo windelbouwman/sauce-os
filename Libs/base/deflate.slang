@@ -267,7 +267,7 @@ class DeflateCompressor:
 		dynamic_bit_size += 5 + 5 + 4  # Header of dynamic trees
 		dynamic_bit_size += 19 * 3  # tree encoding bit sizes, 3 bits per bit size
 
-		log_trace("dynamic_bit_size={dynamic_bit_size}, static_bit_size={static_bit_size}")
+		log_trace("{dynamic_bit_size=}, {static_bit_size=}")
 
 		let last_block = if m_index == m_data.len():
 			1
@@ -289,7 +289,7 @@ class DeflateCompressor:
 		let hlit = lengths1.len() - 257
 		let hdist = lengths2.len() - 1
 		let hclen = code_lengths.len()
-		log_trace("hlit={hlit} hdist={hdist} hclen={hclen}")
+		log_trace("{hlit=} {hdist=} {hclen=}")
 		write_bits(n: 5, value: hlit)
 		write_bits(n: 5, value: hdist)
 		write_bits(n: 4, value: hclen - 4)
@@ -437,7 +437,7 @@ pub class DeflateDecoder:
 			# Read block header:
 			let bfinal = read_bits(1)  # last block or not
 			let btype = read_bits(2)  # Block type
-			log_debug("bfinal={bfinal} btype={btype}")
+			log_debug("{bfinal=} {btype=}")
 
 			if btype == 0:  # no compression
 				copy_uncompressed()
@@ -459,7 +459,7 @@ pub class DeflateDecoder:
 	fn copy_uncompressed():
 		var len = read_u16_le()
 		let nlen = read_u16_le()  # Inverted version
-		log_debug("copy_uncompressed len={len} nlen={nlen}")
+		log_debug("copy_uncompressed {len=} {nlen=}")
 		# TODO: what to do with nlen? Check it?
 		while len > 0:
 			emit_byte(read_byte())
@@ -471,7 +471,7 @@ pub class DeflateDecoder:
 		let hdist = read_bits(5) + 1  # Number of distance codes
 		let hclen = read_bits(4) + 4  # Number of length codes
 
-		log_debug("hlit={hlit}, hdist={hdist}, hclen={hclen}")
+		log_debug("{hlit=}, {hdist=}, {hclen=}")
 
 		let code_lengths: Vector[int] = new_vector_of_size(size: 19, default: 0)
 		var i = 0

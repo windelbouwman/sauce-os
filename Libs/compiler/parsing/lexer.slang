@@ -30,6 +30,7 @@ pub class Lexer:
 	var m_mode: LexerMode = LexerMode.Normal()
 	var m_keep_comments: bool = false
 	var tok_begin: int = 0
+	var fstring_begin: int = 0
 	var offset: int = 0
 
 	pub fn init(source: str):
@@ -221,6 +222,10 @@ pub class Lexer:
 		elif c == '=':
 			if match('='):
 				TokenKind.EqualsEquals()
+			elif match('}'):
+				let text = std.str_slice(text: source, begin: fstring_begin, end: offset - 1)
+				m_mode = LexerMode.String()
+				TokenKind.EqualsBraceClose(text)
 			else:
 				TokenKind.Equals()
 		elif c == '!':
@@ -247,6 +252,7 @@ pub class Lexer:
 			TokenKind.StringEnd()
 		elif c == '{':
 			m_mode = LexerMode.Normal()
+			fstring_begin = offset
 			TokenKind.BraceOpen()
 		elif c == '\\':
 			parse_escape_sequence()

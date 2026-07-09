@@ -169,8 +169,10 @@ def tokenize(code: str):
             if kind == "OP" or kind == "OP2":
                 kind = value
                 if kind == "}":
-                    x = curly_stack.pop()
+                    text_begin, x = curly_stack.pop()
                     if x == "STRING_INTERP":
+                        fstring_text = code[text_begin:begin]
+                        value = (fstring_text, value)
                         mode = "string"
                     else:
                         raise NotImplementedError(f"Curly: {x}")
@@ -230,7 +232,7 @@ def tokenize(code: str):
             elif kind == "STRING_END":
                 mode = "normal"
             elif kind == "STRING_INTERP":
-                curly_stack.append(kind)
+                curly_stack.append((end, kind))
                 mode = "normal"
                 kind = "{"
             elif kind == "ESCAPESEQUENCE":

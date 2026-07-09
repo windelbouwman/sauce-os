@@ -88,7 +88,7 @@ class PngDecoder:
 				log_warning("Unsupported chunk type: {bytes_to_ascii(data: type_data.to_bytes())}")
 
 		let bytes_per_line = (bitdepth * samples * width + 7) / 8
-		log_debug("bpp={bpp}, bytes_per_line={bytes_per_line}")
+		log_debug("{bpp=}, {bytes_per_line=}")
 
 		# Post processing!
 		# Decompress data:
@@ -123,8 +123,8 @@ class PngDecoder:
 		let compression = r.read_byte()
 		let filter_method = r.read_byte()
 		let interlace_method = r.read_byte()
-		log_debug("width={width} height={height} bitdepth={bitdepth} colortype={colortype}")
-		log_debug("compression={compression} filter_method={filter_method} interlace_method={interlace_method}")
+		log_debug("{width=} {height=} {bitdepth=} {colortype=}")
+		log_debug("{compression=} {filter_method=} {interlace_method=}")
 
 		if not (bitdepth == 16 or bitdepth == 8 or bitdepth == 4 or bitdepth == 2 or bitdepth == 1):
 			panic("Invalid bit depth: {bitdepth}")

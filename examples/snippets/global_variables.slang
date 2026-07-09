@@ -33,7 +33,7 @@ fn modify():
 	z.b = "w00t"
 
 fn display():
-	print("x={x}, y={y}, z.b={z.b}")
+	print("{x=}, {y=}, {z.b=}")
 	z.w.f()
 
 fn handler():

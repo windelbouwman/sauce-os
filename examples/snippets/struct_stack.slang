@@ -5,7 +5,7 @@ from std import print
 
 pub fn main() -> int:
 	let p = Pair(a: 3, b: 8)
-	print("p.a={p.a}")
+	print("{p.a=}")
 	0
 
 struct Pair:

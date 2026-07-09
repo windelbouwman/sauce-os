@@ -826,6 +826,10 @@ class CustomTransformer(LarkTransformer):
             return ast.string_constant(x[0].value, get_loc(x[0]))
         elif len(x) == 3:
             return x[1].to_string()
+        elif len(x) == 4:
+            label_text, _ = x[3].value
+            label = ast.string_constant(label_text, get_loc(x[2]))
+            return label.binop("+", x[1].to_string())
         else:
             raise RuntimeError("Invalid string_part rule")
 
@@ -1037,7 +1041,7 @@ literal: NUMBER | FNUMBER | BOOL | CHAR
 rawstring: STRING_START STRING_LITERAL STRING_END
 string: STRING_START string_part* STRING_END
 string_part: STRING_LITERAL
-           | LEFT_BRACE expression RIGHT_BRACE
+           | LEFT_BRACE expression EQUALS? RIGHT_BRACE
 array_literal: LEFT_BRACKET tests RIGHT_BRACKET
 array_literal2: LEFT_BRACKET test COLON typ RIGHT_BRACKET
 obj_ref: ID

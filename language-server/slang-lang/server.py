@@ -416,6 +416,11 @@ def get_def_under_cursor(db: IncrementalCompiler, document, position: types.Posi
                         obj = obj.scope.lookup(attr)
                     else:
                         return
+                elif isinstance(obj, ast.Scope):
+                    if obj.is_defined(attr):
+                        obj = obj.lookup(attr)
+                    else:
+                        return
                 else:
                     logger.error(f"No impl get-attr {attr} from {obj=}")
                     return

@@ -80,6 +80,7 @@ pub enum TokenKind:
 	BracketClose
 	BraceOpen
 	BraceClose
+	EqualsBraceClose(text: str)
 
 	Plus
 	Minus
@@ -211,6 +212,7 @@ pub fn token_to_string(strtab: StringTable, tok: Token) -> str:
 		BracketClose: "]"
 		BraceOpen: "\{"
 		BraceClose: "}"
+		EqualsBraceClose(text): "=}"
 		Error(message):
 			"LEX-ERROR({message})"
 		Eof: "EOF"

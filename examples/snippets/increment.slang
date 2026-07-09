@@ -9,15 +9,15 @@ pub fn main() -> int:
 	var y = 3
 	y -= 9
 	get_s(s, p: 11).field += 2
-	print("y={y}")
-	print("g={g}")
+	print("{y=}")
+	print("{g=}")
 	print("field={s.field}")
 	0
 
 fn get_s(s: S, p: int) -> S:
 	g += 1
 	p += 1
-	print("p={p}")
+	print("{p=}")
 	s.field += 9
 	s
 

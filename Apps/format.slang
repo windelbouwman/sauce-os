@@ -137,6 +137,7 @@ fn format_tokens(strtab: StringTable, tokens: List[Token]) -> Vector[str]:
 	var in_string = false
 	var bracket_depth = 0
 	var parenthesis_depth = 0
+	var brace_depth = 0
 	var was_end_expr = false
 	var in_type = false
 	var in_if = false
@@ -229,6 +230,7 @@ fn format_tokens(strtab: StringTable, tokens: List[Token]) -> Vector[str]:
 			BracketClose: out.text("]")
 			BraceOpen: out.text("\{")
 			BraceClose: out.text("}")
+			EqualsBraceClose(text): out.text("=}")
 
 			Plus: out.spaced("+")
 			Minus:
@@ -305,6 +307,10 @@ fn format_tokens(strtab: StringTable, tokens: List[Token]) -> Vector[str]:
 				bracket_depth += 1
 			BracketClose:
 				bracket_depth -= 1
+			BraceOpen:
+				brace_depth += 1
+			BraceClose:
+				brace_depth -= 1
 			Colon:
 				in_type = true
 			Comma:

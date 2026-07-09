@@ -118,6 +118,28 @@ pub class ByteReader:
 		let b4 = read_byte()
 		(b4 << 24) | (b3 << 16) | (b2 << 8) | b1
 
+	pub fn read_u64_be() -> int:
+		let b1 = read_byte()
+		let b2 = read_byte()
+		let b3 = read_byte()
+		let b4 = read_byte()
+		let b5 = read_byte()
+		let b6 = read_byte()
+		let b7 = read_byte()
+		let b8 = read_byte()
+		(b1 << 56) | (b2 << 48) | (b3 << 40) | (b4 << 32) | (b5 << 24) | (b6 << 16) | (b7 << 8) | b8
+
+	pub fn read_u64_le() -> int:
+		let b1 = read_byte()
+		let b2 = read_byte()
+		let b3 = read_byte()
+		let b4 = read_byte()
+		let b5 = read_byte()
+		let b6 = read_byte()
+		let b7 = read_byte()
+		let b8 = read_byte()
+		(b8 << 56) | (b7 << 48) | (b6 << 40) | (b5 << 32) | (b4 << 24) | (b3 << 16) | (b2 << 8) | b1
+
 pub class ByteArray:
 	"""Mutable bytes"""
 	var m_bytes: [uint8] = [16 : uint8]

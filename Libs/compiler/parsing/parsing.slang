@@ -1185,8 +1185,18 @@ class Parser:
 				BraceOpen:
 					let value = parse_expression()
 					let to_string_expr = ast.to_string(typectx, value, location: value.location)
+
+					let tok = get_token()
+					case tok.kind:
+						EqualsBraceClose(text):
+							let label_string_expr = ast.string_literal(typectx, value: text, location: tok.location)
+							parts.append(label_string_expr)
+						BraceClose:
+							pass
+					else:
+						raise unexpected_token(tok, expected: "'}'")
+
 					parts.append(to_string_expr)
-					parse_brace_close()
 
 				StringEnd:
 					break
@@ -1305,14 +1315,6 @@ class Parser:
 				pass
 		else:
 			raise unexpected_token(tok, expected: "')'")
-
-	fn parse_brace_close() except ParseError:
-		let tok = get_token()
-		case tok.kind:
-			BraceClose:
-				pass
-		else:
-			raise unexpected_token(tok, expected: "'}'")
 
 	fn parse_newline() except ParseError:
 		let tok = get_token()
