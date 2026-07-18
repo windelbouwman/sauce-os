@@ -2,7 +2,7 @@ module compiler.driver
 """Main compilation driver."""
 
 import ast, bc, sil
-from base.fs import Path
+from base.fs import Path, new_path
 from errors import CompilationError, new_error_with_filename
 from parsing.parsing import parse_source, ParseError, parse_module_from_text
 from namebinding import bind_names
@@ -40,9 +40,9 @@ from report import Report
 pub struct CompilationOptions:
 	dump_ast: bool
 	backend: Backend
-	add_imports: List[str]
-	output_filename: Option[str]
-	gen_export: Option[str]
+	add_imports: List[Path]
+	output_filename: Option[Path]
+	gen_export: Option[Path]
 	verbosity: int
 	optimization_level: int
 	run_code: bool
@@ -93,7 +93,7 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 		try:
 			builder.parse_module(path)
 		except (e: ParseError):
-			raise new_error_with_filename(filename: path.filename, location: e.location, message: e.message)
+			raise new_error_with_filename(filename: path, location: e.location, message: e.message)
 		builder.m_profiler.leave()
 	builder.m_profiler.leave()
 
@@ -134,7 +134,7 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 			gen_c_code_v2(strtab: builder.strtab, module_defs: builder.m_modules, output_filename: options.output_filename)
 		WebAssembly(binary):
 			if binary:
-				let filename = option_unwrap_or(option: options.output_filename, default: "out.wasm")
+				let filename = option_unwrap_or(option: options.output_filename, default: new_path(filename: "out.wasm"))
 				gen_webassembly_binary(module_defs: builder.m_modules, strtab: builder.strtab, typectx: builder.m_typectx, filename)
 			else:
 				gen_webassembly_text(module_defs: builder.m_modules, strtab: builder.strtab, typectx: builder.m_typectx, output_filename: options.output_filename)
@@ -154,7 +154,7 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 
 	builder.m_profiler.leave()
 	if options.time_trace:
-		builder.m_profiler.write_json(filename: "trace.json")
+		builder.m_profiler.write_json(filename: new_path(filename: "trace.json"))
 
 fn new_builder(options: CompilationOptions) -> Builder:
 	let typectx = ast.make_typectx()

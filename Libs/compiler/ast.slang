@@ -3,6 +3,7 @@ module compiler.ast
 from std import print, float_to_str
 from base.strlib import str_repeat, str_join
 from base.utils import panic, assert
+from base.fs import Path
 from base.logging import log_info, log_error
 from location import Location, location_default
 from base.listtype import List
@@ -953,7 +954,7 @@ pub struct NamespaceDef:
 pub class ModuleDef:
 	pub var namespace: List[uint32]
 	pub var location: Location
-	pub var filename: Option[str]
+	pub var filename: Option[Path]
 	pub var imports: Vector[Import]
 	pub var definitions: Vector[Definition]
 	pub var scope: Scope
@@ -970,7 +971,7 @@ pub class ModuleDef:
 	pub fn define_enum(enum_def: EnumDef):
 		define_symbol(definition: Definition.Enum(enum_def))
 
-pub fn new_module(namespace: List[uint32], location: Location, filename: Option[str], imports: Vector[Import], definitions: Vector[Definition]) -> ModuleDef:
+pub fn new_module(namespace: List[uint32], location: Location, filename: Option[Path], imports: Vector[Import], definitions: Vector[Definition]) -> ModuleDef:
 	ModuleDef:
 		namespace
 		location

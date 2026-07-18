@@ -275,7 +275,7 @@ pub class ByteArray:
 	pub fn as_hex() -> str:
 		to_bytes().as_hex()
 
-fn byte_as_hex(byte?: uint8) -> str:
+pub fn byte_as_hex(byte?: uint8) -> str:
 	let c1 = hex_char(int(byte) & 0xF)
 	let c2 = hex_char((int(byte) & 0xF0) >> 4)
 	"{c2}{c1}"

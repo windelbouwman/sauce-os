@@ -44,6 +44,7 @@ X86_AOC := $(patsubst examples/aoc/%/main.slang, build/x86/aoc_%.exe, $(AOC_APPS
 APPS_C := $(patsubst Apps/%.slang, build/c/apps/%.exe, $(SLANG_APPS))
 APPS_C2 := $(patsubst Apps/%.slang, build/c2/apps/%.exe, $(SLANG_APPS))
 APP_X86 := $(patsubst Apps/%.slang, build/x86/apps/%.exe, $(SLANG_APPS))
+WASM_APPS := $(patsubst Apps/%.slang, build/wasm/apps/%.wasm, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
 ALL_TEST_RUNS_C := $(patsubst tests/test_%.slang, run-test-c-%, $(TESTS))
@@ -470,7 +471,7 @@ ${BUILDDIR}/x86/libgfx.o ${BUILDDIR}/x86/libgfx.json: ${GFX_LIB_SRCS} ${BUILDDIR
 ${BUILDDIR}/x86/libscience.o ${BUILDDIR}/x86/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
 	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libscience.json -o ${BUILDDIR}/x86/libscience.o --add-import ${BUILDDIR}/x86/libbase.json ${SCIENCE_LIB_SRCS}
 
-${BUILDDIR}/x86/libweb.o ${BUILDDIR}/x86/libweb.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
+${BUILDDIR}/x86/libweb.o ${BUILDDIR}/x86/libweb.json: ${WEB_LIB_SRCS} ${BUILDDIR}/x86/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/x86
 	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libweb.json -o ${BUILDDIR}/x86/libweb.o --add-import ${BUILDDIR}/x86/libbase.json ${WEB_LIB_SRCS}
 
 # Libs - DLLs
@@ -631,8 +632,9 @@ ${BUILDDIR}/wat/snippets/%.wat: examples/snippets/%.slang runtime/std.slang ${SL
 ############################################################################
 
 # Wasm examples:
-.PHONY: all-examples-wasm
+.PHONY: all-examples-wasm all-wasm-apps
 all-examples-wasm: $(WASM_EXAMPLES)
+all-wasm-apps: $(WASM_APPS)
 
 ${BUILDDIR}/wasm:
 	mkdir -p $@
@@ -650,6 +652,14 @@ ${BUILDDIR}/wasm/libscience.wasm ${BUILDDIR}/wasm/libscience.json: ${SCIENCE_LIB
 	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libscience.json -o ${BUILDDIR}/wasm/libscience.wasm --add-import ${BUILDDIR}/wasm/libbase.json ${SCIENCE_LIB_SRCS}
 	wasm-tools validate ${BUILDDIR}/wasm/libscience.wasm
 
+${BUILDDIR}/wasm/libweb.wasm ${BUILDDIR}/wasm/libweb.json: ${WEB_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libweb.json -o ${BUILDDIR}/wasm/libweb.wasm --add-import ${BUILDDIR}/wasm/libbase.json ${WEB_LIB_SRCS}
+	wasm-tools validate ${BUILDDIR}/wasm/libweb.wasm
+
+${BUILDDIR}/wasm/libgfx.wasm ${BUILDDIR}/wasm/libgfx.json: ${GFX_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libimage.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
+	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libgfx.json -o ${BUILDDIR}/wasm/libgfx.wasm --add-import ${BUILDDIR}/wasm/libbase.json --add-import ${BUILDDIR}/wasm/libimage.json ${GFX_LIB_SRCS}
+	wasm-tools validate ${BUILDDIR}/wasm/libgfx.wasm
+
 ${BUILDDIR}/wasm/libcompiler.wasm ${BUILDDIR}/wasm/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/wasm/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm
 	${SLANGC} --backend-wasm --gen-export ${BUILDDIR}/wasm/libcompiler.json -o ${BUILDDIR}/wasm/libcompiler.wasm --add-import ${BUILDDIR}/wasm/libbase.json ${COMPILER_LIB_SRCS}
 	wasm-tools validate ${BUILDDIR}/wasm/libcompiler.wasm
@@ -663,12 +673,14 @@ ${BUILDDIR}/wasm/compiler.wasm: ${COMPILER_SRCS} ${BUILDDIR}/wasm/libbase.json $
 ${BUILDDIR}/wasm/apps:
 	mkdir -p $@
 
-${BUILDDIR}/wasm/apps/%.wasm: Apps/%.slang ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libcompiler.json ${BUILDDIR}/wasm/libimage.json ${BUILDDIR}/wasm/libscience.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm/apps
+${BUILDDIR}/wasm/apps/%.wasm: Apps/%.slang ${BUILDDIR}/wasm/libbase.json ${BUILDDIR}/wasm/libcompiler.json ${BUILDDIR}/wasm/libimage.json ${BUILDDIR}/wasm/libscience.json ${BUILDDIR}/wasm/libgfx.json ${BUILDDIR}/wasm/libweb.json ${SLANGC_DEPS} | ${BUILDDIR}/wasm/apps
 	${SLANGC} --backend-wasm -o $@ $< \
 		--add-import ${BUILDDIR}/wasm/libbase.json \
 		--add-import ${BUILDDIR}/wasm/libimage.json \
 		--add-import ${BUILDDIR}/wasm/libcompiler.json \
-		--add-import ${BUILDDIR}/wasm/libscience.json
+		--add-import ${BUILDDIR}/wasm/libscience.json \
+		--add-import ${BUILDDIR}/wasm/libgfx.json \
+		--add-import ${BUILDDIR}/wasm/libweb.json
 	wasm-tools validate $@
 
 # Tests
@@ -692,7 +704,7 @@ ${BUILDDIR}/wasm/snippets/%.wasm: examples/snippets/%.slang runtime/std.slang ${
 
 # Web app
 .PHONY: webapp serve
-webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_TESTS} ${BUILDDIR}/wasm/compiler.wasm ${BUILDDIR}/wasm/apps/mandel.wasm all-examples-wasm
+webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_TESTS} ${BUILDDIR}/wasm/compiler.wasm all-wasm-apps all-examples-wasm
 	mkdir -p ${BUILDDIR}/webapp
 	mkdir -p ${BUILDDIR}/webapp/snippets
 	mkdir -p ${BUILDDIR}/webapp/tests

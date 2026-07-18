@@ -3,6 +3,7 @@ module compiler.dbginfo
 from base.listtype import List
 from base.vectype import Vector, new_vector
 from base.hashmap import HashMap, new_hashmap_str
+from base.fs import Path
 from location import Location
 
 pub class DbgInfo:
@@ -11,15 +12,15 @@ pub class DbgInfo:
 	pub var functions: Vector[Function] = new_vector()
 	var functions_by_name: HashMap[str,Function] = new_hashmap_str()
 
-	pub fn add_source(filename: str, code: str):
+	pub fn add_source(filename: Path, code: str):
 		let source = Source(filename, code)
 		sources.append(source)
-		sources_by_filename.insert(key: filename, value: Source(filename, code))
+		sources_by_filename.insert(key: filename.filename, value: Source(filename, code))
 
-	fn get_source(filename: str) -> Source:
-		sources_by_filename.get(key: filename)
+	fn get_source(filename: Path) -> Source:
+		sources_by_filename.get(key: filename.filename)
 
-	pub fn add_function(name: str, filename: str, location: Location):
+	pub fn add_function(name: str, filename: Path, location: Location):
 		let source = get_source(filename)
 		let f = Function(name, location, source, start_label: "", end_label: "")
 		functions.append(f)
@@ -32,7 +33,7 @@ pub class DbgInfo:
 		functions_by_name.get(key: name)
 
 pub struct Source:
-	filename: str
+	filename: Path
 	code: str
 
 pub struct Function:

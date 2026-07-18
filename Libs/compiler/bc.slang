@@ -6,6 +6,7 @@ from base.optiontype import Option
 from base.settype import Set, new_int_set
 from base.vectype import Vector
 from base.utils import panic
+from base.fs import Path
 from text_gen import TextGenerator
 
 pub struct Program:
@@ -233,7 +234,7 @@ fn bitop_to_string(op: BitOperator) -> str:
 		And: "bit-and"
 		Or: "bit-or"
 
-pub fn print_bc_program_to_file(program: Program, filename: Option[str]):
+pub fn print_bc_program_to_file(program: Program, filename: Option[Path]):
 	let p = Printer()
 	p.m_out.begin(output_filename: filename)
 	p.m_out.m_one_tab = "  "

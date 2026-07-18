@@ -22,6 +22,7 @@ from base.listtype import List
 from base.vectype import Vector
 from base.optiontype import Option
 from base.strlib import str_join
+from base.fs import Path
 from report import Report
 from text_gen import TextGenerator
 
@@ -242,7 +243,7 @@ pub fn address_to_string(address?: Address) -> str:
 		StackSlot(offset): "[stack + {offset}]"
 		Ptr(base): "[{value_to_string(base)}]"
 
-pub fn print_sil_program_to_file(program: Program, filename: Option[str]):
+pub fn print_sil_program_to_file(program: Program, filename: Option[Path]):
 	let out = TextGenerator()
 	out.begin(output_filename: filename)
 	out.m_one_tab = "  "

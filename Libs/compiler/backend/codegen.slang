@@ -8,16 +8,17 @@ from base.vectype import Vector, new_vector
 from base.listtype import List
 from base.logging import log_debug, log_info
 from base.profiling import Profiler
+from base.fs import new_path, Path
 from report import Report
 from base.optiontype import Option
-from elf_file import write_elf
+from elf import write_elf
 from dbginfo import DbgInfo
 from dwarf import gen_debug_info
 from outstream import BinaryOutput, DataItem
 from isel import Backend, Frame, SelectionContext
 
 pub struct CodegenOptions:
-	filename: Option[str]
+	filename: Option[Path]
 	report: Report
 	profiler: Profiler
 	debug: Option[DbgInfo]
@@ -32,10 +33,8 @@ pub fn cgen[C,V](program: sil.Program, backend: Backend[C,V], options: CodegenOp
 	g.gen_program(program, out)
 
 	let filename = case options.filename:
-		Some(name):
-			name
-		None:
-			"test.elf"
+		Some(name): name
+		None: new_path(filename: "test.elf")
 
 	options.profiler.leave()
 	write_elf(filename, object: out.get_object())

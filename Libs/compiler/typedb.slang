@@ -10,11 +10,12 @@ from base.hashmap import HashMap
 from base.pathlib import basename
 from base.json import JsonBuilder, JsonException, write_json_to_file, read_json_from_file
 from base.json import JsonValue, JsonBrowser
+from base.fs import Path
 from location import location_default
 import ast
 from string_table import StringTable
 
-pub fn store_symbol_table(strtab: StringTable, module_defs: List[ast.ModuleDef], filename: str):
+pub fn store_symbol_table(strtab: StringTable, module_defs: List[ast.ModuleDef], filename: Path):
 	# Save symbol table for later use.
 	# This is useful when saving a symbol table
 	# to file.
@@ -23,7 +24,7 @@ pub fn store_symbol_table(strtab: StringTable, module_defs: List[ast.ModuleDef],
 	log_info("Saving type info to: {filename}")
 
 	# TODO: we could use ast.Visitor here
-	let libname = basename(path: filename)
+	let libname = basename(path: filename.filename)
 	let saver = SymbolSaver(strtab, m_libname: libname)
 
 	let obj = saver.save_modules(module_defs)
@@ -362,7 +363,7 @@ class SymbolSaver:
 			m_ser.add_text_as_element(text: name)
 		m_ser.end_array_as_attribute(attr)
 
-pub fn load_symbol_table(filename: str, strtab: StringTable, typectx: ast.TypeContext) -> List[ast.ModuleDef]:
+pub fn load_symbol_table(filename: Path, strtab: StringTable, typectx: ast.TypeContext) -> List[ast.ModuleDef]:
 	log_info("Read type info from: {filename}")
 	let loader = SymbolLoader(strtab, typectx)
 	try:

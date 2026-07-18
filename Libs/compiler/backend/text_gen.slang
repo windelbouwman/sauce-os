@@ -1,8 +1,9 @@
 module compiler.text_gen
 """Helper class to emit text code"""
 
-from std import file_writeln, file_write, file_open, file_close, file_get_stdout
-from base.optiontype import Option, option_is_some, option_unwrap
+from std import file_writeln, file_write, file_close, file_get_stdout
+from base.optiontype import Option
+from base.fs import Path
 
 pub class TextGenerator:
 	var m_indentation: int = 0
@@ -11,12 +12,13 @@ pub class TextGenerator:
 	var outf: int = 0
 	pub var m_one_tab: str = "    "
 
-	pub fn begin(output_filename: Option[str]):
-		if option_is_some(output_filename):
-			outf = file_open(filename: option_unwrap(output_filename), mode: "w")
-			use_file = true
-		else:
-			outf = file_get_stdout()
+	pub fn begin(output_filename: Option[Path]):
+		case output_filename:
+			Some(filename):
+				outf = filename.open(mode: "w")
+				use_file = true
+			None:
+				outf = file_get_stdout()
 
 	pub fn end():
 		if use_file:

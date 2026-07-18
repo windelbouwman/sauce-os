@@ -13,9 +13,10 @@ import ast
 from text_gen import TextGenerator
 from base.optiontype import Option, option_unwrap
 from base.listtype import List
+from base.fs import Path
 from string_table import StringTable
 
-pub fn gen_slang(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[str]):
+pub fn gen_slang(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[Path]):
 	"""Create slang-lang source code."""
 	log_info("Generating slang code")
 	let g = SlangGenerator(strtab)

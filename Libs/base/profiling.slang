@@ -4,6 +4,7 @@ module base.profiling
 import std
 from listtype import List
 import json
+from fs import Path
 
 enum Event:
 	Enter(name: str)
@@ -28,7 +29,7 @@ pub class Profiler:
 		let time = std.get_time()
 		m_events.append(TimedEvent(time, event))
 
-	pub fn write_json(filename: str):
+	pub fn write_json(filename: Path):
 		"""Generate speedscope compatible json file"""
 		# Translate to speedscope frames:
 		let events: List[SpeedscopeEvent] = List()
@@ -70,7 +71,7 @@ struct SpeedscopeFrame:
 	line: int
 	col: int
 
-fn write_speedscope_json(filename: str, events: List[SpeedscopeEvent], frames: List[SpeedscopeFrame]):
+fn write_speedscope_json(filename: Path, events: List[SpeedscopeEvent], frames: List[SpeedscopeFrame]):
 	var ser = json.JsonBuilder()
 	ser.begin_object()
 	ser.add_text_attribute(attr: "$schema", text: "https://www.speedscope.app/file-format-schema.json")

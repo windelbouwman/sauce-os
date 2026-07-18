@@ -2,8 +2,9 @@ module base.zip
 """ZIP file format."""
 
 from logging import log_info
+from fs import Path
 
-pub fn open_archive(filename: str) -> ZipArchive:
+pub fn open_archive(filename: Path) -> ZipArchive:
 	log_info("Opening zip file: {filename}")
 	ZipArchive()
 

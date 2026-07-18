@@ -4,9 +4,9 @@ module base.json
 from utils import panic
 from logging import log_info
 from std import str_len, str_get, ord, str_slice
-from std import read_file, file_exists
-from std import file_writeln, file_open, file_close
+from std import file_writeln, file_close
 from strlib import str_join, is_digit, digit_to_int
+from fs import Path
 from listtype import List
 from vectype import Vector, new_vector
 from optiontype import Option, option_is_some
@@ -23,23 +23,23 @@ struct KeyValue:
 	key: str
 	value: JsonValue
 
-pub fn write_json_to_file(filename: str, obj: JsonValue):
+pub fn write_json_to_file(filename: Path, obj: JsonValue):
 	let json_txt = json_to_string(obj)
 	# print("JSON: {json_txt}")
 	if false:
-		if file_exists(filename):
+		if filename.exists():
 			log_info("Existing json file {filename} .")
-			let original_text = read_file(filename)
+			let original_text = filename.read_text()
 			if original_text == json_txt:
 				log_info("Not writing {filename}, since the content is the same.")
 				return
 	log_info("File must be written: {filename}")
-	let handle = file_open(filename, mode: "w")
+	let handle = filename.open(mode: "w")
 	file_writeln(handle, line: json_txt)
 	file_close(handle)
 
-pub fn read_json_from_file(filename: str) -> JsonValue except JsonException:
-	let text = read_file(filename)
+pub fn read_json_from_file(filename: Path) -> JsonValue except JsonException:
+	let text = filename.read_text()
 	parse_json(text)
 
 pub fn parse_json(text: str) -> JsonValue except JsonException:

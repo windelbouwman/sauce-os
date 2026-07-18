@@ -51,6 +51,31 @@ class BinaryFileWriter {
   }
 }
 
+class BinaryFileReader {
+  constructor(content) {
+    this.content = content;
+    this.pointer = 0;
+  }
+
+  readData(size) {
+    let data = new Uint8Array(
+      this.content.slice(this.pointer, this.pointer + size),
+    );
+    this.pointer += data.length;
+    return data;
+  }
+
+  seek(position) {
+    this.pointer = position;
+  }
+
+  tell() {
+    return this.pointer;
+  }
+
+  close() {}
+}
+
 class MemoryFS {
   constructor() {
     this.files = new Map();
@@ -82,6 +107,9 @@ class MemoryFS {
       writer = new TextFileWriter(this, path);
     } else if (mode == "wb") {
       writer = new BinaryFileWriter(this, path);
+    } else if (mode == "rb") {
+      let content = this.getFileContents(path);
+      writer = new BinaryFileReader(content);
     } else {
       throw new Error("Unknown mode: " + mode);
     }
@@ -102,6 +130,15 @@ class MemoryFS {
     if (this.file_handles.has(handle)) {
       let f = this.file_handles.get(handle);
       f.writeData(data);
+    } else {
+      throw new Error("Invalid file handle:" + handle);
+    }
+  }
+
+  readData(handle, size) {
+    if (this.file_handles.has(handle)) {
+      let f = this.file_handles.get(handle);
+      return f.readData(size);
     } else {
       throw new Error("Invalid file handle:" + handle);
     }

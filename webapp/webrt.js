@@ -15,6 +15,7 @@ import { MemoryFS } from "./memfs.js";
 import meta_data from "./meta-data.json" with { type: "json" };
 
 const example_menu = document.getElementById("example-menu");
+const app_menu = document.getElementById("app-menu");
 const editor = document.getElementById("input-code");
 const output = document.getElementById("output-code");
 const console_output = document.getElementById("console-output");
@@ -24,6 +25,10 @@ const extra_args_input = document.getElementById("extra-args");
 
 for (let name of meta_data.snippets) {
   example_menu.add(new Option(name, name));
+}
+
+for (let name of meta_data.apps) {
+  app_menu.add(new Option(name, name));
 }
 
 let fs = new MemoryFS();
@@ -98,8 +103,10 @@ function std_file_write(handle, text) {
   fs.writeText(Number(handle), text);
 }
 
-function std_file_read_n_bytes(handle) {
-  die("TODO: std_file_read_n_bytes");
+function std_file_read_n_bytes(handle, buffer, size) {
+  let data = fs.readData(Number(handle), Number(size));
+  js_array_into_wasm(data, buffer);
+  return BigInt(data.length);
 }
 
 function std_file_write_n_bytes(handle, buffer, size) {
@@ -214,6 +221,15 @@ let libimage = await loadModule("libimage.wasm", {
   slangrt,
   libbase: libbase.exports,
 });
+let libgfx = await loadModule("libgfx.wasm", {
+  slangrt,
+  libbase: libbase.exports,
+  libimage: libimage.exports,
+});
+let libweb = await loadModule("libweb.wasm", {
+  slangrt,
+  libbase: libbase.exports,
+});
 let libscience = await loadModule("libscience.wasm", {
   slangrt,
   libbase: libbase.exports,
@@ -244,21 +260,24 @@ function js_array_into_wasm(js_buffer, buffer) {
   }
 }
 
-async function runApp(url) {
+async function runApp(url, args) {
   let appModule = await loadModule(url, {
     slangrt,
     libbase: libbase.exports,
     libcompiler: libcompiler.exports,
     libimage: libimage.exports,
+    libweb: libweb.exports,
+    libgfx: libgfx.exports,
     libscience: libscience.exports,
   });
+  env.args = args;
   return appModule.exports.main_main();
 }
 
 async function runUnitTest(name) {
   std_print("Running test: " + name);
   let url = "tests/" + name + ".wasm";
-  let res = await runApp(url);
+  let res = await runApp(url, []);
   console.assert(Number(res) === 0, "Test failed");
 }
 
@@ -267,6 +286,16 @@ async function runUnitTests() {
     await runUnitTest(name);
   }
   std_print("All tests ran!");
+}
+
+async function runAppClicked() {
+  let app = "apps/" + app_menu.value + ".wasm";
+  let args = document
+    .getElementById("app-arguments")
+    .value.split(" ")
+    .map((i) => i.trim())
+    .filter((i) => i.length > 0);
+  await runApp(app, args);
 }
 
 let std_code = await loadSource("std.slang");
@@ -369,8 +398,8 @@ document.getElementById("run-tests-button").addEventListener("click", () => {
   runUnitTests();
 });
 
-document.getElementById("run-mandel-button").addEventListener("click", () => {
-  runApp("apps/mandel.wasm");
+document.getElementById("run-app-button").addEventListener("click", () => {
+  runAppClicked();
 });
 
 run_button.addEventListener("click", () => {

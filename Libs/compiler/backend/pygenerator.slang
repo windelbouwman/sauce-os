@@ -7,12 +7,13 @@ from base.logging import log_info
 from base.listtype import List
 from base.optiontype import option_unwrap, Option
 from base.settype import Set, new_str_set
+from base.fs import Path
 from std import float_to_str2, str_len, str_slice
 from base.strlib import str_join
 from text_gen import TextGenerator
 from string_table import StringTable
 
-pub fn gen_python(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[str]):
+pub fn gen_python(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[Path]):
 	log_info("Generating python code")
 	let g = PyGenerator(strtab)
 	g.out.begin(output_filename)

@@ -12,13 +12,14 @@ import ast
 from base.listtype import List
 from base.optiontype import option_unwrap, Option
 from base.utils import panic
+from base.fs import Path
 from base.logging import log_info
 from text_gen import TextGenerator
 from pygenerator import escape_string, needs_escaping, escape_char
 from string_table import StringTable
 
 
-pub fn gen_c_code_v2(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[str]):
+pub fn gen_c_code_v2(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[Path]):
 	log_info("Generating C-code")
 	let g = CGenerator2(strtab)
 	g.out.begin(output_filename)

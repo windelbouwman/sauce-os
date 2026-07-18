@@ -6,7 +6,7 @@ See also: www.dwarfstd.org
 
 from base.logging import log_info
 from base.bytes import ByteArray
-from elf_file import StringTable
+from elf import StringTable
 from base.listtype import List
 from outstream import BinaryOutput, DataItem
 from location import get_begin, offset_to_position

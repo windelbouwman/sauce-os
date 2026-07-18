@@ -37,6 +37,12 @@ pub fn vector_to_list[T](items?: Vector[T]) -> List[T]:
 pub class Path:
 	pub var filename: str
 
+	pub fn exists() -> bool:
+		std.file_exists(filename)
+
+	pub fn open(mode: str) -> int:
+		std.file_open(filename, mode)
+
 	pub fn read_text() -> str:
 		std.read_file(filename: this.filename)
 
@@ -55,6 +61,12 @@ pub class Path:
 
 	pub fn get_extension() -> str:
 		split_string(text: filename, sep: '.').last()
+
+	pub fn read_bytes() -> Bytes:
+		read_whole_file_as_bytes(path: this)
+
+	pub fn write_bytes(data: Bytes):
+		write_bytes_to_file(path: this, data)
 
 pub fn read_whole_file_as_bytes(path: Path) -> Bytes:
 	# Helper to read in a whole file into a bytes object in memory

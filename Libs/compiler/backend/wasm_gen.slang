@@ -18,12 +18,12 @@ WASM 1.0:
 
 import webassembly
 import ast
-import std
 from webassembly import Instruction
 from base.listtype import List, list1
 from base.vectype import Vector, new_vector
 from base.bytes import ByteArray
 from base.optiontype import Option
+from base.fs import Path
 from text_gen import TextGenerator
 from base.hashmap import HashMap, new_hashmap_str
 from location import location_default
@@ -32,7 +32,7 @@ from std import str_len, ord, str_get
 from base.utils import panic, assert
 from base.logging import log_info, log_debug
 
-pub fn gen_webassembly_text(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext, output_filename: Option[str]):
+pub fn gen_webassembly_text(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext, output_filename: Option[Path]):
 	let wasm_module = gen_webassembly_module(module_defs, strtab, typectx)
 	let out = TextGenerator()
 	out.m_one_tab = "  "
@@ -40,13 +40,10 @@ pub fn gen_webassembly_text(module_defs: List[ast.ModuleDef], strtab: StringTabl
 	webassembly.to_wat(wasm_module, out)
 	out.end()
 
-pub fn gen_webassembly_binary(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext, filename: str):
+pub fn gen_webassembly_binary(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext, filename: Path):
 	let wasm_module = gen_webassembly_module(module_defs, strtab, typectx)
 	let data = webassembly.to_wasm(wasm_module)
-	let handle = std.file_open(filename, mode: "wb")
-	let written = std.file_write_n_bytes(handle, buffer: data.as_array(), bufsize: data.len())
-	assert(condition: written == data.len(), message: "file_write_n_bytes failed")
-	std.file_close(handle)
+	filename.write_bytes(data)
 
 pub fn gen_webassembly_module(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext) -> webassembly.Module:
 	log_info("Generating WebAssembly")

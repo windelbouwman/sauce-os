@@ -31,7 +31,7 @@ pub fn main() -> int:
 		elif argument == "-o" or argument == "--output":
 			i += 1
 			if i < n:
-				options.output_filename = Option.Some(get_arg(arg: i))
+				options.output_filename = Option.Some(new_path(filename: get_arg(arg: i)))
 			else:
 				print("Expect argument to -o")
 		elif argument == "-v":
@@ -39,13 +39,13 @@ pub fn main() -> int:
 		elif argument == "--add-import":
 			i += 1
 			if i < n:
-				options.add_imports.append(get_arg(arg: i))
+				options.add_imports.append(new_path(filename: get_arg(arg: i)))
 			else:
 				print("Expect argument to --add-import")
 		elif argument == "--gen-export":
 			i += 1
 			if i < n:
-				options.gen_export = Option.Some(get_arg(arg: i))
+				options.gen_export = Option.Some(new_path(filename: get_arg(arg: i)))
 			else:
 				print("Expect argument to --gen-export")
 		elif argument == "--backend-bc":

@@ -18,9 +18,9 @@ from string_table import StringTable
 
 pub fn parse_source(path: Path, id_gen: IdGen, typectx: ast.TypeContext, strtab: StringTable, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
 	let source = path.read_text()
-	parse_module_from_text(source, filename: path.filename, id_gen, typectx, strtab, debug)
+	parse_module_from_text(source, filename: path, id_gen, typectx, strtab, debug)
 
-pub fn parse_module_from_text(source: str, filename: str, id_gen: IdGen, typectx: ast.TypeContext, strtab: StringTable, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
+pub fn parse_module_from_text(source: str, filename: Path, id_gen: IdGen, typectx: ast.TypeContext, strtab: StringTable, debug: Option[dbginfo.DbgInfo]) -> ast.ModuleDef except ParseError:
 	let lex = Lexer(strtab)
 	let parser = Parser(typectx, lex, id_gen, strtab)
 	case debug:
@@ -63,8 +63,8 @@ class Parser:
 		m_peek = lex.next_token()
 		m_peek2 = lex.next_token()
 
-	pub fn parse_module(filename: str) -> ast.ModuleDef except ParseError:
-		let filename2: Option[str] = Option.Some(filename)
+	pub fn parse_module(filename: Path) -> ast.ModuleDef except ParseError:
+		let filename2: Option[Path] = Option.Some(filename)
 
 		let tok = get_token()
 		case tok.kind:

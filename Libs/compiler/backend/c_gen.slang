@@ -9,13 +9,14 @@ from base.utils import panic
 from base.logging import log_info, log_trace
 from base.listtype import List
 from base.optiontype import Option
+from base.fs import Path
 from base.vectype import Vector, new_vector
 import vm
 import bc
 from text_gen import TextGenerator
 from pygenerator import escape_string, needs_escaping, escape_char
 
-pub fn gen_c_code(program: bc.Program, output_filename: Option[str]):
+pub fn gen_c_code(program: bc.Program, output_filename: Option[Path]):
 	log_info("Generating C-code from bytecode")
 	let g = CGenerator()
 	g.out.begin(output_filename)

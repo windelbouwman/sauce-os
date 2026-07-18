@@ -1,4 +1,4 @@
-module compiler.elf_file
+module compiler.elf
 """ELF file format"""
 
 import std
@@ -8,20 +8,39 @@ from base.bytes import Bytes, ByteArray, new_bytes, bytes_from_ascii
 from base.utils import assert, panic
 from base.logging import log_error, log_info
 from base.hashmap import HashMap, new_hashmap_str
+from base.fs import Path
 from outstream import Object, Section, Symbol
+
+let PT_NULL: int = 0
+let PT_LOAD: int = 1
+let PT_DYNAMIC: int = 2
+let PT_INTERP: int = 3
+let PT_NOTE: int = 4
+let PT_SHLIB: int = 5
+let PT_PHDR: int = 6
+let PT_TLS: int = 7
+
+let PF_X: int = 1
+let PF_W: int = 2
+let PF_R: int = 4
 
 let SHN_UNDEF: int = 0
 
 let SHT_NULL: int = 0
 let SHT_PROGBITS: int = 1
-let SHT_SYMTAB: int = 2
-let SHT_STRTAB: int = 3
-let SHT_RELA: int = 4
+pub let SHT_SYMTAB: int = 2
+pub let SHT_STRTAB: int = 3
+pub let SHT_RELA: int = 4
+let SHT_HASH: int = 5
+let SHT_DYNAMIC: int = 6
+let SHT_NOTE: int = 7
+let SHT_NOBITS: int = 8
+let SHT_REL: int = 9
 
-let SHF_WRITE: int = 0x1
-let SHF_ALLOC: int = 0x2
-let SHF_EXECINSTR: int = 0x4
-let SHF_INFO_LINK: int = 0x40
+pub let SHF_WRITE: int = 0x1
+pub let SHF_ALLOC: int = 0x2
+pub let SHF_EXECINSTR: int = 0x4
+pub let SHF_INFO_LINK: int = 0x40
 
 let STB_LOCAL: int = 0
 let STB_GLOBAL: int = 1
@@ -35,10 +54,60 @@ let STT_FILE: int = 4
 let STT_COMMON: int = 5
 let STT_TLS: int = 6
 
-pub fn write_elf(filename: str, object: Object):
+pub fn section_header_type_to_string(t?: int) -> str:
+	switch t:
+		SHT_NULL: "NULL"
+		SHT_PROGBITS: "PROGBITS"
+		SHT_SYMTAB: "SYMTAB"
+		SHT_STRTAB: "STRTAB"
+		SHT_RELA: "RELA"
+		SHT_HASH: "HASH"
+		SHT_DYNAMIC: "DYNAMIC"
+		SHT_NOTE: "NOTE"
+		SHT_NOBITS: "NOBITS"
+		SHT_REL: "REL"
+	else:
+		str(t)
+
+pub fn program_header_flags_to_string(flags?: int) -> str:
+	var res = ""
+	if flags & PF_R != 0:
+		res = res + "R"
+	if flags & PF_W != 0:
+		res = res + "W"
+	if flags & PF_X != 0:
+		res = res + "E"
+	res
+
+pub fn program_header_type_to_string(t?: int) -> str:
+	switch t:
+		PT_NULL: "PT_NULL"
+		PT_LOAD: "PT_LOAD"
+		PT_DYNAMIC: "PT_DYNAMIC"
+		PT_INTERP: "PT_INTERP"
+		PT_NOTE: "PT_NOTE"
+		PT_SHLIB: "PT_SHLIB"
+		PT_PHDR: "PT_PHDR"
+		PT_TLS: "PT_TLS"
+	else:
+		str(t)
+
+pub fn flags_to_string(flags?: int) -> str:
+	var res = ""
+	if flags & SHF_WRITE != 0:
+		res = res + "W"
+	if flags & SHF_ALLOC != 0:
+		res = res + "A"
+	if flags & SHF_EXECINSTR != 0:
+		res = res + "X"
+	if flags & SHF_INFO_LINK != 0:
+		res = res + "I"
+	res
+
+pub fn write_elf(filename: Path, object: Object):
 	"""Write ELF file."""
 	log_info("Writing elf file: {filename}")
-	let handle = std.file_open(filename, mode: "wb")
+	let handle = filename.open(mode: "wb")
 	let writer = ElfWriter(handle)
 	writer.set_bitsize(bits: object.bits)
 
@@ -56,7 +125,6 @@ pub fn write_elf(filename: str, object: Object):
 		write_section(writer, section, symbol_map)
 	write_symbol_table(writer, symbols)
 	write_section_headers(writer)
-	writer.seek(pos: 0)
 	writer.write_header()
 	std.file_close(handle)
 
@@ -166,7 +234,7 @@ fn write_symbol_table(writer: ElfWriter, symbols: List[Symbol]):
 	sh_strtab.sh_type = SHT_STRTAB
 	sh_strtab.sh_addralign = 1
 
-fn write_section_headers(writer: ElfWriter):
+pub fn write_section_headers(writer: ElfWriter):
 	# section header string table
 	let sh_shstrtab = writer.new_section(name: ".shstrtab")
 	sh_shstrtab.sh_type = SHT_STRTAB
@@ -178,8 +246,8 @@ fn write_section_headers(writer: ElfWriter):
 		writer.write_section_header(sh)
 	writer.m_header.e_shstrndx = writer.m_header.e_shnum - 1
 
-pub fn read_elf(filename: str) -> ElfReader:
-	let handle = std.file_open(filename, mode: "rb")
+pub fn read_elf(filename: Path) -> ElfReader:
+	let handle = filename.open(mode: "rb")
 	ElfReader(handle)
 
 fn new_64bit_header() -> ElfHeader:
@@ -228,7 +296,7 @@ pub struct ElfHeader:
 	e_shnum: int  # Number of sections
 	e_shstrndx: int  # Index of section with section names
 
-struct ProgramHeader:
+pub struct ProgramHeader:
 	p_type: int
 	p_flags: int
 	p_offset: int
@@ -263,6 +331,9 @@ struct RelaTableEntry:
 	r_info: int
 	r_addend: int
 
+pub struct Error:
+	message: str
+
 pub class ElfReader:
 	var handle: int
 	var is_32bit: bool = false
@@ -271,25 +342,25 @@ pub class ElfReader:
 	pub fn close():
 		std.file_close(handle)
 
-	pub fn read_header() -> ElfHeader except str:
+	pub fn read_header() -> ElfHeader except Error:
 		# Read 16 bytes
 		let e_ident = read_bytes(n: 16)
 		if e_ident[0] != 0x7F or e_ident[1] != 0x45 or e_ident[2] != 0x4c or e_ident[3] != 0x46:
-			raise "Invalid ELF magic"
+			raise Error(message: "Invalid ELF magic")
 		let ei_class = e_ident[4]
 		if ei_class == 1:
 			is_32bit = true
 		elif ei_class == 2:
 			is_32bit = false
 		else:
-			raise "Invalid EI_CLASS"
+			raise Error(message: "Invalid EI_CLASS")
 		let ei_data = e_ident[5]
 		if ei_data == 1:
 			is_big_endian = false
 		elif ei_data == 2:
 			is_big_endian = true
 		else:
-			raise "Invalid EI_DATA"
+			raise Error(message: "Invalid EI_DATA")
 		let e_type = read16()  # 0-2
 		let e_machine = read16()  # 2-4
 		let e_version = read32()  # 4-8
@@ -318,13 +389,47 @@ pub class ElfReader:
 			e_shnum
 			e_shstrndx
 
+	pub fn read_program_headers(header: ElfHeader) -> Vector[ProgramHeader]:
+		let headers: Vector[ProgramHeader] = new_vector_with_capacity(capacity: header.e_phnum)
+		if header.e_phnum > 0:
+			seek(pos: header.e_phoff)
+			var i = 0
+			while i < header.e_phnum:
+				headers.append(read_program_header())
+				i += 1
+		headers
+
+	fn read_program_header() -> ProgramHeader:
+		let p_type = read32()
+		var p_flags = 0
+		if not is_32bit:
+			p_flags = read32()
+		let p_offset = read_size_t()
+		let p_vaddr = read_size_t()
+		let p_paddr = read_size_t()
+		let p_filesz = read_size_t()
+		let p_memsz = read_size_t()
+		if is_32bit:
+			p_flags = read32()
+		let p_align = read_size_t()
+		ProgramHeader:
+			p_type
+			p_flags
+			p_offset
+			p_vaddr
+			p_paddr
+			p_filesz
+			p_memsz
+			p_align
+
 	pub fn read_section_headers(header: ElfHeader) -> Vector[SectionHeader]:
 		let headers: Vector[SectionHeader] = new_vector_with_capacity(capacity: header.e_shnum)
-		seek(pos: header.e_shoff)
-		var i = 0
-		while i < header.e_shnum:
-			headers.append(read_section_header())
-			i += 1
+		if header.e_shnum > 0:
+			seek(pos: header.e_shoff)
+			var i = 0
+			while i < header.e_shnum:
+				headers.append(read_section_header())
+				i += 1
 		headers
 
 	fn read_section_header() -> SectionHeader:
@@ -353,6 +458,13 @@ pub class ElfReader:
 	pub fn read_section(header: SectionHeader) -> Bytes:
 		seek(pos: header.sh_offset)
 		read_bytes(n: header.sh_size)
+
+	pub fn read_strtab(header: SectionHeader) -> StringTable:
+		assert(condition: header.sh_type == SHT_STRTAB, message: "Section header must be string table type")
+		let strtab_data = read_section(header)
+		let strtab = StringTable()
+		strtab.set_data(data: strtab_data)
+		strtab
 
 	pub fn read_symbol_table(symtab_section: SectionHeader) -> Vector[SymbolTableEntry]:
 		seek(pos: symtab_section.sh_offset)
@@ -385,6 +497,25 @@ pub class ElfReader:
 			st_info
 			st_other
 			st_shndx
+
+	pub fn read_relas(reloc_section: SectionHeader) -> Vector[RelaTableEntry]:
+		seek(pos: reloc_section.sh_offset)
+		let n_entries = reloc_section.sh_size / reloc_section.sh_entsize
+		let entries: Vector[RelaTableEntry] = new_vector_with_capacity(capacity: n_entries)
+		var i = 0
+		while i < n_entries:
+			entries.append(read_rela_entry())
+			i += 1
+		entries
+
+	fn read_rela_entry() -> RelaTableEntry:
+		let r_offset = read_size_t()
+		let r_info = read_size_t()
+		let r_addend = read_size_t()
+		RelaTableEntry:
+			r_offset
+			r_info
+			r_addend
 
 	fn seek(pos: int):
 		std.file_seek(handle, pos)
@@ -423,7 +554,7 @@ pub class ElfReader:
 		let reader = read_bytes(n: 1).into_reader()
 		reader.read_byte()
 
-class ElfWriter:
+pub class ElfWriter:
 	var handle: int
 	pub var is_32bit: bool = false
 	var is_big_endian: bool = false
@@ -478,6 +609,7 @@ class ElfWriter:
 		sh.sh_size = tell() - sh.sh_offset
 
 	pub fn write_header():
+		seek(pos: 0)
 		write_array([0x7F, 0x45, 0x4c, 0x46], size: 4)  # EI_MAG
 		# 1=32 bit, 2=64 bit
 		let ei_class = 1 if is_32bit else 2

@@ -126,6 +126,14 @@ pub fn radians(degrees: float) -> float:
 	"""Convert degrees to radians"""
 	degrees * (pi / 180.0)
 
+pub fn round_up_to_multiple(value: int, multiple: int) -> int:
+	"""Integer round to higher multiple"""
+	let remainder = value % multiple
+	if remainder > 0:
+		value + multiple - remainder
+	else:
+		value
+
 fn fmod(x?: float, divisor: float) -> float:
 	# TODO: how about negative numbers?
 	if x > divisor:

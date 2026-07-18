@@ -3,6 +3,7 @@ module main
 from std import print, float_to_str2
 from base.utils import assert
 from base.math import modulo, fabs, floor, ceil, factorial, sin, cos, log10, exp, sqrt
+from base import math
 from base.unittest import assert_int_equals
 
 pub fn main() -> int:
@@ -15,6 +16,7 @@ pub fn main() -> int:
 	test_cos()
 	test_log()
 	test_exp()
+	test_roundup()
 	print("OK")
 	0
 
@@ -118,6 +120,10 @@ fn test_floor_ceil():
 
 	#assert_int_equals(-2, floor(-2.0))
 	#assert_int_equals(-2, ceil(-2.0))
+
+fn test_roundup():
+	assert_int_equals(10, math.round_up_to_multiple(value: 9, multiple: 10))
+	assert_int_equals(15, math.round_up_to_multiple(value: 15, multiple: 5))
 
 fn assert_are_close(a?: float, b?: float):
 	let diff = fabs(a - b)

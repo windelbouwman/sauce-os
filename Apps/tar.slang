@@ -2,7 +2,7 @@ module main
 """Handling of tar.gz files"""
 
 import std
-from base.fs import read_whole_file_as_bytes, new_path
+from base.fs import new_path
 from base.gzip import gzip_decompress
 from base.datetime import unix_to_str
 from base.bytes import ByteReader, bytes_to_ascii
@@ -17,7 +17,7 @@ pub fn main() -> int:
 	let tar_filepath = new_path(filename: std.get_arg(arg: n - 1))
 	std.print("UNTAR {tar_filepath} ...")
 
-	let data = read_whole_file_as_bytes(path: tar_filepath)
+	let data = tar_filepath.read_bytes()
 	std.print("Read {data.len()} bytes..")
 
 	let decompressed = gzip_decompress(data)

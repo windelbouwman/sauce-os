@@ -1,9 +1,10 @@
 module compiler.errors
 
-from std import print, read_file, str_get, str_len
+from std import print, str_get, str_len
 from base.listtype import List, list1
 from base.optiontype import Option
 from base.strlib import split_lines, str_repeat, str_pad_left
+from base.fs import Path
 from location import Location, Position, get_begin, get_end, offset_to_position
 
 pub struct CompilationError:
@@ -14,16 +15,16 @@ enum Severity:
 	Warning
 
 pub struct SingleCompilationError:
-	filename: Option[str]
+	filename: Option[Path]
 	severity: Severity
 	location: Location
 	message: str
 
 pub class ErrorCollector:
 	var m_messages: List[SingleCompilationError] = List()
-	var m_filename: Option[str] = Option.None()
+	var m_filename: Option[Path] = Option.None()
 
-	pub fn enter_file(filename: Option[str]):
+	pub fn enter_file(filename: Option[Path]):
 		m_filename = filename
 
 	pub fn leave_file():
@@ -57,17 +58,17 @@ pub class ErrorCollector:
 		if not real_errors.is_empty():
 			raise new_errors(errors: real_errors)
 
-pub fn new_error(filename: Option[str], location: Location, message: str) -> SingleCompilationError:
+pub fn new_error(filename: Option[Path], location: Location, message: str) -> SingleCompilationError:
 	SingleCompilationError(filename, severity: Severity.Error(), location, message)
 
-pub fn new_warning(filename: Option[str], location: Location, message: str) -> SingleCompilationError:
+pub fn new_warning(filename: Option[Path], location: Location, message: str) -> SingleCompilationError:
 	SingleCompilationError(filename, severity: Severity.Warning(), location, message)
 
-pub fn new_single_error(filename: Option[str], location: Location, message: str) -> CompilationError:
+pub fn new_single_error(filename: Option[Path], location: Location, message: str) -> CompilationError:
 	let errors = list1(new_error(filename, location, message))
 	CompilationError(errors)
 
-pub fn new_error_with_filename(filename: str, location: Location, message: str) -> CompilationError:
+pub fn new_error_with_filename(filename: Path, location: Location, message: str) -> CompilationError:
 	new_single_error(filename: Option.Some(filename), location, message)
 
 pub fn new_errors(errors: List[SingleCompilationError]) -> CompilationError:
@@ -100,8 +101,8 @@ fn render_message(message: SingleCompilationError):
 		None:
 			print("{label}: {message.message}")
 
-fn print_error(label: str, filename: str, message: SingleCompilationError):
-	let code = read_file(filename)
+fn print_error(label: str, filename: Path, message: SingleCompilationError):
+	let code = filename.read_text()
 	let begin = offset_to_position(offset: get_begin(message.location), code)
 	let end = offset_to_position(offset: get_end(message.location), code)
 	print("{filename}:{begin.row}.{begin.column}-{end.row}.{end.column + 1}: {label} {message.message}")
