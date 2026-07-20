@@ -70,6 +70,8 @@ pub fn main() -> int:
 			options.backend = Backend.WebAssembly(binary: false)
 		elif argument == "--backend-slang":
 			options.backend = Backend.Slang()
+		elif argument == "--backend-html":
+			options.backend = Backend.Html()
 		elif argument == "--run":
 			options.run_code = true
 		elif argument == "--optimize":
@@ -128,6 +130,7 @@ fn print_usage():
 	print("    --backend-null  : Skip code generation")
 	print("    --backend-slang : Spit out slang")
 	print("    --backend-x86   : Spit out x86 code")
+	print("    --backend-html  : Spit out HTML")
 	print("    --report        : Create compilation report")
 	print("    --time-trace    : Create compilation time-trace report")
 	print("    --run : Run code!")

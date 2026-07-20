@@ -15,6 +15,7 @@ from base.logging import log_error, log_info, log_trace, log_debug
 from escape_analysis import escape
 from ir_gen import gen_bytecode
 from pygenerator import gen_python
+from html import create_docs
 from basepass import IdGen
 from string_table import StringTable
 from transforms import transform, TransformOptions
@@ -61,6 +62,7 @@ pub enum Backend:
 	Sil
 	Riscv
 	X86
+	Html
 
 pub fn default_compile_options() -> CompilationOptions:
 	CompilationOptions:
@@ -86,17 +88,15 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 		for module_def in imported_modules:
 			builder.add_module(module_def)
 
-	builder.m_profiler.enter(name: "parsing")
-	for path in sources:
-		log_info("Parsing: {path}")
-		builder.m_profiler.enter(name: "parse")
-		try:
-			builder.parse_module(path)
-		except (e: ParseError):
-			raise new_error_with_filename(filename: path, location: e.location, message: e.message)
-		builder.m_profiler.leave()
-	builder.m_profiler.leave()
-
+	builder.parse_sources(sources)
+	builder.do_binding()
+	builder.do_export()
+	case options.backend:
+		Html:
+			create_docs(strtab: builder.strtab, module_defs: builder.m_modules, output_filename: options.output_filename)
+			return
+	else:
+		pass
 	builder.do_transform()
 
 	builder.m_profiler.enter(name: "backend")
@@ -109,6 +109,8 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 		debug: builder.m_debug
 	case options.backend:
 		Null:  # no-op backend.
+			pass
+		Html:
 			pass
 		Python:
 			gen_python(strtab: builder.strtab, module_defs: builder.m_modules, output_filename: options.output_filename)
@@ -185,8 +187,19 @@ class Builder:
 			ast.print_ast(strtab, module_def: program)
 		add_module(module_def: program)
 
-	pub fn do_transform() except CompilationError:
-		"""Perform type checking and transformation on the added modules"""
+	pub fn parse_sources(sources: List[Path]) except CompilationError:
+		m_profiler.enter(name: "parsing")
+		for path in sources:
+			log_info("Parsing: {path}")
+			m_profiler.enter(name: "parse")
+			try:
+				parse_module(path)
+			except (e: ParseError):
+				raise new_error_with_filename(filename: path, location: e.location, message: e.message)
+			m_profiler.leave()
+		m_profiler.leave()
+
+	pub fn do_binding() except CompilationError:
 		m_profiler.enter(name: "binding")
 		bind_names(module_defs: m_modules, strtab, typectx: m_typectx)
 		resolve_newops(strtab, module_defs: m_modules, id_gen: m_id_gen)
@@ -199,6 +212,7 @@ class Builder:
 		type_check(module_defs: m_modules, strtab, typectx: m_typectx, display_warnings: true)
 		m_profiler.leave()
 
+	pub fn do_export():
 		m_profiler.enter(name: "export")
 		case options.gen_export:
 			Some(filename):
@@ -206,6 +220,9 @@ class Builder:
 			None:
 				pass
 		m_profiler.leave()
+
+	pub fn do_transform() except CompilationError:
+		"""Perform type checking and transformation on the added modules"""
 
 		let transform_options = TransformOptions:
 			keep_switch: false

@@ -148,7 +148,7 @@ class Parser:
 			else:
 				raise unexpected_token(tok, expected: "import, fn, enum, struct, class, extern")
 
-		ast.new_module(namespace: qname.parts, location: location_default(), filename: filename2, imports, definitions)
+		ast.new_module(namespace: qname.parts, location: location_default(), filename: filename2, docstring, imports, definitions)
 
 	fn parse_import(location: Location) -> ast.Import except ParseError:
 		let names = parse_names()

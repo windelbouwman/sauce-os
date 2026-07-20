@@ -52,6 +52,7 @@ class SymbolSaver:
 	fn save_module(module_def: ast.ModuleDef):
 		m_ser.begin_object()
 		save_name_list(attr: "namespace", module_def.namespace)
+		save_doc_string(docstring: module_def.docstring)
 		m_ser.begin_array()
 		for imp in module_def.imports:
 			save_import(imp)
@@ -403,6 +404,7 @@ class SymbolLoader:
 		let namespace = load_name_list(attr: "namespace")
 
 		# log_info("Load info for module: {mod_name}")
+		let docstring = load_docstring()
 
 		let imports: Vector[ast.Import] = new_vector()
 		for import_obj in m_des.get_array_attribute(attr: "imports"):
@@ -415,7 +417,7 @@ class SymbolLoader:
 			m_des.push_value(value: definition_obj)
 			definitions.append(load_definition())
 			m_des.pop_value()
-		ast.new_module(namespace, location: location_default(), filename: Option.None(), imports, definitions)
+		ast.new_module(namespace, location: location_default(), filename: Option.None(), docstring, imports, definitions)
 
 	fn load_import() -> ast.Import:
 		let location = location_default()

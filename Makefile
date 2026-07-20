@@ -704,16 +704,18 @@ ${BUILDDIR}/wasm/snippets/%.wasm: examples/snippets/%.slang runtime/std.slang ${
 
 # Web app
 .PHONY: webapp serve
-webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_TESTS} ${BUILDDIR}/wasm/compiler.wasm all-wasm-apps all-examples-wasm
+webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_TESTS} ${BUILDDIR}/wasm/compiler.wasm all-wasm-apps all-examples-wasm docs
 	mkdir -p ${BUILDDIR}/webapp
 	mkdir -p ${BUILDDIR}/webapp/snippets
 	mkdir -p ${BUILDDIR}/webapp/tests
 	mkdir -p ${BUILDDIR}/webapp/apps
+	mkdir -p ${BUILDDIR}/webapp/docs
 	cp ${BUILDDIR}/wasm/lib*.wasm ${BUILDDIR}/webapp/
 	cp ${BUILDDIR}/wasm/compiler.wasm ${BUILDDIR}/webapp/
 	cp ${BUILDDIR}/wasm/snippets/*.wasm ${BUILDDIR}/webapp/snippets/
 	cp ${BUILDDIR}/wasm/tests/*.wasm ${BUILDDIR}/webapp/tests/
 	cp ${BUILDDIR}/wasm/apps/*.wasm ${BUILDDIR}/webapp/apps/
+	cp ${BUILDDIR}/html/lib*.html ${BUILDDIR}/webapp/docs/
 	cp examples/snippets/*.slang ${BUILDDIR}/webapp/snippets/
 	cp runtime/std.slang ${BUILDDIR}/webapp/
 	cp webapp/index.html webapp/style.css ${BUILDDIR}/webapp/
@@ -723,6 +725,33 @@ webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_T
 
 serve: webapp
 	python -m http.server -d ${BUILDDIR}/webapp
+
+############################################################################
+# Docs
+############################################################################
+.PHONY: docs
+docs: ${BUILDDIR}/html/libbase.html ${BUILDDIR}/html/libimage.html ${BUILDDIR}/html/libscience.html ${BUILDDIR}/html/libweb.html ${BUILDDIR}/html/libgfx.html ${BUILDDIR}/html/libcompiler.html
+
+${BUILDDIR}/html:
+	mkdir -p $@
+
+${BUILDDIR}/html/libbase.html ${BUILDDIR}/html/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/html
+	${SLANGC} --backend-html --gen-export ${BUILDDIR}/html/libbase.json -o ${BUILDDIR}/html/libbase.html ${BASE_LIB_SRCS}
+
+${BUILDDIR}/html/libimage.html ${BUILDDIR}/html/libimage.json: ${IMAGE_LIB_SRCS} ${BUILDDIR}/html/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/html
+	${SLANGC} --backend-html --gen-export ${BUILDDIR}/html/libimage.json -o ${BUILDDIR}/html/libimage.html --add-import ${BUILDDIR}/html/libbase.json ${IMAGE_LIB_SRCS}
+
+${BUILDDIR}/html/libscience.html ${BUILDDIR}/html/libscience.json: ${SCIENCE_LIB_SRCS} ${BUILDDIR}/html/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/html
+	${SLANGC} --backend-html --gen-export ${BUILDDIR}/html/libscience.json -o ${BUILDDIR}/html/libscience.html --add-import ${BUILDDIR}/html/libbase.json ${SCIENCE_LIB_SRCS}
+
+${BUILDDIR}/html/libweb.html ${BUILDDIR}/html/libweb.json: ${WEB_LIB_SRCS} ${BUILDDIR}/html/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/html
+	${SLANGC} --backend-html --gen-export ${BUILDDIR}/html/libweb.json -o ${BUILDDIR}/html/libweb.html --add-import ${BUILDDIR}/html/libbase.json ${WEB_LIB_SRCS}
+
+${BUILDDIR}/html/libgfx.html ${BUILDDIR}/html/libgfx.json: ${GFX_LIB_SRCS} ${BUILDDIR}/html/libbase.json ${BUILDDIR}/html/libimage.json ${SLANGC_DEPS} | ${BUILDDIR}/html
+	${SLANGC} --backend-html --gen-export ${BUILDDIR}/html/libgfx.json -o ${BUILDDIR}/html/libgfx.html --add-import ${BUILDDIR}/html/libbase.json --add-import ${BUILDDIR}/html/libimage.json ${GFX_LIB_SRCS}
+
+${BUILDDIR}/html/libcompiler.html ${BUILDDIR}/html/libcompiler.json: ${COMPILER_LIB_SRCS} ${BUILDDIR}/html/libbase.json ${SLANGC_DEPS} | ${BUILDDIR}/html
+	${SLANGC} --backend-html --gen-export ${BUILDDIR}/html/libcompiler.json -o ${BUILDDIR}/html/libcompiler.html --add-import ${BUILDDIR}/html/libbase.json ${COMPILER_LIB_SRCS}
 
 ############################################################################
 # Bootstrapping
