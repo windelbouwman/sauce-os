@@ -1,8 +1,7 @@
 module base.bitset
 """Bit set data type."""
 
-from utils import unimplemented, panic
-from vectype import Vector, new_vector
+from utils import panic
 from optiontype import Option
 from rt import ctz, popcnt
 

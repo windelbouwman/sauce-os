@@ -1,0 +1,21 @@
+body {
+  background-color: #f5f5f5;
+}
+
+.itembox {
+  padding-left: 25px;
+}
+
+.signature {
+  font-family: monospace;
+  font-weight: bold;
+  display: block;
+}
+
+.keyword {
+  color: #4b69c6;
+}
+
+.identifier {
+  color: #333333;
+}

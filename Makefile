@@ -716,6 +716,7 @@ webapp: ${BUILDDIR}/wasm/libbase.wasm ${BUILDDIR}/wasm/libcompiler.wasm ${WASM_T
 	cp ${BUILDDIR}/wasm/tests/*.wasm ${BUILDDIR}/webapp/tests/
 	cp ${BUILDDIR}/wasm/apps/*.wasm ${BUILDDIR}/webapp/apps/
 	cp ${BUILDDIR}/html/lib*.html ${BUILDDIR}/webapp/docs/
+	cp ${BUILDDIR}/html/doc-style.css ${BUILDDIR}/webapp/docs/
 	cp examples/snippets/*.slang ${BUILDDIR}/webapp/snippets/
 	cp runtime/std.slang ${BUILDDIR}/webapp/
 	cp webapp/index.html webapp/style.css ${BUILDDIR}/webapp/
@@ -730,10 +731,13 @@ serve: webapp
 # Docs
 ############################################################################
 .PHONY: docs
-docs: ${BUILDDIR}/html/libbase.html ${BUILDDIR}/html/libimage.html ${BUILDDIR}/html/libscience.html ${BUILDDIR}/html/libweb.html ${BUILDDIR}/html/libgfx.html ${BUILDDIR}/html/libcompiler.html
+docs: ${BUILDDIR}/html/libbase.html ${BUILDDIR}/html/libimage.html ${BUILDDIR}/html/libscience.html ${BUILDDIR}/html/libweb.html ${BUILDDIR}/html/libgfx.html ${BUILDDIR}/html/libcompiler.html ${BUILDDIR}/html/doc-style.css
 
 ${BUILDDIR}/html:
 	mkdir -p $@
+
+${BUILDDIR}/html/doc-style.css: webapp/doc-style.css
+	cp $< $@
 
 ${BUILDDIR}/html/libbase.html ${BUILDDIR}/html/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/html
 	${SLANGC} --backend-html --gen-export ${BUILDDIR}/html/libbase.json -o ${BUILDDIR}/html/libbase.html ${BASE_LIB_SRCS}

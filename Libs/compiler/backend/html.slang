@@ -21,13 +21,7 @@ pub fn create_docs(strtab: StringTable, module_defs: List[ast.ModuleDef], output
 	out.writeln("<!DOCTYPE html>")
 	out.writeln("<html>")
 	out.writeln("<head>")
-	out.writeln("<style>")
-	out.writeln("body \{ background-color: #F5F5F5; \}")
-	out.writeln(".itembox \{ padding-left: 25px; \}")
-	out.writeln(".signature \{ font-family: monospace; font-weight: bold; display: block; \}")
-	out.writeln(".keyword \{ color: #4B69C6; \}")
-	out.writeln(".identifier \{ color: #333333; \}")
-	out.writeln("</style>")
+	out.writeln("<link rel=\"stylesheet\" href=\"doc-style.css\" />")
 	out.writeln("</head>")
 	out.writeln("<body>")
 	for module_def in module_defs:
@@ -75,6 +69,8 @@ class HtmlGenerator:
 	fn gen_struct(struct_def: ast.StructDef):
 		gen_anchor(struct_def.id)
 		enter_span("signature")
+		if struct_def.is_pub:
+			gen_kw("pub ")
 		gen_kw("struct")
 		text(" ")
 		gen_id(struct_def.id)
@@ -93,6 +89,8 @@ class HtmlGenerator:
 	fn gen_enum(enum_def: ast.EnumDef):
 		gen_anchor(enum_def.id)
 		enter_span("signature")
+		if enum_def.is_pub:
+			gen_kw("pub ")
 		gen_kw("enum")
 		text(" ")
 		gen_name(enum_def.id.name)
@@ -118,6 +116,8 @@ class HtmlGenerator:
 	fn gen_class(class_def: ast.ClassDef):
 		gen_anchor(class_def.id)
 		enter_span("signature")
+		if class_def.is_pub:
+			gen_kw("pub ")
 		gen_kw("class")
 		text(" ")
 		gen_id(class_def.id)
@@ -129,6 +129,8 @@ class HtmlGenerator:
 
 	fn gen_variable(variable_def: ast.VariableDef):
 		enter_span("signature")
+		if variable_def.is_pub:
+			gen_kw("pub ")
 		gen_kw("var")
 		text(" ")
 		gen_id(variable_def.variable.id)
@@ -138,6 +140,8 @@ class HtmlGenerator:
 
 	fn gen_function(function_def: ast.FunctionDef):
 		enter_span("signature")
+		if function_def.is_pub:
+			gen_kw("pub ")
 		gen_kw("fn")
 		text(" ")
 		gen_name(function_def.name)

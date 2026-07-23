@@ -9,7 +9,7 @@ from location import Location, location_default
 from base.listtype import List
 from base.optiontype import Option, option_unwrap, option_is_some
 from base.vectype import Vector, new_vector_with_capacity, new_vector
-from base.hashmap import HashMap, new_hashmap_str, new_hashmap, str_hash, new_hashmap_uint32
+from base.hashmap import HashMap, new_hashmap, new_hashmap_uint32
 from string_table import StringTable
 
 # Name coupled with global unique ID:

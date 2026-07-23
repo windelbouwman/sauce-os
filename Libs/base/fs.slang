@@ -10,7 +10,7 @@ from strlib import string_compare, split_string, split_lines
 from listtype import List
 from vectype import Vector, new_vector_with_capacity
 from sorting import sort_list
-from utils import panic, assert
+from utils import assert
 
 pub fn lexical_sort_paths(values?: List[Path]) -> List[Path]:
 	sort_list(values, cmp: path_compare)

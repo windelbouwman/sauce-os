@@ -3,7 +3,6 @@ module base.bytes
 
 from std import ord, chr, pack_f64, pack_f32
 from utils import assert, panic
-from vectype import Vector, new_vector
 from strlib import hex_char, hex_digit_to_int, is_hex_digit, is_space
 
 pub class Bytes:
@@ -28,7 +27,7 @@ pub class Bytes:
 		concat2(a: this, b: other)
 
 	pub fn as_hex() -> str:
-		# Return bytes as hexadecimal text
+		"""Return bytes as hexadecimal text"""
 		var txt = ""
 		var index = 0
 		while index < m_size:

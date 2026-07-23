@@ -78,6 +78,8 @@ pub fn main() -> int:
 			options.optimization_level = 2
 		elif argument == "--no-optimize":
 			options.optimization_level = 0
+		elif argument == "-Wunused":
+			options.check_unused_symbols = true
 		elif argument == "--debug":
 			options.debug = true
 		elif argument == "--time-trace":

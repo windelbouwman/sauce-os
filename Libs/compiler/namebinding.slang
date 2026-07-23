@@ -11,14 +11,15 @@ import ast
 from errors import CompilationError, SingleCompilationError, ErrorCollector
 from string_table import StringTable
 
-pub fn bind_names(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext) except CompilationError:
+pub fn bind_names(module_defs: List[ast.ModuleDef], strtab: StringTable, typectx: ast.TypeContext, check_unused: bool) except CompilationError:
 	let tycon_map: HashMap[ast.NodeId,ast.TyCon] = ast.new_hashmap_nodeid()
 	let root_namespace = ast.NamespaceDef(name: strtab.intern("root"), scope: ast.Scope())
 	let binder = NameBinder(root_namespace, tycon_map, strtab)
 	fill_scopes(binder, module_defs)
 	import_symbols(binder, module_defs)
 	resolve_symbols(binder, typectx, module_defs)
-	check_unused_symbols(binder, module_defs)
+	if check_unused:
+		check_unused_symbols(binder, module_defs)
 
 fn fill_scopes(binder: NameBinder, module_defs: List[ast.ModuleDef]) except CompilationError:
 	let fill_visitor: ast.Visitor[NameBinder] = ast.Visitor:
@@ -69,9 +70,7 @@ fn check_unused_symbols(binder: NameBinder, module_defs: List[ast.ModuleDef]) ex
 			if not symbol.is_pub and symbol.get_references() == 0:
 				# TODO: use filename as a hack to reduce amount of warnings:
 				if option_is_some(module_def.filename):
-					# TODO: re-enable / put behind option flag?
-					if false:
-						binder.add_warning(location: symbol.location, message: "Symbol '{binder.strtab.get(symbol.name)}' defined but unused.")
+					binder.add_warning(location: symbol.location, message: "Symbol '{binder.strtab.get(symbol.name)}' defined but unused.")
 		binder.errors.leave_file()
 	binder.render_or_raise()
 

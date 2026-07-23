@@ -46,6 +46,7 @@ pub struct CompilationOptions:
 	gen_export: Option[Path]
 	verbosity: int
 	optimization_level: int
+	check_unused_symbols: bool
 	run_code: bool
 	time_trace: bool
 	report: bool
@@ -73,6 +74,7 @@ pub fn default_compile_options() -> CompilationOptions:
 		gen_export: Option.None()
 		verbosity: 0
 		optimization_level: 1
+		check_unused_symbols: false
 		run_code: false
 		time_trace: false
 		report: false
@@ -201,7 +203,7 @@ class Builder:
 
 	pub fn do_binding() except CompilationError:
 		m_profiler.enter(name: "binding")
-		bind_names(module_defs: m_modules, strtab, typectx: m_typectx)
+		bind_names(module_defs: m_modules, strtab, typectx: m_typectx, check_unused: options.check_unused_symbols)
 		resolve_newops(strtab, module_defs: m_modules, id_gen: m_id_gen)
 		m_profiler.leave()
 
