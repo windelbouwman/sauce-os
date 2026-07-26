@@ -5,6 +5,7 @@ from base.listtype import List, list1
 from base.optiontype import Option
 from base.strlib import split_lines, str_repeat, str_pad_left
 from base.fs import Path
+from base import terminal
 from location import Location, Position, get_begin, get_end, offset_to_position
 
 pub struct CompilationError:
@@ -82,18 +83,10 @@ pub fn print_errors(errors: List[SingleCompilationError]):
 		render_message(message)
 
 fn render_message(message: SingleCompilationError):
-	# reset = \033[0m
-	# red = \033[31m
-	# green = \033[32m
-	# yellow = \033[33m
-	# blue = \033[34m
-	# magenta = \033[35m
-	# print("\033[33mwarning\033[0m: {message}")
 	let label = case message.severity:
-		Error:
-			"\033[31merror\033[0m"
-		Warning:
-			"\033[33mwarning\033[0m"
+		Error: terminal.colored_text(text: "error", color: terminal.Color.Red())
+		Warning: terminal.colored_text(text: "warning", color: terminal.Color.Yellow())
+
 	# let one_line = false
 	case message.filename:
 		Some(filename):

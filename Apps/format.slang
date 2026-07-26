@@ -14,7 +14,7 @@ from base.fs import Path, new_path
 from compiler.parsing.lexer import Lexer
 from compiler.string_table import StringTable
 from base.strlib import str_repeat, split_lines, StringBuilder
-from base.diff import diff_lines
+from base.diff import diff_lines, render_diff, count_diff_changes, show_unified
 from compiler.parsing.token import token_to_string, Token
 
 pub fn main() -> int:
@@ -57,25 +57,26 @@ struct Status:
 
 fn parse_arguments() -> Arguments:
 	"""Process command line arguments"""
+	let arguments = Arguments:
+		show_help: false
+		check: false
+		inplace: false
+		sources: List()
 	let n = std.get_n_args()
-	let sources: List[Path] = List()
-	var show_help = false
-	var check = false
-	var inplace = false
 	var i = 0
 	while i < n:
 		let arg = std.get_arg(arg: i)
 		if arg == "-i" or arg == "--in-place":
-			inplace = true
+			arguments.inplace = true
 		elif arg == "--check":
-			check = true
+			arguments.check = true
 		elif arg == "-h" or arg == "--help":
-			show_help = true
+			arguments.show_help = true
 		else:
 			let path = new_path(filename: arg)
-			sources.append(path)
+			arguments.sources.append(path)
 		i += 1
-	Arguments(show_help, check, inplace, sources)
+	arguments
 
 fn format_source(source_path: Path, arguments: Arguments, status: Status):
 	"""Format a single source file"""
@@ -90,7 +91,7 @@ fn format_source(source_path: Path, arguments: Arguments, status: Status):
 		return
 	let formatted_lines = format_tokens(strtab, tokens)
 	let original_lines = source_path.read_lines()
-	if run_line_diff(original_lines, formatted_lines) == 0:
+	if lines_equal(original_lines, formatted_lines):
 		log_info("No formatting required for {source_path}")
 		status.untouched_files += 1
 	else:
@@ -101,19 +102,16 @@ fn format_source(source_path: Path, arguments: Arguments, status: Status):
 			log_info("Would re-format {source_path}")
 		status.formatted_files += 1
 
-fn run_line_diff(a?: Vector[str], b?: Vector[str]) -> int:
-	var n_diffs = 0
-	for edit in diff_lines(a, b):
-		case edit:
-			Equal(pos1, pos2, value):
-				pass
-			Delete(pos, value):
-				print("{pos}..: -- {value}")
-				n_diffs += 1
-			Insert(pos1, pos2, value):
-				print("{pos1}..{pos2}: ++ {value}")
-				n_diffs += 1
-	n_diffs
+fn lines_equal(a?: Vector[str], b?: Vector[str]) -> bool:
+	let edits = diff_lines(a, b)
+	let n_diffs = count_diff_changes(edits)
+	let use_unified = true
+	if n_diffs > 0:
+		if use_unified:
+			show_unified(edits, context: 3)
+		else:
+			render_diff(edits, show_unchanged_lines: false)
+	n_diffs == 0
 
 fn read_tokens(strtab: StringTable, path: Path, tokens: List[Token]) except str:
 	let source = path.read_text()

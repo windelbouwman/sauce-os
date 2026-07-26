@@ -12,11 +12,13 @@ https://blog.jcoglan.com/2017/04/25/myers-diff-in-linear-space-implementation/
 
 from logging import log_debug
 from utils import panic
-from std import str_len, str_get
+from std import str_len, str_get, print
 from listtype import List
+from optiontype import Option
 from vectype import Vector, new_vector_with_capacity
 from hashmap import HashMap, new_hashmap_int, str_eq, int_eq, char_eq
-from math import max
+import math
+import terminal
 
 pub fn ratio(a: str, b: str) -> float:
 	"""Calculate similarity ratio between two strings.
@@ -34,11 +36,139 @@ pub fn ratio(a: str, b: str) -> float:
 				pass
 		else:
 			d += 1
-	1.0 - float(d) / max(n, m)
+	1.0 - float(d) / math.max(n, m)
 
 pub fn diff_lines(a: Vector[str], b: Vector[str]) -> List[Edit[str]]:
 	"""Compare two lists of strings"""
 	diff_items(a, b, eq: str_eq)
+
+pub fn count_diff_changes[T](edits: List[Edit[T]]) -> int:
+	"""Count number of changes"""
+	var n_diffs = 0
+	for edit in edits:
+		case edit:
+			Equal(pos1, pos2, values):
+				pass
+			Delete(pos1, pos2, values):
+				n_diffs += values.len()
+			Insert(pos1, pos2, values):
+				n_diffs += values.len()
+			Change(pos1, pos2, old_values, new_values):
+				n_diffs += old_values.len() + new_values.len()
+	n_diffs
+
+pub fn render_diff(edits: List[Edit[str]], show_unchanged_lines: bool):
+	"""Print diff to console"""
+	for edit in edits:
+		case edit:
+			Equal(pos1, pos2, values):
+				if show_unchanged_lines:
+					print("Eq {pos1}")
+					for value in values:
+						print(" == {value}")
+			Delete(pos1, pos2, values):
+				print("{old_range_to_str(pos: pos1, size: values.len())}d{pos2}")
+				for value in values:
+					print("< {value}")
+			Insert(pos1, pos2, values):
+				print("{pos1}a{old_range_to_str(pos: pos2, size: values.len())}")
+				for value in values:
+					print("> {value}")
+			Change(pos1, pos2, old_values, new_values):
+				print("{old_range_to_str(pos: pos1, size: old_values.len())}c{old_range_to_str(pos: pos2, size: new_values.len())}")
+				for value in old_values:
+					print("< {value}")
+				print("---")
+				for value in new_values:
+					print("> {value}")
+
+fn old_range_to_str(pos: int, size: int) -> str:
+	str(pos + 1) if size == 1 else "{pos + 1},{pos + size}"
+
+struct UnifiedBlock:
+	"""Single block of unified diff output"""
+	pos1: int
+	size1: int
+	pos2: int
+	size2: int
+	lines: List[str]
+	has_deltas: bool
+
+fn new_unified_block(pos1: int, pos2: int) -> UnifiedBlock:
+	UnifiedBlock(pos1, size1: 0, pos2, size2: 0, lines: List(), has_deltas: false)
+
+pub fn show_unified(edits: List[Edit[str]], context: int):
+	"""Create unified output, with a given amount of context"""
+	var block = new_unified_block(pos1: 0, pos2: 0)
+	for edit in edits:
+		case edit:
+			Equal(pos1, pos2, values):
+				if block.lines.is_empty():
+					let n = math.min(a: values.len(), b: context)
+					var index = values.len() - n
+					while index < values.len():
+						let value = values.get(index)
+						index += 1
+						block.lines.append(" {value}")
+					block.size1 += n
+					block.size2 += n
+				else:
+					if values.len() > context * 2:
+						# Add context lines to end
+						var index = 0
+						while index < context:
+							let value = values.get(index)
+							index += 1
+							block.lines.append(" {value}")
+						block.size1 += context
+						block.size2 += context
+						emit_block(block)
+
+						# New block
+						block = new_unified_block(pos1: pos1 + values.len() - context, pos2: pos2 + values.len() - context)
+
+						index = values.len() - context
+						while index < values.len():
+							let value = values.get(index)
+							index += 1
+							block.lines.append(" {value}")
+						block.size1 += context
+						block.size2 += context
+					else:
+						# We must include all lines
+						block.size1 += values.len()
+						block.size2 += values.len()
+						for value in values:
+							block.lines.append(" {value}")
+			Delete(pos1, pos2, values):
+				block.size1 += values.len()
+				block.has_deltas = true
+				for value in values:
+					block.lines.append(terminal.colored_text(text: "-{value}", color: terminal.Color.Red()))
+			Insert(pos1, pos2, values):
+				block.size2 += values.len()
+				block.has_deltas = true
+				for value in values:
+					block.lines.append(terminal.colored_text(text: "+{value}", color: terminal.Color.Green()))
+			Change(pos1, pos2, old_values, new_values):
+				block.size1 += old_values.len()
+				block.size2 += new_values.len()
+				block.has_deltas = true
+				for value in old_values:
+					block.lines.append(terminal.colored_text(text: "-{value}", color: terminal.Color.Red()))
+				for value in new_values:
+					block.lines.append(terminal.colored_text(text: "+{value}", color: terminal.Color.Green()))
+	emit_block(block)
+
+fn pos_size_to_str(pos: int, size: int) -> str:
+	str(pos + 1) if size == 1 else "{pos + 1},{size}"
+
+fn emit_block(block: UnifiedBlock):
+	if block.lines.is_empty() or not block.has_deltas:
+		return
+	print(terminal.colored_text(text: "@@ -{pos_size_to_str(pos: block.pos1, size: block.size1)} +{pos_size_to_str(pos: block.pos2, size: block.size2)} @@", color: terminal.Color.Cyan()))
+	for line in block.lines:
+		print(line)
 
 pub fn diff_numbers(a: Vector[int], b: Vector[int]) -> List[Edit[int]]:
 	"""Compare two lists of integers"""
@@ -67,12 +197,13 @@ pub fn diff_items[T](a: Vector[T], b: Vector[T], eq: fn(T, T) -> bool) -> List[E
 	let edits: List[Edit[T]] = List()
 	log_debug("Diff: n={area.right}, m={area.bottom}")
 	diff_linear_space(ctx, area, edits)
-	edits
+	group_edits(edits)
 
 pub enum Edit[T]:
-	Equal(pos1: int, pos2: int, value: T)
-	Insert(pos1: int, pos2: int, value: T)
-	Delete(pos: int, value: T)
+	Equal(pos1: int, pos2: int, values: Vector[T])
+	Insert(pos1: int, pos2: int, values: Vector[T])
+	Delete(pos1: int, pos2: int, values: Vector[T])
+	Change(pos1: int, pos2: int, old_values: Vector[T], new_values: Vector[T])
 
 struct Context[T]:
 	"""Diff problem context"""
@@ -103,10 +234,14 @@ fn diff_linear_space[T](ctx: Context[T], area: Area, edits: List[Edit[T]]):
 	"""Recursively divide and conquer the graph in subgraphs"""
 	log_debug("Diffing {area}")
 	# Shrink search area from top-left:
+	var n_equal_before = 0
 	while area.left < area.right and area.top < area.bottom and ctx.eq(ctx.a[area.left], ctx.b[area.top]):
-		edits.append(Edit.Equal(pos1: area.left, pos2: area.top, value: ctx.a[area.left]))
+		n_equal_before += 1
 		area.left += 1
 		area.top += 1
+	if n_equal_before > 0:
+		let values = ctx.a.slice(offset: area.left - n_equal_before, amount: n_equal_before)
+		edits.append(Edit.Equal(pos1: area.left - n_equal_before, pos2: area.top - n_equal_before, values))
 
 	# Shrink search area from right-bottom:
 	var n_equal_after = 0
@@ -125,20 +260,15 @@ fn diff_linear_space[T](ctx: Context[T], area: Area, edits: List[Edit[T]]):
 		diff_linear_space(ctx, area: top_left_area, edits)
 		diff_linear_space(ctx, area: bottom_right_area, edits)
 	elif n > 0:
-		var i = 0
-		while i < n:
-			edits.append(Edit.Delete(pos: area.left + i, value: ctx.a[area.left + i]))
-			i += 1
+		let values = ctx.a.slice(offset: area.left, amount: n)
+		edits.append(Edit.Delete(pos1: area.left, pos2: area.top, values))
 	elif m > 0:
-		var i = 0
-		while i < m:
-			edits.append(Edit.Insert(pos1: area.left + i, pos2: area.top + i, value: ctx.b[area.top + i]))
-			i += 1
+		let values = ctx.b.slice(offset: area.top, amount: m)
+		edits.append(Edit.Insert(pos1: area.left, pos2: area.top, values))
 
-	var i = 0
-	while i < n_equal_after:
-		edits.append(Edit.Equal(pos1: area.right + i, pos2: area.bottom + i, value: ctx.a[area.right + i]))
-		i += 1
+	if n_equal_after > 0:
+		let values = ctx.a.slice(offset: area.right, amount: n_equal_after)
+		edits.append(Edit.Equal(pos1: area.right, pos2: area.bottom, values))
 
 fn find_middle_snake[T](ctx: Context[T], area: Area) -> Point:
 	"""Simultaniously search paths from start and from end."""
@@ -209,6 +339,66 @@ fn is_odd(x?: int) -> bool:
 	"""Test if the given number is odd"""
 	(x & 1) == 1
 
-pub fn is_even(x?: int) -> bool:
+fn is_even(x?: int) -> bool:
 	"""Test if the given number is even"""
 	(x & 1) == 0
+
+fn group_edits[T](edits: List[Edit[T]]) -> List[Edit[T]]:
+	"""Post process edits"""
+	edits = fold_edits(edits, fold_func: merge_two_edits)
+	fold_edits(edits, fold_func: add_change_edits)
+
+fn fold_edits[T](edits: List[Edit[T]], fold_func: fn(Edit[T], Edit[T]) -> Option[Edit[T]]) -> List[Edit[T]]:
+	"""Try to merge edits by using the given fold_func."""
+	let result: List[Edit[T]] = List()
+	for edit in edits:
+		if result.is_empty():
+			result.append(edit)
+		else:
+			let last: Edit[T] = result.last()
+			case fold_func(first: last, second: edit):
+				Some(combined):
+					result.drop_last()
+					result.append(combined)
+				None:
+					result.append(edit)
+	result
+
+fn merge_two_edits[T](first: Edit[T], second: Edit[T]) -> Option[Edit[T]]:
+	"""Try to merge two edits into a single edit"""
+	case first:
+		Equal(pos1, pos2, values):
+			Option.None()
+		Delete(first_pos1, first_pos2, first_values):
+			case second:
+				Delete(second_pos1, second_pos2, second_values):
+					if first_pos1 + first_values.len() == second_pos1 and first_pos2 == second_pos2:
+						let new_values = first_values.concat(other: second_values)
+						Option.Some(Edit.Delete(pos1: first_pos1, pos2: first_pos2, values: new_values))
+					else:
+						Option.None()
+			else:
+				Option.None()
+		Insert(pos1, pos2, a_values):
+			case second:
+				Insert(second_pos1, second_pos2, second_values):
+					if pos1 == second_pos1 and pos2 + a_values.len() == second_pos2:
+						let new_values = a_values.concat(other: second_values)
+						Option.Some(Edit.Insert(pos1, pos2, values: new_values))
+					else:
+						Option.None()
+			else:
+				Option.None()
+	else:
+		Option.None()
+
+fn add_change_edits[T](first: Edit[T], second: Edit[T]) -> Option[Edit[T]]:
+	case first:
+		Delete(first_pos1, first_pos2, first_values):
+			case second:
+				Insert(b_pos1, b_pos2, b_values):
+					Option.Some(Edit.Change(first_pos1, b_pos2, first_values, b_values))
+			else:
+				Option.None()
+	else:
+		Option.None()

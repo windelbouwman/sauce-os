@@ -152,6 +152,15 @@ pub class Vector[T]:
 	pub fn last() -> T:
 		m_elements[m_size - 1]
 
+	pub fn slice(offset: int, amount: int) -> Vector[T]:
+		"""Extract a sub sequence"""
+		let v2: Vector[T] = new_vector_with_capacity(capacity: amount)
+		var i = 0
+		while i < amount:
+			v2.append(get(index: offset + i))
+			i += 1
+		v2
+
 	pub fn take(amount?: int) -> Vector[T]:
 		"""Create a new vector with the given amount of items"""
 		assert(condition: amount < m_size, message: "take: amount must less than size.")
