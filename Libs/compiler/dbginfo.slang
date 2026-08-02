@@ -15,10 +15,10 @@ pub class DbgInfo:
 	pub fn add_source(filename: Path, code: str):
 		let source = Source(filename, code)
 		sources.append(source)
-		sources_by_filename.insert(key: filename.filename, value: Source(filename, code))
+		sources_by_filename.insert(key: filename.to_string(), value: Source(filename, code))
 
 	fn get_source(filename: Path) -> Source:
-		sources_by_filename.get(key: filename.filename)
+		sources_by_filename.get(key: filename.to_string())
 
 	pub fn add_function(name: str, filename: Path, location: Location):
 		let source = get_source(filename)

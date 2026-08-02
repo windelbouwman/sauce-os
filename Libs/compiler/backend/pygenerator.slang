@@ -7,6 +7,7 @@ from base.logging import log_info
 from base.listtype import List
 from base.optiontype import option_unwrap, Option
 from base.settype import Set, new_str_set
+from base.hashmap import HashMap, new_hashmap_uint32
 from base.fs import Path
 from std import float_to_str2, str_len, str_slice
 from base.strlib import str_join
@@ -15,25 +16,62 @@ from string_table import StringTable
 
 pub fn gen_python(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[Path]):
 	log_info("Generating python code")
-	let g = PyGenerator(strtab)
-	g.out.begin(output_filename)
+	let out = TextGenerator()
+	out.m_one_tab = "\t"
+	out.begin(output_filename)
+	let g = PyGenerator(out, strtab)
 	g.generate(module_defs)
-	g.out.end()
+	out.end()
 
 class PyGenerator:
-	pub var out: TextGenerator = TextGenerator()
+	var out: TextGenerator
 	var global_header: str = ""
-	var importe_modules: Set[str] = new_str_set()
+	var imported_modules: Set[str] = new_str_set()
 	var strtab: StringTable
+	var external_names: HashMap[uint32,str] = new_hashmap_uint32()
 
 	pub fn generate(module_defs: List[ast.ModuleDef]):
 		emit("# ATTENTION: AUTOMATICALLY GENERATED PYTHON CODE AHEAD!")
 		emit("from slangrt import wrap_signed, wrap_unsigned")
+
+		for module_def in module_defs:
+			case module_def.libname:
+				Some(libname):
+					if not imported_modules.contains(libname):
+						emit("import {libname}")
+						imported_modules.add(libname)
+					for definition in module_def.definitions:
+						case definition:
+							Function(function_def):
+								external_names.insert(key: function_def.name, value: libname)
+							Struct(struct_def):
+								external_names.insert(key: struct_def.id.name, value: libname)
+						else:
+							pass
+			else:
+				for definition in module_def.definitions:
+					case definition:
+						Function(function_def):
+							case function_def.body:
+								Extern(libname):
+									if not imported_modules.contains(libname):
+										emit("import {libname}")
+										imported_modules.add(libname)
+									external_names.insert(key: function_def.name, value: libname)
+							else:
+								pass
+					else:
+						pass
+
 		var has_main = false
 		for module_def in module_defs:
-			gen_module(module_def)
-			if module_def.scope.is_defined(name: strtab.intern("main")):
-				has_main = true
+			case module_def.libname:
+				None:
+					gen_module(module_def)
+					if module_def.scope.is_defined(name: strtab.intern("main")):
+						has_main = true
+			else:
+				pass
 		if has_main:
 			emit("if __name__ == '__main__':")
 			indent()
@@ -43,15 +81,14 @@ class PyGenerator:
 
 	pub fn gen_module(module_def: ast.ModuleDef):
 		let global_names: List[str] = List()
-
 		for definition in module_def.definitions:
 			case definition:
 				Function(function_def):
 					case function_def.body:
 						Extern(libname):
-							if not importe_modules.contains(libname):
+							if not imported_modules.contains(libname):
 								emit("import {libname}")
-								importe_modules.add(libname)
+								imported_modules.add(libname)
 					else:
 						pass
 				Var(variable_def):
@@ -79,13 +116,14 @@ class PyGenerator:
 			Macro(macro_def):
 				pass
 			Function(function_def):
+				let func_name = strtab.get(function_def.name)
 				case function_def.body:
 					Intern(scoped_block):
 						let parameter_names: List[str] = List()
 						for parameter in function_def.parameters:
 							parameter_names.append(get_id(id: parameter.id))
 						let params = str_join(parts: parameter_names, sep: ", ")
-						emit("def {strtab.get(function_def.name)}({params}):")
+						emit("def {func_name}({params}):")
 						if str_len(text: global_header) > 0:
 							indent()
 							emit(global_header)
@@ -102,7 +140,7 @@ class PyGenerator:
 						emit("")
 						emit("")
 					Extern(libname):
-						pass
+						emit("from {libname} import {func_name}")
 					None:
 						panic("Function declarations not supported")
 
@@ -254,7 +292,7 @@ class PyGenerator:
 			StructLiteral(ty, values):
 				let struct_def = ty.get_struct_def()
 				let args = gen_expression_list(expressions: values)
-				"{strtab.get(struct_def.id.name)}({args})"
+				"{name_ref(struct_def.id.name)}({args})"
 			ArrayLiteral(values):
 				let args = gen_expression_list(expressions: values)
 				"[{args}]"
@@ -285,14 +323,7 @@ class PyGenerator:
 			VariableRef(variable):
 				get_id(id: variable.id)
 			FunctionRef(function_def, type_arguments):
-				let func_name = strtab.get(function_def.name)
-				case function_def.body:
-					Extern(libname):
-						"{libname}.{func_name}"
-					Intern(body):
-						func_name
-					None:
-						func_name
+				name_ref(function_def.name)
 			Call(call):
 				let expressions: List[ast.Expression] = List()
 				for argument in call.arguments:
@@ -338,6 +369,14 @@ class PyGenerator:
 
 	fn get_id(id: ast.NodeId) -> str:
 		"X{id.id}_{strtab.get(id.name)}"
+
+	fn name_ref(name?: uint32) -> str:
+		let name_str = strtab.get(name)
+		if external_names.contains(key: name):
+			let prefix = external_names.get(key: name)
+			"{prefix}.{name_str}"
+		else:
+			name_str
 
 	fn emit(txt?: str):
 		out.emit(txt)

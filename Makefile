@@ -21,6 +21,7 @@ COMPILER6=${BUILDDIR}/tmp-compiler6.py
 COMPILER7=${BUILDDIR}/tmp-compiler7.py
 #SLANGC=python ${COMPILER3}
 #SLANGC_DEPS=${COMPILER3}
+SLANGRT_OBJS=${BUILDDIR}/slangrt.o ${BUILDDIR}/slangrt_mm.o
 SLANGC=./${COMPILER5}
 SLANG_FORMAT=./${BUILDDIR}/x86/apps/format.exe
 SLANGC_DEPS=${COMPILER5}
@@ -200,8 +201,8 @@ ${BUILDDIR}/c/lib%.o: ${BUILDDIR}/c/lib%.c
 	gcc ${CFLAGS} -c -fPIC -o $@ $<
 
 .PRECIOUS: ${BUILDDIR}/c/lib%.so
-${BUILDDIR}/c/libslangrt.so: ${BUILDDIR}/slangrt.o ${BUILDDIR}/slangrt_mm.o
-	gcc ${LDFLAGS} -o $@ ${BUILDDIR}/slangrt.o ${BUILDDIR}/slangrt_mm.o
+${BUILDDIR}/c/libslangrt.so: ${SLANGRT_OBJS}
+	gcc ${LDFLAGS} -o $@ ${SLANGRT_OBJS}
 
 ${BUILDDIR}/c/libbase.so: ${BUILDDIR}/c/libbase.o ${BUILDDIR}/c/libslangrt.so
 	gcc ${LDFLAGS} -L${BUILDDIR}/c -o $@ $< -lslangrt
@@ -234,7 +235,7 @@ ${BUILDDIR}/c/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c/libcompiler.json 
 	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libbase.json
 
 ${BUILDDIR}/c/tests/test_%.exe: ${BUILDDIR}/c/tests/test_%.c ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libslangrt.so ${BUILDDIR}/slangrt_main.o
-	gcc ${CFLAGS} -o $@ $< -Wl,--as-needed -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c ${BUILDDIR}/slangrt_main.o -lcompiler -limage -lscience -lbase -lslangrt -lm
+	gcc ${CFLAGS} -o $@ $< -I${BUILDDIR}/c -Wl,--as-needed -L${BUILDDIR}/c -Wl,-rpath=`pwd`/${BUILDDIR}/c ${BUILDDIR}/slangrt_main.o -lcompiler -limage -lscience -lbase -lslangrt -lm
 
 # Apps
 ${BUILDDIR}/c/apps:
@@ -245,7 +246,7 @@ ${BUILDDIR}/c/apps/%.c: Apps/%.slang ${BUILDDIR}/c/libbase.json ${BUILDDIR}/c/li
 	${SLANGC} --backend-c -o $@ $< --add-import ${BUILDDIR}/c/libbase.json --add-import ${BUILDDIR}/c/libimage.json --add-import ${BUILDDIR}/c/libscience.json --add-import ${BUILDDIR}/c/libgfx.json --add-import ${BUILDDIR}/c/libcompiler.json --add-import ${BUILDDIR}/c/libweb.json
 
 ${BUILDDIR}/c/apps/%.exe: ${BUILDDIR}/c/apps/%.c ${BUILDDIR}/c/libbase.so ${BUILDDIR}/c/libimage.so ${BUILDDIR}/c/libgfx.so ${BUILDDIR}/c/libscience.so ${BUILDDIR}/c/libcompiler.so ${BUILDDIR}/c/libweb.so ${BUILDDIR}/c/libslangrt.so ${BUILDDIR}/slangrt_main.o
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c -Wl,--as-needed -Wl,-rpath=`pwd`/${BUILDDIR}/c ${BUILDDIR}/slangrt_main.o -lweb -lcompiler -lgfx -limage -lscience -lbase -lslangrt -lm
+	gcc ${CFLAGS} -o $@ $< -I${BUILDDIR}/c -L${BUILDDIR}/c -Wl,--as-needed -Wl,-rpath=`pwd`/${BUILDDIR}/c ${BUILDDIR}/slangrt_main.o -lweb -lcompiler -lgfx -limage -lscience -lbase -lslangrt -lm
 
 ############################################################################
 # C2 backend
@@ -290,8 +291,8 @@ ${BUILDDIR}/c2/lib%.o: ${BUILDDIR}/c2/lib%.c
 	gcc ${CFLAGS} -c -fPIC -o $@ $<
 
 .PRECIOUS: ${BUILDDIR}/c2/lib%.so
-${BUILDDIR}/c2/libslangrt.so: ${BUILDDIR}/slangrt.o ${BUILDDIR}/slangrt_mm.o
-	gcc ${LDFLAGS} -o $@ ${BUILDDIR}/slangrt.o ${BUILDDIR}/slangrt_mm.o
+${BUILDDIR}/c2/libslangrt.so: ${SLANGRT_OBJS}
+	gcc ${LDFLAGS} -o $@ ${SLANGRT_OBJS}
 
 ${BUILDDIR}/c2/libbase.so: ${BUILDDIR}/c2/libbase.o ${BUILDDIR}/c2/libslangrt.so
 	gcc ${LDFLAGS} -L${BUILDDIR}/c2 -o $@ $< -lslangrt
@@ -324,7 +325,7 @@ ${BUILDDIR}/c2/tests/test_%.c: tests/test_%.slang ${BUILDDIR}/c2/libcompiler.jso
 	${SLANGC} --backend-c-v2 -o $@ $< --add-import ${BUILDDIR}/c2/libcompiler.json --add-import ${BUILDDIR}/c2/libimage.json --add-import ${BUILDDIR}/c2/libscience.json --add-import ${BUILDDIR}/c2/libbase.json
 
 ${BUILDDIR}/c2/tests/test_%.exe: ${BUILDDIR}/c2/tests/test_%.c ${BUILDDIR}/c2/libcompiler.so ${BUILDDIR}/c2/libimage.so ${BUILDDIR}/c2/libscience.so ${BUILDDIR}/c2/libbase.so ${BUILDDIR}/c2/libslangrt.so ${BUILDDIR}/slangrt_main.o
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c2 -Wl,--as-needed -Wl,-rpath=`pwd`/${BUILDDIR}/c2 ${BUILDDIR}/slangrt_main.o -lcompiler -limage -lscience -lbase -lslangrt -lm
+	gcc ${CFLAGS} -o $@ $< -I${BUILDDIR}/c2 -L${BUILDDIR}/c2 -Wl,--as-needed -Wl,-rpath=`pwd`/${BUILDDIR}/c2 ${BUILDDIR}/slangrt_main.o -lcompiler -limage -lscience -lbase -lslangrt -lm
 
 # Apps
 .PRECIOUS: ${BUILDDIR}/c2/apps/%.c
@@ -338,7 +339,7 @@ ${BUILDDIR}/c2/apps/%.c: Apps/%.slang ${BUILDDIR}/c2/libbase.json ${BUILDDIR}/c2
 		--add-import ${BUILDDIR}/c2/libgfx.json --add-import ${BUILDDIR}/c2/libcompiler.json --add-import ${BUILDDIR}/c2/libweb.json
 
 ${BUILDDIR}/c2/apps/%.exe: ${BUILDDIR}/c2/apps/%.c ${BUILDDIR}/c2/libbase.so ${BUILDDIR}/c2/libimage.so ${BUILDDIR}/c2/libgfx.so ${BUILDDIR}/c2/libweb.so ${BUILDDIR}/c2/libscience.so ${BUILDDIR}/c2/libcompiler.so ${BUILDDIR}/c2/libslangrt.so ${BUILDDIR}/slangrt_main.o
-	gcc ${CFLAGS} -o $@ $< -L${BUILDDIR}/c2 -Wl,--as-needed -Wl,-rpath=`pwd`/${BUILDDIR}/c2 ${BUILDDIR}/slangrt_main.o -lcompiler -lweb -lgfx -limage -lscience -lbase -lslangrt -lm
+	gcc ${CFLAGS} -o $@ $< -I${BUILDDIR}/c2 -L${BUILDDIR}/c2 -Wl,--as-needed -Wl,-rpath=`pwd`/${BUILDDIR}/c2 ${BUILDDIR}/slangrt_main.o -lcompiler -lweb -lgfx -limage -lscience -lbase -lslangrt -lm
 
 ############################################################################
 # Python backend
@@ -351,8 +352,10 @@ ${BUILDDIR}/python/slangrt.py: runtime/slangrt.py | ${BUILDDIR}/python
 	cp $< $@
 
 # Example snippets:
-.PHONY: all-examples-python
+.PHONY: all-examples-python all-python-apps all-python
 all-examples-python: $(EXAMPLES_PY)
+all-python-apps: ${PY_APPS}
+all-python: all-python-apps all-examples-python
 
 ${BUILDDIR}/python/snippet-%.py: examples/snippets/%.slang runtime/std.slang ${BUILDDIR}/python/slangrt.py ${SLANGC_DEPS} | ${BUILDDIR}/python
 	${SLANGC} --backend-py -o $@ $< runtime/std.slang
@@ -475,8 +478,8 @@ ${BUILDDIR}/x86/libweb.o ${BUILDDIR}/x86/libweb.json: ${WEB_LIB_SRCS} ${BUILDDIR
 	${SLANGC} --backend-x86 --gen-export ${BUILDDIR}/x86/libweb.json -o ${BUILDDIR}/x86/libweb.o --add-import ${BUILDDIR}/x86/libbase.json ${WEB_LIB_SRCS}
 
 # Libs - DLLs
-${BUILDDIR}/x86/libslangrt.so: ${BUILDDIR}/slangrt.o ${BUILDDIR}/slangrt_mm.o | ${BUILDDIR}/x86
-	gcc ${LDFLAGS} -o $@ ${BUILDDIR}/slangrt.o ${BUILDDIR}/slangrt_mm.o
+${BUILDDIR}/x86/libslangrt.so: ${SLANGRT_OBJS} | ${BUILDDIR}/x86
+	gcc ${LDFLAGS} -o $@ ${SLANGRT_OBJS}
 
 ${BUILDDIR}/x86/libbase.so: ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libslangrt.so
 	gcc ${LDFLAGS} -L${BUILDDIR}/x86 -o $@ $< -lslangrt
@@ -801,8 +804,8 @@ ${BUILDDIR}:
 ${BUILDDIR}/tests:
 	mkdir -p ${BUILDDIR}/tests
 
-${BUILDDIR}/slangrt.a: ${BUILDDIR}/slangrt.o ${BUILDDIR}/slangrt_mm.o ${BUILDDIR}/slangrt_main.o | ${BUILDDIR}
-	ar cr $@ ${BUILDDIR}/slangrt.o ${BUILDDIR}/slangrt_mm.o ${BUILDDIR}/slangrt_main.o
+${BUILDDIR}/slangrt.a: ${SLANGRT_OBJS} ${BUILDDIR}/slangrt_main.o | ${BUILDDIR}
+	ar cr $@ ${SLANGRT_OBJS} ${BUILDDIR}/slangrt_main.o
 
 ${BUILDDIR}/slangrt_main.o: runtime/slangrt_main.c runtime/slangrt.h | ${BUILDDIR}
 	gcc ${CFLAGS} -c -o $@ $<

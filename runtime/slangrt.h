@@ -43,6 +43,17 @@ void* rt_malloc_with_destroyer(size_t size, const int* ref_offsets);
 char* rt_str_new(const char*);
 // void slangrt_unreachable();
 
+// builtin rt module functions:
+char* rt_int_to_str(slang_int64_t x);
+char* rt_char_to_str(char value);
+char* rt_str_concat(char* a, char* b);
+slang_bool_t rt_str_compare(char* a, char* b);
+slang_int64_t rt_str_len(char* text);
+char rt_str_get(char* text, slang_int64_t index);
+slang_int64_t rt_ctz(slang_int64_t value);
+slang_int64_t rt_clz(slang_int64_t value);
+slang_int64_t rt_popcnt(slang_int64_t value);
+
 // Boxing and unboxing operations
 #define SLANG_BOX_CHAR(X) slangrt_box_char(X)
 #define SLANG_UNBOX_CHAR(X) slangrt_unbox_char(X)

@@ -85,7 +85,7 @@ class BytecodeGenerator:
 						let fields2: List[bc.TypedName] = List()
 						for field1 in struct_def.fields:
 							fields2.append(bc.TypedName(name: strtab.get(field1.name), ty: get_bc_type(field1.ty)))
-						structs.append(bc.Struct(name: strtab.get(struct_def.id.name), fields: fields2))
+						structs.append(bc.Struct(libname: module_def.libname, name: strtab.get(struct_def.id.name), fields: fields2))
 					Var(variable_def):
 						gen_global_variable(variable_def)
 					Function(function_def):
@@ -93,7 +93,7 @@ class BytecodeGenerator:
 							Intern(scoped_block):
 								pass
 							Extern(libname):
-								gen_extern_function(function_def)
+								gen_extern_function(libname: module_def.libname, function_def)
 							None:
 								panic("Function declarations not supported")
 				else:
@@ -161,7 +161,7 @@ class BytecodeGenerator:
 			Extern(libname, initialized):
 				pass
 
-	fn gen_extern_function(function_def: ast.FunctionDef):
+	fn gen_extern_function(libname: Option[str], function_def: ast.FunctionDef):
 		let func_index = extern_functions.len()
 
 		let parameters: Vector[bc.TypedName] = new_vector_with_capacity(capacity: function_def.parameters.len())
@@ -180,7 +180,7 @@ class BytecodeGenerator:
 		if not function_def.info.except_type.is_void():
 			return_types.append(bc.Type.Ptr())
 
-		let extern_function = bc.ExternFunction(name: strtab.get(function_def.name), parameters, return_types, no_return)
+		let extern_function = bc.ExternFunction(libname, name: strtab.get(function_def.name), parameters, return_types, no_return)
 		extern_functions.append(extern_function)
 		function_map.insert(key: function_def.name, value: func_index)
 

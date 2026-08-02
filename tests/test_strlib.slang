@@ -4,6 +4,7 @@ module main
 from std import print, float_to_str2
 from base.strlib import trim, str_to_int, hex_to_int, bin_to_int, find_char, is_digit
 from base.strlib import int_to_hex_string
+from base import strlib
 from base.optiontype import option_unwrap
 from base.unittest import assert_str_equals, assert_int_equals
 
@@ -14,6 +15,7 @@ pub fn main() -> int:
 	test_find_char()
 	test_int_to_str()
 	test_float_to_str()
+	test_rsplit()
 	print("OK")
 	0
 
@@ -54,3 +56,10 @@ fn test_int_to_str():
 	assert_int_equals(2906422699, value)
 	let text = str(value)
 	assert_str_equals("2906422699", text)
+
+fn test_rsplit():
+	let text = "aarg/foo/bar/baz.txt"
+	let parts = strlib.rsplit_string(text, sep: '/', maxsplit: 1)
+	assert_int_equals(parts.len(), 2)
+	assert_str_equals("aarg/foo/bar", parts[0])
+	assert_str_equals("baz.txt", parts[1])

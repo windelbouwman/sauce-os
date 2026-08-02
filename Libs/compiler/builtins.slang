@@ -11,7 +11,7 @@ pub fn get_rt_module(strtab: StringTable, typectx: ast.TypeContext) -> ast.Modul
 	let libname = "slangrt"
 	let docstring: Option[ast.DocString] = Option.None()
 	let namespace = list1(strtab.intern("rt"))
-	let module_def = ast.new_empty_module(namespace, location: location_default())
+	let module_def = ast.new_empty_module(libname: Option.Some(libname), namespace, location: location_default())
 	let type_parameters: List[ast.TypeParameter] = List()
 
 	let int_to_str = ast.extern_function_def:

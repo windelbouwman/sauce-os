@@ -22,7 +22,7 @@ from transforms import transform, TransformOptions
 from builtins import get_rt_module
 from base.listtype import List, list1
 from location import location_default
-from base.optiontype import option_unwrap, Option, option_unwrap_or
+from base.optiontype import option_unwrap, Option, option_unwrap_or, option_is_some
 from opt import optimize_sil
 from base.hashmap import HashMap, new_hashmap_str
 from base.graphlib import DiGraph, topological_sort
@@ -132,10 +132,10 @@ pub fn compile(sources: List[Path], options: CompilationOptions) except Compilat
 			let program = builder.get_bc_program()
 			if options.verbosity > 1:
 				bc.print_bc_program(program)
-			gen_c_code(program, output_filename: options.output_filename)
+			gen_c_code(program, output_filename: options.output_filename, create_header: option_is_some(options.gen_export))
 		C2:
 			# Generate C-code straight from AST:
-			gen_c_code_v2(strtab: builder.strtab, module_defs: builder.m_modules, output_filename: options.output_filename)
+			gen_c_code_v2(strtab: builder.strtab, module_defs: builder.m_modules, output_filename: options.output_filename, create_header: option_is_some(options.gen_export))
 		WebAssembly(binary):
 			if binary:
 				let filename = option_unwrap_or(option: options.output_filename, default: new_path(filename: "out.wasm"))

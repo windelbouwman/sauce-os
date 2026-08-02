@@ -545,9 +545,9 @@ char* rt_str_concat(char* a, char* b)
     return buffer;
 }
 
-int rt_str_compare(char* a, char* b)
+slang_bool_t rt_str_compare(char* a, char* b)
 {
-    int res = (strcmp(a, b) == 0) ? 1 : 0;
+    slang_bool_t res = (strcmp(a, b) == 0) ? 1 : 0;
     return res;
 }
 

@@ -11,6 +11,7 @@ from base.strlib import str_join
 import ast
 from base.listtype import List
 from base.optiontype import option_unwrap, Option
+from base.settype import Set, new_str_set
 from base.utils import panic
 from base.fs import Path
 from base.logging import log_info
@@ -19,72 +20,130 @@ from pygenerator import escape_string, needs_escaping, escape_char
 from string_table import StringTable
 
 
-pub fn gen_c_code_v2(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[Path]):
+pub fn gen_c_code_v2(strtab: StringTable, module_defs: List[ast.ModuleDef], output_filename: Option[Path], create_header: bool):
 	log_info("Generating C-code")
-	let g = CGenerator2(strtab)
-	g.out.begin(output_filename)
+	let out_source = TextGenerator()
+	out_source.m_one_tab = "\t"
+	out_source.begin(output_filename)
+
+	let out_header = if create_header:
+		let out_header = TextGenerator()
+		out_header.m_one_tab = "\t"
+		case output_filename:
+			Some(filename):
+				out_header.begin(output_filename: Option.Some(filename.with_suffix(suffix: "h")))
+				let libname = filename.get_stem()
+				out_header.emit("#ifndef SLANG_{libname}_H")
+				out_header.emit("#define SLANG_{libname}_H")
+				out_header.emit("")
+				out_source.emit("#include \"{libname}.h\"")
+		else:
+			panic("Can only create header when a filename is given.")
+		out_header
+	else:
+		out_source
+	let g = CGenerator2(out: out_source, out_source, out_header, strtab)
 	g.gen_module_defs(module_defs)
-	g.out.end()
+	if create_header:
+		out_header.emit("")
+		out_header.emit("#endif")
+		out_header.end()
+	out_source.end()
 
 enum BlockType:
 	Try
 	Loop
 
 class CGenerator2:
-	pub var out: TextGenerator = TextGenerator()
+	var out: TextGenerator
+	var out_source: TextGenerator
+	var out_header: TextGenerator
 	var next_id: int = 1
 	var m_blocks: List[BlockType] = List()
 	var strtab: StringTable
 
 	pub fn gen_module_defs(module_defs: List[ast.ModuleDef]):
-		gen_header()
+		gen_header(module_defs)
 		gen_forward_declarations1(module_defs)
 		gen_forward_declarations2(module_defs)
 		gen_struct_defs(module_defs)
 		gen_function_defs(module_defs)
 
-	fn gen_header():
+	fn gen_header(module_defs: List[ast.ModuleDef]):
+		out = out_header
 		emit("#include <setjmp.h>")
 		emit("#include <stdlib.h>")
 		emit("#include <stdint.h>")
-		emit("#include \"slangrt.h\"")
+		emit("")
+
+		let included_headers: Set[str] = new_str_set()
+		for module_def in module_defs:
+			case module_def.libname:
+				Some(libname):
+					included_headers.add(libname)
+			else:
+				pass
+		for libname in included_headers:
+			emit("#include \"{libname}.h\"")
+		emit("")
 
 	fn gen_forward_declarations1(module_defs: List[ast.ModuleDef]):
+		out = out_header
 		for module_def in module_defs:
-			for definition in module_def.definitions:
-				case definition:
-					Struct(struct_def):
-						let decl = gen_struct_decl(struct_def)
-						emit("{decl};")
-				else:
-					pass
+			case module_def.libname:
+				None:
+					for definition in module_def.definitions:
+						case definition:
+							Struct(struct_def):
+								let decl = gen_struct_decl(struct_def)
+								emit("{decl};")
+						else:
+							pass
+			else:
+				pass
 
 	fn gen_forward_declarations2(module_defs: List[ast.ModuleDef]):
+		out = out_header
 		for module_def in module_defs:
-			for definition in module_def.definitions:
-				case definition:
-					Function(function_def):
-						gen_function_decl(function_def)
-						if function_def.info.return_type.is_unreachable():
-							write(" __attribute__((noreturn))")
-						emit(";")
+			case module_def.libname:
+				None:
+					for definition in module_def.definitions:
+						case definition:
+							Function(function_def):
+								gen_function_decl(function_def)
+								if function_def.info.return_type.is_unreachable():
+									write(" __attribute__((noreturn))")
+								emit(";")
 
-					Struct(struct_def):
-						gen_struct_ctor_decl(struct_def)
-						emit(";")
-				else:
-					pass
+							Struct(struct_def):
+								gen_struct_ctor_decl(struct_def)
+								emit(";")
+							Var(variable_def):
+								let varname = gen_id(id: variable_def.variable.id)
+								write("extern ")
+								gen_typed_name(ty: variable_def.variable.ty, name: varname)
+								emit(";")
+						else:
+							pass
+			else:
+				pass
 
 	fn gen_struct_defs(module_defs: List[ast.ModuleDef]):
 		for module_def in module_defs:
-			for definition in module_def.definitions:
-				case definition:
-					Struct(struct_def):
-						gen_struct(struct_def)
-					Var(variable_def):
-						gen_variable_def(variable_def)
-				else:
-					pass
+			case module_def.libname:
+				None:
+					for definition in module_def.definitions:
+						case definition:
+							Struct(struct_def):
+								out = out_header
+								gen_struct(struct_def)
+							Var(variable_def):
+								out = out_source
+								gen_variable_def(variable_def)
+						else:
+							pass
+			else:
+				pass
 
 	fn gen_variable_def(variable_def: ast.VariableDef):
 		let varname = gen_id(id: variable_def.variable.id)
@@ -125,15 +184,20 @@ class CGenerator2:
 			panic("gen_global_expression: {ast.expression_to_string(strtab, expression)} not supported")
 
 	fn gen_function_defs(module_defs: List[ast.ModuleDef]):
+		out = out_source
 		for module_def in module_defs:
-			for definition in module_def.definitions:
-				case definition:
-					Function(function_def):
-						gen_function(function_def)
-					Struct(struct_def):
-						gen_struct_ctor(struct_def)
-				else:
-					pass
+			case module_def.libname:
+				None:
+					for definition in module_def.definitions:
+						case definition:
+							Function(function_def):
+								gen_function(function_def)
+							Struct(struct_def):
+								gen_struct_ctor(struct_def)
+						else:
+							pass
+			else:
+				pass
 
 	fn gen_struct_decl(struct_def: ast.StructDef) -> str:
 		"struct {strtab.get(struct_def.id.name)}"

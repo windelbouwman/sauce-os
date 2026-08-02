@@ -17,7 +17,7 @@ PPM:
     P3
 """
 
-from std import file_writeln, file_open, file_close
+from std import file_writeln, file_close
 from base.logging import log_info
 from base.utils import unimplemented
 from base.fs import Path
@@ -25,7 +25,7 @@ from image import Image, new_pixel
 
 pub fn write_pbm(image: Image, path: Path):
 	log_info("Writing image to {path} in PPM format")
-	let handle = file_open(filename: path.filename, mode: "w")
+	let handle = path.open(mode: "w")
 	case image.mode:
 		GrayScale:
 			file_writeln(handle, line: "P2")

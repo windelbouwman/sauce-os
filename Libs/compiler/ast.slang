@@ -952,6 +952,7 @@ pub struct NamespaceDef:
 	scope: Scope
 
 pub class ModuleDef:
+	pub var libname: Option[str]
 	pub var namespace: List[uint32]
 	pub var location: Location
 	pub var filename: Option[Path]
@@ -972,8 +973,9 @@ pub class ModuleDef:
 	pub fn define_enum(enum_def: EnumDef):
 		define_symbol(definition: Definition.Enum(enum_def))
 
-pub fn new_module(namespace: List[uint32], location: Location, filename: Option[Path], docstring: Option[DocString], imports: Vector[Import], definitions: Vector[Definition]) -> ModuleDef:
+pub fn new_module(libname: Option[str], namespace: List[uint32], location: Location, filename: Option[Path], docstring: Option[DocString], imports: Vector[Import], definitions: Vector[Definition]) -> ModuleDef:
 	ModuleDef:
+		libname
 		namespace
 		location
 		filename
@@ -982,8 +984,9 @@ pub fn new_module(namespace: List[uint32], location: Location, filename: Option[
 		definitions
 		scope: Scope()
 
-pub fn new_empty_module(namespace: List[uint32], location: Location) -> ModuleDef:
+pub fn new_empty_module(libname: Option[str], namespace: List[uint32], location: Location) -> ModuleDef:
 	new_module:
+		libname
 		namespace
 		location
 		filename: Option.None()

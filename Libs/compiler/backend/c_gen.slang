@@ -8,7 +8,8 @@ from std import float_to_str2
 from base.utils import panic
 from base.logging import log_info, log_trace
 from base.listtype import List
-from base.optiontype import Option
+from base.settype import Set, new_str_set
+from base.optiontype import Option, option_is_none
 from base.fs import Path
 from base.vectype import Vector, new_vector
 import vm
@@ -16,19 +17,39 @@ import bc
 from text_gen import TextGenerator
 from pygenerator import escape_string, needs_escaping, escape_char
 
-pub fn gen_c_code(program: bc.Program, output_filename: Option[Path]):
+pub fn gen_c_code(program: bc.Program, output_filename: Option[Path], create_header: bool):
 	log_info("Generating C-code from bytecode")
-	let g = CGenerator()
-	g.out.begin(output_filename)
+	let out_source = TextGenerator()
+	out_source.m_one_tab = "\t"
+	out_source.begin(output_filename)
+	let out_header = if create_header:
+		let out_header = TextGenerator()
+		out_header.m_one_tab = "\t"
+		case output_filename:
+			Some(filename):
+				out_header.begin(output_filename: Option.Some(filename.with_suffix(suffix: "h")))
+				let libname = filename.get_stem()
+				out_header.emit("#ifndef SLANG_{libname}_H")
+				out_header.emit("#define SLANG_{libname}_H")
+				out_header.emit("")
+				out_source.emit("#include \"{libname}.h\"")
+		else:
+			panic("Can only create header when a filename is given.")
+		out_header
+	else:
+		out_source
+	let g = CGenerator(out: out_source, out_source, out_header)
 	g.structs = program.structs
 	g.globals = program.globals
 	g.extern_functions = program.extern_functions
 	g.functions = program.functions
 
-	# Runtime function prototypes:
-	g.emit_runtime()
 	g.gen_program(program)
-	g.out.end()
+	if create_header:
+		out_header.emit("")
+		out_header.emit("#endif")
+		out_header.end()
+	out_source.end()
 
 struct Value:
 	ty: bc.Type
@@ -41,22 +62,25 @@ struct Local:
 fn is_heap(ty?: bc.Type) -> bool:
 	"""Test if type is heap like type"""
 	case ty:
-		StructRef(index):
-			true
-		Array(element_type):
-			true
-		Str:
-			true
-		Ptr:
-			true
-		Function(parameter_types, return_type):
-			true
+		StructRef(index): true
+		Array(element_type): true
+		Str: true
+		Ptr: true
+		Function(parameter_types, return_type): true
 	else:
 		false
 
+fn has_heap_field(struct_def: bc.Struct) -> bool:
+	for field in struct_def.fields:
+		if is_heap(field.ty):
+			return true
+	false
+
 class CGenerator:
 	# Generate C from bytecode
-	pub var out: TextGenerator = TextGenerator()
+	var out: TextGenerator
+	var out_source: TextGenerator
+	var out_header: TextGenerator
 
 	var stack: Vector[Value] = new_vector()
 	var next_id: int = 1
@@ -69,29 +93,50 @@ class CGenerator:
 	pub var functions: Vector[bc.Function] = new_vector()
 	pub var extern_functions: Vector[bc.ExternFunction] = new_vector()
 
-	pub fn emit_runtime():
-		emit("#include <stddef.h>")
-		emit("#include <stdint.h>")
-		emit("#include <stdlib.h>")
-		emit("#include \"slangrt.h\"")
-
 	pub fn gen_program(program: bc.Program):
 		vm.prepare_vm(vm: m_vm, program)
 
+		out = out_header
+
+		# Include external libraries
+		emit("#include <stddef.h>")
+		emit("#include <stdint.h>")
+		emit("#include <stdlib.h>")
+		let included_headers: Set[str] = new_str_set()
+		for struct_def in program.structs:
+			case struct_def.libname:
+				Some(libname):
+					included_headers.add(libname)
+				None:
+					pass
+		for extern_function in program.extern_functions:
+			case extern_function.libname:
+				Some(libname):
+					included_headers.add(libname)
+				None:
+					pass
+		for libname in included_headers:
+			emit("#include \"{libname}.h\"")
+
 		# Struct forward declarations:
 		for struct_def in program.structs:
-			emit("struct {struct_def.name};")
+			if option_is_none(struct_def.libname):
+				emit("struct {struct_def.name};")
 
 		# Struct definitions:
 		for struct_def in program.structs:
-			gen_struct_def(struct_def)
+			if option_is_none(struct_def.libname):
+				gen_struct_def(struct_def)
 
 		for extern_function in program.extern_functions:
-			gen_extern_function_decl(extern_function)
+			if option_is_none(extern_function.libname):
+				gen_extern_function_decl(extern_function)
 
 		# Forward declarations:
 		for function in program.functions:
 			gen_function_decl(function)
+
+		out = out_source
 
 		# Globals!
 		for global in program.globals:
@@ -115,18 +160,19 @@ class CGenerator:
 		emit("\};")
 		emit("")
 
-		# Create struct type info for garbage collector:
-		# This can be used during the mark phase of garbage collection to track pointers.
-		emit("static const int {name}_type_info[] = \{")
-		indent()
-		findex = 0
-		for field in struct_def.fields:
-			if is_heap(field.ty):
-				emit("   offsetof(struct {name}, f{findex}_{field.name}),")
-			findex += 1
-		emit("   -1,")
-		dedent()
-		emit("\};")
+		if has_heap_field(struct_def):
+			# Create struct type info for garbage collector:
+			# This can be used during the mark phase of garbage collection to track pointers.
+			emit("static const int {name}_type_info[] = \{")
+			indent()
+			findex = 0
+			for field in struct_def.fields:
+				if is_heap(field.ty):
+					emit("   offsetof(struct {name}, f{findex}_{field.name}),")
+				findex += 1
+			emit("   -1,")
+			dedent()
+			emit("\};")
 
 	fn gen_extern_function_decl(extern_function: bc.ExternFunction):
 		if extern_function.no_return:
@@ -327,18 +373,12 @@ class CGenerator:
 				let rhs = pop()
 				let lhs = pop()
 				let op_txt = case op:
-					Less:
-						"<"
-					LessEquals:
-						"<="
-					Greater:
-						">"
-					GreaterEquals:
-						">="
-					Equals:
-						"=="
-					NotEquals:
-						"!="
+					Less: "<"
+					LessEquals: "<="
+					Greater: ">"
+					GreaterEquals: ">="
+					Equals: "=="
+					NotEquals: "!="
 				write("if (")
 				write(lhs.name)
 				write(" ")
@@ -591,7 +631,12 @@ class CGenerator:
 				let ty = bc.Type.StructRef(index)
 				gen_typed_name(ty, name: varname)
 				let name = struct_def.name
-				emit(" = rt_malloc_with_destroyer(sizeof(struct {name}), {name}_type_info);")
+				write(" = rt_malloc_with_destroyer(sizeof(struct {name}), ")
+				if has_heap_field(struct_def):
+					write("{name}_type_info")
+				else:
+					write("NULL")
+				emit(");")
 				push(Value(name: varname, ty))
 
 			ArrayLiteral(ty2):

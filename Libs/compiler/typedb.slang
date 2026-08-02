@@ -7,7 +7,6 @@ from base.listtype import List
 from base.optiontype import Option, option_is_some
 from base.vectype import Vector, new_vector, new_vector_with_capacity
 from base.hashmap import HashMap
-from base.pathlib import basename
 from base.json import JsonBuilder, JsonException, write_json_to_file, read_json_from_file
 from base.json import JsonValue, JsonBrowser
 from base.fs import Path
@@ -24,7 +23,7 @@ pub fn store_symbol_table(strtab: StringTable, module_defs: List[ast.ModuleDef],
 	log_info("Saving type info to: {filename}")
 
 	# TODO: we could use ast.Visitor here
-	let libname = basename(path: filename.filename)
+	let libname = filename.get_stem()
 	let saver = SymbolSaver(strtab, m_libname: libname)
 
 	let obj = saver.save_modules(module_defs)
@@ -394,13 +393,13 @@ class SymbolLoader:
 		let modules: List[ast.ModuleDef] = List()
 		for module_obj in m_des.get_array_attribute(attr: "modules"):
 			m_des.push_value(value: module_obj)
-			let module_def = load_module()
+			let module_def = load_module(libname: Option.Some(m_libname))
 			m_des.pop_value()
 			modules.append(module_def)
 
 		modules
 
-	fn load_module() -> ast.ModuleDef:
+	fn load_module(libname: Option[str]) -> ast.ModuleDef:
 		let namespace = load_name_list(attr: "namespace")
 
 		# log_info("Load info for module: {mod_name}")
@@ -417,7 +416,7 @@ class SymbolLoader:
 			m_des.push_value(value: definition_obj)
 			definitions.append(load_definition())
 			m_des.pop_value()
-		ast.new_module(namespace, location: location_default(), filename: Option.None(), docstring, imports, definitions)
+		ast.new_module(libname, namespace, location: location_default(), filename: Option.None(), docstring, imports, definitions)
 
 	fn load_import() -> ast.Import:
 		let location = location_default()

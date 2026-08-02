@@ -145,27 +145,8 @@ static Allocation_t* gc_allocation_map_get(AllocationMap_t* map, void* ptr)
 static void gc_allocation_map_put(AllocationMap_t* map, Allocation_t* alloc)
 {
     size_t index = gc_hash(alloc->ptr) % map->capacity;
-    Allocation_t* cur = map->allocs[index];
-    Allocation_t* prev = NULL;
 
-    // Check for existing record:
-    while (cur) {
-        if (cur->ptr == alloc->ptr) {
-            LOG_DEBUG("DUPLICATE PTR %X", ptr);
-            alloc->next = cur->next;
-            if (prev) {
-                prev->next = alloc;
-            } else {
-                map->allocs[index] = alloc;
-            }
-            exit(1);
-            return;
-        }
-        prev = cur;
-        cur = cur->next;
-    }
-
-    // No existing record, insert in front of chain list:
+    // Insert in front of chain list:
     alloc->next = map->allocs[index];
     map->allocs[index] = alloc;
     map->size++;
@@ -194,7 +175,7 @@ static void gc_allocation_map_remove(AllocationMap_t* map, Allocation_t* alloc)
     }
 }
 
-static void gc_mark_alloc(GarbageCollector_t* gc, void* ptr)
+void gc_mark_alloc(GarbageCollector_t* gc, void* ptr)
 {
     Allocation_t* alloc = gc_allocation_map_get(gc->alloc_map, ptr);
     if (alloc && !(alloc->tag & GC_TAG_MARK)) {
@@ -346,8 +327,9 @@ void* rt_malloc(size_t size)
 
 void* rt_malloc_with_destroyer(size_t size, const int* ref_offsets)
 {
-    // return malloc(size);
-
-    void* ptr = gc_allocate(&g_gc, size, GC_KIND_OFFSETS, ref_offsets);
-    return ptr;
+    if (ref_offsets == NULL) {
+        return gc_allocate(&g_gc, size, GC_KIND_NOPTRS, NULL);
+    } else {
+        return gc_allocate(&g_gc, size, GC_KIND_OFFSETS, ref_offsets);
+    }
 }

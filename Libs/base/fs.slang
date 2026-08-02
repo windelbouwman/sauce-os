@@ -6,17 +6,19 @@ TODO: merge with pathlib?
 
 from bytes import Bytes, ByteArray
 import std
-from strlib import string_compare, split_string, split_lines
+from strlib import string_compare, split_lines
+import strlib
 from listtype import List
 from vectype import Vector, new_vector_with_capacity
 from sorting import sort_list
 from utils import assert
+from pathlib import basename
 
 pub fn lexical_sort_paths(values?: List[Path]) -> List[Path]:
 	sort_list(values, cmp: path_compare)
 
 pub fn path_compare(a: Path, b: Path) -> bool:
-	string_compare(a: a.filename, b: b.filename)
+	string_compare(a: a.to_string(), b: b.to_string())
 
 pub fn new_path(filename: str) -> Path:
 	Path(filename)
@@ -35,7 +37,7 @@ pub fn vector_to_list[T](items?: Vector[T]) -> List[T]:
 	v
 
 pub class Path:
-	pub var filename: str
+	var filename: str
 
 	pub fn exists() -> bool:
 		std.file_exists(filename)
@@ -59,8 +61,18 @@ pub class Path:
 	pub fn to_string() -> str:
 		filename
 
+	pub fn with_suffix(suffix: str) -> Path:
+		"""Create a new path with the new suffix"""
+		let parts = strlib.rsplit_string(text: filename, sep: '.', maxsplit: 1)
+		parts.drop_last()
+		parts.append(suffix)
+		new_path(filename: strlib.str_join(parts, sep: "."))
+
+	pub fn get_stem() -> str:
+		basename(path: filename)
+
 	pub fn get_extension() -> str:
-		split_string(text: filename, sep: '.').last()
+		strlib.split_string(text: filename, sep: '.').last()
 
 	pub fn read_bytes() -> Bytes:
 		read_whole_file_as_bytes(path: this)
@@ -70,7 +82,7 @@ pub class Path:
 
 pub fn read_whole_file_as_bytes(path: Path) -> Bytes:
 	# Helper to read in a whole file into a bytes object in memory
-	let handle = std.file_open(filename: path.filename, mode: "rb")
+	let handle = path.open(mode: "rb")
 	let ba = ByteArray()
 	let buffer: [uint8] = [200 : uint8]
 	loop:
@@ -87,7 +99,7 @@ pub fn read_whole_file_as_bytes(path: Path) -> Bytes:
 	ba.to_bytes()
 
 pub fn write_bytes_to_file(path: Path, data: Bytes):
-	let handle = std.file_open(filename: path.filename, mode: "wb")
+	let handle = path.open(mode: "wb")
 	var buffer: [uint8] = [200 : uint8]
 	var i = 0
 	var j = 0

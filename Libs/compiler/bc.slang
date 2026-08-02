@@ -21,6 +21,7 @@ pub struct Global:
 	value: Option[Vector[Instruction]]
 
 pub struct Struct:
+	libname: Option[str]
 	name: str
 	fields: List[TypedName]
 
@@ -34,6 +35,7 @@ pub struct Local:
 	writable: bool
 
 pub struct ExternFunction:
+	libname: Option[str]
 	name: str
 	parameters: Vector[TypedName]
 	return_types: Vector[Type]

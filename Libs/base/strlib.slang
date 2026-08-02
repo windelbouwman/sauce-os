@@ -27,6 +27,25 @@ pub fn split_string(text: str, sep: char) -> List[str]:
 	parts.append(str_slice(text, begin: start, end: cur))
 	parts
 
+pub fn rsplit_string(text: str, sep: char, maxsplit: int) -> List[str]:
+	"""Split string based on separator, and a maximum amount of splits"""
+	var end = str_len(text)
+	var cur = end - 1
+	let parts: List[str] = List()
+	while cur >= 0:
+		let c = text[cur]
+		if c == sep:
+			parts.prepend(str_slice(text, begin: cur + 1, end))
+			end = cur
+			cur -= 1
+			if parts.len() >= maxsplit:
+				cur = 0
+				break
+		else:
+			cur -= 1
+	parts.prepend(str_slice(text, begin: cur, end))
+	parts
+
 pub fn lexical_sort(values?: List[str]) -> List[str]:
 	sort_list(values, cmp: string_compare)
 
