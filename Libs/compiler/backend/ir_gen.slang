@@ -5,8 +5,8 @@ import ast
 from base.listtype import List
 from base.optiontype import option_unwrap, Option
 from base.vectype import Vector, new_vector, new_vector_with_capacity
-from base.hashmap import HashMap, new_hashmap_int, new_hashmap_uint32
-from base.settype import Set, new_int_set
+from base.hashmap import HashMap, new_hashmap_uint32
+from base.settype import Set, new_uint32_set
 from base.utils import panic, assert
 from base.logging import log_info, log_debug, log_trace
 import dbginfo
@@ -33,17 +33,17 @@ enum ControlBlock:
 	Scope(variables: List[ast.Variable])
 
 struct Loop:
-	continue_label: int
-	break_label: int
+	continue_label: uint32
+	break_label: uint32
 
 struct Try:
-	except_label: int
+	except_label: uint32
 	except_var_index: int
 
 class BytecodeGenerator:
 	var id_counter: int = 1
 	var is_reachable: bool = true
-	var m_referenced_labels: Set[int] = new_int_set()
+	var m_referenced_labels: Set[uint32] = new_uint32_set()
 	var m_except_type: ast.Type = ast.undefined_type()
 	var m_return_type: ast.Type = ast.undefined_type()
 	var code: Vector[Instruction] = new_vector()
@@ -52,7 +52,7 @@ class BytecodeGenerator:
 	var global_var_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
 	var local_variables: Vector[bc.Local] = new_vector()
 	var local_var_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
-	var label_mapping: HashMap[int,int] = new_hashmap_int()
+	var label_mapping: HashMap[uint32,uint32] = new_hashmap_uint32()
 	var struct_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
 	pub var extern_functions: Vector[bc.ExternFunction] = new_vector()
 
@@ -508,7 +508,7 @@ class BytecodeGenerator:
 		if m_referenced_labels.contains(key: final_label):
 			set_label(final_label)
 
-	fn gen_condition(condition: ast.Expression, true_label: int, false_label: int):
+	fn gen_condition(condition: ast.Expression, true_label: uint32, false_label: uint32):
 		# Generate short circuit logic for 'and' and 'or' conditions
 		# Otherwise, evaluate the condition, and use jump-if
 		case condition.kind:
@@ -554,12 +554,12 @@ class BytecodeGenerator:
 			gen_expression(condition)
 			jump_if_true(true_label, false_label)
 
-	fn gen_comparison(lhs: ast.Expression, op: bc.ComparisonOperator, rhs: ast.Expression, true_label: int, false_label: int):
+	fn gen_comparison(lhs: ast.Expression, op: bc.ComparisonOperator, rhs: ast.Expression, true_label: uint32, false_label: uint32):
 		gen_expression(lhs)
 		gen_expression(rhs)
 		jump_if(op, true_label, false_label)
 
-	fn jump_if_true(true_label: int, false_label: int):
+	fn jump_if_true(true_label: uint32, false_label: uint32):
 		emit(Instruction.Literal(bc.LiteralValue.Bool(value: true)))
 		jump_if(op: bc.ComparisonOperator.Equals(), true_label, false_label)
 
@@ -841,19 +841,19 @@ class BytecodeGenerator:
 			ShiftRight:
 				emit(Instruction.Bitop(op: bc.BitOperator.Shr(), ty: bc_type))
 
-	fn new_label() -> int:
-		gen_id()
+	fn new_label() -> uint32:
+		uint32(gen_id())
 
-	fn set_label(label?: int):
+	fn set_label(label?: uint32):
 		let index = code.len()
-		label_mapping.insert(key: label, value: index)
+		label_mapping.insert(key: label, value: uint32(index))
 		is_reachable = true
 
-	fn translate_label(label?: int) -> int:
+	fn translate_label(label?: uint32) -> uint32:
 		label_mapping.get(key: label)
 
 	fn begin_code():
-		label_mapping = new_hashmap_int()
+		label_mapping = new_hashmap_uint32()
 		m_referenced_labels.clear()
 		code = new_vector()
 		is_reachable = true
@@ -874,13 +874,13 @@ class BytecodeGenerator:
 				instructions.append(instruction)
 		instructions
 
-	fn jump(label?: int):
+	fn jump(label?: uint32):
 		if is_reachable:
 			m_referenced_labels.add(label)
 			emit(Instruction.Jump(target: label))
 			is_reachable = false
 
-	fn jump_if(op: bc.ComparisonOperator, true_label: int, false_label: int):
+	fn jump_if(op: bc.ComparisonOperator, true_label: uint32, false_label: uint32):
 		if is_reachable:
 			m_referenced_labels.add(true_label)
 			m_referenced_labels.add(false_label)

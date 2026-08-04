@@ -3,7 +3,7 @@ module compiler.bc
 from std import float_to_str
 from base.listtype import List
 from base.optiontype import Option
-from base.settype import Set, new_int_set
+from base.settype import Set, new_uint32_set
 from base.vectype import Vector
 from base.utils import panic
 from base.fs import Path
@@ -89,8 +89,8 @@ pub enum Instruction:
 	ToOpaque(ty: Type)
 	FromOpaque(ty: Type)
 
-	Jump(label: int)  # Unconditional jump
-	JumpIf(op: ComparisonOperator, label1: int, label2: int)
+	Jump(label: uint32)  # Unconditional jump
+	JumpIf(op: ComparisonOperator, label1: uint32, label2: uint32)
 	Call(index: int)
 	CallIndirect(parameters: Vector[TypedName], return_types: Vector[Type])  # Call function pointer, on top of stack
 	Return(n_values: int)
@@ -114,9 +114,9 @@ pub enum Instruction:
 	StructLiteral(struct_index: int)
 	ArrayLiteral(ty: Type)
 
-pub fn get_target_labels(instructions: Vector[Instruction]) -> Set[int]:
+pub fn get_target_labels(instructions: Vector[Instruction]) -> Set[uint32]:
 	"""Get a set of labels to which is being jumped"""
-	let target_labels = new_int_set()
+	let target_labels = new_uint32_set()
 	for instruction in instructions:
 		case instruction:
 			Jump(index):
@@ -174,10 +174,9 @@ pub fn instruction_to_string(instruction?: Instruction) -> str:
 		Swap: "swap"
 		Literal(literal):
 			literal_to_string(literal)
-		Jump(v): "jump({v})"
+		Jump(v): "jump({int(v)})"
 		JumpIf(op, v1, v2):
-			let op2 = comparison_to_string(op)
-			"jump-if({op2}, {v1}, {v2})"
+			"jump-if({comparison_to_string(op)}, {int(v1)}, {int(v2)})"
 		Not: "not"
 		Neg: "neg"
 		Binop(op, ty): binop_to_string(op)

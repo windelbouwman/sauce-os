@@ -209,7 +209,7 @@ fn comparison_to_string(op?: CompOp) -> str:
 		Lte: "lte"
 
 pub struct Value:
-	id: int
+	id: uint32
 	ty: Type
 
 pub enum Type:
@@ -235,7 +235,7 @@ pub enum Address:
 	Ptr(base: Value)
 
 pub fn value_to_string(value?: Value) -> str:
-	"{type_to_string(value.ty)} %x{value.id}"
+	"{type_to_string(value.ty)} %x{int(value.id)}"
 
 pub fn address_to_string(address?: Address) -> str:
 	case address:

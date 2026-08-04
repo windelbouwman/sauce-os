@@ -73,6 +73,8 @@ class PyGenerator:
 			else:
 				pass
 		if has_main:
+			emit("")
+			emit("")
 			emit("if __name__ == '__main__':")
 			indent()
 			emit("import sys")

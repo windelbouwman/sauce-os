@@ -48,7 +48,7 @@ fn does_contain(registers: Vector[Register], register: Register) -> bool:
 	false
 
 pub struct Register:
-	id: int
+	id: uint32
 	kind: int
 	color: int
 
@@ -79,8 +79,8 @@ fn regs_to_str(label: str, regs: Vector[Register]) -> str:
 
 pub fn vr_to_str(reg?: Register) -> str:
 	if reg.kind == 0:
-		"R{reg.id}"
+		"R{int(reg.id)}"
 	elif reg.kind == 1:
-		"F{reg.id}"
+		"F{int(reg.id)}"
 	else:
-		"X{reg.id}"
+		"X{int(reg.id)}"

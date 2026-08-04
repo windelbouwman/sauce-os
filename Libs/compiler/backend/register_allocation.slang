@@ -10,7 +10,7 @@ from base.settype import Set, new_int_set
 from base.bitset import BitSet, new_bitset, new_small_bitset, SmallBitSet
 from base.vectype import Vector, new_vector, new_vector_with_capacity
 from base.deque import Queue, new_queue
-from base.hashmap import HashMap, new_hashmap_int
+from base.hashmap import HashMap, new_hashmap_uint32
 from report import Report
 from base.utils import unimplemented, panic
 from base.listtype import List
@@ -40,9 +40,9 @@ class RegisterAllocator[C,V]:
 	var m_ig: InterferenceGraph = InterferenceGraph(m_nodes: new_vector(), m_adj: new_vector())
 	var m_select_stack: Vector[IGNode] = new_vector()
 	var m_simplify_worklist: Queue[IGNode] = new_queue()
-	var m_spill_worklist: HashMap[int,IGNode] = new_hashmap_int()
-	var m_freeze_worklist: HashMap[int,IGNode] = new_hashmap_int()
-	var m_pre_colored: HashMap[int,IGNode] = new_hashmap_int()
+	var m_spill_worklist: HashMap[uint32,IGNode] = new_hashmap_uint32()
+	var m_freeze_worklist: HashMap[uint32,IGNode] = new_hashmap_uint32()
+	var m_pre_colored: HashMap[uint32,IGNode] = new_hashmap_uint32()
 
 	var m_spill_rounds: int = 0
 	var m_report: Report
@@ -108,7 +108,7 @@ class RegisterAllocator[C,V]:
 		log_trace("Spilling")
 		for spill_id in m_spill_worklist:
 			let spill_node = m_spill_worklist.get(key: spill_id)
-			log_trace("> {spill_id} = {spill_node.to_string()}")
+			log_trace("> {int(spill_id)} = {spill_node.to_string()}")
 			rewrite_program(mfunc, register: spill_node.reg)
 
 		m_report.heading("After rewriting spill ")
@@ -128,7 +128,7 @@ class RegisterAllocator[C,V]:
 			sil.Type.F64()
 		else:
 			panic("Invalid class: {register.kind}")
-		let value = sil.Value(id: 0, ty)
+		let value = sil.Value(id: uint32(0), ty)
 		context.set_vreg_for_value(value, register)
 
 		# Introduce load / store operations

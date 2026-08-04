@@ -75,12 +75,12 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V], vregs: Vector[mil.Re
 		for mi in mblock.instructions:
 			# Register use generates a live register:
 			for reg in mi.uses:
-				if not full_kill.contains(reg.id):
-					full_gen.add(reg.id)
+				if not full_kill.contains(int(reg.id)):
+					full_gen.add(int(reg.id))
 
 			# Register definition kill live range:
 			for reg in mi.defs:
-				full_kill.add(reg.id)
+				full_kill.add(int(reg.id))
 
 		let node: ControlFlowGraphNode[V] = ControlFlowGraphNode:
 			m_gen: full_gen
@@ -135,16 +135,15 @@ pub fn create_interference_graph[V](mfunc: mil.Function[V], vregs: Vector[mil.Re
 
 			# Update liveness:
 			for reg in mi.defs:
-				live_registers.remove(reg.id)
+				live_registers.remove(int(reg.id))
 
 			for reg in mi.uses:
-				live_registers.add(reg.id)
+				live_registers.add(int(reg.id))
 	ig
 
 fn add_reg_interference(ig: InterferenceGraph, reg: mil.Register, live_registers: LiveSet):
 	let n1 = ig.get_node(id: reg.id)
-	for live_u32 in live_registers:
-		let live = int(live_u32)
+	for live in live_registers:
 		if reg.id != live:
 			let n2 = ig.get_node(id: live)
 			# Only add edges to the same kind of register for now.
@@ -177,8 +176,8 @@ pub class InterferenceGraph:
 	pub fn is_masked(n?: IGNode) -> bool:
 		n.masked
 
-	pub fn get_node(id: int) -> IGNode:
-		m_nodes.get(index: id)
+	pub fn get_node(id: uint32) -> IGNode:
+		m_nodes.get(index: int(id))
 
 	pub fn nodes() -> Vector[IGNode]:
 		m_nodes
@@ -195,20 +194,20 @@ pub class InterferenceGraph:
 			a.degree += 1
 			b.degree += 1
 			let m1 = get_adj_set(a)
-			m1.add(b.id)
+			m1.add(int(b.id))
 			let m2 = get_adj_set(b)
-			m2.add(a.id)
+			m2.add(int(a.id))
 
 	pub fn has_edge(a?: IGNode, b?: IGNode) -> bool:
 		# assert(condition: a != b, message: "a must not be b")
-		get_adj_set(a).contains(b.id)
+		get_adj_set(a).contains(int(b.id))
 
 	fn get_adj_set(n?: IGNode) -> BitSet:
-		m_adj.get(index: n.id)
+		m_adj.get(index: int(n.id))
 
 pub class IGNode:
 	"""Node in the interference graph."""
-	pub var id: int
+	pub var id: uint32
 	pub var degree: int = 0
 	pub var masked: bool = false
 	pub var reg: mil.Register
@@ -248,7 +247,7 @@ pub fn dump_ig(ig: InterferenceGraph, report: Report):
 	while i < nodes.len():
 		var j = i + 1
 		while j < nodes.len():
-			if ig.has_edge(ig.get_node(id: i), ig.get_node(id: j)):
+			if ig.has_edge(ig.get_node(id: uint32(i)), ig.get_node(id: uint32(j))):
 				report.writeln("  {i} --- {j}")
 			j += 1
 		i += 1

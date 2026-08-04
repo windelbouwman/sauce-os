@@ -404,8 +404,9 @@ class SilGen:
 		let target_indici = bc.get_target_labels(instructions: function.instructions)
 		index = 0
 		for opcode in function.instructions:
-			if target_indici.contains(index):
-				let name = "x_{index}"
+			let bc_label = uint32(index)
+			if target_indici.contains(bc_label):
+				let name = make_label(bc_label)
 				if not m_block_is_terminated:
 					emit(sil.OpCode.Jump(name))
 				set_current_block(new_block(name))
@@ -414,6 +415,9 @@ class SilGen:
 
 		let sil_function = sil.Function(name: function.name, parameters, stacksize: m_stack_offset, start, blocks: m_blocks)
 		m_functions.append(sil_function)
+
+	fn make_label(x?: uint32) -> str:
+		"x_{int(x)}"
 
 	fn gen_opcode(opcode: bc.Instruction):
 		# log_info("Gen {bc.instruction_to_string(opcode)}")
@@ -606,9 +610,9 @@ class SilGen:
 						sil.CompOp.Eq()
 					NotEquals:
 						sil.CompOp.Neq()
-				emit(sil.OpCode.JumpIf(lhs: lhs.value, op: op2, rhs: rhs.value, label1: "x_{label1}", label2: "x_{label2}"))
+				emit(sil.OpCode.JumpIf(lhs: lhs.value, op: op2, rhs: rhs.value, label1: make_label(label1), label2: make_label(label2)))
 			Jump(label):
-				emit(sil.OpCode.Jump(label: "x_{label}"))
+				emit(sil.OpCode.Jump(label: make_label(label)))
 			Call(index):
 				let n = 2
 				if index < m_bc_program.extern_functions.len():
@@ -833,10 +837,10 @@ class SilGen:
 		m_stack_offset += size
 		sil.Address.StackSlot(offset)
 
-	fn new_tmp_id() -> int:
+	fn new_tmp_id() -> uint32:
 		let id = m_tmp_number
 		m_tmp_number += 1
-		id
+		uint32(id)
 
 	fn new_id() -> int:
 		m_lit_id_number += 1

@@ -9,12 +9,12 @@ from compiler.igraph import create_interference_graph
 from compiler import mil
 
 pub fn main() -> int:
-	let r0 = mil.Register(id: 0, kind: 0, color: -1)
-	let r1 = mil.Register(id: 1, kind: 0, color: -1)
-	let r2 = mil.Register(id: 2, kind: 0, color: -1)
-	let r3 = mil.Register(id: 3, kind: 0, color: -1)
-	let r4 = mil.Register(id: 4, kind: 0, color: -1)
-	let r5 = mil.Register(id: 5, kind: 0, color: -1)
+	let r0 = mil.Register(id: uint32(0), kind: 0, color: -1)
+	let r1 = mil.Register(id: uint32(1), kind: 0, color: -1)
+	let r2 = mil.Register(id: uint32(2), kind: 0, color: -1)
+	let r3 = mil.Register(id: uint32(3), kind: 0, color: -1)
+	let r4 = mil.Register(id: uint32(4), kind: 0, color: -1)
+	let r5 = mil.Register(id: uint32(5), kind: 0, color: -1)
 
 	let vregs: Vector[mil.Register] = new_vector_with_capacity(capacity: 6)
 	vregs.append(r0)
@@ -46,7 +46,7 @@ pub fn main() -> int:
 	let mfunc: mil.Function[TestIns] = mil.Function(name: "dummy", blocks)
 
 	let ig = create_interference_graph(mfunc, vregs)
-	assert_true(ig.has_edge(ig.get_node(id: 0), ig.get_node(id: 1)))
+	assert_true(ig.has_edge(ig.get_node(id: uint32(0)), ig.get_node(id: uint32(1))))
 	print("OK")
 	0
 

@@ -717,9 +717,9 @@ pub class VirtualMachine:
 			values.prepend(pop())
 		values
 
-	fn jump(pc?: int):
+	fn jump(pc?: uint32):
 		let frame = frames.last()
-		frame.pc = pc
+		frame.pc = int(pc)
 
 	fn get_local(index: int) -> Value:
 		frames.last().locals.get(index)

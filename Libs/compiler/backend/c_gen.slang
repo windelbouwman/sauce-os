@@ -102,6 +102,8 @@ class CGenerator:
 		emit("#include <stddef.h>")
 		emit("#include <stdint.h>")
 		emit("#include <stdlib.h>")
+		emit("")
+
 		let included_headers: Set[str] = new_str_set()
 		for struct_def in program.structs:
 			case struct_def.libname:
@@ -117,6 +119,7 @@ class CGenerator:
 					pass
 		for libname in included_headers:
 			emit("#include \"{libname}.h\"")
+		emit("")
 
 		# Struct forward declarations:
 		for struct_def in program.structs:
@@ -336,13 +339,13 @@ class CGenerator:
 		emit("// Localz")
 
 		let target_labels = bc.get_target_labels(instructions: function.instructions)
-		var index = 0
+		var index = uint32(0)
 		for instruction in function.instructions:
 			if target_labels.contains(index):
 				gen_label_str(index)
 				emit(":")
 			gen_instruction(instruction)
-			index += 1
+			index += uint32(1)
 		dedent()
 		emit("}")
 		emit("")
@@ -905,13 +908,13 @@ class CGenerator:
 	fn pop() -> Value:
 		stack.pop_last()
 
-	fn gen_label_str(index?: int):
+	fn gen_label_str(index?: uint32):
 		write("L")
-		write(str(index))
+		write(str(int(index)))
 
-	fn gen_goto(label?: int):
+	fn gen_goto(label?: uint32):
 		write("goto L")
-		write(str(label))
+		write(str(int(label)))
 		emit(";")
 
 	fn new_local_var() -> str:

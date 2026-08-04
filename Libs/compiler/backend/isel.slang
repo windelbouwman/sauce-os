@@ -2,7 +2,7 @@ module compiler.isel
 """Instruction selection related code."""
 
 from base.listtype import List
-from base.hashmap import HashMap, new_hashmap_int, new_hashmap_uint32
+from base.hashmap import HashMap, new_hashmap_uint32
 from base.vectype import Vector, new_vector
 from base.bytes import ByteArray
 from outstream import BinaryOutput, DataItem
@@ -31,7 +31,7 @@ pub struct Frame:
 
 pub class SelectionContext[V]:
 	var codes: Vector[mil.Instruction[V]] = new_vector()
-	var m_tmp_regs: HashMap[int,mil.Register] = new_hashmap_int()
+	var m_tmp_regs: HashMap[uint32,mil.Register] = new_hashmap_uint32()
 	var m_pre_colored_regs: HashMap[uint32,mil.Register] = new_hashmap_uint32()
 	pub var frame: Frame
 
@@ -41,7 +41,7 @@ pub class SelectionContext[V]:
 	pub fn set_vreg_for_value(value: sil.Value, register: mil.Register):
 		m_tmp_regs.insert(key: value.id, value: register)
 
-	fn get_vreg_for_tmp(id: int, ty: sil.Type) -> mil.Register:
+	fn get_vreg_for_tmp(id: uint32, ty: sil.Type) -> mil.Register:
 		if m_tmp_regs.contains(key: id):
 			m_tmp_regs.get(key: id)
 		else:
@@ -86,7 +86,7 @@ pub class SelectionContext[V]:
 		res
 
 	pub fn new_vreg(kind: int, color: int) -> mil.Register:
-		let id = frame.vregs.len()
+		let id = uint32(frame.vregs.len())
 		let vreg = mil.Register(id, color, kind)
 		frame.vregs.append(vreg)
 		vreg
