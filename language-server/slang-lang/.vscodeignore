@@ -1,0 +1,13 @@
+
+.gitignore
+esbuild.js
+node_modules
+src/
+out/
+tsconfig.json
+tsconfig.tsbuildinfo
+__pycache__/
+icons/
+
+.pytest_cache/
+test_server.py
