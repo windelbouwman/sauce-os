@@ -25,3 +25,7 @@ jobs:
         run: npm run compile
       - name: Package extension
         run: npx @vscode/vsce package
+      - name: Store VSIX as artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: "language-server/slang-lang/*.vsix"
