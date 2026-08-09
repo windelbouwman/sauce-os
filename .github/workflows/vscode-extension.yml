@@ -29,3 +29,22 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           path: "language-server/slang-lang/*.vsix"
+
+  test-language-server:
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.14"]
+        os: ["ubuntu-latest", "windows-latest"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Install python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r compiler1/requirements.txt -r language-server/slang-lang/requirements.txt
+      - name: Test with pytest
+        run: pytest language-server/slang-lang/test_server.py -v
