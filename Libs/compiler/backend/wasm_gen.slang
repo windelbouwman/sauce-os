@@ -51,6 +51,11 @@ pub fn gen_webassembly_module(module_defs: List[ast.ModuleDef], strtab: StringTa
 	let wasm_module = generator.gen_module_defs(modules: module_defs)
 	wasm_module
 
+fn is_heap(ty: webassembly.ValueType) -> bool:
+	case ty:
+		Num(ty2): false
+		Ref(ty2): true
+
 class WasmGenerator:
 	var strtab: StringTable
 	var typectx: ast.TypeContext
@@ -59,15 +64,16 @@ class WasmGenerator:
 	var globals: List[webassembly.Global] = List()
 	var functions: List[webassembly.Function] = List()
 	var exports: List[webassembly.Export] = List()
+	var start: Option[int] = Option.None()
 	var datas: List[webassembly.Data] = List()
 	var code: List[webassembly.Instruction] = List()
+	var init_code: List[webassembly.Instruction] = List()
 
 	var struct_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
 	var global_mapping: HashMap[ast.NodeId,int] = ast.new_hashmap_nodeid()
 	var n_parameters: int = 0
 	var local_variables: List[webassembly.ValueType] = List()
 	var index_mapping: HashMap[str,int] = new_hashmap_str()
-	var literal_offset: int = 0
 	var block_stack: List[bool] = List()
 	var m_string_data: ByteArray = ByteArray()
 
@@ -78,6 +84,7 @@ class WasmGenerator:
 	var i64_box_type: int = -1
 	var i32_box_type: int = -1
 	var mk_string_fn_index: int = -1
+	var empty_string_global_index: int = -1
 
 	var func_counter: int = 0
 	var global_counter: int = 0
@@ -106,6 +113,11 @@ class WasmGenerator:
 		mk_string_fn_index = func_counter
 		imports.append(webassembly.Import(modname: "wasm:js-string", name: "fromCharCodeArray", kind: webassembly.ExternType.Func(typeidx: type_id)))
 		func_counter += 1
+
+		# Import empty string global:
+		imports.append(webassembly.Import(modname: "slangrt", name: "emptyString", kind: webassembly.ExternType.Global(ty: webassembly.ValueType.Ref(ty: webassembly.ref_extern_type()), mutable: false)))
+		empty_string_global_index = global_counter
+		global_counter += 1
 
 	pub fn gen_module_defs(modules: List[ast.ModuleDef]) -> webassembly.Module:
 		add_i16_array()
@@ -173,6 +185,10 @@ class WasmGenerator:
 		for module_def in modules:
 			gen_module(module_def)
 
+		# Initializer code for global variables:
+		if not init_code.is_empty():
+			gen_start()
+
 		# Tag used for exceptions:
 		let typeidx = inject_type(webassembly.CompType.Func(params: list1(webassembly.ValueType.Ref(webassembly.nullable_ref_type(heap_type: webassembly.HeapType.Any()))), results: List()))
 		let tags: List[webassembly.Tag] = List()
@@ -189,8 +205,23 @@ class WasmGenerator:
 			globals
 			functions
 			exports
+			start
 			datas
 		wasm_module
+
+	fn gen_start():
+		local_variables = List()
+		let params: List[webassembly.ValueType] = List()
+		let results: List[webassembly.ValueType] = List()
+		let func_ty = inject_type(webassembly.CompType.Func(params, results))
+		let init_func = webassembly.Function:
+			typeidx: func_ty
+			locals: local_variables
+			code: init_code
+		functions.append(init_func)
+		let init_func_idx = func_counter
+		func_counter += 1
+		start = Option.Some(init_func_idx)
 
 	fn gen_external_function(function_def: ast.FunctionDef):
 		# log_debug("extern function def: {extern_function_def.name}")
@@ -233,13 +264,7 @@ class WasmGenerator:
 						Intern(value):
 							case value:
 								Some(e):
-									code = List()
-									gen_expression(e)
-									let g = webassembly.Global:
-										mutable: true  # var_def.variable.writable
-										ty: get_wasm_type(var_def.variable.ty)
-										value: code
-									globals.append(g)
+									gen_variable(var_def, e)
 								None:
 									panic("Uninitialized global")
 						Extern(libname, initialized):
@@ -326,6 +351,32 @@ class WasmGenerator:
 			index_mapping.insert(key, value: index)
 			types.append(ty)
 			index
+
+	fn gen_variable(var_def: ast.VariableDef, e: ast.Expression):
+		code = List()
+		gen_expression(e)
+		let ty = get_wasm_type(var_def.variable.ty)
+		case ty:
+			Ref(ty2):
+				init_code.extend2(code)
+				let globalidx = global_mapping.get(key: var_def.variable.id)
+				init_code.append(Instruction.global_set(globalidx))
+				code = List()
+				if ty2.nullable:
+					emit(Instruction.ref_null(ty2.heap_type))
+				else:
+					case ty2.heap_type:
+						Extern:
+							emit(Instruction.global_get(empty_string_global_index))
+					else:
+						panic("Non-nullable ref-type global, not an extern value: {strtab.get(var_def.variable.id.name)}")
+			Num(ty2):
+				pass
+		let g = webassembly.Global:
+			mutable: true  # var_def.variable.writable
+			ty
+			value: code
+		globals.append(g)
 
 	fn gen_function(function_def: ast.FunctionDef):
 		log_info("Generating code for: {ast.function_def_to_str(strtab, function_def)}")

@@ -439,7 +439,7 @@ class CustomTransformer(LarkTransformer):
             return ast.array_type(0, element_type)
         elif is_terminal(x[0], "BITAND") or is_terminal(x[0], "ASTERIX"):
             element_type = x[1]
-            return ast.pointer_type(element_type)
+            return element_type
         elif isinstance(x[0], ast.QualName):
             if len(x) == 1:
                 return ast.name_ref_type(x[0])

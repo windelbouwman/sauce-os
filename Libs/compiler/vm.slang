@@ -295,12 +295,9 @@ pub fn run_bytecode(program: Program, entry_function: str):
 
 pub fn eval_code(vm: VirtualMachine, code: Vector[Instruction]) -> Value:
 	"""Evaluate a bytecode expression"""
-	let top_frame = Frame(code: new_vector())
-	vm.push_frame(frame: top_frame)
-
 	let frame = Frame(code)
 	vm.push_frame(frame)
-	while vm.frames.len() > 1:
+	while frame.pc < code.len():
 		vm.step()
 
 	vm.pop_frame().stack.last()

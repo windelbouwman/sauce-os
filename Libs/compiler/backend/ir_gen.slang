@@ -24,7 +24,6 @@ pub fn gen_bytecode(strtab: StringTable, module_defs: List[ast.ModuleDef], debug
 pub fn gen_expression_bytecode(strtab: StringTable, expression: ast.Expression) -> Vector[Instruction]:
 	let g = BytecodeGenerator(m_debug: Option.None(), strtab)
 	g.gen_expression(expression)
-	g.emit(Instruction.Return(n_args: 1))
 	g.get_relocated_instructions()
 
 enum ControlBlock:
@@ -156,7 +155,6 @@ class BytecodeGenerator:
 			Intern(ival):
 				begin_code()
 				gen_expression(option_unwrap(ival))
-				emit(Instruction.Return(n_args: 1))
 				global_variable.value = Option.Some(get_relocated_instructions())
 			Extern(libname, initialized):
 				pass

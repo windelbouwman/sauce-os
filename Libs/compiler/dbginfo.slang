@@ -2,6 +2,7 @@ module compiler.dbginfo
 
 from base.listtype import List
 from base.vectype import Vector, new_vector
+from base.optiontype import Option
 from base.hashmap import HashMap, new_hashmap_str
 from base.fs import Path
 from location import Location
@@ -29,8 +30,8 @@ pub class DbgInfo:
 	pub fn has_function(name: str) -> bool:
 		functions_by_name.contains(key: name)
 
-	pub fn get_function_by_name(name: str) -> Function:
-		functions_by_name.get(key: name)
+	pub fn get_function_by_name(name: str) -> Option[Function]:
+		functions_by_name.maybe_get(key: name)
 
 pub struct Source:
 	filename: Path

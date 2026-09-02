@@ -124,13 +124,15 @@ fn bron_kerbosch(r: Set[str], p: Set[str], x: Set[str], g: Graph, output: List[S
 	if p.is_empty() and x.is_empty():
 		output.append(r)
 
+	var p_copy = p
+	var x_copy = x
 	for v in p:
 		let n = g.neighbours(v)
 		let v_set = new_str_set()
 		v_set.add(v)
-		bron_kerbosch(r: r.union(v_set), p: p.intersection(n), x: x.intersection(n), g, output)
-		p = p.difference(v_set)
-		x = x.union(v_set)
+		bron_kerbosch(r: r.union(v_set), p: p_copy.intersection(n), x: x_copy.intersection(n), g, output)
+		p_copy = p_copy.difference(v_set)
+		x_copy = x_copy.union(v_set)
 
 pub fn find_all_cliques_of_size(g: Graph, k: int) -> List[Set[str]]:
 	let output: List[Set[str]] = List()
@@ -143,13 +145,15 @@ fn bron_kerbosch_k(r: Set[str], p: Set[str], x: Set[str], g: Graph, k: int, outp
 		output.append(r)
 		return
 
+	var p_copy = p
+	var x_copy = x
 	for v in p:
 		let n = g.neighbours(v)
 		let v_set = new_str_set()
 		v_set.add(v)
-		bron_kerbosch_k(r: r.union(v_set), p: p.intersection(n), x: x.intersection(n), g, k, output)
-		p = p.difference(v_set)
-		x = x.union(v_set)
+		bron_kerbosch_k(r: r.union(v_set), p: p_copy.intersection(n), x: x_copy.intersection(n), g, k, output)
+		p_copy = p_copy.difference(v_set)
+		x_copy = x_copy.union(v_set)
 
 pub fn dfs(g: DiGraph, start: str) -> List[str]:
 	"""Depth first search"""

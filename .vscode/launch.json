@@ -5,6 +5,12 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "test_rt",
+      "type": "lldb-dap",
+      "request": "launch",
+      "program": "build/test_rt"
+    },
+    {
       "name": "Python: tmp-compiler",
       "type": "python",
       "request": "launch",

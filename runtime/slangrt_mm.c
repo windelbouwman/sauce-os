@@ -1,12 +1,11 @@
 /*
 Memory management runtime functions
-
-See also:
-https://github.com/mkirchner/gc
 */
 
 #include "slangrt.h"
-#include <setjmp.h>
+#ifdef USE_SLAB_ALLOCATOR
+#include "slangrt_slab.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,164 +21,176 @@ https://github.com/mkirchner/gc
 #define LOG_DEBUG(fmt, ...)
 #endif
 
-#define GC_TAG_NONE 0x0
-#define GC_TAG_MARK 0x2
+#define HEAP_SRC_MALLOC 0x1
+#ifdef USE_SLAB_ALLOCATOR
+#define HEAP_SRC_SLAB_32 0x2
+#define HEAP_SRC_SLAB_64 0x3
+#endif
 
-#define GC_KIND_OPAQUE 0x0
 #define GC_KIND_NOPTRS 0x1
 #define GC_KIND_OFFSETS 0x2
+#define GC_KIND_POINTER_ARRAY 0x3
 
 #define PTRSIZE sizeof(char*)
 
-struct AllocationMap;
 struct Allocation;
 
 typedef struct GarbageCollector {
-    void* bos; // bottom of stack
-    size_t limit;
-    struct AllocationMap* alloc_map;
+    int initialized;
+#ifdef USE_SLAB_ALLOCATOR
+    SmallSizeClass_t smallAllocator_32;
+    SmallSizeClass_t smallAllocator_64;
+#endif
 } GarbageCollector_t;
-
-// Hash map of allocations
-// Maps pointers to alloc info records
-typedef struct AllocationMap {
-    size_t capacity;
-    size_t size;
-    struct Allocation** allocs;
-} AllocationMap_t;
 
 // Allocation informational record
 typedef struct Allocation {
-    void* ptr;
-    size_t size;
-    char tag;
     char kind;
-    const int* offsets;
-    struct Allocation* next;
+    char heap;
+    uint8_t magic1;
+    uint8_t magic2;
+    uint32_t count; // ref-count
+    union {
+        size_t size;        // size of the array of pointers
+        const int* offsets; // offsets of pointers in this alloc (for structs)
+    } data;
 } Allocation_t;
 
-static size_t gc_hash(void* ptr)
+static void gc_start(GarbageCollector_t* gc)
 {
-    return ((uintptr_t)ptr) >> 3;
+    LOG_DEBUG("Initialize GC %d", 1);
+#ifdef USE_SLAB_ALLOCATOR
+    gc->smallAllocator_64.obj_size = 64;
+    gc->smallAllocator_64.slabs = NULL;
+    gc->smallAllocator_32.obj_size = 32;
+    gc->smallAllocator_32.slabs = NULL;
+#endif
+    gc->initialized = 42;
 }
 
-static Allocation_t* gc_allocation_new(size_t size, char kind,
-                                       const int* offsets)
+static void gc_stop(GarbageCollector_t* gc)
 {
-    Allocation_t* alloc = (Allocation_t*)malloc(sizeof(Allocation_t) + size);
+    gc->initialized = 0;
+#ifdef USE_SLAB_ALLOCATOR
+    small_finalize(&gc->smallAllocator_32);
+    small_finalize(&gc->smallAllocator_64);
+#endif
+    LOG_DEBUG("Stopped GC %d", 1);
+}
+
+// Main API:
+static void* gc_allocate(GarbageCollector_t* gc, size_t size)
+{
+    const size_t full_size = sizeof(Allocation_t) + size;
+
+    if (gc->initialized != 42) {
+        std_panic("GC not initialized");
+    }
+
+    // Create new block:
+    Allocation_t* alloc = NULL;
+#ifdef USE_SLAB_ALLOCATOR
+    if (full_size < gc->smallAllocator_32.obj_size) {
+        alloc = small_alloc(&gc->smallAllocator_32);
+        alloc->heap = HEAP_SRC_SLAB_32;
+    } else if (full_size < gc->smallAllocator_64.obj_size) {
+        alloc = small_alloc(&gc->smallAllocator_64);
+        alloc->heap = HEAP_SRC_SLAB_64;
+    } else {
+#endif
+        alloc = (Allocation_t*)malloc(full_size);
+        alloc->heap = HEAP_SRC_MALLOC;
+#ifdef USE_SLAB_ALLOCATOR
+    }
+#endif
+    alloc->magic1 = 0xCA;
+    alloc->magic2 = 0xFE;
+    alloc->count = 1; // start owned
+    alloc->kind = GC_KIND_NOPTRS;
+    alloc->data.offsets = NULL;
 
     void* ptr = (void*)(alloc + 1);
 
-    alloc->ptr = ptr;
-    alloc->size = size;
-    alloc->tag = GC_TAG_NONE;
-    alloc->kind = kind;
-    alloc->offsets = offsets;
-    alloc->next = NULL;
-    return alloc;
+#ifdef DO_STRESS_TEST
+// if (((intptr_t)(ptr) & 0x3) != 0) {
+//     std_panic("Unaligned malloc!");
+// }
+#endif
+
+    return ptr;
 }
 
-static AllocationMap_t* gc_allocation_map_new(size_t capacity)
+static void gc_free(GarbageCollector_t* gc, Allocation_t* alloc)
 {
-    AllocationMap_t* map = (AllocationMap_t*)malloc(sizeof(AllocationMap_t));
-    map->capacity = capacity;
-    map->size = 0;
-    map->allocs = (Allocation_t**)calloc(map->capacity, sizeof(Allocation_t*));
-    return map;
-}
-
-static void gc_allocation_map_delete(AllocationMap_t* map)
-{
-    free(map->allocs);
-    free(map);
-}
-
-static void gc_allocation_map_resize(AllocationMap_t* map, size_t new_capacity)
-{
-    LOG_DEBUG("Resize hashmap capacity from %d to %d", map->capacity,
-              new_capacity);
-
-    Allocation_t** resized_allocs = calloc(new_capacity, sizeof(Allocation_t*));
-
-    // Copy allocs into new hashmap:
-    for (size_t index = 0; index < map->capacity; index++) {
-        Allocation_t* alloc = map->allocs[index];
-        while (alloc) {
-            Allocation_t* next = alloc->next;
-            size_t new_index = gc_hash(alloc->ptr) % new_capacity;
-            alloc->next = resized_allocs[new_index];
-            resized_allocs[new_index] = alloc;
-            alloc = next;
-        }
-    }
-
-    free(map->allocs);
-    map->allocs = resized_allocs;
-    map->capacity = new_capacity;
-}
-
-static void gc_allocation_map_resize_to_fit(AllocationMap_t* map)
-{
-    const double load_factor = (double)map->size / (double)map->capacity;
-    if (load_factor > 0.8) {
-        gc_allocation_map_resize(map, map->capacity * 2);
-    } else if ((load_factor < 0.2) && (map->capacity > 100)) {
-        // Shrink the map!
-        gc_allocation_map_resize(map, map->capacity / 2);
+    switch (alloc->heap) {
+    case HEAP_SRC_MALLOC:
+        free(alloc);
+        break;
+#ifdef USE_SLAB_ALLOCATOR
+    case HEAP_SRC_SLAB_32:
+        small_free(&gc->smallAllocator_32, alloc);
+        break;
+    case HEAP_SRC_SLAB_64:
+        small_free(&gc->smallAllocator_64, alloc);
+        break;
+#endif
+    default:
+        break;
     }
 }
 
-static Allocation_t* gc_allocation_map_get(AllocationMap_t* map, void* ptr)
+// RT-memory API:
+
+// Global garbage collector:
+GarbageCollector_t g_gc;
+
+void __attribute__((constructor(103))) rt_gc_init()
 {
-    size_t index = gc_hash(ptr) % map->capacity;
-    Allocation_t* cur = map->allocs[index];
-    while (cur) {
-        if (cur->ptr == ptr) {
-            return cur;
-        }
-        cur = cur->next;
+    gc_start(&g_gc);
+}
+
+void __attribute__((destructor(103))) rt_gc_finalize()
+{
+    gc_stop(&g_gc);
+}
+
+void rt_inc_ref(void* ptr)
+{
+    if (ptr == NULL || (((uintptr_t)ptr & 1) != 0)) {
+        return;
     }
-    return NULL;
-}
-
-static void gc_allocation_map_put(AllocationMap_t* map, Allocation_t* alloc)
-{
-    size_t index = gc_hash(alloc->ptr) % map->capacity;
-
-    // Insert in front of chain list:
-    alloc->next = map->allocs[index];
-    map->allocs[index] = alloc;
-    map->size++;
-    gc_allocation_map_resize_to_fit(map);
-}
-
-static void gc_allocation_map_remove(AllocationMap_t* map, Allocation_t* alloc)
-{
-    size_t index = gc_hash(alloc->ptr) % map->capacity;
-    Allocation_t* cur = map->allocs[index];
-    Allocation_t* prev = NULL;
-
-    while (cur) {
-        Allocation_t* next = cur->next;
-        if (cur == alloc) {
-            if (prev) {
-                prev->next = cur->next;
-            } else {
-                map->allocs[index] = cur->next;
-            }
-            map->size--;
-        } else {
-            prev = cur;
-        }
-        cur = next;
+    Allocation_t* alloc = ((Allocation_t*)ptr) - 1;
+    if (alloc->magic1 != 0xCA) {
+        std_panic("Bad magic1!");
     }
+    if (alloc->magic2 != 0xFE) {
+        std_panic("Bad magic2!");
+    }
+    alloc->count++;
 }
 
-void gc_mark_alloc(GarbageCollector_t* gc, void* ptr)
+void rt_dec_ref(void* ptr)
 {
-    Allocation_t* alloc = gc_allocation_map_get(gc->alloc_map, ptr);
-    if (alloc && !(alloc->tag & GC_TAG_MARK)) {
-        alloc->tag |= GC_TAG_MARK;
+    if (ptr == NULL || (((uintptr_t)ptr & 1) != 0)) {
+        return;
+    }
+    Allocation_t* alloc = ((Allocation_t*)ptr) - 1;
+
+    if (alloc->magic1 != 0xCA) {
+        std_panic("Bad magic1!");
+    }
+    if (alloc->magic2 != 0xFE) {
+        std_panic("Bad magic2!");
+    }
+
+    if (alloc->count == 0) {
+        std_panic("Double free!");
+    }
+
+    alloc->count--;
+
+    if (alloc->count == 0) {
+        // Free, but also free referenced data.
 
         switch (alloc->kind) {
         case GC_KIND_NOPTRS:
@@ -188,148 +199,70 @@ void gc_mark_alloc(GarbageCollector_t* gc, void* ptr)
         case GC_KIND_OFFSETS:
             // Walk list with offsets, these are pointers offsets in the
             // allocation.
-            for (int i = 0; alloc->offsets[i] >= 0; i++) {
-                char* p = (char*)alloc->ptr + alloc->offsets[i];
-                gc_mark_alloc(gc, *(void**)p);
+            for (int i = 0; alloc->data.offsets[i] >= 0; i++) {
+                char* field_pointer = ((char*)ptr) + alloc->data.offsets[i];
+                void* child_ptr = *(void**)field_pointer;
+                rt_dec_ref(child_ptr);
+            }
+            break;
+        case GC_KIND_POINTER_ARRAY:
+            for (int i = 0; i < alloc->data.size; i++) {
+                void** element_ptr = ((void**)ptr) + i;
+                void* child_ptr = *(void**)element_ptr;
+                rt_dec_ref(child_ptr);
             }
             break;
         default:
-            // Scan the whole blob conservative:
-            for (char* p = (char*)alloc->ptr;
-                 p <= (char*)alloc->ptr + alloc->size - PTRSIZE; ++p) {
-                gc_mark_alloc(gc, *(void**)p);
-            }
+            std_panic("Unsupported alloc kind");
             break;
         }
+
+        // Free memory back! Yay!
+        gc_free(&g_gc, alloc);
     }
 }
 
-static void gc_mark_stack(GarbageCollector_t* gc)
+void rt_replace_owned(void** slot, void* value)
 {
-    void* tos = __builtin_frame_address(0);
-    void* bos = gc->bos;
-    for (char* p = (char*)tos; p <= (char*)bos - PTRSIZE; ++p) {
-        gc_mark_alloc(gc, *((void**)p));
+    void* old_value = *slot;
+    *slot = value;
+    if (old_value != NULL) {
+        rt_dec_ref(old_value);
     }
-}
-
-static void gc_mark_roots(GarbageCollector_t* gc)
-{
-    // Mark global variables
-    // TODO!
-}
-
-static void gc_mark(GarbageCollector_t* gc)
-{
-    gc_mark_roots(gc);
-    // TBD: why would below be required?
-    void (*volatile _mark_stack)(GarbageCollector_t*) = gc_mark_stack;
-    jmp_buf ctx;
-    memset(&ctx, 0, sizeof(jmp_buf));
-    setjmp(ctx);
-    _mark_stack(gc);
-}
-
-static void gc_sweep(GarbageCollector_t* gc)
-{
-    size_t harvest = 0;
-    for (size_t index = 0; index < gc->alloc_map->capacity; index++) {
-        Allocation_t* alloc = gc->alloc_map->allocs[index];
-        while (alloc) {
-            if (alloc->tag & GC_TAG_MARK) {
-                alloc->tag &= ~GC_TAG_MARK;
-                alloc = alloc->next;
-            } else {
-                harvest += 1;
-                Allocation_t* next = alloc->next;
-                // Free non-reachable alloc:
-                gc_allocation_map_remove(gc->alloc_map, alloc);
-                free(alloc);
-                alloc = next;
-            }
-        }
-    }
-    LOG_DEBUG("Collected: %d allocations", harvest);
-}
-
-static void gc_run(GarbageCollector_t* gc)
-{
-    LOG_DEBUG("Garbage collecting on %d allocations", gc->alloc_map->size);
-    gc_mark(gc);
-    gc_sweep(gc);
-}
-
-static void gc_start(GarbageCollector_t* gc, void* bos)
-{
-    LOG_DEBUG("Initialize GC: %X", bos);
-    gc->bos = bos;
-    gc->alloc_map = gc_allocation_map_new(1024);
-    gc->limit = gc->alloc_map->size + gc->alloc_map->capacity;
-}
-
-static void gc_stop(GarbageCollector_t* gc)
-{
-    gc_sweep(gc);
-    gc_allocation_map_delete(gc->alloc_map);
-}
-
-// Main API:
-void* gc_allocate(GarbageCollector_t* gc, size_t size, char kind,
-                  const int* offsets)
-{
-    // If we need garbage collection, run it
-    if (gc->alloc_map->size > gc->limit) {
-        // gc->limit *= 3;
-        // TODO
-        gc_run(gc);
-        gc->limit = gc->alloc_map->size + gc->alloc_map->capacity;
-        // gc->limit = gc->alloc_map->size + (gc->alloc_map->capacity -
-        // gc->alloc_map->size) / 2;
-    }
-
-    // void* ptr = malloc(sizeof(Allocation_t) + size);
-    Allocation_t* alloc = gc_allocation_new(size, kind, offsets);
-
-    if (((intptr_t)(alloc->ptr) & 0x3) != 0) {
-        puts("Unaligned malloc!");
-        exit(1);
-    }
-    gc_allocation_map_put(gc->alloc_map, alloc);
-    // LOG_DEBUG("alloc: size=%d capacity=%d", gc->alloc_map->size,
-    // gc->alloc_map->capacity);
-    return alloc->ptr;
-}
-
-// RT-memory API:
-
-// Global garbage collector:
-GarbageCollector_t g_gc;
-
-void rt_gc_init(void* bos)
-{
-    gc_start(&g_gc, bos);
-}
-
-void rt_gc_finalize()
-{
-    gc_stop(&g_gc);
 }
 
 void* rt_malloc_str(size_t size)
 {
-    return gc_allocate(&g_gc, size, GC_KIND_NOPTRS, NULL);
+    return gc_allocate(&g_gc, size);
 }
 
 void* rt_malloc(size_t size)
 {
-    return gc_allocate(&g_gc, size, GC_KIND_OPAQUE, NULL);
+    return gc_allocate(&g_gc, size);
 }
 
-void* rt_malloc_with_destroyer(size_t size, const int* ref_offsets)
+void* rt_malloc_struct(size_t size, const int* ref_offsets)
 {
-    if (ref_offsets == NULL) {
-        return gc_allocate(&g_gc, size, GC_KIND_NOPTRS, NULL);
-    } else {
-        return gc_allocate(&g_gc, size, GC_KIND_OFFSETS, ref_offsets);
+    void* ptr = gc_allocate(&g_gc, size);
+    if (ref_offsets != NULL) {
+        Allocation_t* alloc = ((Allocation_t*)ptr) - 1;
+        alloc->kind = GC_KIND_OFFSETS;
+        alloc->data.offsets = ref_offsets;
+        // Clear eventual pointers:
+        memset(ptr, 0, size);
     }
+    return ptr;
+}
+
+void* rt_malloc_array(size_t num, size_t size,
+                      slang_bool_t elements_are_pointers)
+{
+    void* ptr = gc_allocate(&g_gc, num * size);
+    if (elements_are_pointers != 0) {
+        memset(ptr, 0, num * size);
+        Allocation_t* alloc = ((Allocation_t*)ptr) - 1;
+        alloc->kind = GC_KIND_POINTER_ARRAY;
+        alloc->data.size = num;
+    }
+    return ptr;
 }
