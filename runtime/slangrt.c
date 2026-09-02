@@ -20,18 +20,6 @@
 int g_argc;
 char** g_argv;
 
-#if defined __GNUC__
-void std_exit(slang_int_t code) __attribute__((noreturn));
-void std_panic(const char* message) __attribute__((noreturn));
-#define SLANG_API
-#elif defined _MSC_VER
-__declspec(noreturn) __declspec(dllexport) void std_exit(slang_int_t code);
-__declspec(noreturn) void std_panic(const char* message);
-#define SLANG_API __declspec(dllexport)
-#else
-#error unsupported compiler
-#endif
-
 slang_exception_handler_t* g_except_hook;
 void* g_except_value;
 void* tmp_array_lit;

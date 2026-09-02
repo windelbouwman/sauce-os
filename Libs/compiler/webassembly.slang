@@ -6,6 +6,7 @@ WebAssembly support.
 """
 
 from base.listtype import List, list1
+from base.optiontype import Option
 from std import float_to_str2, str_len
 from base.bytes import Bytes, ByteArray, bytes_from_ascii
 from base.leb128 import pack_unsigned_leb128, pack_signed_leb128
@@ -20,6 +21,7 @@ pub struct Module:
 	globals: List[Global]
 	functions: List[Function]
 	exports: List[Export]
+	start: Option[int]
 	datas: List[Data]
 
 pub enum NumType:
@@ -1056,6 +1058,11 @@ fn write_data_section(wasm_module: Module) -> Bytes:
 		writer.write_data(data.data)
 	writer.get_bytes()
 
+fn write_start_section(idx: int) -> Bytes:
+	let writer = Writer()
+	writer.write_u32(idx)
+	writer.get_bytes()
+
 fn write_data_count_section(wasm_module: Module) -> Bytes:
 	let writer = Writer()
 	writer.write_u32(wasm_module.datas.len())
@@ -1083,7 +1090,12 @@ pub fn to_wasm(wasm_module: Module) -> Bytes:
 	if not wasm_module.globals.is_empty():
 		write_section(writer, id: 6, data: create_global_section(wasm_module))
 	write_section(writer, id: 7, data: write_export_section(wasm_module))
-	# 8 start section
+	case wasm_module.start:
+		Some(idx):
+			write_section(writer, id: 8, data: write_start_section(idx))
+		None:
+			pass
+
 	# 9 element section
 	if not wasm_module.datas.is_empty():
 		write_section(writer, id: 12, data: write_data_count_section(wasm_module))
@@ -1379,6 +1391,12 @@ pub fn to_wat(wasm_module: Module, out: TextGenerator):
 		out.dedent()
 		out.emit(")")
 		func_index += 1
+
+	case wasm_module.start:
+		Some(idx):
+			out.emit("(start {idx})")
+		None:
+			pass
 
 	for data in wasm_module.datas:
 		# Go for passive strings now:

@@ -35,11 +35,14 @@ extern void* tmp_array_lit;
 
 // runtime functions:
 void rt_init(int argc, char** argv);
-void rt_gc_init(void* bos);
-void rt_gc_finalize();
+void rt_dec_ref(void*);
+void rt_inc_ref(void*);
+void rt_replace_owned(void**, void*);
 void* rt_malloc_str(size_t size);
 void* rt_malloc(size_t size);
-void* rt_malloc_with_destroyer(size_t size, const int* ref_offsets);
+void* rt_malloc_struct(size_t size, const int* ref_offsets);
+void* rt_malloc_array(size_t num, size_t size,
+                      slang_bool_t elements_are_pointers);
 char* rt_str_new(const char*);
 // void slangrt_unreachable();
 
@@ -114,6 +117,18 @@ slang_float64_t slangrt_unbox_float64(void*);
 #define SLANG_UNREACHABLE __builtin_unreachable();
 #elif defined _MSC_VER
 #define SLANG_UNREACHABLE __assume(0);
+#else
+#error unsupported compiler
+#endif
+
+#if defined __GNUC__
+void std_exit(slang_int_t code) __attribute__((noreturn));
+void std_panic(const char* message) __attribute__((noreturn));
+#define SLANG_API
+#elif defined _MSC_VER
+__declspec(noreturn) __declspec(dllexport) void std_exit(slang_int_t code);
+__declspec(noreturn) void std_panic(const char* message);
+#define SLANG_API __declspec(dllexport)
 #else
 #error unsupported compiler
 #endif

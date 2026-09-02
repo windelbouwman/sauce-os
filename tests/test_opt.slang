@@ -13,7 +13,7 @@ pub fn main() -> int:
 	let block_a = sil.Block(name: "A", instructions: vec1(make_jump("B")))
 	let block_b = sil.Block(name: "B", instructions: vec1(make_jump("C")))
 	let block_c = sil.Block(name: "C", instructions: vec1(make_jump("B")))
-	let function = sil.Function(name: "foo", parameters, stacksize: 0, start: block_a, blocks: vec3(block_a, block_b, block_c))
+	let function = sil.Function(name: "foo", parameters, stacksize: 0, start: block_a, blocks: vec3(block_a, block_b, block_c), is_constructor: false)
 	let changed = skip_jump_blocks(function)
 	assert_true(changed)
 	print("OK")

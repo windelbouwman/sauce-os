@@ -10,7 +10,7 @@ Features of this pass:
 from std import ord, print
 from base.math import max
 from base.listtype import List, list1
-from base.vectype import Vector, new_vector, new_vector_with_capacity, vec1
+from base.vectype import Vector, new_vector, new_vector_with_capacity, vec1, vec2, vec3
 from base.optiontype import Option
 from base.bytes import Bytes, bytes_from_ascii, fill_bytes, ByteArray
 from base.utils import panic, unimplemented
@@ -18,6 +18,17 @@ from base.logging import log_info, log_warning, log_debug
 import bc
 import vm
 import sil
+
+# TODO: de-duplicate with c_gen code?
+fn is_heap(ty?: bc.Type) -> bool:
+	"""Test if type is heap like type"""
+	case ty:
+		StructRef(index): true
+		Array(element_type): true
+		Str: true
+		Ptr: true
+	else:
+		false
 
 pub struct SilGenOptions:
 	"""Target specific options"""
@@ -37,6 +48,7 @@ struct StructLayout:
 	size: int  # Size of entire struct
 	alignment: int
 	fields: Vector[StructField]
+	gc_info: Option[sil.Address]  # optional array with gc info
 
 struct StructField:
 	offset: int
@@ -45,6 +57,7 @@ struct StructField:
 struct TypedValue:
 	value: sil.Value
 	ty: bc.Type
+	owned: bool
 
 struct TypedAddress:
 	address: sil.Address
@@ -53,11 +66,6 @@ struct TypedAddress:
 struct ReturnSlot:
 	address: TypedAddress
 	ty: bc.Type
-
-enum LocalStorage:
-	Mutable(address: TypedAddress)
-	Undefined
-	Defined(value: TypedValue)
 
 class SilGen:
 	var m_bc_program: bc.Program
@@ -71,7 +79,7 @@ class SilGen:
 	var m_current_block: Option[sil.Block] = Option.None()
 	var m_block_is_terminated: bool = false
 	var m_parameters: List[TypedAddress] = List()
-	var m_locals: Vector[LocalStorage] = new_vector()
+	var m_locals: Vector[TypedAddress] = new_vector()
 	var m_return_slots: List[ReturnSlot] = List()
 	var m_vm: vm.VirtualMachine = vm.VirtualMachine()
 	var m_tmp_number: int = 0
@@ -81,7 +89,11 @@ class SilGen:
 
 	pub fn gen_program() -> sil.Program:
 		# Define used runtime functions:
-		m_externs.append(sil.Extern(name: "rt_malloc"))
+		m_externs.append(sil.Extern(name: "rt_str_new"))
+		m_externs.append(sil.Extern(name: "rt_malloc_struct"))
+		m_externs.append(sil.Extern(name: "rt_malloc_array"))
+		m_externs.append(sil.Extern(name: "rt_inc_ref"))
+		m_externs.append(sil.Extern(name: "rt_dec_ref"))
 		m_externs.append(sil.Extern(name: "slangrt_box_int64"))
 		m_externs.append(sil.Extern(name: "slangrt_box_int32"))
 		m_externs.append(sil.Extern(name: "slangrt_box_int16"))
@@ -126,12 +138,35 @@ class SilGen:
 		let name = global.name
 		case global.value:
 			Some(code):
-				let value = vm.eval_code(vm: m_vm, code)
-				let ty = get_sil_type(ty: global.ty)
-				let contents = gen_vm_value(ty: global.ty, value)
-				m_blobs.append(sil.DataBlob(name, is_local: false, readonly: false, contents))
 				let address = sil.Address.Global(name, mutable: true)
 				let typed_address = TypedAddress(address, ty: global.ty)
+				if is_heap(ty: global.ty):
+					# Initialize with NULL:
+					let data = pack_i64(value: 0)
+					let contents = list1(sil.BlobContent.Raw(data))
+					m_blobs.append(sil.DataBlob(name, is_local: false, readonly: false, contents))
+
+					# Create init code:
+					begin_func()
+					let start = new_block(name: "start")
+					set_current_block(start)
+
+					# Assume straight line code here:
+					for opcode in code:
+						gen_opcode(opcode)
+					gen_store(address: typed_address, value: pop())
+
+					let init_func_name = "_init_func_{name}"
+					# add constructor 109 tag
+					let parameters: Vector[sil.Value] = new_vector()
+					let sil_function = sil.Function(name: init_func_name, parameters, stacksize: m_stack_offset, start, blocks: m_blocks, is_constructor: true)
+					m_functions.append(sil_function)
+
+					# TODO: add destructor as well?
+				else:
+					let value = vm.eval_code(vm: m_vm, code)
+					let contents = gen_vm_value(ty: global.ty, value)
+					m_blobs.append(sil.DataBlob(name, is_local: false, readonly: false, contents))
 				m_globals.append(typed_address)
 			None:
 				m_externs.append(sil.Extern(name))
@@ -225,30 +260,12 @@ class SilGen:
 					panic("Value must be float")
 				list1(sil.BlobContent.Raw(data))
 			Str(text):
-				let data = pack_str(text)
-				let name = "_lit_{new_id()}"
-				let literal_contents = list1(sil.BlobContent.Raw(data))
-				m_blobs.append(sil.DataBlob(name, is_local: true, readonly: true, contents: literal_contents))
-				list1(sil.BlobContent.Ptr(name))
+				panic("Cannot create global string")
 			Char(c):
 				let data = pack_i64(value: ord(value: c))
 				list1(sil.BlobContent.Raw(data))
 			List(v):
-				let index = case ty:
-					StructRef(index):
-						index
-				else:
-					panic("Expect struct type")
-				let struct_def = m_bc_program.structs.get(index)
-				let contents: List[sil.BlobContent] = List()
-				var i = 0
-				for field_value in v.values:
-					let field_contents = gen_vm_value(ty: struct_def.fields[i].ty, value: field_value)
-					contents.extend2(field_contents)
-					i += 1
-				let name = "_lit_struct_{new_id()}"
-				m_blobs.append(sil.DataBlob(name, is_local: true, readonly: false, contents))
-				list1(sil.BlobContent.Ptr(name))
+				panic("Cannot create global struct literal")
 			Null:
 				panic("TODO: null")
 			Undefined:
@@ -258,13 +275,31 @@ class SilGen:
 		var alignment = 1
 		var offset = 0
 		let fields: Vector[StructField] = new_vector_with_capacity(capacity: struct_def.fields.len())
+		let ptr_offsets: List[int] = List()
 		for field in struct_def.fields:
 			fields.append(StructField(offset, ty: field.ty))
+			if is_heap(field.ty):
+				ptr_offsets.append(offset)
 			# TODO: take alignment into account
 			let field_size = get_size_of(field.ty)
 			offset += field_size
 			alignment = max(alignment, field_size)
-		m_structs.append(StructLayout(size: offset, alignment, fields))
+
+		# Create GC information:
+		let gc_info = if ptr_offsets.is_empty():
+			Option.None()
+		else:
+			# Emit literal with pointer offsets
+			let blob = List()
+			ptr_offsets.append(-1)  # Terminator
+			let contents: List[sil.BlobContent] = List()
+			for ptr_offset in ptr_offsets:
+				# int = 4 bytes on 64 bit, hence pack as i32
+				contents.append(sil.BlobContent.Raw(pack_i32(value: int32(ptr_offset))))
+			let name = "_lit_struct_gc_info_{new_id()}"
+			m_blobs.append(sil.DataBlob(name, is_local: true, readonly: false, contents))
+			Option.Some(sil.Address.Global(name, mutable: false))
+		m_structs.append(StructLayout(size: offset, alignment, fields, gc_info))
 
 	fn get_size_of(ty?: bc.Type) -> int:
 		case ty:
@@ -279,14 +314,11 @@ class SilGen:
 					8
 				else:
 					panic("Unsupported integer bit size: {bits} bits int type")
-			Bool:
-				get_word_size()
-			Char:
-				get_word_size()
-			Str:
-				get_word_size()
-			Ptr:
-				get_word_size()
+			Bool: get_word_size()
+			Char: get_word_size()
+			Str: get_word_size()
+			Ptr: get_word_size()
+			FuncPtr: get_word_size()
 			Float(bits):
 				if bits == 32:
 					4
@@ -352,6 +384,8 @@ class SilGen:
 				get_ptr_type()
 			Ptr:
 				get_ptr_type()
+			FuncPtr:
+				get_ptr_type()
 			Float(bits):
 				get_float_type(bits)
 			Array(element_type):
@@ -361,8 +395,7 @@ class SilGen:
 			Function(parameter_types, return_type):
 				get_ptr_type()
 
-	fn gen_function(function: bc.Function):
-		log_debug("Gen SIL-code for function {function.name}")
+	fn begin_func():
 		m_blocks = new_vector()
 		m_value_stack.clear()
 		m_parameters = List()
@@ -370,6 +403,10 @@ class SilGen:
 		m_return_slots.clear()
 		m_stack_offset = 0
 		m_tmp_number = 0
+
+	fn gen_function(function: bc.Function):
+		log_debug("Gen SIL-code for function {function.name}")
+		begin_func()
 		let start = new_block(name: "start")
 		set_current_block(start)
 
@@ -394,12 +431,11 @@ class SilGen:
 
 		# Create stack slots for mutable locals:
 		for local_var in function.locals:
-			# TODO: Having all variables mutable is faster, since we do not trigger register spilling later on.
-			if true or local_var.writable:
-				let address = new_stack_slot(size: get_size_of(local_var.ty))
-				m_locals.append(LocalStorage.Mutable(address: TypedAddress(address, ty: local_var.ty)))
-			else:
-				m_locals.append(LocalStorage.Undefined())
+			let address = new_stack_slot(size: get_size_of(local_var.ty))
+			let typed_address = TypedAddress(address, ty: local_var.ty)
+			m_locals.append(typed_address)
+			if is_heap(local_var.ty):
+				gen_store(address: typed_address, value: load_null_ptr())
 
 		let target_indici = bc.get_target_labels(instructions: function.instructions)
 		index = 0
@@ -413,7 +449,7 @@ class SilGen:
 			gen_opcode(opcode)
 			index += 1
 
-		let sil_function = sil.Function(name: function.name, parameters, stacksize: m_stack_offset, start, blocks: m_blocks)
+		let sil_function = sil.Function(name: function.name, parameters, stacksize: m_stack_offset, start, blocks: m_blocks, is_constructor: false)
 		m_functions.append(sil_function)
 
 	fn make_label(x?: uint32) -> str:
@@ -426,174 +462,176 @@ class SilGen:
 				pass
 			Dup:
 				let value = pop()
-				push(value.value, ty: value.ty)
-				push(value.value, ty: value.ty)
+				push(value.value, ty: value.ty, owned: value.owned)
+				push(value.value, ty: value.ty, owned: false)
 			Swap:
 				let value1 = pop()
 				let value2 = pop()
-				push(value1.value, ty: value1.ty)
-				push(value2.value, ty: value2.ty)
+				push(value1.value, ty: value1.ty, owned: value1.owned)
+				push(value2.value, ty: value2.ty, owned: value2.owned)
 			Literal(literal):
 				case literal:
 					Int(value):
 						push_int(value)
 					Float(value):
 						let address = add_f64_blob(value)
-						gen_load(address)
+						gen_load(address, owned: false)
 					Str(text):
 						let data = pack_str(text)
 						let literal_address = add_data_blob(data)
 						let dst_value = new_tmp(ty: get_ptr_type())
 						emit(sil.OpCode.GetAddress(dst_value, literal_address))
-						push(dst_value, ty: bc.Type.Str())
+						call_rt_function_1(name: "rt_str_new", ty: bc.Type.Str(), argument: dst_value)
 					Bool(value):
-						if value:
-							push_int(1)
-						else:
-							push_int(0)
+						push_int(1 if value else 0)
 					Char(value):
 						push_int(ord(value))
 					Null:
 						push_int(0)
 			StructLiteral(index):
-				# malloc
-				let size = m_structs.get(index).size
+				let info = m_structs.get(index)
+				let size = info.size
 				let byte_size_tmp = load_int(value: size)
-				call_rt_malloc(size: byte_size_tmp, ty: bc.Type.StructRef(index))
+				let type_info_ptr = case info.gc_info:
+					None:
+						load_int(value: 0)
+					Some(literal_address):
+						let dst_value = new_tmp(ty: get_ptr_type())
+						emit(sil.OpCode.GetAddress(dst_value, literal_address))
+						dst_value
+				call_rt_function(name: "rt_malloc_struct", ty: bc.Type.StructRef(index), arguments: vec2(byte_size_tmp, type_info_ptr))
 			ArrayLiteral(ty):
 				let count_tmp = pop()
 				let element_size = get_size_of(ty)
 				let element_size_tmp = load_int(value: element_size)
-				let byte_size_tmp = new_tmp(ty: get_word_type())
-				emit(sil.OpCode.Binop(dst: byte_size_tmp, op2: sil.BinaryOp.Mul(), lhs: count_tmp.value, rhs: element_size_tmp))
-				call_rt_malloc(size: byte_size_tmp, ty: bc.Type.Array(ty))
+				let elements_are_pointers = load_int(value: 1 if is_heap(ty) else 0)
+				call_rt_function(name: "rt_malloc_array", ty: bc.Type.Array(ty), arguments: vec3(count_tmp.value, element_size_tmp, elements_are_pointers))
 			ToOpaque(ty3):
 				let ty = bc.Type.Ptr()
+				let value = pop()
 				case ty3:
 					Int(signed, bits):
-						let value = pop()
 						let name = "slangrt_box_int{bits}" if signed else "slangrt_box_uint{bits}"
 						call_rt_function_1(name, ty, argument: value.value)
 					Float(bits):
-						let value = pop()
 						let name = "slangrt_box_float{bits}"
 						call_rt_function_1(name, ty, argument: value.value)
 					Bool:
-						let value = pop()
 						call_rt_function_1(name: "slangrt_box_bool", ty, argument: value.value)
 					Char:
-						let value = pop()
 						call_rt_function_1(name: "slangrt_box_char", ty, argument: value.value)
 					Ptr:
-						pass
+						push(value.value, ty, owned: value.owned)
+					FuncPtr:
+						panic("Cannot box function pointer")
 					Str:
-						let value = pop()
-						push(value.value, ty)
+						push(value.value, ty, owned: value.owned)
 					StructRef(index):
-						let value = pop()
-						push(value.value, ty)
+						push(value.value, ty, owned: value.owned)
 					Function(parameter_types, return_type):
 						panic("Cannot box function")
 					Array(element_type):
-						let value = pop()
-						push(value.value, ty)
+						push(value.value, ty, owned: value.owned)
 			FromOpaque(ty):
+				let value = pop()
 				case ty:
 					Int(signed, bits):
-						let value = pop()
 						let name = "slangrt_unbox_int{bits}" if signed else "slangrt_unbox_uint{bits}"
 						call_rt_function_1(name, ty, argument: value.value)
+						drop(value)
 					Float(bits):
-						let value = pop()
 						let name = "slangrt_unbox_float{bits}"
 						call_rt_function_1(name, ty, argument: value.value)
+						drop(value)
 					Char:
-						let value = pop()
 						call_rt_function_1(name: "slangrt_unbox_char", ty, argument: value.value)
+						drop(value)
 					Bool:
-						let value = pop()
 						call_rt_function_1(name: "slangrt_unbox_bool", ty, argument: value.value)
+						drop(value)
 					Ptr:
-						pass
+						push(value.value, ty, owned: value.owned)
+					FuncPtr:
+						panic("Cannot unbox ptr to function pointer")
 					Function(parameter_types, return_type):
 						panic("Cannot unbox ptr to function")
 					Str:
-						let value = pop()
-						push(value.value, ty)
+						push(value.value, ty, owned: value.owned)
 					StructRef(index):
-						let value = pop()
-						push(value.value, ty)
+						push(value.value, ty, owned: value.owned)
 					Array(element_type):
-						let value = pop()
-						push(value.value, ty)
+						push(value.value, ty, owned: value.owned)
 			Binop(op, ty):
 				let rhs = pop()
 				let lhs = pop()
 				let op2 = case op:
-					Add:
-						sil.BinaryOp.Add()
-					Sub:
-						sil.BinaryOp.Sub()
-					Divide:
-						sil.BinaryOp.Div()
-					Modulo:
-						sil.BinaryOp.Mod()
-					Multiply:
-						sil.BinaryOp.Mul()
+					Add: sil.BinaryOp.Add()
+					Sub: sil.BinaryOp.Sub()
+					Divide: sil.BinaryOp.Div()
+					Modulo: sil.BinaryOp.Mod()
+					Multiply: sil.BinaryOp.Mul()
 				let dst = new_tmp(ty: lhs.value.ty)
-				push(dst, ty: lhs.ty)
+				push(dst, ty: lhs.ty, owned: false)
 				emit(sil.OpCode.Binop(dst, op2, lhs: lhs.value, rhs: rhs.value))
 			GlobalGet(index):
 				let address = m_globals.get(index)
-				gen_load(address)
+				gen_load(address, owned: false)
 			GlobalSet(index):
 				let address = m_globals.get(index)
 				let value = pop()
+				if is_heap(address.ty):
+					transfer_to_owned(address, value)
 				gen_store(address, value)
 			LocalGet(index):
-				case m_locals[index]:
-					Mutable(address):
-						gen_load(address)
-					Undefined:
-						panic("Bad")
-					Defined(value):
-						push(value: value.value, ty: value.ty)
+				let address = m_locals[index]
+				gen_load(address, owned: false)
 			LocalSet(index):
 				let value = pop()
-				case m_locals[index]:
-					Mutable(address):
-						gen_store(address, value)
-					Undefined:
-						m_locals.set(index, value: LocalStorage.Defined(value))
-					Defined(value):
-						panic("Double define of read-only variable")
+				let address = m_locals[index]
+				if is_heap(value.ty):
+					transfer_to_owned(address, value)
+				gen_store(address, value)
 			ParameterGet(index):
 				let address = m_parameters[index]
-				gen_load(address)
+				gen_load(address, owned: false)
 			ParameterSet(index):
 				let address = m_parameters[index]
+				if is_heap(address.ty):
+					panic("Cannot write to heap typed parameters")
 				let value = pop()
 				gen_store(address, value)
 			GetIndex:
 				let index = pop()
 				let base = pop()
 				let address = gen_element_address(base, index)
-				gen_load(address)
+				gen_load(address, owned: false)
 			SetIndex:
 				let value = pop()
 				let index = pop()
 				let base = pop()
 				let address = gen_element_address(base, index)
+				if is_heap(value.ty):
+					transfer_to_owned(address, value)
 				gen_store(address, value)
+				drop(base)
 			GetAttr(index):
 				let base = pop()
 				let address = gen_struct_address(base, index)
-				gen_load(address)
+				var owned = false
+				if is_heap(address.ty) and base.owned:
+					owned = true
+				gen_load(address, owned)
+				if owned:
+					inc_ref(m_value_stack.last())
+				drop(base)
 			SetAttr(index):
 				let value = pop()
 				let base = pop()
 				let address = gen_struct_address(base, index)
+				if is_heap(value.ty):
+					transfer_to_owned(address, value)
 				gen_store(address, value)
+				drop(base)
 			JumpIf(op, label1, label2):
 				let rhs = pop()
 				let lhs = pop()
@@ -629,13 +667,15 @@ class SilGen:
 				let callee = sil.Address.Ptr(addr: target.value)
 				gen_call(callee, n_args: parameter_types.len(), return_types)
 			Return(v):
-				if v == 0:
-					emit(sil.OpCode.Return(value: Option.None()))
+				let optional_value: Option[sil.Value] = if v == 0:
+					Option.None()
 				else:
 					if v > 1:
-						let values = pop_n_typed(count: v - 1)
+						let values = pop_n(count: v - 1)
 						var index = 0
 						for value in values:
+							if not value.owned:
+								inc_ref(value)
 							let return_slot = m_return_slots.get(index)  # Pointer to pointer to return value
 							let ret_ptr = new_tmp(ty: get_ptr_type())
 							emit(sil.OpCode.Load(dst: ret_ptr, address: return_slot.address.address))
@@ -643,19 +683,28 @@ class SilGen:
 							gen_store(address, value)
 							index += 1
 					let value = pop()
-					emit(sil.OpCode.Return(value: Option.Some(value.value)))
+					if not value.owned:
+						inc_ref(value)
+					Option.Some(value.value)
+
+				# Decrease references of local variables:
+				for local_var in m_locals:
+					if is_heap(local_var.ty):
+						gen_load(address: local_var, owned: true)
+						dec_ref(pop())
+				emit(sil.OpCode.Return(value: optional_value))
 			Unreachable:
 				emit(sil.OpCode.Halt())
 			IntToFloat(bits):
 				let dst = new_tmp(ty: get_float_type(bits))
 				let value = pop()
 				emit(sil.OpCode.Convert(signed: true, dst, value: value.value))
-				push(dst, ty: bc.Type.Float(bits))
+				push(dst, ty: bc.Type.Float(bits), owned: false)
 			FloatToInt(signed, bits):
 				let dst = new_tmp(ty: get_int_type(bits))
 				let value = pop()
 				emit(sil.OpCode.Convert(signed: true, dst, value: value.value))
-				push(dst, ty: bc.Type.Int(signed: true, bits))
+				push(dst, ty: bc.Type.Int(signed: true, bits), owned: false)
 			IntCast(signed, bits):
 				let dst = new_tmp(ty: get_int_type(bits))
 				let value = pop()
@@ -665,19 +714,19 @@ class SilGen:
 				else:
 					panic("Invalid type for int cast")
 				emit(sil.OpCode.Convert(signed: src_is_signed, dst, value: value.value))
-				push(dst, ty: bc.Type.Int(signed, bits))
+				push(dst, ty: bc.Type.Int(signed, bits), owned: false)
 			FloatCast(bits):
 				let dst = new_tmp(ty: get_float_type(bits))
 				let value = pop()
 				emit(sil.OpCode.Convert(signed: true, dst, value: value.value))
-				push(dst, ty: bc.Type.Float(bits))
+				push(dst, ty: bc.Type.Float(bits), owned: false)
 			Not:
 				# Xor with 1, to toggle boolean value.
 				let value = pop()
 				let one = load_int(value: 1)
 				let dst = new_tmp(ty: get_word_type())
 				emit(sil.OpCode.Bitop(dst, op: sil.BitwiseOp.Xor(), lhs: value.value, rhs: one))
-				push(dst, ty: bc.Type.Int(signed: true, bits: 64))
+				push(dst, ty: bc.Type.Int(signed: true, bits: 64), owned: false)
 			Neg:
 				let value = pop()
 				case value.ty:
@@ -685,26 +734,23 @@ class SilGen:
 						let zero = load_int(value: 0)
 						let dst = new_tmp(ty: get_int_type(bits))
 						emit(sil.OpCode.Binop(dst, op: sil.BinaryOp.Sub(), lhs: zero, rhs: value.value))
-						push(dst, ty: bc.Type.Int(signed, bits))
+						push(dst, ty: bc.Type.Int(signed, bits), owned: false)
 					Float(bits):
 						let address = add_f64_blob(value: 0.0)
-						gen_load(address)
+						gen_load(address, owned: false)
 						let zero = pop()
 						let dst = new_tmp(ty: get_float_type(bits))
 						emit(sil.OpCode.Binop(dst, op: sil.BinaryOp.Sub(), lhs: zero.value, rhs: value.value))
-						push(dst, ty: bc.Type.Float(bits))
+						push(dst, ty: bc.Type.Float(bits), owned: false)
 				else:
 					unimplemented("NEG for {bc.type_to_string(value.ty)}")
 			Bitop(op, ty):
 				let rhs = pop()
 				let lhs = pop()
 				let op2 = case op:
-					And:
-						sil.BitwiseOp.And()
-					Or:
-						sil.BitwiseOp.Or()
-					Xor:
-						sil.BitwiseOp.Xor()
+					And: sil.BitwiseOp.And()
+					Or: sil.BitwiseOp.Or()
+					Xor: sil.BitwiseOp.Xor()
 					Shr:
 						case ty:
 							Int(signed, bits):
@@ -714,19 +760,18 @@ class SilGen:
 									sil.BitwiseOp.Shr()
 						else:
 							unimplemented("Shift right for non-integer types")
-					Shl:
-						sil.BitwiseOp.Shl()
+					Shl: sil.BitwiseOp.Shl()
 				let dst = new_tmp(ty: lhs.value.ty)
-				push(dst, ty)
 				emit(sil.OpCode.Bitop(dst, op2, lhs: lhs.value, rhs: rhs.value))
+				push(dst, ty, owned: false)
 			DecRef(index):
-				log_warning("Dec ref implemented as no-op")
+				panic("Dec ref not implemented")
 			LoadFunc(index):
 				let name = get_function_name(index)
 				let address = sil.Address.Global(name, mutable: true)
 				let dst_value = new_tmp(ty: get_ptr_type())
 				emit(sil.OpCode.GetAddress(dst_value, address))
-				push(dst_value, ty: bc.Type.Ptr())
+				push(dst_value, ty: bc.Type.FuncPtr(), owned: false)
 
 	fn get_function_name(index: int) -> str:
 		if index < m_bc_program.extern_functions.len():
@@ -737,11 +782,17 @@ class SilGen:
 			let function = m_bc_program.functions.get(index)
 			function.name
 
-	fn gen_load(address: TypedAddress):
+	fn transfer_to_owned(address: TypedAddress, value: TypedValue):
+		if not value.owned:
+			inc_ref(value)
+		gen_load(address, owned: true)
+		dec_ref(pop())
+
+	fn gen_load(address: TypedAddress, owned: bool):
 		"""Load value from address"""
 		let value = new_tmp(ty: get_sil_type(ty: address.ty))
 		emit(sil.OpCode.Load(dst: value, address: address.address))
-		push(value, ty: address.ty)
+		push(value, ty: address.ty, owned)
 
 	fn gen_store(address: TypedAddress, value: TypedValue):
 		emit(sil.OpCode.Store(address: address.address, value: value.value))
@@ -775,7 +826,10 @@ class SilGen:
 		TypedAddress(address: sil.Address.Ptr(addr), ty: field.ty)
 
 	fn gen_call(callee: sil.Address, n_args: int, return_types: Vector[bc.Type]):
-		let arguments = pop_n(count: n_args)
+		let arguments2 = pop_n(count: n_args)
+		let arguments: Vector[sil.Value] = new_vector_with_capacity(capacity: arguments2.len())
+		for argument in arguments2:
+			arguments.append(argument.value)
 
 		if return_types.is_empty():
 			emit(sil.OpCode.Call(Option.None(), callee, arguments))
@@ -797,12 +851,16 @@ class SilGen:
 				new_arguments.extend(arguments)
 
 				emit(sil.OpCode.Call(Option.Some(value), callee, arguments: new_arguments))
-				push(value, ty)
+				push(value, ty, owned: true)
 				for address in extra_values:
-					gen_load(address)
+					gen_load(address, owned: true)
 			else:
 				emit(sil.OpCode.Call(Option.Some(value), callee, arguments))
-				push(value, ty)
+				push(value, ty, owned: true)
+
+		for argument in arguments2:
+			if is_heap(argument.ty) and argument.owned:
+				dec_ref(argument)
 
 	fn call_rt_malloc(size: sil.Value, ty: bc.Type):
 		call_rt_function_1(name: "rt_malloc", ty, argument: size)
@@ -811,17 +869,30 @@ class SilGen:
 		let arguments: Vector[sil.Value] = vec1(argument)
 		call_rt_function(name, ty, arguments)
 
+	fn call_rt_function_2(name: str, ty: bc.Type, argument1: sil.Value, argument2: sil.Value):
+		let arguments: Vector[sil.Value] = vec2(argument1, argument2)
+		call_rt_function(name, ty, arguments)
+
 	fn call_rt_function(name: str, ty: bc.Type, arguments: Vector[sil.Value]):
 		"""Invoke runtime helper function"""
 		let callee = sil.Address.Global(name, mutable: false)
 		let value = new_tmp(ty: get_sil_type(ty))
 		emit(sil.OpCode.Call(Option.Some(value), callee, arguments))
-		push(value, ty)
+		push(value, ty, owned: true)
+
+	fn call_void_rt_function(name: str, arguments: Vector[sil.Value]):
+		let callee = sil.Address.Global(name, mutable: false)
+		emit(sil.OpCode.Call(Option.None(), callee, arguments))
 
 	fn load_int(value: int) -> sil.Value:
 		let dst = new_tmp(ty: get_word_type())
 		emit(sil.OpCode.Const(dst, value))
 		dst
+
+	fn load_null_ptr() -> TypedValue:
+		let dst = new_tmp(ty: get_word_type())
+		emit(sil.OpCode.Const(dst, value: 0))
+		TypedValue(value: dst, ty: bc.Type.Ptr(), owned: true)
 
 	fn new_block(name: str) -> sil.Block:
 		let instructions: Vector[sil.Instruction] = new_vector()
@@ -864,27 +935,27 @@ class SilGen:
 
 	fn push_int(value?: int):
 		let dst = load_int(value)
-		push(dst, ty: bc.Type.Int(signed: true, bits: 64))
+		push(dst, ty: bc.Type.Int(signed: true, bits: 64), owned: false)
 
-	fn push(value?: sil.Value, ty: bc.Type):
-		m_value_stack.append(TypedValue(value, ty))
+	fn push(value?: sil.Value, ty: bc.Type, owned: bool):
+		m_value_stack.append(TypedValue(value, ty, owned))
 
 	fn pop() -> TypedValue:
 		m_value_stack.pop_last()
 
-	fn pop_n(count: int) -> Vector[sil.Value]:
-		let values: Vector[sil.Value] = new_vector_with_capacity(capacity: count)
-		if count > m_value_stack.len():
-			panic("Cannot pop {count} values")
-		var index = m_value_stack.len() - count
-		while values.len() < count:
-			let val = m_value_stack.get(index)
-			values.append(val.value)
-			index += 1
-		m_value_stack.drop_last_n(n: count)
-		values
+	fn drop(value?: TypedValue):
+		if is_heap(value.ty) and value.owned:
+			dec_ref(value)
 
-	fn pop_n_typed(count: int) -> List[TypedValue]:
+	fn inc_ref(value?: TypedValue):
+		if is_heap(value.ty):
+			call_void_rt_function(name: "rt_inc_ref", arguments: vec1(value.value))
+
+	fn dec_ref(value?: TypedValue):
+		if is_heap(value.ty):
+			call_void_rt_function(name: "rt_dec_ref", arguments: vec1(value.value))
+
+	fn pop_n(count: int) -> List[TypedValue]:
 		let values: List[TypedValue] = List()
 		while values.len() < count:
 			values.prepend(pop())
@@ -929,7 +1000,7 @@ fn pack_i64(value: int) -> Bytes:
 fn pack_i32(value: int32) -> Bytes:
 	"""Place 64 bits integer into 8 bytes"""
 	let ba = ByteArray()
-	ba.pack_u64_le(int(value))
+	ba.pack_u32_le(int(value))
 	ba.to_bytes()
 
 fn pack_i16(value: int16) -> Bytes:

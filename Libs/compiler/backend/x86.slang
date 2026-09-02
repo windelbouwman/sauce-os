@@ -560,13 +560,17 @@ pub fn emit_instruction(instruction?: Instruction, out: BinaryOutput):
 			write_rm_reg(rm, reg, out)
 		CvtSs2Sd(reg, rm):
 			out.write_byte(0xF3)
-			write_rex_byte(out, reg)
+			if reg > 7:
+				# Only emit rex byte when actually required
+				write_rex_byte(out, reg)
 			out.write_byte(0x0F)
 			out.write_byte(0x5A)
 			write_rm_reg(rm, reg, out)
 		CvtSd2Ss(reg, rm):
 			out.write_byte(0xF2)
-			write_rex_byte(out, reg)
+			if reg > 7:
+				# Only emit rex byte when actually required
+				write_rex_byte(out, reg)
 			out.write_byte(0x0F)
 			out.write_byte(0x5A)
 			write_rm_reg(rm, reg, out)

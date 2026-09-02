@@ -608,7 +608,8 @@ class PointerType(TypeKind):
 
 
 def pointer_type(element_type) -> Type:
-    return Type(PointerType(element_type))
+    # return Type(PointerType(element_type))
+    return element_type
 
 
 def tycon_apply(tycon: TypeConstructor, type_args: list[Type]) -> Type:

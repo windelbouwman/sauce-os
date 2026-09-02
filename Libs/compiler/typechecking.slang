@@ -326,7 +326,10 @@ class TypeChecker:
 				# TODO: clone type?
 				# log_trace("Parameter {ast.node_id_to_string(parameter.id)}: {parameter.ty}")
 				expression.ty = parameter_def.ty
-				expression.writable = true
+				if parameter_def.ty.is_int() or parameter_def.ty.is_float() or parameter_def.ty.is_char():
+					expression.writable = true
+				else:
+					expression.writable = false
 			VariableRef(variable):
 				# log_trace("Var ref {ast.node_id_to_string(variable.id)}: {variable.ty}")
 				expression.ty = variable.ty
@@ -400,14 +403,16 @@ class TypeChecker:
 			GetIndex(base, indici):
 				if base.ty.is_array():
 					expression.ty = base.ty.get_element_type()
-					expression.writable = base.writable
+					expression.writable = true
 				elif base.ty.has_method(strtab.intern("get")):
 					# Maybe we try to access an object with get/set interface
 					# TODO: we have a few assumptions here, which panic. Should be proper warning:
 					let val_ty: ast.Type = base.ty.get_field_type(attr: strtab.intern("get")).get_return_type()
 					expression.ty = val_ty
+					expression.writable = false
 				elif base.ty.is_str():
 					expression.ty = m_typectx.char_type()
+					expression.writable = false
 				else:
 					add_error(location: expression.location, message: "Got {ast.type_to_string(strtab, base.ty)}, expected array or indexable type")
 

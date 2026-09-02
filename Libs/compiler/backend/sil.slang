@@ -76,6 +76,7 @@ pub class Function:
 	pub var stacksize: int
 	pub var start: Block
 	pub var blocks: Vector[Block]
+	pub var is_constructor: bool
 
 	pub fn to_string() -> str:
 		let args = comma_sep(values: parameters)
