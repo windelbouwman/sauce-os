@@ -1,17 +1,25 @@
 {
   "name": "slang-lang",
-  "displayName": "slang-lang",
+  "displayName": "Slang lang",
   "description": "Slang lang syntax highlighter and language server",
   "version": "0.0.1",
-  "publisher": "Windel Bouwman",
+  "license": "MIT",
+  "publisher": "slang-lang",
+  "author": {
+    "name": "Windel Bouwman"
+  },
   "engines": {
     "vscode": "^1.77.0"
   },
   "categories": [
     "Programming Languages"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/windelbouwman/sauce-os"
+  },
   "activationEvents": [],
-  "main": "./out/extension",
+  "main": "./dist/extension",
   "contributes": {
     "languages": [
       {
@@ -50,6 +58,8 @@
     }
   },
   "scripts": {
+    "vscode:prepublish": "npm run package",
+    "package": "npm run compile && node esbuild.js",
     "compile": "tsc -b",
     "watch": "tsc -b -w"
   },
@@ -58,7 +68,9 @@
   },
   "devDependencies": {
     "@types/node": "^18.0.0",
-    "@types/vscode": "^1.77.0"
+    "@types/vscode": "^1.77.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^7.0.2"
   },
   "extensionDependencies": [
     "ms-python.python"

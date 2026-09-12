@@ -16,7 +16,7 @@ export function activate(context: ExtensionContext) {
   // context.workspaceState.
   const devMode: boolean = workspace
     .getConfiguration("slang-lang")
-    .get("language-server-dev-mode");
+    .get("language-server-dev-mode", false);
 
   let serverOptions: ServerOptions;
   if (devMode) {
@@ -60,7 +60,7 @@ export function activate(context: ExtensionContext) {
     "slang-lang",
     "Slang-Lang",
     serverOptions,
-    clientOptions
+    clientOptions,
   );
 
   client.start();
