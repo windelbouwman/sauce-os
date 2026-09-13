@@ -1,0 +1,50 @@
+name: VS Code Extension
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-vs-code-extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: language-server/slang-lang
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install
+      - name: Compile
+        run: npm run compile
+      - name: Package extension
+        run: npx @vscode/vsce package
+      - name: Store VSIX as artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: "language-server/slang-lang/*.vsix"
+
+  test-language-server:
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.14"]
+        os: ["ubuntu-latest", "windows-latest"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Install python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r compiler1/requirements.txt -r language-server/slang-lang/requirements.txt
+      - name: Test with pytest
+        run: pytest language-server/slang-lang/test_server.py -v
