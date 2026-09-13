@@ -1,0 +1,25 @@
+{
+    "Function": {
+        "prefix": "fn",
+        "body": [
+            "fn $1():",
+            "\tpass"
+        ]
+    },
+    "For": {
+        "prefix": "for",
+        "body": [
+            "for $1 in $2:",
+            "\t$2"
+        ]
+    },
+    "If": {
+        "prefix": "if",
+        "body": [
+            "if $1:",
+            "\t$2",
+            "else:",
+            "\t$3"
+        ]
+    }
+}

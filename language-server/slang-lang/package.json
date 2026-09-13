@@ -31,7 +31,11 @@
         "extensions": [
           ".slang"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "dark": "./slang-lang-icon.svg",
+          "light": "./slang-lang-icon.svg"
+        }
       }
     ],
     "grammars": [
@@ -39,6 +43,12 @@
         "language": "slang",
         "scopeName": "source.slang",
         "path": "./syntaxes/slang.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "slang",
+        "path": "./snippets/slang.code-snippets"
       }
     ],
     "configuration": {
