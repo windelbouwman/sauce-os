@@ -412,17 +412,18 @@ fn base_scope(strtab: StringTable, typectx: ast.TypeContext) -> ast.Scope:
 
 fn enter_namespace(namespace: ast.NamespaceDef, path: List[uint32]) -> Option[ast.NamespaceDef]:
 	"""Follow a path to a namespace"""
+	var found_ns = namespace
 	for name in path:
-		case namespace.scope.lookup(name):
+		case found_ns.scope.lookup(name):
 			Some(symbol):
 				case symbol.kind:
 					Namespace(ns):
-						namespace = ns
+						found_ns = ns
 				else:
 					return Option.None()
 			None:
 				return Option.None()
-	Option.Some(namespace)
+	Option.Some(found_ns)
 
 class NameBinder:
 	"""Helper class to fill scopes, and resolve names from scopes."""

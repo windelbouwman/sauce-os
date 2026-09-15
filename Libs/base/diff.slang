@@ -345,8 +345,8 @@ fn is_even(x?: int) -> bool:
 
 fn group_edits[T](edits: List[Edit[T]]) -> List[Edit[T]]:
 	"""Post process edits"""
-	edits = fold_edits(edits, fold_func: merge_two_edits)
-	fold_edits(edits, fold_func: add_change_edits)
+	let merged_edits = fold_edits(edits, fold_func: merge_two_edits)
+	fold_edits(edits: merged_edits, fold_func: add_change_edits)
 
 fn fold_edits[T](edits: List[Edit[T]], fold_func: fn(Edit[T], Edit[T]) -> Option[Edit[T]]) -> List[Edit[T]]:
 	"""Try to merge edits by using the given fold_func."""

@@ -59,6 +59,13 @@ class Codegen[C,V]:
 		out.set_allocate()
 		for blob in program.blobs:
 			gen_blob(blob, out)
+		out.select_section(name: ".init_array.00109")
+		out.set_allocate()
+		out.set_writable()
+		# TODO: set type to INIT_ARRAY
+		for function in program.functions:
+			if function.is_constructor:
+				backend.emit_data(DataItem.AbsPointer64(function.name), out)
 		case options.debug:
 			Some(info):
 				gen_debug_info(info, out, emit_data: backend.emit_data)
@@ -88,11 +95,14 @@ class Codegen[C,V]:
 		backend.emit_epilogue(frame, out)
 		case options.debug:
 			Some(info):
-				let end_label = "{function.name}_@exit2"
-				out.local_symbol(end_label)
-				let dbg_func = info.get_function_by_name(name: function.name)
-				dbg_func.start_label = function.name
-				dbg_func.end_label = end_label
+				case info.get_function_by_name(name: function.name):
+					Some(dbg_func):
+						let end_label = "{function.name}_@exit2"
+						out.local_symbol(end_label)
+						dbg_func.start_label = function.name
+						dbg_func.end_label = end_label
+					None:
+						pass
 			None:
 				pass
 		out.do_fixups(fixer: backend.fixer, is_pic_reloc: backend.is_pic_reloc)

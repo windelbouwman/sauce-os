@@ -11,7 +11,7 @@ from base.listtype import List
 from base.settype import Set, new_str_set
 from base.optiontype import Option, option_is_none
 from base.fs import Path
-from base.vectype import Vector, new_vector
+from base.vectype import Vector, new_vector, new_vector_with_capacity
 import vm
 import bc
 from text_gen import TextGenerator
@@ -54,9 +54,11 @@ pub fn gen_c_code(program: bc.Program, output_filename: Option[Path], create_hea
 struct Value:
 	ty: bc.Type
 	name: str
+	owned: bool
 
 struct Local:
-	value: Value
+	ty: bc.Type
+	name: str
 	writable: bool
 
 fn is_heap(ty?: bc.Type) -> bool:
@@ -66,7 +68,6 @@ fn is_heap(ty?: bc.Type) -> bool:
 		Array(element_type): true
 		Str: true
 		Ptr: true
-		Function(parameter_types, return_type): true
 	else:
 		false
 
@@ -194,15 +195,31 @@ class CGenerator:
 	fn gen_global(global: bc.Global):
 		case global.value:
 			Some(code):
-				let value = vm.eval_code(vm: m_vm, code)
-				let text = gen_vm_value(ty: global.ty, value)
 				gen_typed_name(ty: global.ty, name: global.name)
 				write(" = ")
-				write(text)
+				if is_heap(global.ty):
+					write("NULL")
+					emit(";")
+					# Create init code:
+					let init_func_name = "_init_{global.name}"
+					emit("void __attribute__((constructor(109))) {init_func_name}() \{")
+					indent()
+					for instruction in code:
+						gen_instruction(instruction)
+					let v = pop()
+					emit("{global.name} = {v.name};")
+					dedent()
+					emit("}")
+					# IDEA: emit destructor as well!
+				else:
+					let value = vm.eval_code(vm: m_vm, code)
+					let text = gen_vm_value(ty: global.ty, value)
+					write(text)
+					emit(";")
 			None:
 				write("extern ")
 				gen_typed_name(ty: global.ty, name: global.name)
-		emit(";")
+				emit(";")
 
 	fn gen_vm_value(ty: bc.Type, value: vm.Value) -> str:
 		case value:
@@ -226,31 +243,8 @@ class CGenerator:
 				"1" if v else "0"
 			Float(value):
 				float_to_str2(value, digits: 20)
-			Str(v):
-				"\"{v}\""
 			Char(v):
 				"'{v}'"
-			List(v):  # Struct
-				let name = new_local_var()
-				let index = case ty:
-					StructRef(index):
-						index
-				else:
-					panic("Expect struct type")
-				let struct_def = structs.get(index)
-
-				let parts: List[str] = List()
-				var i = 0
-				for v2 in v.values:
-					parts.append(gen_vm_value(ty: struct_def.fields[i].ty, value: v2))
-					i += 1
-
-				write("struct {struct_def.name} {name} = \{")
-				for part in parts:
-					write(part)
-					write(", ")
-				emit("\};")
-				"&{name}"
 		else:
 			panic("Unsupported initial value")
 
@@ -284,7 +278,7 @@ class CGenerator:
 			let name = "Retval_{index}"
 			let ty = return_types.get(index)
 			if fill_param:
-				local_return_ptrs.append(Value(name, ty))
+				local_return_ptrs.append(Value(name, ty, owned: false))
 			if first:
 				first = false
 			else:
@@ -295,7 +289,7 @@ class CGenerator:
 		for parameter in parameters:
 			let name = "P{index}_{parameter.name}"
 			if fill_param:
-				local_parameters.append(Value(name, ty: parameter.ty))
+				local_parameters.append(Value(name, ty: parameter.ty, owned: false))
 			if first:
 				first = false
 			else:
@@ -307,36 +301,22 @@ class CGenerator:
 	fn gen_function(function: bc.Function):
 		log_trace("Generating bytecode for {function.name}")
 		next_id = 1
-		local_variables = new_vector()
-		local_parameters = new_vector()
+		local_variables = new_vector_with_capacity(capacity: function.locals.len())
+		local_parameters = new_vector_with_capacity(capacity: function.parameters.len())
 		local_return_ptrs = new_vector()
 
 		gen_function_signature(return_types: function.return_types, name: function.name, parameters: function.parameters, fill_param: true)
 		emit(" \{")
 		indent()
-		# emit("struct localzz \{")
-		# indent()
 		for local in function.locals:
 			let varname = new_named_local_var(name: local.name)
-			if local.writable:
-				gen_typed_name(ty: local.ty, name: varname)
-				if is_heap(local.ty):
-					write(" = NULL")
-				emit(";")
-			local_variables.append(Local(value: Value(name: varname, ty: local.ty), writable: local.writable))
-		# dedent()
-		# emit("\} localz;")
-		# for value in local_variables:
-		#     if is_heap(value.ty):
-		#         emit("localz.{value.name} = NULL;")
-		# emit("int offsets[] = \{")
-		# indent()
-		# for value in local_variables:
-		#     if is_heap(value.ty):
-		#         emit("offsetof(struct localzz, {value.name}),")
-		# dedent()
-		# emit("-1 };")
-		emit("// Localz")
+			gen_typed_name(ty: local.ty, name: varname)
+			if is_heap(local.ty):
+				write(" = NULL")
+			emit(";")
+			local_variables.append(Local(name: varname, ty: local.ty, writable: local.writable))
+		if not local_variables.is_empty():
+			emit("")
 
 		let target_labels = bc.get_target_labels(instructions: function.instructions)
 		var index = uint32(0)
@@ -358,7 +338,10 @@ class CGenerator:
 			Dup:
 				let value = pop()
 				push(value)
-				push(value)
+				if is_heap(value.ty) and value.owned:
+					push(Value(name: value.name, ty: value.ty, owned: false))
+				else:
+					push(value)
 
 			Swap:
 				let value1 = pop()
@@ -394,46 +377,37 @@ class CGenerator:
 				gen_goto(label2)
 
 			DecRef(index):
-				let varname = local_variables.get(index)
-				#if is_heap(varname.ty):
-				#    emit("rt_decref({varname.name});")
+				panic("dec-ref not supported")
 
 			Not:
 				let rhs = pop()
-				let varname = new_local_var()
 				let ty = rhs.ty
-				write("const ")
-				gen_typed_name(ty, name: varname)
-				emit(" = {rhs.name} ? 0 : 1;")
-				push(Value(name: varname, ty))
+				let varname = gen_temp_assignment(ty)
+				emit("{rhs.name} ? 0 : 1;")
+				push(Value(name: varname, ty, owned: false))
 
 			Neg:
 				let rhs = pop()
-				let varname = new_local_var()
 				let ty = rhs.ty
-				write("const ")
-				gen_typed_name(ty, name: varname)
-				emit(" = -{rhs.name};")
-				push(Value(name: varname, ty))
+				let varname = gen_temp_assignment(ty)
+				emit("-{rhs.name};")
+				push(Value(name: varname, ty, owned: false))
 
 			Binop(op, ty):
 				let rhs = pop()
 				let lhs = pop()
-				let varname = new_local_var()
-				write("const ")
-				gen_typed_name(ty, name: varname)
+				let varname = gen_temp_assignment(ty)
 				let op_txt = case op:
 					Add: "+"
 					Sub: "-"
 					Multiply: "*"
 					Divide: "/"
 					Modulo: "%"
-				write(" = ")
 				write(lhs.name)
 				write(op_txt)
 				write(rhs.name)
 				emit(";")
-				push(Value(name: varname, ty))
+				push(Value(name: varname, ty, owned: false))
 
 			Bitop(op, ty):
 				let rhs = pop()
@@ -444,32 +418,28 @@ class CGenerator:
 					Xor: "^"
 					Shr: ">>"
 					Shl: "<<"
-				let varname = new_local_var()
-				write("const ")
-				gen_typed_name(ty, name: varname)
-				write(" = (")
+				let varname = gen_temp_assignment(ty)
+				write("(")
 				write(lhs.name)
 				write(" ")
 				write(op_txt)
 				write(" ")
 				write(rhs.name)
 				emit(");")
-				push(Value(name: varname, ty))
+				push(Value(name: varname, ty, owned: false))
 
 			IntToFloat(bits):
 				let value = pop()
-				let varname = new_local_var()
 				let ty = bc.Type.Float(bits)
-				gen_typed_name(ty, name: varname)
-				emit(" = (slang_float{bits}_t)({value.name});")
-				push(Value(name: varname, ty))
+				let varname = gen_temp_assignment(ty)
+				emit("(slang_float{bits}_t)({value.name});")
+				push(Value(name: varname, ty, owned: false))
 
 			FloatToInt(signed, bits):
 				let value = pop()
-				let varname = new_local_var()
 				let ty = bc.Type.Int(signed, bits)
-				gen_typed_name(ty, name: varname)
-				write(" = (")
+				let varname = gen_temp_assignment(ty)
+				write("(")
 				if signed:
 					write("slang_int")
 				else:
@@ -478,14 +448,13 @@ class CGenerator:
 				write("_t)(")
 				write(value.name)
 				emit(");")
-				push(Value(name: varname, ty))
+				push(Value(name: varname, ty, owned: false))
 
 			IntCast(signed, bits):
 				let value = pop()
-				let varname = new_local_var()
 				let ty = bc.Type.Int(signed, bits)
-				gen_typed_name(ty, name: varname)
-				write(" = (")
+				let varname = gen_temp_assignment(ty)
+				write("(")
 				if signed:
 					write("slang_int")
 				else:
@@ -494,17 +463,16 @@ class CGenerator:
 				write("_t)(")
 				write(value.name)
 				emit(");")
-				push(Value(name: varname, ty))
+				push(Value(name: varname, ty, owned: false))
 
 			FloatCast(bits):
 				let value = pop()
-				let varname = new_local_var()
 				let ty = bc.Type.Float(bits)
-				gen_typed_name(ty, name: varname)
-				write(" = (slang_float{bits}_t)(")
+				let varname = gen_temp_assignment(ty)
+				write("(slang_float{bits}_t)(")
 				write(value.name)
 				emit(");")
-				push(Value(name: varname, ty))
+				push(Value(name: varname, ty, owned: false))
 
 			ToOpaque(ty3):
 				gen_to_opaque(ty3)
@@ -518,8 +486,7 @@ class CGenerator:
 					let callee = function.name
 					gen_call(callee, parameter_types: function.parameters, return_types: function.return_types)
 				else:
-					index = index - extern_functions.len()
-					let function = functions.get(index)
+					let function = functions.get(index: index - extern_functions.len())
 					let callee = function.name
 					gen_call(callee, parameter_types: function.parameters, return_types: function.return_types)
 
@@ -529,30 +496,39 @@ class CGenerator:
 
 			LocalGet(index):
 				let local = local_variables.get(index)
-				push(local.value)
+				push(Value(name: local.name, ty: local.ty, owned: false))
 
 			LocalSet(index):
 				let value = pop()
 				let local = local_variables.get(index)
-				if local.writable:
-					write(local.value.name)
-				else:
-					gen_typed_name_2(is_const: true, ty: local.value.ty, name: local.value.name)
+				if is_heap(value.ty):
+					# Increment value ref count, before decrease ref of old ref in case of self assignment:
+					if not value.owned:
+						inc_ref(value)
+					# Release existing ref:
+					write("rt_dec_ref(")
+					write(local.name)
+					emit(");")
+				write(local.name)
 				write(" = ")
 				write(value.name)
 				emit(";")
 
 			GlobalGet(index):
 				let global = globals.get(index)
-				let name = global.name
-				let ty = global.ty
-				let value = Value(name, ty)
-				push(value)
+				push(Value(name: global.name, ty: global.ty, owned: false))
 
 			GlobalSet(index):
 				let value = pop()
-				let name = globals.get(index).name
-				write(name)
+				let global = globals.get(index)
+				if is_heap(global.ty):
+					if not value.owned:
+						inc_ref(value)
+					# Release existing ref:
+					write("rt_dec_ref(")
+					write(global.name)
+					emit(");")
+				write(global.name)
 				write(" = ")
 				write(value.name)
 				emit(";")
@@ -564,6 +540,8 @@ class CGenerator:
 			ParameterSet(index):
 				let value = pop()
 				let param = local_parameters.get(index)
+				if is_heap(param.ty):
+					panic("Parameter writes to heap types not supported")
 				write(param.name)
 				write(" = ")
 				write(value.name)
@@ -572,40 +550,78 @@ class CGenerator:
 			GetAttr(index):
 				let base = pop()
 				let field = get_struct_field(ty: base.ty, index)
-				let varname = new_local_var()
-				gen_typed_name(ty: field.ty, name: varname)
-				write(" = ")
+				let ty = field.ty
+				let varname = gen_temp_assignment(ty)
 				write(base.name)
 				gen_field_access(index, field)
 				emit(";")
-				let value = Value(name: varname, ty: field.ty)
+				var owned = false
+				if is_heap(ty):
+					if base.owned:
+						owned = true
+				let value = Value(name: varname, ty, owned)
+				if owned:
+					inc_ref(value)
 				push(value)
+				drop(base)
 
 			SetAttr(index):
 				let value = pop()
 				let base = pop()
 				let field = get_struct_field(ty: base.ty, index)
-				write(base.name)
-				gen_field_access(index, field)
-				write(" = ")
-				write(value.name)
-				emit(";")
+				if is_heap(value.ty):
+					# Increment ref count:
+					if not value.owned:
+						inc_ref(value)
+					# Release existing ref:
+					write("rt_replace_owned((void**)&")
+					write(base.name)
+					gen_field_access(index, field)
+					write(", ")
+					write(value.name)
+					emit(");")
+				else:
+					write(base.name)
+					gen_field_access(index, field)
+					write(" = ")
+					write(value.name)
+					emit(";")
+				drop(base)
 
 			GetIndex:
 				let index = pop()
 				let base = pop()
-				let varname = new_local_var()
 				let ty = bc.get_element_type_from_type(base.ty)
-				gen_typed_name(ty, name: varname)
-				emit(" = {base.name}[{index.name}];")
-				let value = Value(name: varname, ty)
+				let varname = gen_temp_assignment(ty)
+				write(base.name)
+				emit("[{index.name}];")
+				let value = Value(name: varname, ty, owned: false)
 				push(value)
+				if base.owned:
+					panic("Not impl: drop of indexed array")
+				drop(base)
+				# drop(index) # Scalar value
 
 			SetIndex:
 				let value = pop()
 				let index = pop()
 				let base = pop()
-				emit("{base.name}[{index.name}] = {value.name};")
+				if is_heap(value.ty):
+					# Increment ref count:
+					if not value.owned:
+						inc_ref(value)
+
+					write("rt_replace_owned((void**)&")
+					write(base.name)
+					write("[{index.name}]")
+					write(", ")
+					write(value.name)
+					emit(");")
+				else:
+					write(base.name)
+					emit("[{index.name}] = {value.name};")
+				drop(base)
+				#drop(index) a scalar anyway
 
 			Return(amount):
 				if amount > 0:
@@ -613,12 +629,18 @@ class CGenerator:
 						let values = pop_n(count: amount - 1)
 						var index = 0
 						for value in values:
+							if not value.owned:
+								inc_ref(value)
 							let target = local_return_ptrs.get(index)
 							emit("*{target.name} = {value.name};")
 							index += 1
 					let value = pop()
+					if not value.owned:
+						inc_ref(value)
+					gen_pre_return()
 					emit("return {value.name};")
 				else:
+					gen_pre_return()
 					emit("return;")
 
 			Unreachable:
@@ -626,80 +648,85 @@ class CGenerator:
 
 			LoadFunc(index):
 				let callee = get_function_callee(index)
-				push(Value(name: callee, ty: bc.Type.Ptr()))
+				push(Value(name: callee, ty: bc.Type.FuncPtr(), owned: false))
 
 			StructLiteral(index):
 				let struct_def = structs.get(index)
-				let varname = new_local_var()
 				let ty = bc.Type.StructRef(index)
-				gen_typed_name(ty, name: varname)
+				let varname = gen_temp_assignment(ty)
 				let name = struct_def.name
-				write(" = rt_malloc_with_destroyer(sizeof(struct {name}), ")
+				write("rt_malloc_struct(sizeof(struct {name}), ")
 				if has_heap_field(struct_def):
 					write("{name}_type_info")
 				else:
 					write("NULL")
 				emit(");")
-				push(Value(name: varname, ty))
+				push(Value(name: varname, ty, owned: true))
 
 			ArrayLiteral(ty2):
 				let size = pop()
-				let varname = new_local_var()
 				let ty = bc.Type.Array(ty: ty2)
-				gen_typed_name(ty, name: varname)
-				write(" = rt_malloc({size.name} * sizeof(")
+				let varname = gen_temp_assignment(ty)
+				write("rt_malloc_array({size.name}, sizeof(")
 				gen_typed_name(ty: ty2, name: "")
-				emit("));")
-				push(Value(name: varname, ty))
+				write("), ")
+				if is_heap(ty: ty2):
+					write("1")  # array of pointers
+				else:
+					write("0")
+				emit(");")
+				push(Value(name: varname, ty, owned: true))
 
 	fn gen_literal(literal: bc.LiteralValue):
 		case literal:
 			Int(value):
-				push(Value(name: "{value}", ty: bc.Type.Int(signed: true, bits: 64)))
+				push(Value(name: "{value}", ty: bc.Type.Int(signed: true, bits: 64), owned: false))
 			Float(value):
-				push(Value(name: float_to_str2(value, digits: 20), ty: bc.Type.Float(bits: 64)))
+				push(Value(name: float_to_str2(value, digits: 20), ty: bc.Type.Float(bits: 64), owned: false))
 			Str(value):
-				let varname = new_local_var()
 				let ty = bc.Type.Str()
-				gen_typed_name(ty, name: varname)
-				emit(" = \"{escape_string(value)}\";")
-				push(Value(name: varname, ty))
+				let varname = gen_temp_assignment(ty)
+				emit("rt_str_new(\"{escape_string(value)}\");")
+				push(Value(name: varname, ty, owned: true))
 			Bool(value):
-				if value:
-					push(Value(name: "1", ty: bc.Type.Bool()))
-				else:
-					push(Value(name: "0", ty: bc.Type.Bool()))
+				let name = "1" if value else "0"
+				push(Value(name, ty: bc.Type.Bool(), owned: false))
 			Char(value):
 				let text = if needs_escaping(c: value):
 					"'{escape_char(c: value)}'"
 				else:
 					"'{value}'"
-				push(Value(name: text, ty: bc.Type.Char()))
+				push(Value(name: text, ty: bc.Type.Char(), owned: false))
 			Null:
-				push(Value(name: "0", ty: bc.Type.Ptr()))
+				push(Value(name: "0", ty: bc.Type.Ptr(), owned: false))
 
 	fn gen_to_opaque(ty3: bc.Type):
 		let value = pop()
-		let varname = new_local_var()
 		let ty = bc.Type.Ptr()
-		gen_typed_name(ty, name: varname)
-		write(" = ")
+		let varname = gen_temp_assignment(ty)
+		var owned = value.owned
 		case ty3:
 			Float(bits):
 				write("SLANG_BOX_FLOAT")
 				write(str(bits))
+				owned = true
 			Int(signed, bits):
 				if signed:
 					write("SLANG_BOX_INT")
 				else:
 					write("SLANG_BOX_UINT")
+				owned = true
 				write(str(bits))
 			Bool:
 				write("SLANG_BOX_BOOL")
+				owned = true
 			Char:
 				write("SLANG_BOX_CHAR")
+				owned = true
 			Ptr:
 				pass
+			FuncPtr:
+				panic("Cannot box function pointer")
 			Str:
 				write("(void*)")
 			StructRef(index):
@@ -711,14 +738,13 @@ class CGenerator:
 		write("(")
 		write(value.name)
 		emit(");")
-		push(Value(name: varname, ty))
+		push(Value(name: varname, ty, owned))
 
 	fn gen_from_opaque(ty: bc.Type):
 		# Unbox value from opaque pointer type
 		let value = pop()
-		let varname = new_local_var()
-		gen_typed_name(ty, name: varname)
-		write(" = ")
+		let varname = gen_temp_assignment(ty)
+		var owned = value.owned
 		case ty:
 			Int(signed, bits):
 				if signed:
@@ -726,15 +752,19 @@ class CGenerator:
 				else:
 					write("SLANG_UNBOX_UINT")
 				write(str(bits))
+				owned = false
 			Float(bits):
 				write("SLANG_UNBOX_FLOAT")
 				write(str(bits))
+				owned = false
 			Bool:
 				write("SLANG_UNBOX_BOOL")
+				owned = false
 			Str:
 				write("(char*)")
 			Char:
 				write("SLANG_UNBOX_CHAR")
+				owned = false
 			Function(parameter_types, return_type):
 				panic("Cannot unbox ptr to function")
 			Array(element_type):
@@ -743,6 +773,8 @@ class CGenerator:
 				write("*)")
 			Ptr:
 				pass
+			FuncPtr:
+				panic("Cannot unbox ptr to function pointer")
 			StructRef(index):
 				write("(")
 				gen_typed_name(ty, name: "")
@@ -750,7 +782,9 @@ class CGenerator:
 		write("(")
 		write(value.name)
 		emit(");")
-		let value2 = Value(name: varname, ty)
+		if value.owned and not owned:
+			dec_ref(value)
+		let value2 = Value(name: varname, ty, owned)
 		push(value2)
 
 	fn get_function_callee(index: int) -> str:
@@ -777,38 +811,34 @@ class CGenerator:
 
 	fn gen_call(callee: str, parameter_types: Vector[bc.TypedName], return_types: Vector[bc.Type]):
 		let args = pop_n(count: parameter_types.len())
-		let return_vars: Vector[str] = new_vector()
+		let return_vars: Vector[Value] = new_vector()
 		for ret_ty in return_types:
-			let varname = new_local_var()
-			return_vars.append(varname)
-			push(Value(name: varname, ty: ret_ty))
+			return_vars.append(Value(name: new_local_var(), ty: ret_ty, owned: true))
 
 		var index = 1
-		while index < return_types.len():
-			let ty = return_types.get(index)
-			let varname = return_vars.get(index)
-			gen_typed_name(ty, name: varname)
+		while index < return_vars.len():
+			let return_variable = return_vars.get(index)
+			gen_typed_name(ty: return_variable.ty, name: return_variable.name)
 			emit(";")
 			index += 1
 
-		if not return_types.is_empty():
-			let ty = return_types.get(index: 0)
-			let varname = return_vars.get(index: 0)
-			gen_typed_name(ty, name: varname)
+		if not return_vars.is_empty():
+			let return_variable = return_vars.get(index: 0)
+			gen_typed_name(ty: return_variable.ty, name: return_variable.name)
 			write(" = ")
 
 		write(callee)
 		write("(")
 		var first = true
 		index = 1
-		while index < return_types.len():
+		while index < return_vars.len():
 			if first:
 				first = false
 			else:
 				write(", ")
-			let varname = return_vars.get(index)
+			let return_variable = return_vars.get(index)
 			write("&")
-			write(varname)
+			write(return_variable.name)
 			index += 1
 		for arg in args:
 			if first:
@@ -817,6 +847,25 @@ class CGenerator:
 				write(", ")
 			write(arg.name)
 		emit(");")
+
+		# After the call, drop all owned arguments
+		for arg in args:
+			if is_heap(arg.ty) and arg.owned:
+				dec_ref(arg)
+
+		for ret_value in return_vars:
+			push(ret_value)
+
+	fn gen_pre_return():
+		for local in local_variables:
+			if is_heap(local.ty):
+				emit("if ({local.name} != NULL) rt_dec_ref({local.name});")
+
+	fn gen_temp_assignment(ty: bc.Type) -> str:
+		let name = new_local_var()
+		gen_typed_name_2(is_const: true, ty, name)
+		write(" = ")
+		name
 
 	fn gen_typed_name(ty: bc.Type, name: str):
 		gen_typed_name_2(is_const: false, ty, name)
@@ -858,6 +907,11 @@ class CGenerator:
 				if is_const:
 					write("const ")
 				write(name)
+			FuncPtr:
+				write("void* ")
+				if is_const:
+					write("const ")
+				write(name)
 			StructRef(index):
 				let struct_def = structs.get(index)
 				write("struct {struct_def.name}* ")
@@ -894,6 +948,18 @@ class CGenerator:
 					write("const ")
 				write(name)
 
+	fn inc_ref(value?: Value):
+		if is_heap(value.ty):
+			write("rt_inc_ref(")
+			write(value.name)
+			emit(");")
+
+	fn dec_ref(value?: Value):
+		if is_heap(value.ty):
+			write("rt_dec_ref(")
+			write(value.name)
+			emit(");")
+
 	fn push(value?: Value):
 		stack.append(value)
 
@@ -907,6 +973,13 @@ class CGenerator:
 
 	fn pop() -> Value:
 		stack.pop_last()
+
+	fn drop(value?: Value):
+		if is_heap(value.ty) and value.owned:
+			# Warning here? This is a bit odd
+			emit("// A bit odd (dec ref of dropped value):")
+			# TODO?
+			dec_ref(value)
 
 	fn gen_label_str(index?: uint32):
 		write("L")

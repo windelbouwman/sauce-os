@@ -33,8 +33,8 @@ LDFLAGS=-shared -Wl,--no-undefined -Wl,--as-needed
 SLANG_EXAMPLES := $(wildcard examples/snippets/*.slang)
 SLANG2_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang/%.slang, $(SLANG_EXAMPLES))
 SLANG3_EXAMPLES := $(patsubst examples/snippets/%.slang, build/slang3/%.slang, $(SLANG_EXAMPLES))
-WASM_EXAMPLES := $(filter-out build/wasm/snippets/global_variables.wasm, $(patsubst examples/snippets/%.slang, build/wasm/snippets/%.wasm, $(SLANG_EXAMPLES)))
-WAT_EXAMPLES := $(filter-out build/wat/snippets/global_variables.wasm, $(patsubst examples/snippets/%.slang, build/wat/snippets/%.wasm, $(SLANG_EXAMPLES)))
+WASM_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wasm/snippets/%.wasm, $(SLANG_EXAMPLES))
+WAT_EXAMPLES := $(patsubst examples/snippets/%.slang, build/wat/snippets/%.wasm, $(SLANG_EXAMPLES))
 EXAMPLES_PY := $(patsubst examples/snippets/%.slang, build/python/snippet-%.py, $(SLANG_EXAMPLES))
 PY_APPS := $(patsubst Apps/%.slang, build/python/app-%.py, $(SLANG_APPS))
 PY_AOC := $(patsubst examples/aoc/%/main.slang, build/python/aoc-%.py, $(AOC_APPS))
@@ -49,10 +49,12 @@ WASM_APPS := $(patsubst Apps/%.slang, build/wasm/apps/%.wasm, $(SLANG_APPS))
 BC_EXAMPLES := $(patsubst examples/snippets/%.slang, build/bc/%.txt, $(SLANG_EXAMPLES))
 TESTS := $(wildcard tests/test_*.slang)
 ALL_TEST_RUNS_C := $(patsubst tests/test_%.slang, run-test-c-%, $(TESTS))
+ALL_VALGRIND_SNIPPET_C := $(patsubst examples/snippets/%.slang, valgrind-snippet-c-%, $(SLANG_EXAMPLES))
 ALL_TEST_RUNS_C2 := $(patsubst tests/test_%.slang, run-test-c2-%, $(TESTS))
 ALL_TEST_RUNS_PY := $(patsubst tests/test_%.slang, run-test-py-%, $(TESTS))
 ALL_TEST_RUNS_X86 := $(patsubst tests/test_%.slang, run-test-x86-%, $(TESTS))
 X86_TESTS := $(patsubst tests/test_%.slang, build/x86/test_%.exe, $(TESTS))
+ALL_VALGRIND_SNIPPET_X86 := $(patsubst examples/snippets/%.slang, valgrind-snippet-x86-%, $(SLANG_EXAMPLES))
 WASM_TESTS := $(patsubst tests/test_%.slang, build/wasm/tests/test_%.wasm, $(TESTS))
 WAT_TESTS := $(patsubst tests/test_%.slang, build/wat/tests/test_%.wasm, $(TESTS))
 
@@ -68,6 +70,8 @@ check-c: ${ALL_TEST_RUNS_C}
 check-c2: ${ALL_TEST_RUNS_C2}
 check-py: ${ALL_TEST_RUNS_PY}
 check-x86: ${ALL_TEST_RUNS_X86}
+all-valgrind-c: ${ALL_VALGRIND_SNIPPET_C}
+all-valgrind-x86: ${ALL_VALGRIND_SNIPPET_X86}
 
 # Profiling
 profile: ${COMPILER5} | ${BUILDDIR}
@@ -172,10 +176,15 @@ ${BUILDDIR}/c/snippets:
 	mkdir -p $@
 
 ${BUILDDIR}/c/snippets/%.c: examples/snippets/%.slang runtime/std.slang ${SLANGC_DEPS} | ${BUILDDIR}/c/snippets
+# 	valgrind --leak-check=full --error-exitcode=1
 	${SLANGC} --backend-c -o $@ $< runtime/std.slang
 
 ${BUILDDIR}/c/snippets/%.exe: ${BUILDDIR}/c/snippets/%.c ${BUILDDIR}/slangrt.a runtime/slangrt.h
 	gcc ${CFLAGS} -o $@ $< ${BUILDDIR}/slangrt.a -lm
+
+.PHONY: valgrind-snippet-c-%
+valgrind-snippet-c-%: ${BUILDDIR}/c/snippets/%.exe
+	valgrind --leak-check=full --error-exitcode=1 $<
 
 # Libraries:
 ${BUILDDIR}/c/libbase.c ${BUILDDIR}/c/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/c
@@ -226,6 +235,7 @@ ${BUILDDIR}/c/libcompiler.so: ${BUILDDIR}/c/libcompiler.o ${BUILDDIR}/c/libbase.
 .PHONY: run-test-c-%
 .PRECIOUS: ${BUILDDIR}/c/tests/test_%.c ${BUILDDIR}/c/tests/test_%.exe
 run-test-c-%: ${BUILDDIR}/c/tests/test_%.exe
+#	valgrind --leak-check=full --error-exitcode=1 $<
 	$<
 
 ${BUILDDIR}/c/tests:
@@ -457,6 +467,10 @@ ${BUILDDIR}/x86/snippets/%.o: examples/snippets/%.slang ${SLANGC_DEPS} | ${BUILD
 
 ${BUILDDIR}/x86/snippets/%.exe: ${BUILDDIR}/x86/snippets/%.o ${BUILDDIR}/slangrt.a
 	gcc -o $@ $< ${BUILDDIR}/slangrt.a
+
+.PHONY: valgrind-snippet-x86-%
+valgrind-snippet-x86-%: ${BUILDDIR}/x86/snippets/%.exe
+	valgrind --leak-check=full --error-exitcode=1 $<
 
 # Libs - Objects
 ${BUILDDIR}/x86/libbase.o ${BUILDDIR}/x86/libbase.json: ${BASE_LIB_SRCS} ${SLANGC_DEPS} | ${BUILDDIR}/x86
@@ -815,6 +829,16 @@ ${BUILDDIR}/slangrt.o: runtime/slangrt.c runtime/slangrt.h | ${BUILDDIR}
 
 ${BUILDDIR}/slangrt_mm.o: runtime/slangrt_mm.c runtime/slangrt.h | ${BUILDDIR}
 	gcc ${CFLAGS} -fPIC -c -o $@ $<
+
+${BUILDDIR}/slangrt_slab.o: runtime/slangrt_slab.c runtime/slangrt.h | ${BUILDDIR}
+	gcc ${CFLAGS} -fPIC -c -o $@ $<
+
+${BUILDDIR}/test_rt: runtime/test_rt.c ${SLANGRT_OBJS} | ${BUILDDIR}
+	gcc ${CFLAGS} -o $@ runtime/test_rt.c ${SLANGRT_OBJS}
+
+.PHONY: mm
+mm: ${BUILDDIR}/test_rt
+	valgrind ${BUILDDIR}/test_rt
 
 .PHONY: clean
 clean:

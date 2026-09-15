@@ -213,7 +213,7 @@ class Parser:
 				ParenthesisOpen:
 					move_token()
 					loop:
-						payload_types.append(parse_parameter_def().ty)
+						payload_types.append(parse_enum_payload())
 
 						let tok4 = get_token()
 						case tok4.kind:
@@ -237,6 +237,22 @@ class Parser:
 			parse_newline()
 
 		ast.enum_def(is_pub, name: name_at.name, id: new_id(), docstring, location: name_at.location, type_parameters, variants)
+
+	fn parse_enum_payload() -> ast.Type except ParseError:
+		let name_at = parse_name()
+		let label_is_optional = has_parsed_question()
+		parse_colon()
+
+		# Optional '&' before type
+		let is_borrowed = case m_peek.kind:
+			BitAnd:
+				move_token()
+				true
+		else:
+			false
+
+		let ty = parse_type()
+		ty
 
 	fn parse_type_parameters() -> List[ast.TypeParameter] except ParseError:
 		let type_parameters: List[ast.TypeParameter] = List()

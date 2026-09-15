@@ -57,6 +57,7 @@ pub enum Type:
 	Str
 	Char
 	Ptr
+	FuncPtr
 	StructRef(index: int)
 	Array(element_type: Type)
 	Function(parameter_types: List[Type], return_types: Vector[Type])
@@ -330,6 +331,7 @@ pub fn type_to_string(ty?: Type) -> str:
 			"float{bits}"
 		Bool: "bool"
 		Ptr: "ptr"
+		FuncPtr: "func-ptr"
 		Str: "str"
 		Char: "char"
 		StructRef(index):

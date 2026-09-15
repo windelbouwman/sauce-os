@@ -191,6 +191,7 @@ const slangrt = {
   std_pack_f64,
   std_pack_f32,
   exception_tag,
+  emptyString: "",
 };
 
 async function loadModule(path, importObject) {
